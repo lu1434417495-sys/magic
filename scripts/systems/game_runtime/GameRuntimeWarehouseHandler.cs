@@ -49,7 +49,7 @@ public sealed class GameRuntimeWarehouseHandler
         return BuildWarehouseWindowDataSnapshotPlain();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyWarehouseTyped()
+    internal RuntimeCommandResult CommandOpenPartyWarehouseTyped()
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -72,7 +72,7 @@ public sealed class GameRuntimeWarehouseHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandDiscardOneTyped(
+    internal RuntimeCommandResult CommandDiscardOneTyped(
         StringName itemId,
         StringName instanceId = default
     )
@@ -97,9 +97,9 @@ public sealed class GameRuntimeWarehouseHandler
                     : BuildDiscardFailureMessage(result);
             UpdateStatus(failureMessage);
             return result.FailureKind == WarehouseDiscardFailureKind.StageFailed
-                ? GameRuntimeFacade.RuntimeCommandResult.Failure(
+                ? RuntimeCommandResult.Failure(
                     failureMessage,
-                    GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                    RuntimeCommandCode.PersistenceFailure
                 )
                 : CommandErrorTyped(failureMessage);
         }
@@ -112,7 +112,7 @@ public sealed class GameRuntimeWarehouseHandler
         return CommandOkTyped(successMessage);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandDiscardAllTyped(StringName itemId)
+    internal RuntimeCommandResult CommandDiscardAllTyped(StringName itemId)
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -138,15 +138,15 @@ public sealed class GameRuntimeWarehouseHandler
                 == WarehouseDiscardFailureKind.UnsupportedDiscardAllEquipment
             )
             {
-                return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                return RuntimeCommandResult.Failure(
                     failureMessage,
-                    GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+                    RuntimeCommandCode.InvalidArgument
                 );
             }
             return result.FailureKind == WarehouseDiscardFailureKind.StageFailed
-                ? GameRuntimeFacade.RuntimeCommandResult.Failure(
+                ? RuntimeCommandResult.Failure(
                     failureMessage,
-                    GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                    RuntimeCommandCode.PersistenceFailure
                 )
                 : CommandErrorTyped(failureMessage);
         }
@@ -160,7 +160,7 @@ public sealed class GameRuntimeWarehouseHandler
         return CommandOkTyped(successMessage);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandUseItemTyped(
+    internal RuntimeCommandResult CommandUseItemTyped(
         StringName itemId,
         StringName memberId = default,
         PartyItemUseService.PartyItemUseOptions options = null
@@ -187,9 +187,9 @@ public sealed class GameRuntimeWarehouseHandler
                     : BuildWarehouseUseFailureMessage(result);
             UpdateStatus(failureMessage);
             return result.FailureKind == WarehouseUseFailureKind.StageFailed
-                ? GameRuntimeFacade.RuntimeCommandResult.Failure(
+                ? RuntimeCommandResult.Failure(
                     failureMessage,
-                    GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                    RuntimeCommandCode.PersistenceFailure
                 )
                 : CommandErrorTyped(failureMessage);
         }
@@ -204,7 +204,7 @@ public sealed class GameRuntimeWarehouseHandler
         return CommandOkTyped(successMessage);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandAddItemTyped(
+    internal RuntimeCommandResult CommandAddItemTyped(
         StringName itemId,
         int quantity
     )
@@ -217,9 +217,9 @@ public sealed class GameRuntimeWarehouseHandler
         if (context.IsBattleActive)
             return CommandErrorTyped("当前处于战斗中，不能直接改动共享仓库。");
         if (quantity <= 0)
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 "加入数量必须大于 0。",
-                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+                RuntimeCommandCode.InvalidArgument
             );
         if (!context.WarehouseReady)
             return CommandErrorTyped("共享仓库服务尚未准备完成。");
@@ -249,9 +249,9 @@ public sealed class GameRuntimeWarehouseHandler
                     : string.Format("{0} 当前无法加入共享仓库。", result.ItemName);
             UpdateStatus(failureMessage);
             return result.FailureKind == WarehouseAddFailureKind.StageFailed
-                ? GameRuntimeFacade.RuntimeCommandResult.Failure(
+                ? RuntimeCommandResult.Failure(
                     failureMessage,
-                    GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                    RuntimeCommandCode.PersistenceFailure
                 )
                 : CommandErrorTyped(failureMessage);
         }
@@ -528,24 +528,24 @@ public sealed class GameRuntimeWarehouseHandler
         return _port != null;
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
+    private RuntimeCommandResult CommandOkTyped(string message = "")
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
+        return RuntimeCommandResult.Success(message ?? "");
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
+    private RuntimeCommandResult CommandErrorTyped(string message)
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             message ?? "",
-            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+            RuntimeCommandCode.InvalidState
         );
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
+    private RuntimeCommandResult RuntimeUnavailableTypedResult()
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             RuntimeUnavailableMessage,
-            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+            RuntimeCommandCode.RuntimeUnavailable
         );
     }
 

@@ -331,15 +331,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         string settlementId
     )
     {
-        WorldRuntimeData worldData = _owner.Runtime?.GetActiveWorldRuntimeData();
-        if (worldData == null || string.IsNullOrEmpty(settlementId))
-            return GameRuntimeSettlementCommandHandler.EmptyPlainDictionary();
-        foreach (WorldMapSettlementRecordData settlement in worldData.Settlements)
-        {
-            if (settlement != null && settlement.SettlementId == settlementId)
-                return settlement.BuildSaveSnapshotPlain();
-        }
-        return GameRuntimeSettlementCommandHandler.EmptyPlainDictionary();
+        return _owner.GetSettlementRecordSnapshotPlain(settlementId);
     }
 
     private static IReadOnlyList<object> BuildSettlementServiceIdentityFactsPlain(
@@ -442,22 +434,22 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
 
     internal Dictionary<string, object> CloneActiveShopContextPlain() =>
         _owner._has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(_owner.Runtime.GetActiveShopContextPlain())
+            ? RuntimePlainPayload.CloneDictionary(_owner.GetActiveShopContextPlain())
             : new Dictionary<string, object>(StringComparer.Ordinal);
 
     internal Dictionary<string, object> CloneActiveContractBoardContextPlain() =>
         _owner._has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(_owner.Runtime.GetActiveContractBoardContextPlain())
+            ? RuntimePlainPayload.CloneDictionary(_owner.GetActiveContractBoardContextPlain())
             : new Dictionary<string, object>(StringComparer.Ordinal);
 
     internal Dictionary<string, object> CloneActiveForgeContextPlain() =>
         _owner._has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(_owner.Runtime.GetActiveForgeContextPlain())
+            ? RuntimePlainPayload.CloneDictionary(_owner.GetActiveForgeContextPlain())
             : new Dictionary<string, object>(StringComparer.Ordinal);
 
     internal Dictionary<string, object> CloneActiveStagecoachContextPlain() =>
         _owner._has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(_owner.Runtime.GetActiveStagecoachContextPlain())
+            ? RuntimePlainPayload.CloneDictionary(_owner.GetActiveStagecoachContextPlain())
             : new Dictionary<string, object>(StringComparer.Ordinal);
 
     internal static bool WindowDataMatchesPanelKindPlain(

@@ -1,7 +1,6 @@
 using System;
 using Godot;
 using Godot.Collections;
-using RuntimeCommandResult = GameRuntimeFacade.RuntimeCommandResult;
 
 internal sealed class WorldMapRuntimeProxy
 {
@@ -576,7 +575,7 @@ internal sealed class WorldMapRuntimeProxy
         if (command == null)
             return RuntimeCommandResult.Failure(
                 "战斗命令无效。",
-                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+                RuntimeCommandCode.InvalidArgument
             );
         _runtime.ResetLastCommandBattlePresentationDelta();
         var refreshMode = _runtime.IssueBattleCommand(command);
@@ -585,7 +584,7 @@ internal sealed class WorldMapRuntimeProxy
         var message = _runtime.GetStatusText();
         RuntimeCommandResult result = RuntimeCommandResult.Success(
             message,
-            GameRuntimeFacade.RuntimeCommandCode.Ok,
+            RuntimeCommandCode.Ok,
             refreshMode
         );
         RenderRuntimeCommandResult(result);
@@ -741,7 +740,7 @@ internal sealed class WorldMapRuntimeProxy
     {
         return RuntimeCommandResult.Failure(
             RuntimeUnavailableMessage,
-            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+            RuntimeCommandCode.RuntimeUnavailable
         );
     }
 }

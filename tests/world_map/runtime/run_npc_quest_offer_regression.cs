@@ -84,7 +84,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -191,7 +191,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service_contract_board",
                     new GDictionary
@@ -250,7 +250,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_merchant_no_offer",
                     new GDictionary
@@ -303,7 +303,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_elder_locked",
                     new GDictionary
@@ -370,7 +370,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -382,7 +382,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 );
             _test.True(openResult.Ok, $"打开 NPC offer 应成功。message={openResult.Message}");
 
-            GameRuntimeFacade.RuntimeCommandResult firstSubmit =
+            RuntimeCommandResult firstSubmit =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -396,7 +396,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 $"首次提交应进入确认状态。message={firstSubmit.Message}"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult secondSubmit =
+            RuntimeCommandResult secondSubmit =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -467,7 +467,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             _test.Eq(addResult.AddedQuantity, 3, "NPC 提交物品回归应能准备三份 healing_herb。");
             _test.Eq(addResult.RemainingQuantity, 0, "准备药草时不应剩余未放入仓库的数量。");
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_village_healer",
                     new GDictionary
@@ -486,7 +486,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             _test.Eq(entry?.StateId ?? "", "available", "未接取药草任务应处于 available。");
             _test.Eq(entry?.ActionLabel ?? "", "接受委托", "available 状态应显示接受动作。");
 
-            GameRuntimeFacade.RuntimeCommandResult acceptResult =
+            RuntimeCommandResult acceptResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_village_healer",
                     new GDictionary
@@ -503,7 +503,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             _test.Eq(entry?.ActionLabel ?? "", "提交物品", "采集任务进行中应显示提交物品。");
             _test.True(entry?.IsEnabled ?? false, "采集任务进行中应允许尝试提交物品。");
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_village_healer",
                     new GDictionary
@@ -524,7 +524,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             _test.Eq(entry?.StateId ?? "", "claimable", "提交后面板应刷新为 claimable。");
             _test.Eq(entry?.ActionLabel ?? "", "领取奖励", "claimable 状态应显示领取奖励。");
 
-            GameRuntimeFacade.RuntimeCommandResult claimResult =
+            RuntimeCommandResult claimResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_village_healer",
                     new GDictionary
@@ -592,7 +592,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 }
             );
 
-            GameRuntimeFacade.RuntimeCommandResult firstSubmit =
+            RuntimeCommandResult firstSubmit =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -623,7 +623,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 "上下文应记录 npc_quest_offer 确认来源。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult resubmitWithoutConfirm =
+            RuntimeCommandResult resubmitWithoutConfirm =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -642,7 +642,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 "pending 后未带 confirm_accept 应返回确认提示。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult secondSubmit =
+            RuntimeCommandResult secondSubmit =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -714,7 +714,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 }
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_elder_locked",
                     new GDictionary
@@ -777,7 +777,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         {
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -841,7 +841,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             );
 
             runtime.SetActiveSettlementId("other_settlement");
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -903,7 +903,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 }
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_other_service",
                     new GDictionary
@@ -956,7 +956,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_no_quests",
                     new GDictionary
@@ -1032,7 +1032,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 "默认应选中首个任务。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -1095,7 +1095,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 }
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -1156,7 +1156,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 }
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -1218,7 +1218,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 }
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -1280,7 +1280,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 }
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -1355,7 +1355,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 "关闭后 NPC offer 上下文应被清除。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary
@@ -1488,7 +1488,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 }
             );
 
-            GameRuntimeFacade.RuntimeCommandResult submitResult =
+            RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
                     new GDictionary

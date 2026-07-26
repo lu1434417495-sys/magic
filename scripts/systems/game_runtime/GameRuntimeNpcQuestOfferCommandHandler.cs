@@ -51,7 +51,7 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
 
     internal NpcQuestOfferWindowData GetActiveNpcQuestOfferContextTyped()
     {
-        return _owner._has_runtime() ? _owner.Runtime.GetActiveNpcQuestOfferData() : null;
+        return _owner.GetActiveNpcQuestOfferData();
     }
 
     internal bool _try_open_npc_quest_offer(
@@ -247,7 +247,7 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
         }
 
         StringName questId = request.QuestId;
-        QuestDefinition questDefinition = _owner.Runtime.GetQuestDef(questId);
+        QuestDefinition questDefinition = _owner.GetQuestDefinition(questId);
         if (questDefinition == null || questDefinition.ProviderKind != "npc")
         {
             string notNpcMessage = "该任务不是 NPC 委托。";
@@ -326,10 +326,10 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
         if (hasPendingConfirmation)
             _clear_npc_quest_offer_confirmation_context();
 
-        GameRuntimeFacade.RuntimeCommandResult commandResult;
+        RuntimeCommandResult commandResult;
         if (stateId == "claimable")
         {
-            commandResult = _owner.Runtime.CommandClaimQuestTyped(questId);
+            commandResult = _owner.CommandClaimQuestTyped(questId);
         }
         else if (stateId == "active")
         {
@@ -353,7 +353,7 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
                 _owner.UpdateStatus(activeMessage);
                 return _owner.CommandError(activeMessage);
             }
-            commandResult = _owner.Runtime.CommandSubmitQuestItemTyped(
+            commandResult = _owner.CommandSubmitQuestItemTyped(
                 questId,
                 submitItemObjectiveId
             );
@@ -374,7 +374,7 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
         }
         else
         {
-            commandResult = _owner.Runtime.CommandAcceptQuestTyped(
+            commandResult = _owner.CommandAcceptQuestTyped(
                 questId,
                 questDefinition.IsRepeatable
             );

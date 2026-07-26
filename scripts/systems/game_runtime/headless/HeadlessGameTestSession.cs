@@ -17,22 +17,22 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         public SessionCommandOutcome(
             bool ok,
             string message,
-            GameRuntimeFacade.RuntimeCommandCode code = GameRuntimeFacade.RuntimeCommandCode.None
+            RuntimeCommandCode code = RuntimeCommandCode.None
         )
         {
             Ok = ok;
             Message = message ?? "";
             Code =
-                code != GameRuntimeFacade.RuntimeCommandCode.None
+                code != RuntimeCommandCode.None
                     ? code
                     : ok
-                        ? GameRuntimeFacade.RuntimeCommandCode.Ok
-                        : GameRuntimeFacade.RuntimeCommandCode.Failed;
+                        ? RuntimeCommandCode.Ok
+                        : RuntimeCommandCode.Failed;
         }
 
         public bool Ok { get; }
         public string Message { get; }
-        public GameRuntimeFacade.RuntimeCommandCode Code { get; }
+        public RuntimeCommandCode Code { get; }
     }
 
     private sealed class BattleEquipmentInstanceSelection
@@ -149,7 +149,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return new SessionCommandOutcome(
                 false,
                 $"未找到世界预设 {preset_id}。",
-                GameRuntimeFacade.RuntimeCommandCode.NotFound
+                RuntimeCommandCode.NotFound
             );
         }
 
@@ -164,7 +164,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return new SessionCommandOutcome(
                 false,
                 $"创建世界失败，错误码 {createError}。",
-                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                RuntimeCommandCode.PersistenceFailure
             );
         }
         return EnsureWorldLoadedTyped();
@@ -178,7 +178,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return new SessionCommandOutcome(
                 false,
                 "存档 ID 不能为空。",
-                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+                RuntimeCommandCode.InvalidArgument
             );
         }
 
@@ -189,7 +189,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return new SessionCommandOutcome(
                 false,
                 $"加载存档失败，错误码 {loadError}。",
-                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                RuntimeCommandCode.PersistenceFailure
             );
         }
         return EnsureWorldLoadedTyped();
@@ -203,7 +203,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return new SessionCommandOutcome(
                 false,
                 "当前没有已加载的世界。",
-                GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+                RuntimeCommandCode.RuntimeUnavailable
             );
         }
 
@@ -527,7 +527,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         return new SessionCommandOutcome(
             true,
             "战斗已按正式目标结算。",
-            GameRuntimeFacade.RuntimeCommandCode.Ok
+            RuntimeCommandCode.Ok
         );
     }
 
@@ -654,8 +654,8 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             report.Ok,
             report.Text,
             report.Ok
-                ? GameRuntimeFacade.RuntimeCommandCode.Ok
-                : GameRuntimeFacade.RuntimeCommandCode.InvalidState
+                ? RuntimeCommandCode.Ok
+                : RuntimeCommandCode.InvalidState
         );
     }
 

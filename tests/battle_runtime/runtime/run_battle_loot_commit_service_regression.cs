@@ -201,7 +201,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             return;
         try
         {
-            GameRuntimeFacade.RuntimeCommandResult commandResult =
+            RuntimeCommandResult commandResult =
                 fixture.Facade.CommandBattleWaitOrResolveTyped();
 
             _test.True(
@@ -288,7 +288,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 "未确认开始战斗前，TU 不应增长。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult confirmResult =
+            RuntimeCommandResult confirmResult =
                 fixture.Facade.CommandConfirmBattleStartTyped();
             _test.True(confirmResult.Ok, "确认开始战斗命令应成功。");
             using GodotProjectionLease<GDictionary> confirmedSnapshotLease =
@@ -307,7 +307,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 "确认后 battle modal_state 应清空。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult tickResult =
+            RuntimeCommandResult tickResult =
                 fixture.Facade.CommandBattleTickTyped(1);
             _test.True(tickResult.Ok, "确认后 battle tick 应成功。");
             _test.Eq(
@@ -350,14 +350,14 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             encounterAnchor.growth_stage = 3;
             fixture.GameSession.SetBattleSaveLock(true);
             fixture.Facade.StartBattle(encounterAnchor);
-            GameRuntimeFacade.RuntimeCommandResult confirmResult =
+            RuntimeCommandResult confirmResult =
                 fixture.Facade.CommandConfirmBattleStartTyped();
             _test.True(
                 confirmResult.Ok,
                 "battle overflow 反馈回归中，开始战斗确认命令应成功返回。"
             );
             MarkActiveBattleAsPlayerVictory(fixture.Facade);
-            GameRuntimeFacade.RuntimeCommandResult resolveResult =
+            RuntimeCommandResult resolveResult =
                 fixture.Facade.CommandBattleWaitOrResolveTyped();
 
             warehouseService.Setup(

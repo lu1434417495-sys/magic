@@ -31,7 +31,7 @@ public sealed class GameRuntimeQuestCommandHandler
         _port = null;
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandAcceptQuestTyped(
+    internal RuntimeCommandResult CommandAcceptQuestTyped(
         StringName questId,
         bool allowReaccept = false
     )
@@ -44,9 +44,9 @@ public sealed class GameRuntimeQuestCommandHandler
             return CommandErrorTyped("任务 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 string.Format("未找到任务 {0}。", questId),
-                GameRuntimeFacade.RuntimeCommandCode.NotFound
+                RuntimeCommandCode.NotFound
             );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
@@ -87,16 +87,16 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 message,
-                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                RuntimeCommandCode.PersistenceFailure
             );
         }
         UpdateStatus(message);
         return CommandOkTyped(message);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandProgressQuestTyped(
+    internal RuntimeCommandResult CommandProgressQuestTyped(
         StringName questId,
         StringName objectiveId,
         int progressDelta = 1,
@@ -109,7 +109,7 @@ public sealed class GameRuntimeQuestCommandHandler
             QuestProgressCommandPayloadData.FromDictionary(payload, GetWorldStep())
         );
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandProgressQuestTyped(
+    internal RuntimeCommandResult CommandProgressQuestTyped(
         StringName questId,
         StringName objectiveId,
         int progressDelta,
@@ -124,9 +124,9 @@ public sealed class GameRuntimeQuestCommandHandler
             return CommandErrorTyped("任务 ID 和目标 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 string.Format("未找到任务 {0}。", questId),
-                GameRuntimeFacade.RuntimeCommandCode.NotFound
+                RuntimeCommandCode.NotFound
             );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
@@ -152,16 +152,16 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 message,
-                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                RuntimeCommandCode.PersistenceFailure
             );
         }
         UpdateStatus(message);
         return CommandOkTyped(message);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandCompleteQuestTyped(StringName questId)
+    internal RuntimeCommandResult CommandCompleteQuestTyped(StringName questId)
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -171,9 +171,9 @@ public sealed class GameRuntimeQuestCommandHandler
             return CommandErrorTyped("任务 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 string.Format("未找到任务 {0}。", questId),
-                GameRuntimeFacade.RuntimeCommandCode.NotFound
+                RuntimeCommandCode.NotFound
             );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
@@ -186,16 +186,16 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 message,
-                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                RuntimeCommandCode.PersistenceFailure
             );
         }
         UpdateStatus(message);
         return CommandOkTyped(message);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandSubmitQuestItemTyped(
+    internal RuntimeCommandResult CommandSubmitQuestItemTyped(
         StringName questId,
         StringName objectiveId = default
     )
@@ -208,9 +208,9 @@ public sealed class GameRuntimeQuestCommandHandler
             return CommandErrorTyped("任务 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 string.Format("未找到任务 {0}。", questId),
-                GameRuntimeFacade.RuntimeCommandCode.NotFound
+                RuntimeCommandCode.NotFound
             );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
@@ -290,16 +290,16 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 message,
-                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                RuntimeCommandCode.PersistenceFailure
             );
         }
         UpdateStatus(message);
         return CommandOkTyped(message);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandClaimQuestTyped(StringName questId)
+    internal RuntimeCommandResult CommandClaimQuestTyped(StringName questId)
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -309,9 +309,9 @@ public sealed class GameRuntimeQuestCommandHandler
             return CommandErrorTyped("任务 ID 不能为空。");
         QuestCommandDefData questDef = GetQuestCommandDefData(questId);
         if (!questDef.Exists)
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 string.Format("未找到任务 {0}。", questId),
-                GameRuntimeFacade.RuntimeCommandCode.NotFound
+                RuntimeCommandCode.NotFound
             );
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
@@ -407,9 +407,9 @@ public sealed class GameRuntimeQuestCommandHandler
         {
             message = string.Format("{0} 但队伍状态持久化失败。", message);
             UpdateStatus(message);
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+            return RuntimeCommandResult.Failure(
                 message,
-                GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+                RuntimeCommandCode.PersistenceFailure
             );
         }
         UpdateStatus(message);
@@ -426,28 +426,28 @@ public sealed class GameRuntimeQuestCommandHandler
         return HasRuntime() && _port.IsAvailable();
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
+    private RuntimeCommandResult CommandOkTyped(string message = "")
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
+        return RuntimeCommandResult.Success(message ?? "");
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
+    private RuntimeCommandResult CommandErrorTyped(string message)
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             message ?? "",
-            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+            RuntimeCommandCode.InvalidState
         );
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
+    private RuntimeCommandResult RuntimeUnavailableTypedResult()
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             RuntimeUnavailableMessage,
-            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+            RuntimeCommandCode.RuntimeUnavailable
         );
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult InvalidQuestDisplayNameTypedError()
+    private RuntimeCommandResult InvalidQuestDisplayNameTypedError()
     {
         return CommandErrorTyped(InvalidQuestDisplayNameMessage);
     }

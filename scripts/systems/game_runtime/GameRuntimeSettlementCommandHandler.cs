@@ -8,7 +8,8 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // 翻译自 game_runtime_settlement_command_handler.gd（2026-05-26，据点命令处理 C# 迁移）。
-// runtime 强耦合：绝大多数状态/动作委托 GameRuntimeFacade；子服务为 C# 实例直接调用。
+// Settlement workflows depend on a capability-segregated runtime port; child
+// services call semantic methods on this owner rather than borrowing the facade.
 public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 {
     internal const int REST_FULL_COST = 50;
@@ -51,12 +52,16 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         "service_hire_expert",
     };
 
-    private WeakReference<GameRuntimeFacade> _runtimeRef;
+    private WeakReference<IGameRuntimeSettlementCommandPort> _runtimePortRef;
 
-    internal GameRuntimeFacade Runtime
+    private IGameRuntimeSettlementCommandPort Port
     {
-        get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
+        get => ResolveWeakRef(_runtimePortRef);
+        set =>
+            _runtimePortRef =
+                value != null
+                    ? new WeakReference<IGameRuntimeSettlementCommandPort>(value)
+                    : null;
     }
 
     internal SettlementShopService _shop_service = new();
@@ -198,21 +203,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             target[entry.Key] = entry.Value;
     }
 
-    internal void SetupRuntime(GameRuntimeFacade runtime)
+    internal void SetupRuntime(IGameRuntimeSettlementCommandPort runtimePort)
     {
-        Runtime = runtime;
+        Port = runtimePort;
     }
 
     public void Dispose()
     {
         GC.SuppressFinalize(this);
-        Runtime = null;
+        Port = null;
         DisposeServiceInstances(recreate: false);
     }
 
     internal void DisposeRuntime()
     {
-        Runtime = null;
+        Port = null;
         DisposeServiceInstances(recreate: true);
     }
 
@@ -292,18 +297,18 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     internal void ClearActiveBountyBoardContext() =>
         _contractBoardHandler.ClearActiveBountyBoardContext();
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandShopBuyTyped(
+    internal RuntimeCommandResult CommandShopBuyTyped(
         StringName item_id,
         int quantity
     ) => _serviceWindowHandler.CommandShopBuyTyped(item_id, quantity);
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandShopSellTyped(
+    internal RuntimeCommandResult CommandShopSellTyped(
         StringName item_id,
         int quantity,
         StringName instance_id = null
     ) => _serviceWindowHandler.CommandShopSellTyped(item_id, quantity, instance_id);
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandStagecoachTravelTyped(
+    internal RuntimeCommandResult CommandStagecoachTravelTyped(
         string settlement_id
     ) => _serviceWindowHandler.CommandStagecoachTravelTyped(settlement_id);
 
@@ -318,7 +323,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             $"GameRuntimeSettlementCommandHandler.{windowId}"
         );
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
+    internal RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
         string action_id,
         GDictionary payload = null
     )
@@ -344,11 +349,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return CommandExecuteSettlementActionRuntimeTyped(request);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
+    internal RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
         SettlementActionRequest request
     ) => CommandExecuteSettlementActionRuntimeTyped(request, default);
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandExecuteForgeActionRuntimeTyped(
+    internal RuntimeCommandResult CommandExecuteForgeActionRuntimeTyped(
         ForgeActionRequest request
     )
     {
@@ -362,7 +367,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
+    private RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
         SettlementActionRequest request,
         StringName recipeId
     )
@@ -424,11 +429,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult ExecuteSettlementAction(
+    internal RuntimeCommandResult ExecuteSettlementAction(
         SettlementActionRequest request
     ) => CommandExecuteSettlementActionRuntimeTyped(request);
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementModalActionRuntimeTyped(
+    private RuntimeCommandResult CommandExecuteSettlementModalActionRuntimeTyped(
         string action_id,
         GDictionary payloadData
     )
@@ -1252,9 +1257,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 }
             }
         }
-        if (Runtime != null)
+        if (Port != null)
         {
-            object lowLuckResultValue = Runtime.ResolveLowLuckSettlementEventRewards(
+            object lowLuckResultValue = Port.ResolveLowLuckSettlementEventRewards(
                 new GDictionary
                 {
                     ["action_id"] = action_id,
@@ -1301,8 +1306,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return null;
         }
-        CharacterManagementModule characterManagement = Runtime?.GetCharacterManagement();
-        if (characterManagement == null)
+        if (Port == null)
         {
             return null;
         }
@@ -1330,7 +1334,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         List<PendingCharacterRewardEntry> entries = BuildPendingCharacterRewardEntriesTyped(
             ReadArray(source_reward, "entries")
         );
-        PendingCharacterReward reward = characterManagement.BuildPendingCharacterReward(
+        PendingCharacterReward reward = Port.BuildPendingCharacterReward(
             memberId,
             ReadStringName(source_reward, "reward_id"),
             sourceType,
@@ -1674,10 +1678,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private GArray _reveal_world_fog(Vector2I center, int reveal_range)
     {
-        WorldMapFogSystem fogSystem = GetFogSystem();
         GArray revealedCoords =
-            fogSystem != null
-                ? new GArray(fogSystem.RevealDiamond(center, reveal_range, GetPlayerFactionId()).Select(v => Variant.From(v)))
+            Port != null
+                ? new GArray(
+                    Port
+                        .RevealWorldFogDiamond(center, reveal_range, GetPlayerFactionId())
+                        .Select(v => Variant.From(v))
+                )
                 : new GArray();
         if (revealedCoords.Count != 0)
         {
@@ -1692,11 +1699,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return;
         }
-        Runtime.MarkSettlementVisited(settlement_id);
+        Port.MarkSettlementVisited(settlement_id);
     }
 
     internal bool IsSettlementVisited(string settlementId) =>
-        Runtime?.IsSettlementVisited(settlementId) ?? false;
+        Port?.IsSettlementVisited(settlementId) ?? false;
 
     private SettlementPersistResult FinalizeSuccessfulActionTyped(
         string action_id,
@@ -1821,7 +1828,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             return;
         }
-        Runtime.ApplyQuestProgressEventsToPartyTyped(event_options, "settlement");
+        Port.ApplyQuestProgressEventsToPartyTyped(event_options, "settlement");
     }
 
     private static RuntimeTransaction BuildSettlementActionRollbackScope(
@@ -1847,22 +1854,23 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (!_has_runtime())
             return null;
 
+        RuntimeTransaction transaction =
+            rollbackScope ?? throw new ArgumentNullException(nameof(rollbackScope));
+        SettlementEntryRuntimeSnapshot entrySnapshot =
+            Port.CaptureSettlementEntrySnapshot();
         return new SettlementCommandRollbackSnapshot(
-            RuntimeTransactionRollbackState.Capture(
-                Runtime,
-                rollbackScope ?? throw new ArgumentNullException(nameof(rollbackScope))
-            ),
+            Port.CaptureRuntimeTransactionRollbackState(transaction),
             GetActiveModalKind(),
             GetActiveSettlementId(),
             GetSettlementFeedbackText(),
-            Runtime.GetSelectedCoord(),
-            Runtime._settlement_entry_active,
-            Runtime._settlement_entry_source_coord,
-            Runtime._settlement_entry_target_coord,
-            Runtime.GetActiveShopContextPlain(),
-            Runtime.GetActiveContractBoardContextPlain(),
-            Runtime.GetActiveForgeContextPlain(),
-            Runtime.GetActiveStagecoachContextPlain(),
+            entrySnapshot.SelectedCoord,
+            entrySnapshot.IsActive,
+            entrySnapshot.SourceCoord,
+            entrySnapshot.TargetCoord,
+            Port.GetActiveShopContextPlain(),
+            Port.GetActiveContractBoardContextPlain(),
+            Port.GetActiveForgeContextPlain(),
+            Port.GetActiveStagecoachContextPlain(),
             GetActiveNpcQuestOfferContextTyped(),
             GetActiveBountyBoardContextTyped()
         );
@@ -1876,21 +1884,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SetSelectedCoord(snapshot.SelectedCoord);
         SetActiveSettlementId(snapshot.ActiveSettlementId);
         SetSettlementFeedbackText(snapshot.SettlementFeedbackText);
-        Runtime.SetActiveShopContextPlain(snapshot.ActiveShopContextPlain);
-        Runtime.SetActiveContractBoardContextPlain(snapshot.ActiveContractBoardContextPlain);
-        Runtime.SetActiveForgeContextPlain(snapshot.ActiveForgeContextPlain);
-        Runtime.SetActiveStagecoachContextPlain(snapshot.ActiveStagecoachContextPlain);
+        Port.SetActiveShopContextPlain(snapshot.ActiveShopContextPlain);
+        Port.SetActiveContractBoardContextPlain(snapshot.ActiveContractBoardContextPlain);
+        Port.SetActiveForgeContextPlain(snapshot.ActiveForgeContextPlain);
+        Port.SetActiveStagecoachContextPlain(snapshot.ActiveStagecoachContextPlain);
         if (snapshot.ActiveNpcQuestOfferContext != null)
             SetActiveNpcQuestOfferContext(snapshot.ActiveNpcQuestOfferContext);
         if (snapshot.ActiveBountyBoardContext != null)
             SetActiveBountyBoardContext(snapshot.ActiveBountyBoardContext);
         if (snapshot.SettlementEntryActive)
-            Runtime.SetSettlementEntryContext(
+            Port.SetSettlementEntryContext(
                 snapshot.SettlementEntrySourceCoord,
                 snapshot.SettlementEntryTargetCoord
             );
         else
-            Runtime.ClearSettlementEntryContext(false);
+            Port.ClearSettlementEntryContext(false);
         SetActiveModalKind(snapshot.ActiveModalKind);
     }
 
@@ -1902,7 +1910,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         if (!_has_runtime() || snapshot == null || transaction == null)
             return;
         RestoreRollbackSnapshot(snapshot);
-        transaction.Rollback(Runtime, snapshot.RuntimeState);
+        Port.RollbackRuntimeTransaction(transaction, snapshot.RuntimeState);
     }
 
     private GDictionary _build_member_effect_value_map(GDictionary member_effects, string value_key)
@@ -1971,14 +1979,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             transaction.MarkPlayerCoordChanged();
         }
-        RuntimeCommitResult result = Runtime.CommitRuntimeTransaction(
+        RuntimeCommitResult result = Port.CommitRuntimeTransaction(
             transaction,
             "settlement_command"
         );
         if (!result.Ok && rollbackSnapshot != null)
         {
             RestoreRollbackSnapshot(rollbackSnapshot);
-            transaction.Rollback(Runtime, rollbackSnapshot.RuntimeState);
+            Port.RollbackRuntimeTransaction(transaction, rollbackSnapshot.RuntimeState);
         }
         int commitError = result.CommitError;
         return new SettlementPersistResult(
@@ -1996,12 +2004,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal bool _has_runtime()
     {
-        return Runtime != null;
+        return Port != null;
     }
 
     internal GDictionary CommandOk(string message = "")
     {
-        if (Runtime == null)
+        if (Port == null)
         {
             return new GDictionary
             {
@@ -2010,21 +2018,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 ["battle_refresh_mode"] = "",
             };
         }
-        return Runtime.BuildCommandOk(message);
+        return Port.BuildCommandOk(message);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult RuntimeCommandOk(string message = "")
+    internal RuntimeCommandResult RuntimeCommandOk(string message = "")
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
+        return RuntimeCommandResult.Success(message ?? "");
     }
 
-    private static GameRuntimeFacade.RuntimeCommandResult BuildRuntimeCommandResult(
+    private static RuntimeCommandResult BuildRuntimeCommandResult(
         GDictionary result
     )
     {
         if (result == null)
         {
-            return GameRuntimeFacade.RuntimeCommandResult.Failure("");
+            return RuntimeCommandResult.Failure("");
         }
 
         bool ok =
@@ -2040,29 +2048,29 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                     _ => "",
                 }
                 : "";
-        GameRuntimeFacade.RuntimeCommandCode code =
+        RuntimeCommandCode code =
             result.ContainsKey("code")
             && result["code"].VariantType == Variant.Type.Int
             && Enum.IsDefined(
-                typeof(GameRuntimeFacade.RuntimeCommandCode),
+                typeof(RuntimeCommandCode),
                 result["code"].AsInt32()
             )
-                ? (GameRuntimeFacade.RuntimeCommandCode)result["code"].AsInt32()
+                ? (RuntimeCommandCode)result["code"].AsInt32()
                 : ok
-                    ? GameRuntimeFacade.RuntimeCommandCode.Ok
-                    : GameRuntimeFacade.RuntimeCommandCode.Failed;
+                    ? RuntimeCommandCode.Ok
+                    : RuntimeCommandCode.Failed;
         return ok
-            ? GameRuntimeFacade.RuntimeCommandResult.Success(message, code)
-            : GameRuntimeFacade.RuntimeCommandResult.Failure(message, code);
+            ? RuntimeCommandResult.Success(message, code)
+            : RuntimeCommandResult.Failure(message, code);
     }
 
     internal GDictionary CommandError(string message)
     {
-        if (Runtime == null)
+        if (Port == null)
         {
             return new GDictionary { ["ok"] = false, ["message"] = message };
         }
-        return Runtime.BuildCommandError(message);
+        return Port.BuildCommandError(message);
     }
 
     private GDictionary CommandPersistFailure()
@@ -2072,52 +2080,52 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             ["ok"] = false,
             ["message"] = PERSIST_FAILURE_ROLLBACK_MESSAGE,
-            ["code"] = (int)GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure,
+            ["code"] = (int)RuntimeCommandCode.PersistenceFailure,
         };
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult RuntimeCommandError(string message)
+    internal RuntimeCommandResult RuntimeCommandError(string message)
     {
         if (!string.IsNullOrEmpty(message))
             UpdateStatus(message);
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             message ?? "",
-            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+            RuntimeCommandCode.InvalidState
         );
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult RuntimeCommandPersistFailure()
+    internal RuntimeCommandResult RuntimeCommandPersistFailure()
     {
         UpdateStatus(PERSIST_FAILURE_ROLLBACK_MESSAGE);
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             PERSIST_FAILURE_ROLLBACK_MESSAGE,
-            GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure
+            RuntimeCommandCode.PersistenceFailure
         );
     }
 
     internal bool IsBattleActive()
     {
-        return _has_runtime() && Runtime.IsBattleActive();
+        return _has_runtime() && Port.IsBattleActive();
     }
 
     internal void UpdateStatus(string message)
     {
         if (_has_runtime())
         {
-            Runtime.UpdateStatus(message);
+            Port.UpdateStatus(message);
         }
     }
 
     internal string GetActiveSettlementId()
     {
-        return Runtime?.GetActiveSettlementId() ?? "";
+        return Port?.GetActiveSettlementId() ?? "";
     }
 
     internal void SetActiveSettlementId(string settlement_id)
     {
         if (_has_runtime())
         {
-            Runtime.SetActiveSettlementId(settlement_id);
+            Port.SetActiveSettlementId(settlement_id);
         }
     }
 
@@ -2125,21 +2133,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.SetSettlementFeedbackText(feedback_text);
+            Port.SetSettlementFeedbackText(feedback_text);
         }
     }
 
     internal string GetSettlementFeedbackText()
     {
-        return Runtime?.GetSettlementFeedbackText() ?? "";
+        return Port?.GetSettlementFeedbackText() ?? "";
     }
 
     internal WorldMapSettlementData GetSelectedSettlementData() =>
-        _has_runtime() ? Runtime.GetSelectedSettlementData() : WorldMapSettlementData.Empty;
+        _has_runtime() ? Port.GetSelectedSettlementData() : WorldMapSettlementData.Empty;
 
     internal PartyState GetPartyState()
     {
-        return Runtime?.GetPartyState();
+        return Port?.GetPartyState();
     }
 
     internal int GetPartyGold()
@@ -2149,12 +2157,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal GodotProjectionLease<GDictionary> GetSettlementRecordLease(string settlement_id) =>
         _has_runtime()
-            ? Runtime.GetSettlementRecordLease(settlement_id)
+            ? Port.GetSettlementRecordLease(settlement_id)
             : EmptyDictionaryLease("settlement_record");
 
     internal GodotProjectionLease<GArray> GetAllSettlementRecordsLease() =>
         _has_runtime()
-            ? Runtime.GetAllSettlementRecordsLease()
+            ? Port.GetAllSettlementRecordsLease()
             : RuntimePlainPayload.ProjectArrayLease(
                 Array.Empty<object>(),
                 "GameRuntimeSettlementCommandHandler.empty_settlements",
@@ -2163,7 +2171,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             );
 
     internal WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>
-        _has_runtime() ? Runtime.GetSettlementStateData(settlement_id) : null;
+        _has_runtime() ? Port.GetSettlementStateData(settlement_id) : null;
 
     private static GodotProjectionLease<GDictionary> EmptyDictionaryLease(string reason) =>
         RuntimePlainPayload.ProjectDictionaryLease(
@@ -2179,66 +2187,114 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     )
     {
         return _has_runtime()
-            && Runtime.SetActiveSettlementState(settlement_id, settlement_state);
+            && Port.SetActiveSettlementState(settlement_id, settlement_state);
     }
 
     internal PartyWarehouseService GetPartyWarehouseService()
     {
-        return _has_runtime() ? Runtime.GetPartyWarehouseService() : null;
+        return _has_runtime() ? Port.GetPartyWarehouseService() : null;
     }
 
     internal IReadOnlyDictionary<StringName, ItemDefinition> _GetItemDefsTyped()
     {
-        if (!_has_runtime())
-        {
-            return new Dictionary<StringName, ItemDefinition>();
-        }
-        GameSession gameSession = Runtime.GetGameSession();
-        return gameSession != null
-            ? gameSession.GetItemDefsTyped()
-            : new Dictionary<StringName, ItemDefinition>();
+        return Port?.GetItemDefinitions()
+            ?? new Dictionary<StringName, ItemDefinition>();
     }
 
     internal IReadOnlyDictionary<StringName, TraitDefinition> _GetTraitDefsTyped()
     {
-        if (!_has_runtime())
-        {
-            return new Dictionary<StringName, TraitDefinition>();
-        }
-        GameSession gameSession = Runtime.GetGameSession();
-        return gameSession != null
-            ? gameSession.GetTraitDefsTyped()
-            : new Dictionary<StringName, TraitDefinition>();
+        return Port?.GetTraitDefinitions()
+            ?? new Dictionary<StringName, TraitDefinition>();
     }
 
     internal string GetItemDisplayName(StringName item_id)
     {
-        return Runtime?.GetItemDisplayName(item_id) ?? item_id.ToString();
+        return Port?.GetItemDisplayName(item_id) ?? item_id.ToString();
     }
 
     internal IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped()
     {
-        if (!_has_runtime())
-        {
-            return new Dictionary<StringName, RecipeDefinition>();
-        }
-        GameSession gameSession = Runtime.GetGameSession();
-        return gameSession != null
-            ? gameSession.GetRecipeDefsTyped()
-            : new Dictionary<StringName, RecipeDefinition>();
+        return Port?.GetRecipeDefinitions()
+            ?? new Dictionary<StringName, RecipeDefinition>();
     }
 
     internal IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped()
     {
-        if (!_has_runtime())
-        {
-            return new Dictionary<StringName, QuestDefinition>();
-        }
-        GameSession gameSession = Runtime.GetGameSession();
-        return gameSession != null
-            ? gameSession.GetQuestDefsTyped()
-            : new Dictionary<StringName, QuestDefinition>();
+        return Port?.GetQuestDefinitions()
+            ?? new Dictionary<StringName, QuestDefinition>();
     }
+
+    internal QuestDefinition GetQuestDefinition(StringName questId) =>
+        Port?.GetQuestDefinition(questId);
+
+    internal RuntimeCommandResult CommandAcceptQuestTyped(
+        StringName questId,
+        bool allowRepeatable
+    ) =>
+        Port?.CommandAcceptQuestTyped(questId, allowRepeatable)
+        ?? RuntimeCommandResult.Failure(
+            "运行时尚未初始化。",
+            RuntimeCommandCode.RuntimeUnavailable
+        );
+
+    internal RuntimeCommandResult CommandClaimQuestTyped(StringName questId) =>
+        Port?.CommandClaimQuestTyped(questId)
+        ?? RuntimeCommandResult.Failure(
+            "运行时尚未初始化。",
+            RuntimeCommandCode.RuntimeUnavailable
+        );
+
+    internal RuntimeCommandResult CommandSubmitQuestItemTyped(
+        StringName questId,
+        StringName objectiveId
+    ) =>
+        Port?.CommandSubmitQuestItemTyped(questId, objectiveId)
+        ?? RuntimeCommandResult.Failure(
+            "运行时尚未初始化。",
+            RuntimeCommandCode.RuntimeUnavailable
+        );
+
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition>
+        GetEnemyTemplateDefinitionsTyped() =>
+        Port?.GetEnemyTemplateDefinitions()
+        ?? new Dictionary<StringName, EnemyTemplateDefinition>();
+
+    internal BountyBoardWindowData GetActiveBountyBoardData() =>
+        Port?.GetActiveBountyBoardData();
+
+    internal void SetActiveBountyBoardRuntimeContext(BountyBoardWindowData data) =>
+        Port?.SetActiveBountyBoardContext(data);
+
+    internal void ClearActiveBountyBoardRuntimeContext() =>
+        Port?.ClearActiveBountyBoardContext();
+
+    internal NpcQuestOfferWindowData GetActiveNpcQuestOfferData() =>
+        Port?.GetActiveNpcQuestOfferData();
+
+    internal IReadOnlyDictionary<string, object> GetSettlementRecordSnapshotPlain(
+        string settlementId
+    )
+    {
+        return Port?.GetSettlementRecordSnapshotPlain(settlementId)
+            ?? EmptyPlainDictionary();
+    }
+
+    internal IReadOnlyDictionary<string, object> GetActiveShopContextPlain() =>
+        Port?.GetActiveShopContextPlain() ?? EmptyPlainDictionary();
+
+    internal IReadOnlyDictionary<string, object> GetActiveContractBoardContextPlain() =>
+        Port?.GetActiveContractBoardContextPlain() ?? EmptyPlainDictionary();
+
+    internal IReadOnlyDictionary<string, object> GetActiveForgeContextPlain() =>
+        Port?.GetActiveForgeContextPlain() ?? EmptyPlainDictionary();
+
+    internal IReadOnlyDictionary<string, object> GetActiveStagecoachContextPlain() =>
+        Port?.GetActiveStagecoachContextPlain() ?? EmptyPlainDictionary();
+
+    internal void NotifyMisfortuneGuidanceOfForgeResult(
+        StringName memberId,
+        SettlementServiceResult result
+    ) => Port?.HandleMisfortuneForgeResult(memberId, result);
 
     internal static SettlementSubmissionSource ReadSubmissionSource(GDictionary payload)
         => SettlementActionPayloadBuilder.ReadSubmissionSource(payload);
@@ -2263,19 +2319,19 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id)
     {
-        return _has_runtime() ? Runtime.GetMemberAttributeSnapshot(member_id) : null;
+        return _has_runtime() ? Port.GetMemberAttributeSnapshot(member_id) : null;
     }
 
     internal string GetMemberDisplayName(StringName member_id)
     {
-        return Runtime?.GetMemberDisplayName(member_id) ?? member_id.ToString();
+        return Port?.GetMemberDisplayName(member_id) ?? member_id.ToString();
     }
 
     internal void OpenPartyWarehouseWindow(string entry_label)
     {
         if (_has_runtime())
         {
-            Runtime.OpenPartyWarehouseWindow(entry_label);
+            Port.OpenPartyWarehouseWindow(entry_label);
         }
     }
 
@@ -2285,7 +2341,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.EnqueuePendingCharacterRewardsTyped(rewards);
+            Port.EnqueuePendingCharacterRewardsTyped(rewards);
         }
     }
 
@@ -2299,7 +2355,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         detail_id ??= new StringName("");
         if (_has_runtime())
         {
-            Runtime.RecordMemberAchievementEvent(member_id, event_id, value, detail_id);
+            Port.RecordMemberAchievementEvent(member_id, event_id, value, detail_id);
         }
     }
 
@@ -2307,34 +2363,28 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.SyncPartyStateFromCharacterManagement();
+            Port.SyncPartyStateFromCharacterManagement();
         }
     }
 
     internal int PersistPartyState()
     {
-        return _has_runtime() ? Runtime.PersistPartyState() : (int)Error.Unavailable;
+        return _has_runtime() ? Port.PersistPartyState() : (int)Error.Unavailable;
     }
 
     internal int PersistWorldData()
     {
-        return _has_runtime() ? Runtime.PersistWorldData() : (int)Error.Unavailable;
+        return _has_runtime() ? Port.PersistWorldData() : (int)Error.Unavailable;
     }
 
     internal int PersistPlayerCoord()
     {
-        return _has_runtime() ? Runtime.PersistPlayerCoord() : (int)Error.Unavailable;
-    }
-
-    internal WorldMapFogSystem GetFogSystem()
-    {
-        return _has_runtime() ? Runtime.GetFogSystem() : null;
+        return _has_runtime() ? Port.PersistPlayerCoord() : (int)Error.Unavailable;
     }
 
     internal bool IsSettlementVisibleToPlayer(GDictionary settlement)
     {
-        WorldMapFogSystem fogSystem = GetFogSystem();
-        if (fogSystem == null)
+        if (!_has_runtime())
         {
             return false;
         }
@@ -2347,7 +2397,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         {
             for (int x = 0; x < width; x++)
             {
-                if (fogSystem.IsVisible(origin + new Vector2I(x, y), factionId))
+                if (Port.IsWorldCoordVisible(origin + new Vector2I(x, y), factionId))
                 {
                     return true;
                 }
@@ -2358,14 +2408,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal string GetPlayerFactionId()
     {
-        return Runtime?.GetPlayerFactionId() ?? "player";
+        return Port?.GetPlayerFactionId() ?? "player";
     }
 
     internal void AdvanceWorldTimeBySteps(int delta_steps)
     {
         if (_has_runtime())
         {
-            Runtime.AdvanceWorldTimeBySteps(delta_steps);
+            Port.AdvanceWorldTimeBySteps(delta_steps);
         }
     }
 
@@ -2373,20 +2423,20 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.RefreshWorldVisibility();
+            Port.RefreshWorldVisibility();
         }
     }
 
     internal int GetWorldStep()
     {
-        return _has_runtime() ? Runtime.GetWorldStep() : 0;
+        return _has_runtime() ? Port.GetWorldStep() : 0;
     }
 
     internal void SetPlayerCoord(Vector2I coord)
     {
         if (_has_runtime())
         {
-            Runtime.SetPlayerCoord(coord);
+            Port.SetPlayerCoord(coord);
         }
     }
 
@@ -2394,7 +2444,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.SetSelectedCoord(coord);
+            Port.SetSelectedCoord(coord);
         }
     }
 
@@ -2402,33 +2452,33 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.ClearSettlementEntryContext(reset_selected);
+            Port.ClearSettlementEntryContext(reset_selected);
         }
     }
 
     internal RuntimeModalKind GetActiveModalKind()
     {
-        return Runtime?.GetActiveModalKind() ?? RuntimeModalKind.None;
+        return Port?.GetActiveModalKind() ?? RuntimeModalKind.None;
     }
 
     internal void SetActiveModalKind(RuntimeModalKind modalKind)
     {
         if (_has_runtime())
         {
-            Runtime.SetRuntimeActiveModalKind(modalKind);
+            Port.SetActiveModalKind(modalKind);
         }
     }
 
     internal bool PresentPendingRewardIfReady()
     {
-        return _has_runtime() && Runtime.PresentPendingRewardIfReady();
+        return _has_runtime() && Port.PresentPendingRewardIfReady();
     }
 
     internal void SetActiveShopContext(GDictionary context)
     {
         if (_has_runtime())
         {
-            Runtime.SetActiveShopContext(context);
+            Port.SetActiveShopContext(context);
         }
     }
 
@@ -2436,7 +2486,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.SetActiveContractBoardContext(context);
+            Port.SetActiveContractBoardContext(context);
         }
     }
 
@@ -2444,7 +2494,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.SetActiveNpcQuestOfferContext(data);
+            Port.SetActiveNpcQuestOfferContext(data);
         }
     }
 
@@ -2452,7 +2502,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.SetActiveForgeContext(context);
+            Port.SetActiveForgeContext(context);
         }
     }
 
@@ -2460,7 +2510,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.ClearActiveShopContext();
+            Port.ClearActiveShopContext();
         }
     }
 
@@ -2468,7 +2518,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.ClearActiveContractBoardContext();
+            Port.ClearActiveContractBoardContext();
         }
     }
 
@@ -2476,7 +2526,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.ClearActiveNpcQuestOfferContext();
+            Port.ClearActiveNpcQuestOfferContext();
         }
     }
 
@@ -2484,28 +2534,28 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.ClearActiveForgeContext();
+            Port.ClearActiveForgeContext();
         }
     }
 
     internal GodotProjectionLease<GDictionary> GetActiveShopContextLease()
     {
         return _has_runtime()
-            ? Runtime.GetActiveShopContextLease()
+            ? Port.GetActiveShopContextLease()
             : EmptyContextLease("shop");
     }
 
     internal GodotProjectionLease<GDictionary> GetActiveContractBoardContextLease()
     {
         return _has_runtime()
-            ? Runtime.GetActiveContractBoardContextLease()
+            ? Port.GetActiveContractBoardContextLease()
             : EmptyContextLease("contract_board");
     }
 
     internal GodotProjectionLease<GDictionary> GetActiveForgeContextLease()
     {
         return _has_runtime()
-            ? Runtime.GetActiveForgeContextLease()
+            ? Port.GetActiveForgeContextLease()
             : EmptyContextLease("forge");
     }
 
@@ -2513,7 +2563,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.SetActiveStagecoachContext(context);
+            Port.SetActiveStagecoachContext(context);
         }
     }
 
@@ -2521,14 +2571,14 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         if (_has_runtime())
         {
-            Runtime.ClearActiveStagecoachContext();
+            Port.ClearActiveStagecoachContext();
         }
     }
 
     internal GodotProjectionLease<GDictionary> GetActiveStagecoachContextLease()
     {
         return _has_runtime()
-            ? Runtime.GetActiveStagecoachContextLease()
+            ? Port.GetActiveStagecoachContextLease()
             : EmptyContextLease("stagecoach");
     }
 
@@ -2756,11 +2806,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return false;
     }
 
-    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
+    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
+        where T : class
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GameRuntimeFacade target)
+            || !weakRef.TryGetTarget(out T target)
         )
         {
             return null;

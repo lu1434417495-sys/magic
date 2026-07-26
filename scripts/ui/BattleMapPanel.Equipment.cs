@@ -734,7 +734,7 @@ public partial class BattleMapPanel
             _set_battle_equipment_feedback(BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT);
             return;
         }
-        GameRuntimeFacade.RuntimeCommandResult result = _runtime_proxy.IssueBattleCommand(command);
+        RuntimeCommandResult result = _runtime_proxy.IssueBattleCommand(command);
         string statusText = result.Message ?? "";
         if (string.IsNullOrEmpty(statusText))
             statusText = result.Ok

@@ -29,12 +29,12 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         GameRuntimeFacade runtime = BuildRuntime(partyState, true);
         try
         {
-            GameRuntimeFacade.RuntimeCommandResult openResult = runtime.CommandOpenPartyTyped();
+            RuntimeCommandResult openResult = runtime.CommandOpenPartyTyped();
             _test.True(openResult.Ok, $"command_open_party() 应委托给正式 party handler。message={openResult.Message}");
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Party, "facade 打开队伍管理后应切换到 party modal。");
             _test.Eq(runtime.GetPartySelectedMemberId().ToString(), "hero", "facade 打开队伍管理后应默认选中上阵第一人。");
 
-            GameRuntimeFacade.RuntimeCommandResult selectResult =
+            RuntimeCommandResult selectResult =
                 runtime.CommandSelectPartyMemberTyped("mage");
             _test.True(selectResult.Ok, "command_select_party_member() 应委托给正式 party handler。");
             _test.Eq(runtime.GetPartySelectedMemberId().ToString(), "mage", "facade 选中队员后应同步选中成员。");
@@ -62,7 +62,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
                 "同步回归的前置条件应让 CharacterManagement 暂时绑定另一份 PartyState。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult activateResult =
+            RuntimeCommandResult activateResult =
                 runtime.CommandMoveMemberToActiveTyped("mage");
             _test.True(
                 activateResult.Ok,
@@ -93,7 +93,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
                 $"编成变更仍应尝试正式持久化，并仅在状态中告警。status={runtime._current_status_message}"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult mainCharacterReserveResult =
+            RuntimeCommandResult mainCharacterReserveResult =
                 runtime.CommandMoveMemberToReserveTyped("hero");
             _test.False(
                 mainCharacterReserveResult.Ok,
@@ -105,7 +105,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
             );
 
             runtime.SetPartySelectedMemberId("hero");
-            GameRuntimeFacade.RuntimeCommandResult leaderResult =
+            RuntimeCommandResult leaderResult =
                 runtime.CommandSetPartyLeaderTyped("mage");
             _test.True(leaderResult.Ok, "上阵成员应能切换为队长。");
             _test.Eq(
@@ -120,7 +120,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
             );
 
             runtime.SetPartySelectedMemberId("hero");
-            GameRuntimeFacade.RuntimeCommandResult reserveResult =
+            RuntimeCommandResult reserveResult =
                 runtime.CommandMoveMemberToReserveTyped("mage");
             _test.True(reserveResult.Ok, "非主角成员应能从上阵移至替补。");
             _test.True(
@@ -151,7 +151,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         try
         {
             runtime.SetPartySelectedMemberId("mage");
-            GameRuntimeFacade.RuntimeCommandResult equipResult =
+            RuntimeCommandResult equipResult =
                 runtime.CommandPartyEquipItemTyped("hero", "bronze_sword", "", "");
             _test.True(
                 equipResult.Ok,

@@ -42,7 +42,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             GDictionary windowData = fixture.Runtime.GetSettlementWindowData("spring_village_01");
             _test.Eq(DictString(windowData, "settlement_id", ""), "spring_village_01", "get_settlement_window_data() 应委托到正式 settlement handler。");
 
-            GameRuntimeFacade.RuntimeCommandResult commandResult =
+            RuntimeCommandResult commandResult =
                 fixture.Runtime.CommandExecuteSettlementActionTyped(
                     "service:warehouse",
                     new GDictionary()
@@ -90,7 +90,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 "research 服务 metadata projection 应暴露成员可研究状态。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult researchResult =
+            RuntimeCommandResult researchResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:research",
                     new GDictionary()
@@ -126,7 +126,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             GDictionary reenabledResearchService = FindServiceEntry(DictArray(reenabledWindowData, "available_services"), "service:research");
             _test.True(DictBool(reenabledResearchService, "is_enabled", false), "首条 research 奖励尚未确认时，也应切到下一条可研究内容，而不是重复给野外手册。");
 
-            GameRuntimeFacade.RuntimeCommandResult secondResearchResult =
+            RuntimeCommandResult secondResearchResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:research",
                     new GDictionary()
@@ -189,7 +189,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             warehouseQuest.MarkAccepted(runtime.GetWorldStep());
             runtime._party_state.SetActiveQuestState(warehouseQuest);
             runtime._character_management.SetPartyState(runtime._party_state);
-            GameRuntimeFacade.RuntimeCommandResult warehouseResult =
+            RuntimeCommandResult warehouseResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:warehouse",
                     new GDictionary()
@@ -204,7 +204,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
             runtime.SetActiveSettlementId("spring_village_01");
 
-            GameRuntimeFacade.RuntimeCommandResult contractBoardResult =
+            RuntimeCommandResult contractBoardResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary()
@@ -269,7 +269,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     .Ok,
                 "旧 panel_kind 字段不应再被识别为任务板提交或普通据点动作。"
             );
-            GameRuntimeFacade.RuntimeCommandResult legacyEntrySubmission =
+            RuntimeCommandResult legacyEntrySubmission =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -281,7 +281,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 );
             _test.False(legacyEntrySubmission.Ok, "旧 entry_id 字段不应回退成 quest_id。");
             _test.Eq(runtime._current_status_message, "当前契约条目缺少 quest_id，无法接取。", "旧 entry_id 提交应返回缺 quest_id 的反馈。");
-            GameRuntimeFacade.RuntimeCommandResult legacyProviderSubmission =
+            RuntimeCommandResult legacyProviderSubmission =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -296,7 +296,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 "旧 interaction_script_id 字段不应回退成 provider_interaction_id。"
             );
             _test.Eq(runtime._current_status_message, "当前契约条目缺少 provider_interaction_id，无法匹配任务板。", "旧 interaction_script_id 提交应返回缺 provider_interaction_id 的反馈。");
-            GameRuntimeFacade.RuntimeCommandResult stringKeySubmission =
+            RuntimeCommandResult stringKeySubmission =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -308,7 +308,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 );
             _test.False(stringKeySubmission.Ok, "String key-only 契约即使被构造提交也应拒绝。");
             _test.Eq(runtime._current_status_message, "当前任务板未找到契约 contract_string_key_only。", "String key-only 提交应按未找到任务处理。");
-            GameRuntimeFacade.RuntimeCommandResult mismatchedContractSubmission =
+            RuntimeCommandResult mismatchedContractSubmission =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:bounty_registry",
                     new GDictionary
@@ -328,7 +328,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 "任务板 action_id 不匹配时应返回明确反馈。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult acceptContractResult =
+            RuntimeCommandResult acceptContractResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -438,7 +438,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Settlement, "关闭任务板后应返回 settlement modal。");
             _test.Eq(runtime._active_settlement_id, "spring_village_01", "关闭任务板后应继续保留当前据点。");
 
-            GameRuntimeFacade.RuntimeCommandResult bountyBoardResult =
+            RuntimeCommandResult bountyBoardResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:bounty_registry",
                     new GDictionary()
@@ -482,7 +482,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             }
             handler.OnContractBoardWindowClosed();
 
-            GameRuntimeFacade.RuntimeCommandResult trainingResult =
+            RuntimeCommandResult trainingResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:training",
                     new GDictionary
@@ -629,7 +629,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
             runtime.SetActiveSettlementId("spring_village_01");
-            GameRuntimeFacade.RuntimeCommandResult stagecoachResult =
+            RuntimeCommandResult stagecoachResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:stagecoach",
                     new GDictionary()
@@ -639,7 +639,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 $"驿站服务应能打开路线窗口。message={stagecoachResult.Message}"
             );
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Stagecoach, "打开驿站后应切换到驿站 modal。");
-            GameRuntimeFacade.RuntimeCommandResult travelResult =
+            RuntimeCommandResult travelResult =
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
             _test.True(
                 travelResult.Ok,
@@ -679,7 +679,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary()
@@ -703,7 +703,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 _test.Eq(DictString(confirmationEntry, "accept_confirmation_text", ""), "确认要接取这个契约吗？", "accept_confirmation_text 字段应原样暴露。");
             }
 
-            GameRuntimeFacade.RuntimeCommandResult confirmationBypassResult =
+            RuntimeCommandResult confirmationBypassResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -723,7 +723,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 "确认态绕过不应接取任务。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult lockedSubmitResult =
+            RuntimeCommandResult lockedSubmitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -743,7 +743,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 _test.Eq(DictString(refreshedData, "summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 summary_text 中。");
             }
 
-            GameRuntimeFacade.RuntimeCommandResult confirmationResult =
+            RuntimeCommandResult confirmationResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -763,7 +763,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 _test.Eq(DictString(confirmationContext, "pending_confirmation_source", ""), "contract_board", "应写入 pending_confirmation_source。");
             }
 
-            GameRuntimeFacade.RuntimeCommandResult confirmedAcceptResult =
+            RuntimeCommandResult confirmedAcceptResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -788,7 +788,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             runtime._party_state.AddCompletedQuestId("contract_prerequisite_hunt");
             runtime._character_management.SetPartyState(runtime._party_state);
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
-            GameRuntimeFacade.RuntimeCommandResult reopenResult =
+            RuntimeCommandResult reopenResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary()
@@ -802,7 +802,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 _test.Eq(DictString(unlockedEntry, "disabled_reason", ""), "", "可用条目的 disabled_reason 应为空。");
             }
 
-            GameRuntimeFacade.RuntimeCommandResult unlockedAcceptResult =
+            RuntimeCommandResult unlockedAcceptResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -943,7 +943,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary()
@@ -951,7 +951,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.True(openResult.Ok, "测试前置：任务板应能打开。");
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "测试前置：任务板 modal 应处于打开状态。");
 
-            GameRuntimeFacade.RuntimeCommandResult stringNameSourceResult =
+            RuntimeCommandResult stringNameSourceResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -965,7 +965,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "拒绝 StringName submission_source 后不应切换 modal。");
             _test.False(runtime._party_state.HasActiveQuest("contract_manual_drill"), "拒绝 StringName submission_source 后不应接取任务。");
 
-            GameRuntimeFacade.RuntimeCommandResult stringNameQuestResult =
+            RuntimeCommandResult stringNameQuestResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -979,7 +979,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "拒绝 StringName quest_id 后不应切换 modal。");
             _test.False(runtime._party_state.HasActiveQuest("contract_manual_drill"), "拒绝 StringName quest_id 后不应接取任务。");
 
-            GameRuntimeFacade.RuntimeCommandResult stringNameProviderResult =
+            RuntimeCommandResult stringNameProviderResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:contract_board",
                     new GDictionary
@@ -1032,7 +1032,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             GameRuntimeFacade runtime = fixture.Runtime;
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
-            GameRuntimeFacade.RuntimeCommandResult closedModalResult =
+            RuntimeCommandResult closedModalResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
                     new GDictionary()
@@ -1046,7 +1046,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             runtime._fog_system.Setup(new Vector2I(8, 8));
-            GameRuntimeFacade.RuntimeCommandResult hiddenSettlementResult =
+            RuntimeCommandResult hiddenSettlementResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
                     new GDictionary()
@@ -1059,7 +1059,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             );
             MakeVisible(runtime, Vector2I.Zero);
 
-            GameRuntimeFacade.RuntimeCommandResult missingActionResult =
+            RuntimeCommandResult missingActionResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:missing",
                     new GDictionary()
@@ -1071,7 +1071,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             );
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Settlement, "未开放 action_id 失败后不应切换 modal。");
 
-            GameRuntimeFacade.RuntimeCommandResult disabledStagecoachResult =
+            RuntimeCommandResult disabledStagecoachResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:stagecoach",
                     new GDictionary()
@@ -1101,7 +1101,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
             runtime.SetSettlementFeedbackText("不应进入商店窗口的据点旧反馈");
 
-            GameRuntimeFacade.RuntimeCommandResult spoofedShopResult =
+            RuntimeCommandResult spoofedShopResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
                     new GDictionary
@@ -1123,7 +1123,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     "初次打开商店不得把据点级旧反馈泄漏到商店 context。"
                 );
             }
-            GameRuntimeFacade.RuntimeCommandResult missingItemResult =
+            RuntimeCommandResult missingItemResult =
                 handler.CommandShopBuyTyped("missing_shop_item", 1);
             _test.False(missingItemResult.Ok, "购买不存在的商品应失败。");
             _test.Eq(

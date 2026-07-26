@@ -32,7 +32,7 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
             runtime._party_state.SetActiveQuestState(questState);
             runtime._character_management.SetPartyState(runtime._party_state);
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 runtime.CommandExecuteSettlementActionTyped(
                     "service:training",
                     new GDictionary

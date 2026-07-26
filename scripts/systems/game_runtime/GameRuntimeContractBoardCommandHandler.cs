@@ -417,31 +417,31 @@ internal sealed class GameRuntimeContractBoardCommandHandler
             questData.IsRepeatable,
             questDefinition.CanRestartAfterFailure
         );
-        GameRuntimeFacade.RuntimeCommandResult commandResult;
+        RuntimeCommandResult commandResult;
         bool isAcceptAction = false;
         if (stateId == "claimable")
         {
-            commandResult = _owner.Runtime.CommandClaimQuestTyped(questId);
+            commandResult = _owner.CommandClaimQuestTyped(questId);
         }
         else if (stateId == "active")
         {
-            commandResult = GameRuntimeFacade.RuntimeCommandResult.Failure(
+            commandResult = RuntimeCommandResult.Failure(
                 $"悬赏《{questData.DisplayName}》仍在进行中。",
-                GameRuntimeFacade.RuntimeCommandCode.InvalidState
+                RuntimeCommandCode.InvalidState
             );
         }
         else if (stateId == "completed")
         {
-            commandResult = GameRuntimeFacade.RuntimeCommandResult.Failure(
+            commandResult = RuntimeCommandResult.Failure(
                 $"悬赏《{questData.DisplayName}》已完成，不能再次接取。",
-                GameRuntimeFacade.RuntimeCommandCode.InvalidState
+                RuntimeCommandCode.InvalidState
             );
         }
         else if (stateId == "failed")
         {
-            commandResult = GameRuntimeFacade.RuntimeCommandResult.Failure(
+            commandResult = RuntimeCommandResult.Failure(
                 $"悬赏《{questData.DisplayName}》已经失败，不能再次接取。",
-                GameRuntimeFacade.RuntimeCommandCode.InvalidState
+                RuntimeCommandCode.InvalidState
             );
         }
         else
@@ -460,7 +460,7 @@ internal sealed class GameRuntimeContractBoardCommandHandler
                 _owner.UpdateStatus(feedback);
                 return _owner.CommandError(feedback);
             }
-            commandResult = _owner.Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
+            commandResult = _owner.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
             isAcceptAction = true;
         }
 
@@ -502,31 +502,22 @@ internal sealed class GameRuntimeContractBoardCommandHandler
 
     internal BountyBoardWindowData GetActiveBountyBoardContextTyped()
     {
-        return _owner._has_runtime() ? _owner.Runtime.GetActiveBountyBoardData() : null;
+        return _owner.GetActiveBountyBoardData();
     }
 
     internal void SetActiveBountyBoardContext(BountyBoardWindowData data)
     {
-        if (_owner._has_runtime())
-            _owner.Runtime.SetActiveBountyBoardContext(data);
+        _owner.SetActiveBountyBoardRuntimeContext(data);
     }
 
     internal void ClearActiveBountyBoardContext()
     {
-        if (_owner._has_runtime())
-            _owner.Runtime.ClearActiveBountyBoardContext();
+        _owner.ClearActiveBountyBoardRuntimeContext();
     }
 
     private IReadOnlyDictionary<StringName, EnemyTemplateDefinition> _GetEnemyTemplatesTyped()
     {
-        if (!_owner._has_runtime())
-        {
-            return new Dictionary<StringName, EnemyTemplateDefinition>();
-        }
-        GameSession gameSession = _owner.Runtime.GetGameSession();
-        return gameSession != null
-            ? gameSession.GetEnemyTemplateDefinitions()
-            : new Dictionary<StringName, EnemyTemplateDefinition>();
+        return _owner.GetEnemyTemplateDefinitionsTyped();
     }
 
     private GDictArray _build_contract_board_entries(string interaction_script_id)
@@ -1101,11 +1092,11 @@ internal sealed class GameRuntimeContractBoardCommandHandler
             questData.IsRepeatable,
             questData.QuestDefinition.CanRestartAfterFailure
         );
-        GameRuntimeFacade.RuntimeCommandResult commandResult;
+        RuntimeCommandResult commandResult;
         bool isAcceptAction = false;
         if (stateId == "claimable")
         {
-            commandResult = _owner.Runtime.CommandClaimQuestTyped(questId);
+            commandResult = _owner.CommandClaimQuestTyped(questId);
         }
         else if (stateId == "active")
         {
@@ -1118,27 +1109,27 @@ internal sealed class GameRuntimeContractBoardCommandHandler
                 || _quest_has_submit_item_objective(questData.ObjectiveEntries)
             )
             {
-                commandResult = _owner.Runtime.CommandSubmitQuestItemTyped(
+                commandResult = _owner.CommandSubmitQuestItemTyped(
                     questId,
                     submitItemObjectiveId
                 );
             }
             else
             {
-                commandResult = _owner.Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
+                commandResult = _owner.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
                 isAcceptAction = true;
             }
         }
         else if (stateId == "failed")
         {
-            commandResult = GameRuntimeFacade.RuntimeCommandResult.Failure(
+            commandResult = RuntimeCommandResult.Failure(
                 $"契约《{questData.DisplayName}》已经失败，不能再次接取。",
-                GameRuntimeFacade.RuntimeCommandCode.InvalidState
+                RuntimeCommandCode.InvalidState
             );
         }
         else
         {
-            commandResult = _owner.Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
+            commandResult = _owner.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
             isAcceptAction = true;
         }
 

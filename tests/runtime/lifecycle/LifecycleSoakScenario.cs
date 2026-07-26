@@ -127,7 +127,7 @@ internal sealed class LifecycleSoakScenario
             facade.StartBattle(BuildFormalEncounter());
             Require(facade.IsBattleActive(), $"cycle {cycle}: formal battle did not start.");
 
-            GameRuntimeFacade.RuntimeCommandResult confirm =
+            RuntimeCommandResult confirm =
                 facade.CommandConfirmBattleStartTyped();
             Require(
                 confirm.Ok,
@@ -224,7 +224,7 @@ internal sealed class LifecycleSoakScenario
                 return activeUnit;
             }
 
-            GameRuntimeFacade.RuntimeCommandResult tick = facade.CommandBattleTickTyped(1);
+            RuntimeCommandResult tick = facade.CommandBattleTickTyped(1);
             Require(
                 tick.Ok,
                 $"cycle {cycle}: failed to advance to an active unit: {tick.Message}"
@@ -253,7 +253,7 @@ internal sealed class LifecycleSoakScenario
                 $"cycle {cycle}: battle ended before an AI decision was traced."
             );
 
-            GameRuntimeFacade.RuntimeCommandResult result;
+            RuntimeCommandResult result;
             if (
                 state.active_unit_id != ""
                 && state.TryGetUnitTyped(state.active_unit_id, out BattleUnitState activeUnit)

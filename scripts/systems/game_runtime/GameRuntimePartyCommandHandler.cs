@@ -27,7 +27,7 @@ public sealed class GameRuntimePartyCommandHandler
         _port = null;
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyTyped()
+    internal RuntimeCommandResult CommandOpenPartyTyped()
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -42,7 +42,7 @@ public sealed class GameRuntimePartyCommandHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandSelectPartyMemberTyped(StringName memberId)
+    internal RuntimeCommandResult CommandSelectPartyMemberTyped(StringName memberId)
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -62,7 +62,7 @@ public sealed class GameRuntimePartyCommandHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandSetPartyLeaderTyped(StringName memberId)
+    internal RuntimeCommandResult CommandSetPartyLeaderTyped(StringName memberId)
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -79,7 +79,7 @@ public sealed class GameRuntimePartyCommandHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandMoveMemberToActiveTyped(
+    internal RuntimeCommandResult CommandMoveMemberToActiveTyped(
         StringName memberId
     )
     {
@@ -104,7 +104,7 @@ public sealed class GameRuntimePartyCommandHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandMoveMemberToReserveTyped(
+    internal RuntimeCommandResult CommandMoveMemberToReserveTyped(
         StringName memberId
     )
     {
@@ -131,7 +131,7 @@ public sealed class GameRuntimePartyCommandHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandApplyPartyRosterTyped(
+    internal RuntimeCommandResult CommandApplyPartyRosterTyped(
         Array<StringName> activeMemberIds,
         Array<StringName> reserveMemberIds
     )
@@ -156,7 +156,7 @@ public sealed class GameRuntimePartyCommandHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandPartyEquipItemTyped(
+    internal RuntimeCommandResult CommandPartyEquipItemTyped(
         StringName memberId,
         StringName itemId,
         StringName slotId,
@@ -214,7 +214,7 @@ public sealed class GameRuntimePartyCommandHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandPartyUnequipItemTyped(
+    internal RuntimeCommandResult CommandPartyUnequipItemTyped(
         StringName memberId,
         StringName slotId
     )
@@ -424,24 +424,24 @@ public sealed class GameRuntimePartyCommandHandler
         return _port != null;
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
+    private RuntimeCommandResult CommandOkTyped(string message = "")
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
+        return RuntimeCommandResult.Success(message ?? "");
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
+    private RuntimeCommandResult CommandErrorTyped(string message)
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             message ?? "",
-            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+            RuntimeCommandCode.InvalidState
         );
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
+    private RuntimeCommandResult RuntimeUnavailableTypedResult()
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             RuntimeUnavailableMessage,
-            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+            RuntimeCommandCode.RuntimeUnavailable
         );
     }
 

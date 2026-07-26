@@ -249,7 +249,7 @@ public partial class BattleMapPanel : Control
         if (_battle_equipment_equip_button != null)
             _battle_equipment_equip_button.Pressed -= _on_battle_equipment_equip_pressed;
         _runtime_proxy = null;
-        _hud_adapter.SetupRuntimeContext(null, null);
+        _hud_adapter.SetupRuntimeContext(null);
         _hud_adapter.Dispose();
         ClearSelectedSkillPreviewCache();
         ClearSkillIconPresentationBindings();
@@ -321,12 +321,11 @@ public partial class BattleMapPanel : Control
 
     internal void SetupRuntimeContext(
         WorldMapRuntimeProxy runtimeProxy,
-        GameRuntimeFacade runtime,
-        GameSession gameSession
+        GameRuntimeFacade runtime
     )
     {
         _runtime_proxy = runtimeProxy;
-        _hud_adapter.SetupRuntimeContext(runtime, gameSession);
+        _hud_adapter.SetupRuntimeContext(runtime);
     }
 
     public void ShowBattle(

@@ -64,7 +64,7 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
             );
             _test.Eq(
                 promotionResult.code,
-                GameRuntimeFacade.RuntimeCommandCode.InvalidState,
+                RuntimeCommandCode.InvalidState,
                 "promotion choose 缺失职业选项时应返回 InvalidState code。"
             );
             _test.Eq(
@@ -89,7 +89,7 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
             );
             _test.Eq(
                 blockedCloseResult.code,
-                GameRuntimeFacade.RuntimeCommandCode.InvalidState,
+                RuntimeCommandCode.InvalidState,
                 "reward modal close 应返回 InvalidState code。"
             );
             _test.Eq(

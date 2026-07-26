@@ -36,12 +36,12 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             _test.True(runtime.PresentPendingRewardIfReady(), "PresentPendingRewardIfReady() 应通过 reward handler 打开 promotion modal。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "存在 world promotion prompt 时应切换到 promotion modal。");
 
-            GameRuntimeFacade.RuntimeCommandResult missingChoiceResult =
+            RuntimeCommandResult missingChoiceResult =
                 runtime.CommandChoosePromotionTyped("warrior");
             _test.False(missingChoiceResult.Ok, "command_choose_promotion() 应委托给正式 reward handler 并拒绝不存在的职业。");
             _test.Eq(missingChoiceResult.Message, "当前晋升列表中不存在职业 warrior。", "缺失晋升选项应返回正式错误文案。");
 
-            GameRuntimeFacade.RuntimeCommandResult cancelResult = runtime.CommandCancelPromotionChoiceTyped();
+            RuntimeCommandResult cancelResult = runtime.CommandCancelPromotionChoiceTyped();
             _test.True(
                 cancelResult.Ok,
                 "cancel_promotion_choice() 应委托给正式 reward handler。"
@@ -51,14 +51,14 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
 
             runtime.ClearPendingWorldPromotionPromptState();
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
-            GameRuntimeFacade.RuntimeCommandResult confirmMissingReward =
+            RuntimeCommandResult confirmMissingReward =
                 runtime.CommandConfirmPendingRewardTyped();
             _test.False(confirmMissingReward.Ok, "command_confirm_pending_reward() 应委托给 reward handler 并拒绝空奖励。");
             _test.Eq(confirmMissingReward.Message, "当前没有待确认的角色奖励。", "空奖励确认应返回正式错误文案。");
 
             runtime.SetActiveCharacterInfoContext(BuildCharacterInfoContext("测试人物"));
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.CharacterInfo);
-            GameRuntimeFacade.RuntimeCommandResult closeResult =
+            RuntimeCommandResult closeResult =
                 runtime.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "command_close_active_modal() 应委托给 reward handler。");
             using GodotProjectionLease<GDictionary> characterInfoLease =
@@ -94,7 +94,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
             runtime.SetActiveSettlementId("spring_village_01");
             runtime.SetSettlementFeedbackText("测试反馈");
-            GameRuntimeFacade.RuntimeCommandResult settlementClose =
+            RuntimeCommandResult settlementClose =
                 handler.CommandCloseActiveModalTyped();
             _test.True(settlementClose.Ok, "settlement modal 应可通过 reward handler 路由关闭。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "settlement close 后应清空 modal。");
@@ -104,7 +104,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Warehouse);
             runtime.SetActiveWarehouseEntryLabel("队伍管理");
-            GameRuntimeFacade.RuntimeCommandResult warehouseClose =
+            RuntimeCommandResult warehouseClose =
                 handler.CommandCloseActiveModalTyped();
             _test.True(warehouseClose.Ok, "warehouse modal 应可通过 reward handler 路由关闭。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "warehouse close 后应清空 modal。");
@@ -112,7 +112,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             _test.Eq(runtime.GetStatusText(), "已关闭共享仓库。", "warehouse close 应刷新正式状态文案。");
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Party);
-            GameRuntimeFacade.RuntimeCommandResult partyClose =
+            RuntimeCommandResult partyClose =
                 handler.CommandCloseActiveModalTyped();
             _test.True(partyClose.Ok, "party modal 应可通过 reward handler 路由关闭。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "party close 后应清空 modal。");
@@ -128,7 +128,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
                 "",
                 ""
             );
-            GameRuntimeFacade.RuntimeCommandResult submapClose =
+            RuntimeCommandResult submapClose =
                 handler.CommandCloseActiveModalTyped();
             _test.True(submapClose.Ok, "submap_confirm modal 应可通过 reward handler 路由取消。");
             _test.Eq(runtime.GetPendingSubmapPrompt().Count, 0, "submap_confirm close 后应清空 pending submap prompt。");
@@ -136,19 +136,19 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             _test.Eq(runtime.GetStatusText(), "已取消进入 古塔。", "submap_confirm close 应刷新正式状态文案。");
 
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Reward);
-            GameRuntimeFacade.RuntimeCommandResult rewardClose =
+            RuntimeCommandResult rewardClose =
                 handler.CommandCloseActiveModalTyped();
             _test.False(rewardClose.Ok, "reward modal 不能被普通关闭命令跳过。");
             _test.Eq(rewardClose.Message, "当前角色奖励必须确认后才能继续。", "reward modal 普通关闭应返回正式错误文案。");
 
             runtime.SetActiveRewardState(BuildPendingReward());
-            GameRuntimeFacade.RuntimeCommandResult confirmActiveReward =
+            RuntimeCommandResult confirmActiveReward =
                 handler.CommandConfirmActiveRewardTyped();
             _test.True(confirmActiveReward.Ok, "active reward 应能通过 typed confirm helper 结算。");
             _test.True(runtime.GetActiveReward() == null, "confirm active reward 后应清空 active reward。");
 
             runtime.SetPendingWorldPromotionPromptState(BuildPromotionPrompt("hero"));
-            GameRuntimeFacade.RuntimeCommandResult cancelPromotionChoice =
+            RuntimeCommandResult cancelPromotionChoice =
                 handler.CommandCancelPromotionChoiceTyped();
             _test.True(cancelPromotionChoice.Ok, "cancel promotion choice 应走 typed helper。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "cancel promotion choice 后应仍停留在 promotion modal。");

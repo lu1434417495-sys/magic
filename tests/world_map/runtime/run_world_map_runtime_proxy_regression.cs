@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using RuntimeCommandResult = GameRuntimeFacade.RuntimeCommandResult;
 
 public partial class run_world_map_runtime_proxy_regression : LifecycleTestSceneTree
 {
@@ -187,7 +186,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         _test.Eq(result.Message, "运行时尚未初始化。", "缺少 runtime 时应返回正式错误文案。");
         _test.Eq(
             result.Code,
-            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable,
+            RuntimeCommandCode.RuntimeUnavailable,
             "缺少 runtime 时 typed command 应返回 RuntimeUnavailable。"
         );
         _test.Eq(proxy.GetStatusText(), "", "缺少 runtime 时 getter 应返回安全默认值。");
@@ -238,12 +237,12 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
                 gameSession,
                 "仓库直接加入物品"
             );
-            GameRuntimeFacade.RuntimeCommandResult openPartyResult = runtime.CommandOpenPartyTyped();
+            RuntimeCommandResult openPartyResult = runtime.CommandOpenPartyTyped();
             _test.True(
                 openPartyResult.Ok,
                 $"warehouse use 前置的 party open 应成功。message={openPartyResult.Message}"
             );
-            GameRuntimeFacade.RuntimeCommandResult selectPartyResult =
+            RuntimeCommandResult selectPartyResult =
                 runtime.CommandSelectPartyMemberTyped(memberId);
             _test.True(
                 selectPartyResult.Ok,

@@ -103,24 +103,24 @@ public partial class run_world_map_system_surface_regression : LifecycleTestScen
             if (bookSkill.SkillId == "" || bookSkill.ItemId == "")
                 return;
 
-            GameRuntimeFacade.RuntimeCommandResult addResult =
+            RuntimeCommandResult addResult =
                 runtime.CommandWarehouseAddItemTyped(bookSkill.ItemId, 1);
             _test.True(
                 addResult.Ok,
                 $"world map system regression 预置仓库库存应成功。message={addResult.Message}"
             );
-            GameRuntimeFacade.RuntimeCommandResult openPartyResult = runtime.CommandOpenPartyTyped();
+            RuntimeCommandResult openPartyResult = runtime.CommandOpenPartyTyped();
             _test.True(
                 openPartyResult.Ok,
                 $"world map system regression 的 party open 应成功。message={openPartyResult.Message}"
             );
-            GameRuntimeFacade.RuntimeCommandResult selectPartyResult =
+            RuntimeCommandResult selectPartyResult =
                 runtime.CommandSelectPartyMemberTyped(memberId);
             _test.True(
                 selectPartyResult.Ok,
                 $"world map system regression 的 party select 应成功。message={selectPartyResult.Message}"
             );
-            GameRuntimeFacade.RuntimeCommandResult openWarehouseResult =
+            RuntimeCommandResult openWarehouseResult =
                 runtime.CommandOpenPartyWarehouseTyped();
             _test.True(
                 openWarehouseResult.Ok,

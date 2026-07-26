@@ -131,7 +131,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         return context;
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandShopBuyTyped(
+    internal RuntimeCommandResult CommandShopBuyTyped(
         StringName item_id,
         int quantity
     )
@@ -198,7 +198,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         return _owner.RuntimeCommandOk(message);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandShopSellTyped(
+    internal RuntimeCommandResult CommandShopSellTyped(
         StringName item_id,
         int quantity,
         StringName instance_id = null
@@ -251,7 +251,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         return _owner.RuntimeCommandOk(message);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandStagecoachTravelTyped(
+    internal RuntimeCommandResult CommandStagecoachTravelTyped(
         string settlement_id
     )
     {
@@ -332,7 +332,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         return _owner.RuntimeCommandOk(message);
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult OpenShopModalTyped(
+    internal RuntimeCommandResult OpenShopModalTyped(
         string settlementId,
         GDictionary payload
     )
@@ -685,7 +685,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         SettlementServiceResult result
     )
     {
-        if (member_id == "" || _owner.Runtime == null || result == null)
+        if (member_id == "" || !_owner._has_runtime() || result == null)
         {
             return;
         }
@@ -694,7 +694,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         {
             return;
         }
-        _owner.Runtime?.HandleMisfortuneForgeResult(member_id, result);
+        _owner.NotifyMisfortuneGuidanceOfForgeResult(member_id, result);
     }
 
     internal bool _is_forge_modal_submission(GDictionary payload)

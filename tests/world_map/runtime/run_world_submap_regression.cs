@@ -86,7 +86,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             BattleState battleState = new() { battle_id = "submap_guard_battle" };
             context.Facade.SetRuntimeBattleState(battleState);
 
-            GameRuntimeFacade.RuntimeCommandResult returnResult =
+            RuntimeCommandResult returnResult =
                 context.Facade.CommandReturnFromSubmapTyped();
             _test.True(!returnResult.Ok, "子地图 battle active 时返回应被阻断。");
             _test.True(!string.IsNullOrEmpty(returnResult.Message), "battle active 阻断应返回错误。");
@@ -142,7 +142,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             );
             context.Facade.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
-            GameRuntimeFacade.RuntimeCommandResult returnResult =
+            RuntimeCommandResult returnResult =
                 context.Facade.CommandReturnFromSubmapTyped();
             _test.True(!returnResult.Ok, "子地图 modal 打开时返回应被阻断。");
             _test.True(!string.IsNullOrEmpty(returnResult.Message), "modal-open 阻断应返回错误。");
@@ -194,7 +194,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
                 return;
             }
 
-            GameRuntimeFacade.RuntimeCommandResult submapMoveResult =
+            RuntimeCommandResult submapMoveResult =
                 context.Facade.CommandWorldMoveTyped(Vector2I.Left, 1);
             _test.True(submapMoveResult.Ok, "子地图内移动应成功。");
             _test.Eq(context.Facade.GetPlayerCoord(), new Vector2I(14, 15), "子地图内移动后坐标应更新。");
@@ -239,7 +239,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
                     "重新载入 active submap 后 fog 应从 world_data 恢复并刷新当前位置。"
                 );
 
-                GameRuntimeFacade.RuntimeCommandResult returnResult =
+                RuntimeCommandResult returnResult =
                     reloadedFacade.CommandReturnFromSubmapTyped();
                 _test.True(returnResult.Ok, "从子地图返回主世界应成功。");
                 _test.True(!reloadedFacade.IsSubmapActive(), "返回后应回到主世界。");
@@ -289,7 +289,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
 
         try
         {
-            GameRuntimeFacade.RuntimeCommandResult moveResult =
+            RuntimeCommandResult moveResult =
                 context.Facade.CommandWorldMoveTyped(Vector2I.Right, 3);
             _test.True(moveResult.Ok, "进入失败回归前置：应能走到灰烬入口。");
             Vector2I expectedCoord = context.Facade.GetPlayerCoord();
@@ -300,7 +300,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             );
 
             context.GameSession.fail_payload_write = true;
-            GameRuntimeFacade.RuntimeCommandResult confirmResult =
+            RuntimeCommandResult confirmResult =
                 context.Facade.CommandConfirmSubmapEntryTyped();
 
             _test.True(!confirmResult.Ok, "子地图 entry payload 写入失败时命令应失败。");
@@ -350,7 +350,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             );
 
             context.GameSession.fail_payload_write = true;
-            GameRuntimeFacade.RuntimeCommandResult returnResult =
+            RuntimeCommandResult returnResult =
                 context.Facade.CommandReturnFromSubmapTyped();
 
             _test.True(!returnResult.Ok, "子地图 return payload 写入失败时命令应失败。");
@@ -582,7 +582,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             "主世界应能看到已发现的灰烬入口事件。"
         );
 
-        GameRuntimeFacade.RuntimeCommandResult moveResult =
+        RuntimeCommandResult moveResult =
             facade.CommandWorldMoveTyped(Vector2I.Right, 3);
         _test.True(moveResult.Ok, "走向灰烬入口应成功。");
         _test.Eq(facade.GetActiveModalId(), "submap_confirm", "踩入入口事件后应弹出进入确认窗。");
@@ -592,7 +592,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
             "待确认入口应指向灰烬地图。"
         );
 
-        GameRuntimeFacade.RuntimeCommandResult confirmResult =
+        RuntimeCommandResult confirmResult =
             facade.CommandConfirmSubmapEntryTyped();
         _test.True(confirmResult.Ok, "确认后应进入灰烬地图。");
         _test.True(facade.IsSubmapActive(), "确认后当前地图应切换到子地图。");

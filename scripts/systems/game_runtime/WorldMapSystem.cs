@@ -123,7 +123,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         proxy.Setup(_runtime, this);
         RegisterApplicationShutdownParticipant();
 
-        battle_map_panel.SetupRuntimeContext(_runtime_proxy, _runtime, _game_session);
+        battle_map_panel.SetupRuntimeContext(_runtime_proxy, _runtime);
 
         Resized += _update_responsive_log_layout;
         _signalsConnected = true;
@@ -179,7 +179,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
                 DisconnectSignals();
             }
             if (battle_map_panel != null)
-                battle_map_panel.SetupRuntimeContext(null, null, null);
+                battle_map_panel.SetupRuntimeContext(null, null);
         }
         finally
         {
