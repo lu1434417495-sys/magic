@@ -12,7 +12,6 @@
 
 ## 跨系统迁移与架构整治
 
-- [`migrations/code_structure_refactoring_plan.md`](migrations/code_structure_refactoring_plan.md)：代码结构、依赖门禁、hub owner 与后续拆分治理路线。
 - [`migrations/gd_cleanup.md`](migrations/gd_cleanup.md)：内部 Godot 类型传播的清理提案。
 
 功能落地后：

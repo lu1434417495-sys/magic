@@ -89,4 +89,4 @@ P3 的四项治理目标已落地：
 
 `tools/architecture/layer_baseline.json` 当前为 0 条；2026-07-22 人工复核登记的 172 条禁止边已全部从当前代码删除。空 baseline 下主项目 Debug/Release 构建和 analyzer 9 项契约测试通过；另通过建卡、身份校验、技能书、Fortuna guidance、Misfortune guidance、黑兆、terrain lifetime 与接触型 terrain effect 聚焦回归。未运行全量回归或数值模拟。
 
-显式外部 `enemy_units` payload 是否扩展 69-key codec 来携带 runtime-only projection 仍是独立的外部合同/schema 决策，不是当前已知禁止边或结构清理残项；按兼容策略，在用户明确授权前不增加字段、migration 或 fallback。
+审计时，显式外部 `enemy_units` payload 是否扩展 69-key codec 来携带 runtime-only projection 仍是独立合同/schema 决策。后续于 `2026-07-26` 正式收口为 canonical-only：context 中的 `battle_party` / `enemy_units` 不增加 runtime-only 字段、extension、migration 或 fallback；需要保留 runtime projection 的进程内调用方使用一次性 `BattleStartUnitRoster` typed handoff。未来若出现真实跨进程扩展需求，另立 schema proposal 并重新取得兼容授权。

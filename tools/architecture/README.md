@@ -1,7 +1,7 @@
 # Architecture analyzer tooling
 
 `Magic.ArchitectureAnalyzers` is the semantic dependency-gate spike described by
-`docs/proposals/migrations/code_structure_refactoring_plan.md`.
+`docs/archive/implementation-plans/landed/2026-07-26-code-structure-refactoring.md`.
 
 Current scope:
 

@@ -3,7 +3,7 @@
 > 类型：时点架构审计（point-in-time review），不代表持续设计文档。
 > 范围：`scripts/`（评审时 829 个 .cs / 278,282 行；拆分后 859 个 .cs / 279,549 行）、`tests/`（约 460 个 .cs，166,724 行）。
 > 依据：实际源码静态分析 + `docs/design/project_context_units.md` 声明的边界对照。
-> 后续路线：见 [`docs/proposals/migrations/code_structure_refactoring_plan.md`](../proposals/migrations/code_structure_refactoring_plan.md)；该提案会随当前代码复核更新，本审计仍保留为时点证据。
+> 后续路线已完成并归档：见 [`2026-07-26-code-structure-refactoring.md`](../archive/implementation-plans/landed/2026-07-26-code-structure-refactoring.md)；当前实现仍以 `docs/design/`、源码和测试为准，本审计仅保留为时点证据。
 
 > **2026-07-20 修正记录**：评审后两天内完成 6 个超大文件拆分（合计 30,010 → 11,574 行，-61%，新增 27 个职责类）+ `BattleDamageResolver ⇄ BattleEquipmentAbilityRuntimeService` 循环依赖经 `IBattleEquipmentAbilityReactionService` 接口解耦 + SaveVersion 双真相源收敛 + 1 个 flaky 测试修复。全套件 394/394 全绿（`run_regression_suite.py --jobs auto`，3.5 分钟并发）。相关问题/建议条目已就地标注，图 ③④⑥ 与统计数据已更新为拆分后现状。
 >
