@@ -3,6 +3,12 @@
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>Magic</RootNamespace>
+    <MagicEnableAiMutationDiagnostics
+      Condition="'$(MagicEnableAiMutationDiagnostics)' == '' and '$(Configuration)' == 'Debug'">true</MagicEnableAiMutationDiagnostics>
+    <MagicEnableAiMutationDiagnostics
+      Condition="'$(MagicEnableAiMutationDiagnostics)' == ''">false</MagicEnableAiMutationDiagnostics>
+    <DefineConstants
+      Condition="'$(MagicEnableAiMutationDiagnostics)' == 'true'">$(DefineConstants);MAGIC_AI_MUTATION_DIAGNOSTICS</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <!-- Architecture analyzer projects are independent tooling, not game/runtime sources. -->

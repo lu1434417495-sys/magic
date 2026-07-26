@@ -90,12 +90,10 @@ internal sealed class BattleAiService : IDisposable
             context.active_score_profile = _scoreService.GetProfile();
             context.ClearMutationGuardViolations();
 
+#if MAGIC_AI_MUTATION_DIAGNOSTICS
             if (MutationGuardMode == BattleAiMutationGuardMode.Disabled)
             {
-                BattleAiDecision decisionNoGuard;
-                using (new BattleAiTraceSpan("choose:impl"))
-                    decisionNoGuard = ChooseCommandImpl(context);
-                return BattleAiDecisionResult.Capture(context, decisionNoGuard, captureTrace);
+                return ChooseCommandWithoutMutationGuard(context, captureTrace);
             }
 
             if (MutationGuardMode != BattleAiMutationGuardMode.FullSnapshotDiagnostic)
@@ -151,6 +149,16 @@ internal sealed class BattleAiService : IDisposable
             decision?.ClearOwnedRuntimeReferences();
             RecordMutationViolation(context, report);
             throw new BattleAiMutationViolationException(report);
+#else
+            if (MutationGuardMode != BattleAiMutationGuardMode.Disabled)
+            {
+                throw new InvalidOperationException(
+                    "AI mutation diagnostics are not included in this build. "
+                    + "Build with -p:MagicEnableAiMutationDiagnostics=true."
+                );
+            }
+            return ChooseCommandWithoutMutationGuard(context, captureTrace);
+#endif
         }
         finally
         {
@@ -163,6 +171,17 @@ internal sealed class BattleAiService : IDisposable
                 _scoreService.EndDecisionScope();
             }
         }
+    }
+
+    private BattleAiDecisionResult ChooseCommandWithoutMutationGuard(
+        BattleAiContext context,
+        bool captureTrace
+    )
+    {
+        BattleAiDecision decision;
+        using (new BattleAiTraceSpan("choose:impl"))
+            decision = ChooseCommandImpl(context);
+        return BattleAiDecisionResult.Capture(context, decision, captureTrace);
     }
 
     private BattleAiDecision ChooseCommandImpl(BattleAiContext context)
