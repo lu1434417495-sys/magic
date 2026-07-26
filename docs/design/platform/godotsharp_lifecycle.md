@@ -738,8 +738,8 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 - `scripts/systems/content/EngineAssetResolver.cs`：process-shared path-backed 引擎资产的 canonical
   load/borrow 边界；
 - `scripts/systems/content/ContentSnapshot.cs`：immutable typed catalog root；
-- `scripts/utils/NativeLeaseScope.cs`：显式 runtime-native owner；
-- `scripts/utils/GodotProjectionLease.cs`：短期 Godot projection owner；
+- `scripts/systems/platform/NativeLeaseScope.cs`：显式 runtime-native owner；
+- `scripts/systems/platform/GodotProjectionLease.cs`：短期 Godot projection owner；
 - `tests/shared/LifecycleTestSceneTree.cs`：统一测试退出入口并先关闭 fixture owner；
 - `tests/shared/TestExitCoordinator.cs`：`TestResult` 到 production shutdown request 的适配器；
 - `tests/shared/LifecycleMeasurementBarrier.cs`：仅用于单进程 soak 周期量测的 GC/finalizer drain；
