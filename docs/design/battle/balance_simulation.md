@@ -1,7 +1,7 @@
 # 战斗模拟、数值分析与 AI 调参系统说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-25`
+> 核对日期：`2026-07-26`
 
 ## 关联上下文单元
 
@@ -316,7 +316,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 
 `BattleSimUnitSpec` 用于旧式显式参战单位夹具。它是同步 authoring/import `Resource`，职责不是“引用一个模板并自动生成全部内容”，而是“把模拟需要的单位状态显式写出来”。`BattleSimUnitSpec.ToDefinition()` 会把它深拷贝为 immutable plain `BattleSimUnitDefinition`；运行时每场战斗都由该 definition 新建独立的 `BattleUnitState`，不会持有或复用原始 `BattleSimUnitSpec`。plain/programmatic 调用方可通过 `BattleSimScenarioUnitEntry.FromProjectedState(...)` 把已经投影完成的 unit 纳入 scenario definition；该入口会捕获 normal equipment-projection seed，并在每次 scenario roster materialization 时防御复制。当前 authored `BattleSimUnitSpec` 没有生成该 seed 的字段。
 
-如果模拟目标是玩家角色、队伍成员、武器/equipment view、技能进度、职业生命成长或建卡属性，优先使用 `BattleSimFormalCombatFixture`，不要在 `.tres` 场景里写 `base_attributes` / `attribute_overrides` / `weapon_projection`。当前 `mixed_2sword_1arch_mirror_simulation` 与 `mixed_6v12_mirror_simulation` 就是这种模式：场景资源只保留地图、地形、时间轴和 seed，单位由 fixture 走 `CharacterCreationService`、`CharacterManagementModule`、`AttributeService` 与现有正式角色/装备视图投影生成，并在开战前按装备与职业被动后的有效 `hp_max` 补满所有成员当前生命。hostile units 由 factory 生成后直接经 enemy-only typed roster 移交 runtime，不再 canonicalize 到 `enemy_units`，因此 factory 已产生的 runtime-only temporal modifier 不会在开战交接中丢失；ally 仍由正式 character gateway 路径生成。当前 formal 默认 loadout 本身不产生 temporal modifier，而且两个实际 benchmark 的 runtime setup 尚未注入 trait/equipment-binding catalog，所以这里不能推定默认 benchmark 已出现非空装备能力投影。formal fixture 会显式开启 `validate_spawn_reachability` 与 `validate_bidirectional_spawn_reachability`；如果生成出的地图导致 player 与 hostile 任一方向无法抵达可攻击位置，`BattleRuntimeModule.start_battle()` 会用下一个 terrain seed attempt 重刷地图，而不是把不可交战地图纳入模拟样本。
+如果模拟目标是玩家角色、队伍成员、武器/equipment view、技能进度、职业生命成长或建卡属性，优先使用 `BattleSimFormalCombatFixture`，不要在 `.tres` 场景里写 `base_attributes` / `attribute_overrides` / `weapon_projection`。当前 `mixed_2sword_1arch_mirror_simulation` 与 `mixed_6v12_mirror_simulation` 就是这种模式：场景资源只保留地图、地形、时间轴和 seed，单位由 fixture 走 `CharacterCreationService`、`CharacterManagementModule`、`AttributeService` 与现有正式角色/装备视图投影生成，并在开战前按装备与职业被动后的有效 `hp_max` 补满所有成员当前生命。hostile units 由 factory 生成后直接经 enemy-only typed roster 移交 runtime，不再 canonicalize 到 `enemy_units`，因此 factory 已产生的 runtime-only temporal modifier 不会在开战交接中丢失；ally 仍由正式 character gateway 路径生成。两个实际 benchmark 的 runtime setup 已从 process snapshot 注入 trait/equipment-binding catalog；但 formal 默认 loadout 本身不保证产生 temporal modifier，因此仍不能推定默认 benchmark 必然出现非空装备能力投影。formal fixture 会显式开启 `validate_spawn_reachability` 与 `validate_bidirectional_spawn_reachability`；如果生成出的地图导致 player 与 hostile 任一方向无法抵达可攻击位置，`BattleRuntimeModule.start_battle()` 会用下一个 terrain seed attempt 重刷地图，而不是把不可交战地图纳入模拟样本。
 
 正式角色 fixture 支持 roster options：
 

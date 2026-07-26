@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Magic 项目架构评审 UML 图（2026-07-19）</title>
+<title>Magic 项目架构 UML 图（按当前代码重绘 · 2026-07-26）</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
 <style>
@@ -42,6 +42,7 @@
   }
   .stat .num { font-size: 22px; font-weight: 700; color: var(--accent); }
   .stat .num.bad { color: var(--danger); }
+  .stat .num.good { color: var(--ok); }
   .stat .lbl { font-size: 12px; color: var(--muted); }
   nav {
     padding: 12px 48px; background: var(--panel);
@@ -62,7 +63,7 @@
     background: #ffffff; border-radius: 10px;
     border: 1px solid var(--border);
     position: relative; overflow: hidden;
-    height: 75vh; min-height: 480px;
+    height: 78vh; min-height: 520px;
   }
   .diagram .mermaid { width: 100%; height: 100%; }
   .diagram .mermaid svg {
@@ -91,20 +92,14 @@
     position: fixed; inset: 0; z-index: 100;
     height: 100vh; border-radius: 0;
   }
-  .legend { display: flex; gap: 18px; font-size: 12px; color: var(--muted); margin: 8px 0 0; }
-  .legend span::before { content: "■"; margin-right: 5px; }
-  .legend .l-ok::before { color: var(--ok); }
-  .legend .l-warn::before { color: var(--warn); }
-  .legend .l-danger::before { color: var(--danger); }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+  .legend code { font-size: 12px; }
   table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin-top: 12px; }
   th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
   th { background: var(--panel2); }
   td { background: var(--panel); }
-  .p0 { color: var(--danger); font-weight: 700; }
-  .p1 { color: var(--warn); font-weight: 700; }
-  .p2 { color: #d29922; font-weight: 700; }
-  .p3 { color: var(--muted); font-weight: 700; }
   .good { color: var(--ok); }
+  .warn-t { color: var(--warn); }
   code { background: var(--panel2); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; color: #ffa657; }
   .callout {
     border: 1px solid var(--warn); background: rgba(240,136,62,.08);
@@ -112,496 +107,1222 @@
   }
   .callout.danger { border-color: var(--danger); background: rgba(248,81,73,.08); }
   .callout.ok { border-color: var(--ok); background: rgba(63,185,80,.08); }
+  .callout.info { border-color: var(--accent); background: rgba(88,166,255,.08); }
   footer { padding: 24px 48px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Magic（Godot 4.6 C#）项目架构评审 — UML 全景图</h1>
-  <div class="sub">时点架构审计 · 2026-07-19 · 依据实际源码静态分析，对照 docs/design/project_context_units.md 声明边界</div>
-  <div class="sub">2026-07-21 校正后的执行路线：<a href="../proposals/migrations/code_structure_refactoring_plan.md">代码结构治理提案</a>。本页正文保留时点证据。</div>
+  <h1>Magic 项目架构 UML 图 <span style="font-size:15px;color:var(--muted)">按当前实际代码重绘 · 2026-07-26</span></h1>
+  <div class="sub">
+    数据源：工作区 @ <code>ff2c2f65</code> 全量静态分析（class 声明 / 字段 / 接口实现 / Setup 接线逐一核对）·
+    本文件为时点 UML 审计，覆盖 2026-07-19 旧版评审后 22 个重构提交（facade ports、UnitState substates、AI evaluator 重做、分层 Roslyn 门禁等）
+  </div>
   <div class="stats">
-    <div class="stat"><div class="num">829</div><div class="lbl">C# 产品文件</div></div>
-    <div class="stat"><div class="num">278,282</div><div class="lbl">产品代码行数</div></div>
-    <div class="stat"><div class="num">166,724</div><div class="lbl">测试代码行数</div></div>
-    <div class="stat"><div class="num bad">51%</div><div class="lbl">战斗域代码占比</div></div>
-    <div class="stat"><div class="num bad">0</div><div class="lbl">namespace 声明（全局命名空间）</div></div>
-    <div class="stat"><div class="num bad">2,833</div><div class="lbl">当前最大单文件行数（10 个超大文件已拆分 ✓）</div></div>
-    <div class="stat"><div class="num bad">6</div><div class="lbl">实测越层依赖边（2 已修复 ✓）</div></div>
-    <div class="stat"><div class="num">31</div><div class="lbl">拆分新增职责类/主题文件（7 个超大文件 -61%）</div></div>
-    <div class="stat"><div class="num">394/394</div><div class="lbl">全套件全绿（--jobs auto · 3.5 分钟）</div></div>
+    <div class="stat"><div class="num">992 / 302,881</div><div class="lbl">scripts/ .cs 文件数 / 总行数</div></div>
+    <div class="stat"><div class="num bad">53%</div><div class="lbl">battle 域占比（405 文件 / 160,170 行）</div></div>
+    <div class="stat"><div class="num">502 / 200,181</div><div class="lbl">tests/ .cs 文件数 / 行数（≈0.66:1）</div></div>
+    <div class="stat"><div class="num bad">0</div><div class="lbl">namespace 声明（仍全部全局命名空间）</div></div>
+    <div class="stat"><div class="num good">10 层 / 5 禁则</div><div class="lbl">layer_rules.json + Roslyn analyzer 编译期强制</div></div>
   </div>
 </header>
 
 <nav>
-  <a href="#d1">① 全局分层组件图</a>
-  <a href="#d2">② 静态内容管线</a>
-  <a href="#d3">③ 会话与运行时编排类图</a>
-  <a href="#d4">④ 战斗运行时核心类图</a>
-  <a href="#d5">⑤ AI 决策链</a>
-  <a href="#d6">⑥ 依赖违规汇总</a>
-  <a href="#problems">问题清单</a>
-  <a href="#good">架构亮点</a>
-  <a href="#actions">改进建议</a>
+  <a href="#overview">总量画像</a>
+  <a href="#d1">① 分层与依赖禁则</a>
+  <a href="#d2">② 生命周期与内容管线</a>
+  <a href="#d3">③ 存档持久化</a>
+  <a href="#d4">④ game_runtime 编排与端口</a>
+  <a href="#d5">⑤ settlement 命令管线</a>
+  <a href="#d6">⑥ 战斗状态核心</a>
+  <a href="#d7">⑦ 战斗服务接线</a>
+  <a href="#d8">⑧ rules 接口解耦</a>
+  <a href="#d9">⑨ AI 决策链</a>
+  <a href="#d10">⑩ 表现层与战斗模拟</a>
+  <a href="#d11">⑪ 内容族模板</a>
+  <a href="#d12">⑫ player 数据聚合</a>
+  <a href="#delta">与旧版差异</a>
 </nav>
 
 <main>
 
-<!-- ================= 图 1 ================= -->
+<section id="overview">
+  <h2>总量画像 <span class="tag">2026-07-26 实测</span></h2>
+  <p class="desc">行数为当前工作区逐文件统计。UML 图中类名、字段、接口均为代码中真实类型；可见性记号：<code>+</code> public、<code>~</code> internal、<code>-</code> private；泛型以 <code>~T~</code> 表示（mermaid 语法）。</p>
+  <table>
+    <tr><th>区域</th><th>文件数</th><th>行数</th><th>占比</th><th>层归属（layer_rules.json）</th></tr>
+    <tr><td><code>scripts/systems/battle</code>（战斗全域）</td><td>405</td><td>160,170</td><td><b>52.9%</b></td><td>runtime→application；ai/rules/terrain/fate→domain_runtime；core→domain_state；presentation→presentation；sim→tooling</td></tr>
+    <tr><td>├ runtime/</td><td>108</td><td>55,275</td><td></td><td>application（BattleRuntimeModule 等例外列 composition）</td></tr>
+    <tr><td>├ ai/</td><td>61</td><td>34,240</td><td></td><td>domain_runtime</td></tr>
+    <tr><td>├ core/ + _interop/</td><td>117</td><td>28,030</td><td></td><td>domain_state</td></tr>
+    <tr><td>├ rules/ · terrain/ · fate/ · sim/ · presentation/ · content/</td><td>119</td><td>42,625</td><td></td><td>混合（见上行）</td></tr>
+    <tr><td><code>scripts/player</code>（数据/内容定义层）</td><td>237</td><td>42,759</td><td>14.1%</td><td>content_authoring / content_definition / domain_state</td></tr>
+    <tr><td><code>scripts/systems/game_runtime</code>（总编排）</td><td>71</td><td>30,499</td><td>10.1%</td><td>application（facade/proxy/WorldMapSystem 列 composition）</td></tr>
+    <tr><td><code>scripts/ui</code></td><td>37</td><td>17,072</td><td>5.6%</td><td>presentation</td></tr>
+    <tr><td><code>scripts/systems/progression</code></td><td>49</td><td>14,660</td><td>4.8%</td><td>domain_runtime（CharacterManagementModule 列 composition）</td></tr>
+    <tr><td><code>scripts/systems/world</code> / <code>settlement</code></td><td>32 + 19</td><td>9,183 + 3,392</td><td>4.2%</td><td>domain_runtime（*Data/*State→domain_state，*Definition→content_definition）</td></tr>
+    <tr><td><code>scripts/enemies</code></td><td>58</td><td>7,100</td><td>2.3%</td><td>content_authoring + content_definition</td></tr>
+    <tr><td>persistence / content / platform / lifecycle / inventory / attributes / fate</td><td>89</td><td>18,046</td><td>6.0%</td><td>infrastructure（前三者）/ domain_runtime / content_authoring</td></tr>
+    <tr><td><code>scripts/utils</code></td><td class="good">0</td><td class="good">0</td><td class="good">已清空</td><td>2026-07 提交 e7644ed2 杂物已迁回各域 owner</td></tr>
+  </table>
+  <div class="callout info">
+    与 2026-07-19 旧版最重要的结构性变化：<b>分层边界已有编译期强制</b>（<code>tools/architecture/layer_rules.json</code> + <code>Magic.ArchitectureAnalyzers</code> Roslyn analyzer + baseline，提交 c42c5845），全局命名空间仍在，但越层依赖现在会直接编译失败；旧评审图 ⑥ 的 6 处越层边中剩余项均已收口或改写（详见文末差异表）。
+  </div>
+</section>
+
 <section id="d1">
-  <h2>① 全局分层组件图 <span class="tag p0">含问题热点标注</span></h2>
-  <p class="desc">八层结构全貌。红色 = 架构问题热点；绿色 = 边界干净区域；虚线 = 反向/回指依赖。</p>
-  <div class="diagram">
-<pre class="mermaid">
+  <h2>图 ① 全局分层与依赖禁则 <span class="tag">layer_rules.json · Roslyn analyzer 强制</span></h2>
+  <p class="desc">10 个逻辑层，允许方向自上而下；红色虚线为 5 条 denyRules（违反即编译错误）。每层的目录归属来自 <code>tools/architecture/layer_rules.json</code> 的 pathMappings。</p>
+  <div class="diagram"><pre class="mermaid">
 flowchart TB
-    subgraph Entry["启动与入口层"]
-        Login["LoginScreen<br/>登录 / 建卡 / 存档选择"]
+    subgraph CA["content_authoring · .tres Resource + Registry"]
+        CA1["SkillDef / ItemDef / TraitDef / EnemyTemplateDef<br/>*ContentRegistry（19 个）<br/>scripts/player · scripts/enemies"]
     end
-
-    subgraph Platform["平台层 lifecycle / content / persistence"]
-        ALC["ApplicationLifetimeCoordinator<br/>进程 shutdown 唯一 owner"]
-        PCH["ProcessContentHost"]
-        CS["ContentSnapshot<br/>immutable typed 定义索引"]
-        GS["GameSession (autoload)<br/>god autoload · 3423 行 · ~70 public 方法"]
-        SR["SaveRepository / SaveSerializer<br/>✓ 版本号已收敛（SaveSchemaVersions）"]
-        GR["GameRoot → GameContentCatalog"]
+    subgraph CD["content_definition · frozen 运行时定义"]
+        CD1["SkillDefinition / ItemDefinition / TraitDefinition<br/>EnemyTemplateDefinition / EnemyAiBrainDefinition<br/>ContentSnapshot · BattleAttackRollModifierSpec"]
     end
-
-    subgraph Runtime["运行时编排层 game_runtime"]
-        WMS["WorldMapSystem<br/>场景层 Runtime participant · 1519 行"]
-        Proxy["WorldMapRuntimeProxy<br/>⚠ 宽 pass-through + command/presentation 编排"]
-        Facade["GameRuntimeFacade<br/>🔴 god facade · ~4537 行 · ~490 方法 · 75 internal 字段"]
-        BSF["BattleSessionFacade"]
-        CMM["CharacterManagementModule<br/>🔴 ~3600 行 · 14 个定义索引"]
-        SCH["GameRuntimeSettlementCommandHandler<br/>⚠ 已拆分但接口仍宽"]
+    subgraph DS["domain_state · 纯数据状态"]
+        DS1["PartyState / UnitProgress / WarehouseState<br/>BattleState / BattleUnitState(+19 substates)<br/>WorldRuntimeData / WorldMap*Data"]
     end
-
-    subgraph World["世界侧 world"]
-        WDC["WorldMapDataContext"]
-        WRD["WorldRuntimeData"]
-        Spawn["WorldMapSpawnSystem<br/>⚠ 两处独立实例化"]
-        Grid["WorldMapGridSystem / FogSystem"]
+    subgraph DR["domain_runtime · 领域服务"]
+        DR1["battle/ai·rules·terrain·fate<br/>systems/progression · inventory · attributes<br/>settlement · world"]
     end
-
-    subgraph Battle["战斗侧 battle — 全项目 51% 代码量"]
-        BRM["BattleRuntimeModule<br/>🔴 5 partial · 合计约 5003 行 · ~40 服务"]
-        Core["core: BattleState / BattleUnitState 🔴2797行"]
-        Rules["rules: Damage / Hit / Save Resolver"]
-        RT["runtime: Orchestrator ✓主文件2138行+4类 / Timeline /<br/>装备能力 ✓2302行+9类"]
-        AI["ai: AiService / 12 Evaluators"]
-        Pres["presentation: BattleHudAdapter ✓ 边界干净"]
+    subgraph AP["application · 编排"]
+        AP1["game_runtime/**（handler/service 群）<br/>battle/runtime（BattleRuntimeModule）<br/>GameContentCatalog · SkillCatalog"]
     end
-
-    subgraph Domain["领域服务层"]
-        Prog["systems/progression<br/>ProgressionService 等"]
-        Inv["systems/inventory"]
-        Attr["systems/attributes"]
+    subgraph PR["presentation · 投影/渲染"]
+        PR1["scripts/ui/**<br/>battle/presentation（BattleHudAdapter）<br/>GameRuntimeSnapshotBuilder"]
     end
-
-    subgraph Data["数据 / 内容定义层 player + enemies"]
-        States["PartyState / UnitProgress /<br/>WarehouseState / *State"]
-        Regs["14 族 ContentRegistry<br/>⚠ 模板复制导致 105 文件"]
-        Defs["*Definition frozen 投影"]
-        Enemy["EnemyContentRegistry →<br/>EnemyTemplate / AiBrain Definition ✓"]
+    subgraph CP["composition · 组合根"]
+        CP1["GameSession · GameRoot · ProcessContentHost<br/>GameRuntimeFacade · WorldMapSystem<br/>BattleRuntimeModule · CharacterManagementModule<br/>ApplicationLifetimeCoordinator"]
     end
+    INF["infrastructure · platform / persistence / lifecycle<br/>GameLog · FileIOCoordinator · SaveSerializer · GodotProjectionLease"]
+    TESTS["tests（502 文件）"]:::ext
+    TOOL["tooling · dev_tools · tools/ · battle/sim"]:::ext
 
-    subgraph UILayer["UI 层 scripts/ui"]
-        Windows["BattleMapPanel 🔴3148行 /<br/>各 Window：渲染 snapshot + signal 提交意图"]
-    end
+    CA --> CD --> DS --> DR --> AP --> PR --> CP
+    INF -.横向基础层.-> CA & CD & DS & DR & AP & PR & CP
 
-    Login --> GS
-    ALC --> PCH --> CS
-    CS --> GS --> GR
-    GS --> SR
-    WMS --> Proxy --> Facade
-    Facade --> BSF --> BRM
-    Facade --> CMM
-    Facade --> SCH
-    Facade --> WDC --> WRD
-    WDC --> Spawn --> Grid
-    BRM --> Core
-    BRM --> Rules
-    BRM --> RT
-    BRM --> AI
-    Pres -. "仅 5 个只读入口" .-> Facade
-    CMM --> Prog
-    CMM --> Inv
-    CMM --> Attr
-    Prog --> States
-    Inv --> States
-    Attr --> States
-    Regs --> Defs --> CS
-    Enemy --> CS
-    Windows --> WMS
+    CA -. 禁则3 authoring→runtime/upper .-> DR
+    CD -. 禁则2 definition→runtime/upper .-> DR
+    DR -. 禁则4 domain_runtime→authoring/presentation/composition .-> CP
+    AP -. 禁则5 application→authoring/presentation .-> PR
+    CP -. 禁则1 production→tests/tooling .-> TESTS
 
-    classDef danger fill:#5c1f1f,stroke:#f85149,stroke-width:2px,color:#fff;
-    classDef warn fill:#4d3a1a,stroke:#f0883e,stroke-width:1.5px,color:#fff;
-    classDef ok fill:#1f3d2b,stroke:#3fb950,stroke-width:1.5px,color:#fff;
-    class Facade,CMM,SCH,BRM,Core,RT,Windows danger;
-    class GS,Proxy,Spawn,Regs warn;
-    class SR ok;
-    class Pres,Enemy,CS ok;
-</pre>
+    classDef ext fill:#f5f5f5,stroke:#999,stroke-dasharray:4 3;
+    linkStyle 8,9,10,11,12 stroke:#d33,stroke-width:2px,stroke-dasharray:5 4;
+  </pre></div>
+  <p class="legend">
+    <span>禁则 1：production → tests/tooling</span>
+    <span>禁则 2：content_definition → domain_runtime/application/presentation/composition</span>
+    <span>禁则 3：content_authoring → 同上</span>
+    <span>禁则 4：domain_runtime → content_authoring/presentation/composition</span>
+    <span>禁则 5：application → content_authoring/presentation</span>
+  </p>
+  <div class="callout">
+    灰色地带由显式 pathMapping 豁免：<code>GameRuntimeFacade.*</code>、<code>BattleRuntimeModule.*</code>、<code>CharacterManagementModule.*</code>、<code>GameSession.*</code> 被显式划入 <b>composition</b>，因此它们可以向下穿层做接线（这正是"组合根"的职责）；其余同目录文件走 <code>**</code> 兜底规则留在 application/domain_runtime，穿层即报错。
   </div>
-  <div class="legend"><span class="l-danger">god class / 热点</span><span class="l-warn">一致性风险</span><span class="l-ok">边界干净</span></div>
 </section>
 
-<!-- ================= 图 2 ================= -->
 <section id="d2">
-  <h2>② 静态内容管线 <span class="tag good">✓ 全项目最干净的一条链</span></h2>
-  <p class="desc">每个内容族（技能/职业/种族/trait/任务/血脉/升华/信仰/屏障/触发术…共 ~14 族）按同一模板走：<code>XxxDef(Resource)</code> → <code>XxxContentRegistry</code> → <code>XxxDefinition(frozen)</code> → <code>ContentSnapshot</code>。seal 之后所有消费方只借用 typed 定义，不回读 authored Resource。</p>
-  <div class="diagram">
-<pre class="mermaid">
-flowchart LR
-    subgraph Authoring["① .tres authoring 层（Godot Resource）"]
-        D1["SkillDef / ItemDef /<br/>EnemyAiBrainDef / QuestDef ..."]
-    end
-
-    subgraph Build["② 同步构建作用域（仅启动期存在）"]
-        R1["SkillContentRegistry<br/>✓ 已拆分 3573→804 行+3 validator"]
-        R2["ItemContentRegistry"]
-        R3["EnemyContentRegistry"]
-        R5["EquipmentAbilityContentRegistry<br/>✓ 已拆分 4020→341 行+3 类"]
-        R4["ProgressionContentRegistry<br/>聚合 14 族 · ⚠ 2185 行"]
-        Builder["ContentSnapshotBuilder"]
-    end
-
-    subgraph Frozen["③ 进程级冻结产物"]
-        Snap["ContentSnapshot (sealed)<br/>typed Definition 索引<br/>跨 session 复用"]
-    end
-
-    subgraph Consumers["④ 消费方（只借用 · 不回读）"]
-        Cat["GameContentCatalog<br/>带 revision 失效语义"]
-        BR["BattleRuntimeModule / BattleSim"]
-        WR["World Runtime / UI"]
-    end
-
-    D1 --> R1
-    D1 --> R2
-    D1 --> R3
-    D1 --> R5
-    R1 --> R4
-    R2 --> R4
-    R3 --> R4
-    R4 --> Builder
-    R5 --> Builder
-    Builder --> Snap
-    Snap --> Cat
-    Cat --> BR
-    Cat --> WR
-
-    classDef ok fill:#1f3d2b,stroke:#3fb950,stroke-width:1.5px,color:#fff;
-    classDef warn fill:#4d3a1a,stroke:#f0883e,stroke-width:1.5px,color:#fff;
-    class Snap,Cat ok;
-    class R1,R4,R5 warn;
-</pre>
-  </div>
-</section>
-
-<!-- ================= 图 3 ================= -->
-<section id="d3">
-  <h2>③ 会话与运行时编排类图 <span class="tag p1">god facade 热点</span></h2>
-  <p class="desc">场景层 → 代理层 → 门面层的三层中介链。<code>GameRuntimeFacade</code> 字段几乎全为 <code>internal</code>，任何 handler 经 <code>SetupRuntime(runtime)</code> 即可读写全部字段 —— 封装形同虚设。事务散布是审计时证据；2026-07-21 当前复核确认 runtime 业务提交已统一经 <code>RuntimeTransaction</code>/facade 入口。</p>
-  <div class="diagram">
-<pre class="mermaid">
+  <h2>图 ② 进程生命周期与静态内容管线 <span class="tag">lifecycle · content · composition</span></h2>
+  <p class="desc"> shutdown 唯一 owner 是 <code>ApplicationLifetimeCoordinator</code>；内容链路为 .tres → Registry → frozen Definition → ContentSnapshot（seal 后只借用）。所有类型名均来自 <code>scripts/systems/lifecycle</code> 与 <code>scripts/systems/content</code>。</p>
+  <div class="diagram"><pre class="mermaid">
 classDiagram
+    direction LR
+
     class ApplicationLifetimeCoordinator {
-        +shutdown_state
-        +RegisterRuntimeParticipant()
-        +RegisterSessionParticipant()
-        +ShutdownPipeline()
+        &lt;&lt;Node, IApplicationShutdownHooks>>
+        -Dictionary~string, ParticipantRegistration~ _participants
+        -ApplicationShutdownPipeline _pipeline
+        -ProcessContentHost _contentHost
+        -GameSession _activeSession
+        +AttachSession(GameSession)
+        +RegisterParticipant(IApplicationShutdownParticipant)
+        +RequestShutdownAsync(ShutdownRequest)
+        +CloseParticipantsAsync()
     }
+    class IApplicationShutdownParticipant {
+        &lt;&lt;interface>>
+        +ShutdownParticipantId string
+        +ShutdownStage ApplicationShutdownParticipantStage
+        +CloseForApplicationShutdownAsync(ShutdownReport)
+    }
+    class ApplicationShutdownPipeline {
+        -IApplicationShutdownHooks _hooks
+        -LifecycleAuditRegistry _audit
+        +RunAsync(ShutdownReport)
+    }
+    class ApplicationShutdownStateMachine {
+        +Phase ApplicationShutdownPhase
+        +TryAdvance(next) bool
+    }
+    class LifecycleAuditRegistry {
+        &lt;&lt;Shared 单例>>
+        +RegisterActive(...)
+        +CaptureSnapshot() LifecycleAuditSnapshot
+    }
+    class ShutdownReport {
+        +PhaseHistory
+        +Failures List~ShutdownFailure~
+        +LegacyDebt
+    }
+
+    class ProcessContentHost {
+        &lt;&lt;单进程单实例强制>>
+        -Dictionary~string, Resource~ _roots
+        -Dictionary~string, WeakReference~ _snapshotBorrowers
+        -ContentSnapshotPublication _publication
+        +LoadCanonical~T~(path)
+        +BuildAndSeal()
+        +GetSnapshot() ContentSnapshot
+        +RegisterSnapshotBorrower(id, borrower)
+    }
+    class ContentSnapshotPublication {
+        +Epoch long
+        +IsSealed bool
+        +BuildAndSeal(epoch, build, ...)
+        +Release()
+    }
+    class ContentSnapshot {
+        &lt;&lt;internal sealed · immutable>>
+        +Epoch long
+        +Skills IReadOnlyDictionary~StringName, SkillDefinition~
+        +Items IReadOnlyDictionary~StringName, ItemDefinition~
+        +EnemyTemplates / EnemyBrains / EncounterRosters
+        +IdentityCatalog ProgressionIdentityCatalogData
+        +BattleSpecialProfiles IBattleSpecialProfileView
+        +共 28 个 typed 字典属性
+    }
+    class ContentSnapshotBuilder {
+        -IContentResourceLoader _loader
+        +Build(epoch) ContentSnapshotBuildArtifact
+    }
+    class Registries["8 个 Registry（Builder 直接装配）"] {
+        ProgressionContentRegistry（聚合 12 子 Registry）
+        ItemContentRegistry / RecipeContentRegistry
+        EnemyContentRegistry / BarrierContentRegistry
+        BattleSpecialProfileRegistry
+        BattleEncounterContentRegistry / FaithContentRegistry
+    }
+
     class GameSession {
-        ⚠ autoload · 3423 行 · ~70 public 方法
-        +ActiveSave / SlotMeta / SaveIndex
-        +GameRoot root
-        +CommitRuntimeState(reason)
-        +RecordLogEvent()
+        &lt;&lt;Node, autoload · partial×5 · 3517 行>>
+        -GameRoot _game_root
+        -ContentSnapshot _contentSnapshot
+        -ProcessContentHost _contentBorrowerHost
+        +GetContentCatalogTyped() GameContentCatalog
     }
     class GameRoot {
-        +GameContentCatalog catalog
+        -GameContentCatalog _contentCatalog
+        -WeakReference~GameSession~ _sessionRef
+        +BindSnapshot(GameSession, ContentSnapshot)
     }
     class GameContentCatalog {
+        -long _revision
+        -SkillCatalog _skillCatalog
+        +BindSnapshot(GameSession, ContentSnapshot)
         +GetSkillDefinitionsTyped()
-        +GetEquipmentAbilityBindingDefinitionsTyped()
-        +revision
+        +GetSkillCatalogTyped() ISkillCatalog
     }
-    class WorldMapSystem {
-        场景层 · 1519 行
-        +RenderWindows() ⚠ 字符串 modalId 第二套映射
-    }
-    class WorldMapRuntimeProxy {
-        ⚠ 740 行 · 宽 pass-through + command/presentation 编排
-    }
-    class GameRuntimeFacade {
-        🔴 7 partial · ~4537 行 · ~490 方法
-        🔴 ~75 个 internal 字段（封装失效）
-        +RuntimeModalKind _active_modal_kind
-        +窗口上下文 Dictionary 字段群
-        +CommitRuntimeStateInternal()
-    }
-    class BattleSessionFacade {
-        +StartBattle()
-        +IBattleSeedSource
-    }
-    class CharacterManagementModule {
-        🔴 3 partial · ~3600 行
-        +14 个 Definition 索引字典
-        +setup() × 4 个重载
-    }
-    class GameRuntimeSettlementCommandHandler {
-        ⚠ 已拆分但接口仍宽
-        6+ 种窗口数据构建 + 命令分发
-        任务流 / 奖励流 / 文案 / headless 快照
-    }
-    class BattleRuntimeModule {
-        （详见图④）
+    class SkillCatalog {
+        &lt;&lt;ISkillCatalog>>
+        -GameContentCatalog _catalog
+        按 revision 缓存 derived effective profile
     }
 
-    ApplicationLifetimeCoordinator ..> GameSession : Session 阶段关闭
+    class WorldMapSystem {
+        &lt;&lt;Control · ShutdownStage=Runtime>>
+    }
+    class HeadlessGameTestSession {
+        &lt;&lt;headless 测试会话>>
+    }
+
+    ApplicationLifetimeCoordinator *-- ProcessContentHost
+    ApplicationLifetimeCoordinator *-- ApplicationShutdownPipeline
+    ApplicationShutdownPipeline ..> ApplicationShutdownStateMachine
+    ApplicationShutdownPipeline ..> LifecycleAuditRegistry
+    ApplicationShutdownPipeline ..> ShutdownReport
+    ApplicationLifetimeCoordinator o-- IApplicationShutdownParticipant : WeakReference 注册表
+    GameSession ..|> IApplicationShutdownParticipant
+    WorldMapSystem ..|> IApplicationShutdownParticipant
+    HeadlessGameTestSession ..|> IApplicationShutdownParticipant
+
+    ProcessContentHost *-- ContentSnapshotPublication
+    ContentSnapshotPublication *-- ContentSnapshot
+    ContentSnapshotBuilder ..> Registries : Build 时装配
+    Registries ..> ContentSnapshot : ProjectDefinitions 后 Freeze
+    ProcessContentHost ..> ContentSnapshotBuilder : _build 委托
+
     GameSession *-- GameRoot
     GameRoot *-- GameContentCatalog
-    WorldMapSystem --> WorldMapRuntimeProxy
-    WorldMapRuntimeProxy --> GameRuntimeFacade
-    GameRuntimeFacade *-- BattleSessionFacade
-    GameRuntimeFacade *-- CharacterManagementModule
-    GameRuntimeFacade *-- GameRuntimeSettlementCommandHandler
-    GameRuntimeFacade ..> GameSession : CommitRuntimeState（审计时散布；当前已收敛）
-    BattleSessionFacade ..> GameRuntimeFacade : ⚠ WeakReference 回指
-    GameRuntimeSettlementCommandHandler ..> GameRuntimeFacade : ⚠ SetupRuntime 读写 internal 字段
-    BattleSessionFacade --> BattleRuntimeModule
-</pre>
+    GameContentCatalog ..> ContentSnapshot : 借用（BindSnapshot + revision 失效）
+    GameContentCatalog *-- SkillCatalog
+    ApplicationLifetimeCoordinator ..> GameSession : AttachSession 分配 borrower id
+  </pre></div>
+  <div class="callout ok">
+    这条链是全项目最干净的部分：单进程宿主 + 同步构建 + seal 后只借用 frozen definition + borrower 注册审计（<code>ReleaseSnapshot</code> 在有 borrower 时直接抛异常）。shutdown 管线为线性状态机（Running→Quiescing→RuntimeDrained→SceneDrained→ContentReleased→FinalizersDrained），release 闸门要求 <code>LifecycleAuditRegistry.NonTerminalCount == 0</code>。
   </div>
 </section>
 
-<!-- ================= 图 4 ================= -->
-<section id="d4">
-  <h2>④ 战斗运行时核心类图 <span class="tag p0">问题最集中的区域</span></h2>
-  <p class="desc"><code>BattleRuntimeModule</code> 是 service-locator hub：约 40 个服务全部字段内联 <code>new()</code>，再经 <code>Xxx.Setup(this)</code> 把 module 自己反向注入；服务间互访全部走 hub 的 internal 成员（如 GroundEffectService 经 <code>_runtime._skill_orchestrator</code>）。依赖不可声明、不可单测隔离。同一段 ~20 行接线代码在 module 内重复 3 次（L436 / L2120 / L2302）。</p>
-  <div class="diagram">
-<pre class="mermaid">
+<section id="d3">
+  <h2>图 ③ 存档与持久化 <span class="tag">persistence · infrastructure</span></h2>
+  <p class="desc">版本号唯一权威在 <code>SaveSchemaVersions</code>（SaveVersion=17）；世界存档键名集中于 <code>WorldRuntimeSaveSchema</code>（2026-07 新增）；State 类仍各自持有 ToDictionary/FromDictionary 自描述 schema（49 个文件、101 处）。</p>
+  <div class="diagram"><pre class="mermaid">
 classDiagram
-    class BattleRuntimeModule {
-        🔴 service-locator hub
-        🔴 5 partial · 合计约 5003 行 · ~40 服务
-        🔴 ~40 个服务字段（内联 new）
-        🔴 10+ 裸可变状态字段
-        +setup(14 个参数)
-        +_state / _skill_orchestrator / ...
+    direction LR
+
+    class GameSession {
+        &lt;&lt;Node · partial×5>>
+        +SaveSerializer _save_serializer
+        -SaveRepository _save_repository 懒建
+        -GameLogService _log_service
+        -GameSessionPersistenceOptions _persistenceOptions
+        -PartyState _party_state
+        -Dictionary _worldData
+        -bool _runtime_save_dirty + scopes
+        +SaveGameState() / LoadSave()
+        +CommitRuntimeState(reason)
+        +SetBattleSaveLock() / RestoreRuntimeState()
+        +CurrentSaveVersion$ int
     }
-    class BattleState
+    class SaveSchemaVersions {
+        &lt;&lt;internal static · 唯一权威>>
+        SaveVersion = 17
+        SaveIndexVersion = 4
+        MaxActiveMemberCount = 4
+    }
+    class SaveSerializer {
+        &lt;&lt;public sealed · 1355 行>>
+        +Setup(saveVersion, saveIndexVersion, maxActive)
+        +BuildSavePayloadLease() GodotProjectionLease
+        +TryDecodePayload() SaveDecodeResult
+        +SerializeWorldDataPlain()
+        +SerializePartyStatePlain()
+        +GetWorldData*ValidationError 族
+    }
+    class SaveRepository {
+        &lt;&lt;internal sealed · 187 行>>
+        -SaveSerializer _serializer
+        +ReadSavePayload()
+        +WriteSavePayloadAtomically()
+    }
+    class FileIOCoordinator {
+        &lt;&lt;public static · 418 行>>
+        原子写 / replace / recover 原语
+    }
+    class GameSessionPersistenceOptions {
+        &lt;&lt;record>>
+        Production = user://saves
+        ForLifecycleSoak(runId)
+    }
+
+    class PartyState {
+        &lt;&lt;public partial · version=8>>
+        +BuildSaveSnapshotPlain() Dictionary
+        +FromDictionary(GDictionary)$ PartyState
+        +ToDictionaryLease(ownerId)
+    }
+    class WorldRuntimeData {
+        &lt;&lt;internal sealed · 世界根状态>>
+        +FromDictionary(GDictionary)$
+        +BuildSaveSnapshotPlain()
+        +DuplicateState()
+    }
+    class WorldRuntimeSaveSchema {
+        &lt;&lt;internal static · 60 行 · 新增>>
+        MapSeed / WorldStep / Settlements / FogStates …
+        RequiredFields / OptionalFields 数组
+    }
+
+    GameSession *-- SaveSerializer
+    GameSession *-- SaveRepository
+    GameSession *-- PartyState
+    GameSession ..> GameSessionPersistenceOptions
+    GameSession ..> SaveSchemaVersions : const 引用
+    SaveSerializer ..> SaveSchemaVersions : Setup 注入
+    SaveRepository ..> FileIOCoordinator : 全部 IO 委托
+    SaveSerializer ..> PartyState : SerializePartyStatePlain
+    SaveSerializer ..> WorldRuntimeData : 世界载荷
+    WorldRuntimeData ..> WorldRuntimeSaveSchema : 读键唯一来源
+    SaveSerializer ..> WorldRuntimeSaveSchema : 校验字段族
+  </pre></div>
+  <div class="callout">
+    序列化仍是"每个 State 类自带 schema"模式（<code>TO_DICT_FIELDS</code> 白名单 + 严格 FromDictionary 校验）；save schema 变更仍需多点修改，与 AGENTS.md "save/load 高风险" 一致。改善点：版本号与世界层键名已各有唯一真相源。
+  </div>
+</section>
+
+<section id="d4">
+  <h2>图 ④ game_runtime 编排与端口解耦 <span class="tag">composition / application · 本次重构主战场</span></h2>
+  <p class="desc"><code>GameRuntimeFacade</code>（16 个 partial，合计 ~7500 行）现以 <b>13 个 port 接口</b>作为唯一对外能力面；所有 sidecar handler 只持有 <code>WeakReference~对应Port~</code>，不再直接回指 facade 本体（提交 b6137650 / f9d89ba6）。</p>
+  <div class="diagram"><pre class="mermaid">
+classDiagram
+    direction TB
+
+    class WorldMapSystem {
+        &lt;&lt;Control · 1651 行 · UI 组合根>>
+        +WorldMapView world_map_view
+        +BattleMapPanel battle_map_panel
+        +SettlementWindow / ShopWindow×4 / 各 Window
+        -GameRuntimeFacade _runtime
+        -WorldMapRuntimeProxy _runtime_proxy
+        +_Ready() new facade → Setup → new proxy
+    }
+    class WorldMapRuntimeProxy {
+        &lt;&lt;internal sealed · 746 行>>
+        -GameRuntimeFacade _runtime
+        -WorldMapSystem _renderTarget
+        +CommandExecuteSettlementAction(SettlementActionRequest)
+        +GetWorldRuntimeViewModel() WorldRuntimeViewModel
+        查询面 + 命令面统一转发 RuntimeCommandResult
+    }
+    class GameRuntimeFacade {
+        &lt;&lt;sealed partial×16 · ~75 internal 字段>>
+        -GameSession _game_session
+        -WorldMapDataContext _world_map_data_context
+        -WorldMapGridSystem / WorldMapFogSystem
+        -BattleRuntimeModule _battle_runtime
+        -BattleSessionFacade _battle_session_facade
+        -CharacterManagementModule _character_management
+        -PartyState _party_state
+        -RuntimeModalKind _active_modal_kind
+        +Setup(GameSession)
+        +Command*Typed 命令面（Commands.cs 885 行）
+    }
+
+    class IGameRuntimeSnapshotSource {
+        &lt;&lt;interface · 唯一 public port>>
+        ~35 个只读查询方法
+    }
+    class IBattleHudContext {
+        &lt;&lt;interface · battle/presentation>>
+        GetBattleState / PreviewBattleCommand / GetSkillDefinitions …
+    }
+    class IGameRuntimeBattleSessionPort {
+        &lt;&lt;interface>>
+        AdvanceBattle / IssueBattleCommand(BattleCommand)
+        BeginBattleStart / FinalizeBattleResolution
+    }
+    class IGameRuntimeSettlementCommandPort {
+        &lt;&lt;interface>>
+        settlement 命令 + RuntimeTransaction 提交/回滚
+    }
+    class OtherPorts["其余 9 个 port（均 internal interface）"] {
+        IGameRuntimeBattleSelectionPort
+        IGameRuntimeBattleLootCommitPort
+        IGameRuntimeBattleWritebackPort
+        IGameRuntimeCommandLogPort
+        IGameRuntimePartyCommandPort
+        IGameRuntimeQuestCommandPort
+        IGameRuntimeRewardFlowPort
+        IGameRuntimeWarehousePort
+        IGameRuntimeCharacterInfoQuery
+    }
+
+    class BattleSessionFacade {
+        &lt;&lt;public sealed · 1094 行>>
+        -IBattleSeedSource _battleSeedSource
+        -WeakReference~IGameRuntimeBattleSessionPort~ _portRef
+        +Setup(IGameRuntimeBattleSessionPort)
+    }
+    class GameRuntimeSettlementCommandHandler {
+        &lt;&lt;public sealed · 2820 行>>
+        -WeakReference~IGameRuntimeSettlementCommandPort~ _runtimePortRef
+        -SettlementShopService / ForgeService / ResearchService
+        -3 个子 handler + WindowDataBuilder
+    }
+    class Sidecars["其余 sidecar（同模式 WeakReference~Port~）"] {
+        GameRuntimeWarehouseHandler
+        GameRuntimePartyCommandHandler
+        GameRuntimeRewardFlowHandler
+        GameRuntimeQuestCommandHandler
+        GameRuntimeSnapshotBuilder
+        GameRuntimeBattleWritebackService
+        GameRuntimeBattleLootCommitService
+        GameRuntimeBattleSelection
+    }
+
+    class RuntimeTransaction {
+        &lt;&lt;internal · 311 行>>
+        Capture → Commit / Rollback
+    }
+    class RuntimeTransactionRollbackState {
+        PartyState DuplicateState
+        WorldRuntimeData
+        Vector2I playerCoord
+        SessionRollbackSnapshot（GameSession 保存标记）
+    }
+
+    WorldMapSystem *-- GameRuntimeFacade : _Ready 创建
+    WorldMapSystem *-- WorldMapRuntimeProxy
+    WorldMapRuntimeProxy ..> GameRuntimeFacade : 全部转发
+    WorldMapRuntimeProxy ..> WorldMapSystem : renderTarget 回推
+
+    GameRuntimeFacade ..|> IGameRuntimeSnapshotSource
+    GameRuntimeFacade ..|> IBattleHudContext
+    GameRuntimeFacade ..|> IGameRuntimeBattleSessionPort
+    GameRuntimeFacade ..|> IGameRuntimeSettlementCommandPort
+    GameRuntimeFacade ..|> OtherPorts
+
+    GameRuntimeFacade *-- BattleSessionFacade
+    GameRuntimeFacade *-- GameRuntimeSettlementCommandHandler
+    GameRuntimeFacade *-- Sidecars : Setup(this) 注入自身 port
+    BattleSessionFacade ..> IGameRuntimeBattleSessionPort : 唯一通道
+    GameRuntimeSettlementCommandHandler ..> IGameRuntimeSettlementCommandPort : 唯一通道
+    Sidecars ..> OtherPorts : 各自对应 port
+    GameRuntimeSettlementCommandHandler ..> RuntimeTransaction
+    RuntimeTransaction *-- RuntimeTransactionRollbackState
+  </pre></div>
+  <div class="callout ok">
+    改善：旧评审"BattleSessionFacade WeakReference 回指 facade 本体"已变为<b>只持有 port 接口的弱引用</b>；UI/headless 与 runtime 的唯一通道是 proxy → <code>Command*Typed</code> → <code>RuntimeCommandResult</code>，settlement/warehouse 命令统一经 <code>RuntimeTransaction</code> 提交-回滚。<br/>
+    遗留：facade 字段仍几乎全 internal（同 assembly 可直访），16 个 partial 合计行数比旧版更多（~7500），窗口上下文仍以 typed context 字段长驻 facade。
+  </div>
+</section>
+
+<section id="d5">
+  <h2>图 ⑤ settlement 命令管线 <span class="tag">b6137650 拆分产物 · application → domain_runtime</span></h2>
+  <p class="desc">一次结算动作的完整链路：<code>SettlementActionRequest</code>（record struct）从 UI/headless 边界进入，经 proxy → facade Commands → handler → 校验策略 → 领域服务。<code>GameRuntimeSettlementCommandHandler</code> 虽名字带 Settlement，实际归属 <code>game_runtime</code>（application 层），<code>systems/settlement</code> 目录只含纯领域类型。</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+    subgraph Boundary["边界（presentation / headless）"]
+        UI["WorldMapSystem<br/>signal 收集后 new SettlementActionRequest"]
+        HL["GameTextCommandRunner<br/>headless 文本命令"]
+    end
+
+    subgraph App["application（game_runtime）"]
+        Proxy["WorldMapRuntimeProxy<br/>CommandExecuteSettlementAction"]
+        Cmd["GameRuntimeFacade.Commands<br/>CommandExecuteSettlementActionTyped<br/>→ RuntimeCommandResult"]
+        Handler["GameRuntimeSettlementCommandHandler<br/>OnSettlementActionRequested"]
+        Sub1["GameRuntimeContractBoardCommandHandler"]
+        Sub2["GameRuntimeNpcQuestOfferCommandHandler"]
+        Sub3["GameRuntimeServiceWindowCommandHandler"]
+        WDB["GameRuntimeSettlementWindowDataBuilder"]
+        TX["RuntimeTransaction<br/>Capture / Commit / Rollback"]
+    end
+
+    subgraph Domain["domain_runtime（systems/settlement）"]
+        Req["SettlementActionRequest<br/>record struct · SettlementId/ServiceId/ActionId/<br/>MemberId/Quantity/Source"]
+        Val["SettlementActionValidationPolicy<br/>ValidateResolvedService"]
+        Pay["SettlementActionPayloadBuilder<br/>（static）"]
+        Shop["SettlementShopService<br/>831 行"]
+        Forge["SettlementForgeService<br/>863 行"]
+        Res["SettlementResearchService<br/>583 行"]
+        Ctx["SettlementModalContexts<br/>Shop/Forge/ContractBoard/Stagecoach"]
+    end
+
+    UI --> Req
+    HL --> Req
+    Req --> Proxy --> Cmd --> Handler
+    Handler --> Val
+    Val -->|分派| Shop & Forge & Res
+    Handler --> Sub1 & Sub2 & Sub3
+    Handler --> WDB --> Pay
+    Handler <--> TX
+    Shop & Forge & Res --> Ctx
+    Cmd -->|结果| Proxy -->|render delta| UI
+  </pre></div>
+</section>
+
+<section id="d6">
+  <h2>图 ⑥ 战斗状态核心：BattleState / BattleUnitState <span class="tag">domain_state · e4b5b003 substates 拆分</span></h2>
+  <p class="desc">旧版"BattleUnitState 2797 行 god object"已结构重构：19 个 <code>internal sealed</code> substate 以私有字段组合持有（惰性 <code>??= new()</code>），主类保留身份/外观字段与转发/序列化（3431 + 571 行两个 partial）。</p>
+  <div class="diagram"><pre class="mermaid">
+classDiagram
+    direction TB
+
+    class BattleState {
+        &lt;&lt;public partial · 1648 行>>
+        +battle_id / seed / phase / map_size
+        +StringNameList attack_disadvantage_tags
+        +ally_unit_ids / enemy_unit_ids
+        +BattleTimelineState timeline
+        +WarehouseState party_backpack_view
+        -Dictionary~StringName, BattleUnitState~ _unitsById
+        -Dictionary~Vector2I, BattleCellState~ _cellsByCoord
+        -BattleBarrierStore _layeredBarrierStore
+        +TryGetUnitTyped() / GetUnitsTyped()
+        +InitializeObjective(BattleObjectiveDefinition)
+    }
+    class BattleCellState
+    class BattleTimelineState
+    class BattleBarrierStore
+    class BattleObjectiveRuntimeState
+    class BattleStateReadView {
+        &lt;&lt;只读视图 · 370 行>>
+    }
+
     class BattleUnitState {
-        🔴 god object · 2797 行
-        🔴 ~75 字段 · ~137 方法
-        资源 / 技能 / 冷却 / 武器快照×12
-        状态效果 / 抗性 / pending cast
+        &lt;&lt;public partial×2 · 3431+571 行>>
+        +unit_id / source_member_id / enemy_template_id
+        +display_name / faction_id / control_mode
+        +ai_brain_id / ai_state_id
+        +AttributeSnapshot attribute_snapshot
+        +EquipmentState equipment_view
+        19 个 substate 私有组合 + 转发访问器
     }
+    class BattleUnitGeometryState {占位/锚点坐标 · 379 行}
+    class BattleUnitCombatResourceState {hp/mp/stamina/aura · 346 行}
+    class BattleUnitKnownSkillState {已知技能 · 259 行}
+    class BattleUnitEquipmentAbilityProjectionState {装备能力投影 · 402 行}
+    class BattleUnitWeaponProjectionState {武器投影 · 315 行}
+    class BattleUnitEffectiveTraitState {生效特质 · 285 行}
+    class BattleUnitSaveModifierState {豁免修正 · 277 行}
+    class OtherSubstates["其余 12 个 substate（均 internal sealed）"] {
+        BattleUnitCombatResourceUnlockState
+        BattleUnitTurnState / BattleUnitRestState
+        BattleUnitShieldState / BattleUnitChargeState
+        BattleUnitActionClockState / BattleUnitCastingClockState
+        BattleUnitMovementTagState / BattleUnitVisionProficiencyState
+        BattleUnitDamageResistanceState / BattleUnitCreatureTypeState
+        BattleUnitCooldownState
+    }
+    class BattleStatusEffectCollection
+    class BattleConsumedContingencySetupCollection
+    class BattleAiBlackboard
+    class AttributeSnapshot
+    class EquipmentState
+
+    BattleState "1" *-- "*" BattleUnitState : _unitsById
+    BattleState "1" *-- "*" BattleCellState : _cellsByCoord
+    BattleState *-- BattleTimelineState
+    BattleState *-- BattleBarrierStore
+    BattleState *-- BattleObjectiveRuntimeState
+    BattleStateReadView ..> BattleState : 只读包装
+
+    BattleUnitState "1" *-- "1" BattleUnitGeometryState
+    BattleUnitState "1" *-- "1" BattleUnitCombatResourceState
+    BattleUnitState "1" *-- "1" BattleUnitKnownSkillState
+    BattleUnitState "1" *-- "1" BattleUnitEquipmentAbilityProjectionState
+    BattleUnitState "1" *-- "1" BattleUnitWeaponProjectionState
+    BattleUnitState "1" *-- "1" BattleUnitEffectiveTraitState
+    BattleUnitState "1" *-- "1" BattleUnitSaveModifierState
+    BattleUnitState "1" *-- "12" OtherSubstates
+    BattleUnitState *-- BattleStatusEffectCollection
+    BattleUnitState *-- BattleConsumedContingencySetupCollection
+    BattleUnitState *-- BattleAiBlackboard
+    BattleUnitState ..> AttributeSnapshot
+    BattleUnitState ..> EquipmentState
+  </pre></div>
+</section>
+
+<section id="d7">
+  <h2>图 ⑦ 战斗服务接线：BattleRuntimeModule hub 与 borrower 体系 <span class="tag">application · c3469caa</span></h2>
+  <p class="desc"><code>BattleRuntimeModule</code>（7 partial，~5006 行）仍是组合根 hub：~40 个服务字段内联 <code>new()</code>，<code>FinishSetup()</code> 依次 <code>Xxx.Setup(this)</code> 把 hub 反向注入。新变化：7 个"借用者"服务集中到 <code>BattleRuntimeModuleBorrowerSet</code> 统一管理生命周期（正序 Setup、逆序 DisposeRuntime、可 CaptureTopology）。</p>
+  <div class="diagram"><pre class="mermaid">
+classDiagram
+    direction TB
+
+    class BattleRuntimeModule {
+        &lt;&lt;sealed partial×7 · 2913 主文件>>
+        +BattleState _state
+        +BattleGridService _grid_service
+        -IBattleRuntimeCharacterGateway _characterGateway
+        -ISkillCatalog _skillCatalog
+        ~40 个 internal 服务字段
+        8 个 AI 回调 Func 字段
+        +setup(gateway, skill_defs, enemy_templates, …)
+        +FinishSetup()
+        +StartBattle() / EndBattle()
+    }
+
+    class BattleRuntimeServices {
+        &lt;&lt;owner-local 组合容器>>
+        +Movement / GroundEffects / SpecialSkills
+        +AiMovementQuery / AiScoreContextAdapter
+        +AiQuery / AiCandidateEvaluation / AiDecisionContext
+        +Contingencies
+        +SetupRuntimeSidecars(module, bridge)
+        +BeginBattle() / EndBattle()
+    }
+    class BattleRuntimeModuleBorrowerSet {
+        &lt;&lt;sealed · borrower 注册表>>
+        数组正序 Setup / 逆序 DisposeRuntime
+        +CaptureTopology() TopologySnapshot
+    }
+    class BattleRuntimeModuleBorrower {
+        &lt;&lt;abstract>>
+        #WeakReference~BattleRuntimeModule~
+        +Setup(module) / IsBoundTo() / DisposeRuntime()
+    }
+    class Borrowers["7 个 borrower（--|> BattleRuntimeModuleBorrower）"] {
+        BattleSpawnPlacementService
+        BattleSpecialSkillGateService
+        BattleMovementCommandService
+        BattleMetricsReportService
+        BattleAiDecisionBindingService
+        BattleContingencyBridgeService
+        BattleCommandPreviewService
+    }
+
     class BattleSkillExecutionOrchestrator {
-        ✓ 已拆分 2026-07-20 · 主文件 4955→2138 行
-        + 预览/目标校验/链式伤害/随机链 4 个 service
+        &lt;&lt;internal sealed partial×6 · ~3717 行>>
+        -WeakReference~BattleRuntimeModule~ _runtimeRef
+        +_handle_unit_skill_command()
+        +ResolvePendingCast()
     }
-    class BattleDamageResolver {
-        ✓ 已拆分 2026-07-20 · 主文件 3580→2199 行
-        + 装备耐久新类 + 3 个主题 partial
+    class OrchestratorSidecars["orchestrator 组合（Setup 互注）"] {
+        BattleSkillPreviewService
+        BattleSkillTargetValidationService
+        BattleChainDamageService
+        BattleRandomChainSkillService
     }
     class BattleEquipmentAbilityRuntimeService {
-        ✓ 已拆分 2026-07-19 · 7472→2302 行（-69%）
-        仅余事件入口编排 + roll gate
-        + 9 个职责 resolver / evaluator
+        &lt;&lt;internal sealed · 2226 行>>
+        -BattleRuntimeModule _runtime（强引用）
+        -BattleDamageResolver _damageResolver
+        +AttackCheckQuery / DamageQuery / ReactionSink 端口
     }
-    class BattleRuntimeSkillTurnResolver
-    class BattleTimelineDriver
-    class BattleCastingTimeService
-    class BattleGroundEffectService
-    class BattleContingencySystem
-    class BattleAiService {
-        +ChooseCommand(BattleAiContext)
+    class EquipmentResolvers["9 个装备能力 resolver（组合）"] {
+        _summonResolver / _targetMarkResolver
+        _conditionEvaluator / _statusActionResolver
+        _skillTriggerActionResolver / _areaActionResolver
+        _directEffectActionResolver / _abilityStateResolver
+        _attackModifierResolver
+    }
+    class WeakRefServices["持 WeakReference~BattleRuntimeModule~ 回 hub 的服务"] {
+        BattleTimelineDriver（716 行）
+        BattleCastingTimeService（734 行）
+        BattleRuntimeSkillTurnResolver（2676 行）
+        BattleGroundEffectService（1663 行）
+    }
+    class DirectServices["module 直接持有的其他服务（选摘）"] {
+        BattleDamageResolver / BattleHitResolver
+        BattleAiService / BattleAiActionAssembler
+        BattleUnitFactory / BattleGridService
+        BattleTerrainEffectSystem / BattleTerrainGenerator
+        FateRuntimeModule / BattleContingencySystem
+        BattleChargeResolver / BattleShieldService
+        BattleLayeredBarrierService / BattleMetricsCollector
     }
 
-    BattleRuntimeModule *-- BattleState
-    BattleState *-- BattleUnitState
+    BattleRuntimeModule *-- BattleRuntimeServices
+    BattleRuntimeModule *-- BattleRuntimeModuleBorrowerSet
+    BattleRuntimeModuleBorrowerSet "1" *-- "7" Borrowers
+    Borrowers --|> BattleRuntimeModuleBorrower
+    BattleRuntimeModuleBorrower ..> BattleRuntimeModule : WeakReference
+
     BattleRuntimeModule *-- BattleSkillExecutionOrchestrator
-    BattleRuntimeModule *-- BattleDamageResolver
+    BattleSkillExecutionOrchestrator *-- OrchestratorSidecars
     BattleRuntimeModule *-- BattleEquipmentAbilityRuntimeService
-    BattleRuntimeModule *-- BattleRuntimeSkillTurnResolver
-    BattleRuntimeModule *-- BattleTimelineDriver
-    BattleRuntimeModule *-- BattleCastingTimeService
-    BattleRuntimeModule *-- BattleGroundEffectService
-    BattleRuntimeModule *-- BattleContingencySystem
-    BattleRuntimeModule *-- BattleAiService
-
-    BattleSkillExecutionOrchestrator ..> BattleRuntimeModule : ⚠ WeakRef 回引 + 访问 internal
-    BattleRuntimeSkillTurnResolver ..> BattleRuntimeModule : ⚠ 强引用回引
-    BattleTimelineDriver ..> BattleRuntimeModule : ⚠ 回调 ~14 个内部方法
-    BattleGroundEffectService ..> BattleRuntimeModule : ⚠ 经 hub 访问兄弟服务
-    BattleContingencySystem ..> BattleRuntimeModule : ⚠ ExecuteAutoCast 事件回环
-    BattleDamageResolver ..> IBattleEquipmentAbilityReactionService : ✓ 已解环（接口在 rules/）
-    BattleEquipmentAbilityRuntimeService ..|> IBattleEquipmentAbilityReactionService : 实现
-    BattleEquipmentAbilityRuntimeService ..> BattleDamageResolver : 单边依赖（追击/耐久结算）
-</pre>
-  </div>
-</section>
-
-<!-- ================= 图 5 ================= -->
-<section id="d5">
-  <h2>⑤ AI 决策链</h2>
-  <p class="desc">authoring 定义与执行分离（✓），但决策上下文靠两个巨型 struct 绑定回调：<code>BattleAiDecisionContextSetup</code>（13 字段）、<code>BattleAiHelperBindingContext</code>（17 字段 + 4 个 7~8 参数 Func）；12 个 evaluator 无公共接口。<code>BattleAiMutationGuard</code> 达 3208 行 —— 诊断守卫的体量本身即说明决策路径副作用曾难以控制。</p>
-  <div class="diagram">
-<pre class="mermaid">
-flowchart LR
-    Content["EnemyAiBrainDefinition<br/>enemies/ 投影 · 与执行分离 ✓"] --> Assembler["BattleAiActionAssembler<br/>definition → RuntimeActionPlan"]
-    BRM["BattleRuntimeModule"] --> Assembler
-    BRM --> AIS["BattleAiService<br/>ChooseCommand(BattleAiContext)"]
-    AIS --> Engine["BattleAiDecisionEngine<br/>12 个 evaluator 内联 new · 无公共接口"]
-    Assembler --> Engine
-    Engine --> E1["UnitSkillCandidate"]
-    Engine --> E2["GroundSkill / MultiUnit"]
-    Engine --> E3["Charge / ChargePathAoe"]
-    Engine --> E4["MoveToRange ⚠ 2365 行"]
-    Engine --> E5["Retreat / Wait 等 ×7"]
-    E1 --> Score["BattleAiScoreService<br/>4 partial"]
-    E2 --> Score
-    E3 --> Score
-    E4 --> Score
-    E5 --> Score
-    Engine --> Guard["BattleAiMutationGuard<br/>✓ 已拆分 3438→242 行核心+4 文件<br/>决策无副作用校验"]
-    Ctx["⚠ BattleAiDecisionContextSetup 13 字段<br/>⚠ BattleAiHelperBindingContext 17 字段"] -.绑定回调.-> Engine
-
-    classDef danger fill:#5c1f1f,stroke:#f85149,stroke-width:2px,color:#fff;
-    classDef warn fill:#4d3a1a,stroke:#f0883e,stroke-width:1.5px,color:#fff;
-    classDef ok fill:#1f3d2b,stroke:#3fb950,stroke-width:1.5px,color:#fff;
-    class Guard danger;
-    class E4,Ctx warn;
-    class Content ok;
-</pre>
-  </div>
-</section>
-
-<!-- ================= 图 6 ================= -->
-<section id="d6">
-  <h2>⑥ 依赖违规汇总 <span class="tag p0">全部编译通过 —— 因为没有任何边界强制</span> <span class="tag good">✓ 违规 5 已于 2026-07-19 修复</span></h2>
-  <p class="desc">全局命名空间下，以下 6 条越层边都能编译通过（已修复 2 条：版本号双真相源、rules⇄runtime 循环）。剩余最严重：存档根对象 <code>PartyState</code> 依赖服务层类型；authoring 层 <code>CombatEffectDef</code> 直接引用 battle runtime 类型。</p>
-  <div class="diagram">
-<pre class="mermaid">
-flowchart TB
-    subgraph V1["违规 1 · 数据层 → 服务层 🔴 最严重"]
-        PS["PartyState（player 数据层 · 存档根对象）"] -->|"pending_character_rewards 字段"| PCR["PendingCharacterReward<br/>systems/progression"]
-    end
-    subgraph V2["违规 2 · authoring 层 → battle runtime 🔴"]
-        CE["CombatEffectDef（player authoring）"] -->|"accuracy_modifier_spec 字段"| BARS["BattleAttackRollModifierSpec<br/>systems/battle/core"]
-    end
-    subgraph V3["✓ 已修复 2026-07-20 · rules ⇄ runtime 循环 → 接口解耦"]
-        BDR["BattleDamageResolver（rules 层）"] --> IF["IBattleEquipmentAbilityReactionService（rules/）✓"]
-        BEARS["BattleEquipmentAbilityRuntimeService（runtime 层）"] -->|实现| IF
-    end
-    subgraph V4["违规 4 · 内容 registry → 属性服务"]
-        EACR["EquipmentAbilityContentRegistry（player）"] -->|"读常量"| AS["AttributeService.AC_COMPONENT_ATTRIBUTE_IDS<br/>systems/attributes"]
-    end
-    subgraph V5["✓ 已修复 2026-07-19 · 版本号双真相源 → SaveSchemaVersions 唯一权威"]
-        GSV["GameSession.SaveVersion"] --> SCV["SaveSchemaVersions<br/>唯一权威常量 ✓"]
-        SSV["SaveSerializer._save_version"] --> SCV
-    end
-    subgraph V6["违规 6 · content 层 → utils 杂物抽屉"]
-        CSB["ContentSnapshotBuilder（systems/content）"] --> UTL["utils/WorldMapContentValidator<br/>utils/WorldPresetRegistry"]
-    end
-
-    classDef danger fill:#5c1f1f,stroke:#f85149,stroke-width:2px,color:#fff;
-    classDef warn fill:#4d3a1a,stroke:#f0883e,stroke-width:1.5px,color:#fff;
-    classDef ok fill:#1f3d2b,stroke:#3fb950,stroke-width:1.5px,color:#fff;
-    classDef fixed fill:#22314a,stroke:#58a6ff,stroke-width:1.5px,color:#fff;
-    class PS,PCR,CE,BARS,BDR,BEARS danger;
-    class EACR,AS,CSB,UTL warn;
-    class SCV ok;
-    class GSV,SSV fixed;
-</pre>
-  </div>
-</section>
-
-<!-- ================= 问题清单 ================= -->
-<section id="problems">
-  <h2>架构问题清单（按严重度）</h2>
-
-  <h3 class="p0">P0 — 结构性</h3>
-  <table>
-    <tr><th>#</th><th>问题</th><th>证据</th></tr>
-    <tr><td>1</td><td><b>无命名空间 / 无程序集边界</b>：829 个类全局命名空间，分层纯靠目录约定，越层依赖编译期不可见</td><td>全项目 <code>namespace</code> 声明数 = 0</td></tr>
-    <tr><td>2</td><td><b>两个宽编排 hub</b>：BattleRuntimeModule 与 GameRuntimeFacade 仍承担大量接线；历史行数已随 partial 拆分变化，不再用旧总行数作为 finding</td><td>图 ③ ④</td></tr>
-    <tr><td>3</td><td><b>战斗域体量失衡</b>：battle 占全项目 51% 代码（143k 行），Top15 大文件中 11 个在 battle</td><td>行数实测</td></tr>
-    <tr><td>4</td><td><s><b>明确循环依赖</b>：BattleDamageResolver ⇄ BattleEquipmentAbilityRuntimeService</s> <span class="good">✓ 已解 2026-07-20（IBattleEquipmentAbilityReactionService 接口，12 成员全覆盖；DTO 下移 core/）</span>；剩余 ContingencySystem → module.ExecuteAutoCast → Orchestrator 回环</td><td>图 ④ ⑥</td></tr>
-  </table>
-
-  <h3 class="p1">P1 — 封装与边界</h3>
-  <table>
-    <tr><th>#</th><th>问题</th><th>证据</th></tr>
-    <tr><td>5</td><td><b>internal 字段大开门</b> + 两阶段 Setup：模块内无封装，存在"未 Setup 即使用"时序风险（大量 <code>_runtime?.</code> 空值传播兜底）</td><td>setup() 14 参</td></tr>
-    <tr><td>6</td><td><b>越层反向边 6 处</b>（图 ⑥，已修 2 余 4）：最严重为 <code>PartyState → PendingCharacterReward</code> 与 <code>CombatEffectDef → BattleAttackRollModifierSpec</code></td><td>player→systems 反向引用审计</td></tr>
-    <tr><td>7</td><td><b>窗口管理与业务混合</b>：<code>RuntimeModalKind</code> 已是 canonical 状态，字符串 modalId 是 UI 投影；仍需关注窗口上下文 Dictionary 长驻 facade 字段</td><td>WorldMapSystem.RenderWindows</td></tr>
-    <tr><td>8</td><td><b>字符串字典协议反复往返</b>：typed → GDictionary → typed 在 world/settlement 层多次转换，是 handler 行数膨胀的机械来源</td><td>CopyIfPresent 等</td></tr>
-  </table>
-
-  <h3 class="p2">P2 — 体量与重复</h3>
-  <table>
-    <tr><th>#</th><th>问题</th><th>证据</th></tr>
-    <tr><td>9</td><td><b>仍有超大单体文件</b>：当前仅余 BattleUnitState(2797，需结构重构)；<s>BattleMapPanel</s>（→1213+5 partial）、<s>BattleRuntimeModule</s>（→2372+8 类）、<s>BattleDamageResolver</s>（→2199+4 文件）、<s>BattleAiMutationGuard</s>（→242+4 文件）、<s>SettlementCommandHandler</s>（→2833+4 类）</td><td>2026-07-20 当前文件</td></tr>
-    <tr><td>10</td><td><b>内容族模板膨胀</b>：progression 105 文件 = 14 族 × 5–7 文件模板；equipment_abilities/ 49 文件中 <b>42 个是 &lt;200 字节空 partial 壳</b></td><td>文件内容审计</td></tr>
-    <tr><td>11</td><td><b>Def/Definition 边界本身有效</b>：Resource authoring 与 immutable runtime definition 职责不同；只保留少量重复常量的维护债</td><td>warehouse 域</td></tr>
-    <tr><td>12</td><td><b>重复接线</b>：Module 同一段 Setup ×3；WorldMapSpawnSystem 两处独立实例化（GameSession.cs:1486 / WorldMapDataContext.cs:654）</td><td>行号实测</td></tr>
-    <tr><td>13</td><td><b>宽接口 proxy 债务</b>：WorldMapRuntimeProxy 有大量 pass-through，但也统一 command 执行、presentation delta 与 render，不再定性为纯转发</td><td>调用链审计</td></tr>
-  </table>
-
-  <h3 class="p3">P3 — 一致性风险</h3>
-  <table>
-    <tr><th>#</th><th>问题</th><th>证据</th></tr>
-    <tr><td>15</td><td><b>诊断逻辑体量</b>：<s>BattleAiMutationGuard 约 3208 行常驻</s> <span class="good">✓ 已拆分为 242 行守卫核心 + 快照模型/快照/屏障快照/投影 4 文件（2026-07-20，判定逻辑逐字未动）；是否迁出 production assembly 可单独立项</span></td><td>方法审计</td></tr>
-    <tr><td>16</td><td><b>utils 杂物抽屉</b>：34 文件混杂 config / 日志 / lease / 52KB 渲染器；content 层 Builder 依赖 utils validator</td><td>图 ⑥ 违规 6</td></tr>
-    <tr><td>17</td><td><b>服务实例化不统一</b>：工厂只覆盖 per-member 服务图，其余一半字段 new、一半方法内懒惰 new</td><td>CharacterManagementModule</td></tr>
-    <tr><td>18</td><td><b>序列化逻辑散布数据层</b>：~15 个 State 类各自持有 ToDictionary/FromDictionary，save schema 变更需多点修改</td><td>persistence 审计</td></tr>
-  </table>
-</section>
-
-<!-- ================= 亮点 ================= -->
-<section id="good">
-  <h2>架构亮点（应保持）</h2>
-  <div class="callout ok">
-    <b>总体格局：基础设施层高度严谨，应用层（两个 god hub、超大 handler/service、无边界强制）仍在还历史债。</b>
-  </div>
-  <table>
-    <tr><th>#</th><th>亮点</th></tr>
-    <tr><td>1</td><td><b>静态内容管线</b>（图 ②）：单进程宿主、同步构建、seal 后只借用 frozen definition、borrower 审计 —— 全项目最干净的一条链</td></tr>
-    <tr><td>2</td><td><b>分阶段 shutdown 管线</b>：ApplicationLifetimeCoordinator 唯一 owner + lifecycle-correctness CI 门禁，legacy debt 归零要求</td></tr>
-    <tr><td>3</td><td><b>战斗展示边界</b>：BattleHudAdapter 只经 Facade 的 5 个只读入口取数，presentation 不触达 runtime 内部</td></tr>
-    <tr><td>4</td><td><b>enemies 定义/执行分离</b>：authoring Resource 不执行战斗行为，definition → assembler → evaluator 链路清晰</td></tr>
-    <tr><td>5</td><td><b>plain C# 数据纪律</b>：业务态 typed owner + Godot collection 仅边界投影，执行得相当一致</td></tr>
-    <tr><td>6</td><td><b>测试资产</b>：166k 行测试 / 278k 行产品（≈0.6:1），headless 文本命令 + 快照 lane 成熟</td></tr>
-  </table>
-</section>
-
-<!-- ================= 建议 ================= -->
-<section id="actions">
-  <h2>改进建议（按投入产出排序）</h2>
-  <table>
-    <tr><th>优先级</th><th>建议</th><th>预期收益</th></tr>
-    <tr><td>1</td><td><s>引入 namespace / 使用普通反射或正则作为完整依赖门禁</s>。2026-07-21 当前复核改为：路径型 Roslyn analyzer 检查签名与方法体符号，以精确 baseline 禁止新增边；<code>tools/architecture_checks.py</code> 只保留为源码气味扫描器</td><td>新增越层边直接使 build/CI 失败</td></tr>
-    <tr><td>2</td><td><s><b>拆 BattleEquipmentAbilityRuntimeService</b>：15 个职责区 → 按反应动作类型拆为独立 resolver</s> <span class="good">✓ 已完成 2026-07-19（5 批拆出 9 个职责类，35 个聚焦回归 + 全套件验证）</span></td><td>当前最大单文件为 BattleDamageResolver</td></tr>
-    <tr><td>3</td><td><s><b>解 DamageResolver ⇄ EquipmentAbilityRuntimeService 循环</b></s> <span class="good">✓ 已完成 2026-07-20（IBattleEquipmentAbilityReactionService 接口解耦，12 成员全覆盖；DTO 下移 core/BattleEquipmentAbilityReactionContracts.cs）</span></td><td>P0 循环依赖已消除</td></tr>
-    <tr><td>4</td><td><s><b>统一 save 版本号真相源</b>（单常量，serializer 引用之）</s> <span class="good">✓ 已完成 2026-07-19（SaveSchemaVersions.cs）</span></td><td>已消除静默写错版本风险</td></tr>
-    <tr><td>5</td><td><b>收敛 GameRuntimeFacade 字段可见性</b>：internal → private + 明确方法；窗口上下文 Dictionary 抽为 typed modal context</td><td>恢复封装；消除双 modal 表示</td></tr>
-    <tr><td>6</td><td><s><b>删除 42 个空 partial 壳</b></s>。2026-07-21 当前复核否决：这些文件是 53 个正式 <code>.tres</code> 的脚本路径锚点，必须保留</td><td>避免破坏 Godot 资源加载</td></tr>
-    <tr><td>7</td><td><b>合并 proxy 层或赋予真实职责</b>（如 scene 同步）</td><td>减少一跳纯转发</td></tr>
-    <tr><td>8</td><td><s><b>抽统一事务提交入口</b></s>。2026-07-21 当前复核：<code>RuntimeTransaction</code> 与 facade 单点入口已落地，资源采集绕过也已收口</td><td>已完成，从后续路线移除</td></tr>
-    <tr><td>9</td><td><s><b>registry 拆分</b></s> <span class="good">✓ 已完成 2026-07-19/20（EquipmentAbilityContentRegistry→341+3类 / SkillContentRegistry→804+3类）</span></td><td>校验不再线性膨胀</td></tr>
-    <tr><td>10</td><td><s><b>把 BattleRuntimeModule 约 40 个服务一次性按阶段聚合</b></s>。2026-07-21 当前复核否决大组合根路线：直属 split borrower 只用 owner-local 有序集合管理生命周期；后续按单个状态 owner 或窄 capability port 迁移，parent-owned children 仍由 parent 管理</td><td>避免制造新的全局 service registry</td></tr>
-  </table>
+    BattleEquipmentAbilityRuntimeService *-- EquipmentResolvers
+    BattleRuntimeModule *-- WeakRefServices
+    BattleRuntimeModule *-- DirectServices
+    WeakRefServices ..> BattleRuntimeModule : runtime._xxx 回 hub 直访 internal
+  </pre></div>
   <div class="callout">
-    以上均为方向性建议；任何落地改动需先按 AGENTS.md 与 project_context_units.md 的单元边界确认影响面，save/schema 相关改动属高风险项。
+    服务间互访仍有三种形态并存：① hub internal 字段直访（主干，~40 个字段同 assembly 可读）；② borrower 注册表集中生命周期；③ owner-local 组合 + Setup 互注（orchestrator / equipment ability 内部）。两阶段构造（new → Setup）时序风险仍在，大量 <code>_runtime?.</code> 兜底。
+  </div>
+</section>
+
+<section id="d8">
+  <h2>图 ⑧ rules 层接口解耦 <span class="tag">依赖方向单边化 · 旧循环已消除</span></h2>
+  <p class="desc">rules 层不反引 runtime 具体类：所有回调都经定义在 rules/ 或对应域的窄接口。旧评审的 <code>IBattleEquipmentAbilityReactionService</code> 已进一步拆成 3 个窄接口（Query×2 + Sink）。</p>
+  <div class="diagram"><pre class="mermaid">
+classDiagram
+    direction LR
+
+    class BattleDamageResolver {
+        &lt;&lt;rules · public partial×10 · 2397 主文件>>
+        -BattleHitResolver _hit_resolver
+        -IBattleDamageApplicationHook _damage_application_hook
+        -IBattleEquipmentDamageQuery _equipment_ability_damage_query
+        -IBattleEquipmentCombatReactionSink _equipment_ability_reaction_sink
+        -BattleEquipmentDurabilityResolver _equipmentDurabilityResolver
+        +SetHitResolver() / SetDamageApplicationHook()
+        +SetEquipmentAbilityPorts(damageQuery, reactionSink)
+    }
+    class IBattleDamageApplicationHook {
+        &lt;&lt;interface · rules/>>
+        BeforeDamageResolved(context)
+    }
+    class IBattleEquipmentDamageQuery {
+        &lt;&lt;interface · rules/>>
+        CollectBonusDamageDiceOnHit
+        ResolveDamageRollModeOverride
+        CollectDamageReductions
+    }
+    class IBattleEquipmentCombatReactionSink {
+        &lt;&lt;interface · rules/>>
+        ResolveAttackCheck / ResolveAfterHit
+        ResolveHitReceived / ResolveDamageApplied
+        RefreshProjectionAfterDurabilityDestruction
+    }
+    class IBattleEquipmentAttackCheckQuery {
+        &lt;&lt;interface · rules/>>
+        CollectAttackRollModifierCandidates
+        CollectAttackDefenseAdjustment
+        ResolveCriticalHitOverride
+    }
+
+    class BattleContingencySystem {
+        &lt;&lt;runtime · 1195 行>>
+        -WeakReference~IBattleContingencyRuntimePort~ _runtimePortRef
+        -ContingencyTargetResolverService _targetResolver
+        +OnHookFact(ContingencyHookFact)
+        +ResetForBattle(PartyState, BattleState)
+    }
+    class IBattleContingencyRuntimePort {
+        &lt;&lt;interface · runtime/>>
+        GetBattleState / GetSkillDefinition
+        ExecuteAutoCast / RefreshUnitOverlay
+    }
+    class BattleContingencyBridgeService {
+        &lt;&lt;borrower · port 实现者>>
+    }
+    class BattleEquipmentAbilityRuntimeService {
+        &lt;&lt;runtime>>
+        ReactionSink => this
+    }
+    class BattleEquipmentAttackModifierResolver {
+        &lt;&lt;equipment ability 9 resolver 之一>>
+    }
+    class BattleAttackCheckPolicyService {
+        &lt;&lt;rules · 1141 行>>
+        -IBattleEquipmentAttackCheckQuery _equipmentAttackCheckQuery
+        +Setup(hitResolver, terrainFx, query)
+    }
+
+    class BattleRuntimeModule {
+        &lt;&lt;DomainPorts 显式实现>>
+    }
+    class IBattleTerrainEffectRuntime {
+        &lt;&lt;interface · terrain/>>
+        Append* / ClearDefeatedUnit / RecordBattleContribution
+    }
+    class IMisfortuneGuidanceBattleQuery {
+        &lt;&lt;interface · fate/>>
+        GetCalamityByMemberIdSnapshot / HasMisfortuneReason
+    }
+    class BattleTerrainEffectSystem {
+        &lt;&lt;terrain · 859 行>>
+        +Setup(IBattleTerrainEffectRuntime)
+    }
+    class FateRuntimeModule {
+        &lt;&lt;fate · 677 行>>
+        FortuneService / FortunaGuidanceService
+        LowLuckEventService / MisfortuneService
+        MisfortuneGuidanceService
+    }
+    class IBattleRuntimeCharacterGateway {
+        &lt;&lt;interface · runtime/ · public>>
+        RecordAchievementEvent / item defs / 资源写回
+    }
+    class CharacterManagementModule {
+        &lt;&lt;progression · partial×4 · ~4359 行>>
+    }
+
+    BattleDamageResolver ..> IBattleDamageApplicationHook : Set 注入
+    BattleDamageResolver ..> IBattleEquipmentDamageQuery : Set 注入
+    BattleDamageResolver ..> IBattleEquipmentCombatReactionSink : Set 注入
+    BattleAttackCheckPolicyService ..> IBattleEquipmentAttackCheckQuery
+    BattleContingencySystem ..|> IBattleDamageApplicationHook
+    BattleContingencySystem ..> IBattleContingencyRuntimePort : 唯一回 runtime 通道
+    BattleContingencyBridgeService ..|> IBattleContingencyRuntimePort
+    BattleContingencyBridgeService --|> BattleRuntimeModuleBorrower :（见图⑦）
+    BattleEquipmentAbilityRuntimeService ..|> IBattleEquipmentCombatReactionSink
+    BattleEquipmentAttackModifierResolver ..|> IBattleEquipmentDamageQuery
+    BattleEquipmentAttackModifierResolver ..|> IBattleEquipmentAttackCheckQuery
+
+    BattleRuntimeModule ..|> IBattleTerrainEffectRuntime
+    BattleRuntimeModule ..|> IMisfortuneGuidanceBattleQuery
+    BattleTerrainEffectSystem ..> IBattleTerrainEffectRuntime : WeakReference 回调
+    FateRuntimeModule ..> IMisfortuneGuidanceBattleQuery
+    FateRuntimeModule ..> IBattleRuntimeCharacterGateway
+    CharacterManagementModule ..|> IBattleRuntimeCharacterGateway : +IFateCharacterGateway / ICharacterSkillLearningGateway
+  </pre></div>
+  <div class="callout ok">
+    依赖方向现为单边：runtime → rules（具体类），rules → runtime（仅接口）。DTO 契约在 <code>battle/core/BattleEquipmentAbilityReactionContracts.cs</code>（264 行，domain_state 层）。<code>BattleRuntimeModule.DomainPorts.cs</code> 是 terrain/fate 反向查询的唯一显式实现点。
+  </div>
+</section>
+
+<section id="d9">
+  <h2>图 ⑨ AI 决策链 <span class="tag">domain_runtime · b92f0b7c 重做</span></h2>
+  <p class="desc">evaluator 数量 12 → <b>13</b>（新增 <code>BattleAiObjectiveActionEvaluator</code>，在 brain 解析之前运行），仍无公共基类，统一调度靠 <code>EnemyAiActionKind switch</code>。<code>BattleAiMutationGuard</code> 3438 → 189 行，执行路径被 <code>#if MAGIC_AI_MUTATION_DIAGNOSTICS</code> 编译期排除出 Release。</p>
+  <div class="diagram"><pre class="mermaid">
+classDiagram
+    direction TB
+
+    class BattleAiService {
+        &lt;&lt;internal sealed · 270 行>>
+        -Dictionary~StringName, EnemyAiBrainDefinition~ _enemyAiBrains
+        -BattleAiScoreService _scoreService
+        -BattleAiStateResolver _stateResolver
+        -BattleAiDecisionEngine _decisionEngine
+        +Setup(brains, damageResolver)
+        +ChooseCommand(BattleAiContext, captureTrace) BattleAiDecisionResult
+        +SetScoreProfile / SetFactionScoreProfiles
+    }
+    class BattleAiDecisionEngine {
+        &lt;&lt;internal sealed · 854 行>>
+        13 个 evaluator 字段（内联 new）
+        +ChooseCommandImpl(context, brains, stateResolver, …)
+        EvaluateEntry: EnemyAiActionKind switch 强转分派
+    }
+    class Evaluators["13 个 evaluator（均 internal sealed · 无公共接口）"] {
+        BattleAiObjectiveActionEvaluator ← 最先执行
+        BattleAiUnitSkillCandidateEvaluator
+        BattleAiGroundSkillActionEvaluator（1660 行）
+        BattleAiMultiUnitSkillEvaluator
+        BattleAiMoveToMultiUnitSkillPositionEvaluator
+        BattleAiRandomChainSkillEvaluator
+        BattleAiChargeActionEvaluator
+        BattleAiChargePathAoeActionEvaluator
+        BattleAiMoveToRangeActionEvaluator（2354 行）
+        BattleAiMoveToAdvantageActionEvaluator
+        BattleAiGroundRepositionActionEvaluator
+        BattleAiRetreatActionEvaluator
+        BattleAiWaitActionEvaluator
+    }
+    class BattleAiActionEvaluatorUtilities {
+        &lt;&lt;static 共享逻辑 · 315 行>>
+    }
+    class BattleAiScoreService {
+        &lt;&lt;public sealed partial×6 · ~5200 行>>
+        -BattleDamageResolver _damageResolver
+        -BattleAiScoreProfileDefinition 默认/派系/brain 三级
+        +BuildSkillScoreInput / BuildActionScoreInput
+        +BeginDecisionScope(state, unit)
+    }
+    class BattleAiMutationGuard {
+        &lt;&lt;internal sealed · 189 行>>
+        +Capture(context) / ValidateReportTyped()
+        白名单: ai_brain_id / ai_state_id + 8 blackboard 键
+    }
+    class BattleAiMutationSnapshotModel {
+        &lt;&lt;StableMap / StableValue / StableDiff · 755 行>>
+    }
+    class BattleAiContext {
+        &lt;&lt;public class : IBattleAiScoreContext · 1306 行>>
+        +BattleState state / BattleUnitState unit_state
+        +BattleGridService grid_service
+        +BattleAiScoreProfileDefinition active_score_profile
+        5 个 Func 回调（??= 惰性绑定）
+        +runtime_action_plan BattleAiRuntimeActionPlan
+    }
+    class IBattleAiScoreContext {
+        &lt;&lt;interface · 12 行>>
+        state / unit_state / grid_service
+        skill_definitions / barrier_profile_definitions / skill_catalog
+    }
+    class BattleAiActionAssembler {
+        &lt;&lt;internal sealed · 1094 行>>
+        +BuildUnitActionPlan(unit, brain, skillDefs) BattleAiRuntimeActionPlan
+    }
+    class BattleAiRuntimeActionPlan {
+        &lt;&lt;IDisposable · 561 行>>
+    }
+    class EnemyAiBrainDef {
+        &lt;&lt;Resource · .tres · 156 行>>
+        brain_id / default_state_id
+        score_profile BattleAiScoreProfile
+        states / transition_rules
+        +ToDefinition()
+    }
+    class EnemyAiBrainDefinition {
+        &lt;&lt;internal sealed · frozen · 43 行>>
+        BrainId / DefaultStateId / ScoreProfile
+        States / StateOrder / TransitionRules
+    }
+    class EnemyAiActionDefinition {
+        &lt;&lt;abstract>>
+    }
+    class ActionDefs["12 个 sealed 动作定义 ↔ EnemyAiActionKind"] {
+        UseUnitSkill / UseGroundSkill / UseMultiUnitSkill
+        MoveToMultiUnitSkillPosition / UseRandomChainSkill
+        UseCharge / UseChargePathAoe / MoveToRange
+        MoveToAdvantagePosition / UseGroundRepositionSkill
+        Retreat / Wait
+    }
+
+    BattleAiService *-- BattleAiDecisionEngine
+    BattleAiService *-- BattleAiScoreService
+    BattleAiDecisionEngine "1" *-- "13" Evaluators
+    Evaluators ..> BattleAiActionEvaluatorUtilities
+    BattleAiService ..> BattleAiMutationGuard : 仅 MAGIC_AI_MUTATION_DIAGNOSTICS
+    BattleAiMutationGuard ..> BattleAiMutationSnapshotModel
+    BattleAiContext ..|> IBattleAiScoreContext
+    BattleAiDecisionEngine ..> BattleAiContext
+    BattleAiDecisionEngine ..> EnemyAiActionDefinition : switch 强转
+    EnemyAiActionDefinition <|-- ActionDefs
+    BattleAiActionAssembler ..> BattleAiRuntimeActionPlan : 产物
+    BattleAiContext o-- BattleAiRuntimeActionPlan
+    EnemyAiBrainDef ..> EnemyAiBrainDefinition : ToDefinition
+    BattleAiService ..> EnemyAiBrainDefinition : Setup 注入索引
+    BattleAiDecisionEngine ..> BattleAiScoreService : BuildScoreInput 回调
+  </pre></div>
+</section>
+
+<section id="d10">
+  <h2>图 ⑩ 表现层与战斗模拟 <span class="tag">presentation · tooling</span></h2>
+  <p class="desc">展示边界仍是全项目最干净的边：<code>IBattleHudContext</code>（battle/presentation 内 65 行接口）是 presentation 对运行时的唯一只读入口；<code>BattleMapPanel</code> 是纯 renderer（6 partial ~3269 行），9 个 [Signal] 出、snapshot 入。headless 模拟经 <code>BattleSimRunner</code> 复用同一 <code>BattleRuntimeModule</code>。</p>
+  <div class="diagram"><pre class="mermaid">
+classDiagram
+    direction LR
+
+    class IBattleHudContext {
+        &lt;&lt;interface · presentation/ · 65 行>>
+        GetBattleState / PreviewBattleCommand
+        GetSkillDefinitions / GetItemDefinitions
+        GetEquipmentAbilityBindings / GetSkillCatalog
+        GetPartyMemberState / GetBattleSkillCastBlockMessage
+    }
+    class GameRuntimeFacade {
+        &lt;&lt;BattleHudContext.cs partial 实现>>
+    }
+    class BattleHudSessionContext {
+        &lt;&lt;internal · 包装 GameSession 的降级实现>>
+    }
+    class BattleHudAdapter {
+        &lt;&lt;public sealed · 2339 行>>
+        -IBattleHudContext _context
+        +SetupRuntimeContext(IBattleHudContext)
+        +BuildSnapshot(battle_state, selected, …) BattleHudSnapshot
+    }
+    class BattleHudSnapshot {
+        &lt;&lt;internal sealed · BattleHudSnapshot.cs 1401 行>>
+        ResourceInfo / QueueEntry / SkillSlot
+        EquipmentSlot / BackpackEntry / Barrier
+        ObjectiveProgress / ControlZone …
+    }
+    class IBattlePresentationSnapshotValue {
+        &lt;&lt;marker interface>>
+    }
+    class BattleBoardSnapshotBuilder {
+        &lt;&lt;internal · BattleBoardRenderSnapshot.cs>>
+    }
+    class BattleBoardRenderSnapshot {
+        &lt;&lt;public · 棋盘渲染快照>>
+    }
+    class BattleMapPanel {
+        &lt;&lt;Control · partial×6 · ~3269 行 · 纯 renderer>>
+        -BattleHudAdapter _hud_adapter
+        -BattleBoardSnapshotBuilder _board_snapshot_builder
+        -WorldMapRuntimeProxy _runtime_proxy
+        Signal: battle_cell_clicked / battle_skill_slot_selected
+        Signal: battle_resolve_pressed / equip_requested … 共 9 个
+    }
+    class BattleBoardController {
+        &lt;&lt;sealed · 2173 行 · 场景棋盘控制>>
+    }
+    class WorldMapSystem {
+        &lt;&lt;signal 路由>>
+    }
+
+    class BattleSimRunner {
+        &lt;&lt;tooling · public sealed · 454 行>>
+        +ctor(BattleSimContentProvider, Func~BattleRuntimeModule~)
+        +RunScenario(scenario, profiles) BattleSimScenarioReport
+    }
+    class BattleSimContentProvider {
+        &lt;&lt;public sealed · 46 行>>
+        包装 ContentSnapshot 只读暴露 5 族定义
+    }
+    class BattleSimExecutionLoop {
+        &lt;&lt;public sealed · 345 行>>
+        +Run(runtime, state, scenario, …) Result
+    }
+    class BattleRuntimeModule {
+        &lt;&lt;runtimeFactory 复用>>
+    }
+    class ContentSnapshot
+    class BattleSimReportBuilder
+    class BattleSimFormalCombatFixture {
+        &lt;&lt;public sealed · 1459 行 · 亦实现 IBattleRuntimeCharacterGateway>>
+    }
+
+    GameRuntimeFacade ..|> IBattleHudContext
+    BattleHudSessionContext ..|> IBattleHudContext
+    BattleHudAdapter ..> IBattleHudContext : 唯一取数口
+    BattleHudAdapter ..> BattleHudSnapshot : 构建
+    BattleHudSnapshot ..|> IBattlePresentationSnapshotValue
+    BattleMapPanel *-- BattleHudAdapter
+    BattleMapPanel *-- BattleBoardSnapshotBuilder
+    BattleBoardSnapshotBuilder ..> BattleBoardRenderSnapshot
+    BattleMapPanel *-- BattleBoardController
+    BattleMapPanel ..> WorldMapSystem : 9 个 signal 上行
+    WorldMapSystem ..> BattleMapPanel : snapshot 下行渲染
+
+    BattleSimRunner *-- BattleSimContentProvider
+    BattleSimRunner *-- BattleSimExecutionLoop
+    BattleSimRunner *-- BattleSimReportBuilder
+    BattleSimContentProvider ..> ContentSnapshot
+    BattleSimRunner ..> BattleRuntimeModule : runtimeFactory
+    BattleSimExecutionLoop ..> BattleRuntimeModule
+    BattleSimRunner ..> BattleSimFormalCombatFixture
+  </pre></div>
+</section>
+
+<section id="d11">
+  <h2>图 ⑪ 内容族模板链路 <span class="tag">content_authoring → content_definition</span></h2>
+  <p class="desc">统一模板：<code>XxxDef : Resource</code>（.tres）→ <code>XxxContentRegistry</code>（加载+校验）→ <code>XxxDefinition</code>（frozen）→ <code>ContentSnapshot</code>。<code>ProgressionContentRegistry</code>（2314 行）聚合 12 个子 Registry、产出 14 族 Definition 索引。黄色边为当前仅剩的跨层耦合：player 内容类型引用 battle typed enums。</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart TB
+    subgraph Authoring[".tres 资源层（content_authoring）"]
+        SD["SkillDef : Resource<br/>967 行"]
+        ID["ItemDef : Resource<br/>390 行"]
+        TD["TraitDef : Resource<br/>118 行"]
+        ETD["EnemyTemplateDef : Resource<br/>988 行"]
+        EBD["EnemyAiBrainDef : Resource<br/>156 行"]
+        PD["EquipmentAbilityContentPackDef<br/>+ EquipmentAbilityBindingDef"]
+        CE["CombatEffectDef : Resource<br/>587 行"]
+    end
+
+    subgraph Reg["Registry 层（19 个 · 加载+校验）"]
+        SR["SkillContentRegistry<br/>867 行"]
+        IR["ItemContentRegistry<br/>665 行"]
+        TR["TraitContentRegistry<br/>487 行"]
+        ER["EnemyContentRegistry<br/>624 行 → EnemyContentDefinitionGraph"]
+        PR["EquipmentAbilityContentRegistry<br/>390 行 · 内置 handler 目录"]
+        PCR["ProgressionContentRegistry<br/>2314 行 · 聚合 12 子 Registry"]
+    end
+
+    subgraph Defs["frozen Definition（content_definition）"]
+        SDef["SkillDefinition<br/>2846 行"]
+        IDef["ItemDefinition<br/>554 行"]
+        TDef["TraitDefinition"]
+        ETDef["EnemyTemplateDefinition<br/>255 行"]
+        EBDef["EnemyAiBrainDefinition<br/>43 行"]
+        PDef["EquipmentAbilityContentPackDefinition<br/>+ EquipmentAbilityBindingDefinition"]
+    end
+
+    subgraph Interop["battle/_interop · BattleTypedEnums.cs（961 行）"]
+        EN["BattleEffectKind / BattleAreaPattern<br/>BattleForcedMoveMode / …"]
+    end
+
+    Snap["ContentSnapshot<br/>28 个 typed IReadOnlyDictionary"]
+    Cat["GameContentCatalog → SkillCatalog(ISkillCatalog)"]
+    Consumers["消费方：GameRuntimeFacade<br/>BattleRuntimeModule（setup 注入 7 族索引）<br/>BattleSimContentProvider"]
+
+    SD --> SR --> SDef
+    ID --> IR --> IDef
+    TD --> TR --> TDef
+    ETD & EBD --> ER --> ETDef & EBDef
+    PD --> PR --> PDef
+    SR & TR --> PCR
+    CE -. 内嵌投影 .-> SDef
+    PCR & IR & ER & PR --> Snap
+    SDef & IDef & TDef & ETDef & EBDef & PDef --> Snap
+    Snap --> Cat --> Consumers
+
+    CE ==>|typed 属性直接引用| EN
+    SD -.-> EN
+
+    linkStyle 14,15 stroke:#e6a817,stroke-width:3px;
+  </pre></div>
+  <div class="callout">
+    ItemDef 与装备能力的关联路径是间接的：<code>ItemDef.trait_ids → TraitDef.trait_id → BindingDef.trait_id → ContentPackDef</code>。<br/>
+    剩余耦合：16 个 player 文件的 typed 属性直接使用 <code>battle/_interop/BattleTypedEnums.cs</code> 的枚举与 <code>content/skills/BattleAttackRollModifierSpec</code>——这是旧评审"CombatEffectDef → battle 类型"违规的现形：已从"引用 runtime 服务"降为"引用 _interop 值对象"，并被 layer_rules 显式划层放行。
+  </div>
+</section>
+
+<section id="d12">
+  <h2>图 ⑫ player 数据聚合 <span class="tag">domain_state · f829eeb3 任务日志抽离</span></h2>
+  <p class="desc"><code>PartyState</code>（partial×2，version=8）是队伍根聚合。<code>QuestJournalState</code> 是任务四阶段的唯一 owner（对外只返回克隆）。旧评审"PartyState → systems/progression 反向引用"已消除：全 player 目录不再引用任何 systems 服务类型。</p>
+  <div class="diagram"><pre class="mermaid">
+classDiagram
+    direction TB
+
+    class PartyState {
+        &lt;&lt;public partial×2 · 778+841 行>>
+        +version = 8
+        +gold / leader_member_id / main_character_member_id
+        +StringNameList active_member_ids / reserve_member_ids
+        +PartyMemberStateCollection member_states
+        +List~PendingCharacterReward~ pending_character_rewards
+        -QuestJournalState quest_journal
+        +WarehouseState warehouse_state
+        +BuildSaveSnapshotPlain() / FromDictionary()$
+    }
+    class PartyMemberStateCollection
+    class PartyMemberState {
+        &lt;&lt;public partial · 970 行>>
+        +UnitProgress progression
+        +EquipmentState equipment_state
+        +trait_instances
+        -contingency matrix setups
+    }
+    class UnitProgress {
+        &lt;&lt;public class · 1411 行 · version=1>>
+        +unit_id / character_level
+        +UnitBaseAttributes unit_base_attributes
+        +UnitReputationState reputation_state
+        -skills / professions / achievementProgress 字典
+    }
+    class EquipmentState
+    class QuestJournalState {
+        &lt;&lt;internal sealed · 304 行 · 唯一 owner>>
+        -_active / _claimable / _failed Dictionary~StringName, QuestState~
+        -_rewarded HashSet~StringName~
+        对外只返回 DuplicateState() 克隆
+    }
+    class QuestState {
+        &lt;&lt;public class · 469 行>>
+        +quest_id / status_id
+        +QuestObjectiveProgressState objective_progress
+        +4 个 *_at_world_step
+        +QuestProgressContext last_progress_context
+    }
+    class QuestStatusKind {
+        &lt;&lt;enum>>
+        Unknown / Inactive / Active
+        Completed / Rewarded / Failed
+    }
+    class QuestObjectiveProgressState
+    class WarehouseState {
+        &lt;&lt;public class · 208 行>>
+        +List~WarehouseStackState~ stacks
+        +List~EquipmentInstanceState~ equipment_instances
+    }
+    class WarehouseStackState
+    class EquipmentInstanceState
+    class PendingCharacterReward {
+        &lt;&lt;public class · 59 行 · 已纯化>>
+        纯 StringName/string 字段
+        +List~PendingCharacterRewardEntry~
+    }
+
+    PartyState *-- PartyMemberStateCollection
+    PartyMemberStateCollection "1" *-- "*" PartyMemberState
+    PartyMemberState *-- UnitProgress
+    PartyMemberState *-- EquipmentState
+    PartyState *-- QuestJournalState
+    QuestJournalState "1" *-- "*" QuestState
+    QuestState ..> QuestStatusKind
+    QuestState *-- QuestObjectiveProgressState
+    PartyState *-- WarehouseState
+    WarehouseState "1" *-- "*" WarehouseStackState
+    WarehouseState "1" *-- "*" EquipmentInstanceState
+    PartyState "1" *-- "*" PendingCharacterReward
+  </pre></div>
+</section>
+
+<section id="delta">
+  <h2>与 2026-07-19 旧版评审的差异 <span class="tag">22 个重构提交之后</span></h2>
+  <table>
+    <tr><th>旧评审条目</th><th>当前现状（2026-07-26 实测）</th><th>对应图</th></tr>
+    <tr><td>BattleUnitState 2797 行 god object（P2-9）</td><td class="good">结构重构为 19 个 typed substate 组合（e4b5b003）；主类 3431+571 行但状态访问经 substate 间接</td><td>⑥</td></tr>
+    <tr><td>BattleAiMutationGuard 3208~3438 行（P3-14）</td><td class="good">189 行守卫核心 + 快照模型 4 文件；执行路径经 #if MAGIC_AI_MUTATION_DIAGNOSTICS 排除出 Release（f38aee23）</td><td>⑨</td></tr>
+    <tr><td>GameRuntimeFacade 7 partial / ~5316 行，sidecar 回指 facade 本体</td><td>16 partial；13 个 port 接口为唯一能力面，sidecar 只持 WeakReference~Port~（b6137650 / f9d89ba6）；字段仍 internal</td><td>④</td></tr>
+    <tr><td>无边界强制：829 类全局命名空间，越层编译期不可见（P0-1）</td><td class="good">layer_rules.json + Roslyn analyzer + baseline 编译期强制 10 层 5 禁则（c42c5845）；命名空间仍为 0，但新增越层边会编译失败</td><td>①</td></tr>
+    <tr><td>违规 1：PartyState → PendingCharacterReward(systems/progression)</td><td class="good">已消除，PendingCharacterReward 纯化；player 全目录无 systems 服务引用</td><td>⑫</td></tr>
+    <tr><td>违规 2：CombatEffectDef → BattleAttackRollModifierSpec(battle/core)</td><td class="warn-t">降级存续：spec 移至 content/skills；16 个 player 文件仍引用 battle/_interop 值对象枚举（显式划层放行）</td><td>⑪</td></tr>
+    <tr><td>违规 3：DamageResolver ⇄ EquipmentAbilityRuntimeService 循环</td><td class="good">已解并细化：IBattleEquipmentAbilityReactionService → 3 个窄接口（2 Query + 1 Sink）</td><td>⑧</td></tr>
+    <tr><td>违规 4/5：EquipmentAbilityContentRegistry → AttributeService；Builder → utils validator</td><td class="good">scripts/utils 已清空（e7644ed2），归属各域；ContentRules 族承载规则常量</td><td>⑪</td></tr>
+    <tr><td>AI evaluator 12 个无公共接口（图 5）</td><td>13 个（新增 Objective evaluator，brain 解析前执行），仍无公共基类；共享逻辑下沉 static 工具类</td><td>⑨</td></tr>
+    <tr><td>序列化散布 ~15 个 State 类（P3-17）</td><td>仍在（101 处 ToDictionary / 49 文件）；改善：SaveSchemaVersions 版本唯一权威 + WorldRuntimeSaveSchema 键名集中（534cb334）</td><td>③</td></tr>
+    <tr><td>BattleRuntimeModule 服务接线 ×3 重复（P2-12）</td><td class="warn-t">FinishSetup 单链 + borrower 注册表集中 7 个借用者生命周期；~40 个 internal 服务字段 hub 形态未变</td><td>⑦</td></tr>
+    <tr><td>WorldMapRuntimeProxy 740 行宽 pass-through（P2-13）</td><td>746 行，定位明确为"查询面 + 命令面统一转发 RuntimeCommandResult"，不再视为纯债务</td><td>④</td></tr>
+  </table>
+  <div class="callout info">
+    <b>总体格局判断（2026-07-26）</b>：旧评审 P0 的"无边界强制"与"循环依赖"已闭环；P1 的越层边仅剩 _interop 值对象面且被显式划层管理。剩余主债集中在：① 两个 composition hub（facade 16 partial / module 7 partial）的 internal 字段大开门与两阶段构造；② battle 域 53% 的体量占比继续上升（51% → 52.9%）；③ State 自描述序列化散布。
   </div>
 </section>
 
 </main>
 
 <footer>
-  生成时间 2026-07-19 · 数据源：scripts/ 829 个 .cs 静态分析 · 配套文档 docs/reviews/architecture_review_2026-07-19.md
+  生成时间 2026-07-26 · 数据源：工作区 @ ff2c2f65 全量静态分析（scripts/ 992 个 .cs / 302,881 行；tests/ 502 个 .cs / 200,181 行）· 前版评审：docs/reviews/architecture_review_2026-07-19.md（时点记录，未随本次重绘更新）
 </footer>
 
 <script>
@@ -642,7 +1363,6 @@ flowchart TB
     document.querySelectorAll('.diagram').forEach(container => {
       const svg = container.querySelector('svg');
       if (!svg) return;
-      // mermaid 会在 svg 上写死 max-width，去掉以允许放大
       svg.style.maxWidth = 'none';
       const pz = svgPanZoom(svg, {
         zoomEnabled: true,
@@ -662,7 +1382,6 @@ flowchart TB
     console.error('mermaid render failed:', err);
   });
 
-  // Esc 退出全屏（触发对应全屏按钮以正确 refit）
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       document.querySelectorAll('.diagram.fullscreen .zoom-toolbar button[title="全屏切换"]')
