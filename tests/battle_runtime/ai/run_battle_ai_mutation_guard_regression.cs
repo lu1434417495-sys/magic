@@ -88,6 +88,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             TestSnapshotIsPlainAndDetectsStateWithoutAuditGrowth();
             TestTurnStateAuthorityIsDetected();
             TestActionClockAuthorityIsDetected();
+            TestCastingClockCarriesRemainderAndClonesIndependently();
+            TestCastingClockAuthorityIsDetected();
             TestCombatResourceAuthorityIsDetected();
             TestRestStateAuthorityIsDetected();
             TestMovementTagAuthorityIsDetected();
@@ -871,6 +873,68 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "action_progress",
             "action_threshold",
             "action_progress_rate_remainder"
+        );
+    }
+
+    private void TestCastingClockAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleUnitCastingClockSnapshot baseline =
+            fixture.Actor.CaptureCastingClockForMutationSnapshotExact();
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.RestoreCastingClockForMutationSnapshotExact(
+            BattleUnitCastingClockSnapshot.Present(-17)
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "casting clock raw mutation",
+            "cast_progress_rate_remainder"
+        );
+
+        fixture.Actor.RestoreCastingClockForMutationSnapshotExact(baseline);
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "casting clock 回到 baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreCastingClockForMutationSnapshotExact(
+            BattleUnitCastingClockSnapshot.MissingOwner
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "casting clock missing owner",
+            "cast_progress_rate_remainder"
+        );
+    }
+
+    private void TestCastingClockCarriesRemainderAndClonesIndependently()
+    {
+        var unit = new BattleUnitState();
+        _test.Eq(
+            unit.ConsumeCastProgressRateGainTyped(1, 150),
+            1,
+            "casting clock 应返回本次完整进度。"
+        );
+        _test.Eq(
+            unit.GetCastProgressRateRemainderTyped(),
+            50,
+            "casting clock 应保留本次未消费余数。"
+        );
+
+        BattleUnitState clone = unit.clone();
+        _test.Eq(
+            clone.ConsumeCastProgressRateGainTyped(1, 150),
+            2,
+            "clone 应继承余数并独立消费。"
+        );
+        _test.Eq(
+            unit.GetCastProgressRateRemainderTyped(),
+            50,
+            "clone 消费余数不应修改原单位 owner。"
         );
     }
 
@@ -2112,6 +2176,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                     fieldStable.ContainsKey("action_progress")
                     && fieldStable.ContainsKey("action_threshold")
                     && fieldStable.ContainsKey("action_progress_rate_remainder"),
+                "_castingClockState" =>
+                    fieldStable.ContainsKey("cast_progress_rate_remainder"),
                 "_combatResourceState" =>
                     HasStableKeys(
                         fieldStable,

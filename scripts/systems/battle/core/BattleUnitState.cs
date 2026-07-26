@@ -208,6 +208,7 @@ public partial class BattleUnitState
     private BattleConsumedContingencySetupCollection _consumedContingencySetups = new();
     private BattleUnitChargeState _chargeState = new();
     private BattleUnitActionClockState _actionClockState = new();
+    private BattleUnitCastingClockState _castingClockState = new();
     private BattleUnitKnownSkillState _knownSkillState = new();
     private BattleUnitMovementTagState _movementTagState = new();
     private BattleUnitVisionProficiencyState _visionProficiencyState = new();
@@ -260,6 +261,11 @@ public partial class BattleUnitState
     {
         get => _actionClockState ??= new();
         set => _actionClockState = value ?? new();
+    }
+    private BattleUnitCastingClockState CastingClockState
+    {
+        get => _castingClockState ??= new();
+        set => _castingClockState = value ?? new();
     }
     private BattleUnitKnownSkillState WritableKnownSkillState =>
         _knownSkillState ??= new();
@@ -326,8 +332,6 @@ public partial class BattleUnitState
     }
     public bool death_ward_consumed_this_battle;
     internal BattlePendingCastState pending_cast;
-    // M2 temporal：施法进度获取率的 runtime-only 余数累加器，不进入 save payload。
-    internal int cast_progress_rate_remainder;
 
     internal bool HasPendingCast() => pending_cast != null;
 
@@ -506,6 +510,34 @@ public partial class BattleUnitState
             progressGain,
             positiveThreshold
         );
+
+    internal BattleUnitCastingClockSnapshot GetCastingClockStateTyped() =>
+        CastingClockState.CaptureRaw();
+
+    internal BattleUnitCastingClockSnapshot
+        CaptureCastingClockForMutationSnapshotExact() =>
+            _castingClockState?.CaptureRaw()
+            ?? BattleUnitCastingClockSnapshot.MissingOwner;
+
+    internal void RestoreCastingClockForMutationSnapshotExact(
+        BattleUnitCastingClockSnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _castingClockState = null;
+            return;
+        }
+        CastingClockState.RestoreRaw(snapshot);
+    }
+
+    internal int GetCastProgressRateRemainderTyped() =>
+        CastingClockState.GetProgressRateRemainder();
+
+    internal int ConsumeCastProgressRateGainTyped(
+        int baseProgressDelta,
+        int ratePercent
+    ) => CastingClockState.ConsumeRateScaledGain(baseProgressDelta, ratePercent);
 
     internal BattleUnitGeometryReadView GetGeometryReadViewTyped() =>
         _geometryState?.GetReadView()
@@ -1760,6 +1792,7 @@ public partial class BattleUnitState
             TurnState = TurnState.DuplicateState(),
             ShieldState = ShieldState.DuplicateState(),
             ActionClockState = ActionClockState.DuplicateState(),
+            CastingClockState = CastingClockState.DuplicateState(),
             _knownSkillState =
                 _knownSkillState?.DuplicateState()
                 ?? new BattleUnitKnownSkillState(),
@@ -1791,7 +1824,6 @@ public partial class BattleUnitState
             ChargeState = ChargeState.DuplicateState(),
             death_ward_consumed_this_battle = death_ward_consumed_this_battle,
             pending_cast = pending_cast?.Clone(),
-            cast_progress_rate_remainder = cast_progress_rate_remainder,
             ConsumedContingencySetups = ConsumedContingencySetups.DuplicateState(),
         };
     }
