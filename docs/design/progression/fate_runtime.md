@@ -34,7 +34,7 @@ BattleHitResolver / battle events
 
 ## 实现约束
 
-- `FateRuntimeModule` 是 battle runtime 的 sidecar 编排点；各服务不能自行持有另一个 BattleRuntimeModule 或绕过 character gateway 写永久状态。
+- `FateRuntimeModule` 是 battle runtime 的 sidecar 编排点；guidance 只通过 `IFateCharacterGateway` 读队伍/成员并解锁成就，通过 `IMisfortuneGuidanceBattleQuery` 读取 calamity snapshot/reason，不能持有 `CharacterManagementModule` 或 `BattleRuntimeModule` concrete composition root，也不能绕过端口写永久状态。
 - Fortuna guidance 必须先观察事件前状态，随后 `FortuneService` 才写入标记；事件订阅顺序属于当前合同。
 - Calamity 是战斗内状态，由 `BattleCalamityStore` 与 `MisfortuneService` 管理；永久 rank 和角色成长仍走 faith/pending reward 链。
 - Low-luck 战后 loot 与 pending reward 先合并到 `BattleResolutionResult`/待提交集合，再随正式战斗结算提交，不能在 resolver 中直接写仓库。

@@ -98,7 +98,7 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 - [x] 第 2 项完整当前边清单：有序路径映射已覆盖主项目参与编译的 C# 源码；混合 authoring/contract 文件只使用经当前 owner 复核的少量 symbol override。外置 MSBuild target 可生成 SARIF，并导出确定性 JSON 清单。
 - [x] 第 3 项精确债务 baseline：2026-07-22 初始清单有 39,341 个跨层 symbol pair，其中 172 个禁止边已经逐组回到当时 owner 人工核验并精确登记；不存在目录级或 namespace 级白名单。
 - [x] 第 4 项正式门禁：`magic.csproj` 已通过 analyzer `ProjectReference` 和 `AdditionalFiles` 加载规则与 baseline，普通主项目构建会拒绝新增禁止边；CI 显式运行独立 analyzer 测试。完整 inventory request 仍由 `Magic.ArchitectureInventory.targets` 按需注入，不污染日常构建输出。
-- [ ] 第 5 项已进入持续清理：只按已核实 owner 的小切片删除精确 baseline tuple；未清完前保持剩余债务可见，不把“已开始”写成“已完成”。
+- [x] 第 5 项持续清理完成：所有 172 个经 owner 复核的精确 baseline tuple 已删除；门禁不再豁免任何已知禁止边。
 
 2026-07-22 初始 172 个 baseline tuple 的 owner 分布为：
 
@@ -107,7 +107,7 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 - 30 个 `domain_runtime → content_authoring`：27 个 progression runtime 对 `ProgressionContentRegistry` 的遗留入口，以及 3 个 runtime 对 `AttributeModifier` authoring converter 的调用；
 - 9 个 `content_authoring → domain_runtime`：contingency smoke validation、装备属性常量、misfortune 判定与 temporal status 内容校验直接调用 runtime owner。
 
-172 是 symbol pair 数，不是 172 个独立重构任务；移动一个 DTO owner 或用一个窄 capability 替换 hub，可能同时删除一组 tuple。完成 P1-C/2、P1-C/4 与 attack-check query port 收敛后，61 个临时 `misplaced_progression_state` tuple、1 个装备属性常量 tuple 和 10 个 attack-policy 回借 composition root 的 tuple 已删除；2026-07-24 的 checked-in baseline 为 100 个精确 tuple（62 + 30 + 8）。当前 analyzer 契约验证命令为 `dotnet run --project tools/architecture/Magic.ArchitectureAnalyzers.Tests/Magic.ArchitectureAnalyzers.Tests.csproj`；仓库清单命令记录在 `tools/architecture/README.md`。二者都不属于游戏全量回归。
+172 是 symbol pair 数，不是 172 个独立重构任务；移动一个 DTO owner 或用一个窄 capability 替换 hub，可能同时删除一组 tuple。完成 P1-C/2、P1-C/4 与 attack-check query port 收敛后，61 个临时 `misplaced_progression_state` tuple、1 个装备属性常量 tuple 和 10 个 attack-policy 回借 composition root 的 tuple 已删除；2026-07-24 的 checked-in baseline 为 100 个精确 tuple（62 + 30 + 8）。2026-07-26 又将 contingency template 构建规则归入 content-definition owner，并以 `MisfortuneContentRules` / `TemporalStatusContentRules` 取代 authoring 对 battle runtime 的反向查询，8 个 `authoring-to-runtime` tuple 全部删除；随后以 `AttributeModifierContentRules` 统一 modifier mode 双向映射，再删除 3 个 runtime→authoring converter tuple。建卡候选、建卡提交与身份校验服务删除了直接接收 `ProgressionContentRegistry` 的遗留重载，只消费 process snapshot 提供的不可变 `ProgressionIdentityCatalogData`，再删除 27 个 runtime→authoring tuple。最后，技能书、黑兆与 Fate guidance 通过 `ICharacterSkillLearningGateway` / `ICharacterMemberStateQuery` / `IFateCharacterGateway` 删除 14 个 `CharacterManagementModule` 回借；terrain effect 与灾厄 guidance 通过 `IBattleTerrainEffectRuntime` / `IMisfortuneGuidanceBattleQuery` 删除 48 个 `BattleRuntimeModule` 回借。当前 baseline 为 0，新增任何命中现有 deny rules 的禁止边都会直接使构建失败。当前 analyzer 契约验证命令为 `dotnet run --project tools/architecture/Magic.ArchitectureAnalyzers.Tests/Magic.ArchitectureAnalyzers.Tests.csproj`；仓库清单命令记录在 `tools/architecture/README.md`。二者都不属于游戏全量回归。
 
 ### Acceptance
 
@@ -142,7 +142,7 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 - party/world/coord 提交仍只走现有 `RuntimeTransaction`。
 - 对应 modal、事务或 world runtime 聚焦回归通过。
 
-### 当前进度（2026-07-23）
+### 当前进度（2026-07-26）
 
 - [x] 首个 typed modal 切片：GameOver 的 6 个固定字段已从 facade 长期 `Dictionary<string, object>` 迁入私有 `GameRuntimeGameOverContext`；状态文本直接读取 typed owner，headless snapshot 与 Godot UI 仍只在同步边界生成 detached plain graph / Request-domain projection lease。
 - [x] 首个只读 projection capability 切片：`GameRuntimeCharacterInfoBuilder` 不再借用整个 `GameRuntimeFacade`，只经弱引用读取坐标文本、技能名、成员存在性、按 ID 查询的物品/特性定义与 detached 身份摘要；未暴露 `PartyState`、完整内容索引、`GameContentCatalog` 或 `CharacterManagementModule` owner。
@@ -155,7 +155,10 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 - [x] Warehouse command port 批次：`GameRuntimeWarehouseHandler` 不再弱借整个 `GameRuntimeFacade`，也不读取 `PartyState`、`PartyWarehouseService`、`PartyItemUseService`、`GameSession`、world context 或内容 catalog。facade 的 `IGameRuntimeWarehousePort` 捕获 detached command/window snapshot，拥有 add/discard/use service mutation、party stage、runtime/party/world/selection rollback、modal setup/close 与 reward 接续；handler 只解释 typed mutation result、构建既有 UI/plain payload 并更新状态。普通仓库 mutation 仍只 stage `party_state` pending dirty，不触发磁盘 flush；stage 失败时的恢复范围和关闭顺序保持不变。
 - [x] Battle loot commit port 批次：`GameRuntimeBattleLootCommitService` 不再弱借整个 `GameRuntimeFacade`，也不读取 `PartyState`、`PartyWarehouseService`、`GameSession`、`EquipmentDropService` 或 item catalog。它只经 `IGameRuntimeBattleLootCommitPort` 请求仓库准备、opaque checkpoint 捕获/恢复、typed item 分类、加入仓库、装备随机、fate flag 与显示名能力；facade partial 保留实际 owner/service 接线。service 继续拥有掉落合并、灾厄碎片章节上限、逐条非致命丢弃与整批致命失败判定，原逐条 checkpoint 和整批 checkpoint 的回滚层级不变。
 - [x] Command log port/owner 批次：`GameRuntimeCommandLogger` 不再弱借整个 `GameRuntimeFacade`，也不读取 session、world context、battle state、selection 或 facade 字段。`IGameRuntimeCommandLogPort` 只交付 detached runtime/battle/unit snapshot、当前 status 文本和 typed session event sink；日志 schema、command scope、battle batch context 合并及 pending command battle batches 均归 logger。facade 原 pending batch 镜像已删除，batch begin/finish 的清理时机、嵌套 scope 恢复、result fallback、Godot projection lease 与输出 key 保持不变。
-- [ ] handler capability 与其余 modal context 继续按单 handler / 单 kind 独立迁移；不把本切片扩大到 save schema、事务模型或两阶段构造。
+- [x] Battle selection port 批次：`GameRuntimeBattleSelection` 不再弱借整个 `GameRuntimeFacade`，只经 `IGameRuntimeBattleSelectionPort` 读取 typed battle/grid/catalog facts、读写 facade-owned selection state，并提交 preview/command/status 意图；技能定义改从 `ISkillCatalog` 查询，selection command 使用本域 typed result。preview 与正式 command 提交仍分别进入正式校验链，dispose 只清本地 implicit variant cache 并断开弱端口。
+- [x] Battle session port / command result owner 批次：`BattleSessionFacade` 不再持有 `GameRuntimeFacade`、`BattleRuntimeModule`、`BattleGridService`、`PartyState` 或 `GameContentCatalog`；它只弱借 `IGameRuntimeBattleSessionPort`，并通过 `IBattleSelectionSessionSurface` 使用受限 selection 能力。开战、推进、preview、command、promotion prompt、presentation delta 与结算仍由原同步编排点触发，port 才接触实际 owner。`RuntimeCommandResult` / `RuntimeCommandCode` 已从 facade 嵌套类型迁为独立 runtime command contract，已有 handler、proxy、headless 和测试只做类型引用迁移，payload/code/refresh 语义不变。
+- [x] Settlement command port 批次：`GameRuntimeSettlementCommandHandler` 与四个已有子处理器不再持有、透出或向下传递 `GameRuntimeFacade`。handler 只弱借按 state/content/transaction/modal/world 分组的 `IGameRuntimeSettlementCommandPort`；`GameSession`、角色管理、迷雾系统、结算入口私有字段及 concrete rollback owner 均留在 facade 显式适配器后方。事务何时捕获、提交、失败回滚，action dispatch 与状态反馈仍由原 handler 编排；port 只执行所请求的 scoped capability，不改变 save schema、payload 或两阶段构造。
+- [x] handler capability 与 modal context 已完成收敛：除 `WorldMapSystem`、`WorldMapRuntimeProxy`、`HeadlessGameTestSession` 三个正式组合根外，`scripts/systems/game_runtime` 中不再有 handler 持有、接收或弱借 `GameRuntimeFacade`；事务模型与两阶段构造保持原样。
 
 ## 6. P1-B：深化 `BattleRuntimeModule` 的真实 owner
 
@@ -273,6 +276,8 @@ P2-A/19 将 `equipment_ability_sources` 与 runtime-only `temporal_progress_modi
 
 `2026-07-26` 已完成战斗展示 owner 收敛：同步展示入口将 runtime facts 投影为 immutable `BattleBoardRenderSnapshot`，首帧 reveal 的 pending payload 只保存 detached HUD/board snapshot；`BattleBoard2D` 与 `BattleBoardController` 不再持有 `BattleState`。单位增量通过 `BattleBoardUnitUpdateSnapshot` 合并，不重建 cell/edge/terrain；hide/teardown 清空展示快照并通过无 signal 的 reveal ticket 失效路径阻止异步 continuation 回写离树 UI。scene、signal、battle owner 与规则语义不变。
 
+`2026-07-26` 已完成 HUD runtime capability 收敛：`BattleHudAdapter` 不再持有 `GameRuntimeFacade` 或 `GameSession`，只借 `IBattleHudContext` 的 battle state、content、member facts、cast gating 与 preview 能力。production 由 facade 显式适配，session-only 聚焦测试使用受限 `BattleHudSessionContext`；装备 preview cache、typed snapshot、按钮 gating 与技能有效定义的原决策点不变。
+
 `2026-07-25` 已完成 Settlement payload/validation owner 批次：`SettlementActionPayloadBuilder` 统一拥有 Godot boundary payload → `SettlementActionRequest`、typed request → dispatch payload、modal override 白名单复制和 validation payload 投影；`SettlementActionValidationPolicy` 与 detached result/service-resolution DTO 统一拥有 service found/enabled 的决策顺序。`GameRuntimeSettlementCommandHandler` 继续拥有 runtime/modal 可见性查询、事务、dispatch 和状态反馈，不增加转发 handler，也不改变 payload schema。
 
 ### Equipment ability 空 partial 的处理
@@ -285,6 +290,15 @@ P2-A/19 将 `equipment_ability_sources` 与 runtime-only `temporal_progress_modi
 2. **utils 归位**：只随真实 owner/依赖边修复迁移文件。config/validator 归内容 owner，渲染归 presentation/UI，lease/log 归 platform；不做纯 namespace 式搬家。
 3. **序列化收敛**：先建立 schema owner 与版本影响清单，再评估 accessor、集中 schema 或生成方案。任何 payload 变化遵守 SaveVersion 和兼容性确认要求；这是最后阶段，不与普通结构拆分混做。
 4. **Def/Definition 规则常量**：只在确认 authoring 与 runtime 规则确实重复且语义相同后收敛到 typed 单一 owner。
+
+### 当前进度（2026-07-26）
+
+- [x] 诊断隔离：Release 默认不编译 AI mutation snapshot/capture/compare 路径；`ChooseCommand` Release IL 从 517 bytes 降至 148 bytes，特殊诊断构建仍可通过 `MagicEnableAiMutationDiagnostics` 显式启用。
+- [x] utils 归位：全部在用 C# 文件已按 world content、world state、battle state、presentation、headless 与 platform owner 迁出 `scripts/utils/`，正式 `.tres` script path 和 `.uid` 同步更新，12 个孤立旧 `.uid` 已删除；该目录只保留非 runtime 的内容生产 Python 脚本。
+- [x] 序列化收敛：`WorldRuntimeSaveSchema` 唯一拥有 `world_data` 根字段集合；settlement/event/resource-node/mounted-submap/return-entry 字段集合归各 typed record，`SaveSerializer` 只保留磁盘边界、递归顺序和错误定位。payload 与 `SaveVersion = 17` 不变，未增加兼容路径。
+- [x] Def/Definition 规则常量：`ContingencyContractRules` 唯一拥有 trigger/timing/target-resolver/preference 闭集映射及精确字段集合，runtime state 与 authoring definition 共用。
+
+审计证据见 `docs/reviews/p3_post_governance_audit_2026-07-26.md`。
 
 ## 10. 跨阶段验收纪律
 

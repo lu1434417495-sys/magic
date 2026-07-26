@@ -47,7 +47,7 @@ UnitProgress 是技能/职业成长 owner：
 - `QuestDef`：provider、objectives、rewards、accept/complete/claim 条件。
 - identity catalog：race/subrace/age/bloodline/faith/barrier/ascension/stage advancement 等 typed 定义。
 
-所有 runtime 查询都应使用 typed `StringName` key。registry/content seed 可以把资源字典投成 typed catalog，但 runtime 不再用 string-key fallback。
+所有 runtime 查询都应使用 typed `StringName` key。registry/content seed 可以在 process snapshot 构建期把资源字典投成 typed catalog；建卡候选、建卡提交与身份校验只接收不可变 `ProgressionIdentityCatalogData`，runtime 不接收 `ProgressionContentRegistry`，也不使用 string-key fallback。
 
 ## CharacterManagementModule Setup
 
@@ -65,7 +65,7 @@ setup 输入：PartyState、typed skill defs、profession defs、achievement def
 
 1. 战斗贡献/胜利 -> battle runtime 生成 mastery/contribution/loot -> writeback service 调 CharacterManagement。
 2. 世界服务/任务 -> QuestProgressCommandPayloadData -> QuestProgressService / CharacterManagement。
-3. 物品使用 -> PartyItemUseService -> LearnSkillOptionsData。
+3. 物品使用 -> PartyItemUseService -> ICharacterSkillLearningGateway。
 4. 世界时间跨天 -> daily practice growth。
 
 所有成长结果应返回 typed delta/result；UI 只展示结果，不直接改 UnitProgress。
@@ -133,6 +133,8 @@ setup 后应建立并持有以下 typed 索引：
 - `ProgressionIdentityCatalogData`。
 
 这些索引只从 catalog typed view 初始化。不要在运行中扫描 public Godot dictionary projection 补 key。
+
+跨 domain service 不直接依赖 `CharacterManagementModule`：技能书使用 `ICharacterSkillLearningGateway`，黑兆使用 `ICharacterMemberStateQuery`，Fate guidance 使用 `IFateCharacterGateway`。module 作为 composition root 实现这些窄端口，端口不暴露 catalog、完整 progression service 或其他无关能力。
 
 ## 实现级补充：Party 编成不变量
 
