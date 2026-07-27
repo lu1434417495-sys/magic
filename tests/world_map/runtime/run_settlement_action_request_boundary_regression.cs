@@ -219,7 +219,11 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
             ["player_start_coord"] = Vector2I.Zero,
             ["player_start_settlement_id"] = "spring_village_01",
             ["player_start_settlement_name"] = "春泉村",
-            ["fog_states"] = new GDictionary(),
+            ["fog_states"] = new GDictionary
+            {
+                ["version"] = WorldMapFogSystem.PersistentStateVersion,
+                ["factions"] = new GDictionary(),
+            },
         };
     }
 

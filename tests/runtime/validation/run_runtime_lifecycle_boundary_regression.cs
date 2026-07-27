@@ -214,6 +214,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             new[]
             {
                 "ApplicationLifetimeCoordinator._shutdownSync",
+                "BattleSimFormalRuntimeStartInput._contextLease",
                 "BattleSimOverridePatchDefinition._value",
                 "GameLog._lock",
                 "GameLogService._sync",

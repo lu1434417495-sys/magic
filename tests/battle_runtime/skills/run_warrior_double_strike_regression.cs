@@ -135,6 +135,7 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
                 new GArray { 10, 10 }
             )
         );
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         (BattleUnitState caster, BattleUnitState target) = SetupDuel(runtime, targetHp: 100);
 
         int hpBefore = target.GetCurrentHp();
@@ -196,6 +197,7 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
         runtime.ConfigureDamageResolverForTests(
             new FixedRollDamageResolver(new GArray { 6, 6 }, new GArray { 20, 20 })
         );
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(20));
         (BattleUnitState caster, BattleUnitState target) = SetupDuel(runtime, targetHp: 1);
 
         BattleEventBatch batch = runtime.IssueCommand(BuildCommand(caster, target));

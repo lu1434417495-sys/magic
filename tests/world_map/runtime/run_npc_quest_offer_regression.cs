@@ -1664,7 +1664,11 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             ["player_start_coord"] = Vector2I.Zero,
             ["player_start_settlement_id"] = DictString(settlements[0], "settlement_id", ""),
             ["player_start_settlement_name"] = DictString(settlements[0], "display_name", ""),
-            ["fog_states"] = new GDictionary(),
+            ["fog_states"] = new GDictionary
+            {
+                ["version"] = WorldMapFogSystem.PersistentStateVersion,
+                ["factions"] = new GDictionary(),
+            },
         };
     }
 

@@ -746,7 +746,9 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 - `tests/shared/TestResourceOwnership.cs`：pathless authored/test wrapper 的显式 fixture owner；
 - `tests/shared/TestContentResourceLoader.cs`：`CacheMode.IgnoreDeep` path-backed test content loader；
 - `tests/shared/TestWorldGenerationDefinitionFactory.cs`：world authored fixture 到 definition 的同步边界；
-- `tests/shared/TestSkillDefinitionProjection.cs`：skill authored fixture 到 plain definition 的同步边界。
+- `tests/shared/TestSkillDefinitionProjection.cs`：skill authored fixture 到 plain definition 的同步边界；与
+  `TestContentResourceLoader` 一样以 `CacheMode.IgnoreDeep` 加载，因为投影后 wrapper 立即失根，Reuse 模式会让
+  缓存中的 native resource 与已终结 wrapper 在下一次同路径加载时发生 `SwapGCHandleForType`/finalizer 竞争。
 
 现有 `GodotObjectOwnership.cs` 最终只保留 direct-wrapper ownership bridge/audit，并以 wrapper-keyed
 `ConditionalWeakTable` 保存随 wrapper 生命周期消失的诊断项；不保留可枚举历史、strong sink 或持续增长

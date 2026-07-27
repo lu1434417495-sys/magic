@@ -309,7 +309,7 @@ public partial class run_warrior_over_shoulder_regression : LifecycleTestSceneTr
                     dice_sides = 6,
                 },
                 weapon_two_handed_dice = new WeaponDice(),
-                weapon_physical_damage_tag = "physical_slashing",
+                weapon_physical_damage_tag = "physical_slash",
             }
         );
     }

@@ -1102,14 +1102,10 @@ public partial class BattleUnitState
 
     internal void NormalizeBodySizeProjectionForOwnerWrite()
     {
-        if (_geometryState == null)
-        {
-            throw new InvalidOperationException(
-                $"BattleUnitState geometry owner 缺失: "
-                + $"unit_id='{unit_id}'。"
-            );
-        }
-        _geometryState.NormalizeForOwnerWrite(unit_id);
+        // Admission path rebuilds a missing geometry owner from canonical defaults
+        // instead of rejecting the unit; strict snapshot paths keep using
+        // EnsureBodySizeProjectionInvariant() for missing-owner violations.
+        GeometryState.NormalizeForOwnerWrite(unit_id);
     }
 
     internal void EnsureBodySizeProjectionInvariant()
