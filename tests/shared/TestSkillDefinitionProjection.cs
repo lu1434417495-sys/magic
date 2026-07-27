@@ -8,7 +8,17 @@ internal static class TestSkillDefinitionProjection
         string ownershipReason = ""
     )
     {
-        SkillDef skillDef = ResourceLoader.Load<SkillDef>(resourcePath);
+        // Load outside the engine's global cache (same pattern as
+        // ProcessContentHost.LoadCanonical / TestContentResourceLoader): the
+        // projected SkillDefinition is plain data, so the SkillDef wrapper is
+        // unrooted after this call. With the default Reuse cache mode the
+        // native resource stays cached while its wrapper can be GC-finalized,
+        // and the next load of the same path races the finalizer thread in
+        // SwapGCHandleForType (FATAL gchandle.is_released).
+        SkillDef skillDef = ResourceLoader.Load<SkillDef>(
+            resourcePath,
+            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
+        );
         if (skillDef != null)
         {
             GodotContentOwnership.RegisterBorrowedContent(

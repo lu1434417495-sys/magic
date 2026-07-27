@@ -366,6 +366,16 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                         request != null ? context.EvaluateCandidateRequest(request) : null;
                     if (decision != null)
                         return decision;
+                    if (
+                        request != null
+                        && IsFocusTargetWithinDesiredBand(
+                            context,
+                            target,
+                            request.DesiredMinDistance,
+                            request.DesiredMaxDistance
+                        )
+                    )
+                        break;
                 }
                 return null;
             }
@@ -690,6 +700,15 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                 _finalize_action_trace(context, actionTrace, bestDecision);
                 return bestDecision;
             }
+            if (
+                IsFocusTargetWithinDesiredBand(
+                    context,
+                    focusTarget,
+                    resolvedMinDistance,
+                    resolvedMaxDistance
+                )
+            )
+                break;
         }
 
         _finalize_action_trace(context, actionTrace);
@@ -2078,6 +2097,25 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
     private static BattleUnitState GetContextUnit(BattleAiContext context)
     {
         return context?.unit_state;
+    }
+
+    // 焦点目标已处于期望距离带且未产出移动决策时，不再向更远的目标寻找走位理由：
+    // target_selector 的距离契约针对排序最前的目标，已满足契约就不应追着远处敌人跑位。
+    private static bool IsFocusTargetWithinDesiredBand(
+        BattleAiContext context,
+        BattleUnitState focusTarget,
+        int resolvedMinDistance,
+        int resolvedMaxDistance
+    )
+    {
+        BattleUnitState actor = GetContextUnit(context);
+        BattleGridService grid = GetContextGrid(context);
+        if (actor == null || focusTarget == null || grid == null)
+        {
+            return false;
+        }
+        int distance = grid.GetDistanceBetweenUnits(actor, focusTarget);
+        return distance >= resolvedMinDistance && distance <= resolvedMaxDistance;
     }
 
     private static BattleGridService GetContextGrid(BattleAiContext context)

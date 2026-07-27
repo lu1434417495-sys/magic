@@ -1068,7 +1068,11 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             ["player_start_coord"] = Vector2I.Zero,
             ["player_start_settlement_id"] = DictString(settlements[0], "settlement_id", ""),
             ["player_start_settlement_name"] = DictString(settlements[0], "display_name", ""),
-            ["fog_states"] = new GDictionary(),
+            ["fog_states"] = new GDictionary
+            {
+                ["version"] = WorldMapFogSystem.PersistentStateVersion,
+                ["factions"] = new GDictionary(),
+            },
         };
     }
 

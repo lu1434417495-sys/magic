@@ -431,6 +431,8 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             weapon_profile_kind = "equipped",
             weapon_item_id = "crown_break_test_blade",
             weapon_profile_type_id = "test_blade",
+            weapon_range_type = "melee",
+            weapon_family = "sword",
             weapon_current_grip = "one_handed",
             weapon_attack_range = attackRange,
             weapon_one_handed_dice = new WeaponDice { dice_count = 1, dice_sides = 6, flat_bonus = 0 },

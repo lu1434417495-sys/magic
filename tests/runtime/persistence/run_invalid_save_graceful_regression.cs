@@ -221,6 +221,14 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
 
             worldData["fog_states"] = new Dictionary<string, object>(
                 System.StringComparer.Ordinal
+            );
+            _test.False(
+                serializer.TryNormalizeWorldDataPlain(worldData, out _),
+                "save serializer 应拒绝缺少 version/factions 的空 fog_states；无迷雾数据时应省略字段或使用正式 v2 空状态。"
+            );
+
+            worldData["fog_states"] = new Dictionary<string, object>(
+                System.StringComparer.Ordinal
             )
             {
                 ["version"] = WorldMapFogSystem.PersistentStateVersion,

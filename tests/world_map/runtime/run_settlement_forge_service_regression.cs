@@ -543,7 +543,11 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             ["player_start_coord"] = Vector2I.Zero,
             ["player_start_settlement_id"] = "forge_town",
             ["player_start_settlement_name"] = "灰烬镇",
-            ["fog_states"] = new GDictionary(),
+            ["fog_states"] = new GDictionary
+            {
+                ["version"] = WorldMapFogSystem.PersistentStateVersion,
+                ["factions"] = new GDictionary(),
+            },
         };
     }
 

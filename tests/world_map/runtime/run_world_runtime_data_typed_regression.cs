@@ -357,7 +357,11 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
             ["player_start_coord"] = Vector2I.Zero,
             ["player_start_settlement_id"] = "spring",
             ["player_start_settlement_name"] = "Spring",
-            ["fog_states"] = new GDictionary(),
+            ["fog_states"] = new GDictionary
+            {
+                ["version"] = WorldMapFogSystem.PersistentStateVersion,
+                ["factions"] = new GDictionary(),
+            },
         };
     }
 

@@ -230,10 +230,12 @@ internal static class SettlementActionPayloadBuilder
         if (source == null || !source.ContainsKey(key))
             return fallback ?? "";
         Variant value = source[key];
+        // Boundary contract: only plain String is a valid submission value.
+        // StringName Variants must be rejected so spoofed typed payloads
+        // cannot pass as formal submission sources/ids.
         return value.VariantType switch
         {
             Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
             _ => fallback ?? "",
         };
     }

@@ -631,7 +631,11 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             ["player_start_coord"] = Vector2I.Zero,
             ["player_start_settlement_id"] = "",
             ["player_start_settlement_name"] = "",
-            ["fog_states"] = new GDictionary(),
+            ["fog_states"] = new GDictionary
+            {
+                ["version"] = WorldMapFogSystem.PersistentStateVersion,
+                ["factions"] = new GDictionary(),
+            },
         };
 
     private static void DispatchHardshipLowLuckEvent(GameRuntimeFacade runtime, StringName battleId)
