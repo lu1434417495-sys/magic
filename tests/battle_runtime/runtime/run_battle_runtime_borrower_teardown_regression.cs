@@ -34,27 +34,35 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
 
     private readonly TestHarness _test = new();
 
-    public override void _Initialize()
+    public override void _Initialize() => RunAfterProcessStartup(Run);
+
+    private void Run()
     {
-        try
+        TestResult result;
+        using (var loader = new TestContentResourceLoader())
         {
-            TestContentRebindClearsAiBorrowers();
-            TestStateRebindClearsAiPlanAndDecisionContext();
-            TestEquipmentAbilityServiceDisposeRequiresExplicitRebind();
-            TestSuccessfulBorrowerFirstTeardownAndDoubleDispose();
-            TestExceptionalFinalLeaseCloseStillClearsBorrowers();
-        }
-        catch (Exception exception)
-        {
-            _test.Fail($"Unhandled exception: {exception}");
+            try
+            {
+                ContentFixture content = LoadContentFixture(loader);
+                TestContentRebindClearsAiBorrowers(content);
+                TestStateRebindClearsAiPlanAndDecisionContext(content);
+                TestEquipmentAbilityServiceDisposeRequiresExplicitRebind();
+                TestSuccessfulBorrowerFirstTeardownAndDoubleDispose(content);
+                TestExceptionalFinalLeaseCloseStillClearsBorrowers(content);
+            }
+            catch (Exception exception)
+            {
+                _test.Fail($"Unhandled exception: {exception}");
+            }
+
+            result = _test.Finish("Battle runtime borrower teardown regression");
         }
 
-        RequestTestExit(_test.Finish("Battle runtime borrower teardown regression"));
+        RequestTestExit(result);
     }
 
-    private void TestContentRebindClearsAiBorrowers()
+    private void TestContentRebindClearsAiBorrowers(ContentFixture content)
     {
-        ContentFixture content = LoadContentFixture();
         var runtime = new BattleRuntimeModule();
         try
         {
@@ -94,9 +102,8 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         }
     }
 
-    private void TestStateRebindClearsAiPlanAndDecisionContext()
+    private void TestStateRebindClearsAiPlanAndDecisionContext(ContentFixture content)
     {
-        ContentFixture content = LoadContentFixture();
         var runtime = new BattleRuntimeModule();
         try
         {
@@ -261,9 +268,8 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         }
     }
 
-    private void TestSuccessfulBorrowerFirstTeardownAndDoubleDispose()
+    private void TestSuccessfulBorrowerFirstTeardownAndDoubleDispose(ContentFixture content)
     {
-        ContentFixture content = LoadContentFixture();
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         var runtime = new BattleRuntimeModule();
         BattleTerrainGenerator ownedTerrainGenerator = runtime.GetTerrainGenerator();
@@ -313,9 +319,8 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         AssertAuditEqual(afterFirstDispose, LifecycleAuditRegistry.Shared.CaptureSnapshot(), "double Dispose");
     }
 
-    private void TestExceptionalFinalLeaseCloseStillClearsBorrowers()
+    private void TestExceptionalFinalLeaseCloseStillClearsBorrowers(ContentFixture content)
     {
-        ContentFixture content = LoadContentFixture();
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         var runtime = new BattleRuntimeModule();
         var throwingTerrainGenerator = new ThrowingTerrainGenerator();
@@ -626,24 +631,24 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         || type == typeof(BattleChainDamageService)
         || type == typeof(BattleRandomChainSkillService);
 
-    private ContentFixture LoadContentFixture()
+    private ContentFixture LoadContentFixture(TestContentResourceLoader loader)
     {
-        SkillDef skillResource = RequireResource<SkillDef>(
+        SkillDef skillResource = loader.LoadCanonical<SkillDef>(
             "res://data/configs/skills/mage_arcane_aegis.tres"
         );
         SkillDefinition skillDefinition = SkillDefinition.FromResource(skillResource);
-        ItemDef itemResource = RequireResource<ItemDef>(
+        ItemDef itemResource = loader.LoadCanonical<ItemDef>(
             "res://data/configs/items/whetstone.tres"
         );
         ItemDefinition itemDefinition = itemResource.ToDefinition();
-        TraitDef traitResource = RequireResource<TraitDef>(
+        TraitDef traitResource = loader.LoadCanonical<TraitDef>(
             "res://data/configs/traits/brave.tres"
         );
         TraitDefinition traitDefinition = TraitDefinition.FromResource(traitResource);
-        EnemyTemplateDef enemyTemplate = RequireResource<EnemyTemplateDef>(
+        EnemyTemplateDef enemyTemplate = loader.LoadCanonical<EnemyTemplateDef>(
             "res://data/configs/enemies/templates/zombie_shambler.tres"
         );
-        EnemyAiBrainDef enemyBrain = RequireResource<EnemyAiBrainDef>(
+        EnemyAiBrainDef enemyBrain = loader.LoadCanonical<EnemyAiBrainDef>(
             "res://data/configs/enemies/brains/melee_aggressor.tres"
         );
         var equipmentBinding = new EquipmentAbilityBindingDefinition
@@ -683,13 +688,6 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
                 [enemyBrain.brain_id] = enemyBrain.ToDefinition(),
             }
         );
-    }
-
-    private static T RequireResource<T>(string path)
-        where T : Resource
-    {
-        return GD.Load<T>(path)
-            ?? throw new InvalidOperationException($"Missing teardown fixture resource: {path}");
     }
 
     private void AssertRuntimeCleared(BattleRuntimeModule runtime, BattleState state, string label)
