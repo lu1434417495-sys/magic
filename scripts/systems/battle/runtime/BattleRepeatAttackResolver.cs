@@ -1008,24 +1008,6 @@ internal sealed class BattleRepeatAttackResolver
         );
     }
 
-    internal bool _should_stop_repeat_attack_on_miss(
-        CombatEffectDefinition repeat_attack_effect
-    )
-    {
-        return RepeatAttackRuntimeParameters
-            .FromEffect(repeat_attack_effect)
-            .StopOnMiss;
-    }
-
-    internal bool _should_stop_repeat_attack_on_target_down(
-        CombatEffectDefinition repeat_attack_effect
-    )
-    {
-        return RepeatAttackRuntimeParameters
-            .FromEffect(repeat_attack_effect)
-            .StopOnTargetDown;
-    }
-
     internal int _get_repeat_attack_stage_damage_percent(
         CombatEffectDefinition repeat_attack_effect,
         int stage_index
