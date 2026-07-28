@@ -24,6 +24,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             TestFrontlineBulwarkTauntDeclinesWithoutProtectedAlly();
             TestShortRegularMovePrefersCloseInOverCharge();
             TestChargeActionScoresWithResolvedStopAnchor();
+            TestChargeBlockedAtStartClosesLogicalAttack();
             TestChargeTraceBalancesWhenPreviewThrows();
         }
         catch (Exception exception)
@@ -522,6 +523,104 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         );
     }
 
+    private void TestChargeBlockedAtStartClosesLogicalAttack()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(6, 3));
+        var blockedCoord = new Vector2I(1, 1);
+        BattleCellState blockedCell = state.GetCell(blockedCoord);
+        blockedCell.base_terrain =
+            BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater);
+        blockedCell.RecalculateRuntimeValues();
+        state.RebuildCellColumns();
+
+        BattleUnitState charger = BuildAiUnit(
+            "blocked_start_charger",
+            "起步受阻冲锋者",
+            "hostile",
+            new Vector2I(0, 1),
+            "melee_aggressor",
+            "engage",
+            new[] { "charge" },
+            36,
+            2
+        );
+        charger.SetCurrentStamina(80);
+        charger.attribute_snapshot.SetValue("stamina_max", 80);
+        AddUnitToState(runtime, state, charger, isEnemy: true);
+        state.phase = "unit_acting";
+        state.active_unit_id = charger.unit_id;
+        runtime.SetupStateForTests(state);
+
+        var command = new BattleCommand
+        {
+            command_type =
+                BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+            unit_id = charger.unit_id,
+            skill_entry_id =
+                BattleSkillEntryIds.KnownSkill("charge"),
+            skill_id = "charge",
+            skill_variant_id = "charge_line",
+            target_coord = new Vector2I(4, 1),
+        };
+        command.AddTargetCoord(command.target_coord);
+        BattlePreview preview = runtime.PreviewCommand(command);
+        _test.True(
+            preview?.allowed == true,
+            "首格不可通行仍应是可结算的冲锋命令。"
+        );
+        _test.Eq(
+            preview?.resolved_anchor_coord ?? new Vector2I(-1, -1),
+            charger.GetAnchorCoord(),
+            "首格不可通行时预览落点应保持在原地。"
+        );
+
+        int apBefore = charger.GetCurrentAp();
+        int staminaBefore = charger.GetCurrentStamina();
+        Vector2I anchorBefore = charger.GetAnchorCoord();
+        using BattleEventBatch batch = runtime.IssueCommand(command);
+
+        _test.Eq(
+            charger.GetAnchorCoord(),
+            anchorBefore,
+            "起步受阻的冲锋不应移动单位。"
+        );
+        _test.Eq(
+            charger.GetCurrentAp(),
+            apBefore - 1,
+            "起步受阻仍是已执行命令，AP 应且仅应扣除一次。"
+        );
+        _test.Eq(
+            charger.GetCurrentStamina(),
+            staminaBefore - 50,
+            "起步受阻仍是已执行命令，体力应且仅应扣除一次。"
+        );
+        _test.Eq(
+            charger.GetCooldownTyped("charge"),
+            50,
+            "起步受阻仍应进入冲锋冷却。"
+        );
+        _test.True(
+            LogsContain(batch.LogLinesTyped, "起步时被拦下"),
+            "起步受阻应保留明确的结算日志。"
+        );
+        _test.Eq(
+            batch.ReportEntriesTyped.Count,
+            0,
+            "纯位移冲锋在零步结算时不应伪造攻击事实。"
+        );
+        _test.Eq(
+            runtime._counterattackSystem.PendingCount,
+            0,
+            "零步冲锋不应留下待处理反击。"
+        );
+        _test.False(
+            runtime._attackActionCoordinator.HasActiveBoundary,
+            "IssueCommand 返回后不得残留 reaction boundary。"
+        );
+    }
+
     private void TestChargeTraceBalancesWhenPreviewThrows()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
@@ -641,6 +740,26 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
+    }
+
+    private static bool LogsContain(
+        IReadOnlyList<string> logLines,
+        string fragment
+    )
+    {
+        foreach (string line in logLines ?? Array.Empty<string>())
+        {
+            if (
+                line?.Contains(
+                    fragment,
+                    StringComparison.Ordinal
+                ) == true
+            )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static BattleUnitState BuildAiUnit(

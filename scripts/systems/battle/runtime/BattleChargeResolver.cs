@@ -252,7 +252,8 @@ internal sealed class BattleChargeResolver
             skillDefinition.SkillId,
             batch
         );
-        if (movedSteps > 0)
+        bool commandHandled = movedSteps > 0;
+        if (commandHandled)
         {
             CombatEffectDefinition pathStepAoeEffect = GetChargePathStepAoeEffectDefinition(
                 castVariantDefinition,
@@ -282,22 +283,21 @@ internal sealed class BattleChargeResolver
                     movedSteps
                 );
             }
-            logicalAttack.Complete();
-            return true;
         }
-
-        if (
-            chargeBatch.LogLinesTyped.Count > chargeLogStart
-            || !string.IsNullOrEmpty(stopReason)
-        )
+        else
         {
-            batch.AddLogLine(
-                $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skillDefinition, castVariantDefinition)}，但在起步时被拦下。"
-            );
-            return true;
+            commandHandled =
+                chargeBatch.LogLinesTyped.Count > chargeLogStart
+                || !string.IsNullOrEmpty(stopReason);
+            if (commandHandled)
+            {
+                batch.AddLogLine(
+                    $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skillDefinition, castVariantDefinition)}，但在起步时被拦下。"
+                );
+            }
         }
         logicalAttack.Complete();
-        return false;
+        return commandHandled;
         }
         catch
         {
