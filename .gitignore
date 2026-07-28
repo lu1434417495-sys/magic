@@ -41,6 +41,7 @@ tmp_*_llm_packet/
 .tmp_battle_sim/
 tests/battle_runtime/reports/
 tests/battle_runtime/benchmarks/profiles/
+artifacts/coverage/
 .vscode/
 .claude/skills
 .claude/settings.local.json

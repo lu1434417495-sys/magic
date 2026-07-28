@@ -70,7 +70,7 @@ jobs:
 
           "${GODOT_BIN}" --headless --import --quit --path .
 
-      - name: Run full regression suite
+      - name: Run full regression suite with production coverage
         shell: bash
         run: |
           set -euo pipefail
@@ -82,8 +82,17 @@ jobs:
           test_jobs="$(( (cpu_count + 1) / 2 ))"
           echo "Detected ${cpu_count} logical CPU(s); running the full regression suite with ${test_jobs} parallel job(s)."
 
-          python tests/run_regression_suite.py \
+          python tests/run_coverage_suite.py \
             --jobs "${test_jobs}" \
+            -- \
             --test-timeout-seconds 180 \
             --fail-on-output-error \
             --lifecycle-correctness
+
+      - name: Upload production coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-code-coverage
+          path: artifacts/coverage/coverage.cobertura.xml
+          if-no-files-found: ignore
