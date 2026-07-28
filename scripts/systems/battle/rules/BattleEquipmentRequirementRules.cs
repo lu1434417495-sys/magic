@@ -11,7 +11,24 @@ public static class BattleEquipmentRequirementRules
     )
     {
         return UnitHasEquippedItemTag(
-            unitState,
+            unitState?.GetEquipmentView(),
+            EquipmentRules.ToStringName(EquipmentSlotKind.OffHand),
+            TagShield,
+            itemDefinitions
+        );
+    }
+
+    internal static bool UnitHasEquippedShield(
+        BattleUnitReadView unitView,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
+    {
+        EquipmentState equipmentView =
+            unitView.IsValid
+                ? unitView.DuplicateEquipmentView()
+                : null;
+        return UnitHasEquippedItemTag(
+            equipmentView,
             EquipmentRules.ToStringName(EquipmentSlotKind.OffHand),
             TagShield,
             itemDefinitions
@@ -25,18 +42,46 @@ public static class BattleEquipmentRequirementRules
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
+        return UnitHasEquippedItemTag(
+            unitState?.GetEquipmentView(),
+            slotId,
+            tagId,
+            itemDefinitions
+        );
+    }
+
+    internal static bool UnitHasEquippedItemTag(
+        BattleUnitReadView unitView,
+        StringName slotId,
+        StringName tagId,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
+    {
+        EquipmentState equipmentView =
+            unitView.IsValid
+                ? unitView.DuplicateEquipmentView()
+                : null;
+        return UnitHasEquippedItemTag(
+            equipmentView,
+            slotId,
+            tagId,
+            itemDefinitions
+        );
+    }
+
+    private static bool UnitHasEquippedItemTag(
+        EquipmentState equipmentView,
+        StringName slotId,
+        StringName tagId,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
+    {
         if (
-            unitState == null
+            equipmentView == null
             || IsEmpty(tagId)
             || itemDefinitions == null
             || itemDefinitions.Count == 0
         )
-        {
-            return false;
-        }
-
-        EquipmentState equipmentView = unitState.GetEquipmentView();
-        if (equipmentView == null)
         {
             return false;
         }

@@ -13,6 +13,7 @@ public partial class
     {
         TestCounterattackExecutesInsideOriginalRoot();
         TestCounterattackBusinessFailureIsPreserved();
+        TestCounterattackWeaponRequirementFailureIsSideEffectFree();
         TestCriticalButUnappliedDoesNotGrantWeaponTraining();
         TestWeaponTrainingMappingAndRankAmounts();
         RequestTestExit(
@@ -325,6 +326,143 @@ public partial class
             gateway.SkillUsedEvents,
             0,
             "counterattack must not publish skill_used achievements."
+        );
+    }
+
+    private void
+        TestCounterattackWeaponRequirementFailureIsSideEffectFree()
+    {
+        SkillDefinition weaponAction = BuildWeaponAction(
+            requiredWeaponFamily: "hammer"
+        );
+        BattleUnitState attacker = BuildUnit(
+            "counter_gate_attacker",
+            "player",
+            Vector2I.Zero
+        );
+        BattleUnitState defender = BuildUnit(
+            "counter_gate_defender",
+            "enemy",
+            new Vector2I(1, 0)
+        );
+        defender.SetKnownSkillLevelTyped(
+            weaponAction.SkillId,
+            1
+        );
+        defender.ReplaceCounterattackCapabilitiesTyped(
+            new[]
+            {
+                new BattleCounterattackCapability(
+                    "counter_gate_capability",
+                    BattleCounterattackTriggerKind
+                        .MeleeHitReceived,
+                    SelectionPriority: 1,
+                    ChancePercent: 50,
+                    AttackRollBonus: 0,
+                    WeaponActionDefinitionId:
+                        weaponAction.SkillId
+                ),
+            }
+        );
+        var state = BattleTestFixture.BuildFlatState(
+            "counter_weapon_gate",
+            new Vector2I(3, 2)
+        );
+        BattleTestFixture.InstallUnits(
+            state,
+            new[] { attacker },
+            new[] { defender }
+        );
+        var chanceRoller =
+            new CountingCounterattackChanceRoller();
+        using var runtime = new BattleRuntimeModule(
+            chanceRoller
+        );
+        runtime.setup(
+            skill_definitions:
+                new Dictionary<StringName, SkillDefinition>
+                {
+                    [weaponAction.SkillId] = weaponAction,
+                }
+        );
+        runtime.SetupStateForTests(state);
+        var resolver = new CountingFixedSuccessResolver();
+        runtime.ConfigureDamageResolverForTests(resolver);
+
+        int attackerHpBefore = attacker.GetCurrentHp();
+        int defenderHpBefore = defender.GetCurrentHp();
+        int defenderStaminaBefore =
+            defender.GetCurrentStamina();
+        BattleUnitReactionSnapshot reactionBefore =
+            defender.CaptureReactionRawTyped();
+        using var batch = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            () =>
+            {
+                using BattleLogicalAttackScope logicalAttack =
+                    runtime.BeginLogicalAttack(
+                        BattleAttackDeliveryKind.MeleeWeapon
+                    );
+                runtime._damage_resolver.ResolveAttackEffects(
+                    attacker,
+                    defender,
+                    weaponAction.CombatProfile
+                        .EffectDefinitions,
+                    new AttackCheckInput(
+                        skillId: weaponAction.SkillId
+                    ),
+                    new AttackContext
+                    {
+                        BattleState = state,
+                        SkillId = weaponAction.SkillId,
+                        EventBatch = batch,
+                        Action = logicalAttack.Context,
+                    }
+                );
+                logicalAttack.Complete();
+            }
+        );
+
+        _test.True(
+            defender.GetCurrentHp() < defenderHpBefore,
+            "原攻击必须先正常命中反击者。"
+        );
+        _test.Eq(
+            attacker.GetCurrentHp(),
+            attackerHpBefore,
+            "反击动作要求锤但当前装备剑时不得造成反击伤害。"
+        );
+        _test.Eq(
+            defender.CaptureReactionRawTyped(),
+            reactionBefore,
+            "武器门槛失败不得消耗反应次数。"
+        );
+        _test.Eq(
+            defender.GetCurrentStamina(),
+            defenderStaminaBefore,
+            "武器门槛失败不得消耗反击动作体力。"
+        );
+        _test.Eq(
+            chanceRoller.CallCount,
+            0,
+            "武器门槛失败必须发生在 chance RNG 之前。"
+        );
+        _test.Eq(
+            resolver.CallCount,
+            1,
+            "武器门槛失败时只应执行原攻击，不得进入反击伤害解析。"
+        );
+        _test.Eq(
+            runtime._counterattackSystem.PendingCount,
+            0,
+            "门槛失败在 drain 后不得残留反击队列。"
+        );
+        _test.Eq(
+            runtime._counterattackSystem.DedupeCount,
+            0,
+            "门槛失败在 root 结束后不得残留去重状态。"
         );
     }
 
@@ -691,9 +829,15 @@ public partial class
         );
     }
 
-    private static SkillDefinition BuildWeaponAction()
+    private static SkillDefinition BuildWeaponAction(
+        StringName requiredWeaponFamily = default
+    )
     {
         StringName skillId = "test_counter_weapon_action";
+        IReadOnlyList<StringName> requiredWeaponFamilies =
+            requiredWeaponFamily == new StringName("")
+                ? Array.Empty<StringName>()
+                : new[] { requiredWeaponFamily };
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,
             combatProfile:
@@ -713,7 +857,9 @@ public partial class
                     targetMode: "unit",
                     targetTeamFilter: "enemy",
                     rangeValue: 1,
-                    staminaCost: 2
+                    staminaCost: 2,
+                    requiredWeaponFamilies:
+                        requiredWeaponFamilies
                 )
         );
     }
@@ -786,6 +932,18 @@ public partial class
                 result.CriticalHit = true;
             }
             return result;
+        }
+    }
+
+    private sealed class CountingCounterattackChanceRoller
+        : IBattleCounterattackChanceRoller
+    {
+        internal int CallCount { get; private set; }
+
+        public int RollInclusive1To100()
+        {
+            CallCount++;
+            return 1;
         }
     }
 

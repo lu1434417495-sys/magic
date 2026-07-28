@@ -348,74 +348,19 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return racialChargeBlockReason;
         }
-        if (
-            combatProfile.RequiredWeaponFamilies.Count > 0
-            && !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
+        BattleSkillCastBlockReasonKind weaponRequirementBlockReason =
+            BattleSkillWeaponRequirementRules.GetBlockReason(
                 active_unit,
-                skillDefinition
+                skillDefinition,
+                _runtime?.GetItemDefIndexTyped()
+            );
+        if (
+            BattleSkillCastBlockReasonKinds.IsBlocked(
+                weaponRequirementBlockReason
             )
         )
         {
-            return BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing;
-        }
-        if (
-            combatProfile.RequiredWeaponTypeIds.Count > 0
-            && !BattleRangeService.UnitMatchesRequiredWeaponTypeIds(
-                active_unit,
-                skillDefinition
-            )
-        )
-        {
-            return BattleSkillCastBlockReasonKind.RequiredWeaponTypeMissing;
-        }
-        if (
-            combatProfile.RequiresHeavyWeapon
-            && (
-                active_unit.WeaponProfileKind != new StringName("equipped")
-                || active_unit.WeaponRangeType != new StringName("melee")
-                || !active_unit.WeaponIsHeavy
-            )
-        )
-        {
-            return BattleSkillCastBlockReasonKind.HeavyWeaponRequired;
-        }
-        if (combatProfile.RequiresEquippedShield && !UnitHasEquippedShield(active_unit))
-        {
-            return BattleSkillCastBlockReasonKind.ShieldRequired;
-        }
-        if (
-            RequiresCurrentWeapon(skillDefinition)
-            && !BattleRangeService.UnitHasAllowedWeaponForSkill(
-                active_unit,
-                skillDefinition
-            )
-        )
-        {
-            return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
-        }
-        if (
-            RequiresMeleeWeapon(skillDefinition)
-            && !BattleRangeService.UnitHasAllowedMeleeWeaponForSkill(
-                active_unit,
-                skillDefinition
-            )
-        )
-        {
-            return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
-        }
-        if (
-            combatProfile.ExcludedWeaponFamilies.Count > 0
-            && ContainsStringName(combatProfile.ExcludedWeaponFamilies, active_unit.WeaponFamily)
-        )
-        {
-            return BattleSkillCastBlockReasonKind.ExcludedWeaponFamily;
-        }
-        if (
-            combatProfile.ExcludedWeaponTypeIds.Count > 0
-            && ContainsStringName(combatProfile.ExcludedWeaponTypeIds, active_unit.WeaponProfileTypeId)
-        )
-        {
-            return BattleSkillCastBlockReasonKind.ExcludedWeaponType;
+            return weaponRequirementBlockReason;
         }
         if (IsMainSkillLockedByStatus(active_unit, skillDefinition))
         {
@@ -530,199 +475,13 @@ internal sealed class BattleRuntimeSkillTurnResolver
         BattleRangeService.UnitHasMeleeWeapon(active_unit);
 
     internal bool UnitHasMeleeWeapon(BattleUnitReadView active_unit) =>
-        active_unit.IsValid
-        && active_unit.WeaponProfileKind == new StringName("equipped")
-        && active_unit.WeaponRangeType == new StringName("melee")
-        && active_unit.WeaponAttackRange > 0
-        && active_unit.WeaponPhysicalDamageTag != "";
+        BattleRangeService.UnitHasMeleeWeapon(active_unit);
 
     internal bool UnitHasEquippedWeapon(BattleUnitState active_unit) =>
         BattleRangeService.UnitHasEquippedWeapon(active_unit);
 
     internal bool UnitHasEquippedWeapon(BattleUnitReadView active_unit) =>
-        active_unit.IsValid
-        && active_unit.WeaponProfileKind == new StringName("equipped")
-        && active_unit.WeaponAttackRange > 0
-        && active_unit.WeaponPhysicalDamageTag != "";
-
-    private bool UnitMatchesRequiredWeaponFamilies(
-        BattleUnitState active_unit,
-        Godot.Collections.Array<StringName> required_weapon_families
-    )
-    {
-        return BattleRangeService.UnitMatchesRequiredWeaponFamilies(
-            active_unit,
-            required_weapon_families
-        );
-    }
-
-    private bool UnitMatchesRequiredWeaponFamilies(
-        BattleUnitState active_unit,
-        IReadOnlyList<StringName> requiredWeaponFamilies
-    )
-    {
-        bool hasRequiredFamily = false;
-        if (requiredWeaponFamilies == null)
-        {
-            return true;
-        }
-        BattleWeaponProjectionValues weaponProjection = active_unit != null
-            ? active_unit.GetWeaponProjectionReadViewTyped().Values
-            : BattleWeaponProjectionValues.Clear;
-        bool hasEquippedWeapon =
-            active_unit != null
-            && weaponProjection.ProfileKind
-                == BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped)
-            && weaponProjection.AttackRange > 0
-            && weaponProjection.PhysicalDamageTag != null
-            && weaponProjection.PhysicalDamageTag != "";
-        foreach (StringName familyValue in requiredWeaponFamilies)
-        {
-            if (familyValue == "")
-            {
-                continue;
-            }
-            hasRequiredFamily = true;
-            if (!hasEquippedWeapon)
-            {
-                return false;
-            }
-            if (weaponProjection.Family == "")
-            {
-                return false;
-            }
-            if (familyValue == weaponProjection.Family)
-            {
-                return true;
-            }
-        }
-        return !hasRequiredFamily;
-    }
-
-    private static bool ContainsStringName(IReadOnlyList<StringName> values, StringName expected)
-    {
-        if (values == null)
-        {
-            return false;
-        }
-        foreach (StringName value in values)
-        {
-            if (value == expected)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private bool UnitMatchesRequiredWeaponFamilies(
-        BattleUnitReadView active_unit,
-        Godot.Collections.Array<StringName> required_weapon_families
-    )
-    {
-        bool hasRequiredFamily = false;
-        if (required_weapon_families == null)
-        {
-            return true;
-        }
-        foreach (StringName familyValue in required_weapon_families)
-        {
-            if (familyValue == "")
-            {
-                continue;
-            }
-            hasRequiredFamily = true;
-            if (!UnitHasEquippedWeapon(active_unit))
-            {
-                return false;
-            }
-            if (active_unit.WeaponFamily == "")
-            {
-                return false;
-            }
-            if (familyValue == active_unit.WeaponFamily)
-            {
-                return true;
-            }
-        }
-        return !hasRequiredFamily;
-    }
-
-    private bool UnitMatchesRequiredWeaponFamilies(
-        BattleUnitReadView active_unit,
-        IReadOnlyList<StringName> requiredWeaponFamilies
-    )
-    {
-        bool hasRequiredFamily = false;
-        if (requiredWeaponFamilies == null)
-        {
-            return true;
-        }
-        foreach (StringName familyValue in requiredWeaponFamilies)
-        {
-            if (familyValue == "")
-            {
-                continue;
-            }
-            hasRequiredFamily = true;
-            if (!UnitHasEquippedWeapon(active_unit))
-            {
-                return false;
-            }
-            if (active_unit.WeaponFamily == "")
-            {
-                return false;
-            }
-            if (familyValue == active_unit.WeaponFamily)
-            {
-                return true;
-            }
-        }
-        return !hasRequiredFamily;
-    }
-
-    private bool UnitHasEquippedShield(BattleUnitState active_unit)
-    {
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
-            _runtime != null
-                ? _runtime.GetItemDefIndexTyped()
-                : new Dictionary<StringName, ItemDefinition>();
-        return BattleEquipmentRequirementRules.UnitHasEquippedShield(
-            active_unit,
-            itemDefinitions
-        );
-    }
-
-    private bool UnitHasEquippedShield(BattleUnitReadView active_unit)
-    {
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
-            _runtime != null
-                ? _runtime.GetItemDefIndexTyped()
-                : new Dictionary<StringName, ItemDefinition>();
-        if (
-            !active_unit.IsValid
-            || itemDefinitions == null
-            || itemDefinitions.Count == 0
-        )
-        {
-            return false;
-        }
-        EquipmentState equipmentView = active_unit.DuplicateEquipmentView();
-        if (equipmentView == null)
-        {
-            return false;
-        }
-        StringName offhand = EquipmentRules.ToStringName(EquipmentSlotKind.OffHand);
-        StringName itemId = ProgressionDataUtils.to_string_name(
-            equipmentView.GetEquippedItemId(offhand)
-        );
-        return itemId != ""
-            && itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
-            && BattleEquipmentRequirementRules.ItemHasTag(
-                itemDefinition,
-                new StringName("shield")
-            );
-    }
+        BattleRangeService.UnitHasEquippedWeapon(active_unit);
 
     internal bool _skill_requires_option(SkillDefinition skillDefinition)
     {

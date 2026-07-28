@@ -60,6 +60,21 @@ internal sealed class
             return false;
         }
 
+        BattleSkillCastBlockReasonKind weaponRequirementBlockReason =
+            BattleSkillWeaponRequirementRules.GetBlockReason(
+                sourceUnit,
+                skillDefinition,
+                runtime.GetItemDefIndexTyped()
+            );
+        if (
+            BattleSkillCastBlockReasonKinds.IsBlocked(
+                weaponRequirementBlockReason
+            )
+        )
+        {
+            return false;
+        }
+
         SkillEffectiveCombatDefinition effective =
             SkillEffectiveCombatDefinition.BuildUncached(
                 skillDefinition,

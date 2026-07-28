@@ -175,7 +175,11 @@ internal static class TestSkillDefinitionProjection
         StringName masteryAmountMode = default,
         StringName projectileKind = default,
         StringName attackDefenseMode = default,
-        bool randomChainContinueOnMiss = false
+        bool randomChainContinueOnMiss = false,
+        IReadOnlyList<StringName> requiredWeaponTypeIds = null,
+        IReadOnlyList<StringName> excludedWeaponFamilies = null,
+        IReadOnlyList<StringName> excludedWeaponTypeIds = null,
+        bool requiresEquippedShield = false
     )
     {
         return new CombatSkillDefinition(
@@ -229,13 +233,14 @@ internal static class TestSkillDefinitionProjection
             passiveEffectDefinitions: System.Array.Empty<CombatEffectDefinition>(),
             castVariants: castVariants ?? System.Array.Empty<CombatCastVariantDefinition>(),
             requiredWeaponFamilies: requiredWeaponFamilies ?? System.Array.Empty<StringName>(),
-            excludedWeaponFamilies: System.Array.Empty<StringName>(),
-            excludedWeaponTypeIds: System.Array.Empty<StringName>(),
-            requiresEquippedShield: false,
+            excludedWeaponFamilies: excludedWeaponFamilies ?? System.Array.Empty<StringName>(),
+            excludedWeaponTypeIds: excludedWeaponTypeIds ?? System.Array.Empty<StringName>(),
+            requiresEquippedShield: requiresEquippedShield,
             masteryLowHpBonusMultiplier: 0,
             masteryLowHpThresholdPercent: 0,
             projectileKind: DefaultName(projectileKind, "none"),
-            attackDefenseMode: DefaultName(attackDefenseMode, "normal")
+            attackDefenseMode: DefaultName(attackDefenseMode, "normal"),
+            requiredWeaponTypeIds: requiredWeaponTypeIds ?? System.Array.Empty<StringName>()
         );
     }
 
