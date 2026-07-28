@@ -434,25 +434,9 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             snapshot.RegisteredCount,
             $"{label}: topology signature must enumerate every borrower exactly once"
         );
-        _test.Eq(
-            Array.FindAll(
-                borrowerTypes,
-                value =>
-                    value
-                        == nameof(
-                            BattleCounterattackPreviewService
-                        )
-            ).Length,
-            1,
-            $"{label}: P1B topology must contain exactly one counterattack preview borrower"
-        );
         int queryIndex = Array.IndexOf(
             borrowerTypes,
             nameof(BattleCounterattackQueryService)
-        );
-        int previewIndex = Array.IndexOf(
-            borrowerTypes,
-            nameof(BattleCounterattackPreviewService)
         );
         int commandPreviewIndex = Array.IndexOf(
             borrowerTypes,
@@ -460,9 +444,8 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         );
         _test.True(
             queryIndex >= 0
-                && previewIndex > queryIndex
-                && commandPreviewIndex > previewIndex,
-            $"{label}: dependency order must be CounterattackQuery -> CounterattackPreview -> CommandPreview"
+                && commandPreviewIndex > queryIndex,
+            $"{label}: dependency order must be CounterattackQuery -> CommandPreview"
         );
         _test.Eq(
             snapshot.BoundCount,

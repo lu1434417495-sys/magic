@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using Godot;
 
 public sealed class BattleHudAdapter : IDisposable
@@ -235,18 +234,6 @@ public sealed class BattleHudAdapter : IDisposable
             ),
             recentBattleLogLines: BuildRecentBattleLogLines(battle_state),
             equipmentPanel: BuildEquipmentPanelSnapshot(battle_state, activeUnit),
-            counterattackRisks:
-                BuildCounterattackRiskSnapshots(runtimePreview),
-            counterattackRiskCoverage:
-                BattleCounterattackRiskCoverageNames.ToStringName(
-                    (
-                        runtimePreview?.CounterattackRiskTyped
-                        ?? BattleCounterattackRiskProjection.Empty(
-                            BattleCounterattackRiskCoverage
-                                .NotEvaluated
-                        )
-                    ).Coverage
-                ).ToString(),
             barriers: barrierSnapshots,
             barrierSummaryText: BuildBarrierSummaryText(barrierSnapshots),
             objectiveProgress: new BattleHudObjectiveProgressSnapshot(
@@ -857,53 +844,6 @@ public sealed class BattleHudAdapter : IDisposable
                 snapshot.NextRechargeAtTu
             )
             : BattleHudReactionBudgetSnapshot.Hidden;
-    }
-
-    private static IReadOnlyList<
-        BattleHudCounterattackRiskEntrySnapshot
-    > BuildCounterattackRiskSnapshots(BattlePreview preview)
-    {
-        BattleCounterattackRiskProjection risk =
-            preview?.CounterattackRiskTyped
-            ?? BattleCounterattackRiskProjection.Empty(
-                BattleCounterattackRiskCoverage.NotEvaluated
-            );
-        if (
-            risk.Coverage
-                != BattleCounterattackRiskCoverage.Complete
-        )
-        {
-            return Array.Empty<
-                BattleHudCounterattackRiskEntrySnapshot
-            >();
-        }
-        var result =
-            new List<
-                BattleHudCounterattackRiskEntrySnapshot
-            >();
-        foreach (
-            BattleCounterattackRiskEntry entry
-                in risk.Entries
-        )
-        {
-            if (
-                entry.PotentialCounterattackChanceBasisPoints
-                    <= 0
-            )
-                continue;
-            BattleCounterattackDefinitionDamageRange damage =
-                entry.ExecutableDefinitionDamageEnvelope;
-            result.Add(
-                new BattleHudCounterattackRiskEntrySnapshot(
-                    entry.DefenderUnitId.ToString(),
-                    entry.PotentialCounterattackChanceBasisPoints,
-                    damage.HasDamage,
-                    damage.MinDamage,
-                    damage.MaxDamage
-                )
-            );
-        }
-        return result.AsReadOnly();
     }
 
     private BattleHudResourceInfoSnapshot BuildResourceInfo(BattleUnitState unitState)
@@ -2136,55 +2076,7 @@ public sealed class BattleHudAdapter : IDisposable
         string fateTooltip = fatePreview?.TooltipText ?? "";
         if (!string.IsNullOrEmpty(fateTooltip))
             sections.Add(fateTooltip);
-        if (!string.IsNullOrEmpty(counterattackRiskTooltip))
-            sections.Add(counterattackRiskTooltip);
         return string.Join("\n\n", sections);
-    }
-
-    private static string BuildCounterattackRiskTooltip(
-        BattlePreview preview
-    )
-    {
-        BattleCounterattackRiskProjection risk =
-            preview?.CounterattackRiskTyped
-            ?? BattleCounterattackRiskProjection.Empty(
-                BattleCounterattackRiskCoverage.NotEvaluated
-            );
-        if (
-            risk.Coverage
-                == BattleCounterattackRiskCoverage.Complete
-            && risk.PotentialExpectedCountBasisPoints <= 0
-        )
-        {
-            return "";
-        }
-        if (
-            risk.Coverage
-                == BattleCounterattackRiskCoverage.Complete
-        )
-        {
-            decimal expectedCount =
-                risk.PotentialExpectedCountBasisPoints / 10_000m;
-            return "按当前状态的潜在反击：预计 "
-                + expectedCount.ToString(
-                    "0.##",
-                    CultureInfo.InvariantCulture
-                )
-                + " 次";
-        }
-        return risk.Coverage switch
-        {
-            BattleCounterattackRiskCoverage
-                .RandomTargetSelectionUnknown =>
-                "潜在反击：随机目标选择概率未计算。",
-            BattleCounterattackRiskCoverage
-                .ProducerSequenceUnsupported =>
-                "潜在反击：复杂地面/冲锋阶段尚未计算。",
-            BattleCounterattackRiskCoverage
-                .OutcomeChanceUnsupported =>
-                "潜在反击：当前攻击缺少可用命中概率。",
-            _ => "",
-        };
     }
 
     private static string BuildSelectedSkillHitBadgeText(AttackPreviewData hitPreview)

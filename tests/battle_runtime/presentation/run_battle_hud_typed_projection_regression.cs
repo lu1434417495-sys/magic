@@ -278,27 +278,6 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
                 reactionBudget["visible"].AsBool(),
                 "party-backed focus reaction budget must remain visible."
             );
-            _test.Eq(
-                root["counterattack_risk_coverage"].AsString(),
-                "complete",
-                "counterattack risk coverage must retain its typed value."
-            );
-            GArray counterattackRisks = ArrayValue(
-                lease,
-                root,
-                "counterattack_risks"
-            );
-            GDictionary counterattackRisk = DictionaryItem(
-                lease,
-                counterattackRisks,
-                0,
-                "counterattack risk"
-            );
-            _test.Eq(
-                KeyOrder(counterattackRisk),
-                "defender_unit_id|potential_chance_basis_points|has_definition_damage|definition_damage_min|definition_damage_max",
-                "counterattack risk entry schema must remain presentation-safe."
-            );
 
             GDictionary equipment = Dict(lease, root, "equipment_panel");
             _test.Eq(KeyOrder(equipment), EquipmentPanelKeys, "equipment panel schema must remain fixed.");
@@ -980,17 +959,6 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             "hint",
             recentLines,
             equipment,
-            new[]
-            {
-                new BattleHudCounterattackRiskEntrySnapshot(
-                    "counter_defender",
-                    2_500,
-                    true,
-                    1,
-                    6
-                ),
-            },
-            "complete",
             barriers,
             barrierSummaryText
         );

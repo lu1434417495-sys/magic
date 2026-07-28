@@ -63,8 +63,6 @@ internal sealed class BattleRuntimeModuleBorrowerSet
         ImmediateWeaponAttack { get; }
     internal BattleCounterattackQueryService
         CounterattackQuery { get; }
-    internal BattleCounterattackPreviewService
-        CounterattackPreview { get; }
 
     internal BattleRuntimeModuleBorrowerSet()
     {
@@ -81,11 +79,6 @@ internal sealed class BattleRuntimeModuleBorrowerSet
             new BattleCounterattackQueryService(
                 ImmediateWeaponAttack
             );
-        CounterattackPreview =
-            new BattleCounterattackPreviewService(
-                CounterattackQuery,
-                ImmediateWeaponAttack
-            );
         // Forward order is dependency-first. Teardown runs this list in reverse,
         // so the AI borrower releases its preview/movement dependencies first.
         _borrowers =
@@ -99,7 +92,6 @@ internal sealed class BattleRuntimeModuleBorrowerSet
             CounterattackWeaponAttackDefinitionProvider,
             ImmediateWeaponAttack,
             CounterattackQuery,
-            CounterattackPreview,
             ContingencyBridge,
             TimelineBridge,
             ChargeBridge,

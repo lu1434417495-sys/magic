@@ -340,8 +340,6 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             new BattleHudEquipmentPanelSnapshot(
                 "", "", "", "", 0, false, "", null, null, ""
             ),
-            Array.Empty<BattleHudCounterattackRiskEntrySnapshot>(),
-            "not_evaluated",
             objectiveProgress: objectiveProgress
         );
 
