@@ -5,11 +5,14 @@
 > 关联上下文单元：CU-12（成长桥接）、CU-14（职业 / 技能进阶规则）、CU-15（战斗运行时总编排）、CU-16（战斗状态 / 规则 / 伤害）、CU-18（战斗展示）、CU-19（回归）
 > 源码锚点：`eeae4ba85d9ef85cf3ee37aebfe0c61bcf0baf02`
 
-P1A/P1B 的运行时、状态、成长和展示闭环已经落地；当前实现真相见
+P1A 的运行时、状态和成长闭环已经落地；原 P1B“反击风险预览”方案已于
+2026-07-28 明确否决并从代码中移除。当前实现真相见
 [`../../design/battle/counterattack_system.md`](../../design/battle/counterattack_system.md)。
 本文继续保留原始设计推导、逐调用点迁移清单、完整验收矩阵，以及尚未落地的 production
 capability 内容来源、最终数值、属性派生和平衡/AI 阶段。本文所有原始 `file:line` 都指向上述
-源码锚点；行号漂移时以当前实现文档、同名类型和方法为准。
+源码锚点；行号漂移时以当前实现文档、同名类型和方法为准。本文关于
+`BattleCounterattackPreviewService`、`BattleCounterattackRiskProjection`、风险 coverage、
+风险 HUD 字段或 AI 风险输入的内容仅作为被否决方案的历史记录，不得作为实现要求恢复。
 
 ## 一、范围与结论
 
@@ -22,9 +25,9 @@ capability 内容来源、最终数值、属性派生和平衡/AI 阶段。本�
 3. 多目标、嵌套攻击和同步装备反应存在时，反击何时入队、何时排空、如何去重。
 4. 反击如何复用完整武器攻击语义，而不丢失装备反应、耐久、死亡、contingency、贡献、评分与 metrics。
 5. 反应预算如何拥有 TU anchor，并在 `time_stasis` 下真正冻结而不解除后追赶补充。
-6. preview、HUD 与未来 AI 如何复用同一资格规则且不消费 RNG、不修改战斗状态。
+6. preview、HUD 与未来 AI 如何保持反击信息隔离，不查询或传递当前命令的反击风险。
 
-P1A/P1B 已按上述 owner 落地；内容来源、具体数值、属性派生、平衡与 AI 权重仍属于后续独立设计。
+P1A 已按上述 owner 落地；反击风险 preview/HUD/AI seam 不实施。内容来源、具体数值、属性派生、平衡与 AI 权重仍属于后续独立设计。
 
 ---
 
@@ -41,7 +44,7 @@ P1A/P1B 已按上述 owner 落地；内容来源、具体数值、属性派生�
 | TU 与静滞调度 | `BattleTimelineDriver`、`BattleRuntimeSkillTurnResolver` | 反应预算推进 |
 | effect origin | `BattleEffectOrigin` 与当前 runtime origin scope | 递归控制与报告来源 |
 | 异步式反应队列先例 | `BattleContingencySystem` | FIFO、同 batch、同步排空的形状 |
-| 展示读取 | `BattlePreview`、`BattleHudAdapter`、`BattleHudSnapshot` | 风险与预算的 detached projection |
+| 展示读取 | `BattleHudAdapter`、`BattleHudSnapshot` | 仅 party-backed focus unit 自身反应预算的 detached projection；不投影反击风险 |
 
 现有 `lock_counterattack` 已有 typed 状态字段、投影和运行时查询，但没有实际反击消费者。P1A 只消费这个现有事实，不扩展其内容来源。
 
@@ -7086,7 +7089,12 @@ counterattack 触发 contingency 后，AutoCast 可能产生新的合法反击�
 
 ---
 
-## 十二、preview、HUD 与未来 AI seam
+## 十二、已否决的 preview 风险方案（历史记录，不得实施）
+
+> 决策：预览层不查询、不计算、不携带、不展示反击风险。下列 §12.1–§12.7
+> 保留用于解释被删除方案及审查历史；其中列出的 DTO、service、projection 字段、
+> HUD 字段、tooltip 和 AI seam 均不是当前或未来实施合同。己方 focus unit 的反应预算
+> 可以独立展示，但不能与当前命令组合成风险推导。
 
 ### 12.1 preview DTO、覆盖状态与多段概率
 
@@ -9543,16 +9551,13 @@ reaction/capability snapshot 不会被默认值覆盖。
 14. `lock_counterattack` 实际消费。
 15. 测试通过 runtime fixture 直接安装 capability；不改任何内容资源。
 
-### P1B：展示闭环
+### P1B：已取消的反击风险展示方案
 
-1. `BattleCounterattackPreviewService` 复用 execution query/readiness owner。
-2. `BattlePreview` immutable risk projection、coverage 与多段 dedupe 概率聚合。
-3. deterministic unit-target 完整计算；random-chain 与 ground/charge 丢失精确概率/阶段顺序
-   时返回 typed unknown coverage，不伪装为零风险。
-4. `BattlePreviewProjection` 只输出 presentation-safe envelope。
-5. `BattleHudSnapshot` party-backed reaction budget 与 risk projection。
-6. `BattlePresentationDelta` 只负责正确 dirty unit。
-7. preview/execution parity、无 mutation 与 projection lease 回归。
+1. 不存在 `BattleCounterattackPreviewService` 或 risk DTO。
+2. `BattlePreview` 与 public projection 不携带 capability、readiness、概率、次数或伤害风险。
+3. HUD snapshot 不携带风险；仅可显示 party-backed focus unit 自身反应预算。
+4. preview producer 不为反击解释多段 continuation，不复用 execution query。
+5. 回归以固定 schema 断言风险字段不存在；真实执行 parity 由 execution regression 覆盖。
 
 ### 后续独立提案
 
@@ -9733,7 +9738,9 @@ reaction/capability snapshot 不会被默认值覆盖。
   `tests/battle_runtime/runtime/run_plague_tongue_weapon_ability_regression.cs`：override 的
   `AttackContext` 参数删除 optional default
 
-### Presentation（P1B）
+### Presentation（已撤销的 P1B 文件清单，仅供历史追溯）
+
+下列新增项已删除，既有文件中的 risk 字段与接线已回退；不得按此清单恢复：
 
 - 新增
   `scripts/systems/battle/core/BattleCounterattackPreviewContracts.cs`
@@ -10047,49 +10054,23 @@ private CharacterMasteryChangeFact
   已有 present reaction/capability owner；召唤时 anchor 从当前 timeline TU 起算。
 - admission helper 收到非当前 runtime state 时 fail fast，且 `state.SetUnit(...)` 尚未发生。
 - clear/rebind/dispose 后 owner/sink/scope/queue 全部归零。
-- P1A 的 borrower topology regression 必须断言 type signature 中没有
-  `BattleCounterattackPreviewService`，`CounterattackQuery` 后直接是 `CommandPreview`，且
-  setup/bound borrower 数与 teardown 后归零数匹配 P1A 数组；该切片必须在完全不存在 P1B
-  preview type 的源码状态下编译通过。
-- P1B 的同一 regression 再断言 `BattleCounterattackPreviewService` 恰好出现一次，顺序固定为
-  `CounterattackQuery → CounterattackPreview → CommandPreview`，setup/bound borrower 数只比
-  P1A 增加一，逆序 teardown 后仍全部归零。
+- borrower topology regression 必须断言 type signature 中没有
+  `BattleCounterattackPreviewService`，`CounterattackQuery` 后直接是 `CommandPreview`，
+  setup/bound borrower 数与 teardown 后归零数匹配当前数组。
 
-### 16.7 preview（P1B）
+### 16.7 preview 信息隔离
 
-- preview 不消费 RNG/charge/stamina，不写 queue。
-- 单段只有 hit capability、只有 miss capability、两者都有三种组合分别匹配 execution。
-- preview/execution 数值 parity fixture 必须固定“原攻击到 drain 之间不改变 defender
-  position/stamina/reaction/lock/hard-control/capability 且 defender 存活”；另设一例在
-  producer 后处理改变 readiness，断言 execution 以 drain 时复核为准而 preview 仍保留
-  `Complete` 的当前状态估计，不能把二者差异当作 queue bug。
-- 多段只有一种 trigger capability 时，计算“第一次出现受支持 trigger”的概率；hit/miss
-  capability 都存在时只由第一 stage 决定。capability branch 即使 readiness blocked
-  也终止 continuation，不能在后续 stage 假设重试。
-- capability chance 0/100 与 stage chance 0/100 不溢出、不产生负数，最终值固定在
-  `[0, 10_000]`。
-- deterministic AoE 按 defender id 保留第一次出现并聚合，expected-count basis points
-  可以大于 `10_000`；单个 entry 不得大于 `10_000`。
-- random-chain 固定得到 `RandomTargetSelectionUnknown`、ground/charge attack 固定得到
-  `ProducerSequenceUnsupported`，两者 entries/aggregate 为空但不得显示成“无风险”。
-- `PrepareCounterattack(...)` 与 `Query(plan)` 各 branch 各调用一次；plan 的 state
-  mismatch 在 range/barrier/resource 读取前 fail fast。
-- definition damage envelope 只断言当前 range service 的 base definition/weapon dice，
-  不把装备条件附伤或暴击冒充 total damage。
-- risk 数据经 `BattlePreview -> BattleHudAdapter -> BattleHudSnapshot` 传递。
-- `SelectedSkillPreviewTooltipText` 在原 save/hit/damage/fate 顺序后追加当前状态风险；
-  `Complete + 0` 不追加，三种 unsupported coverage 显示各自“未计算”文案，现有
-  `BattleMapPanel.cs:1332` 无需新绑定。
-- public Godot projection 与 HUD snapshot 不暴露 capability instance id、block reason、
-  stamina 或敌方 reaction budget。
-- party-backed focus unit 显示 detached reaction budget；非 party-backed focus unit
-  固定 `Visible=false`。
-- 用 `BattleAiMutationSnapshot` 包住 preview 调用，两个新 owner 与既有 state 全部 exact
-  match。
-- projection lease dispose 后新增 `GArray/GDictionary` 没有泄漏，两个直接 focus
-  constructor fixture与两处直接 HUD constructor fixture 已迁移 required 参数；其中
-  `run_battle_map_panel_schema_regression.cs` 的 target-typed `new(` 也必须覆盖。
+- `BattlePreview`、public Godot projection 与 HUD snapshot 的固定 schema 均不含反击风险字段。
+- preview 调用不得查询 counterattack capability/readiness、构建 immediate-attack plan，
+  或消费 reaction charge/stamina/chance RNG。
+- unit、repeat、random-chain、ground 与 charge preview 均不计算反击概率、期望次数、伤害
+  envelope 或 unsupported coverage。
+- `SelectedSkillPreviewTooltipText` 保持既有 save/hit/damage/fate 信息，不追加反击文案。
+- party-backed focus unit 可以显示自身 detached reaction budget；非 party-backed focus
+  unit 固定 `Visible=false`。该预算独立于当前 preview，不得用于派生风险。
 - `BattlePresentationDelta` 只携带 dirty facts。
+- execution regression 继续证明真实攻击事实可触发反击；projection/HUD schema regression
+  证明 preview surface 没有重新引入风险字段。
 
 ---
 
@@ -10116,12 +10097,12 @@ private CharacterMasteryChangeFact
 17. P1A config battle-start 后不可动态修改。
 18. battle-local state 不进存档，但必须进 codec/clone/snapshot/mutation。
 19. P1A 不接生产内容来源，不按具体 skill id 特判。
-20. P1B risk 是 drain 前当前状态条件估计；不把 producer 后处理造成的 readiness 变化伪装
-    成精确预测。
-21. 缺失 random/ground/outcome 概率时必须发布 typed unknown coverage，不用 empty entries
-    表示“零风险”。
-22. P1B 精确 reaction budget 只对 party-backed focus unit 可见；battle rules 与 typed
-    internal snapshot 不按阵营删事实。
+20. preview surface 不查询、计算、携带或展示 counterattack risk；执行资格只在真实
+    attack fact 入队和 drain 时判定。
+21. `BattlePreview`、public projection 与 HUD snapshot 不保留 risk coverage 或空 risk
+    entries 占位字段。
+22. 精确 reaction budget 只对 party-backed focus unit 可见；它是己方状态，不是 preview
+    risk。battle rules 与 typed internal snapshot 不按阵营删事实。
 23. counterattack 不获得动作 definition 熟练度，但 applied 的高质量真实武器攻击必须按
     攻击前冻结的 weapon projection 获得对应 weapon-training 熟练度。
 24. `weapon_training` 是 progression 类别而不是职业升级来源：无论 mastery 来自普通攻击、
@@ -10147,7 +10128,7 @@ private CharacterMasteryChangeFact
 ### 17.2 实施时必须保持
 
 - production sink 已绑定时，无 action id/origin/delivery 的攻击不得静默继续。
-- query、preview、AI 不修改状态。
+- query 与 AI 不修改状态；preview 既不修改状态，也不查询 counterattack risk。
 - RNG 只在 attempt 成本提交后消费。
 - immediate attack query 与 execute 不复制两套射程/屏障/成本规则。
 - equipment reaction 当前同步递归顺序不变。
@@ -10173,8 +10154,8 @@ private CharacterMasteryChangeFact
   definition provider）。
 - 默认容量/恢复间隔及属性派生。
 - capability chance/bonus 的内容 authoring。
-- 是否把 P1B 固定隐藏的非 party-backed 精确 budget 改为可见，以及对应侦察/难度策略。
-- AI 风险权重。
+- 是否改变非 party-backed 精确 budget 的隐藏策略；这需要另行确认信息公开边界，不能由
+  preview 风险功能顺带引入。
 
 这些项目进入各自后续提案；在明确设计前不得通过兼容逻辑或特殊分支预埋。
 
@@ -10182,7 +10163,8 @@ private CharacterMasteryChangeFact
 
 ## 十八、Project Context Units 影响
 
-当前只修订 proposal，尚未改变已落地 ownership，因此 `docs/design/project_context_units.md` 继续保持现状。
+P1A 的 ownership 与 preview 信息隔离已经同步登记到
+`docs/design/project_context_units.md`。
 
 实际实现 P1A 后必须更新：
 
@@ -10193,7 +10175,8 @@ private CharacterMasteryChangeFact
 - CU-19：登记反击 action contract、queue、stasis、execution parity 与 weapon-training
   promotion-policy 的 focused runners。
 
-实现 P1B 后再更新 CU-18，说明 counterattack risk 属于 `BattlePreview`/HUD snapshot，`BattlePresentationDelta` 只承担 dirty projection。
+CU-18 已登记 preview 不传递 counterattack risk、HUD 只显示 party-backed focus unit
+自身反应预算；`BattlePresentationDelta` 继续只承担 dirty projection。
 
 CU-13 参与 P1A 的 equipment ability validation context 与
 `immediate_weapon_attack` referenced-skill 契约修订，但它当前已经把装备能力 schema、

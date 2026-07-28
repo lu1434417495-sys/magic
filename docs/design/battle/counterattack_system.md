@@ -6,7 +6,7 @@
 
 ## 范围
 
-当前实现提供反击的运行时闭环、battle-local 状态、真实即时武器攻击、武器精通成长和只读风险展示。它不安装任何生产 capability 内容，也不决定默认能力来源、最终数值、属性派生或 AI 权重。
+当前实现提供反击的运行时闭环、battle-local 状态、真实即时武器攻击和武器精通成长。它不安装任何生产 capability 内容，也不决定默认能力来源、最终数值、属性派生或 AI 权重。
 
 生产内容只有显式安装 `BattleCounterattackCapability` 后才会启用反击。运行时不按技能 ID、武器 ID、日志文本或状态参数推导反击能力。
 
@@ -72,7 +72,10 @@ production logical attack 遇到 `Unknown` 立即失败，不能降级为非武�
 6. 未被 `lock_counterattack` 或硬控阻止
 7. 有 reaction charge
 8. weapon action definition 可用
-9. 射程、屏障、stamina 合法
+9. 当前装备满足 weapon family、精确 weapon type、盾牌、当前武器、近战武器和排除武器约束
+10. 射程、屏障、stamina 合法
+
+第 9 步与正式施法共同调用 `BattleSkillWeaponRequirementRules`，并保持 `required family → required type → shield → current weapon → melee weapon → excluded family → excluded type` 的唯一判定顺序。反击只把失败折叠为既有 `AttackUnavailable`，不扩展公开 block-reason ABI；失败发生在 attempt 成本和 chance RNG 之前。
 
 attempt 成本由 `BattleUnitState.TryCommitCounterattackAttemptCostTyped(...)` 原子提交：charge 与 stamina 要么同时扣除，要么都不变。chance 失败仍消耗 attempt 成本；0%/100% 不调用共享 chance RNG，1%–99% 恰好调用一次。
 
@@ -80,11 +83,13 @@ attempt 成本由 `BattleUnitState.TryCommitCounterattackAttemptCostTyped(...)` 
 
 所有 production root 和 logical-attack owner 都在自身 `using` scope 内捕获异常、先调用 `AbortActiveReactionBoundary()` 再原样重抛。这样 resolver、producer、drain、depth/work guard 的原始异常不会被作用域退出时的 `"disposed without Complete()"` 合同异常覆盖；清理后的下一 root 从空队列开始。
 
+`BattleChargeResolver` 的正常出口只有一个 `logicalAttack.Complete()`：实际移动、起步即受阻和无效果返回都先汇总 `commandHandled` 再完成 scope。起步即受阻仍是已结算命令，费用与冷却保留，但不产生移动熟练度、攻击事实或反击机会。
+
 ## 真实即时武器攻击
 
 `BattleImmediateWeaponAttackService` 是 counterattack 和 equipment immediate weapon attack 的共享执行 owner。prepared plan 冻结 source/target/state、definition/effects、delivery、stamina、attack bonus、来源归因和 counterattack 的 weapon-training skill ID。
 
-query 与 execute 使用同一 plan，并按 definition → range → barrier → stamina 的顺序检查。跨 battle 使用旧 plan 会在读取或提交业务状态前失败。
+query 与 execute 使用同一 plan，并按 definition → current weapon requirements → range → barrier → stamina 的顺序检查。跨 battle 使用旧 plan 会在读取或提交业务状态前失败。
 
 `BattleWeaponAttackOutcomeCommitter` 共享四个顺序阶段：
 
@@ -124,21 +129,15 @@ query 与 execute 使用同一 plan，并按 definition → range → barrier �
 
 ## Preview 与 HUD
 
-`BattleCounterattackPreviewService` 只读复用 query、actor-pair/readiness rules 和 immediate attack plan。它不消费 RNG、reaction charge、stamina，也不写反击队列。
+反击风险不是 preview contract。`BattleCommandPreviewService`、`BattleSkillPreviewService` 和所有 producer preview 都不查询反击 capability/readiness，不计算反击概率、期望次数或伤害，也不为了反击去解释多段攻击的 continuation policy。
 
-deterministic unit-target preview 计算当前状态下的潜在反击概率；同一 defender 只保留第一次出现。多段攻击按“第一次出现受支持 trigger”计算；hit/miss capability 都存在时由第一 stage 决定。
+`BattlePreview`、`BattlePreviewProjection`、`BattleHudAdapter` 与 `BattleHudSnapshot` 均不得携带或投影反击风险字段。真实反击只能由正式攻击提交后发布的 `BattleAttackResolutionFact` 触发，并在最外层 boundary 完成时按当前状态复核；因此 preview 结果不能被误认为执行承诺，也不会泄露敌方 capability、block reason、stamina、reaction budget 或潜在反击信息。
 
-无法精确建模时使用 typed coverage：
-
-- `RandomTargetSelectionUnknown`
-- `ProducerSequenceUnsupported`
-- `OutcomeChanceUnsupported`
-
-unsupported coverage 不伪装成零风险。风险通过 `BattlePreview`、public projection、`BattleHudAdapter` 和 `BattleHudSnapshot` 传递；HUD 只对 party-backed focus unit显示 detached reaction budget，不泄露敌方 capability instance、block reason、stamina 或 reaction budget。
+HUD 可以显示当前 party-backed focus unit 自己的 detached reaction budget；这属于己方既有状态展示，不是对当前预览命令的反击风险推导。非 party-backed focus unit 的精确反应预算固定隐藏。
 
 ## 生命周期与验证
 
-runtime borrower 顺序为 `CounterattackQuery → CounterattackPreview → CommandPreview`，teardown 逆序断开。reaction coordinator/counterattack system 在 borrower teardown 前停止接单、解绑 sink 并清空 transient state。
+runtime borrower 顺序为 `CounterattackQuery → CommandPreview`，teardown 逆序断开。reaction coordinator/counterattack system 在 borrower teardown 前停止接单、解绑 sink 并清空 transient state。
 
 主要回归入口：
 
@@ -146,7 +145,8 @@ runtime borrower 顺序为 `CounterattackQuery → CounterattackPreview → Comm
 - `tests/battle_runtime/runtime/run_battle_counterattack_queue_regression.cs`
 - `tests/battle_runtime/runtime/run_battle_counterattack_execution_parity_regression.cs`
 - `tests/battle_runtime/state_schema/run_battle_counterattack_state_regression.cs`
-- `tests/battle_runtime/runtime/run_battle_counterattack_preview_regression.cs`
+- `tests/battle_runtime/rules/run_battle_skill_weapon_requirement_rules_regression.cs`
+- `tests/battle_runtime/ai/run_battle_ai_melee_charge_behavior_regression.cs`
 - `tests/progression/core/run_weapon_training_promotion_policy_regression.cs`
 - `tests/static_analysis/run_battle_reaction_contract_static_regression.cs`
 
