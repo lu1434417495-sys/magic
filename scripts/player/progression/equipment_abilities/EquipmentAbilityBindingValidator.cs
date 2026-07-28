@@ -1684,7 +1684,10 @@ internal sealed class EquipmentAbilityBindingValidator
         List<string> errors
     )
     {
-        if (skillId == "" || !context.KnownSkillIds.Contains(skillId))
+        if (
+            skillId == ""
+            || !context.KnownSkillDefinitions.ContainsKey(skillId)
+        )
         {
             EquipmentAbilityContentRegistry.AddError(
                 errors,

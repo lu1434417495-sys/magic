@@ -17,7 +17,6 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     private static readonly StringName StackBehaviorRefresh = "refresh";
     private static readonly StringName StackBehaviorStack = "stack";
     private static readonly StringName StackBehaviorIgnoreExisting = "ignore_existing";
-    private const int TuGranularity = 5;
 
     private WeakReference<IBattleTerrainEffectRuntime> _runtimeRef = null;
     private readonly Queue<int> _movementContactSaveRollOverridesForTests = new();
@@ -1266,16 +1265,16 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         if (value <= 0)
         {
             GameLog.Error(
-                $"{fieldLabel} must be positive and use {TuGranularity} TU steps, got {value}; skipping effect.",
+                $"{fieldLabel} must be positive and use {BattleTimelineState.TuGranularity} TU steps, got {value}; skipping effect.",
                 "battle.terrain.invalid_tu_positive",
                 "battle"
             );
             return -1;
         }
-        if (value % TuGranularity != 0)
+        if (value % BattleTimelineState.TuGranularity != 0)
         {
             GameLog.Error(
-                $"{fieldLabel} must use {TuGranularity} TU steps, got {value}; skipping effect.",
+                $"{fieldLabel} must use {BattleTimelineState.TuGranularity} TU steps, got {value}; skipping effect.",
                 "battle.terrain.invalid_tu_granularity",
                 "battle"
             );

@@ -48,7 +48,8 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             source,
             target,
             basicAttack.CombatProfile.EffectDefinitions,
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
 
         _test.Eq(
@@ -72,7 +73,13 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
         ApplyEquippedWeapon(source);
         CombatEffectDefinition effect = BuildDamageEffect(addWeaponDice: true);
 
-        resolver.ResolveAttackEffects(source, target, new[] { effect }, BuildAttackCheck());
+        resolver.ResolveAttackEffects(
+            source,
+            target,
+            new[] { effect },
+            BuildAttackCheck(),
+            new AttackContext()
+        );
         _test.Eq(
             source.GetStatusEffect(MeleeComboStackStatusId)?.stacks ?? 0,
             1,
@@ -84,7 +91,13 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             "近战武器命中生成的连击层应持续180TU。"
         );
 
-        resolver.ResolveAttackEffects(source, target, new[] { effect }, BuildAttackCheck());
+        resolver.ResolveAttackEffects(
+            source,
+            target,
+            new[] { effect },
+            BuildAttackCheck(),
+            new AttackContext()
+        );
         _test.Eq(
             source.GetStatusEffect(MeleeComboStackStatusId)?.stacks ?? 0,
             2,
@@ -93,7 +106,13 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
 
         for (int hitIndex = 2; hitIndex < 25; hitIndex++)
         {
-            resolver.ResolveAttackEffects(source, target, new[] { effect }, BuildAttackCheck());
+            resolver.ResolveAttackEffects(
+                source,
+                target,
+                new[] { effect },
+                BuildAttackCheck(),
+                new AttackContext()
+            );
         }
         _test.Eq(
             source.GetStatusEffect(MeleeComboStackStatusId)?.stacks ?? 0,
@@ -124,7 +143,8 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             source,
             target,
             new[] { BuildDamageEffect(addWeaponDice: true) },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
 
         _test.Eq(
@@ -158,7 +178,8 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             source,
             target,
             new[] { BuildDamageEffect(addWeaponDice: true) },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
 
         _test.True(result.AttackSuccess, "伤害被取消前，武器攻击应已经成功命中。");
@@ -180,7 +201,8 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             spellSource,
             spellTarget,
             new[] { BuildDamageEffect(addWeaponDice: false) },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
         _test.False(
             spellSource.HasStatusEffect(MeleeComboStackStatusId)
@@ -195,7 +217,8 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             unarmedSource,
             unarmedTarget,
             new[] { BuildDamageEffect(addWeaponDice: true) },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
         _test.False(
             unarmedSource.HasStatusEffect(MeleeComboStackStatusId)
@@ -266,7 +289,8 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             emptyStackSource,
             emptyStackTarget,
             new[] { damageEffect },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
         _test.Eq(
             emptyStackResult.Damage,
@@ -325,7 +349,8 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             source,
             target,
             new[] { damageEffect },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
 
         _test.Eq(result.Damage, 40, "万刃归一应只按3层近战来源追加3D6伤害。");
@@ -377,7 +402,8 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             source,
             target,
             new[] { BuildDamageEffect(addWeaponDice: true) },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
 
         _test.False(result.AttackSuccess, "测试夹具应返回武器攻击未命中。");

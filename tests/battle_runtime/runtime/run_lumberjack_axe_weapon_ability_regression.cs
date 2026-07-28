@@ -270,7 +270,8 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState("lumberjack_ap_chain", holder, anchor);
         fixture.Runtime.SetupStateForTests(state);
         StringName equipmentInstanceId = holder.GetEquipmentView().GetEquippedInstanceId("main_hand");
-        BattleKillProvenance matchingProvenance = BattleKillProvenance.ForEquipmentAttack(
+        BattleKillProvenance matchingProvenance = BattleKillProvenance.ForWeaponAttack(
+            BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
             equipmentInstanceId,
             "",
             "basic_attack"
@@ -300,7 +301,12 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             holder,
             wrongEquipment,
             state,
-            BattleKillProvenance.ForEquipmentAttack("other_equipment", "", "basic_attack")
+            BattleKillProvenance.ForWeaponAttack(
+                BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
+                "other_equipment",
+                "",
+                "basic_attack"
+            )
         );
         _test.Eq(holder.GetCurrentAp(), 0, "其他装备实例造成的击杀不能触发 AP 恢复。");
 

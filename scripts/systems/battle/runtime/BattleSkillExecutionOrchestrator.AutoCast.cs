@@ -330,17 +330,29 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             return false;
         }
 
+        using BattleLogicalAttackScope logicalAttack =
+            BeginLogicalAttackForEffects(
+                caster,
+                resolvedEffectDefinitions
+            );
+        try
+        {
+        BattleAttackActionContext actionContext =
+            logicalAttack.Context;
         if (BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition))
         {
-            return ApplyOrderedUnitTargetSlots(
+            bool orderedApplied = ApplyOrderedUnitTargetSlots(
                 caster,
                 validation.TargetUnits,
                 skillDefinition,
                 castVariantDefinition,
                 resolvedEffectDefinitions,
                 batch,
+                actionContext,
                 BattleSpellControlResult.None()
             );
+            logicalAttack.Complete();
+            return orderedApplied;
         }
 
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
@@ -348,15 +360,19 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             repeatAttackResolver?.get_repeat_attack_effect_def(resolvedEffectDefinitions);
         if (isRandomChain)
         {
-            return _randomChainSkillService._handle_random_chain_unit_skill_command(
+            bool randomChainApplied =
+                _randomChainSkillService._handle_random_chain_unit_skill_command(
                 caster,
                 skillDefinition,
                 castVariantDefinition,
                 batch,
+                actionContext,
                 resolvedEffectDefinitions,
                 repeatAttackEffect,
                 BattleSpellControlResult.None()
             );
+            logicalAttack.Complete();
+            return randomChainApplied;
         }
         IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> targetPlan =
             BuildUnitEffectTargetPlan(
@@ -398,6 +414,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                             targetEffects,
                             targetRepeatAttackEffect,
                             batch,
+                            actionContext,
                             castVariantDefinition
                         )
                 )
@@ -414,6 +431,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     castVariantDefinition,
                     targetEffects,
                     batch,
+                    actionContext,
                     BattleSpellControlResult.None()
                 )
             )
@@ -421,7 +439,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 applied = true;
             }
         }
+        logicalAttack.Complete();
         return applied;
+        }
+        catch
+        {
+            Runtime?.AbortActiveReactionBoundary();
+            throw;
+        }
     }
 
     private bool ExecuteAutoGroundSkill(

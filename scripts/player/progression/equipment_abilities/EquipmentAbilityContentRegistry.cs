@@ -123,7 +123,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 errors,
                 "EQA_VALIDATION_CONTEXT_INCOMPLETE",
                 "equipment_ability.validation_context",
-                "KnownTraitIds, KnownSkillIds, and KnownStatusIds must all be supplied; non-null empty sets are authoritative"
+                "KnownTraitIds, KnownSkillDefinitions, and KnownStatusIds must all be supplied; non-null empty catalogs are authoritative"
             );
         }
         else
@@ -367,7 +367,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         EquipmentAbilityContentValidationContext context
     ) =>
         context?.KnownTraitIds != null
-        && context.KnownSkillIds != null
+        && context.KnownSkillDefinitions != null
         && context.KnownStatusIds != null;
 
     private static bool IsAllowed(StringName value, params string[] allowed)

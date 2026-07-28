@@ -181,10 +181,23 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         fixture.RebindState();
         int hpBefore = target.GetCurrentHp();
         using var batch = new BattleEventBatch();
+        AutoCastRequest request =
+            BuildAutoCastRequest(
+                fixture.Source,
+                repeatSkill.SkillId,
+                target
+            );
 
-        bool executed = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(
-            BuildAutoCastRequest(fixture.Source, repeatSkill.SkillId, target),
-            batch
+        bool executed = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            BattleEffectOrigin.AutoCast(request),
+            () =>
+                executed = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(
+                    request,
+                    batch
+                )
         );
 
         _test.True(executed, "自动重复攻击被屏障拦截仍应算作一次有效屏障交互。");
@@ -219,10 +232,17 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         int hpBefore = target.GetCurrentHp();
         using var batch = new BattleEventBatch();
 
-        bool resolved = fixture.Runtime._skill_orchestrator.ResolvePendingCast(
-            fixture.Source,
-            pendingCast,
-            batch
+        bool resolved = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            BattleEffectOrigin.Timeline("ready_unit_activation"),
+            () =>
+                resolved = fixture.Runtime._skill_orchestrator.ResolvePendingCast(
+                    fixture.Source,
+                    pendingCast,
+                    batch
+                )
         );
 
         _test.True(resolved, "读条重复攻击被屏障拦截仍应完成屏障交互。");

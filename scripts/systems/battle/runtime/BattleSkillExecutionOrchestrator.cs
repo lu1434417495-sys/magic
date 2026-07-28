@@ -1144,6 +1144,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return BattleKillProvenance.FromWeaponAttackResult(
             sourceUnit,
             result,
+            BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
             sourceActionId
         );
     }
@@ -1328,6 +1329,15 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return false;
         }
+        using BattleLogicalAttackScope logicalAttack =
+            BeginLogicalAttackForEffects(
+                activeUnit,
+                effectDefinitions
+            );
+        try
+        {
+        BattleAttackActionContext actionContext =
+            logicalAttack.Context;
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
         bool allowDeadTargets = BattleEffectTargetRequirementRules.AllowsDeadUnitTarget(
             effectDefinitions
@@ -1381,6 +1391,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         targetEffects,
                         repeatAttackEffect,
                         batch,
+                        actionContext,
                         castVariantDefinition
                     )
                 )
@@ -1397,6 +1408,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     castVariantDefinition,
                     targetEffects,
                     batch,
+                    actionContext,
                     spellControlContext
                 )
             )
@@ -1404,7 +1416,33 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 applied = true;
             }
         }
+        logicalAttack.Complete();
         return applied;
+        }
+        catch
+        {
+            Runtime?.AbortActiveReactionBoundary();
+            throw;
+        }
+    }
+
+    private BattleLogicalAttackScope BeginLogicalAttackForEffects(
+        BattleUnitState sourceUnit,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        ArgumentNullException.ThrowIfNull(sourceUnit);
+        BattleRuntimeModule runtime = Runtime
+            ?? throw new InvalidOperationException(
+                "battle runtime is not bound"
+            );
+        BattleAttackDeliveryKind deliveryKind =
+            BattleAttackDeliveryRules.Resolve(
+                effectDefinitions
+                    ?? Array.Empty<CombatEffectDefinition>(),
+                sourceUnit.GetWeaponProjectionReadViewTyped()
+            );
+        return runtime.BeginLogicalAttack(deliveryKind);
     }
 
     private bool ResolvePendingGroundCast(
@@ -1762,20 +1800,33 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             }
         }
 
+        using BattleLogicalAttackScope logicalAttack =
+            BeginLogicalAttackForEffects(
+                active_unit,
+                resolvedEffectDefinitions
+            );
+        try
+        {
+        BattleAttackActionContext actionContext =
+            logicalAttack.Context;
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
         CombatEffectDefinition repeatAttackEffect =
             repeatAttackResolver?.get_repeat_attack_effect_def(resolvedEffectDefinitions);
         if (isRandomChain)
         {
-            return _randomChainSkillService._handle_random_chain_unit_skill_command(
+            bool randomChainApplied =
+                _randomChainSkillService._handle_random_chain_unit_skill_command(
                 active_unit,
                 skillDefinition,
                 castVariantDefinition,
                 batch,
+                actionContext,
                 resolvedEffectDefinitions,
                 repeatAttackEffect,
                 spellControlContext
             );
+            logicalAttack.Complete();
+            return randomChainApplied;
         }
         bool applied = false;
         foreach (BattleUnitState targetUnit in plannedTargets)
@@ -1803,6 +1854,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         targetEffects,
                         targetRepeatAttackEffect,
                         batch,
+                        actionContext,
                         castVariantDefinition
                     )
                 )
@@ -1819,6 +1871,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     castVariantDefinition,
                     targetEffects,
                     batch,
+                    actionContext,
                     spellControlContext,
                     forced_move_context: BattleForcedMoveContext.FromDestination(
                         command.forced_move_destination_coord
@@ -1840,7 +1893,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             applied = true;
         }
+        logicalAttack.Complete();
         return applied;
+        }
+        catch
+        {
+            Runtime?.AbortActiveReactionBoundary();
+            throw;
+        }
     }
 
     internal bool _handle_ground_skill_command(
@@ -2001,6 +2061,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleUnitState target_unit,
         SkillDefinition skillDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        BattleEventBatch batch,
+        BattleAttackActionContext actionContext,
         CombatCastVariantDefinition castVariantDefinition = null
     )
     {
@@ -2010,7 +2072,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             skillDefinition,
             castVariantDefinition,
             effectDefinitions,
-            null
+            batch,
+            actionContext
         );
     }
 
@@ -2020,7 +2083,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch = null,
+        BattleEventBatch batch,
+        BattleAttackActionContext actionContext,
         bool forceHitAllowCrit = false,
         int flatAttackBonus = 0,
         bool forceWeaponAttackResolution = false
@@ -2077,6 +2141,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 EventBatch = batch,
                 ForceHitAllowCrit = forceHitAllowCrit,
                 DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
+                Action = actionContext,
             };
             if (forceHitNoCrit)
             {
@@ -2185,6 +2250,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch,
+        BattleAttackActionContext actionContext,
         BattleSpellControlResult spell_control_context = default,
         bool force_hit_allow_crit = false,
         int flat_attack_bonus = 0,
@@ -2194,7 +2260,26 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleForcedMoveContext forced_move_context = default
     )
     {
+        ArgumentNullException.ThrowIfNull(active_unit);
+        ArgumentNullException.ThrowIfNull(target_unit);
+        ArgumentNullException.ThrowIfNull(batch);
         effectDefinitions ??= Array.Empty<CombatEffectDefinition>();
+        BattleRuntimeModule runtime = Runtime
+            ?? throw new InvalidOperationException(
+                "battle runtime is not bound"
+            );
+        BattleWeaponAttackOutcomeCommitter
+            weaponAttackOutcomeCommitter =
+                runtime._moduleBorrowers
+                    .WeaponAttackOutcomeCommitter;
+        BattleEquipmentDurabilityResultProjector
+            durabilityResultProjector =
+                runtime._moduleBorrowers
+                    .EquipmentDurabilityResultProjector;
+        bool isWeaponAttack =
+            BattleAttackDeliveryRules.IncludesWeaponDamage(
+                effectDefinitions
+            );
         BattleLayeredBarrierService layeredBarrierService = Runtime?._layered_barrier_service;
         BattleBarrierInteractionResult barrierResult =
             layeredBarrierService != null
@@ -2233,6 +2318,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             castVariantDefinition,
             effectDefinitions,
             batch,
+            actionContext,
             force_hit_allow_crit,
             flat_attack_bonus,
             force_weapon_attack_resolution
@@ -2263,13 +2349,36 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             effectDefinitions,
             shieldRollContext
         );
-        MarkAppliedStatusesForTurnTiming(
-            target_unit,
-            damageResult.StatusEffectIds
-        );
-        _append_changed_unit_id(batch, target_unit?.unit_id ?? new StringName(""));
-        _append_changed_unit_coords(batch, target_unit);
-        append_result_source_status_effects(batch, active_unit, damageResult);
+        if (isWeaponAttack)
+        {
+            weaponAttackOutcomeCommitter.CommitResolverSurface(
+                new BattleWeaponAttackResolverSurfaceRequest(
+                    BattleWeaponAttackOutcomeKind
+                        .StandardWeaponSkillAttack,
+                    active_unit,
+                    target_unit,
+                    damageResult,
+                    batch
+                )
+            );
+        }
+        else
+        {
+            MarkAppliedStatusesForTurnTiming(
+                target_unit,
+                damageResult.StatusEffectIds
+            );
+            _append_changed_unit_id(
+                batch,
+                target_unit.unit_id
+            );
+            _append_changed_unit_coords(batch, target_unit);
+            append_result_source_status_effects(
+                batch,
+                active_unit,
+                damageResult
+            );
+        }
         BattleSpecialSkillResult specialResult = ApplyUnitSkillSpecialEffectsResult(
             active_unit,
             target_unit,
@@ -2305,20 +2414,59 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         foreach (StringName statusId in specialResult.StatusEffectIds ?? Array.Empty<StringName>())
             if (!StringNameIsEmpty(statusId) && !appliedStatusIds.Contains(statusId))
                 appliedStatusIds.Add(statusId);
-        Runtime?.EmitContingencyHpAndStatusHooks(
-            active_unit,
-            target_unit,
-            previousTargetHp,
-            appliedStatusIds,
-            sourceEventId
-        );
+        if (isWeaponAttack)
+        {
+            weaponAttackOutcomeCommitter.CommitPostProducerHooks(
+                new BattleWeaponAttackPostProducerHookRequest(
+                    BattleWeaponAttackOutcomeKind
+                        .StandardWeaponSkillAttack,
+                    active_unit,
+                    target_unit,
+                    damageResult,
+                    batch,
+                    previousTargetHp,
+                    appliedStatusIds,
+                    sourceEventId
+                )
+            );
+        }
+        else
+        {
+            Runtime?.EmitContingencyHpAndStatusHooks(
+                active_unit,
+                target_unit,
+                previousTargetHp,
+                appliedStatusIds,
+                sourceEventId
+            );
+        }
         bool applied =
             damageResult.Applied
             || shieldResult.Applied
             || specialResult.Applied;
         if (!applied)
         {
-            append_result_report_entry(batch, damageResult);
+            if (isWeaponAttack)
+            {
+                weaponAttackOutcomeCommitter
+                    .CommitUnappliedResultSurface(
+                        new BattleWeaponAttackUnappliedResultSurfaceRequest(
+                            BattleWeaponAttackOutcomeKind
+                                .StandardWeaponSkillAttack,
+                            active_unit,
+                            target_unit,
+                            damageResult,
+                            batch
+                        )
+                    );
+            }
+            else
+            {
+                append_result_report_entry(
+                    batch,
+                    damageResult
+                );
+            }
             foreach (string customLine in effectResolution.CustomLogLines)
             {
                 if (!string.IsNullOrEmpty(customLine))
@@ -2361,14 +2509,36 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 $"{active_unit.display_name} 使用 {skillLabel}，向更安全位置移动 {movedSteps} 格。"
             );
         }
-        AppendDamageResultLogLines(
-            batch,
-            skillSubject,
-            target_unit?.display_name ?? "",
-            damageResult
-        );
-        _apply_equipment_durability_result(target_unit, damageResult, batch);
-        append_result_report_entry(batch, damageResult);
+        if (isWeaponAttack)
+        {
+            weaponAttackOutcomeCommitter.CommitAppliedResultSurface(
+                new BattleWeaponAttackAppliedResultSurfaceRequest(
+                    BattleWeaponAttackOutcomeKind
+                        .StandardWeaponSkillAttack,
+                    active_unit,
+                    target_unit,
+                    damageResult,
+                    batch,
+                    skillSubject,
+                    target_unit.display_name ?? ""
+                )
+            );
+        }
+        else
+        {
+            AppendDamageResultLogLines(
+                batch,
+                skillSubject,
+                target_unit.display_name ?? "",
+                damageResult
+            );
+            durabilityResultProjector.Commit(
+                target_unit,
+                damageResult,
+                batch
+            );
+            append_result_report_entry(batch, damageResult);
+        }
         StringName skillId = skillDefinition?.SkillId ?? new StringName("");
         if (_is_doom_sentence_skill(skillId))
         {
@@ -2484,26 +2654,57 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 effectDefinitions,
                 batch
             );
-            Runtime?.HandleUnitDefeatedByRuntimeEffect(
-                target_unit,
-                active_unit,
-                batch,
-                $"{target_unit.display_name} 被击倒。",
-                new BattleDefeatHandlingOptions(
-                    recordEnemyDefeatedAchievement: true,
-                    killProvenance: BuildWeaponAttackKillProvenance(
-                        active_unit,
-                        damageResult,
-                        skillId
-                    )
+        }
+        BattleKillProvenance killProvenance =
+            isWeaponAttack
+                ? BattleKillProvenance.FromWeaponAttackResult(
+                    active_unit,
+                    damageResult,
+                    BattleWeaponAttackOutcomeKind
+                        .StandardWeaponSkillAttack,
+                    skillId
+                )
+                : BattleKillProvenance.None;
+        if (isWeaponAttack)
+        {
+            weaponAttackOutcomeCommitter.CommitTerminalOutcome(
+                new BattleWeaponAttackTerminalOutcomeRequest(
+                    BattleWeaponAttackOutcomeKind
+                        .StandardWeaponSkillAttack,
+                    active_unit,
+                    target_unit,
+                    damageResult,
+                    batch,
+                    skillId,
+                    killProvenance
                 )
             );
         }
-        if (active_unit != null && target_unit != null)
+        else
         {
+            if (!target_unit.IsAlive())
+            {
+                Runtime?.HandleUnitDefeatedByRuntimeEffect(
+                    target_unit,
+                    active_unit,
+                    batch,
+                    $"{target_unit.display_name} 被击倒。",
+                    new BattleDefeatHandlingOptions(
+                        recordEnemyDefeatedAchievement: true,
+                        killProvenance: killProvenance
+                    )
+                );
+            }
             bool causedDefeat = !target_unit.IsAlive();
-            _record_effect_metrics(active_unit, target_unit, damage, healing, causedDefeat ? 1 : 0);
-            Runtime?._battle_rating_system.RecordContributionFromUnits(
+            _record_effect_metrics(
+                active_unit,
+                target_unit,
+                damage,
+                healing,
+                causedDefeat ? 1 : 0
+            );
+            Runtime?._battle_rating_system
+                .RecordContributionFromUnits(
                 active_unit,
                 target_unit,
                 damage,
@@ -2515,56 +2716,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
         ApplySkillMasteryGrantTyped(target_unit, guardMasteryGrant, batch);
         return true;
-    }
-
-    internal void _apply_equipment_durability_result(
-        BattleUnitState target_unit,
-        AttackEffectResolutionResult result,
-        BattleEventBatch batch
-    )
-    {
-        if (target_unit == null || batch == null)
-        {
-            return;
-        }
-        bool destroyedAny = false;
-        foreach (
-            EquipmentDurabilityEventResult eventResult in result.EquipmentDurabilityEvents
-                ?? Array.Empty<EquipmentDurabilityEventResult>()
-        )
-        {
-            string itemId = eventResult.ItemId ?? "";
-            if (string.IsNullOrEmpty(itemId))
-            {
-                itemId = "装备";
-            }
-            if (eventResult.SaveResult.HasSave && eventResult.SaveResult.Success)
-            {
-                batch.AddLogLine($"{target_unit.display_name} 的 {itemId} 抵抗了裂解术。");
-                continue;
-            }
-            int durabilityLoss = eventResult.DurabilityLoss;
-            if (durabilityLoss <= 0)
-            {
-                continue;
-            }
-            if (eventResult.Destroyed)
-            {
-                destroyedAny = true;
-                batch.AddLogLine($"{target_unit.display_name} 的 {itemId} 被裂解为尘埃。");
-            }
-            else
-            {
-                batch.AddLogLine(
-                    $"{target_unit.display_name} 的 {itemId} 被裂解，耐久 {eventResult.DurabilityBefore} -> {eventResult.DurabilityAfter}。"
-                );
-            }
-        }
-        if (destroyedAny)
-        {
-            _append_changed_unit_id(batch, target_unit.unit_id);
-            _append_changed_unit_coords(batch, target_unit);
-        }
     }
 
     internal void _append_dispel_result_log_lines(

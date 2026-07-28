@@ -212,7 +212,17 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
         state.PhaseKind = BattlePhaseKind.TimelineRunning;
         state.timeline.ready_unit_ids.Clear();
         state.timeline.ready_unit_ids.Add(target.unit_id);
-        fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
+        using (var activationBatch = new BattleEventBatch())
+        {
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime,
+                activationBatch,
+                BattleEffectOrigin.Timeline("ready_unit_activation"),
+                () => fixture.Runtime._timeline_driver.ActivateNextReadyUnit(
+                    activationBatch
+                )
+            );
+        }
 
         _test.Eq(state.active_unit_id, target.unit_id, "目标应从 ready 队列进入行动回合。");
         _test.Eq(target.GetCurrentAp(), 0, "时间减速应让目标下一行动回合 AP 归零。");

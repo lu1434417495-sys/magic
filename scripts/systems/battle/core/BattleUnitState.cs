@@ -132,6 +132,8 @@ public partial class BattleUnitState
         "cooldowns",
         "last_turn_tu",
         "status_effects",
+        "reaction_state",
+        "counterattack_capability_state",
     };
 
     internal static IReadOnlyList<StringName> DefaultUnlockedCombatResourceIdsTyped =>
@@ -1983,6 +1985,10 @@ public partial class BattleUnitState
             ConsumedContingencySetups =
                 _consumedContingencySetups?.DuplicateState()
                 ?? new BattleConsumedContingencySetupCollection(),
+            _reactionState =
+                _reactionState?.DuplicateState(),
+            _counterattackCapabilityState =
+                _counterattackCapabilityState?.DuplicateState(),
         };
     }
 
@@ -2146,6 +2152,9 @@ public partial class BattleUnitState
             ),
             ["last_turn_tu"] = cooldownState.LastTurnTu,
             ["status_effects"] = _statusEffects.BuildSnapshotPlain(),
+            ["reaction_state"] = BuildReactionStatePlain(),
+            ["counterattack_capability_state"] =
+                BuildCounterattackCapabilityStatePlain(),
         };
     }
 
@@ -2190,6 +2199,18 @@ public partial class BattleUnitState
             return null;
         }
         if (!HasExactFields(payload, ToDictFields))
+        {
+            return null;
+        }
+        if (
+            !TryReadCounterattackComponentSnapshots(
+                payload,
+                out BattleUnitReactionSnapshot
+                    parsedReactionSnapshot,
+                out BattleUnitCounterattackCapabilitySnapshot
+                    parsedCapabilitySnapshot
+            )
+        )
         {
             return null;
         }
@@ -2741,6 +2762,12 @@ public partial class BattleUnitState
             ),
             StatusEffectCollection = parsedStatusEffects,
         };
+        unitState.RestoreReactionRawTyped(
+            parsedReactionSnapshot
+        );
+        unitState.RestoreCounterattackCapabilitiesRawTyped(
+            parsedCapabilitySnapshot
+        );
         unitState.attribute_snapshot.SetValue("aura_max", payload["aura_max"].AsInt32());
         unitState.NormalizeShieldState();
         unitState.EnsureBodySizeProjectionInvariant();

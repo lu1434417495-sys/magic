@@ -321,7 +321,7 @@ public partial class run_warrior_overhead_chop_regression : LifecycleTestSceneTr
             BattleUnitState targetUnit,
             IEnumerable<CombatEffectDefinition> effectDefinitions,
             AttackCheckInput attackCheck,
-            AttackContext attackContext = null
+            AttackContext attackContext
         )
         {
             LastResult = base.ResolveAttackEffects(

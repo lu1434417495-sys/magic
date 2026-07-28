@@ -45,8 +45,7 @@ public static class BattleStatusSemanticTable
         TICK_TURN_START_AP_PENALTY = "turn_start_ap_penalty",
         TICK_TURN_START_DAMAGE = "turn_start_damage",
         TICK_TIMELINE_DAMAGE = "timeline_damage";
-    internal const int TU_GRANULARITY = 5,
-        DEFAULT_BLIND_ATTACK_ROLL_PENALTY = 4;
+    internal const int DEFAULT_BLIND_ATTACK_ROLL_PENALTY = 4;
     internal static readonly StringName STATUS_ARMOR_BREAK = "armor_break",
         STATUS_ARCHER_PRE_AIM = "archer_pre_aim",
         STATUS_ARCHER_RANGE_UP = "archer_range_up",
@@ -1043,11 +1042,20 @@ public static class BattleStatusSemanticTable
     {
         if (value <= 0)
             return -1;
-        if (value % TU_GRANULARITY != 0)
+        if (value % BattleTimelineState.TuGranularity != 0)
         {
-            int clampedValue = ((value + TU_GRANULARITY - 1) / TU_GRANULARITY) * TU_GRANULARITY;
+            int clampedValue =
+                (
+                    (
+                        value
+                        + BattleTimelineState.TuGranularity
+                        - 1
+                    )
+                    / BattleTimelineState.TuGranularity
+                )
+                * BattleTimelineState.TuGranularity;
             GameLog.Error(
-                $"{fieldLabel} must use {TU_GRANULARITY} TU steps, got {value}; clamping up to {clampedValue}.",
+                $"{fieldLabel} must use {BattleTimelineState.TuGranularity} TU steps, got {value}; clamping up to {clampedValue}.",
                 "battle.status.invalid_tu",
                 "battle"
             );

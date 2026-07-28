@@ -14,7 +14,8 @@ internal static class EquipmentAbilityStatusDeclarationCatalog
         return new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = context.KnownTraitIds,
-            KnownSkillIds = context.KnownSkillIds,
+            KnownSkillDefinitions =
+                context.KnownSkillDefinitions,
             WindupSkillIds = context.WindupSkillIds,
             KnownStatusIds = EquipmentAbilityReadOnlySet<StringName>.From(knownStatusIds),
         };

@@ -41,7 +41,6 @@ internal sealed class BattleRuntimeSkillTurnResolver
     private static readonly StringName BLACK_CONTRACT_PUSH_OPTION_ACTION = "action_tithe";
     private const int DOOM_SHIFT_SELF_DEBUFF_DURATION_TU = 60;
     private const int BLACK_CONTRACT_PUSH_HP_COST = 10;
-    private const int TU_GRANULARITY = 5;
 
     private static readonly StringName Empty = "";
     private static readonly StringName CombatResourceMp = "mp";
@@ -1803,7 +1802,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         }
         int currentTu = _runtime?._state?.timeline?.current_tu ?? 0;
         BattleUnitCooldownAdvanceResult advanceResult =
-            unit_state.AdvanceCooldownClockToTyped(currentTu, TU_GRANULARITY);
+            unit_state.AdvanceCooldownClockToTyped(
+                currentTu,
+                BattleTimelineState.TuGranularity
+            );
         if (advanceResult.ElapsedTu <= 0)
         {
             return false;
@@ -1811,7 +1813,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
         if (advanceResult.InvalidGranularity)
         {
             GameLog.Error(
-                $"Cooldown delta must use {TU_GRANULARITY} TU steps, got {advanceResult.ElapsedTu}.",
+                $"Cooldown delta must use {BattleTimelineState.TuGranularity} TU steps, got {advanceResult.ElapsedTu}.",
                 "battle.skill.invalid_cooldown_delta",
                 "battle"
             );
@@ -2258,7 +2260,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         BattleStatusEffectState status
     )
     {
-        int interval = Math.Max(status.upkeep_interval_tu, TU_GRANULARITY);
+        int interval = Math.Max(
+            status.upkeep_interval_tu,
+            BattleTimelineState.TuGranularity
+        );
         int nextElapsedTu = SaturatingAdd(status.upkeep_elapsed_tu, interval);
         int escalationInterval = Math.Max(
             status.upkeep_escalation_interval_tu,
@@ -2601,13 +2606,17 @@ internal sealed class BattleRuntimeSkillTurnResolver
         }
         int currentTu = _runtime?._state?.timeline?.current_tu ?? 0;
         unit_state.AdvanceCooldownAnchorForStasisTyped(elapsed_tu, currentTu);
+        bool reactionAnchorChanged =
+            unit_state.AdvanceFrozenReactionAnchorTyped(
+                elapsed_tu
+            );
         BattleStatusEffectState stasisEntry = GetStatusEffect(
             unit_state,
             BattleStatusSemanticTable.STATUS_TIME_STASIS
         );
         if (stasisEntry == null)
         {
-            return false;
+            return reactionAnchorChanged;
         }
         BattleStatusDurationAdvanceResult durationResult =
             BattleStatusSemanticTable.AdvanceTimelineDurationResult(stasisEntry, elapsed_tu);
@@ -2627,7 +2636,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
             unit_state.SetStatusEffect(stasisEntry);
             return true;
         }
-        return false;
+        return reactionAnchorChanged;
     }
 
     internal bool HasUnitStatus(BattleUnitState unit_state, StringName status_id)

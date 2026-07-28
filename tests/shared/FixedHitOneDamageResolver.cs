@@ -33,7 +33,7 @@ public partial class FixedHitOneDamageResolver : BattleDamageResolver
         BattleUnitState target_unit,
         IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check,
-        AttackContext attack_context = null
+        AttackContext attack_context
     )
     {
         return base.ResolveAttackEffects(

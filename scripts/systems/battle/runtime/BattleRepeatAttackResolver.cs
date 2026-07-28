@@ -78,6 +78,7 @@ internal sealed class BattleRepeatAttackResolver
         IEnumerable<CombatEffectDefinition> effect_definitions,
         CombatEffectDefinition repeat_attack_effect,
         BattleEventBatch batch,
+        BattleAttackActionContext actionContext,
         CombatCastVariantDefinition castVariantDefinition = null
     )
     {
@@ -176,7 +177,8 @@ internal sealed class BattleRepeatAttackResolver
                 stageSpec,
                 stageIndex,
                 stageEffects,
-                batch
+                batch,
+                actionContext
             );
 
             int stageSuccessRate = stageResult.SuccessRatePercent;
@@ -281,6 +283,7 @@ internal sealed class BattleRepeatAttackResolver
                         killProvenance: BattleKillProvenance.FromWeaponAttackResult(
                             active_unit,
                             stageResult,
+                            BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
                             skill_definition.SkillId
                         )
                     )
@@ -789,7 +792,8 @@ internal sealed class BattleRepeatAttackResolver
         BattleRepeatAttackStageSpec stage_spec,
         int stage_index,
         IEnumerable<CombatEffectDefinition> stage_effects,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        BattleAttackActionContext actionContext
     )
     {
         BattleRuntimeModule runtime = _runtime as BattleRuntimeModule;
@@ -831,6 +835,7 @@ internal sealed class BattleRepeatAttackResolver
                 SkillId = skill_definition != null ? skill_definition.SkillId : new StringName(""),
                 EventBatch = batch,
                 DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
+                Action = actionContext,
             };
             result = damageResolver.ResolveAttackEffects(
                 active_unit,

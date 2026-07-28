@@ -95,6 +95,11 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, ItemId, "装备后 unit 应保留真实 item_id。");
         _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longsword"), "勇气之刃应投影为 longsword。");
+        _test.Eq(
+            equippedWeapon.RangeType,
+            new StringName("melee"),
+            "勇气之刃应投影为 concrete melee range type。"
+        );
         _test.Eq(equippedWeapon.AttackRange, 1, "勇气之刃攻击距离应为 1。");
         _test.True(equippedWeapon.IsVersatile, "勇气之刃应保留 versatile。");
         _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "勇气之刃单手应为 1D8+3。");
@@ -492,6 +497,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 20);
         unit.attribute_snapshot.SetValue("willpower", 14);
         unit.attribute_snapshot.SetValue("willpower_modifier", 2);
+        unit.SetUnarmedWeaponProjection();
         unit.SetAnchorCoord(coord);
         return unit;
     }

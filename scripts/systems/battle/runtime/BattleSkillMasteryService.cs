@@ -246,8 +246,28 @@ internal sealed class BattleSkillMasteryService : IDisposable
         var normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
         if (_basicAttackSkillId == "" || normalizedSkillId != _basicAttackSkillId)
             return normalizedSkillId;
+        StringName weaponTrainingSkillId =
+            ResolveWeaponTrainingSkillId(sourceUnit);
+        return weaponTrainingSkillId != new StringName("")
+            ? weaponTrainingSkillId
+            : normalizedSkillId;
+    }
+
+    internal static bool IsWeaponTrainingSkillId(StringName skillId)
+    {
+        StringName normalizedSkillId =
+            ProgressionDataUtils.to_string_name(skillId);
+        return normalizedSkillId == SwordTrainingSkillId
+            || normalizedSkillId == BowTrainingSkillId
+            || normalizedSkillId == UnarmedTrainingSkillId;
+    }
+
+    internal StringName ResolveWeaponTrainingSkillId(
+        BattleUnitState sourceUnit
+    )
+    {
         if (sourceUnit == null)
-            return normalizedSkillId;
+            return new StringName("");
         BattleWeaponProjectionValues weaponProjection =
             sourceUnit.GetWeaponProjectionReadViewTyped().Values;
         var weaponFamily = ProgressionDataUtils.to_string_name(weaponProjection.Family);
@@ -263,7 +283,72 @@ internal sealed class BattleSkillMasteryService : IDisposable
             || weaponKind == BattleUnitState.ToStringName(BattleWeaponProfileKind.Natural)
         )
             return UnarmedTrainingSkillId;
-        return normalizedSkillId;
+        return new StringName("");
+    }
+
+    internal BattleSkillMasteryGrant
+        BuildCounterattackWeaponTrainingMasteryGrant(
+            BattleUnitState sourceUnit,
+            BattleUnitState targetUnit,
+            StringName frozenWeaponTrainingSkillId,
+            AttackEffectResolutionResult result,
+            IReadOnlyDictionary<StringName, SkillDefinition>
+                skillDefinitions
+        )
+    {
+        StringName masterySkillId =
+            ProgressionDataUtils.to_string_name(
+                frozenWeaponTrainingSkillId
+            );
+        if (
+            sourceUnit == null
+            || targetUnit == null
+            || !result.Applied
+            || sourceUnit.source_member_id == new StringName("")
+            || !IsWeaponTrainingSkillId(masterySkillId)
+        )
+        {
+            return null;
+        }
+        if (
+            !TryGetSkillDefinition(
+                skillDefinitions,
+                BasicAttackSkillId,
+                out SkillDefinition basicAttackDefinition
+            )
+            || !TryGetSkillDefinition(
+                skillDefinitions,
+                masterySkillId,
+                out _
+            )
+            || _GetSkillMasteryTriggerMode(basicAttackDefinition)
+                != CombatSkillMasteryTriggerMode.WeaponAttackQuality
+            || !_IsSkillMasteryQualifyingResult(
+                result,
+                basicAttackDefinition
+            )
+        )
+        {
+            return null;
+        }
+
+        int amount = _ResolveSkillMasteryTargetAmount(
+            sourceUnit,
+            targetUnit,
+            basicAttackDefinition
+        );
+        if (amount <= 0)
+            return null;
+        return new BattleSkillMasteryGrant
+        {
+            MemberId = sourceUnit.source_member_id,
+            SkillId = masterySkillId,
+            Amount = amount,
+            SourceType = "battle",
+            SourceLabel = "战斗",
+            ReasonText = "反击：武器高质量攻击",
+            AllowUnlocks = true,
+        };
     }
 
     internal BattleSkillMasteryGrant BuildVajraBodyMasteryGrantTyped(

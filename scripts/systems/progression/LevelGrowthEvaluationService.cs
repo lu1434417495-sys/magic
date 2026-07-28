@@ -29,6 +29,19 @@ public sealed class LevelGrowthEvaluationService
         var skillProgress = unitProgress.GetSkillProgress(skillId);
         if (skillProgress == null || !skillProgress.is_learned)
             return LevelGrowthTriggerResult.Fail("skill_not_learned");
+        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
+        if (skillDefinition == null)
+            return LevelGrowthTriggerResult.Fail("skill_definition_not_found");
+        if (
+            !SkillProfessionPromotionRules.CanTriggerProfessionPromotion(
+                skillDefinition
+            )
+        )
+        {
+            return LevelGrowthTriggerResult.Fail(
+                "skill_cannot_trigger_profession_promotion"
+            );
+        }
         if (!skillProgress.is_core)
             return LevelGrowthTriggerResult.Fail("skill_not_core");
         if (skillProgress.is_level_trigger_locked)
@@ -84,7 +97,12 @@ public sealed class LevelGrowthEvaluationService
             return false;
         var skillProgress = unitProgress.GetSkillProgress(triggerSkillId);
         SkillDefinition skillDefinition = GetSkillDefinition(triggerSkillId);
-        if (skillProgress == null || skillDefinition == null)
+        if (
+            skillProgress == null
+            || !SkillProfessionPromotionRules.CanTriggerProfessionPromotion(
+                skillDefinition
+            )
+        )
             return false;
         if (!skillProgress.is_learned || !skillProgress.is_core)
             return false;

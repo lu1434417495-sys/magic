@@ -715,6 +715,11 @@ internal sealed class BattleUnitFieldsSnapshot
     private bool _weaponUsesTwoHands;
     private bool _weaponIsHeavy;
     private StringName _weaponPhysicalDamageTag = "";
+    private BattleUnitReactionSnapshot _reactionSnapshot =
+        BattleUnitReactionSnapshot.MissingOwner;
+    private BattleUnitCounterattackCapabilitySnapshot
+        _counterattackCapabilitySnapshot =
+            BattleUnitCounterattackCapabilitySnapshot.MissingOwner;
     private StringNameIntMapSnapshot _cooldowns = new();
     private int _lastTurnTu;
     private StringNameIntMapSnapshot _perBattleCharges = new();
@@ -937,6 +942,10 @@ internal sealed class BattleUnitFieldsSnapshot
         snapshot._weaponIsHeavy = weaponValues.IsHeavy;
         snapshot._weaponPhysicalDamageTag =
             weaponValues.PhysicalDamageTag;
+        snapshot._reactionSnapshot =
+            unit.CaptureReactionRawTyped();
+        snapshot._counterattackCapabilitySnapshot =
+            unit.CaptureCounterattackCapabilitiesRawTyped();
         BattleUnitCooldownSnapshot cooldownState =
             unit.CaptureCooldownForMutationSnapshotExact();
         snapshot._cooldowns = StringNameIntMapSnapshot.FromTypedMap(
@@ -1203,6 +1212,36 @@ internal sealed class BattleUnitFieldsSnapshot
         result.Set("weapon_uses_two_hands", StableValue.FromBool(_weaponUsesTwoHands));
         result.Set("weapon_is_heavy", StableValue.FromBool(_weaponIsHeavy));
         result.Set("weapon_physical_damage_tag", BattleAiMutationStableProjection.StableNullableStringName(_weaponPhysicalDamageTag));
+        result.Set(
+            "reaction_state_owner_present",
+            StableValue.FromBool(
+                _reactionSnapshot.OwnerPresent
+            )
+        );
+        result.Set(
+            "reaction_state_raw",
+            StableValue.FromMap(
+                BattleAiMutationStableProjection
+                    .StableReactionStateRaw(
+                        _reactionSnapshot
+                    )
+            )
+        );
+        result.Set(
+            "counterattack_capability_state_owner_present",
+            StableValue.FromBool(
+                _counterattackCapabilitySnapshot.OwnerPresent
+            )
+        );
+        result.Set(
+            "counterattack_capabilities_raw",
+            StableValue.FromArray(
+                BattleAiMutationStableProjection
+                    .StableCounterattackCapabilitiesRaw(
+                        _counterattackCapabilitySnapshot.Values
+                    )
+            )
+        );
         result.Set("cooldowns", _cooldowns.ToStableValue());
         result.Set("last_turn_tu", StableValue.FromInteger(_lastTurnTu));
         result.Set("per_battle_charges", _perBattleCharges.ToStableValue());

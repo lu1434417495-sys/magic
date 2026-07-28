@@ -239,14 +239,18 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         holder.SetCurrentAp(1);
 
         using BattleEventBatch batch = new();
-        fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
-            new BattleEquipmentAbilityOnKillContext
-            {
-                SourceUnit = holder,
-                DefeatedUnit = defeated,
-                BattleState = state,
-                Batch = batch,
-            }
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            () => fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
+                new BattleEquipmentAbilityOnKillContext
+                {
+                    SourceUnit = holder,
+                    DefeatedUnit = defeated,
+                    BattleState = state,
+                    Batch = batch,
+                }
+            )
         );
 
         _test.Eq(holder.GetCurrentAp(), 1, "谢幕斩应是无动作追击，不应消耗持有者 AP。");

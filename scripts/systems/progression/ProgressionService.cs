@@ -1401,7 +1401,12 @@ public sealed class ProgressionService
 
         UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(triggerSkillId);
         SkillDefinition skillDefinition = GetSkillDefinition(triggerSkillId);
-        if (skillProgress == null || skillDefinition == null)
+        if (
+            skillProgress == null
+            || !SkillProfessionPromotionRules.CanTriggerProfessionPromotion(
+                skillDefinition
+            )
+        )
             return "";
         if (!skillProgress.is_learned || !skillProgress.is_core)
             return "";

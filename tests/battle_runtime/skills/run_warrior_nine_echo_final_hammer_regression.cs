@@ -452,7 +452,7 @@ public partial class run_warrior_nine_echo_final_hammer_regression : LifecycleTe
             BattleUnitState targetUnit,
             IEnumerable<CombatEffectDefinition> effectDefinitions,
             AttackCheckInput attackCheck,
-            AttackContext attackContext = null
+            AttackContext attackContext
         )
         {
             double multiplier = 1.0;

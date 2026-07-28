@@ -251,14 +251,33 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             state.active_unit_id = source.unit_id;
             runtime.SetupStateForTests(state);
 
-            BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed = runtime
-                ._skill_orchestrator
-                .ResolveUnitSkillEffectResult(
-                    source,
-                    target,
-                    skillDefinition,
-                    effects
-                );
+            using var batch = new BattleEventBatch();
+            BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed =
+                default;
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                runtime,
+                batch,
+                () =>
+                {
+                    BattleAttackDeliveryKind deliveryKind =
+                        BattleAttackDeliveryRules.Resolve(
+                            effects,
+                            source.GetWeaponProjectionReadViewTyped()
+                        );
+                    using BattleLogicalAttackScope logicalAttack =
+                        runtime.BeginLogicalAttack(deliveryKind);
+                    typed = runtime._skill_orchestrator
+                        .ResolveUnitSkillEffectResult(
+                            source,
+                            target,
+                            skillDefinition,
+                            effects,
+                            batch,
+                            logicalAttack.Context
+                        );
+                    logicalAttack.Complete();
+                }
+            );
             using GodotProjectionLease<Godot.Collections.Dictionary> projectedLease =
                 AttackEffectResolutionResultReader.BuildGodotPayloadLease(typed.Result);
             Godot.Collections.Dictionary projected = projectedLease.Value;

@@ -458,6 +458,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         BattleKillProvenance provenance = BattleKillProvenance.FromWeaponAttackResult(
             holder,
             result,
+            BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
             "basic_attack"
         );
 
@@ -486,7 +487,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         StringName executionerInstanceId = holder
             .GetEquipmentView()
             ?.GetEquippedInstanceId("main_hand") ?? new StringName("");
-        BattleKillProvenance outerAttack = BattleKillProvenance.ForEquipmentAttack(
+        BattleKillProvenance outerAttack = BattleKillProvenance.ForWeaponAttack(
+            BattleWeaponAttackOutcomeKind.EquipmentReaction,
             executionerInstanceId,
             "binding.weapon.test.outer_immediate_attack",
             "action.weapon.test.outer_immediate_attack"
@@ -506,6 +508,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         BattleKillProvenance judgmentKill = BattleKillProvenance.FromWeaponAttackResult(
             holder,
             forcedCriticalResult,
+            BattleWeaponAttackOutcomeKind.EquipmentReaction,
             outerAttack
         );
         _test.Eq(
@@ -523,6 +526,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         BattleKillProvenance ordinaryOuterKill = BattleKillProvenance.FromWeaponAttackResult(
             holder,
             forcedCriticalResult,
+            BattleWeaponAttackOutcomeKind.EquipmentReaction,
             outerAttack
         );
         _test.Eq(

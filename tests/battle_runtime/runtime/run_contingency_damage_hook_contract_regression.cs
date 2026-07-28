@@ -46,13 +46,17 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         );
 
         using BattleEventBatch batch = new();
-        runtime.GetDamageResolver().ResolveEffects(
-            enemy,
-            hero,
-            EffectArray(DamageEffect(12)),
-            DamageResolutionContext
-                .ForSkill("enemy_bolt")
-                .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            () => runtime.GetDamageResolver().ResolveEffects(
+                enemy,
+                hero,
+                EffectArray(DamageEffect(12)),
+                DamageResolutionContext
+                    .ForSkill("enemy_bolt")
+                    .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+            )
         );
 
         _test.Eq(hero.GetCurrentHp(), 20, "incoming_damage_percent auto-shield should resolve before HP mutation.");
@@ -93,13 +97,17 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         hero.SetCurrentHp(10);
 
         using BattleEventBatch batch = new();
-        runtime.GetDamageResolver().ResolveEffects(
-            enemy,
-            hero,
-            EffectArray(DamageEffect(25)),
-            DamageResolutionContext
-                .ForSkill("enemy_finisher")
-                .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            () => runtime.GetDamageResolver().ResolveEffects(
+                enemy,
+                hero,
+                EffectArray(DamageEffect(25)),
+                DamageResolutionContext
+                    .ForSkill("enemy_finisher")
+                    .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+            )
         );
 
         _test.True(hero.IsAlive(), "fatal_damage_incoming should react before the fatal HP mutation.");
@@ -126,13 +134,17 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         Vector2I originalCoord = hero.GetAnchorCoord();
 
         using BattleEventBatch batch = new();
-        runtime.GetDamageResolver().ResolveEffects(
-            enemy,
-            hero,
-            EffectArray(DamageEffect(25)),
-            DamageResolutionContext
-                .ForSkill("enemy_blink_finisher")
-                .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            () => runtime.GetDamageResolver().ResolveEffects(
+                enemy,
+                hero,
+                EffectArray(DamageEffect(25)),
+                DamageResolutionContext
+                    .ForSkill("enemy_blink_finisher")
+                    .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+            )
         );
 
         _test.True(hero.IsAlive(), "fatal blink should keep the owner alive.");
@@ -260,13 +272,17 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         BattleUnitState enemy = runtime.GetState().GetUnit("enemy_unit");
 
         using BattleEventBatch batch = new();
-        runtime.GetDamageResolver().ResolveEffects(
-            enemy,
-            hero,
-            EffectArray(DamageEffect(12)),
-            DamageResolutionContext
-                .ForSkill("enemy_report_bolt")
-                .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            () => runtime.GetDamageResolver().ResolveEffects(
+                enemy,
+                hero,
+                EffectArray(DamageEffect(12)),
+                DamageResolutionContext
+                    .ForSkill("enemy_report_bolt")
+                    .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+            )
         );
         runtime._append_batch_logs_to_state(batch);
 
@@ -289,6 +305,10 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         BattleUnitState enemy = runtime.GetState().GetUnit("enemy_unit");
 
         using BattleEventBatch batch = new();
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            () =>
         runtime.GetDamageResolver().ResolveEffects(
             enemy,
             hero,
@@ -304,6 +324,7 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
             DamageResolutionContext
                 .ForSkill("zero_damage_probe")
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
+            )
         );
 
         _test.False(

@@ -422,6 +422,7 @@ public partial class BattleDamageResolver : IDisposable
     private IBattleEquipmentDamageQuery _equipment_ability_damage_query;
     private IBattleEquipmentCombatReactionSink _equipment_ability_reaction_sink;
     private IBattleFatalInterceptArbiter _fatal_intercept_arbiter;
+    private IBattleAttackResolutionSink _attack_resolution_sink;
     private readonly BattleEquipmentDurabilityResolver _equipmentDurabilityResolver = new();
 
     internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
@@ -514,6 +515,21 @@ public partial class BattleDamageResolver : IDisposable
         _fatal_intercept_arbiter = arbiter;
     }
 
+    internal void SetAttackResolutionSink(
+        IBattleAttackResolutionSink sink
+    )
+    {
+        if (ReferenceEquals(_attack_resolution_sink, sink))
+            return;
+        if (_attack_resolution_sink != null && sink != null)
+        {
+            throw new InvalidOperationException(
+                "attack resolution sink is already bound"
+            );
+        }
+        _attack_resolution_sink = sink;
+    }
+
     internal static DamageApplicationProjection ProjectDamageApplication(
         BattleUnitState targetUnit,
         DamageApplicationInput damageInput
@@ -586,24 +602,8 @@ public partial class BattleDamageResolver : IDisposable
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         IEnumerable<CombatEffectDefinition> effect_definitions,
-        AttackCheckInput attack_check
-    )
-    {
-        return ResolveAttackEffects(
-            source_unit,
-            target_unit,
-            effect_definitions,
-            attack_check,
-            new AttackContext()
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveAttackEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check,
-        AttackContext attack_context = null
+        AttackContext attack_context
     )
     {
         if (source_unit == null || target_unit == null)
@@ -632,7 +632,9 @@ public partial class BattleDamageResolver : IDisposable
             attackMetadata.SkillId = normalizedAttackContext.SkillId;
         }
         bool attackIncludesWeaponDamage =
-            EffectDefinitionsIncludeWeaponDamage(resolvedEffectDefinitions);
+            BattleAttackDeliveryRules.IncludesWeaponDamage(
+                resolvedEffectDefinitions
+            );
         ResolveEquipmentAbilityAttackCheckResult(
             source_unit,
             target_unit,
@@ -668,7 +670,13 @@ public partial class BattleDamageResolver : IDisposable
                 attackMetadata,
                 normalizedAttackContext
             );
-            return AttackEffectResolutionResultReader.FinalizeTypedResult(failedResult);
+            return FinalizeAndPublishAttackResolution(
+                source_unit,
+                target_unit,
+                normalizedAttackContext,
+                failedResult,
+                attackIncludesWeaponDamage
+            );
         }
 
         int secondaryHitDcBase = 10;
@@ -759,7 +767,69 @@ public partial class BattleDamageResolver : IDisposable
             attackMetadata,
             normalizedAttackContext
         );
-        return AttackEffectResolutionResultReader.FinalizeTypedResult(resolvedResult);
+        return FinalizeAndPublishAttackResolution(
+            source_unit,
+            target_unit,
+            normalizedAttackContext,
+            resolvedResult,
+            attackIncludesWeaponDamage
+        );
+    }
+
+    private AttackEffectResolutionResult FinalizeAndPublishAttackResolution(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        AttackContext attackContext,
+        AttackEffectResolutionResult result,
+        bool includesWeaponDamage
+    )
+    {
+        AttackEffectResolutionResult finalized =
+            AttackEffectResolutionResultReader.FinalizeTypedResult(result);
+        if (_attack_resolution_sink == null)
+            return finalized;
+
+        BattleAttackActionContext action = attackContext?.Action
+            ?? throw new InvalidOperationException(
+                "attack action context is required"
+            );
+        if (!action.ActionId.IsValid || action.Origin == null)
+        {
+            throw new InvalidOperationException(
+                "attack action id/origin is invalid"
+            );
+        }
+        if (attackContext.EventBatch == null)
+        {
+            throw new InvalidOperationException(
+                "attack event batch is required"
+            );
+        }
+        if (action.DeliveryKind == BattleAttackDeliveryKind.Unknown)
+        {
+            throw new InvalidOperationException(
+                "attack delivery kind is required"
+            );
+        }
+
+        var fact = new BattleAttackResolutionFact(
+            action.ActionId,
+            action.RootBoundaryId,
+            sourceUnit.unit_id,
+            targetUnit.unit_id,
+            sourceUnit.GetAnchorCoord(),
+            targetUnit.GetAnchorCoord(),
+            action.DeliveryKind,
+            finalized.AttackSuccess,
+            finalized.CriticalHit,
+            includesWeaponDamage,
+            action.Origin
+        );
+        _attack_resolution_sink.OnAttackResolved(
+            in fact,
+            attackContext.EventBatch
+        );
+        return finalized;
     }
 
     private void ReconcileEquipmentProjectionAfterDurabilityEvents(
@@ -837,23 +907,6 @@ public partial class BattleDamageResolver : IDisposable
                 SkillId = attackMetadata.SkillId,
             }
         );
-    }
-
-    private static bool EffectDefinitionsIncludeWeaponDamage(
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions
-    )
-    {
-        foreach (CombatEffectDefinition effectDefinition in effectDefinitions ?? Array.Empty<CombatEffectDefinition>())
-        {
-            if (
-                effectDefinition != null
-                && (effectDefinition.AddWeaponDice || effectDefinition.RequiresWeapon)
-            )
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
     // §8.6：通用 attack-hit reaction。只要求真实攻击检定成功，不要求 weapon damage；

@@ -121,12 +121,33 @@ internal sealed class BattleContingencyBridgeService
     internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch)
     {
         _runtime._ensure_sidecars_ready();
+        ArgumentNullException.ThrowIfNull(batch);
+        _runtime.RequireActiveReactionBatch(batch);
         if (request?.IsValid != true || _runtime._state == null)
             return false;
         if (!IsContingencyAutoCastSourcePlayerLearned(request))
             return false;
-        using IDisposable originScope = _runtime._metricsReportService.PushEffectOrigin(BattleEffectOrigin.AutoCast(request));
-        return _runtime._skill_orchestrator.ExecuteAutoCast(request, batch ?? _runtime._new_batch());
+        using BattleReactionBoundaryScope boundary =
+            _runtime.BeginReactionBoundary(batch);
+        using IDisposable originScope =
+            _runtime.EffectExecutionContext.Push(
+                BattleEffectOrigin.AutoCast(request)
+            );
+        try
+        {
+            bool executed =
+                _runtime._skill_orchestrator.ExecuteAutoCast(
+                    request,
+                    batch
+                );
+            boundary.Complete();
+            return executed;
+        }
+        catch
+        {
+            _runtime.AbortActiveReactionBoundary();
+            throw;
+        }
     }
 
     internal bool IsContingencyAutoCastSourcePlayerLearned(AutoCastRequest request)

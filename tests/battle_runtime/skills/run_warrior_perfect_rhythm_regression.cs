@@ -59,7 +59,8 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
             levelZero,
             BuildUnit("perfect_rhythm_target_0", "enemy"),
             new[] { weaponDamage },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
         _test.Eq(
             levelZero.GetStatusEffect(MeleeComboStatusId)?.stacks ?? 0,
@@ -74,7 +75,8 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
             levelSeven,
             BuildUnit("perfect_rhythm_target_7", "enemy"),
             new[] { weaponDamage },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
         _test.Eq(
             levelSeven.GetStatusEffect(MeleeComboStatusId)?.stacks ?? 0,

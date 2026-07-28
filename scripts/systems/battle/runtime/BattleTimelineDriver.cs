@@ -6,7 +6,6 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class BattleTimelineDriver
 {
-    private const int TuGranularity = 5;
     private static readonly StringName CalamityReasonLowHpEndTurn = "low_hp_end_turn";
 
     // 只依赖窄端口，不再回指 BattleRuntimeModule —— 依赖面即 IBattleTimelineRuntimePort。
@@ -27,8 +26,15 @@ internal sealed class BattleTimelineDriver
     {
         var runtime = _ResolveRuntime();
         var state = _ResolveState();
-        if (state == null || state.timeline == null || tickCount <= 0)
+        if (
+            runtime == null
+            || state == null
+            || state.timeline == null
+            || tickCount <= 0
+        )
             return;
+        if (batch == null)
+            throw new ArgumentNullException(nameof(batch));
         var resolvedTickCount = Mathf.Max(tickCount, 0);
         for (int i = 0; i < resolvedTickCount; i++)
         {
@@ -36,7 +42,36 @@ internal sealed class BattleTimelineDriver
             bool mutationCompleted = false;
             try
             {
-                ApplyTimelineStep(batch, state.timeline.tu_per_tick);
+                using BattleReactionBoundaryScope boundary =
+                    runtime.BeginReactionBoundary(batch);
+                using IDisposable originScope =
+                    runtime.EffectExecutionContext.Push(
+                        BattleEffectOrigin.Timeline(
+                            "timeline_tick"
+                        )
+                    );
+                try
+                {
+                    ApplyTimelineStep(
+                        batch,
+                        state.timeline.tu_per_tick
+                    );
+                    int logCountBeforeDrain =
+                        batch.LogLinesTyped.Count;
+                    int reportCountBeforeDrain =
+                        batch.ReportEntriesTyped.Count;
+                    boundary.Complete();
+                    runtime._append_batch_logs_to_state_from(
+                        batch,
+                        logCountBeforeDrain,
+                        reportCountBeforeDrain
+                    );
+                }
+                catch
+                {
+                    runtime.AbortActiveReactionBoundary();
+                    throw;
+                }
                 mutationCompleted = true;
             }
             finally
@@ -171,10 +206,10 @@ internal sealed class BattleTimelineDriver
         var state = _ResolveState();
         if (state == null || state.timeline == null)
             return;
-        if (tuDelta > 0 && tuDelta % TuGranularity != 0)
+        if (tuDelta > 0 && tuDelta % BattleTimelineState.TuGranularity != 0)
         {
             GameLog.Error(
-                $"Battle timeline can only advance in {TuGranularity} TU steps, got {tuDelta}.",
+                $"Battle timeline can only advance in {BattleTimelineState.TuGranularity} TU steps, got {tuDelta}.",
                 "battle.timeline.invalid_tu_delta",
                 "battle"
             );
@@ -307,6 +342,15 @@ internal sealed class BattleTimelineDriver
             }
             if (_AdvanceUnitStatusDurations(unitState, tuDelta, batch))
                 _AppendChangedUnitId(batch, unitState.unit_id);
+            if (
+                unitState.IsAlive()
+                && unitState.AdvanceReactionBudgetTyped(
+                    state.timeline.current_tu
+                )
+            )
+            {
+                _AppendChangedUnitId(batch, unitState.unit_id);
+            }
         }
     }
 
@@ -400,10 +444,10 @@ internal sealed class BattleTimelineDriver
             GameLog.Error($"Battle unit action_threshold must be positive, got {actionThreshold}.", "battle.timeline.invalid_threshold", "battle");
             return BattleUnitState.DefaultActionThreshold;
         }
-        if (actionThreshold % TuGranularity != 0)
+        if (actionThreshold % BattleTimelineState.TuGranularity != 0)
         {
             GameLog.Error(
-                $"Battle unit action_threshold must be a multiple of {TuGranularity}, got {actionThreshold}.",
+                $"Battle unit action_threshold must be a multiple of {BattleTimelineState.TuGranularity}, got {actionThreshold}.",
                 "battle.timeline.invalid_threshold_multiple",
                 "battle"
             );
@@ -457,17 +501,17 @@ internal sealed class BattleTimelineDriver
         var tuPerTick =
             context != null && context.ContainsKey("tu_per_tick")
                 ? context["tu_per_tick"].AsInt32()
-                : TuGranularity;
+                : BattleTimelineState.TuGranularity;
         if (tuPerTick <= 0)
-            return TuGranularity;
-        if (tuPerTick % TuGranularity != 0)
+            return BattleTimelineState.TuGranularity;
+        if (tuPerTick % BattleTimelineState.TuGranularity != 0)
         {
             GameLog.Error(
-                $"timeline.tu_per_tick must be a multiple of {TuGranularity}, got {tuPerTick}.",
+                $"timeline.tu_per_tick must be a multiple of {BattleTimelineState.TuGranularity}, got {tuPerTick}.",
                 "battle.timeline.invalid_tu_per_tick",
                 "battle"
             );
-            return TuGranularity;
+            return BattleTimelineState.TuGranularity;
         }
         return tuPerTick;
     }

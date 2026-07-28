@@ -17,7 +17,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
     private const string SkillSlotKeys =
         "index|is_empty|skill_entry_id|skill_id|source_kind|source_label_key|skill_level|is_battle_only|suppressed_source_keys|display_name|short_name|description|icon_key|hotkey|footer_text|is_selected|is_disabled|accent_color|accent_dark|edge_color|cooldown|disabled_reason";
     private const string FocusUnitKeys =
-        "name|role_text|resource_info|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_current|hp_max|mp_current|mp_max|stamina_current|stamina_max|aura_current|aura_max|ap_current|ap_max|move_current|move_max|status_effects";
+        "name|role_text|resource_info|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_current|hp_max|mp_current|mp_max|stamina_current|stamina_max|aura_current|aura_max|ap_current|ap_max|move_current|move_max|reaction_budget|status_effects";
     private const string EquipmentPanelKeys =
         "title|meta|active_unit_id|active_unit_name|ap_cost|can_change_equipment|disabled_reason|slots|backpack_entries|summary_text";
     private const string EquipmentSlotKeys =
@@ -264,6 +264,41 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             _test.Eq(KeyOrder(focus), FocusUnitKeys, "focus unit schema must remain fixed.");
             GDictionary resourceInfo = Dict(lease, focus, "resource_info");
             _test.Eq(KeyOrder(Dict(lease, resourceInfo, "hp")), "current|max|ratio|label|visible", "resource line schema must remain fixed.");
+            GDictionary reactionBudget = Dict(
+                lease,
+                focus,
+                "reaction_budget"
+            );
+            _test.Eq(
+                KeyOrder(reactionBudget),
+                "visible|charges_remaining|charge_capacity|next_recharge_at_tu",
+                "reaction budget schema must remain fixed."
+            );
+            _test.True(
+                reactionBudget["visible"].AsBool(),
+                "party-backed focus reaction budget must remain visible."
+            );
+            _test.Eq(
+                root["counterattack_risk_coverage"].AsString(),
+                "complete",
+                "counterattack risk coverage must retain its typed value."
+            );
+            GArray counterattackRisks = ArrayValue(
+                lease,
+                root,
+                "counterattack_risks"
+            );
+            GDictionary counterattackRisk = DictionaryItem(
+                lease,
+                counterattackRisks,
+                0,
+                "counterattack risk"
+            );
+            _test.Eq(
+                KeyOrder(counterattackRisk),
+                "defender_unit_id|potential_chance_basis_points|has_definition_damage|definition_damage_min|definition_damage_max",
+                "counterattack risk entry schema must remain presentation-safe."
+            );
 
             GDictionary equipment = Dict(lease, root, "equipment_panel");
             _test.Eq(KeyOrder(equipment), EquipmentPanelKeys, "equipment panel schema must remain fixed.");
@@ -891,7 +926,13 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             2,
             3,
             4,
-            6
+            6,
+            new BattleHudReactionBudgetSnapshot(
+                true,
+                1,
+                2,
+                120
+            )
         );
         var equipment = new BattleHudEquipmentPanelSnapshot(
             "队伍随身背包",
@@ -939,6 +980,17 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             "hint",
             recentLines,
             equipment,
+            new[]
+            {
+                new BattleHudCounterattackRiskEntrySnapshot(
+                    "counter_defender",
+                    2_500,
+                    true,
+                    1,
+                    6
+                ),
+            },
+            "complete",
             barriers,
             barrierSummaryText
         );

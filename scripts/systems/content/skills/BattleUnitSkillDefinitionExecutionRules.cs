@@ -8,6 +8,29 @@ using System.Collections.Generic;
 /// </summary>
 internal static class BattleUnitSkillDefinitionExecutionRules
 {
+    internal static bool IncludesWeaponDamage(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition != null
+                && (
+                    effectDefinition.AddWeaponDice
+                    || effectDefinition.RequiresWeapon
+                )
+            )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     internal static bool HasRepeatAttackEffect(
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )

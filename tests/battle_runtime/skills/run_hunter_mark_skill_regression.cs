@@ -122,7 +122,8 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
             hunter,
             quarry,
             new[] { weaponDamage },
-            attackCheck
+            attackCheck,
+            new AttackContext()
         );
         _test.Eq(hunterHit.Damage, 16, "施放者命中自己的猎人标记目标时应为 1D8+2+1D6 最大伤害。");
         _test.Eq(beforeHunterHitHp - quarry.GetCurrentHp(), 16, "hunter_marked 额外伤害应实际扣血。");
@@ -133,7 +134,8 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
             ally,
             quarry,
             new[] { weaponDamage },
-            attackCheck
+            attackCheck,
+            new AttackContext()
         );
         _test.Eq(allyHit.Damage, 10, "非施放者攻击同一个 hunter_marked 目标不应获得 1D6。");
         _test.Eq(beforeAllyHitHp - quarry.GetCurrentHp(), 10, "非施放者不应触发来源绑定额外伤害。");
@@ -146,7 +148,8 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
             hunter,
             quarry,
             new[] { weaponDamage },
-            attackCheck
+            attackCheck,
+            new AttackContext()
         );
         _test.Eq(levelFiveHunterHit.Damage, 18, "5 级猎人标记应升级为 1D8+2+2D4 最大伤害。");
         _test.Eq(beforeLevelFiveHunterHitHp - quarry.GetCurrentHp(), 18, "5 级 2D4 额外伤害应实际扣血。");

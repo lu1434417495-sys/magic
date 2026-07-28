@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using Godot.Collections;
 
@@ -826,6 +827,171 @@ public sealed class BattleReportFormatter
     {
         return BattleExecutionRules.IsEliteOrBossTarget(unitState);
     }
+
+    internal System.Collections.Generic.Dictionary<string, object>
+        BuildCounterattackBlockedEntry(
+            in BattleCounterattackQueueEntry entry,
+            in BattleCounterattackEligibility eligibility,
+            in BattleImmediateWeaponAttackAvailability availability
+        )
+    {
+        if (
+            eligibility.IsAllowed
+            || eligibility.Reason == BattleCounterattackBlockReason.None
+        )
+        {
+            throw new ArgumentException(
+                "blocked counterattack entry requires a block reason",
+                nameof(eligibility)
+            );
+        }
+        return BuildCounterattackAttemptEntry(
+            entry,
+            outcome: "blocked",
+            reason: CounterattackBlockReasonName(eligibility.Reason),
+            chancePercent: entry.Capability.ChancePercent,
+            chanceRoll: 0,
+            staminaCost: availability.StaminaCost,
+            text: CounterattackBlockText(eligibility.Reason)
+        );
+    }
+
+    internal System.Collections.Generic.Dictionary<string, object>
+        BuildCounterattackChanceFailedEntry(
+            in BattleCounterattackQueueEntry entry,
+            int chancePercent,
+            int chanceRoll,
+            int staminaCost
+        )
+    {
+        if (chancePercent < 0 || chancePercent > 100)
+            throw new ArgumentOutOfRangeException(nameof(chancePercent));
+        if (chanceRoll < 0 || chanceRoll > 100)
+            throw new ArgumentOutOfRangeException(nameof(chanceRoll));
+        if (staminaCost < 0)
+            throw new ArgumentOutOfRangeException(nameof(staminaCost));
+        return BuildCounterattackAttemptEntry(
+            entry: entry,
+            outcome: "chance_failed",
+            reason: "chance_failed",
+            chancePercent: chancePercent,
+            chanceRoll: chanceRoll,
+            staminaCost: staminaCost,
+            text: "反击尝试未能触发。"
+        );
+    }
+
+    private static System.Collections.Generic.Dictionary<string, object>
+        BuildCounterattackAttemptEntry(
+            in BattleCounterattackQueueEntry entry,
+            string outcome,
+            string reason,
+            int chancePercent,
+            int chanceRoll,
+            int staminaCost,
+            string text
+        )
+    {
+        if (!entry.Fact.ActionId.IsValid)
+            throw new ArgumentException(
+                "counterattack fact action id is invalid"
+            );
+        if (entry.Capability.InstanceId == new StringName(""))
+            throw new ArgumentException(
+                "counterattack capability id is empty"
+            );
+        return new System.Collections.Generic.Dictionary<string, object>(
+            StringComparer.Ordinal
+        )
+        {
+            ["entry_kind"] = "counterattack_attempt",
+            ["outcome"] = outcome,
+            ["reason"] = reason,
+            ["triggering_attack_action_id"] =
+                entry.Fact.ActionId.Value,
+            ["source_unit_id"] =
+                entry.Fact.DefenderUnitId.ToString(),
+            ["target_unit_id"] =
+                entry.Fact.AttackerUnitId.ToString(),
+            ["capability_instance_id"] =
+                entry.Capability.InstanceId.ToString(),
+            ["chance_percent"] = chancePercent,
+            ["chance_roll"] = chanceRoll,
+            ["stamina_cost"] = staminaCost,
+            ["text"] = text,
+        };
+    }
+
+    private static string CounterattackBlockReasonName(
+        BattleCounterattackBlockReason reason
+    ) => reason switch
+    {
+        BattleCounterattackBlockReason.InvalidFact => "invalid_fact",
+        BattleCounterattackBlockReason.CapabilityGone =>
+            "capability_gone",
+        BattleCounterattackBlockReason.DefenderDown =>
+            "defender_down",
+        BattleCounterattackBlockReason.AttackerGone =>
+            "attacker_gone",
+        BattleCounterattackBlockReason.NotHostile => "not_hostile",
+        BattleCounterattackBlockReason.TriggerMismatch =>
+            "trigger_mismatch",
+        BattleCounterattackBlockReason.CounterattackLocked =>
+            "counterattack_locked",
+        BattleCounterattackBlockReason.HardControlled =>
+            "hard_controlled",
+        BattleCounterattackBlockReason.NoReactionCharge =>
+            "no_reaction_charge",
+        BattleCounterattackBlockReason.AttackUnavailable =>
+            "attack_unavailable",
+        BattleCounterattackBlockReason.OutOfReach => "out_of_reach",
+        BattleCounterattackBlockReason.BarrierBlocked =>
+            "barrier_blocked",
+        BattleCounterattackBlockReason.InsufficientStamina =>
+            "insufficient_stamina",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(reason),
+            reason,
+            null
+        ),
+    };
+
+    private static string CounterattackBlockText(
+        BattleCounterattackBlockReason reason
+    ) => reason switch
+    {
+        BattleCounterattackBlockReason.InvalidFact =>
+            "反击请求已经失效。",
+        BattleCounterattackBlockReason.CapabilityGone =>
+            "反击能力已经失效。",
+        BattleCounterattackBlockReason.DefenderDown =>
+            "反击者已无法行动。",
+        BattleCounterattackBlockReason.AttackerGone =>
+            "反击目标已经失效。",
+        BattleCounterattackBlockReason.NotHostile =>
+            "当前目标不满足敌对关系。",
+        BattleCounterattackBlockReason.TriggerMismatch =>
+            "本次攻击不再满足反击触发条件。",
+        BattleCounterattackBlockReason.CounterattackLocked =>
+            "反击被封锁。",
+        BattleCounterattackBlockReason.HardControlled =>
+            "反击者受控制，无法反击。",
+        BattleCounterattackBlockReason.NoReactionCharge =>
+            "反应次数不足，无法反击。",
+        BattleCounterattackBlockReason.AttackUnavailable =>
+            "当前武器动作不可用。",
+        BattleCounterattackBlockReason.OutOfReach =>
+            "反击目标超出武器射程。",
+        BattleCounterattackBlockReason.BarrierBlocked =>
+            "反击路径被屏障阻挡。",
+        BattleCounterattackBlockReason.InsufficientStamina =>
+            "体力不足，无法反击。",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(reason),
+            reason,
+            null
+        ),
+    };
 
     private static int ReadInt(Dictionary dictionary, string key, int fallback = 0)
     {

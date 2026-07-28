@@ -259,6 +259,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal BattleMetricsCollector _metrics_collector = new();
     internal BattleShieldService _shield_service = new();
     internal readonly BattleRuntimeServices _runtime_services = new();
+    internal readonly BattleEffectExecutionContextService
+        EffectExecutionContext = new();
+    internal readonly BattleAttackActionCoordinator
+        _attackActionCoordinator;
+    internal readonly BattleCounterattackSystem
+        _counterattackSystem;
+    private BattleDamageResolver _reactionSinkBoundDamageResolver;
     internal BattleGroundEffectService _ground_effect_service => _runtime_services.GroundEffects;
     internal BattleSpecialSkillResolver _special_skill_resolver => _runtime_services.SpecialSkills;
     internal BattleMovementService _movement_service => _runtime_services.Movement;
@@ -339,12 +346,37 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private bool _disposed;
 
     public BattleRuntimeModule()
+        : this(BattleCounterattackChanceRoller.Instance)
     {
+    }
+
+    internal BattleRuntimeModule(
+        IBattleCounterattackChanceRoller
+            counterattackChanceRoller
+    )
+    {
+        ArgumentNullException.ThrowIfNull(counterattackChanceRoller);
+        _attackActionCoordinator = new BattleAttackActionCoordinator(
+            EffectExecutionContext,
+            BattleReactionBoundarySafetyRules.Production
+        );
         _moduleBorrowers.Setup(this);
         // 预览服务持端口而非 hub，端口就是 borrower set 里那个与本 module 同寿的 bridge 实例，
         // 所以这里绑一次即可；bridge 自己会随 Setup/DisposeRuntime 重新挂到 hub 上。
         _commandPreviewService.Setup(_moduleBorrowers.CommandPreviewBridge);
         _aiDecisionBindingService.Setup(_moduleBorrowers.AiDecisionBindingBridge);
+        _counterattackSystem = new BattleCounterattackSystem(
+            this,
+            _attackActionCoordinator,
+            EffectExecutionContext,
+            _moduleBorrowers.CounterattackQuery,
+            _moduleBorrowers.ImmediateWeaponAttack,
+            counterattackChanceRoller
+        );
+        _attackActionCoordinator.BindDrainOwner(
+            _counterattackSystem
+        );
+        EnsureReactionRuntimeReady();
         SetTerrainGenerator(new BattleTerrainGenerator(), true);
         _ai_move_query_cost_callback = _aiDecisionBindingService._get_ai_move_query_cost;
         _ai_move_cost_callback = _movementCommandService._get_move_cost_for_unit_target;
@@ -461,6 +493,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
         _moduleBorrowers.Setup(this);
+        EnsureReactionRuntimeReady();
         _setup_special_profile_runtime();
         CompleteContentCatalogRebind();
     }
@@ -872,6 +905,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                     continue;
                 return new BattleState();
             }
+            EnsureCounterattackUnitOwnersInitialized();
             _initialize_unit_trait_hooks();
             if (startOptions.ValidateSpawnReachability)
             {
@@ -1014,7 +1048,33 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 bool mutationCompleted = false;
                 try
                 {
-                    _end_active_turn(batch);
+                    using BattleReactionBoundaryScope boundary =
+                        BeginReactionBoundary(batch);
+                    using IDisposable originScope =
+                        EffectExecutionContext.Push(
+                            BattleEffectOrigin.Timeline(
+                                "dead_active_cleanup"
+                            )
+                        );
+                    try
+                    {
+                        _end_active_turn(batch);
+                        int logCountBeforeDrain =
+                            batch.LogLinesTyped.Count;
+                        int reportCountBeforeDrain =
+                            batch.ReportEntriesTyped.Count;
+                        boundary.Complete();
+                        _append_batch_logs_to_state_from(
+                            batch,
+                            logCountBeforeDrain,
+                            reportCountBeforeDrain
+                        );
+                    }
+                    catch
+                    {
+                        AbortActiveReactionBoundary();
+                        throw;
+                    }
                     mutationCompleted = true;
                 }
                 finally
@@ -1137,7 +1197,33 @@ public sealed partial class BattleRuntimeModule : IDisposable
             bool mutationCompleted = false;
             try
             {
-                _activate_next_ready_unit(batch);
+                using BattleReactionBoundaryScope boundary =
+                    BeginReactionBoundary(batch);
+                using IDisposable originScope =
+                    EffectExecutionContext.Push(
+                        BattleEffectOrigin.Timeline(
+                            "ready_unit_activation"
+                        )
+                    );
+                try
+                {
+                    _activate_next_ready_unit(batch);
+                    int logCountBeforeDrain =
+                        batch.LogLinesTyped.Count;
+                    int reportCountBeforeDrain =
+                        batch.ReportEntriesTyped.Count;
+                    boundary.Complete();
+                    _append_batch_logs_to_state_from(
+                        batch,
+                        logCountBeforeDrain,
+                        reportCountBeforeDrain
+                    );
+                }
+                catch
+                {
+                    AbortActiveReactionBoundary();
+                    throw;
+                }
                 mutationCompleted = true;
             }
             finally
@@ -1183,25 +1269,57 @@ public sealed partial class BattleRuntimeModule : IDisposable
         var batch = _new_batch();
         if (_state == null || command == null)
             return batch;
-        if (_state.PhaseKind == BattlePhaseKind.BattleEnded)
+        using BattleReactionBoundaryScope boundary =
+            _attackActionCoordinator.BeginReactionBoundary(batch);
+        using IDisposable originScope =
+            EffectExecutionContext.Push(
+                BattleEffectOrigin.PlayerCommand()
+            );
+        try
+        {
+            ExecuteCommandCoreIntoBatch(command, batch);
+            int logCountBeforeDrain = batch.LogLinesTyped.Count;
+            int reportCountBeforeDrain =
+                batch.ReportEntriesTyped.Count;
+            boundary.Complete();
+            _append_batch_logs_to_state_from(
+                batch,
+                logCountBeforeDrain,
+                reportCountBeforeDrain
+            );
             return batch;
+        }
+        catch
+        {
+            AbortActiveReactionBoundary();
+            throw;
+        }
+    }
+
+    private void ExecuteCommandCoreIntoBatch(
+        BattleCommand command,
+        BattleEventBatch batch
+    )
+    {
+        if (_state.PhaseKind == BattlePhaseKind.BattleEnded)
+            return;
         if (_state.ModalStateKind != BattleModalStateKind.None)
         {
             batch.AddLogLine(_commandPreviewService._get_battle_interaction_block_message());
-            return batch;
+            return;
         }
         if (command.CommandKind == BattleCommandKind.CancelCast)
         {
             _casting_time_service.HandleCancelCast(command, batch);
             _append_batch_logs_to_state(batch);
-            return batch;
+            return;
         }
         if (_state.PhaseKind != BattlePhaseKind.UnitActing)
-            return batch;
+            return;
 
         _state.TryGetUnitTyped(_state.active_unit_id, out BattleUnitState activeUnit);
         if (activeUnit == null || !activeUnit.IsAlive())
-            return batch;
+            return;
         if (activeUnit.unit_id != command.unit_id)
         {
             if (command.CommandKind == BattleCommandKind.ChangeEquipment)
@@ -1216,7 +1334,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 _change_equipment_resolver.AppendChangeEquipmentReport(batch, activeUnit, validation, false);
                 _append_batch_logs_to_state(batch);
             }
-            return batch;
+            return;
         }
         _skill_turn_resolver.EnsureUnitTurnAnchor(activeUnit);
         if (
@@ -1229,7 +1347,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         {
             batch.AddLogLine("本次施法准备失败后只能移动、等待或取消读条。");
             _append_batch_logs_to_state(batch);
-            return batch;
+            return;
         }
         if (
             command.CommandKind == BattleCommandKind.Skill
@@ -1237,7 +1355,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         )
         {
             _append_batch_logs_to_state(batch);
-            return batch;
+            return;
         }
 
         if (command.CommandKind == BattleCommandKind.Move)
@@ -1254,7 +1372,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         else if (command.CommandKind == BattleCommandKind.ChangeEquipment)
             _handle_change_equipment_command(activeUnit, command, batch);
         else
-            return batch;
+            return;
 
         _casting_time_service.ReconcilePendingCasts(batch);
         // The append method already captured the batch's defensive snapshots; reuse their
@@ -1265,7 +1383,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (_state.ModalStateKind != BattleModalStateKind.None)
         {
             batch.modal_requested = true;
-            return batch;
+            return;
         }
 
         if (
@@ -1278,7 +1396,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _append_batch_logs_to_state_from(batch, flushedLogCount, flushedReportCount);
         }
 
-        return batch;
     }
 
     internal (int LogCount, int ReportCount) _append_batch_logs_to_state(
@@ -1432,7 +1549,66 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (_state != null)
         {
             _ensure_sidecars_ready();
+            EnsureCounterattackUnitOwnersInitialized();
             _contingency_system.ResetForBattle(_characterGateway?.GetPartyState(), _state);
+        }
+    }
+
+    internal void
+        EnsureCounterattackUnitOwnersInitializedForAdmission(
+            BattleState state,
+            BattleUnitState unit
+        )
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(unit);
+        if (!ReferenceEquals(state, _state))
+        {
+            throw new InvalidOperationException(
+                "counterattack unit admission belongs to another battle"
+            );
+        }
+        int currentTu = Math.Max(
+            state.timeline?.current_tu ?? 0,
+            0
+        );
+        BattleReactionBudgetConfig config =
+            BattleReactionBudgetRules.EngineDefault;
+        BattleReactionBudgetRules.Validate(config);
+        if (!unit.CaptureReactionRawTyped().OwnerPresent)
+        {
+            unit.InitializeReactionBudgetTyped(
+                currentTu,
+                config,
+                startFull: true
+            );
+        }
+        if (
+            !unit
+                .CaptureCounterattackCapabilitiesRawTyped()
+                .OwnerPresent
+        )
+        {
+            unit.ReplaceCounterattackCapabilitiesTyped(
+                Array.Empty<BattleCounterattackCapability>()
+            );
+        }
+    }
+
+    private void EnsureCounterattackUnitOwnersInitialized()
+    {
+        BattleState state = _state;
+        if (state == null)
+            return;
+        foreach (BattleUnitState unit in state.GetUnitsTyped())
+        {
+            if (unit != null)
+            {
+                EnsureCounterattackUnitOwnersInitializedForAdmission(
+                    state,
+                    unit
+                );
+            }
         }
     }
 
@@ -1440,7 +1616,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _runtime_services.AiMovementQuery.CaptureCacheDiagnostics();
 
     internal BattleEffectOrigin CurrentEffectOriginForContingency =>
-        _metricsReportService.CurrentEffectOrigin ?? BattleEffectOrigin.PlayerCommand();
+        EffectExecutionContext.CurrentForReporting;
 
     internal IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot() =>
         _fate_runtime != null
@@ -1553,6 +1729,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _timeline_driver.Setup(_moduleBorrowers.TimelineBridge);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
+        _moduleBorrowers.Setup(this);
+        EnsureReactionRuntimeReady();
     }
 
     internal WarehouseState _get_party_backpack_state(PartyState party_state)
@@ -1688,9 +1866,18 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     public void ConfigureDamageResolverForTests(BattleDamageResolver damage_resolver)
     {
+        if (_attackActionCoordinator.HasActiveBoundary)
+        {
+            throw new InvalidOperationException(
+                "Cannot replace the battle damage resolver while a reaction boundary is active."
+            );
+        }
         _damage_resolver?.SetEquipmentAbilityPorts(null, null);
         _damage_resolver?.SetFatalInterceptArbiter(null);
         _damage_resolver?.SetRangedWeaponAttackReactionSink(null);
+        _reactionSinkBoundDamageResolver
+            ?.SetAttackResolutionSink(null);
+        _reactionSinkBoundDamageResolver = null;
         _damage_resolver = damage_resolver ?? new BattleDamageResolver();
         BindDamageResolver();
         if (_ai_service != null)
@@ -2048,12 +2235,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal void _initialize_battle_metrics() => _metricsReportService._initialize_battle_metrics();
 
-    internal void _record_turn_started(BattleUnitState unit_state, BattleEventBatch batch = null)
+    internal void _record_turn_started(
+        BattleUnitState unit_state,
+        BattleEventBatch batch
+    )
     {
+        ArgumentNullException.ThrowIfNull(batch);
+        RequireActiveReactionBatch(batch);
         _metricsReportService.RecordTurnStartedMetrics(unit_state);
         _contingency_system.OnOwnerTurnStarted(unit_state, batch);
-        if (batch == null)
-            return;
         _contingency_system.ExecuteQueuedReleaseContexts(
             new ContingencyFrozenTriggerFacts
             {
@@ -2198,8 +2388,27 @@ public sealed partial class BattleRuntimeModule : IDisposable
         bool mutationCompleted = false;
         try
         {
-            _contingencyBridgeService.OnBattleConfirmed(batch);
-            _append_batch_logs_to_state(batch);
+            using BattleReactionBoundaryScope boundary =
+                BeginReactionBoundary(batch);
+            using IDisposable originScope =
+                EffectExecutionContext.Push(
+                    BattleEffectOrigin.Timeline(
+                        "battle_confirm"
+                    )
+                );
+            try
+            {
+                _contingencyBridgeService.OnBattleConfirmed(
+                    batch
+                );
+                boundary.Complete();
+                _append_batch_logs_to_state(batch);
+            }
+            catch
+            {
+                AbortActiveReactionBoundary();
+                throw;
+            }
             mutationCompleted = true;
         }
         finally
@@ -2288,11 +2497,33 @@ public sealed partial class BattleRuntimeModule : IDisposable
         RunTeardownStep(ref accumulatedFailure, _contingency_system.ClearBattleState);
         RunTeardownStep(
             ref accumulatedFailure,
+            _attackActionCoordinator.StopAcceptingAndAbort
+        );
+        RunTeardownStep(
+            ref accumulatedFailure,
             _contingency_system.ClearRuntimeCapabilityBinding
         );
 
         // Phase 2: dispose AI and runtime sidecars while their borrowed inputs still exist.
         RunTeardownStep(ref accumulatedFailure, () => _ai_service?.Dispose());
+        RunTeardownStep(
+            ref accumulatedFailure,
+            () => _reactionSinkBoundDamageResolver
+                ?.SetAttackResolutionSink(null)
+        );
+        _reactionSinkBoundDamageResolver = null;
+        RunTeardownStep(
+            ref accumulatedFailure,
+            _counterattackSystem.DisposeRuntime
+        );
+        RunTeardownStep(
+            ref accumulatedFailure,
+            _attackActionCoordinator.Dispose
+        );
+        RunTeardownStep(
+            ref accumulatedFailure,
+            EffectExecutionContext.Clear
+        );
         _moduleBorrowers.DisposeRuntime(ref accumulatedFailure);
         RunTeardownStep(ref accumulatedFailure, _runtime_services.Dispose);
         RunTeardownStep(ref accumulatedFailure, () => _terrain_effect_system?.Dispose());
@@ -2362,6 +2593,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private void ClearRuntimeBattleStateReference()
     {
         Exception accumulatedFailure = null;
+        RunTeardownStep(
+            ref accumulatedFailure,
+            StopReactionRuntimeForBattleTransition
+        );
         if (!_disposed)
             RunTeardownStep(ref accumulatedFailure, _runtime_services.EndBattle);
         RunTeardownStep(ref accumulatedFailure, _aiDecisionBindingService.ClearAiActionPlans);
@@ -2390,6 +2625,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
 
         Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, StopReactionRuntimeForBattleTransition);
         RunTeardownStep(ref accumulatedFailure, _runtime_services.EndBattle);
         RunTeardownStep(ref accumulatedFailure, _aiDecisionBindingService.ClearAiActionPlans);
         if (accumulatedFailure != null)
@@ -2403,8 +2639,29 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return;
         }
 
+        ArmReactionRuntimeForBoundBattle();
         _battleCacheEpoch = _battleCacheEpoch == long.MaxValue ? 1 : _battleCacheEpoch + 1;
         _runtime_services.BeginBattle(_battleCacheEpoch);
+    }
+
+    private void StopReactionRuntimeForBattleTransition()
+    {
+        _attackActionCoordinator?.StopAcceptingAndAbort();
+        EffectExecutionContext?.Clear();
+    }
+
+    private void ArmReactionRuntimeForBoundBattle()
+    {
+        if (_state == null || _attackActionCoordinator == null)
+            return;
+        _attackActionCoordinator.ResetForBattle();
+    }
+
+    internal static void DisposeBattlePreview(BattlePreview preview)
+    {
+        if (preview == null)
+            return;
+        preview.hit_preview = null;
     }
 
     internal void _handle_change_equipment_command(
@@ -2902,6 +3159,37 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _damage_resolver.SetHitResolver(_hit_resolver);
         _damage_resolver.SetDamageApplicationHook(_contingency_system);
         _damage_resolver.SetRangedWeaponAttackReactionSink(_skill_orchestrator);
+        EnsureReactionRuntimeReady();
+    }
+
+    private void EnsureReactionRuntimeReady()
+    {
+        if (
+            !ReferenceEquals(
+                _reactionSinkBoundDamageResolver,
+                _damage_resolver
+            )
+        )
+        {
+            if (_attackActionCoordinator.HasActiveBoundary)
+            {
+                throw new InvalidOperationException(
+                    "Cannot replace the battle damage resolver while a reaction boundary is active."
+                );
+            }
+
+            _reactionSinkBoundDamageResolver
+                ?.SetAttackResolutionSink(null);
+            _damage_resolver?.SetAttackResolutionSink(
+                _counterattackSystem
+            );
+            _reactionSinkBoundDamageResolver = _damage_resolver;
+        }
+
+        if (_state == null)
+        {
+            _attackActionCoordinator.StopAcceptingAndAbort();
+        }
     }
 
     private void BindEquipmentRulePorts()

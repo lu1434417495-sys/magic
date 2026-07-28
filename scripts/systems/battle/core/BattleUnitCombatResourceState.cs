@@ -378,6 +378,22 @@ internal sealed class BattleUnitCombatResourceState
         return result;
     }
 
+    internal void ValidateSpendStaminaKnownAvailable(int staminaCost)
+    {
+        if (staminaCost < 0)
+            throw new ArgumentOutOfRangeException(nameof(staminaCost));
+        if (_values.Stamina < staminaCost)
+            throw new InvalidOperationException("stamina is not available");
+    }
+
+    internal void CommitSpendStaminaKnownAvailable(int staminaCost)
+    {
+        _values = _values with
+        {
+            Stamina = _values.Stamina - staminaCost,
+        };
+    }
+
     private static int ClampResource(int value, int maxValue)
     {
         int normalizedMax = Math.Max(maxValue, 0);

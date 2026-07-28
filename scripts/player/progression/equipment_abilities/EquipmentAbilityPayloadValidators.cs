@@ -172,6 +172,24 @@ internal static class EquipmentAbilityPayloadValidators
             $"{path}.payload.skill_id",
             errors
         );
+        if (
+            context.KnownSkillDefinitions.TryGetValue(
+                payload.skill_id,
+                out SkillDefinition skillDefinition
+            )
+            && !BattleUnitSkillDefinitionExecutionRules
+                .IncludesWeaponDamage(
+                    skillDefinition.CombatProfile?.EffectDefinitions
+                )
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_IMMEDIATE_WEAPON_ATTACK_REQUIRES_WEAPON_DAMAGE",
+                $"{path}.payload.skill_id",
+                $"skill_id {payload.skill_id} does not resolve weapon damage"
+            );
+        }
         StringName filter = ProgressionDataUtils.to_string_name(payload.target_team_filter);
         if (filter != "enemy" && filter != "ally" && filter != "any")
         {
@@ -1081,7 +1099,11 @@ internal static class EquipmentAbilityPayloadValidators
                 );
                 continue;
             }
-            if (!context.KnownSkillIds.Contains(normalizedSkillId))
+            if (
+                !context.KnownSkillDefinitions.ContainsKey(
+                    normalizedSkillId
+                )
+            )
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,

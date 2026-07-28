@@ -863,7 +863,14 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
 
         internal void Step(int tuDelta)
         {
-            Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), tuDelta);
+            BattleRuntimeModule runtime = Runtime;
+            using var batch = new BattleEventBatch();
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                runtime,
+                batch,
+                BattleEffectOrigin.Timeline("timeline_tick"),
+                () => runtime._timeline_driver.ApplyTimelineStep(batch, tuDelta)
+            );
         }
     }
 }

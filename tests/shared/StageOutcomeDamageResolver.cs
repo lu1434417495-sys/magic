@@ -19,7 +19,7 @@ public partial class StageOutcomeDamageResolver : BattleDamageResolver
         BattleUnitState target_unit,
         IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check,
-        AttackContext attack_context = null
+        AttackContext attack_context
     )
     {
         return ResolveStageOutcome(target_unit, attack_check);

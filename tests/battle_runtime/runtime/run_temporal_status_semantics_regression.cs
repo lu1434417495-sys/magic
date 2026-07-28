@@ -201,7 +201,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         fixture.State.timeline.current_tu = 10;
         fixture.State.timeline.ready_unit_ids.Add(unit.unit_id);
 
-        fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
+        ActivateNextReadyUnit(fixture.Runtime);
 
         _test.Eq(
             fixture.State.active_unit_id,
@@ -340,7 +340,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         stasisUnit.SetActionProgressTyped(0);
         fixture.State.timeline.ready_unit_ids.Add(stasisUnit.unit_id);
 
-        fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
+        ActivateNextReadyUnit(fixture.Runtime);
 
         _test.Eq(
             fixture.State.active_unit_id,
@@ -652,7 +652,27 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
 
         internal void Step(int tuDelta)
         {
-            Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), tuDelta);
+            BattleRuntimeModule runtime = Runtime;
+            using var batch = new BattleEventBatch();
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                runtime,
+                batch,
+                BattleEffectOrigin.Timeline("timeline_tick"),
+                () => runtime._timeline_driver.ApplyTimelineStep(batch, tuDelta)
+            );
         }
+    }
+
+    private static void ActivateNextReadyUnit(
+        BattleRuntimeModule runtime
+    )
+    {
+        using var batch = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            BattleEffectOrigin.Timeline("ready_unit_activation"),
+            () => runtime._timeline_driver.ActivateNextReadyUnit(batch)
+        );
     }
 }

@@ -310,18 +310,24 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         chargeResolver.Setup(runtime._moduleBorrowers.ChargeBridge, masteryService);
         using var batch = new BattleEventBatch();
 
-        bool executed = chargeResolver.handle_charge_skill_command_result(
-            spinner,
-            whirlwind,
-            variant,
-            BattleGroundSkillValidationResult.AllowedResult(
-                "可施放。",
-                new[] { new Vector2I(3, 2) },
-                direction: Vector2I.Right,
-                distance: 2,
-                resolvedAnchorCoord: new Vector2I(3, 2)
-            ),
-            batch
+        bool executed = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            () =>
+                executed = chargeResolver.handle_charge_skill_command_result(
+                    spinner,
+                    whirlwind,
+                    variant,
+                    BattleGroundSkillValidationResult.AllowedResult(
+                        "可施放。",
+                        new[] { new Vector2I(3, 2) },
+                        direction: Vector2I.Right,
+                        distance: 2,
+                        resolvedAnchorCoord: new Vector2I(3, 2)
+                    ),
+                    batch
+                )
         );
 
         _test.True(executed, "旋风斩熟练度回归应成功执行两格路径冲锋。");
@@ -341,18 +347,24 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         maxDamageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(maxDamageResolver);
         using var hitBatch = new BattleEventBatch();
-        bool hitExecuted = chargeResolver.handle_charge_skill_command_result(
-            spinner,
-            whirlwind,
-            variant,
-            BattleGroundSkillValidationResult.AllowedResult(
-                "可施放。",
-                new[] { new Vector2I(3, 2) },
-                direction: Vector2I.Right,
-                distance: 2,
-                resolvedAnchorCoord: new Vector2I(3, 2)
-            ),
-            hitBatch
+        bool hitExecuted = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            hitBatch,
+            () =>
+                hitExecuted = chargeResolver.handle_charge_skill_command_result(
+                    spinner,
+                    whirlwind,
+                    variant,
+                    BattleGroundSkillValidationResult.AllowedResult(
+                        "可施放。",
+                        new[] { new Vector2I(3, 2) },
+                        direction: Vector2I.Right,
+                        distance: 2,
+                        resolvedAnchorCoord: new Vector2I(3, 2)
+                    ),
+                    hitBatch
+                )
         );
         _test.True(hitExecuted, "旋风斩熟练度命中夹具应成功执行。");
         _test.True(

@@ -1393,7 +1393,17 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         int insideHpBefore = insideTarget.GetCurrentHp();
         var batch = new BattleEventBatch();
 
-        bool executed = runtime._skill_orchestrator.ExecuteAutoCast(request, batch);
+        bool executed = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            BattleEffectOrigin.AutoCast(request),
+            () =>
+                executed = runtime._skill_orchestrator.ExecuteAutoCast(
+                    request,
+                    batch
+                )
+        );
 
         _test.True(executed, "Contingency 自动地面施法应在部分地格被裁剪时成功执行。");
         _test.True(
@@ -1576,10 +1586,17 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         int insideHpBefore = insideTarget.GetCurrentHp();
         var batch = new BattleEventBatch();
 
-        bool resolved = runtime._skill_orchestrator.ResolvePendingCast(
-            source,
-            pendingCast,
-            batch
+        bool resolved = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            BattleEffectOrigin.Timeline("ready_unit_activation"),
+            () =>
+                resolved = runtime._skill_orchestrator.ResolvePendingCast(
+                    source,
+                    pendingCast,
+                    batch
+                )
         );
 
         _test.True(resolved, "读条地面法术应在部分地格被裁剪时成功释放。");

@@ -140,7 +140,14 @@ internal sealed class BattleChainDamageService
             || preparedChain.Plan.Hops.Count == 0
         )
             return;
-
+        ArgumentNullException.ThrowIfNull(skillDefinition);
+        if (skillDefinition.SkillId == new StringName(""))
+        {
+            throw new ArgumentException(
+                "applied chain damage requires a non-empty skill id",
+                nameof(skillDefinition)
+            );
+        }
         BattleDamageResolver damageResolver = Runtime?._damage_resolver;
         BattleSkillMasteryService skillMasteryService = Runtime?._skill_mastery_service;
         BattleRatingSystem ratingSystem = Runtime?._battle_rating_system;

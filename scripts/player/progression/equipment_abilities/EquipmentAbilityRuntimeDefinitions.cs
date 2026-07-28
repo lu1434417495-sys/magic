@@ -922,7 +922,8 @@ public sealed class EquipmentAbilityContentValidationContext
     /// validates any status reference.
     /// </summary>
     public IReadOnlySet<StringName> KnownTraitIds { get; init; }
-    public IReadOnlySet<StringName> KnownSkillIds { get; init; }
+    public IReadOnlyDictionary<StringName, SkillDefinition>
+        KnownSkillDefinitions { get; init; }
     public IReadOnlySet<StringName> WindupSkillIds { get; init; }
     public IReadOnlySet<StringName> KnownStatusIds { get; init; }
 }

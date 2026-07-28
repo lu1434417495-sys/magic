@@ -598,7 +598,8 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         return new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = ReadOnlyKeySet(_traitDefIndex),
-            KnownSkillIds = ReadOnlyKeySet(_skillDefinitionIndex),
+            KnownSkillDefinitions =
+                CloneTypedDictionary(_skillDefinitionIndex),
             WindupSkillIds = new HashSet<StringName>(
                 _skillDefinitionIndex
                     .Values

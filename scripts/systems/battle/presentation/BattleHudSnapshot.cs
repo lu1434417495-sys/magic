@@ -296,6 +296,46 @@ internal sealed class BattleHudGearSetSummarySnapshot : IBattlePresentationSnaps
         );
 }
 
+internal sealed record BattleHudReactionBudgetSnapshot(
+    bool Visible,
+    int ChargesRemaining,
+    int ChargeCapacity,
+    int NextRechargeAtTu
+) : IBattlePresentationSnapshotValue
+{
+    internal static BattleHudReactionBudgetSnapshot Hidden { get; } =
+        new(false, 0, 0, 0);
+
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("visible", Visible),
+            ("charges_remaining", ChargesRemaining),
+            ("charge_capacity", ChargeCapacity),
+            ("next_recharge_at_tu", NextRechargeAtTu)
+        );
+}
+
+internal sealed record BattleHudCounterattackRiskEntrySnapshot(
+    string DefenderUnitId,
+    int PotentialChanceBasisPoints,
+    bool HasDefinitionDamage,
+    int DefinitionDamageMin,
+    int DefinitionDamageMax
+) : IBattlePresentationSnapshotValue
+{
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("defender_unit_id", DefenderUnitId ?? ""),
+            (
+                "potential_chance_basis_points",
+                PotentialChanceBasisPoints
+            ),
+            ("has_definition_damage", HasDefinitionDamage),
+            ("definition_damage_min", DefinitionDamageMin),
+            ("definition_damage_max", DefinitionDamageMax)
+        );
+}
+
 internal sealed record BattleHudFocusUnitSnapshot(
     string Name,
     string RoleText,
@@ -317,6 +357,7 @@ internal sealed record BattleHudFocusUnitSnapshot(
     int ApMax,
     int MoveCurrent,
     int MoveMax,
+    BattleHudReactionBudgetSnapshot ReactionBudget,
     IReadOnlyList<BattleHudStatusEffectSnapshot> StatusEffects = null
 ) : IBattlePresentationSnapshotValue
 {
@@ -342,6 +383,7 @@ internal sealed record BattleHudFocusUnitSnapshot(
             ("ap_max", ApMax),
             ("move_current", MoveCurrent),
             ("move_max", MoveMax),
+            ("reaction_budget", ReactionBudget),
             (
                 "status_effects",
                 (object)StatusEffects ?? Array.Empty<BattleHudStatusEffectSnapshot>()
@@ -1239,6 +1281,9 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
         string hintText,
         IEnumerable<string> recentBattleLogLines,
         BattleHudEquipmentPanelSnapshot equipmentPanel,
+        IEnumerable<BattleHudCounterattackRiskEntrySnapshot>
+            counterattackRisks,
+        string counterattackRiskCoverage,
         IEnumerable<BattleHudBarrierSnapshot> barriers = null,
         string barrierSummaryText = "",
         BattleHudObjectiveProgressSnapshot objectiveProgress = null,
@@ -1289,6 +1334,20 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
             recentBattleLogLines ?? Array.Empty<string>()
         ).AsReadOnly();
         EquipmentPanel = equipmentPanel;
+        _counterattackRisks =
+            new List<
+                BattleHudCounterattackRiskEntrySnapshot
+            >(
+                counterattackRisks
+                ?? throw new ArgumentNullException(
+                    nameof(counterattackRisks)
+                )
+            ).AsReadOnly();
+        CounterattackRiskCoverage =
+            counterattackRiskCoverage
+            ?? throw new ArgumentNullException(
+                nameof(counterattackRiskCoverage)
+            );
         _barriers = new List<BattleHudBarrierSnapshot>(
             barriers ?? Array.Empty<BattleHudBarrierSnapshot>()
         ).AsReadOnly();
@@ -1335,6 +1394,10 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
     internal string HintText { get; } = "";
     internal IReadOnlyList<string> RecentBattleLogLines => _recentBattleLogLines;
     internal BattleHudEquipmentPanelSnapshot EquipmentPanel { get; }
+    internal IReadOnlyList<
+        BattleHudCounterattackRiskEntrySnapshot
+    > CounterattackRisks => _counterattackRisks;
+    internal string CounterattackRiskCoverage { get; } = "";
     internal IReadOnlyList<BattleHudBarrierSnapshot> Barriers => _barriers;
     internal string BarrierSummaryText { get; } = "";
     internal BattleHudObjectiveProgressSnapshot ObjectiveProgress { get; } =

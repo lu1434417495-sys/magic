@@ -216,7 +216,12 @@ public partial class BattleUnitState
             ),
             ("cooldowns", BuildStringNameIntMap(cooldownState.Cooldowns)),
             ("last_turn_tu", cooldownState.LastTurnTu),
-            ("status_effects", BuildStatusEffectsPlain())
+            ("status_effects", BuildStatusEffectsPlain()),
+            ("reaction_state", BuildReactionStatePlain()),
+            (
+                "counterattack_capability_state",
+                BuildCounterattackCapabilityStatePlain()
+            )
         );
     }
 

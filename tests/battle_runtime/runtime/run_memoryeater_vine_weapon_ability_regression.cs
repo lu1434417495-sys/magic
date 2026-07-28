@@ -335,19 +335,24 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         fixture.Runtime.SetupStateForTests(state);
 
         using BattleEventBatch batch = new();
-        fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
-            new BattleEquipmentAbilityOnKillContext
-            {
-                SourceUnit = attacker,
-                DefeatedUnit = firstDefeated,
-                BattleState = state,
-                Batch = batch,
-                KillProvenance = BattleKillProvenance.ForEquipmentAttack(
-                    FindSource(attacker, LifebloodLedgerBindingId)?.SourceEquipmentInstanceId ?? "",
-                    LifebloodLedgerBindingId,
-                    "test.initial_weapon_attack"
-                ),
-            }
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            () => fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
+                new BattleEquipmentAbilityOnKillContext
+                {
+                    SourceUnit = attacker,
+                    DefeatedUnit = firstDefeated,
+                    BattleState = state,
+                    Batch = batch,
+                    KillProvenance = BattleKillProvenance.ForWeaponAttack(
+                        BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
+                        FindSource(attacker, LifebloodLedgerBindingId)?.SourceEquipmentInstanceId ?? "",
+                        LifebloodLedgerBindingId,
+                        "test.initial_weapon_attack"
+                    ),
+                }
+            )
         );
 
         _test.False(followupTarget.IsAlive(), "血阶 5 解锁的哀藤追刺应以立即武器攻击击杀相邻敌人。");

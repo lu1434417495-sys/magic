@@ -79,7 +79,20 @@ internal sealed class BattleChargeResolver
             return false;
         }
 
-        var chargeBatch = new BattleEventBatch();
+        BattleAttackDeliveryKind deliveryKind =
+            BattleAttackDeliveryRules.Resolve(
+                skillDefinition.CombatProfile?.EffectDefinitions
+                    ?? Array.Empty<CombatEffectDefinition>(),
+                active_unit.GetWeaponProjectionReadViewTyped()
+        );
+        using BattleLogicalAttackScope logicalAttack =
+            Runtime.BeginLogicalAttack(deliveryKind);
+        try
+        {
+        BattleAttackActionContext actionContext =
+            logicalAttack.Context;
+        BattleEventBatch chargeBatch = batch;
+        int chargeLogStart = batch.LogLinesTyped.Count;
         int movedSteps = 0;
         int pathStepTriggerCount = 0;
         int pathStepHitCount = 0;
@@ -185,7 +198,8 @@ internal sealed class BattleChargeResolver
                 skillDefinition,
                 castVariantDefinition,
                 chargeBatch,
-                pathStepSeenUnitIds
+                pathStepSeenUnitIds,
+                actionContext
             );
             if (stepAoeResult.Triggered)
             {
@@ -236,9 +250,8 @@ internal sealed class BattleChargeResolver
             active_unit,
             executedPath,
             skillDefinition.SkillId,
-            chargeBatch
+            batch
         );
-        MergeBatch(batch, chargeBatch);
         if (movedSteps > 0)
         {
             CombatEffectDefinition pathStepAoeEffect = GetChargePathStepAoeEffectDefinition(
@@ -269,17 +282,28 @@ internal sealed class BattleChargeResolver
                     movedSteps
                 );
             }
+            logicalAttack.Complete();
             return true;
         }
 
-        if (chargeBatch.LogLinesTyped.Count > 0 || !string.IsNullOrEmpty(stopReason))
+        if (
+            chargeBatch.LogLinesTyped.Count > chargeLogStart
+            || !string.IsNullOrEmpty(stopReason)
+        )
         {
             batch.AddLogLine(
                 $"{active_unit.display_name} 使用 {FormatSkillVariantLabel(skillDefinition, castVariantDefinition)}，但在起步时被拦下。"
             );
             return true;
         }
+        logicalAttack.Complete();
         return false;
+        }
+        catch
+        {
+            Runtime?.AbortActiveReactionBoundary();
+            throw;
+        }
     }
 
     internal BattleGroundSkillValidationResult ValidateChargeCommandResult(
@@ -922,7 +946,8 @@ internal sealed class BattleChargeResolver
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariantDefinition,
         BattleEventBatch batch,
-        HashSet<StringName> seenUnitIds
+        HashSet<StringName> seenUnitIds,
+        BattleAttackActionContext actionContext
     )
     {
         CombatEffectDefinition pathStepAoeEffect = GetChargePathStepAoeEffectDefinition(
@@ -1009,6 +1034,7 @@ internal sealed class BattleChargeResolver
                         SkillId = skillDefinition?.SkillId ?? new StringName(""),
                         EventBatch = batch,
                         DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
+                        Action = actionContext,
                     }
                 );
             }
@@ -1092,6 +1118,7 @@ internal sealed class BattleChargeResolver
                         killProvenance: BattleKillProvenance.FromWeaponAttackResult(
                             activeUnit,
                             stageResult,
+                            BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
                             skillDefinition.SkillId
                         )
                     )

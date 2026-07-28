@@ -204,6 +204,10 @@ internal sealed class BattleEquipmentSummonResolver
             );
             if (summoned == null)
                 continue;
+            _runtime.EnsureCounterattackUnitOwnersInitializedForAdmission(
+                state,
+                summoned
+            );
             state.SetUnit(summoned);
             if (!_runtime._grid_service.PlaceUnit(state, summoned, coord, true))
             {
@@ -288,6 +292,10 @@ internal sealed class BattleEquipmentSummonResolver
             );
             if (summoned == null)
                 continue;
+            _runtime.EnsureCounterattackUnitOwnersInitializedForAdmission(
+                state,
+                summoned
+            );
             state.SetUnit(summoned);
             if (!_runtime._grid_service.PlaceUnit(state, summoned, coord, true))
             {

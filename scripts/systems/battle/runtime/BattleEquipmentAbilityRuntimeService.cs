@@ -2050,77 +2050,40 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
         {
             if (attackCount >= payload.MaxAttacks)
                 break;
-            BattleAttackCheckPolicyService attackPolicy =
-                _runtime?.GetAttackCheckPolicyService();
-            BattleAttackCheckPolicyContext policyContext =
-                attackPolicy?.BuildSkillDefinitionAttackContext(
-                    state,
-                    sourceUnit,
-                    targetUnit,
-                    skillDefinition,
-                    "skill_attack_check",
-                    action?.ActionId ?? new StringName(""),
-                    force_hit_no_crit: false
+            BattleImmediateWeaponAttackService immediateAttackService =
+                _runtime?._moduleBorrowers.ImmediateWeaponAttack
+                ?? throw new InvalidOperationException(
+                    "immediate weapon attack service is not bound"
                 );
-            AttackCheckInput attackCheck =
-                attackPolicy != null
-                    ? attackPolicy.BuildAttackCheck(policyContext, 0, 0)
-                    : new AttackCheckInput(invalid: true);
-            AttackEffectResolutionResult attackResult = _damageResolver.ResolveAttackEffects(
-                sourceUnit,
-                targetUnit,
-                effectDefinitions,
-                attackCheck,
-                new AttackContext
-                {
-                    BattleState = state,
-                    SkillId = skillDefinition.SkillId,
-                    EventBatch = context.Batch,
-                    DamageOriginKind = BattleDamageOriginKind.EquipmentTriggeredSkill,
-                }
-            );
-            if (!attackResult.Applied && !attackResult.AttackSuccess)
+            BattleImmediateWeaponAttackPlan plan =
+                immediateAttackService.PrepareEquipmentReaction(
+                    new BattleEquipmentImmediateWeaponAttackRequest(
+                        state,
+                        sourceUnit,
+                        targetUnit,
+                        skillDefinition,
+                        binding?.TraitId ?? new StringName(""),
+                        binding?.BindingId ?? new StringName(""),
+                        action?.ActionId ?? new StringName(""),
+                        activeBinding.Source
+                            ?.SourceEquipmentInstanceId
+                            ?? new StringName("")
+                    )
+                );
+            if (!plan.DefinitionAvailable)
+                continue;
+            BattleImmediateWeaponAttackResult attackResult =
+                immediateAttackService.Execute(
+                    plan,
+                    context.Batch
+                );
+            if (!attackResult.CountsTowardMaxAttacks)
                 continue;
 
             attackCount++;
             result?.AddImmediateWeaponAttackResult(
-                new BattleEquipmentAbilityImmediateWeaponAttackResult
-                {
-                    BindingId = binding?.BindingId ?? new StringName(""),
-                    ActionId = action?.ActionId ?? new StringName(""),
-                    TargetUnitId = targetUnit.unit_id,
-                    Applied = attackResult.Applied,
-                    Damage = Math.Max(attackResult.Damage, 0),
-                }
+                attackResult.EquipmentSummary
             );
-            context.Batch?.AddChangedUnitId(sourceUnit.unit_id);
-            context.Batch?.AddChangedUnitId(targetUnit.unit_id);
-            foreach (Vector2I coord in targetUnit.GetOccupiedCoordsTyped())
-                context.Batch?.AddChangedCoord(coord);
-            context.Batch?.AddLogLine(
-                $"{sourceUnit.display_name} 借 {binding?.TraitId} 追击 {targetUnit.display_name}。"
-            );
-            if (targetUnit.IsAlive() != true)
-            {
-                _runtime?.HandleUnitDefeatedByRuntimeEffect(
-                    targetUnit,
-                    sourceUnit,
-                    context.Batch,
-                    $"{targetUnit.display_name} 被击倒。",
-                    new BattleDefeatHandlingOptions(
-                        recordEnemyDefeatedAchievement: true,
-                        killProvenance: BattleKillProvenance.FromWeaponAttackResult(
-                            sourceUnit,
-                            attackResult,
-                            BattleKillProvenance.ForEquipmentAttack(
-                                activeBinding.Source?.SourceEquipmentInstanceId ?? "",
-                                binding?.BindingId ?? "",
-                                action?.ActionId ?? ""
-                            )
-                        )
-                    )
-                );
-            }
         }
     }
 

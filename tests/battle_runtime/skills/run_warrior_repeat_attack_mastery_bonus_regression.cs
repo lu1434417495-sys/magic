@@ -83,13 +83,32 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             new[] { true, true, true, true, false }
         );
         using var missBatch = new BattleEventBatch();
-        bool missExecuted = missFixture.Resolver.ApplyRepeatAttackSkillResult(
-            missFixture.ActiveUnit,
-            missFixture.TargetUnit,
-            missFixture.SkillDefinition,
-            missFixture.EffectDefinitions,
-            missFixture.RepeatEffectDefinition,
-            missBatch
+        bool missExecuted = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            missFixture.Runtime,
+            missBatch,
+            () =>
+            {
+                BattleAttackDeliveryKind deliveryKind =
+                    BattleAttackDeliveryRules.Resolve(
+                        missFixture.EffectDefinitions,
+                        missFixture.ActiveUnit
+                            .GetWeaponProjectionReadViewTyped()
+                    );
+                using BattleLogicalAttackScope logicalAttack =
+                    missFixture.Runtime.BeginLogicalAttack(deliveryKind);
+                missExecuted =
+                    missFixture.Resolver.ApplyRepeatAttackSkillResult(
+                        missFixture.ActiveUnit,
+                        missFixture.TargetUnit,
+                        missFixture.SkillDefinition,
+                        missFixture.EffectDefinitions,
+                        missFixture.RepeatEffectDefinition,
+                        missBatch,
+                        logicalAttack.Context
+                    );
+                logicalAttack.Complete();
+            }
         );
         _test.True(missExecuted, "连击段数熟练度回归前置：应至少执行到第五段。");
         _test.Eq(
@@ -107,13 +126,32 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             new[] { true, true, true, true, true, false }
         );
         using var hitBatch = new BattleEventBatch();
-        bool hitExecuted = hitFixture.Resolver.ApplyRepeatAttackSkillResult(
-            hitFixture.ActiveUnit,
-            hitFixture.TargetUnit,
-            hitFixture.SkillDefinition,
-            hitFixture.EffectDefinitions,
-            hitFixture.RepeatEffectDefinition,
-            hitBatch
+        bool hitExecuted = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            hitFixture.Runtime,
+            hitBatch,
+            () =>
+            {
+                BattleAttackDeliveryKind deliveryKind =
+                    BattleAttackDeliveryRules.Resolve(
+                        hitFixture.EffectDefinitions,
+                        hitFixture.ActiveUnit
+                            .GetWeaponProjectionReadViewTyped()
+                    );
+                using BattleLogicalAttackScope logicalAttack =
+                    hitFixture.Runtime.BeginLogicalAttack(deliveryKind);
+                hitExecuted =
+                    hitFixture.Resolver.ApplyRepeatAttackSkillResult(
+                        hitFixture.ActiveUnit,
+                        hitFixture.TargetUnit,
+                        hitFixture.SkillDefinition,
+                        hitFixture.EffectDefinitions,
+                        hitFixture.RepeatEffectDefinition,
+                        hitBatch,
+                        logicalAttack.Context
+                    );
+                logicalAttack.Complete();
+            }
         );
         _test.True(hitExecuted, "连击段数熟练度回归前置：命中夹具应执行。");
         _test.Eq(
@@ -160,6 +198,13 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             "combo_mastery_stage_test"
         );
         CombatEffectDefinition repeatEffectDefinition = skillDefinition.CombatProfile.EffectDefinitions[1];
+        var state = new BattleState
+        {
+            map_size = new Vector2I(5, 5),
+        };
+        state.SetUnit(activeUnit);
+        state.SetUnit(targetUnit);
+        runtime.SetupStateForTests(state);
 
         return new RepeatAttackFixture
         {

@@ -241,6 +241,7 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
                     2,
                     3,
                     5,
+                    BattleHudReactionBudgetSnapshot.Hidden,
                     StatusEffects: new[]
                     {
                         new BattleHudStatusEffectSnapshot(
@@ -339,6 +340,8 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             new BattleHudEquipmentPanelSnapshot(
                 "", "", "", "", 0, false, "", null, null, ""
             ),
+            Array.Empty<BattleHudCounterattackRiskEntrySnapshot>(),
+            "not_evaluated",
             objectiveProgress: objectiveProgress
         );
 

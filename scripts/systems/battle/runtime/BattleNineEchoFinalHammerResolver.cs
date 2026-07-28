@@ -50,7 +50,8 @@ internal sealed class BattleNineEchoFinalHammerResolver
         CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         int successfulHitCount,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        BattleAttackActionContext actionContext
     )
     {
         if (
@@ -98,7 +99,8 @@ internal sealed class BattleNineEchoFinalHammerResolver
                     skillDefinition,
                     castVariantDefinition,
                     effectDefinitions,
-                    batch
+                    batch,
+                    actionContext
                 );
                 break;
         }
@@ -110,7 +112,8 @@ internal sealed class BattleNineEchoFinalHammerResolver
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        BattleAttackActionContext actionContext
     )
     {
         ApplyDebuff(
@@ -145,6 +148,7 @@ internal sealed class BattleNineEchoFinalHammerResolver
             castVariantDefinition,
             terminalEffects,
             batch,
+            actionContext,
             force_hit_allow_crit: true
         );
     }

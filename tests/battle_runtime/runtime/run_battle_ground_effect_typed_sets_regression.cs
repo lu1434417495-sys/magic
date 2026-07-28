@@ -22,16 +22,43 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
     {
         Fixture fixture = BuildWindPushFixture();
         var batch = new BattleEventBatch();
-        BattleGroundUnitEffectsResult result =
-            fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
-                fixture.Source,
-                fixture.Skill,
-                null,
-                new[] { fixture.WindPushEffect },
-                new List<Vector2I> { new Vector2I(1, 0) },
-                batch,
-                new List<Vector2I> { new Vector2I(1, 0) }
-            );
+        BattleGroundUnitEffectsResult result = default;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            () =>
+            {
+                var effects =
+                    new[] { fixture.WindPushEffect };
+                BattleAttackDeliveryKind deliveryKind =
+                    BattleAttackDeliveryRules.Resolve(
+                        effects,
+                        fixture.Source
+                            .GetWeaponProjectionReadViewTyped()
+                    );
+                using BattleLogicalAttackScope logicalAttack =
+                    fixture.Runtime.BeginLogicalAttack(
+                        deliveryKind
+                    );
+                result = fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+                        fixture.Source,
+                        fixture.Skill,
+                        null,
+                        effects,
+                        new List<Vector2I>
+                        {
+                            new Vector2I(1, 0),
+                        },
+                        batch,
+                        logicalAttack.Context,
+                        new List<Vector2I>
+                        {
+                            new Vector2I(1, 0),
+                        }
+                    );
+                logicalAttack.Complete();
+            }
+        );
 
         _test.False(result.Applied, "锥形外阻挡单位不得被 wind push 递归带动。");
         _test.Eq(result.AffectedUnitCount, 0, "零位移不得报告 affected unit。");

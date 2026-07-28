@@ -53,9 +53,39 @@ internal sealed class BattleRuntimeModuleBorrowerSet
     internal BattleGroundEffectBridgeService GroundEffectBridge { get; } = new();
     internal BattleCommandPreviewBridgeService CommandPreviewBridge { get; } = new();
     internal BattleAiDecisionBindingBridgeService AiDecisionBindingBridge { get; } = new();
+    internal BattleEquipmentDurabilityResultProjector
+        EquipmentDurabilityResultProjector { get; } = new();
+    internal BattleWeaponAttackOutcomeCommitter
+        WeaponAttackOutcomeCommitter { get; }
+    internal BattleRuntimeCounterattackWeaponAttackDefinitionProvider
+        CounterattackWeaponAttackDefinitionProvider { get; } = new();
+    internal BattleImmediateWeaponAttackService
+        ImmediateWeaponAttack { get; }
+    internal BattleCounterattackQueryService
+        CounterattackQuery { get; }
+    internal BattleCounterattackPreviewService
+        CounterattackPreview { get; }
 
     internal BattleRuntimeModuleBorrowerSet()
     {
+        WeaponAttackOutcomeCommitter =
+            new BattleWeaponAttackOutcomeCommitter(
+                EquipmentDurabilityResultProjector
+            );
+        ImmediateWeaponAttack =
+            new BattleImmediateWeaponAttackService(
+                WeaponAttackOutcomeCommitter,
+                CounterattackWeaponAttackDefinitionProvider
+            );
+        CounterattackQuery =
+            new BattleCounterattackQueryService(
+                ImmediateWeaponAttack
+            );
+        CounterattackPreview =
+            new BattleCounterattackPreviewService(
+                CounterattackQuery,
+                ImmediateWeaponAttack
+            );
         // Forward order is dependency-first. Teardown runs this list in reverse,
         // so the AI borrower releases its preview/movement dependencies first.
         _borrowers =
@@ -64,6 +94,12 @@ internal sealed class BattleRuntimeModuleBorrowerSet
             SpecialSkillGate,
             MovementCommand,
             MetricsReport,
+            EquipmentDurabilityResultProjector,
+            WeaponAttackOutcomeCommitter,
+            CounterattackWeaponAttackDefinitionProvider,
+            ImmediateWeaponAttack,
+            CounterattackQuery,
+            CounterattackPreview,
             ContingencyBridge,
             TimelineBridge,
             ChargeBridge,

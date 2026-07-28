@@ -587,6 +587,7 @@ internal class BattleGroundEffectService
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyList<Vector2I> effectCoords,
         BattleEventBatch batch,
+        BattleAttackActionContext actionContext,
         IReadOnlyList<Vector2I> targetCoords,
         IReadOnlyList<Vector2I> contingencyEffectCoords = null
     )
@@ -678,7 +679,8 @@ internal class BattleGroundEffectService
                     targetUnit,
                     skillDefinition,
                     applicableEffects,
-                    batch
+                    batch,
+                    actionContext
                 );
             AttackEffectResolutionResult damageResult = effectResolution.Result;
             BattleShieldApplyResult shieldResult = ApplyUnitShieldEffectsResult(
@@ -823,6 +825,7 @@ internal class BattleGroundEffectService
                         killProvenance: BattleKillProvenance.FromWeaponAttackResult(
                             sourceUnit,
                             damageResult,
+                            BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
                             skillDefinition.SkillId
                         )
                     )
@@ -883,7 +886,8 @@ internal class BattleGroundEffectService
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch = null
+        BattleEventBatch batch,
+        BattleAttackActionContext actionContext
     )
     {
         return _resolve_ground_unit_effect_resolution(
@@ -891,7 +895,8 @@ internal class BattleGroundEffectService
             targetUnit,
             skillDefinition,
             effectDefinitions,
-            batch
+            batch,
+            actionContext
         ).Result;
     }
 
@@ -900,7 +905,8 @@ internal class BattleGroundEffectService
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch = null
+        BattleEventBatch batch,
+        BattleAttackActionContext actionContext
     )
     {
         IReadOnlyList<CombatEffectDefinition> normalizedEffectDefinitions =
@@ -944,6 +950,7 @@ internal class BattleGroundEffectService
                         SkillId = skillDefinition != null ? skillDefinition.SkillId : Empty,
                         EventBatch = batch,
                         DamageOriginKind = BattleDamageOriginKind.Terrain,
+                        Action = actionContext,
                     }
                 )
             );
