@@ -8,7 +8,7 @@
 
 - [`battle/objective_mode_extensions.md`](battle/objective_mode_extensions.md)：九种已落地战斗目标模式的未实现扩展；当前暂缓、未排期。
 - [`battle/composite_objectives.md`](battle/composite_objectives.md)：`All / Any / Ordered` 与 required/optional 组合目标；当前明确暂不实现、未排期。
-- [`battle/counterattack_system.md`](battle/counterattack_system.md)：反击系统运行时架构；以稳定逻辑攻击 ID、单一 root batch、不可变攻击事实、显式反应边界、FIFO 排空、递归熔断与完整即时武器攻击 service 闭合 `lock_counterattack` 消费。batch、AutoCast、outcome、静滞与 snapshot 架构缺口已闭合，代码尚未实现；具体技能、内容来源、属性派生、平衡与 AI 另案处理。
+- [`battle/counterattack_system.md`](battle/counterattack_system.md)：反击系统原始架构推导、逐调用点迁移与验收矩阵。P1A/P1B 运行时、状态、成长和展示已经落地，当前真相见 [`../design/battle/counterattack_system.md`](../design/battle/counterattack_system.md)；production capability 内容来源、最终数值、属性派生、平衡与 AI 仍另案处理。
 
 ## 跨系统迁移与架构整治
 

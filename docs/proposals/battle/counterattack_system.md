@@ -1,11 +1,15 @@
 # 反击系统架构提案
 
-> 状态：`Proposal / Architecture review findings resolved / Not implemented`
+> 状态：`Mixed current implementation + future content/balance stages`
 > 更新日期：`2026-07-28`
 > 关联上下文单元：CU-12（成长桥接）、CU-14（职业 / 技能进阶规则）、CU-15（战斗运行时总编排）、CU-16（战斗状态 / 规则 / 伤害）、CU-18（战斗展示）、CU-19（回归）
 > 源码锚点：`eeae4ba85d9ef85cf3ee37aebfe0c61bcf0baf02`
 
-本文所有 `file:line` 都指向上述源码提交；实施期间若行号漂移，以同一方法名和列出的语句 token 为准。提案中的新类型、目标代码骨架与迁移动作仍是未实现设计，不能把代码块误读为当前仓库已有 API。
+P1A/P1B 的运行时、状态、成长和展示闭环已经落地；当前实现真相见
+[`../../design/battle/counterattack_system.md`](../../design/battle/counterattack_system.md)。
+本文继续保留原始设计推导、逐调用点迁移清单、完整验收矩阵，以及尚未落地的 production
+capability 内容来源、最终数值、属性派生和平衡/AI 阶段。本文所有原始 `file:line` 都指向上述
+源码锚点；行号漂移时以当前实现文档、同名类型和方法为准。
 
 ## 一、范围与结论
 
@@ -20,7 +24,7 @@
 5. 反应预算如何拥有 TU anchor，并在 `time_stasis` 下真正冻结而不解除后追赶补充。
 6. preview、HUD 与未来 AI 如何复用同一资格规则且不消费 RNG、不修改战斗状态。
 
-本文修订后，P1A 的运行时内核可以按明确 owner 实施；内容来源、具体数值和平衡属于后续独立设计。
+P1A/P1B 已按上述 owner 落地；内容来源、具体数值、属性派生、平衡与 AI 权重仍属于后续独立设计。
 
 ---
 
@@ -2265,6 +2269,12 @@ root/work/depth 诊断的原始异常，boundary/logical dispose 都只清理且
 `"reaction boundary disposed without Complete()"` 或
 `"logical attack disposed without Complete()"` 覆盖。production entry point 必须把这类
 异常视为 runtime invariant failure，不能捕获后继续同一 battle。
+
+此外，任意 resolver / producer 的业务异常也必须原样穿过 scope 清理。每个 production
+root owner 与 logical-attack owner 必须在其对应 `using` scope 内 `catch`，先调用
+`AbortActiveReactionBoundary()`，再以裸 `throw;` 重抛；不能等内层 logical scope
+`Dispose()` 后才在外层捕获，否则原始异常会被
+`"logical attack disposed without Complete()"` 覆盖。重复 abort 必须幂等。
 
 `StopAcceptingAndAbort()` / `ResetForBattle()` 是更高层的 battle-generation invalidation：
 两者递增 coordinator generation。旧 generation 的 boundary/logical handle 随后调用
@@ -9836,6 +9846,9 @@ reaction/capability snapshot 不会被默认值覆盖。
   `"reaction boundary depth"`、实际 next depth 与配置上限。所有 case 都断言最终异常既不是
   `"logical attack disposed without Complete()"`，也不是
   `"reaction boundary disposed without Complete()"`。清理后下一 root 从空状态开始。
+- 注入 resolver / producer 业务异常，断言最终异常仍是原始业务异常而不是任一
+  `"disposed without Complete()"`，并断言失败 root 清理后下一 root 可正常建立且 queue
+  为空。
 - 分别持有旧 generation 的 boundary handle 与 logical handle，调用
   `StopAcceptingAndAbort()` 后再 `ResetForBattle()` 并创建 scope id 重复的新 root；旧
   handle 的 `Complete()`/`Dispose()` 均不得抛错、不得完成或弹出新 frame、不得改变新
