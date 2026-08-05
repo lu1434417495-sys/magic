@@ -12,6 +12,9 @@ public partial class SettlementDistributionRule : Resource
     [Export]
     public string faction_id { get; set; } = "neutral";
 
+    [Export]
+    public string country_id { get; set; } = "";
+
     internal SettlementDistributionDefinition ToDefinition(string path) =>
         SettlementDistributionDefinition.FromResource(this, path);
 

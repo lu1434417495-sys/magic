@@ -74,18 +74,48 @@ public sealed class GameRuntimeQuestCommandHandler
             return CommandErrorTyped(
                 string.Format("任务《{0}》已完成，当前不可再次接取。", questLabel)
             );
+        var transaction = new RuntimeTransaction().MarkPartyChanged();
+        if (questDef.HasAcceptEncounterBinding)
+            transaction.MarkWorldChanged();
+        RuntimeTransactionRollbackState rollbackState =
+            _port.CaptureQuestAcceptRollbackState(transaction);
+        QuestAcceptEncounterSpawnResult encounterSpawn = default;
+        if (questDef.HasAcceptEncounterBinding)
+        {
+            encounterSpawn = _port.TryAddQuestAcceptEncounter(
+                questId,
+                questDef.AcceptEncounterProfileId,
+                questDef.AcceptEncounterDisplayName,
+                questDef.AcceptEncounterGrowthStage
+            );
+            if (!encounterSpawn.Ok)
+            {
+                _port.RollbackQuestAcceptTransaction(transaction, rollbackState);
+                string encounterMessage = string.IsNullOrWhiteSpace(encounterSpawn.Message)
+                    ? string.Format("当前无法为任务《{0}》生成遭遇。", questLabel)
+                    : encounterSpawn.Message;
+                UpdateStatus(encounterMessage);
+                return CommandErrorTyped(encounterMessage);
+            }
+        }
         if (!AcceptQuestAndSyncParty(questId, effectiveAllowReaccept))
+        {
+            if (encounterSpawn.Added)
+                _port.RemoveQuestAcceptEncounter(encounterSpawn.EncounterAnchorId);
+            _port.RollbackQuestAcceptTransaction(transaction, rollbackState);
             return CommandErrorTyped(string.Format("当前无法接取任务《{0}》。", questLabel));
-        var persistError = PersistPartyState();
+        }
+        RuntimeCommitResult commitResult = _port.CommitQuestAcceptTransaction(transaction);
         var message =
             isRestartingFailedQuest
                 ? string.Format("已重新接取失败任务《{0}》。", questLabel)
                 : hasCompleted && effectiveAllowReaccept
                 ? string.Format("已重新接取任务《{0}》。", questLabel)
                 : string.Format("已接取任务《{0}》。", questLabel);
-        if (persistError != Error.Ok)
+        if (commitResult?.Ok != true)
         {
-            message = string.Format("{0} 但队伍状态持久化失败。", message);
+            _port.RollbackQuestAcceptTransaction(transaction, rollbackState);
+            message = string.Format("{0} 但任务状态持久化失败，已回滚。", message);
             UpdateStatus(message);
             return RuntimeCommandResult.Failure(
                 message,
@@ -558,29 +588,54 @@ internal sealed class QuestCommandDefData
     public readonly string DisplayName;
     public readonly bool IsRepeatable;
     public readonly bool CanRestartAfterFailure;
+    public readonly StringName AcceptEncounterProfileId;
+    public readonly string AcceptEncounterDisplayName;
+    public readonly int AcceptEncounterGrowthStage;
+    public bool HasAcceptEncounterBinding => AcceptEncounterProfileId != "";
 
     private QuestCommandDefData(
         bool exists,
         string displayName,
         bool isRepeatable,
-        bool canRestartAfterFailure
+        bool canRestartAfterFailure,
+        StringName acceptEncounterProfileId,
+        string acceptEncounterDisplayName,
+        int acceptEncounterGrowthStage
     )
     {
         Exists = exists;
         DisplayName = displayName ?? "";
         IsRepeatable = isRepeatable;
         CanRestartAfterFailure = canRestartAfterFailure;
+        AcceptEncounterProfileId = acceptEncounterProfileId;
+        AcceptEncounterDisplayName = acceptEncounterDisplayName ?? "";
+        AcceptEncounterGrowthStage = acceptEncounterGrowthStage;
     }
 
     internal static QuestCommandDefData FromQuestDefinition(QuestDefinition questDefinition)
     {
         if (questDefinition == null || questDefinition.QuestId == "")
-            return new QuestCommandDefData(false, "", false, false);
+            return new QuestCommandDefData(false, "", false, false, "", "", 0);
+        StringName encounterProfileId = "";
+        string encounterDisplayName = "";
+        int encounterGrowthStage = 0;
+        foreach (QuestObjectiveDefinition objective in questDefinition.Objectives)
+        {
+            if (objective == null || objective.EncounterProfileId == "")
+                continue;
+            encounterProfileId = objective.EncounterProfileId;
+            encounterDisplayName = objective.EncounterDisplayName;
+            encounterGrowthStage = objective.EncounterGrowthStage;
+            break;
+        }
         return new QuestCommandDefData(
             true,
             questDefinition.DisplayName.Trim(),
             questDefinition.IsRepeatable,
-            questDefinition.CanRestartAfterFailure
+            questDefinition.CanRestartAfterFailure,
+            encounterProfileId,
+            encounterDisplayName,
+            encounterGrowthStage
         );
     }
 }

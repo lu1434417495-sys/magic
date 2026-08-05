@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"folk_farmers_plea"
+display_name = "农夫的恳求"
+description = "一位老农夫的玉米地被能烧断作物的异界害兽糟蹋了一半。前往任务标记的农田，在同一场战斗中击败五只荒狼，并留意田边的异常足迹。"
+provider_kind = &"npc"
+provider_interaction_id = &"npc_village_chief"
+listing_channels = Array[StringName]([&"npc_offer"])
+tags = Array[StringName]([&"side", &"main_world", &"folk"])
+accept_requirements = Array[Dictionary]([{&"requirement_type": &"quest_completed", &"quest_id": &"tutorial_first_blood"}])
+accept_dialogue_text = "村南的老农夫今早来求助：玉米地像被狼群踏毁，可断掉的秆上全是灰色焦痕。前往农田，在同一场战斗中击败五只荒狼，再留意那串不像狼爪的足印。"
+accept_feedback_success = "村长把老农夫的求助交给了你，村南农田的狼群已经标记在地图上。"
+accept_feedback_failure = "先完成《初阵》，村长才会把农田的异常交给你。"
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_five_wolves_single_battle", &"objective_type": &"defeat_enemy_in_single_battle", &"target_id": &"wolf_pack", &"target_value": 5, &"encounter_profile_id": &"wolf_wilds", &"encounter_display_name": "村南受袭农田", &"encounter_growth_stage": 1}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 100}, {&"reward_type": &"item", &"item_id": &"travel_ration", &"quantity": 3}])
+is_repeatable = false
+failure_policy = &"terminal"

@@ -27,6 +27,12 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
                     ["party"] = new GDictionary
                     {
                         ["gold"] = 0,
+                        ["world_renown"] = 64,
+                        ["country_reputations"] = new GDictionary
+                        {
+                            ["starfall_federation"] = 35,
+                            ["frost_ash_empire"] = -20,
+                        },
                         ["leader_member_id"] = "player_sword_01",
                         ["active_member_ids"] = new GArray { "player_sword_01" },
                         ["reserve_member_ids"] = new GArray(),
@@ -101,6 +107,24 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
                     "run_progression_text_snapshot_regression"
                 )
             )
+        );
+
+        AssertLine(lines, "world_renown=64", "文本快照应渲染世界名望。");
+        AssertLine(
+            lines,
+            "country_reputation=frost_ash_empire:-20",
+            "文本快照应渲染帝国声望。"
+        );
+        AssertLine(
+            lines,
+            "country_reputation=starfall_federation:35",
+            "文本快照应渲染联邦声望。"
+        );
+        int empireLine = lines.IndexOf("country_reputation=frost_ash_empire:-20");
+        int federationLine = lines.IndexOf("country_reputation=starfall_federation:35");
+        _test.True(
+            empireLine >= 0 && federationLine > empireLine,
+            "国家声望文本快照应按 country_id 稳定排序。"
         );
 
         AssertLine(

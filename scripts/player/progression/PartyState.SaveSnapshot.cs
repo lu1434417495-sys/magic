@@ -16,6 +16,11 @@ public partial class PartyState
         return Map(
             ("version", version),
             ("gold", GetGold()),
+            ("world_renown", GetWorldRenown()),
+            (
+                "country_reputations",
+                country_reputations?.BuildSaveSnapshotPlain() ?? EmptyMap()
+            ),
             ("leader_member_id", leader_member_id.ToString()),
             ("main_character_member_id", main_character_member_id.ToString()),
             ("fate_run_flags", BuildSortedFlagMap(fate_run_flags)),

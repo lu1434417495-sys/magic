@@ -157,9 +157,13 @@ public partial class SettlementWindow : ModalWindowShell
 
     private string _build_meta_text()
     {
+        string identityText =
+            $"{_windowData.TierName}  |  占地 {_windowData.FootprintSize.X}x{_windowData.FootprintSize.Y}  |  阵营 {_windowData.FactionId}";
+        if (!string.IsNullOrEmpty(_windowData.CountryId))
+            identityText += $"  |  国家 {_windowData.CountryId}";
         var lines = new List<string>
         {
-            $"{_windowData.TierName}  |  占地 {_windowData.FootprintSize.X}x{_windowData.FootprintSize.Y}  |  阵营 {_windowData.FactionId}",
+            identityText,
         };
         if (!string.IsNullOrEmpty(_windowData.StateSummaryText))
             lines.Add(_windowData.StateSummaryText);
@@ -409,6 +413,7 @@ public partial class SettlementWindow : ModalWindowShell
         public string FactionId { get; private init; } = "";
         public string FeedbackText { get; private init; } = "";
         public string StateSummaryText { get; private init; } = "";
+        public string CountryId { get; private init; } = "";
         public Vector2I FootprintSize { get; private init; } = Vector2I.One;
         public PartyState PartyState { get; private init; }
         public List<MemberOption> MemberOptions { get; private init; } = new();
@@ -440,6 +445,8 @@ public partial class SettlementWindow : ModalWindowShell
                     return null;
             }
             if (!HasString(data, "state_summary_text"))
+                return null;
+            if (!HasString(data, "country_id"))
                 return null;
             if (
                 !HasVector2I(data, "footprint_size")
@@ -473,6 +480,7 @@ public partial class SettlementWindow : ModalWindowShell
                 DisplayName = data["display_name"].AsString().StripEdges(),
                 TierName = data["tier_name"].AsString().StripEdges(),
                 FactionId = data["faction_id"].AsString().StripEdges(),
+                CountryId = data["country_id"].AsString().StripEdges(),
                 FeedbackText = data["feedback_text"].AsString().StripEdges(),
                 StateSummaryText = data["state_summary_text"].AsString(),
                 FootprintSize = footprintSize,

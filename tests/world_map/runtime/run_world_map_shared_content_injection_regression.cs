@@ -127,26 +127,74 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             GDictionary worldData = ProjectWorldData(gameSession);
             bool foundWorldStronghold = false;
             bool foundMasterReforgeService = false;
+            bool foundNonStartingContractBoard = false;
+            bool foundStartingContractBoard = false;
             foreach (Variant settlementValue in ArrayValue(worldData, "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
                     continue;
                 }
-                if (DictInt(settlement, "tier", -1) == 4)
+                bool isPlayerStart = DictBool(settlement, "is_player_start", false);
+                int settlementTier = DictInt(settlement, "tier", -1);
+                int contractBoardServiceCount = 0;
+                if (settlementTier == 4)
                 {
                     foundWorldStronghold = true;
                 }
                 foreach (Variant serviceValue in ArrayValue(settlement, "available_services"))
                 {
-                    if (
-                        TryAsDictionary(serviceValue, out GDictionary service)
-                        && DictString(service, "interaction_script_id", "")
-                            == "service_master_reforge"
-                    )
+                    if (!TryAsDictionary(serviceValue, out GDictionary service))
+                    {
+                        continue;
+                    }
+                    string interactionScriptId = DictString(
+                        service,
+                        "interaction_script_id",
+                        ""
+                    );
+                    if (interactionScriptId == "service_master_reforge")
                     {
                         foundMasterReforgeService = true;
                     }
+                    if (interactionScriptId == "service_contract_board")
+                    {
+                        contractBoardServiceCount++;
+                        _test.Eq(
+                            DictString(service, "action_id", ""),
+                            "service:contract_board",
+                            "正式契约板 interaction 应投影为 service:contract_board action。"
+                        );
+                        _test.Eq(
+                            DictString(service, "facility_template_id", ""),
+                            "guild_hall",
+                            "非初始聚落的契约板应由行会大厅承载。"
+                        );
+                        if (isPlayerStart)
+                        {
+                            foundStartingContractBoard = true;
+                        }
+                        else
+                        {
+                            foundNonStartingContractBoard = true;
+                        }
+                    }
+                }
+                if (settlementTier > 0)
+                {
+                    _test.Eq(
+                        contractBoardServiceCount,
+                        1,
+                        "每个城镇级及以上聚落都应恰好暴露一个行会大厅契约板服务。"
+                    );
+                }
+                if (isPlayerStart)
+                {
+                    _test.Eq(
+                        contractBoardServiceCount,
+                        0,
+                        "玩家起始村落不应暴露行会大厅契约板服务。"
+                    );
                 }
             }
 
@@ -174,6 +222,14 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
 
             _test.True(foundWorldStronghold, "共享内容注入后应生成世界据点模板。");
             _test.True(foundMasterReforgeService, "共享内容注入后应暴露大师重铸服务。");
+            _test.True(
+                foundNonStartingContractBoard,
+                "城镇级及以上的非初始聚落应由行会大厅暴露正式契约板服务。"
+            );
+            _test.False(
+                foundStartingContractBoard,
+                "玩家起始村落不应暴露行会大厅契约板服务。"
+            );
             _test.True(foundNorthWild, "共享内容注入后应生成 north_wilds 遭遇。");
             _test.True(
                 foundSouthMistHollow,
@@ -870,6 +926,16 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         }
         Variant value = dictionary[key];
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static long DictInt64(GDictionary dictionary, string key, long fallback)

@@ -371,9 +371,9 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
                 "meta",
                 "save_slot_meta"
             ),
-            "save v16 顶层 key shape 应保持不变。"
+            "save v18 顶层 key shape 应保持不变。"
         );
-        _test.Eq(PlainInt(payload, "version", -1), 17, "save version 应保持 17。");
+        _test.Eq(PlainInt(payload, "version", -1), 18, "save version 应保持 18。");
         IReadOnlyDictionary<string, object> worldState = PlainDictionary(
             payload,
             "world_state"
@@ -386,7 +386,7 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
             payload,
             "party_state"
         );
-        _test.Eq(PlainInt(partyState, "version", -1), 8, "PartyState version 应保持 8。");
+        _test.Eq(PlainInt(partyState, "version", -1), 9, "PartyState version 应保持 9。");
 
         {
             using NativeLeaseScope indexFileScope = new(

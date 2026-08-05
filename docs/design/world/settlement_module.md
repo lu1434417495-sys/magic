@@ -1,9 +1,9 @@
 # 据点服务模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-26`
+> 核对日期：`2026-07-29`
 
-更新日期：`2026-07-26`
+更新日期：`2026-07-29`
 
 ## 目标与边界
 
@@ -34,7 +34,9 @@ WorldMapSystem / SettlementWindow / ShopWindow
 
 ## 据点数据契约
 
-据点实例来自 `world_data.settlements[]`，核心字段：`settlement_id`、`display_name`、`tier`、`tier_name`、`faction_id`、`origin`、`footprint_size`、`facilities`、`available_services`、`service_npcs`、`settlement_state`。
+据点实例来自 `world_data.settlements[]`，核心字段：`settlement_id`、`display_name`、`tier`、`tier_name`、`faction_id`、`country_id`、`origin`、`footprint_size`、`facilities`、`available_services`、`service_npcs`、`settlement_state`。
+
+`country_id` 是据点记录级的国家归属键；空字符串精确表示“无国家归属”。它与 `faction_id` 相互独立，不进入下方 5 字段 `settlement_state`。服务层与窗口层必须原样投影该字段，不得从 `faction_id`、`display_name`、据点名称池或名称前缀推导国家。
 
 `available_services[]` 每项至少包含：
 
@@ -61,7 +63,7 @@ WorldMapSystem / SettlementWindow / ShopWindow
 
 `WorldMapSettlementStateData` 是完整不可变 owner，`SettlementShopStateData` / `SettlementShopStockEntryData` 是它的 typed 子状态。`WorldMapSettlementRecordData` 持有该 owner，`WorldRuntimeData.TrySetSettlementState(...)` 只接受完整聚合；`MarkSettlementVisited(...)` 必须使用 `WithVisited(true)`，不能由局部字段重建整个状态。
 
-服务新增持久字段时必须同步扩展 typed aggregate、spawn default、严格校验、save version 与回归，不允许通过额外字段 property bag 隐式扩展。`world_step` 由 `WorldRuntimeData` 持有并作为参数传给商店服务；`shop_feedback_text` 属于 active shop context / active settlement feedback，二者都不是持久化据点状态。当前顶层存档版本为 17，旧版本及不完整/额外字段 payload 直接拒绝，不提供迁移或 fallback。
+服务新增持久字段时必须同步扩展 typed aggregate、spawn default、严格校验、save version 与回归，不允许通过额外字段 property bag 隐式扩展。`world_step` 由 `WorldRuntimeData` 持有并作为参数传给商店服务；`shop_feedback_text` 属于 active shop context / active settlement feedback，二者都不是持久化据点状态。当前顶层存档版本为 18，旧版本及不完整/额外字段 payload 直接拒绝，不提供迁移或 fallback。
 
 ## Action 分发
 
@@ -150,6 +152,7 @@ handler 不应缓存可变 `GDictionary` 作为长期真相；active UI context 
 | `display_name` | 据点显示名，缺失 fallback “据点”。|
 | `tier` / `tier_name` | tier 数值和中文 tier 名。|
 | `faction_id` | 阵营。|
+| `country_id` | 国家归属 id；空字符串表示无国家归属，必须原样投影且不得由 faction 或名称推导。|
 | `visited` | 来自 settlement_state。|
 | `services` | 可展示服务条目数组。|
 | `service_npcs` | NPC 展示数组。|

@@ -8,6 +8,8 @@ public partial class PartyState
     {
         "version",
         "gold",
+        "world_renown",
+        "country_reputations",
         "leader_member_id",
         "main_character_member_id",
         "fate_run_flags",
@@ -23,8 +25,10 @@ public partial class PartyState
         "warehouse_state",
     };
 
-    public int version = 8;
+    public int version = 9;
     public int gold;
+    public int world_renown { get; private set; }
+    public CountryReputationState country_reputations { get; private set; } = new();
     public StringName leader_member_id = "",
         main_character_member_id = "";
     public Dictionary<StringName, bool> fate_run_flags { get; private set; } = new();
@@ -162,12 +166,44 @@ public partial class PartyState
 
     public int GetGold() => Mathf.Max(gold, 0);
 
+    public int GetWorldRenown() => world_renown;
+
+    public int SetWorldRenown(int value)
+    {
+        world_renown = SocialStandingRules.ClampWorldRenown(value);
+        return world_renown;
+    }
+
+    public int AddWorldRenown(int delta)
+    {
+        world_renown = SocialStandingRules.ClampWorldRenown((long)world_renown + delta);
+        return world_renown;
+    }
+
+    public int GetCountryReputation(StringName countryId) =>
+        country_reputations?.Get(countryId) ?? 0;
+
+    public int SetCountryReputation(StringName countryId, int value)
+    {
+        country_reputations ??= new CountryReputationState();
+        return country_reputations.Set(countryId, value);
+    }
+
+    public int AddCountryReputation(StringName countryId, int delta)
+    {
+        country_reputations ??= new CountryReputationState();
+        return country_reputations.Add(countryId, delta);
+    }
+
     public PartyState DuplicateState()
     {
         return new PartyState
         {
             version = version,
             gold = gold,
+            world_renown = world_renown,
+            country_reputations =
+                country_reputations?.DuplicateState() ?? new CountryReputationState(),
             leader_member_id = leader_member_id,
             main_character_member_id = main_character_member_id,
             fate_run_flags = DuplicateBoolMap(fate_run_flags),
@@ -428,7 +464,14 @@ public partial class PartyState
             return null;
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
             return null;
-        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 8)
+        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 9)
+            return null;
+        if (data["world_renown"].VariantType != Variant.Type.Int)
+            return null;
+        long parsedWorldRenown = data["world_renown"].AsInt64();
+        if (!SocialStandingRules.IsValidWorldRenown(parsedWorldRenown))
+            return null;
+        if (data["country_reputations"].VariantType != Variant.Type.Dictionary)
             return null;
         if (data["warehouse_state"].VariantType != Variant.Type.Dictionary)
             return null;
@@ -476,6 +519,17 @@ public partial class PartyState
         var parsedMetaFlags = _parse_boolean_flag_dict(data["meta_flags"].AsGodotDictionary());
         if (parsedMetaFlags == null)
             return null;
+        CountryReputationState parsedCountryReputations;
+        try
+        {
+            parsedCountryReputations = CountryReputationState.FromDictionary(
+                data["country_reputations"].AsGodotDictionary()
+            );
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
         var parsedActiveMemberIds = _parse_unique_string_name_array(
             data["active_member_ids"].AsGodotArray()
         );
@@ -509,6 +563,8 @@ public partial class PartyState
         {
             version = data["version"].AsInt32(),
             gold = data["gold"].AsInt32(),
+            world_renown = (int)parsedWorldRenown,
+            country_reputations = parsedCountryReputations,
             leader_member_id = leaderMemberId,
             main_character_member_id = mainCharacterMemberId,
             fate_run_flags = parsedFateRunFlags,

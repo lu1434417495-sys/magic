@@ -173,7 +173,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
 
         _test.True(
             PartyState.FromDictionary(partyPayload) == null,
-            "Current PartyState.version 8 member payload should require contingency_matrix_setups."
+            "Current PartyState.version 9 member payload should require contingency_matrix_setups."
         );
     }
 
@@ -268,10 +268,10 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         );
         GDictionary partyPayload = partyPayloadLease.Value;
         GDictionary oldPartyPayload = (GDictionary)partyPayload.Duplicate(true);
-        oldPartyPayload["version"] = 7;
+        oldPartyPayload["version"] = 8;
         _test.True(
             PartyState.FromDictionary(oldPartyPayload) == null,
-            "PartyState.version 7 should fail without migration."
+            "PartyState.version 8 should fail without migration."
         );
 
         var serializer = new SaveSerializer();
@@ -428,7 +428,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
 
         PartyState partyState = new()
         {
-            version = 8,
+            version = 9,
             gold = 25,
             leader_member_id = "hero_001",
             main_character_member_id = "hero_001",

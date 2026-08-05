@@ -16,6 +16,26 @@ internal interface IGameRuntimeQuestCommandPort
 
     bool AcceptQuestAndSyncParty(StringName questId, bool allowReaccept);
 
+    RuntimeTransactionRollbackState CaptureQuestAcceptRollbackState(
+        RuntimeTransaction transaction
+    );
+
+    QuestAcceptEncounterSpawnResult TryAddQuestAcceptEncounter(
+        StringName questId,
+        StringName encounterProfileId,
+        string encounterDisplayName,
+        int encounterGrowthStage
+    );
+
+    void RemoveQuestAcceptEncounter(StringName encounterAnchorId);
+
+    RuntimeCommitResult CommitQuestAcceptTransaction(RuntimeTransaction transaction);
+
+    void RollbackQuestAcceptTransaction(
+        RuntimeTransaction transaction,
+        RuntimeTransactionRollbackState rollbackState
+    );
+
     QuestProgressApplyResultData ApplyDirectQuestProgressAndSyncParty(
         StringName questId,
         StringName objectiveId,
@@ -35,6 +55,37 @@ internal interface IGameRuntimeQuestCommandPort
     Error PersistQuestPartyState();
 
     void UpdateStatus(string message);
+}
+
+internal readonly struct QuestAcceptEncounterSpawnResult
+{
+    internal bool Ok { get; }
+    internal bool Added { get; }
+    internal StringName EncounterAnchorId { get; }
+    internal string Message { get; }
+
+    private QuestAcceptEncounterSpawnResult(
+        bool ok,
+        bool added,
+        StringName encounterAnchorId,
+        string message
+    )
+    {
+        Ok = ok;
+        Added = added;
+        EncounterAnchorId = encounterAnchorId;
+        Message = message ?? "";
+    }
+
+    internal static QuestAcceptEncounterSpawnResult AddedAnchor(StringName encounterAnchorId) =>
+        new(true, true, encounterAnchorId, "");
+
+    internal static QuestAcceptEncounterSpawnResult ExistingAnchor(
+        StringName encounterAnchorId
+    ) => new(true, false, encounterAnchorId, "");
+
+    internal static QuestAcceptEncounterSpawnResult Failure(string message) =>
+        new(false, false, "", message);
 }
 
 internal readonly struct QuestCommandStateData

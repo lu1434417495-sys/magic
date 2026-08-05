@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"folk_missing_child"
+display_name = "失踪的孩子"
+description = "一个进森林采蘑菇的孩子已经失踪五天。循着搜索队留下的线索清理雾沼猎压者，并带回月蕨样本作为找到她的凭证。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"contract", &"side", &"main_world", &"folk"])
+accept_requirements = Array[Dictionary]([{&"requirement_type": &"quest_completed", &"quest_id": &"tutorial_wolf_alpha"}])
+accept_dialogue_text = "委托板上新钉着一张失踪人口求助：采蘑菇的孩子已经五天没回来，搜索队只找到她的篮子和通往雾林深处的足迹。清理沿途的三只雾沼猎压者，再带两份月蕨样本回来确认搜索路线。"
+accept_feedback_success = "你从行会大厅的委托板接下了寻找失踪孩子的求助。"
+accept_feedback_failure = "先完成狼群首领的调查，告示书记员才会开放这份深入雾林的委托。"
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_harriers", &"objective_type": &"defeat_enemy", &"target_id": &"mist_harrier", &"target_value": 3}, {&"objective_id": &"collect_moonfern", &"objective_type": &"submit_item", &"target_id": &"moonfern_sample", &"target_value": 2}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 200}, {&"reward_type": &"item", &"item_id": &"healing_herb", &"quantity": 3}])
+is_repeatable = false
+failure_policy = &"terminal"

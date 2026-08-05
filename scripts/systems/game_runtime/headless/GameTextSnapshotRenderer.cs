@@ -311,12 +311,20 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"gold={GetInt(party, "gold")}",
+            $"world_renown={GetInt(party, "world_renown")}",
             $"leader_member_id={GetString(party, "leader_member_id")}",
             $"active_member_ids={FormatArray(GetArray(party, "active_member_ids"))}",
             $"reserve_member_ids={FormatArray(GetArray(party, "reserve_member_ids"))}",
             $"selected_member_id={GetString(party, "selected_member_id")}",
             $"pending_reward_count={GetInt(party, "pending_reward_count")}",
         };
+        GDictionary countryReputations = GetDictionary(party, "country_reputations");
+        foreach (string countryId in SortedStringKeys(countryReputations))
+        {
+            lines.Add(
+                $"country_reputation={countryId}:{GetInt(countryReputations, countryId)}"
+            );
+        }
         if (TryGetArray(party, "members", out var members))
         {
             foreach (GDictionary member in Dictionaries(members))
@@ -618,6 +626,7 @@ public static class GameTextSnapshotRenderer
             $"display_name={GetExactString(settlement, "display_name")}",
             $"tier_name={GetExactString(settlement, "tier_name")}",
             $"faction_id={GetExactString(settlement, "faction_id")}",
+            $"country_id={GetExactString(settlement, "country_id")}",
             $"feedback={GetExactString(settlement, "feedback_text")}",
         };
         if (TryGetArray(settlement, "services", out var services))

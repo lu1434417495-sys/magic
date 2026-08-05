@@ -16,6 +16,8 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
     public override async void _Initialize()
     {
         await TestSettlementWindowAcceptsFormalStringKeys();
+        await TestSettlementWindowRendersCountryIdWhenPresent();
+        await TestSettlementWindowRejectsMissingCountryId();
         await TestSettlementWindowRejectsUnknownServiceFields();
         await TestSettlementWindowRejectsStringNameTopLevelFields();
         await TestSettlementWindowRejectsStringNameServiceFields();
@@ -58,8 +60,37 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
         window.ShowSettlement(MakeSettlementPayload());
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
-        _test.True(window.Visible, "SettlementWindow 应继续接受 formal string-key payload。");
+        _test.True(window.Visible, "SettlementWindow 应接受含空 country_id 的 formal string-key payload。");
         _test.Eq(window.services_container.GetChildCount(), 1, "SettlementWindow 应渲染一条正式 service entry。");
+        await DisposeWindow(window);
+    }
+
+    private async Task TestSettlementWindowRejectsMissingCountryId()
+    {
+        SettlementWindow window = await CreateSettlementWindow();
+        GDictionary payload = MakeSettlementPayload();
+        payload.Remove("country_id");
+        window.ShowSettlement(payload);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.False(window.Visible, "SettlementWindow 应拒绝缺少 country_id 的 payload。");
+        _test.Eq(window.services_container.GetChildCount(), 0, "缺少 country_id 时不应继续渲染 settlement 服务。");
+        await DisposeWindow(window);
+    }
+
+    private async Task TestSettlementWindowRendersCountryIdWhenPresent()
+    {
+        SettlementWindow window = await CreateSettlementWindow();
+        GDictionary payload = MakeSettlementPayload();
+        payload["country_id"] = "spring_republic";
+        window.ShowSettlement(payload);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.True(window.Visible, "SettlementWindow 应接受非空 country_id。");
+        _test.True(
+            window.meta_label.Text.Contains("国家 spring_republic"),
+            "SettlementWindow 的元信息应暴露据点 country_id。"
+        );
         await DisposeWindow(window);
     }
 
@@ -211,6 +242,7 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
             ["display_name"] = "灰石镇",
             ["tier_name"] = "城镇",
             ["faction_id"] = "graystone",
+            ["country_id"] = "",
             ["feedback_text"] = "欢迎来到灰石镇。",
             ["state_summary_text"] = "补给稳定",
             ["footprint_size"] = new Vector2I(2, 2),

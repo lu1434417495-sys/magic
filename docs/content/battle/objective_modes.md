@@ -84,7 +84,7 @@
 
 | Encounter | 编队 | 内容差异 | 成功后的世界处理 |
 |---|---|---|---|
-| `wolf_wilds` / 荒狼群 | `wolf_pack_skirmish` | 2 个 `wolf_pack`，短战教学样例 | `Clear` |
+| `wolf_wilds` / 荒狼群 | `wolf_pack_skirmish` | stage 0：2 个仅有基础攻击的 0 级 `wolf_pack`；stage 1：5 个仅有基础攻击的 0 级 `wolf_pack`；stage 2：3 个仅有基础攻击的 0 级 `wolf_pack` + 2 个具备基础攻击和冲锋的 1 级 `worg`；任务等内容按锚点 `growth_stage` 选择 | `Clear` |
 | `wolf_den` / 荒狼巢穴 | `wolf_den` | 随成长阶段从狼群升级到狼群 + 头狼 + 萨满 | `Suppress 3` |
 | `mist_hollow` / 雾沼伏猎群 | `mist_hollow` | 雾兽、雾袭者、后期雾织者的混合编队 | `Clear` |
 

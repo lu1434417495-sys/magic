@@ -6,18 +6,21 @@ public sealed class SettlementDistributionDefinition
     public SettlementDistributionDefinition(
         string settlementTemplateId,
         Vector2I preferredOrigin,
-        string factionId
+        string factionId,
+        string countryId
     )
     {
         SettlementTemplateId = settlementTemplateId
             ?? throw new ArgumentNullException(nameof(settlementTemplateId));
         PreferredOrigin = preferredOrigin;
         FactionId = factionId ?? throw new ArgumentNullException(nameof(factionId));
+        CountryId = countryId ?? throw new ArgumentNullException(nameof(countryId));
     }
 
     public string SettlementTemplateId { get; }
     public Vector2I PreferredOrigin { get; }
     public string FactionId { get; }
+    public string CountryId { get; }
 
     internal static SettlementDistributionDefinition FromResource(
         SettlementDistributionRule source,
@@ -35,7 +38,8 @@ public sealed class SettlementDistributionDefinition
             WorldDefinitionProjection.RequireString(
                 source.faction_id,
                 path + ".faction_id"
-            ).Trim()
+            ).Trim(),
+            (source.country_id ?? string.Empty).Trim()
         );
     }
 }

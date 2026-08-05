@@ -99,6 +99,7 @@ public sealed class WorldMapSpawnSystem
         public int Tier { get; init; }
         public string TierName { get; init; } = "";
         public string FactionId { get; init; } = "";
+        public string CountryId { get; init; } = "";
         public Vector2I Origin { get; init; } = Vector2I.Zero;
         public Vector2I FootprintSize { get; init; } = Vector2I.One;
         public List<FacilityInstanceData> Facilities { get; } = new();
@@ -439,6 +440,7 @@ public sealed class WorldMapSpawnSystem
                 settlementDefinition,
                 distributionRule.PreferredOrigin,
                 distributionRule.FactionId,
+                distributionRule.CountryId,
                 instanceCounts,
                 false
             );
@@ -466,6 +468,7 @@ public sealed class WorldMapSpawnSystem
                 playerVillageTemplate,
                 playerOrigin,
                 "player",
+                "",
                 instanceCounts,
                 true
             );
@@ -514,6 +517,7 @@ public sealed class WorldMapSpawnSystem
                     settlementTemplate,
                     origin,
                     "neutral",
+                    "",
                     instanceCounts,
                     false
                 );
@@ -555,6 +559,7 @@ public sealed class WorldMapSpawnSystem
         SettlementDefinition settlementDefinition,
         Vector2I origin,
         string factionId,
+        string countryId,
         Dictionary<string, int> instanceCounts,
         bool isPlayerStart
     )
@@ -602,6 +607,7 @@ public sealed class WorldMapSpawnSystem
             Tier = settlementDefinition.Tier,
             TierName = settlementDefinition.TierName,
             FactionId = factionId,
+            CountryId = countryId ?? "",
             Origin = origin,
             FootprintSize = footprintSize,
             IsPlayerStart = isPlayerStart,

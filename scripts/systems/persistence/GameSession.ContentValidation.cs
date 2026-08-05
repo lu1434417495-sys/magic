@@ -64,7 +64,9 @@ public partial class GameSession
                 snapshot.Items,
                 snapshot.Skills,
                 snapshot.EnemyTemplates,
-                Array.Empty<string>()
+                Array.Empty<string>(),
+                snapshot.BattleEncounters,
+                snapshot.EncounterRosters
             )
         );
     }

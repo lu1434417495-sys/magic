@@ -8,7 +8,11 @@ public static class QuestContentValidator
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
-        IEnumerable<string> registrationErrors = null
+        IEnumerable<string> registrationErrors = null,
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition>
+            battleEncounterDefinitions = null,
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition>
+            encounterRosterDefinitions = null
     )
     {
         var errors = new List<string>();
@@ -52,12 +56,106 @@ public static class QuestContentValidator
             AppendListingChannelErrors(errors, questDef);
             AppendAcceptRequirementErrors(errors, questDef, questDefs);
             AppendObjectiveReferenceErrors(errors, questDef, itemDefs, enemyTemplates);
+            AppendObjectiveEncounterReferenceErrors(
+                errors,
+                questDef,
+                battleEncounterDefinitions,
+                encounterRosterDefinitions
+            );
             AppendRewardReferenceErrors(errors, questDef, itemDefs, skillDefinitions);
             AppendDangerRatingErrors(errors, questDef, enemyTemplates);
             AppendListingSettlementErrors(errors, questDef);
         }
 
         return errors;
+    }
+
+    private static void AppendObjectiveEncounterReferenceErrors(
+        ICollection<string> errors,
+        QuestDefinition questDef,
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition>
+            battleEncounterDefinitions,
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition>
+            encounterRosterDefinitions
+    )
+    {
+        if (battleEncounterDefinitions == null)
+            return;
+        foreach (QuestObjectiveDefinition objective in questDef.Objectives)
+        {
+            if (objective == null || objective.EncounterProfileId == "")
+                continue;
+            if (
+                !battleEncounterDefinitions.TryGetValue(
+                    objective.EncounterProfileId,
+                    out BattleEncounterDefinition encounter
+                )
+                || encounter == null
+            )
+            {
+                errors.Add(
+                    $"Quest {questDef.QuestId} objective {objective.ObjectiveId} references missing battle encounter {objective.EncounterProfileId}."
+                );
+                continue;
+            }
+            if (encounterRosterDefinitions == null)
+                continue;
+            if (objective.EncounterGrowthStage < 0)
+                continue;
+            if (
+                !encounterRosterDefinitions.TryGetValue(
+                    encounter.RosterProfileId,
+                    out WildEncounterRosterDefinition roster
+                )
+                || roster == null
+            )
+            {
+                errors.Add(
+                    $"Quest {questDef.QuestId} objective {objective.ObjectiveId} references battle encounter {objective.EncounterProfileId} with missing roster {encounter.RosterProfileId}."
+                );
+                continue;
+            }
+
+            WildEncounterRosterStageDefinition exactStage = null;
+            foreach (WildEncounterRosterStageDefinition stage in roster.Stages)
+            {
+                if (stage != null && stage.Stage == objective.EncounterGrowthStage)
+                {
+                    exactStage = stage;
+                    break;
+                }
+            }
+            if (exactStage == null)
+            {
+                errors.Add(
+                    $"Quest {questDef.QuestId} objective {objective.ObjectiveId} references undeclared growth stage {objective.EncounterGrowthStage} in encounter roster {roster.ProfileId}."
+                );
+                continue;
+            }
+            if (
+                objective.ObjectiveKind != QuestObjectiveKind.DefeatEnemyInSingleBattle
+                || objective.TargetId == ""
+                || objective.TargetValue <= 0
+            )
+            {
+                continue;
+            }
+
+            long availableTargetCount = 0;
+            foreach (
+                WildEncounterRosterUnitEntryDefinition unitEntry in exactStage.UnitEntries
+            )
+            {
+                if (unitEntry != null && unitEntry.TemplateId == objective.TargetId)
+                    availableTargetCount += unitEntry.Count;
+            }
+            if (availableTargetCount < objective.TargetValue)
+            {
+                errors.Add(
+                    $"Quest {questDef.QuestId} objective {objective.ObjectiveId} requires {objective.TargetValue} {objective.TargetId} in one battle, but encounter {objective.EncounterProfileId} roster {roster.ProfileId} stage {objective.EncounterGrowthStage} provides {availableTargetCount}."
+                );
+            }
+        }
     }
 
     private static void AppendProviderReferenceErrors(
@@ -262,7 +360,7 @@ public static class QuestContentValidator
                         $"Quest {questDef.QuestId} submit_item objective {objectiveId} references missing item {targetId}."
                     );
             }
-            else if (objective.ObjectiveKind == QuestObjectiveKind.DefeatEnemy)
+            else if (QuestDef.IsEnemyDefeatObjectiveKind(objective.ObjectiveKind))
             {
                 if (
                     targetId != ""
@@ -270,7 +368,7 @@ public static class QuestContentValidator
                     && !enemyTemplates.ContainsKey(targetId)
                 )
                     errors.Add(
-                        $"Quest {questDef.QuestId} defeat_enemy objective {objectiveId} references missing enemy {targetId}."
+                        $"Quest {questDef.QuestId} {objectiveType} objective {objectiveId} references missing enemy {targetId}."
                     );
             }
         }
@@ -418,13 +516,32 @@ public static class QuestContentValidator
             }
             if (
                 objective.ObjectiveKind
-                    is QuestObjectiveKind.SubmitItem or QuestObjectiveKind.SettlementAction
+                    is QuestObjectiveKind.SubmitItem
+                        or QuestObjectiveKind.DefeatEnemyInSingleBattle
+                        or QuestObjectiveKind.SettlementAction
                 && objective.TargetId == ""
             )
             {
                 errors.Add(
                     prefix
                     + $"QuestDef {questDef.QuestId} 的 {objective.ObjectiveType} objective {objective.ObjectiveId} 缺少 target_id。"
+                );
+            }
+            if (objective.EncounterGrowthStage < 0)
+            {
+                errors.Add(
+                    prefix
+                    + $"QuestDef {questDef.QuestId} 的 objective {objective.ObjectiveId} 的 encounter_growth_stage 不能为负数。"
+                );
+            }
+            if (
+                objective.EncounterGrowthStage > 0
+                && objective.EncounterProfileId == ""
+            )
+            {
+                errors.Add(
+                    prefix
+                    + $"QuestDef {questDef.QuestId} 的 objective {objective.ObjectiveId} 只有绑定接取遭遇时才能配置 encounter_growth_stage。"
                 );
             }
         }

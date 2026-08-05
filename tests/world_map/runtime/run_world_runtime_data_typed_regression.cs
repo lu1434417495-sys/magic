@@ -187,6 +187,11 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
     {
         WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(BuildWorldData());
         _test.True(runtimeData != null, "valid world_data 应能构建 typed WorldRuntimeData。");
+        _test.Eq(
+            runtimeData.Settlements[0].CountryId,
+            "spring_republic",
+            "typed settlement record 应保留 country_id。"
+        );
 
         SettlementShopStockEntryData stock = SettlementShopStockEntryData.Create(
             "healing_herb",
@@ -222,6 +227,16 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
         GDictionary projected = projectedLease.Value;
         GDictionary settlement = projected["settlements"].AsGodotArray()[0].AsGodotDictionary();
         GDictionary state = settlement["settlement_state"].AsGodotDictionary();
+        _test.Eq(
+            runtimeData.Settlements[0].CountryId,
+            "spring_republic",
+            "WithSettlementState 不应丢失 typed country_id。"
+        );
+        _test.Eq(
+            settlement["country_id"].AsString(),
+            "spring_republic",
+            "settlement state 更新后的 projection 应保留 country_id。"
+        );
         _test.True(state["visited"].AsBool(), "typed visited 更新应体现在 projection。");
         _test.Eq(state["reputation"].AsInt32(), 7, "typed reputation 更新应体现在 projection。");
         _test.Eq(
@@ -322,6 +337,11 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
         );
         _test.True(roundTrip != null, "typed world state save payload 应能按当前 schema 回读。");
         _test.Eq(roundTrip.WorldStep, 3, "typed world state save roundtrip 应保留 world_step。");
+        _test.Eq(
+            roundTrip.Settlements[0].CountryId,
+            "spring_republic",
+            "typed world state save roundtrip 应保留 settlement country_id。"
+        );
     }
 
     private static GDictionary BuildWorldData(int worldStep = 0)
@@ -414,6 +434,7 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
             ["tier"] = 1,
             ["tier_name"] = "村镇",
             ["faction_id"] = "neutral",
+            ["country_id"] = "spring_republic",
             ["origin"] = Vector2I.Zero,
             ["footprint_size"] = Vector2I.One,
             ["facilities"] = new GArray(),
