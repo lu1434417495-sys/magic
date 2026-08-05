@@ -327,6 +327,12 @@ public partial class CombatEffectDef : Resource
     public StringName effect_target_team_filter { get; set; } = "";
 
     [Export]
+    public StringName required_target_creature_type_tag { get; set; } = "";
+
+    [Export]
+    public StringName required_target_min_cognition { get; set; } = "";
+
+    [Export]
     public StringName status_id { get; set; } = "";
 
     [Export]
@@ -354,6 +360,9 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int forced_move_distance { get; set; }
+
+    [Export]
+    public int source_retreat_distance { get; set; }
 
     [Export]
     public int charge_trap_immunity_min_skill_level { get; set; } = -1;

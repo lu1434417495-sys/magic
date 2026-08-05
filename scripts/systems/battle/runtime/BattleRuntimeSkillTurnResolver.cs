@@ -343,6 +343,13 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return BattleSkillCastBlockReasonKind.Paralyzed;
         }
+        if (
+            HasSourceRetreatEffect(skillDefinition, skillLevel)
+            && IsMovementBlockedForSkill(active_unit)
+        )
+        {
+            return BattleSkillCastBlockReasonKind.MovementRestricted;
+        }
         if (active_unit.CurrentAura < costs.AuraCost)
         {
             return BattleSkillCastBlockReasonKind.InsufficientAura;
@@ -355,7 +362,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         }
         if (
             combatProfile.RequiredWeaponFamilies.Count > 0
-            && !UnitMatchesRequiredWeaponFamilies(active_unit, combatProfile.RequiredWeaponFamilies)
+            && !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
+                active_unit,
+                skillDefinition
+            )
         )
         {
             return BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing;
@@ -364,21 +374,44 @@ internal sealed class BattleRuntimeSkillTurnResolver
             combatProfile.RequiredWeaponTypeIds.Count > 0
             && !BattleRangeService.UnitMatchesRequiredWeaponTypeIds(
                 active_unit,
-                combatProfile.RequiredWeaponTypeIds
+                skillDefinition
             )
         )
         {
             return BattleSkillCastBlockReasonKind.RequiredWeaponTypeMissing;
         }
+        if (
+            combatProfile.RequiresHeavyWeapon
+            && (
+                active_unit.WeaponProfileKind != new StringName("equipped")
+                || active_unit.WeaponRangeType != new StringName("melee")
+                || !active_unit.WeaponIsHeavy
+            )
+        )
+        {
+            return BattleSkillCastBlockReasonKind.HeavyWeaponRequired;
+        }
         if (combatProfile.RequiresEquippedShield && !UnitHasEquippedShield(active_unit))
         {
             return BattleSkillCastBlockReasonKind.ShieldRequired;
         }
-        if (RequiresCurrentWeapon(skillDefinition) && !UnitHasEquippedWeapon(active_unit))
+        if (
+            RequiresCurrentWeapon(skillDefinition)
+            && !BattleRangeService.UnitHasAllowedWeaponForSkill(
+                active_unit,
+                skillDefinition
+            )
+        )
         {
             return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
         }
-        if (RequiresMeleeWeapon(skillDefinition) && !UnitHasMeleeWeapon(active_unit))
+        if (
+            RequiresMeleeWeapon(skillDefinition)
+            && !BattleRangeService.UnitHasAllowedMeleeWeaponForSkill(
+                active_unit,
+                skillDefinition
+            )
+        )
         {
             return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
         }
@@ -459,6 +492,8 @@ internal sealed class BattleRuntimeSkillTurnResolver
             BattleSkillCastBlockReasonKind.InsufficientStamina => "体力不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.Petrified => "当前处于石化状态，无法施放技能。",
             BattleSkillCastBlockReasonKind.Paralyzed => "当前处于麻痹状态，无法施放技能。",
+            BattleSkillCastBlockReasonKind.MovementRestricted =>
+                "当前被限制移动，无法使用后撤技能。",
             BattleSkillCastBlockReasonKind.InsufficientAura => "斗气不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted =>
                 $"{_get_skill_display_name(skillDefinition)} 的身份技能次数已用尽。",
@@ -470,6 +505,8 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 "需要装备指定武器家族，无法施放该技能。",
             BattleSkillCastBlockReasonKind.RequiredWeaponTypeMissing =>
                 "需要装备指定武器类型，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.HeavyWeaponRequired =>
+                "需要装备具有 heavy 属性的近战武器，无法施放该技能。",
             BattleSkillCastBlockReasonKind.ShieldRequired => "需要装备盾牌，无法施放该技能。",
             BattleSkillCastBlockReasonKind.MeleeWeaponRequired =>
                 "需要装备有效武器，无法施放该技能。",
@@ -895,7 +932,8 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal SkillCostTransaction BuildSkillCostTransaction(
         BattleUnitState active_unit,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int additionalStaminaCost = 0
     )
     {
         if (active_unit == null || skillDefinition?.CombatProfile == null)
@@ -909,7 +947,9 @@ internal sealed class BattleRuntimeSkillTurnResolver
             SkillLevel = _runtime?._get_unit_skill_level(active_unit, skillDefinition.SkillId) ?? 1,
             ApCost = Math.Max(costs.ApCost, 0),
             MpCost = Math.Max(costs.MpCost, 0),
-            StaminaCost = Math.Max(costs.StaminaCost, 0),
+            StaminaCost = checked(
+                Math.Max(costs.StaminaCost, 0) + Math.Max(additionalStaminaCost, 0)
+            ),
             AuraCost = Math.Max(costs.AuraCost, 0),
             CooldownTurns = Math.Max(costs.CooldownTu, 0),
         };
@@ -920,10 +960,15 @@ internal sealed class BattleRuntimeSkillTurnResolver
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant,
         BattleEventBatch batch,
-        out SkillCostTransaction transaction
+        out SkillCostTransaction transaction,
+        int additionalStaminaCost = 0
     )
     {
-        transaction = BuildSkillCostTransaction(active_unit, skillDefinition);
+        transaction = BuildSkillCostTransaction(
+            active_unit,
+            skillDefinition,
+            additionalStaminaCost
+        );
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (active_unit == null || skillDefinition == null || combatProfile == null)
         {
@@ -937,6 +982,17 @@ internal sealed class BattleRuntimeSkillTurnResolver
             AppendLog(
                 batch,
                 FormatSkillCastBlockReason(active_unit, skillDefinition, lockedResourceBlockReason)
+            );
+            return false;
+        }
+        int totalStaminaCost = checked(
+            Math.Max(costs.StaminaCost, 0) + Math.Max(additionalStaminaCost, 0)
+        );
+        if (active_unit.GetCurrentStamina() < totalStaminaCost)
+        {
+            AppendLog(
+                batch,
+                $"体力不足：该蓄力挡位需要 {totalStaminaCost} 体力。"
             );
             return false;
         }
@@ -956,7 +1012,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
             return false;
         }
         active_unit.SetCurrentMp(active_unit.GetCurrentMp() - costs.MpCost);
-        active_unit.SetCurrentStamina(active_unit.GetCurrentStamina() - costs.StaminaCost);
+        active_unit.SetCurrentStamina(active_unit.GetCurrentStamina() - totalStaminaCost);
         active_unit.SetCurrentAura(active_unit.GetCurrentAura() - costs.AuraCost);
         return true;
     }
@@ -2231,6 +2287,43 @@ internal sealed class BattleRuntimeSkillTurnResolver
             || HasUnitStatus(unit_state, STATUS_PETRIFIED)
             || HasUnitStatus(unit_state, STATUS_PARALYZED)
             || BattleTemporalStatusService.HasTimeStasis(unit_state);
+    }
+
+    private static bool IsMovementBlockedForSkill(BattleUnitReadView unitView)
+    {
+        return unitView.HasStatusEffect(STATUS_PINNED)
+            || unitView.HasStatusEffect(STATUS_ROOTED)
+            || unitView.HasStatusEffect(STATUS_TENDON_CUT)
+            || unitView.HasStatusEffect(STATUS_PETRIFIED)
+            || unitView.HasStatusEffect(STATUS_PARALYZED)
+            || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS);
+    }
+
+    private static bool HasSourceRetreatEffect(
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        foreach (
+            CombatEffectDefinition effectDefinition
+            in skillDefinition?.CombatProfile?.EffectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition?.EffectKind != BattleEffectKind.SourceRetreat
+                || skillLevel < Math.Max(effectDefinition.MinSkillLevel, 0)
+                || (
+                    effectDefinition.MaxSkillLevel >= 0
+                    && skillLevel > effectDefinition.MaxSkillLevel
+                )
+            )
+            {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     // 静滞冻结：冷却 anchor 跟随战场时间前移（静滞时段不计入冷却消耗，

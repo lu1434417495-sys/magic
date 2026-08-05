@@ -316,6 +316,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattlePreview,
         IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
+        BattleAiSkillCandidateScoreFacts?,
         BattleAiScoreInput
     > _ai_skill_score_input_callback;
     internal readonly Func<
@@ -706,7 +707,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
                     GetEnemyAiBrainIndexTyped(),
                     GetItemDefIndexTyped(),
                     GetTraitDefIndexTyped(),
-                    GetEquipmentAbilityBindingIndexTyped()
+                    GetEquipmentAbilityBindingIndexTyped(),
+                    generationSeed: seed
                 )
             );
         }
@@ -719,7 +721,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 GetEnemyAiBrainIndexTyped(),
                 GetItemDefIndexTyped(),
                 GetTraitDefIndexTyped(),
-                GetEquipmentAbilityBindingIndexTyped()
+                GetEquipmentAbilityBindingIndexTyped(),
+                generationSeed: seed
             ) ?? Array.Empty<BattleScenarioActorSpawnRequest>();
         GBattleUnitArray scenarioActorUnits = scenarioActorRequests
             .Where(request => request?.Unit != null)
@@ -874,11 +877,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                     TerrainSeed = terrainSeed,
                 };
                 ClearRuntimeBattleStateReference();
-                if (
-                    objectiveDefinition is BattleEscapeObjectiveDefinition
-                    or BattleEscortObjectiveDefinition
-                    or BattleControlObjectiveDefinition
-                )
+                if (ObjectiveBindingUsesTerrainRetry(objectiveDefinition))
                     continue;
                 return new BattleState();
             }
@@ -1178,6 +1177,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
     }
 
+    internal static bool ObjectiveBindingUsesTerrainRetry(
+        BattleObjectiveDefinition objectiveDefinition
+    ) =>
+        objectiveDefinition is BattleEscapeObjectiveDefinition
+            or BattleEscortObjectiveDefinition
+            or BattleInterceptObjectiveDefinition
+            or BattleNodeOperationObjectiveDefinition
+            or BattleControlObjectiveDefinition;
+
     private BattleEventBatch IssueCommandCore(BattleCommand command)
     {
         _ensure_sidecars_ready();
@@ -1258,9 +1266,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return batch;
 
         _casting_time_service.ReconcilePendingCasts(batch);
-        _append_batch_logs_to_state(batch);
-        int flushedLogCount = batch.LogLinesTyped.Count;
-        int flushedReportCount = batch.ReportEntriesTyped.Count;
+        // The append method already captured the batch's defensive snapshots; reuse their
+        // counts so this command does not trigger another full report deep copy.
+        (int flushedLogCount, int flushedReportCount) =
+            _append_batch_logs_to_state(batch);
 
         if (_state.ModalStateKind != BattleModalStateKind.None)
         {
@@ -1281,27 +1290,37 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return batch;
     }
 
-    internal void _append_batch_logs_to_state(BattleEventBatch batch) =>
+    internal (int LogCount, int ReportCount) _append_batch_logs_to_state(
+        BattleEventBatch batch
+    ) =>
         _append_batch_logs_to_state_from(batch);
 
-    internal void _append_batch_logs_to_state_from(
+    internal (int LogCount, int ReportCount) _append_batch_logs_to_state_from(
         BattleEventBatch batch,
         int log_start_index = 0,
         int report_start_index = 0
     )
     {
         if (_state == null || batch == null)
-            return;
-        int safeLogStart = Math.Clamp(log_start_index, 0, batch.LogLinesTyped.Count);
-        for (int i = safeLogStart; i < batch.LogLinesTyped.Count; i++)
-            _state.AppendLogEntry(batch.LogLinesTyped[i]);
-        int safeReportStart = Math.Clamp(report_start_index, 0, batch.ReportEntriesTyped.Count);
-        for (int i = safeReportStart; i < batch.ReportEntriesTyped.Count; i++)
+            return (0, 0);
+
+        // Performance contract: ReportEntriesTyped deep-copies on every access. Capture
+        // once per append while preserving its public defensive-snapshot semantics.
+        IReadOnlyList<string> logLines = batch.LogLinesTyped;
+        IReadOnlyList<IReadOnlyDictionary<string, object>> reportEntries =
+            batch.ReportEntriesTyped;
+        int safeLogStart = Math.Clamp(log_start_index, 0, logLines.Count);
+        for (int i = safeLogStart; i < logLines.Count; i++)
+            _state.AppendLogEntry(logLines[i]);
+        int safeReportStart = Math.Clamp(report_start_index, 0, reportEntries.Count);
+        for (int i = safeReportStart; i < reportEntries.Count; i++)
         {
-            IReadOnlyDictionary<string, object> reportEntry = batch.ReportEntriesTyped[i];
+            IReadOnlyDictionary<string, object> reportEntry = reportEntries[i];
             if (reportEntry.Count > 0)
                 _state.AddReportEntry(reportEntry);
         }
+
+        return (logLines.Count, reportEntries.Count);
     }
 
     public BattleEventBatch SubmitPromotionChoice(

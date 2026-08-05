@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="SkillDef" format=3]
+[gd_resource type="Resource" script_class="SkillDef" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_effect"]
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWindupDef.cs" id="6_windup"]
 
 [sub_resource type="Resource" id="Resource_dmg"]
 script = ExtResource("3_effect")
@@ -11,36 +12,94 @@ power = 0
 add_weapon_dice = true
 requires_weapon = true
 use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
 
-[sub_resource type="Resource" id="Resource_slow"]
-script = ExtResource("3_effect")
-effect_type = &"status"
-status_id = &"slow"
-power = 1
-duration_tu = 40
+[sub_resource type="Resource" id="Resource_windup"]
+script = ExtResource("6_windup")
+stamina_cost_per_tier = 6
+weapon_dice_per_tier = 1
+skill_level_tier_caps = PackedInt32Array(1, 1, 2, 2, 3, 0)
+base_weapon_dice_multipliers = PackedInt32Array(1, 1, 1, 1, 1, 2)
 
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_heavy_blow"
 range_value = 1
 ap_cost = 1
-stamina_cost = 18
-cooldown_tu = 80
-attack_roll_bonus = -5
-mastery_trigger_mode = &"weapon_attack_quality"
+stamina_cost = 14
+cooldown_tu = 90
+windup_profile = SubResource("Resource_windup")
+level_overrides = {
+1: {
+"stamina_cost": 12
+},
+2: {
+"cooldown_tu": 80
+},
+3: {
+"stamina_cost": 10
+},
+4: {
+"cooldown_tu": 70
+},
+5: {
+"cooldown_tu": 60
+}
+}
+mastery_trigger_mode = &"damage_dealt"
 mastery_amount_mode = &"per_target_rank"
-effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_dmg"), SubResource("Resource_slow")])
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_dmg")])
+requires_heavy_weapon = true
 
 [resource]
 script = ExtResource("5_skill")
 skill_id = &"warrior_heavy_blow"
 display_name = "重压斩"
 icon_id = &"warrior_heavy_blow"
-description = "沉重一击，造成伤害并降低目标移动力。"
-max_level = 3
+description = "使用具有 heavy 属性的近战武器发动一次延迟重击，命中、重击、护甲与格挡均按一次标准武器攻击结算。\n使用时选择蓄力挡位。力量调整值 ≥+5 / +3～+4 / +1～+2 / ≤0 时，每挡分别需要 5 / 10 / 15 / 20 TU；每挡额外消耗 6 体力并增加 1W。挡位自然上限为 max(1, ceil(体质调整值/2))。\n确认后支付费用、剩余 AP 清零并立即结束当前回合。蓄力期间行动进度冻结，体力照常恢复，且不能主动取消；单纯受到伤害不会打断。倒地、眩晕、麻痹、冻结、石化、疯狂、失衡、陨石震荡、施术者强制位移、武器变化或目标失效会打断，费用不退并进入完整冷却。目标移动不会提前打断，但完成时会重新检查目标、距离与视线；不合法则攻击落空。"
+max_level = 5
 non_core_max_level = 3
-mastery_curve = PackedInt32Array(100, 250, 550)
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
 growth_tier = &"basic"
-attribute_growth_progress = { "strength": 60 }
-tags = Array[StringName]([&"warrior", &"melee", &"output", &"control"])
+attribute_growth_progress = { "constitution": 20, "strength": 40 }
+level_description_template = "{damage}；可选蓄力上限{cap}，每挡+1W、+6体力；基础消耗{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"damage": "基础1W",
+		"cap": "1挡（仍受体质自然上限约束）",
+		"stamina": "14",
+		"cooldown": "90"
+	},
+	"1": {
+		"damage": "基础1W",
+		"cap": "1挡（仍受体质自然上限约束）",
+		"stamina": "12",
+		"cooldown": "90"
+	},
+	"2": {
+		"damage": "基础1W",
+		"cap": "2挡（仍受体质自然上限约束）",
+		"stamina": "12",
+		"cooldown": "80"
+	},
+	"3": {
+		"damage": "基础1W",
+		"cap": "2挡（仍受体质自然上限约束）",
+		"stamina": "10",
+		"cooldown": "80"
+	},
+	"4": {
+		"damage": "基础1W",
+		"cap": "3挡（仍受体质自然上限约束）",
+		"stamina": "10",
+		"cooldown": "70"
+	},
+	"5": {
+		"damage": "基础2W",
+		"cap": "不设技能上限（仍受体质自然上限约束）",
+		"stamina": "10",
+		"cooldown": "60"
+	}
+}
+tags = Array[StringName]([&"warrior", &"melee", &"output"])
 combat_profile = SubResource("Resource_combat")

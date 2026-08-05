@@ -20,6 +20,7 @@ body_size = 3
 creature_level = 6
 hit_die_sides = 10
 action_threshold = 35
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"monstrosity", &"minotaur", &"beast", &"horn"])
 save_advantage_tags = Array[StringName]([&"illusion"])
 base_attribute_overrides = {

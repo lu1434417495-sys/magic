@@ -19,6 +19,7 @@ initial_state_id = &"pressure"
 creature_level = 1
 hit_die_sides = 6
 action_threshold = 30
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"humanoid", &"goblinoid"])
 save_disadvantage_tags = Array[StringName]([&"frightened"])
 attack_equipment_item_id = &"militia_light_crossbow"

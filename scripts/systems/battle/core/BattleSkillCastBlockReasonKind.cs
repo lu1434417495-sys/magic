@@ -15,12 +15,14 @@ public enum BattleSkillCastBlockReasonKind
     InsufficientStamina,
     Petrified,
     Paralyzed,
+    MovementRestricted,
     InsufficientAura,
     RacialSkillPerBattleChargeDepleted,
     RacialSkillPerTurnChargeDepleted,
     RacialSkillChargeUninitialized,
     RequiredWeaponFamilyMissing,
     RequiredWeaponTypeMissing,
+    HeavyWeaponRequired,
     ShieldRequired,
     MeleeWeaponRequired,
     ExcludedWeaponFamily,
@@ -57,6 +59,8 @@ internal static class BattleSkillCastBlockReasonKinds
             BattleSkillCastBlockReasonKind.InsufficientStamina => "insufficient_stamina",
             BattleSkillCastBlockReasonKind.Petrified => "petrified",
             BattleSkillCastBlockReasonKind.Paralyzed => "paralyzed",
+            BattleSkillCastBlockReasonKind.MovementRestricted =>
+                "movement_restricted",
             BattleSkillCastBlockReasonKind.InsufficientAura => "insufficient_aura",
             BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted =>
                 "racial_skill_per_battle_charge_depleted",
@@ -68,6 +72,8 @@ internal static class BattleSkillCastBlockReasonKinds
                 "required_weapon_family_missing",
             BattleSkillCastBlockReasonKind.RequiredWeaponTypeMissing =>
                 "required_weapon_type_missing",
+            BattleSkillCastBlockReasonKind.HeavyWeaponRequired =>
+                "heavy_weapon_required",
             BattleSkillCastBlockReasonKind.ShieldRequired => "shield_required",
             BattleSkillCastBlockReasonKind.MeleeWeaponRequired => "melee_weapon_required",
             BattleSkillCastBlockReasonKind.ExcludedWeaponFamily => "excluded_weapon_family",

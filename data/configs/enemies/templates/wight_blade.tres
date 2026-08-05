@@ -19,6 +19,7 @@ initial_state_id = &"engage"
 creature_level = 5
 hit_die_sides = 8
 action_threshold = 40
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"undead", &"wight"])
 save_immunity_tags = Array[StringName]([&"sleep", &"charm", &"poison", &"frightened"])
 damage_resistances = {

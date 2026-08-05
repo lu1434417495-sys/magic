@@ -64,6 +64,7 @@ public interface IGameRuntimeSnapshotSource
     StringName GetSelectedBattleSkillVariantId();
     string GetSelectedBattleSkillName();
     string GetSelectedBattleSkillVariantName();
+    StringName GetSelectedBattleSkillPresentationSelectionMode() => "";
     IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain();
     IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain();
     int GetSelectedBattleSkillRequiredCoordCount();

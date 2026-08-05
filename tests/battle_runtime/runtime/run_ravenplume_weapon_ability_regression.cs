@@ -160,6 +160,11 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
         _test.Eq(crow.GetCurrentHp(), 1, "乌鸦当前 HP 应为 1。");
         _test.Eq(crow.attribute_snapshot.GetValue(AttributeService.HP_MAX), 1, "乌鸦最大 HP 应为 1。");
         _test.Eq(crow.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 12, "乌鸦 AC 应为 12。");
+        _test.Eq(
+            crow.GetBaseCognitionKindTyped(),
+            BattleCognitionKind.Instinctive,
+            "召唤乌鸦应由 payload 数据驱动为野兽心智。"
+        );
         _test.True(crow.HasCreatureTypeTag("familiar"), "乌鸦应保留 familiar 标签。");
         _test.True(ContainsStringName(batch.ChangedUnitIdsTyped, crow.unit_id), "召唤应把新增乌鸦写入 changed unit。");
     }
@@ -299,9 +304,11 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
         if (payload.MaxLivingUnits != 12)
             throw new InvalidOperationException("鸦群召唤上限应为 12。");
         if (payload.DurationTu != 60)
-            throw new InvalidOperationException("鸦群召唤持续时间应按 1 分钟落成 60TU。");
+            throw new InvalidOperationException("鸦群召唤持续时间应为 60 TU。");
         if (payload.UnitDisplayName != "乌鸦")
             throw new InvalidOperationException("鸦群召唤应生成乌鸦单位。");
+        if (payload.CognitionKind != BattleCognitionKind.Instinctive)
+            throw new InvalidOperationException("鸦群召唤 payload 应声明野兽心智。");
         if (payload.HpMax != 1 || payload.ArmorClass != 12)
             throw new InvalidOperationException("乌鸦单位应为 AC12 HP1。");
     }

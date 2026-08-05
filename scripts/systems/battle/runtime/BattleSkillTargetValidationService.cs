@@ -49,7 +49,8 @@ internal sealed class BattleSkillTargetValidationService
         BattleUnitState active_unit,
         BattleCommand command,
         SkillDefinition skillDefinition,
-        CombatCastVariantDefinition cast_variant = null
+        CombatCastVariantDefinition cast_variant = null,
+        bool requireAp = true
     )
     {
         BattleState state = _owner.RtState();
@@ -155,7 +156,7 @@ internal sealed class BattleSkillTargetValidationService
                     active_unit,
                     targetUnit,
                     skillDefinition,
-                    true,
+                    requireAp,
                     cast_variant
                 )
             )
@@ -163,6 +164,20 @@ internal sealed class BattleSkillTargetValidationService
                 return BattleUnitSkillValidationResult.Denied("技能目标超出范围或不满足筛选条件。");
             }
             targetUnits.Add(targetUnit);
+        }
+
+        string sourceRetreatValidationMessage = GetSourceRetreatValidationMessage(
+            active_unit,
+            targetUnits,
+            command,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(sourceRetreatValidationMessage))
+        {
+            return BattleUnitSkillValidationResult.Denied(
+                sourceRetreatValidationMessage
+            );
         }
 
         IReadOnlyList<Vector2I> emptyTargetCoords = Array.Empty<Vector2I>();
@@ -312,6 +327,20 @@ internal sealed class BattleSkillTargetValidationService
             targetUnits.Add(targetUnit);
         }
 
+        string sourceRetreatValidationMessage = GetSourceRetreatValidationMessage(
+            active_unit,
+            targetUnits,
+            command,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(sourceRetreatValidationMessage))
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied(
+                sourceRetreatValidationMessage
+            );
+        }
+
         IReadOnlyList<Vector2I> emptyTargetCoords = Array.Empty<Vector2I>();
         BattleTargetCollectionResult collectedTargetCoords =
             Runtime?._target_collection_service.CollectCombatProfileTargetCoords(
@@ -338,6 +367,82 @@ internal sealed class BattleSkillTargetValidationService
             null,
             previewCoords
         );
+    }
+
+    private string GetSourceRetreatValidationMessage(
+        BattleUnitState activeUnit,
+        IReadOnlyList<BattleUnitState> targetUnits,
+        BattleCommand command,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            );
+        CombatEffectDefinition sourceRetreatEffect =
+            BattleSourceRetreatRules.FindEffect(effectDefinitions);
+        if (sourceRetreatEffect == null)
+        {
+            return command?.source_retreat_direction != Vector2I.Zero
+                ? "当前技能不接受后撤方向。"
+                : "";
+        }
+        if (targetUnits == null || targetUnits.Count != 1 || targetUnits[0] == null)
+            return "后撤技能必须选择一个单位目标。";
+
+        BattleSourceRetreatPlan plan = Runtime?._movement_service.BuildSourceRetreatPlan(
+            activeUnit,
+            targetUnits[0].GetAnchorCoord(),
+            command?.source_retreat_direction ?? Vector2I.Zero,
+            sourceRetreatEffect.SourceRetreatDistance
+        );
+        return plan?.Allowed == true
+            ? ""
+            : plan?.Message ?? "后撤方向无效。";
+    }
+
+    private string GetSourceRetreatValidationMessage(
+        BattleUnitReadView activeUnit,
+        IReadOnlyList<BattleUnitReadView> targetUnits,
+        BattleCommand command,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            );
+        CombatEffectDefinition sourceRetreatEffect =
+            BattleSourceRetreatRules.FindEffect(effectDefinitions);
+        if (sourceRetreatEffect == null)
+        {
+            return command?.source_retreat_direction != Vector2I.Zero
+                ? "当前技能不接受后撤方向。"
+                : "";
+        }
+        if (
+            targetUnits == null
+            || targetUnits.Count != 1
+            || !targetUnits[0].IsValid
+        )
+            return "后撤技能必须选择一个单位目标。";
+
+        BattleSourceRetreatPlan plan = Runtime?._movement_service.BuildSourceRetreatPlan(
+            activeUnit,
+            targetUnits[0].Coord,
+            command?.source_retreat_direction ?? Vector2I.Zero,
+            sourceRetreatEffect.SourceRetreatDistance
+        );
+        return plan?.Allowed == true
+            ? ""
+            : plan?.Message ?? "后撤方向无效。";
     }
 
     internal GStringNameArray _normalize_target_unit_ids(

@@ -20,10 +20,12 @@ internal sealed class BattlePendingCastState
     internal ulong CastSequence { get; set; }
     internal SkillCostTransaction CostTransaction { get; set; } = new();
     internal BattleSpellControlMetadata SpellControlMetadata { get; set; } = new();
+    internal BattleWindupSnapshot WindupSnapshot { get; set; }
 
     internal IReadOnlyList<StringName> TargetUnitIds => _targetUnitIds;
     internal IReadOnlyList<Vector2I> TargetCoords => _targetCoords;
     internal bool IsComplete => RemainingCastProgress <= 0;
+    internal bool IsWindup => WindupSnapshot != null;
 
     internal void SetTargetUnitIds(IEnumerable<StringName> targetUnitIds)
     {
@@ -70,6 +72,7 @@ internal sealed class BattlePendingCastState
             CastSequence = CastSequence,
             CostTransaction = CostTransaction?.Clone() ?? new SkillCostTransaction(),
             SpellControlMetadata = SpellControlMetadata,
+            WindupSnapshot = WindupSnapshot,
         };
         clone.SetTargetUnitIds(_targetUnitIds);
         clone.SetTargetCoords(_targetCoords);
@@ -95,6 +98,9 @@ internal sealed class BattlePendingCastState
             SpellControlMetadata = SpellControlMetadata is null
                 ? null
                 : SpellControlMetadata with { },
+            WindupSnapshot = WindupSnapshot is null
+                ? null
+                : WindupSnapshot with { },
         };
         clone._targetUnitIds.AddRange(_targetUnitIds);
         clone._targetCoords.AddRange(_targetCoords);

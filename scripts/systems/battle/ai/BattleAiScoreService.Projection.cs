@@ -19,6 +19,8 @@ public partial class BattleAiScoreService
     {
         public int Range;
         public int Damage;
+        public int UnguardedDamage;
+        public readonly List<int> UnguardedPhysicalDamageByInstance = new();
     }
 
     private sealed class ThreatProfile
@@ -27,6 +29,9 @@ public partial class BattleAiScoreService
         public int Range;
         public int WeaponRange;
         public int WeaponDamage;
+        public int UnguardedWeaponDamage;
+        public readonly List<int> UnguardedWeaponPhysicalDamageByInstance = new();
+        public bool GuardAwareWeaponInitialized;
     }
 
     private static bool ShouldPopulateSurvivalProjection(
@@ -418,6 +423,7 @@ public partial class BattleAiScoreService
         {
             return profile;
         }
+        BattleUnitState unguardedActor = BuildUnguardedThreatProjectionTarget(actor);
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             ContextSkillDefinitions(context);
         foreach (
@@ -468,8 +474,29 @@ public partial class BattleAiScoreService
                 actor,
                 normalizedSkillId
             );
-            int damage = damageEstimate.IncomingBudgetDamage;
-            profile.SkillEntries.Add(new ThreatSkillEntry { Range = skillRange, Damage = damage });
+            DamageEstimateResult unguardedDamageEstimate =
+                ReferenceEquals(unguardedActor, actor)
+                    ? damageEstimate
+                    : EstimateDamageForTargetResult(
+                        threatUnit,
+                        effectDefinitions,
+                        unguardedActor,
+                        normalizedSkillId
+                    );
+            var threatEntry = new ThreatSkillEntry
+            {
+                Range = skillRange,
+                Damage = damageEstimate.IncomingBudgetDamage,
+                UnguardedDamage = unguardedDamageEstimate.IncomingBudgetDamage,
+            };
+            threatEntry.UnguardedPhysicalDamageByInstance.AddRange(
+                CollectPhysicalDamageInstances(
+                    threatUnit,
+                    effectDefinitions,
+                    unguardedDamageEstimate
+                )
+            );
+            profile.SkillEntries.Add(threatEntry);
             profile.Range = Math.Max(profile.Range, skillRange);
         }
         profile.WeaponRange = BattleRangeService.GetWeaponAttackRange(threatUnit);

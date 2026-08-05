@@ -1,73 +1,189 @@
-[gd_resource type="Resource" script_class="SkillDef" format=3]
+[gd_resource type="Resource" script_class="SkillDef" load_steps=8 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_hti8b"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_jw6vk"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_rxwdo"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_6vxtp"]
-[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_tppow"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_koam8"]
-script = ExtResource("3_rxwdo")
+[sub_resource type="Resource" id="Effect_harrier_mark_lv1"]
+script = ExtResource("1_effect")
 effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 1
+max_skill_level = 1
+status_id = &"harrier_marked"
 power = 1
-status_id = &"marked"
-duration_tu = 180
+duration_tu = 60
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 4
+counts_as_debuff_override = true
+counts_as_debuff = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
 
-[sub_resource type="Resource" id="Resource_dubbk"]
-script = ExtResource("4_6vxtp")
+[sub_resource type="Resource" id="Effect_harrier_mark_lv2"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 2
+max_skill_level = 2
+status_id = &"harrier_marked"
+power = 1
+duration_tu = 70
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 4
+counts_as_debuff_override = true
+counts_as_debuff = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Effect_harrier_mark_lv3"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 3
+max_skill_level = 3
+status_id = &"harrier_marked"
+power = 1
+duration_tu = 80
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 6
+counts_as_debuff_override = true
+counts_as_debuff = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Effect_harrier_mark_lv4"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 4
+max_skill_level = 4
+status_id = &"harrier_marked"
+power = 1
+duration_tu = 90
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 6
+counts_as_debuff_override = true
+counts_as_debuff = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Effect_harrier_mark_lv5"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 5
+max_skill_level = 5
+status_id = &"harrier_marked"
+power = 1
+duration_tu = 100
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 8
+counts_as_debuff_override = true
+counts_as_debuff = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Combat_harrier_mark"]
+script = ExtResource("2_combat")
 skill_id = &"archer_harrier_mark"
-range_value = 5
-stamina_cost = 1
-cooldown_tu = 10
-attack_roll_bonus = 2
-effect_defs = Array[ExtResource("3_rxwdo")]([SubResource("Resource_koam8")])
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 4
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+stamina_cost = 18
+cooldown_tu = 90
+attack_resolution_mode = &"direct_effect"
+mastery_trigger_mode = &"source_bound_weapon_bonus_damage"
+mastery_amount_mode = &"per_target_rank"
+delivery_categories = Array[StringName]([&"martial", &"mark", &"ranger"])
+level_overrides = {
+2: {
+"cooldown_tu": 80,
+"stamina_cost": 17,
+},
+3: {
+"cooldown_tu": 70,
+"range_value": 5,
+"stamina_cost": 16,
+},
+4: {
+"cooldown_tu": 60,
+"stamina_cost": 15,
+},
+5: {
+"range_value": 6,
+"stamina_cost": 14,
+},
+}
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_harrier_mark_lv1"), SubResource("Effect_harrier_mark_lv2"), SubResource("Effect_harrier_mark_lv3"), SubResource("Effect_harrier_mark_lv4"), SubResource("Effect_harrier_mark_lv5")])
 
 [resource]
-script = ExtResource("5_tppow")
+script = ExtResource("3_skill")
 skill_id = &"archer_harrier_mark"
 display_name = "猎印追缉"
 icon_id = &"archer_harrier_mark"
-description = "纯功能技能，给目标施加强化版 标记 180 TU；所有友军远程攻击对此目标命中 +10%。"
-level_description_template = "附加{status}（{duration}TU），射程{range}，攻击检定+{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+description = "锁定一个可见敌人。标记期间，只有施放者以武器或天生武器命中该目标时才会追加伤害骰；其他单位与非武器伤害不会触发。等级提升会强化追加骰、延长持续时间、增加射程并降低体力与冷却压力。"
+level_description_template = "标记目标{duration}TU；施放者以武器或天生武器命中目标时额外造成{bonus_damage}伤害。射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU。"
 level_description_configs = {
 	"0": {
-		"status": "标记",
-		"duration": "180",
-		"range": "5",
-		"attack": "+2",
+		"duration": "60",
+		"bonus_damage": "1D4",
+		"range": "4",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "18",
+		"cooldown": "90",
 	},
 	"1": {
-		"status": "标记",
-		"duration": "180",
-		"range": "5",
-		"attack": "+2",
+		"duration": "60",
+		"bonus_damage": "1D4",
+		"range": "4",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "18",
+		"cooldown": "90",
 	},
 	"2": {
-		"status": "标记",
-		"duration": "180",
-		"range": "5",
-		"attack": "+2",
+		"duration": "70",
+		"bonus_damage": "1D4",
+		"range": "4",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "17",
+		"cooldown": "80",
 	},
 	"3": {
-		"status": "标记",
-		"duration": "180",
+		"duration": "80",
+		"bonus_damage": "1D6",
 		"range": "5",
-		"attack": "+2",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "16",
+		"cooldown": "70",
+	},
+	"4": {
+		"duration": "90",
+		"bonus_damage": "1D6",
+		"range": "5",
+		"ap": "1",
+		"stamina": "15",
+		"cooldown": "60",
+	},
+	"5": {
+		"duration": "100",
+		"bonus_damage": "1D8",
+		"range": "6",
+		"ap": "1",
+		"stamina": "14",
+		"cooldown": "60",
 	},
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])
-combat_profile = SubResource("Resource_dubbk")
+skill_type = &"active"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+	"agility": 40,
+	"perception": 20,
+}
+tags = Array[StringName]([&"archer", &"ranger", &"ranged", &"mark", &"debuff", &"output"])
+learn_source = &"book"
+combat_profile = SubResource("Combat_harrier_mark")

@@ -221,7 +221,15 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         fixture.AddUnit(farScout);
 
         BattleAiContext context = fixture.BuildContext(archer);
-        context.skill_score_input_callback = (aiContext, skillDefinition, command, preview, effects, metadata) =>
+        context.skill_score_input_callback = (
+            aiContext,
+            skillDefinition,
+            command,
+            preview,
+            effects,
+            metadata,
+            _
+        ) =>
         {
             if (command != null && preview != null)
             {

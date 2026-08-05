@@ -24,6 +24,7 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
     private void Run()
     {
         TestProcessSnapshotPublishesImmutablePlainEnemyDefinitions();
+        TestOfficialSharedWolfEncounterStages();
         TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed();
         TestRegistryRejectsActionSkillTargetModeMismatch();
         TestRegistryRejectsTemplateLevelWithoutCompatibleCastOption();
@@ -108,6 +109,150 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
                     $"definition graph 不得包含 Variant: {rootType.Name}"
                 );
             }
+        }
+    }
+
+    private void TestOfficialSharedWolfEncounterStages()
+    {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        bool hasSharedWolfRoster = snapshot.EncounterRosters.TryGetValue(
+            "wolf_pack_skirmish",
+            out WildEncounterRosterDefinition sharedWolfRoster
+        );
+        bool hasSharedWolfEncounter = snapshot.BattleEncounters.TryGetValue(
+            "wolf_wilds",
+            out BattleEncounterDefinition sharedWolfEncounter
+        );
+
+        _test.False(
+            snapshot.EncounterRosters.ContainsKey("folk_farmers_plea_wolves"),
+            "《农夫的恳求》不得复制一份任务专属荒狼 roster。"
+        );
+        _test.False(
+            snapshot.BattleEncounters.ContainsKey("folk_farmers_plea_wolves"),
+            "《农夫的恳求》不得复制一份任务专属 battle encounter。"
+        );
+        _test.True(hasSharedWolfRoster, "正式 enemy snapshot 应发布共享荒狼 roster。");
+        _test.True(hasSharedWolfEncounter, "正式 battle snapshot 应发布共享 wolf_wilds 遭遇。");
+        if (!hasSharedWolfRoster || !hasSharedWolfEncounter)
+            return;
+
+        IReadOnlyList<WildEncounterRosterUnitEntryDefinition> ordinaryWolfEntries =
+            sharedWolfRoster.GetStageUnitEntries(0);
+        IReadOnlyList<WildEncounterRosterUnitEntryDefinition> fiveWolfEntries =
+            sharedWolfRoster.GetStageUnitEntries(1);
+        WildEncounterRosterStageDefinition mixedWolfStage = null;
+        foreach (WildEncounterRosterStageDefinition stage in sharedWolfRoster.Stages)
+        {
+            if (stage?.Stage == 2)
+            {
+                mixedWolfStage = stage;
+                break;
+            }
+        }
+        IReadOnlyList<WildEncounterRosterUnitEntryDefinition> mixedWolfEntries =
+            mixedWolfStage?.UnitEntries
+            ?? Array.Empty<WildEncounterRosterUnitEntryDefinition>();
+        bool hasRegularWolfTemplate = snapshot.EnemyTemplates.TryGetValue(
+            "wolf_pack",
+            out EnemyTemplateDefinition regularWolfTemplate
+        );
+        bool hasWorgTemplate = snapshot.EnemyTemplates.TryGetValue(
+            "worg",
+            out EnemyTemplateDefinition worgTemplate
+        );
+
+        _test.Eq(
+            sharedWolfEncounter.RosterProfileId,
+            new StringName("wolf_pack_skirmish"),
+            "wolf_wilds 应继续引用同一份共享荒狼 roster。"
+        );
+        _test.Eq(sharedWolfRoster.GetMaxStage(), 2, "共享荒狼 roster 应正式声明到 stage 2。");
+        _test.Eq(sharedWolfRoster.Stages.Count, 3, "共享荒狼 roster 应恰好声明三个阶段。");
+        _test.True(mixedWolfStage != null, "共享荒狼 roster 必须精确声明 stage 2，不能依赖阶段回退。");
+        _test.Eq(ordinaryWolfEntries.Count, 1, "共享荒狼 roster stage 0 应只有一类敌人。");
+        _test.Eq(fiveWolfEntries.Count, 1, "共享荒狼 roster stage 1 应只有一类敌人。");
+        _test.Eq(mixedWolfEntries.Count, 2, "共享荒狼 roster stage 2 应有常规狼和座狼两类敌人。");
+        _test.True(hasRegularWolfTemplate, "正式 enemy snapshot 应发布常规狼模板。");
+        _test.True(hasWorgTemplate, "正式 enemy snapshot 应发布座狼模板。");
+        if (
+            ordinaryWolfEntries.Count != 1
+            || fiveWolfEntries.Count != 1
+            || mixedWolfEntries.Count != 2
+            || !hasRegularWolfTemplate
+            || !hasWorgTemplate
+        )
+            return;
+
+        _test.Eq(
+            ordinaryWolfEntries[0].TemplateId,
+            new StringName("wolf_pack"),
+            "共享荒狼 roster stage 0 应使用正式 wolf_pack 模板。"
+        );
+        _test.Eq(
+            ordinaryWolfEntries[0].Count,
+            2,
+            "普通 wolf_wilds 锚点应继续使用共享 roster 的两狼阶段。"
+        );
+        _test.Eq(
+            fiveWolfEntries[0].TemplateId,
+            new StringName("wolf_pack"),
+            "共享荒狼 roster stage 1 应继续使用同一正式 wolf_pack 模板。"
+        );
+        _test.Eq(
+            fiveWolfEntries[0].Count,
+            5,
+            "共享 wolf_wilds 遭遇的 stage 1 应在同一场战斗生成五只荒狼。"
+        );
+        _test.Eq(
+            mixedWolfEntries[0].TemplateId,
+            new StringName("wolf_pack"),
+            "共享荒狼 roster stage 2 的第一类敌人应为常规狼。"
+        );
+        _test.Eq(
+            mixedWolfEntries[0].Count,
+            3,
+            "共享荒狼 roster stage 2 应生成三只常规狼。"
+        );
+        _test.Eq(
+            mixedWolfEntries[1].TemplateId,
+            new StringName("worg"),
+            "共享荒狼 roster stage 2 的第二类敌人应为座狼。"
+        );
+        _test.Eq(
+            mixedWolfEntries[1].Count,
+            2,
+            "共享荒狼 roster stage 2 应生成两只座狼。"
+        );
+        _test.Eq(
+            mixedWolfEntries[0].Count + mixedWolfEntries[1].Count,
+            5,
+            "共享荒狼 roster stage 2 总数应保持五只狼。"
+        );
+        _test.Eq(regularWolfTemplate.CreatureLevel, 0, "常规狼模板应保持 0 级。");
+        _test.Eq(worgTemplate.CreatureLevel, 1, "座狼模板应修正为 1 级。");
+        _test.Eq(regularWolfTemplate.SkillIds.Count, 1, "常规狼模板应只配置一个技能。");
+        if (regularWolfTemplate.SkillIds.Count == 1)
+        {
+            _test.Eq(
+                regularWolfTemplate.SkillIds[0],
+                new StringName("basic_attack"),
+                "常规狼模板唯一技能应为基础攻击。"
+            );
+        }
+        _test.Eq(worgTemplate.SkillIds.Count, 2, "座狼模板应配置基础攻击和冲锋两个技能。");
+        if (worgTemplate.SkillIds.Count == 2)
+        {
+            _test.Eq(
+                worgTemplate.SkillIds[0],
+                new StringName("basic_attack"),
+                "座狼模板应保留基础攻击。"
+            );
+            _test.Eq(
+                worgTemplate.SkillIds[1],
+                new StringName("charge"),
+                "座狼模板应允许使用冲锋。"
+            );
         }
     }
 
@@ -305,6 +450,7 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
                 template_id = "level_one_enemy",
                 display_name = "Level One Enemy",
                 brain_id = brain.brain_id,
+                cognition_kind = "sapient",
                 initial_state_id = state.state_id,
             },
             "enemy_action_skill_level.template"

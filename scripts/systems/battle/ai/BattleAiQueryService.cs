@@ -649,6 +649,7 @@ internal sealed class BattleAiQueryService
             ai_tags = CopyStringNameList(combat?.AiTags),
             delivery_categories = CopyStringNameList(combat?.DeliveryCategories),
             required_weapon_families = CopyStringNameList(combat?.RequiredWeaponFamilies),
+            allows_natural_weapon = combat?.AllowsNaturalWeapon ?? false,
             required_weapon_type_ids = CopyStringNameList(combat?.RequiredWeaponTypeIds),
             excluded_weapon_families = CopyStringNameList(combat?.ExcludedWeaponFamilies),
             excluded_weapon_type_ids = CopyStringNameList(combat?.ExcludedWeaponTypeIds),
@@ -728,6 +729,7 @@ internal sealed class BattleAiQueryService
         public List<StringName> ai_tags = new();
         public List<StringName> delivery_categories = new();
         public List<StringName> required_weapon_families = new();
+        public bool allows_natural_weapon;
         public List<StringName> required_weapon_type_ids = new();
         public List<StringName> excluded_weapon_families = new();
         public List<StringName> excluded_weapon_type_ids = new();

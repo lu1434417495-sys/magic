@@ -4,10 +4,6 @@ using Godot;
 
 internal sealed class BattleAiWaitActionEvaluator
 {
-    private const int TuGranularity = 5;
-    private const int StaminaRecoveryProgressBase = 11;
-    private const int StaminaRecoveryProgressDenominator = 10;
-    private const int StaminaRestingRecoveryMultiplier = 2;
 
     private readonly BattleAiTypedActionHelper _helper = new();
 
@@ -260,35 +256,29 @@ internal sealed class BattleAiWaitActionEvaluator
     {
         if (unit == null || tuDelta <= 0)
             return 0;
-        int tickCount = Mathf.Max(tuDelta / TuGranularity, 0);
+        int tickCount =
+            BattleStaminaRecoveryRules.ResolveTickCount(tuDelta);
         if (tickCount <= 0)
             return 0;
-        int progressPerTick = StaminaRecoveryProgressBase + GetUnitConstitution(unit);
-        progressPerTick = ApplyStaminaRecoveryPercentBonus(unit, progressPerTick);
-        progressPerTick *= StaminaRestingRecoveryMultiplier;
+        int progressPerTick =
+            BattleStaminaRecoveryRules.ResolveProgressGainPerTick(
+                unit,
+                isResting: true
+            );
         int progress = Mathf.Max(unit.GetStaminaRecoveryProgressTyped(), 0);
         int recovered = 0;
         for (int index = 0; index < tickCount; index++)
         {
             progress += progressPerTick;
-            recovered += progress / StaminaRecoveryProgressDenominator;
-            progress %= StaminaRecoveryProgressDenominator;
+            recovered +=
+                progress / BattleStaminaRecoveryRules.ProgressDenominator;
+            progress %= BattleStaminaRecoveryRules.ProgressDenominator;
         }
         return recovered;
     }
 
     private static int ResolveActionThresholdTu(BattleUnitState unit) =>
         unit != null ? Mathf.Max(unit.GetActionThresholdTyped(), 1) : 30;
-
-    private static int GetUnitConstitution(BattleUnitState unit) =>
-        unit?.attribute_snapshot != null
-            ? Mathf.Max(
-                unit.attribute_snapshot.GetValue(
-                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)
-                ),
-                0
-            )
-            : 0;
 
     private static int GetUnitStaminaMax(BattleUnitState unit) =>
         unit?.attribute_snapshot != null
@@ -299,21 +289,6 @@ internal sealed class BattleAiWaitActionEvaluator
                 0
             )
             : 0;
-
-    private static int ApplyStaminaRecoveryPercentBonus(BattleUnitState unit, int baseProgress)
-    {
-        if (unit?.attribute_snapshot == null)
-            return baseProgress;
-        int percentBonus = Mathf.Max(
-            unit.attribute_snapshot.GetValue(
-                AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus)
-            ),
-            0
-        );
-        return percentBonus <= 0
-            ? baseProgress
-            : Mathf.FloorToInt(baseProgress * (100f + percentBonus) / 100f);
-    }
 
     private static int GetSkillLevel(BattleUnitState unit, StringName skillId)
     {

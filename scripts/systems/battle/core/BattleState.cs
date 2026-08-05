@@ -363,7 +363,13 @@ public partial class BattleState
 
         var tauntEntry = attacker.GetStatusEffect("taunted");
 
-        if (tauntEntry != null)
+        if (
+            tauntEntry != null
+            && BattleCognitionRules.MeetsMinimum(
+                attacker,
+                BattleCognitionKind.Sapient
+            )
+        )
         {
             var sourceId = ProgressionDataUtils.to_string_name(tauntEntry.source_unit_id);
             TryGetUnitTyped(sourceId, out BattleUnitState sourceUnit);
@@ -399,7 +405,13 @@ public partial class BattleState
             return true;
 
         StringName tauntSourceId = attacker.GetStatusSourceUnitId("taunted");
-        if (tauntSourceId != "")
+        if (
+            tauntSourceId != ""
+            && BattleCognitionRules.MeetsMinimum(
+                attacker,
+                BattleCognitionKind.Sapient
+            )
+        )
         {
             BattleUnitReadView sourceUnit = new(GetUnit(tauntSourceId));
             if (

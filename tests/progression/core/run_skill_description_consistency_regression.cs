@@ -130,6 +130,14 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
                 "精准射击应保持弓类武器门禁。"
             );
         }
+        _test.True(
+            combat.AllowsNaturalWeapon,
+            "精准射击应显式允许天生武器作为弓之外的替代武器来源。"
+        );
+        _test.True(
+            aimedShotDefinition.Description.Contains("天生武器"),
+            "精准射击描述应明确弓与天生武器均可使用。"
+        );
         _test.Eq(combat.RangeValue, 0, "精准射击应继续使用装备弓的武器射程。");
         _test.Eq(combat.ApCost, 1, "精准射击应消耗 1 AP。");
         _test.Eq(combat.StaminaCost, 20, "精准射击应消耗 20 体力。");

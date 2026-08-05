@@ -490,7 +490,10 @@ public partial class BattleDamageResolver
         );
         TrimFixedMitigationSources(mitigation);
         int fixedMitigationTotal = mitigation.Total;
-        int resolvedDamage = Math.Max(tierAdjustedDamage - fixedMitigationTotal, MinDamageFloor);
+        int resolvedDamage = Math.Max(
+            tierAdjustedDamage - fixedMitigationTotal,
+            ResolveFixedMitigationDamageFloor(tierAdjustedDamage, mitigation)
+        );
         DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
             false,
             damageRoll,

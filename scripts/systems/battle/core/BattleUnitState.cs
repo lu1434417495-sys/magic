@@ -68,6 +68,7 @@ public partial class BattleUnitState
         "control_mode",
         "ai_brain_id",
         "ai_state_id",
+        "cognition_kind",
         "coord",
         "body_size",
         "body_size_category",
@@ -195,6 +196,8 @@ public partial class BattleUnitState
     public StringName control_mode = "manual";
     public StringName ai_brain_id = "";
     public StringName ai_state_id = "";
+    private BattleCognitionKind _baseCognitionKind =
+        BattleCognitionKind.Sapient;
     internal BattleAiBlackboard ai_blackboard = new();
     private BattleUnitGeometryState _geometryState = new();
     public AttributeSnapshot attribute_snapshot = NewAttributeSnapshot();
@@ -334,6 +337,27 @@ public partial class BattleUnitState
     internal BattlePendingCastState pending_cast;
 
     internal bool HasPendingCast() => pending_cast != null;
+
+    internal BattleCognitionKind GetBaseCognitionKindTyped() =>
+        _baseCognitionKind;
+
+    internal void SetBaseCognitionKindTyped(
+        BattleCognitionKind cognitionKind
+    )
+    {
+        if (!BattleCognitionContentRules.IsKnown(cognitionKind))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(cognitionKind),
+                cognitionKind,
+                "Battle unit cognition kind must be known."
+            );
+        }
+        _baseCognitionKind = cognitionKind;
+    }
+
+    internal BattleCognitionKind GetEffectiveCognitionKindTyped() =>
+        BattleCognitionRules.ResolveEffective(this);
 
     internal bool IsCasting() => IsAlive() && pending_cast != null;
 
@@ -799,6 +823,11 @@ public partial class BattleUnitState
             GetEquipmentAbilityProjectionReadViewTyped()
                 .TemporalProgressModifiers;
 
+    internal BattleCognitionCeilingModifierListReadView
+        GetCognitionCeilingModifiersReadViewTyped() =>
+            GetEquipmentAbilityProjectionReadViewTyped()
+                .CognitionCeilingModifiers;
+
     internal BattleUnitEquipmentAbilityProjectionSnapshot
         CaptureEquipmentAbilityProjectionForMutationSnapshotExact() =>
             _equipmentAbilityProjectionState?.CaptureRaw()
@@ -829,11 +858,14 @@ public partial class BattleUnitState
     internal void ReplaceEquipmentAbilityProjectionTyped(
         IEnumerable<BattleEquipmentAbilitySourceState> sources,
         IEnumerable<BattleTemporalProgressModifierState>
-            temporalProgressModifiers
+            temporalProgressModifiers,
+        IEnumerable<BattleCognitionCeilingModifierState>
+            cognitionCeilingModifiers = null
     ) =>
         EquipmentAbilityProjectionState.ReplaceNormalized(
             sources,
-            temporalProgressModifiers
+            temporalProgressModifiers,
+            cognitionCeilingModifiers
         );
 
     internal void ClearEquipmentAbilityProjectionTyped() =>
@@ -1764,6 +1796,16 @@ public partial class BattleUnitState
         NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
 
+        return DuplicateStateCore(canonicalizeSource: true);
+    }
+
+    internal BattleUnitState DuplicateForPreview()
+    {
+        return DuplicateStateCore(canonicalizeSource: false);
+    }
+
+    private BattleUnitState DuplicateStateCore(bool canonicalizeSource)
+    {
         return new BattleUnitState
         {
             unit_id = unit_id,
@@ -1776,19 +1818,41 @@ public partial class BattleUnitState
             control_mode = control_mode,
             ai_brain_id = ai_brain_id,
             ai_state_id = ai_state_id,
+            _baseCognitionKind = _baseCognitionKind,
             ai_blackboard = ai_blackboard?.Clone() ?? new BattleAiBlackboard(),
-            GeometryState = GeometryState.DuplicateState(),
-            attribute_snapshot = DuplicateAttributeSnapshot(attribute_snapshot),
-            equipment_view = GetEquipmentView()?.DuplicateState() ?? NewEquipmentState(),
-            equipment_view_initialized = true,
-            CombatResourceState = CombatResourceState.DuplicateState(),
-            CombatResourceUnlockState =
-                CombatResourceUnlockState.DuplicateState(),
-            RestState = RestState.DuplicateState(),
-            TurnState = TurnState.DuplicateState(),
-            ShieldState = ShieldState.DuplicateState(),
-            ActionClockState = ActionClockState.DuplicateState(),
-            CastingClockState = CastingClockState.DuplicateState(),
+            GeometryState = canonicalizeSource
+                ? GeometryState.DuplicateState()
+                : _geometryState?.DuplicateState() ?? new BattleUnitGeometryState(),
+            attribute_snapshot = canonicalizeSource
+                ? DuplicateAttributeSnapshot(attribute_snapshot)
+                : DuplicateAttributeSnapshotForPreview(attribute_snapshot),
+            equipment_view = canonicalizeSource
+                ? GetEquipmentView()?.DuplicateState() ?? NewEquipmentState()
+                : equipment_view?.DuplicateState(),
+            equipment_view_initialized =
+                canonicalizeSource || equipment_view_initialized,
+            CombatResourceState = canonicalizeSource
+                ? CombatResourceState.DuplicateState()
+                : _combatResourceState?.DuplicateState() ?? new BattleUnitCombatResourceState(),
+            CombatResourceUnlockState = canonicalizeSource
+                ? CombatResourceUnlockState.DuplicateState()
+                : _combatResourceUnlockState?.DuplicateState()
+                    ?? new BattleUnitCombatResourceUnlockState(),
+            RestState = canonicalizeSource
+                ? RestState.DuplicateState()
+                : _restState?.DuplicateState() ?? new BattleUnitRestState(),
+            TurnState = canonicalizeSource
+                ? TurnState.DuplicateState()
+                : _turnState?.DuplicateState() ?? new BattleUnitTurnState(),
+            ShieldState = canonicalizeSource
+                ? ShieldState.DuplicateState()
+                : _shieldState?.DuplicateState() ?? new BattleUnitShieldState(),
+            ActionClockState = canonicalizeSource
+                ? ActionClockState.DuplicateState()
+                : _actionClockState?.DuplicateState() ?? new BattleUnitActionClockState(),
+            CastingClockState = canonicalizeSource
+                ? CastingClockState.DuplicateState()
+                : _castingClockState?.DuplicateState() ?? new BattleUnitCastingClockState(),
             _knownSkillState =
                 _knownSkillState?.DuplicateState()
                 ?? new BattleUnitKnownSkillState(),
@@ -1814,13 +1878,22 @@ public partial class BattleUnitState
                 _creatureTypeState?.DuplicateState()
                 ?? new BattleUnitCreatureTypeState(),
             versatility_pick = versatility_pick,
-            WeaponProjectionState = WeaponProjectionState.DuplicateState(),
-            CooldownState = CooldownState.DuplicateState(),
-            StatusEffectCollection = _statusEffects.DuplicateState(),
-            ChargeState = ChargeState.DuplicateState(),
+            WeaponProjectionState = canonicalizeSource
+                ? WeaponProjectionState.DuplicateState()
+                : _weaponProjectionState?.DuplicateState()
+                    ?? new BattleUnitWeaponProjectionState(),
+            CooldownState = canonicalizeSource
+                ? CooldownState.DuplicateState()
+                : _cooldownState?.DuplicateState() ?? new BattleUnitCooldownState(),
+            StatusEffectCollection =
+                _statusEffects?.DuplicateState() ?? new BattleStatusEffectCollection(),
+            ChargeState =
+                _chargeState?.DuplicateState() ?? new BattleUnitChargeState(),
             death_ward_consumed_this_battle = death_ward_consumed_this_battle,
             pending_cast = pending_cast?.Clone(),
-            ConsumedContingencySetups = ConsumedContingencySetups.DuplicateState(),
+            ConsumedContingencySetups =
+                _consumedContingencySetups?.DuplicateState()
+                ?? new BattleConsumedContingencySetupCollection(),
         };
     }
 
@@ -1873,6 +1946,10 @@ public partial class BattleUnitState
             ["control_mode"] = control_mode.ToString(),
             ["ai_brain_id"] = ai_brain_id.ToString(),
             ["ai_state_id"] = ai_state_id.ToString(),
+            ["cognition_kind"] =
+                BattleCognitionContentRules
+                    .ToStringName(_baseCognitionKind)
+                    .ToString(),
             // ai_blackboard is runtime-only and not serialized
             ["coord"] = geometry.AnchorCoord,
             ["body_size"] = geometry.BodySize,
@@ -2115,6 +2192,7 @@ public partial class BattleUnitState
                 "encounter_actor_id",
                 "ai_brain_id",
                 "ai_state_id",
+                "cognition_kind",
                 "shield_family",
                 "shield_source_unit_id",
                 "shield_source_skill_id",
@@ -2157,6 +2235,18 @@ public partial class BattleUnitState
             {
                 return null;
             }
+        }
+        BattleCognitionKind parsedCognitionKind =
+            BattleCognitionContentRules.ToKind(
+                ToStringName(payload["cognition_kind"])
+            );
+        if (
+            !BattleCognitionContentRules.IsKnown(
+                parsedCognitionKind
+            )
+        )
+        {
+            return null;
         }
         if (payload["current_move_points"].AsInt32() < 0)
         {
@@ -2394,6 +2484,7 @@ public partial class BattleUnitState
             control_mode = ToStringName(payload["control_mode"]),
             ai_brain_id = ToStringName(payload["ai_brain_id"]),
             ai_state_id = ToStringName(payload["ai_state_id"]),
+            _baseCognitionKind = parsedCognitionKind,
             ai_blackboard = new BattleAiBlackboard(),
             GeometryState = BattleUnitGeometryState.FromRaw(
                 BattleUnitGeometrySnapshot.Present(
@@ -2516,6 +2607,7 @@ public partial class BattleUnitState
                     new BattleWeaponProjectionValues(
                         parsedWeaponProfileKind,
                         ToStringName(payload["weapon_item_id"]),
+                        new StringName(""),
                         ToStringName(payload["weapon_profile_type_id"]),
                         ToStringName(payload["weapon_range_type"]),
                         ToStringName(payload["weapon_family"]),
@@ -2529,6 +2621,7 @@ public partial class BattleUnitState
                         ),
                         ReadBool(payload, "weapon_is_versatile"),
                         ReadBool(payload, "weapon_uses_two_hands"),
+                        false,
                         ToStringName(
                             payload["weapon_physical_damage_tag"]
                         )
@@ -3138,6 +3231,13 @@ public partial class BattleUnitState
             result.SetValue(key, value);
         }
         return result;
+    }
+
+    private static AttributeSnapshot DuplicateAttributeSnapshotForPreview(
+        AttributeSnapshot source
+    )
+    {
+        return source?.DuplicateForPreviewExact() ?? NewAttributeSnapshot();
     }
 
     private static GDictionary StringNameIntMapToStringDict(GDictionary values)

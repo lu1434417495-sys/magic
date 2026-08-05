@@ -19,6 +19,7 @@ initial_state_id = &"pressure"
 creature_level = 4
 hit_die_sides = 6
 action_threshold = 45
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"mist", &"weaver", &"magical_beast"])
 save_advantage_tags = Array[StringName]([&"illusion", &"temporal"])
 damage_resistances = {

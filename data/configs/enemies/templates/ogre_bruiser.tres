@@ -20,6 +20,7 @@ body_size = 3
 creature_level = 5
 hit_die_sides = 10
 action_threshold = 50
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"giant", &"ogre"])
 attack_equipment_item_id = &"iron_greatclub"
 base_attribute_overrides = {

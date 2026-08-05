@@ -5,6 +5,7 @@ public sealed class WeaponProjection
 {
     public StringName weapon_profile_kind { get; set; } = "";
     public StringName weapon_item_id { get; set; } = "";
+    public StringName weapon_instance_id { get; set; } = "";
     public StringName weapon_profile_type_id { get; set; } = "";
     public StringName weapon_range_type { get; set; } = "";
     public StringName weapon_family { get; set; } = "";
@@ -14,6 +15,7 @@ public sealed class WeaponProjection
     public WeaponDice weapon_two_handed_dice { get; set; } = new();
     public bool weapon_is_versatile { get; set; }
     public bool weapon_uses_two_hands { get; set; }
+    public bool weapon_is_heavy { get; set; }
     public StringName weapon_physical_damage_tag { get; set; } = "";
 
     public WeaponProjection() { }
@@ -44,6 +46,7 @@ public sealed class WeaponProjection
         {
             weapon_profile_kind = ReadStringName(projection, "weapon_profile_kind"),
             weapon_item_id = ReadStringName(projection, "weapon_item_id"),
+            weapon_instance_id = ReadStringName(projection, "weapon_instance_id"),
             weapon_profile_type_id = ReadStringName(projection, "weapon_profile_type_id"),
             weapon_range_type = ReadStringName(projection, "weapon_range_type"),
             weapon_family = ReadStringName(projection, "weapon_family"),
@@ -55,6 +58,7 @@ public sealed class WeaponProjection
             ),
             weapon_is_versatile = ReadBool(projection, "weapon_is_versatile"),
             weapon_uses_two_hands = usesTwoHands,
+            weapon_is_heavy = ReadBool(projection, "weapon_is_heavy"),
             weapon_physical_damage_tag = ReadStringName(
                 projection,
                 "weapon_physical_damage_tag"
@@ -68,6 +72,7 @@ public sealed class WeaponProjection
         {
             weapon_profile_kind = weapon_profile_kind,
             weapon_item_id = weapon_item_id,
+            weapon_instance_id = weapon_instance_id,
             weapon_profile_type_id = weapon_profile_type_id,
             weapon_range_type = weapon_range_type,
             weapon_family = weapon_family,
@@ -77,6 +82,7 @@ public sealed class WeaponProjection
             weapon_two_handed_dice = weapon_two_handed_dice?.DuplicateState() ?? new WeaponDice(),
             weapon_is_versatile = weapon_is_versatile,
             weapon_uses_two_hands = weapon_uses_two_hands,
+            weapon_is_heavy = weapon_is_heavy,
             weapon_physical_damage_tag = weapon_physical_damage_tag,
         };
     }
@@ -92,6 +98,7 @@ public sealed class WeaponProjection
         {
             ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
             ["weapon_item_id"] = weapon_item_id.ToString(),
+            ["weapon_instance_id"] = weapon_instance_id.ToString(),
             ["weapon_profile_type_id"] = weapon_profile_type_id.ToString(),
             ["weapon_range_type"] = weapon_range_type.ToString(),
             ["weapon_family"] = weapon_family.ToString(),
@@ -101,6 +108,7 @@ public sealed class WeaponProjection
             ["weapon_two_handed_dice"] = WeaponDiceProjection.Project(weapon_two_handed_dice),
             ["weapon_is_versatile"] = weapon_is_versatile,
             ["weapon_uses_two_hands"] = weapon_uses_two_hands,
+            ["weapon_is_heavy"] = weapon_is_heavy,
             ["weapon_physical_damage_tag"] = weapon_physical_damage_tag.ToString(),
         };
     }

@@ -16,6 +16,11 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
     private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions =
         new Dictionary<StringName, BarrierProfileDefinition>();
     private ISkillCatalog _skillCatalog;
+    private Func<
+        BattleUnitState,
+        SkillDefinition,
+        BattleSkillCastBlockReasonKind
+    > _skillCastBlockReasonCallback;
 
     BattleState IBattleAiScoreContext.state => _state;
 
@@ -31,6 +36,13 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 
     ISkillCatalog IBattleAiScoreContext.skill_catalog => _skillCatalog;
 
+    Func<
+        BattleUnitState,
+        SkillDefinition,
+        BattleSkillCastBlockReasonKind
+    > IBattleAiScoreContext.skill_cast_block_reason_callback =>
+        _skillCastBlockReasonCallback;
+
     internal void Setup(
         BattleAiScoreService scoreService,
         BattleState battleState,
@@ -38,7 +50,12 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         BattleGridService battleGridService,
         ISkillCatalog skillCatalog = null,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
-        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null,
+        Func<
+            BattleUnitState,
+            SkillDefinition,
+            BattleSkillCastBlockReasonKind
+        > skillCastBlockReasonCallback = null
     )
     {
         ClearRuntimeBindings();
@@ -85,6 +102,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _barrierProfileDefinitions =
             barrierProfileDefinitions
             ?? new Dictionary<StringName, BarrierProfileDefinition>();
+        _skillCastBlockReasonCallback =
+            skillCastBlockReasonCallback;
     }
 
     internal void ClearRuntimeBindings()
@@ -96,6 +115,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _skillDefinitions = EmptySkillDefinitions;
         _barrierProfileDefinitions = new Dictionary<StringName, BarrierProfileDefinition>();
         _skillCatalog = null;
+        _skillCastBlockReasonCallback = null;
     }
 
     internal BattleAiScoreInput BuildActionScoreInput(

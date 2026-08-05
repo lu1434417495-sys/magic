@@ -14,6 +14,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         TestTypedSchemaValidationAcceptsTypedReferenceTables();
         TestDictionaryReferenceIndicesBuildTypedSchemaInputsFromStringNameKeys();
         TestTypedSchemaValidationRejectsMissingTypedItemReferences();
+        TestCognitionKindIsRequiredAndClosed();
         TestSaveAdvantageTagsExportFieldExists();
         TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes();
         TestSaveAdvantageTagsRejectEmptyTag();
@@ -56,6 +57,46 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         _test.True(
             errors.Count == 0,
             $"typed ValidateSchemaTyped() 应接受正式 typed 引用表。 errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestCognitionKindIsRequiredAndClosed()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "cognition_schema_template",
+            "cognition_schema_weapon"
+        );
+        template.cognition_kind = "";
+        GStringArray missingErrors = ValidateWithReferenceTables(template);
+        _test.True(
+            ContainsError(missingErrors, "cognition_kind"),
+            "enemy template 必须显式声明 cognition_kind。"
+        );
+
+        template.cognition_kind = "clever";
+        GStringArray unknownErrors = ValidateWithReferenceTables(template);
+        _test.True(
+            ContainsError(unknownErrors, "cognition_kind"),
+            "enemy template cognition_kind 应拒绝开放字符串。"
+        );
+
+        template.cognition_kind = "mindless";
+        _test.Eq(
+            ValidateWithReferenceTables(template).Count,
+            0,
+            "mindless 应是合法的正式认知类型。"
+        );
+        template.cognition_kind = "instinctive";
+        _test.Eq(
+            ValidateWithReferenceTables(template).Count,
+            0,
+            "instinctive 应是合法的正式认知类型。"
+        );
+        template.cognition_kind = "sapient";
+        _test.Eq(
+            ValidateWithReferenceTables(template).Count,
+            0,
+            "sapient 应是合法的正式认知类型。"
         );
     }
 
@@ -438,6 +479,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             display_name = templateId.ToString(),
             brain_id = "dictionary_schema_brain",
             initial_state_id = "engage",
+            cognition_kind = "sapient",
             attack_equipment_item_id = weaponItemId,
             skill_ids = new GStringNameArray { "typed_schema_skill" },
             skill_level_map = new GDictionary { [new StringName("typed_schema_skill")] = 1 },

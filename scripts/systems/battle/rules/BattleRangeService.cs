@@ -9,6 +9,7 @@ public static class BattleRangeService
     private static readonly StringName StatusArcherShootingSpecialization =
         "archer_shooting_specialization";
     private static readonly StringName WeaponProfileKindEquipped = "equipped";
+    private static readonly StringName WeaponProfileKindNatural = "natural";
     private static readonly StringName WeaponRangeTypeMelee = "melee";
     private static readonly StringName WeaponFamilyBow = "bow";
 
@@ -66,6 +67,86 @@ public static class BattleRangeService
             && !IsEmpty(unitInfo.WeaponPhysicalDamageTag);
     }
 
+    public static bool UnitHasNaturalWeapon(BattleUnitState unitState)
+    {
+        return UnitHasNaturalWeapon(BuildUnitRangeInfo(unitState));
+    }
+
+    internal static bool UnitHasNaturalWeapon(BattleUnitReadView unitView)
+    {
+        return UnitHasNaturalWeapon(BuildUnitRangeInfo(unitView));
+    }
+
+    private static bool UnitHasNaturalWeapon(UnitRangeInfo unitInfo)
+    {
+        return unitInfo != null
+            && unitInfo.WeaponProfileKind == WeaponProfileKindNatural
+            && unitInfo.WeaponAttackRange > 0
+            && !IsEmpty(unitInfo.WeaponPhysicalDamageTag);
+    }
+
+    public static bool UnitHasAllowedWeaponForSkill(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitHasAllowedWeaponForSkill(
+            BuildUnitRangeInfo(unitState),
+            skillDefinition
+        );
+    }
+
+    internal static bool UnitHasAllowedWeaponForSkill(
+        BattleUnitReadView unitView,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitHasAllowedWeaponForSkill(BuildUnitRangeInfo(unitView), skillDefinition);
+    }
+
+    private static bool UnitHasAllowedWeaponForSkill(
+        UnitRangeInfo unitInfo,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitHasEquippedWeapon(unitInfo)
+            || UnitUsesAllowedNaturalWeapon(unitInfo, skillDefinition);
+    }
+
+    public static bool UnitHasAllowedMeleeWeaponForSkill(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitHasAllowedMeleeWeaponForSkill(
+            BuildUnitRangeInfo(unitState),
+            skillDefinition
+        );
+    }
+
+    internal static bool UnitHasAllowedMeleeWeaponForSkill(
+        BattleUnitReadView unitView,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitHasAllowedMeleeWeaponForSkill(
+            BuildUnitRangeInfo(unitView),
+            skillDefinition
+        );
+    }
+
+    private static bool UnitHasAllowedMeleeWeaponForSkill(
+        UnitRangeInfo unitInfo,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitHasMeleeWeapon(unitInfo)
+            || (
+                UnitUsesAllowedNaturalWeapon(unitInfo, skillDefinition)
+                && unitInfo.WeaponAttackRange <= 2
+            );
+    }
+
     public static bool UnitMatchesRequiredWeaponFamilies(
         BattleUnitState unitState,
         IEnumerable<StringName> requiredWeaponFamilies
@@ -77,6 +158,43 @@ public static class BattleRangeService
         );
     }
 
+    public static bool UnitMatchesRequiredWeaponFamilies(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitMatchesRequiredWeaponFamilies(
+            BuildUnitRangeInfo(unitState),
+            skillDefinition
+        );
+    }
+
+    internal static bool UnitMatchesRequiredWeaponFamilies(
+        BattleUnitReadView unitView,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitMatchesRequiredWeaponFamilies(
+            BuildUnitRangeInfo(unitView),
+            skillDefinition
+        );
+    }
+
+    private static bool UnitMatchesRequiredWeaponFamilies(
+        UnitRangeInfo unitInfo,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (UnitUsesAllowedNaturalWeapon(unitInfo, skillDefinition))
+        {
+            return true;
+        }
+        return UnitMatchesRequiredWeaponFamilies(
+            unitInfo,
+            skillDefinition?.CombatProfile?.RequiredWeaponFamilies
+        );
+    }
+
     public static bool UnitMatchesRequiredWeaponTypeIds(
         BattleUnitState unitState,
         IEnumerable<StringName> requiredWeaponTypeIds
@@ -85,6 +203,43 @@ public static class BattleRangeService
         return UnitMatchesRequiredWeaponTypeIds(
             BuildUnitRangeInfo(unitState),
             requiredWeaponTypeIds
+        );
+    }
+
+    public static bool UnitMatchesRequiredWeaponTypeIds(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitMatchesRequiredWeaponTypeIds(
+            BuildUnitRangeInfo(unitState),
+            skillDefinition
+        );
+    }
+
+    internal static bool UnitMatchesRequiredWeaponTypeIds(
+        BattleUnitReadView unitView,
+        SkillDefinition skillDefinition
+    )
+    {
+        return UnitMatchesRequiredWeaponTypeIds(
+            BuildUnitRangeInfo(unitView),
+            skillDefinition
+        );
+    }
+
+    private static bool UnitMatchesRequiredWeaponTypeIds(
+        UnitRangeInfo unitInfo,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (UnitUsesAllowedNaturalWeapon(unitInfo, skillDefinition))
+        {
+            return true;
+        }
+        return UnitMatchesRequiredWeaponTypeIds(
+            unitInfo,
+            skillDefinition?.CombatProfile?.RequiredWeaponTypeIds
         );
     }
 
@@ -158,6 +313,15 @@ public static class BattleRangeService
             }
         }
         return !hasRequiredFamily;
+    }
+
+    private static bool UnitUsesAllowedNaturalWeapon(
+        UnitRangeInfo unitInfo,
+        SkillDefinition skillDefinition
+    )
+    {
+        return skillDefinition?.CombatProfile?.AllowsNaturalWeapon == true
+            && UnitHasNaturalWeapon(unitInfo);
     }
 
     public static int GetEffectiveSkillRange(

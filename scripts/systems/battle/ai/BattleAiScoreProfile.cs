@@ -95,6 +95,9 @@ public partial class BattleAiScoreProfile : Resource
     public int cooldown_weight = 8;
 
     [Export]
+    public int delayed_resolution_cost_per_5_tu = 1;
+
+    [Export]
     public int movement_cost_weight = 18;
 
     [Export]

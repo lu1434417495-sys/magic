@@ -8,11 +8,13 @@ public class BattlePreview
     private readonly List<string> _logLines = new();
     private readonly List<StringName> _targetUnitIds = new();
     private readonly List<Vector2I> _targetCoords = new();
+    private readonly List<Vector2I> _sourceRetreatPath = new();
     private readonly List<StringName> _randomChainCandidateUnitIds = new();
     private readonly List<StringName> _randomChainImpactCandidateUnitIds = new();
     private readonly ReadOnlyCollection<string> _logLinesView;
     private readonly ReadOnlyCollection<StringName> _targetUnitIdsView;
     private readonly ReadOnlyCollection<Vector2I> _targetCoordsView;
+    private readonly ReadOnlyCollection<Vector2I> _sourceRetreatPathView;
     private readonly ReadOnlyCollection<StringName> _randomChainCandidateUnitIdsView;
     private readonly ReadOnlyCollection<StringName> _randomChainImpactCandidateUnitIdsView;
     private BattleSaveBranchPreviewData _saveBranchPreview;
@@ -36,6 +38,11 @@ public class BattlePreview
         get => new(_randomChainCandidateUnitIds);
         set => SetRandomChainCandidateUnitIds(value);
     }
+    public Vector2IList source_retreat_path
+    {
+        get => new(_sourceRetreatPath);
+        set => SetSourceRetreatPath(value);
+    }
     public Vector2I resolved_anchor_coord { get; set; } = new Vector2I(-1, -1);
     public int move_cost { get; set; } = 0;
     public AttackPreviewData hit_preview { get; set; }
@@ -44,6 +51,7 @@ public class BattlePreview
 
     internal IReadOnlyList<StringName> TargetUnitIdsTyped => _targetUnitIdsView;
     internal IReadOnlyList<Vector2I> TargetCoordsTyped => _targetCoordsView;
+    internal IReadOnlyList<Vector2I> SourceRetreatPathTyped => _sourceRetreatPathView;
     internal IReadOnlyList<StringName> RandomChainCandidateUnitIdsTyped =>
         _randomChainCandidateUnitIdsView;
     internal IReadOnlyList<StringName> RandomChainImpactCandidateUnitIdsTyped =>
@@ -59,6 +67,7 @@ public class BattlePreview
         _logLinesView = _logLines.AsReadOnly();
         _targetUnitIdsView = _targetUnitIds.AsReadOnly();
         _targetCoordsView = _targetCoords.AsReadOnly();
+        _sourceRetreatPathView = _sourceRetreatPath.AsReadOnly();
         _randomChainCandidateUnitIdsView = _randomChainCandidateUnitIds.AsReadOnly();
         _randomChainImpactCandidateUnitIdsView =
             _randomChainImpactCandidateUnitIds.AsReadOnly();
@@ -118,6 +127,24 @@ public class BattlePreview
     internal bool ContainsTargetCoord(Vector2I value)
     {
         return _targetCoords.Contains(value);
+    }
+
+    internal void SetSourceRetreatPath(IEnumerable<Vector2I> values)
+    {
+        _sourceRetreatPath.Clear();
+        if (values == null)
+        {
+            return;
+        }
+        foreach (Vector2I value in values)
+        {
+            _sourceRetreatPath.Add(value);
+        }
+    }
+
+    internal void ClearSourceRetreatPath()
+    {
+        _sourceRetreatPath.Clear();
     }
 
     internal void SetRandomChainCandidateUnitIds(IEnumerable<StringName> values)

@@ -44,6 +44,11 @@ internal static class EquipmentAbilityDefinitionProjection
                 source.binding_id,
                 source.temporal_progress_modifiers
             ),
+            CognitionCeilingModifiers =
+                ProjectCognitionCeilingModifiers(
+                    source.binding_id,
+                    source.cognition_ceiling_modifiers
+                ),
             WeaponProfileOverlays = ProjectWeaponProfileOverlays(source.weapon_profile_overlays),
             WorldEffects = ProjectWorldEffects(source.world_effects),
             ResourcePath = source.ResourcePath ?? "",
@@ -80,6 +85,48 @@ internal static class EquipmentAbilityDefinitionProjection
         return result.Count > 0
             ? new ReadOnlyCollection<EquipmentTemporalProgressModifierDefinition>(result)
             : Array.Empty<EquipmentTemporalProgressModifierDefinition>();
+    }
+
+    private static
+        IReadOnlyList<EquipmentCognitionCeilingModifierDefinition>
+            ProjectCognitionCeilingModifiers(
+                StringName bindingId,
+                Godot.Collections.Array<
+                    EquipmentCognitionCeilingModifierDef
+                > values
+            )
+    {
+        if (values == null || values.Count == 0)
+        {
+            return Array.Empty<
+                EquipmentCognitionCeilingModifierDefinition
+            >();
+        }
+        var result =
+            new List<
+                EquipmentCognitionCeilingModifierDefinition
+            >();
+        foreach (
+            EquipmentCognitionCeilingModifierDef value in values
+        )
+        {
+            if (value == null)
+                continue;
+            result.Add(
+                new EquipmentCognitionCeilingModifierDefinition
+                {
+                    ModifierId = value.modifier_id,
+                    BindingId = bindingId,
+                    CognitionCeiling =
+                        BattleCognitionContentRules.ToKind(
+                            value.cognition_ceiling
+                        ),
+                }
+            );
+        }
+        return new ReadOnlyCollection<
+            EquipmentCognitionCeilingModifierDefinition
+        >(result);
     }
 
     private static IReadOnlySet<StringName> ProjectSourceKinds(
@@ -539,6 +586,10 @@ internal static class EquipmentAbilityDefinitionProjection
                 ControlMode = summon.control_mode,
                 AiBrainId = summon.ai_brain_id,
                 AiStateId = summon.ai_state_id,
+                CognitionKind =
+                    BattleCognitionContentRules.ToKind(
+                        summon.cognition_kind
+                    ),
                 HpMax = summon.hp_max,
                 ArmorClass = summon.armor_class,
                 AttackBonus = summon.attack_bonus,

@@ -19,6 +19,7 @@ initial_state_id = &"engage"
 creature_level = 2
 hit_die_sides = 8
 action_threshold = 35
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"humanoid", &"reptile", &"lizardfolk"])
 save_advantage_tags = Array[StringName]([&"poison"])
 attack_equipment_item_id = &"guard_trident"

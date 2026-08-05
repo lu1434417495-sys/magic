@@ -21,6 +21,7 @@ internal sealed class EnemyTemplateDefinition
             source ??= new WeaponProjection();
             WeaponProfileKind = source.weapon_profile_kind;
             WeaponItemId = source.weapon_item_id;
+            WeaponInstanceId = source.weapon_instance_id;
             WeaponProfileTypeId = source.weapon_profile_type_id;
             WeaponRangeType = source.weapon_range_type;
             WeaponFamily = source.weapon_family;
@@ -30,11 +31,13 @@ internal sealed class EnemyTemplateDefinition
             WeaponTwoHandedDice = CopyDice(source.weapon_two_handed_dice);
             WeaponIsVersatile = source.weapon_is_versatile;
             WeaponUsesTwoHands = source.weapon_uses_two_hands;
+            WeaponIsHeavy = source.weapon_is_heavy;
             WeaponPhysicalDamageTag = source.weapon_physical_damage_tag;
         }
 
         internal StringName WeaponProfileKind { get; }
         internal StringName WeaponItemId { get; }
+        internal StringName WeaponInstanceId { get; }
         internal StringName WeaponProfileTypeId { get; }
         internal StringName WeaponRangeType { get; }
         internal StringName WeaponFamily { get; }
@@ -44,6 +47,7 @@ internal sealed class EnemyTemplateDefinition
         internal EnemyWeaponDiceDefinition WeaponTwoHandedDice { get; }
         internal bool WeaponIsVersatile { get; }
         internal bool WeaponUsesTwoHands { get; }
+        internal bool WeaponIsHeavy { get; }
         internal StringName WeaponPhysicalDamageTag { get; }
 
         internal bool IsEmpty() => WeaponProfileKind == "";
@@ -52,6 +56,7 @@ internal sealed class EnemyTemplateDefinition
         {
             weapon_profile_kind = WeaponProfileKind,
             weapon_item_id = WeaponItemId,
+            weapon_instance_id = WeaponInstanceId,
             weapon_profile_type_id = WeaponProfileTypeId,
             weapon_range_type = WeaponRangeType,
             weapon_family = WeaponFamily,
@@ -61,6 +66,7 @@ internal sealed class EnemyTemplateDefinition
             weapon_two_handed_dice = WeaponTwoHandedDice?.ToRuntimeDice() ?? new WeaponDice(),
             weapon_is_versatile = WeaponIsVersatile,
             weapon_uses_two_hands = WeaponUsesTwoHands,
+            weapon_is_heavy = WeaponIsHeavy,
             weapon_physical_damage_tag = WeaponPhysicalDamageTag,
         };
 
@@ -86,6 +92,7 @@ internal sealed class EnemyTemplateDefinition
         int creatureLevel,
         int hitDieSides,
         int actionThreshold,
+        BattleCognitionKind cognitionKind,
         IReadOnlyList<StringName> tags,
         IReadOnlyList<StringName> saveAdvantageTags,
         IReadOnlyList<StringName> saveDisadvantageTags,
@@ -97,6 +104,7 @@ internal sealed class EnemyTemplateDefinition
         IReadOnlyDictionary<StringName, int> baseAttributeOverrides,
         IReadOnlyList<StringName> skillIds,
         IReadOnlyDictionary<StringName, int> skillLevels,
+        int generatedCoreSkillCount,
         IReadOnlyDictionary<StringName, int> attributeOverrides,
         StringName targetRank,
         IReadOnlyList<DropEntryDefinition> dropEntries,
@@ -116,6 +124,7 @@ internal sealed class EnemyTemplateDefinition
         CreatureLevel = creatureLevel;
         HitDieSides = hitDieSides;
         ActionThreshold = actionThreshold;
+        CognitionKind = cognitionKind;
         Tags = EnemyDefinitionCollections.FreezeList(tags);
         SaveAdvantageTags = EnemyDefinitionCollections.FreezeList(saveAdvantageTags);
         SaveDisadvantageTags = EnemyDefinitionCollections.FreezeList(saveDisadvantageTags);
@@ -127,6 +136,7 @@ internal sealed class EnemyTemplateDefinition
         BaseAttributeOverrides = EnemyDefinitionCollections.FreezeDictionary(baseAttributeOverrides);
         SkillIds = EnemyDefinitionCollections.FreezeList(skillIds);
         SkillLevels = EnemyDefinitionCollections.FreezeDictionary(skillLevels);
+        GeneratedCoreSkillCount = Math.Max(generatedCoreSkillCount, 0);
         AttributeOverrides = EnemyDefinitionCollections.FreezeDictionary(attributeOverrides);
         TargetRank = targetRank;
         DropEntries = EnemyDefinitionCollections.FreezeList(dropEntries);
@@ -146,6 +156,7 @@ internal sealed class EnemyTemplateDefinition
     internal int CreatureLevel { get; }
     internal int HitDieSides { get; }
     internal int ActionThreshold { get; }
+    internal BattleCognitionKind CognitionKind { get; }
     internal IReadOnlyList<StringName> Tags { get; }
     internal IReadOnlyList<StringName> SaveAdvantageTags { get; }
     internal IReadOnlyList<StringName> SaveDisadvantageTags { get; }
@@ -158,6 +169,7 @@ internal sealed class EnemyTemplateDefinition
     internal IReadOnlyList<StringName> SkillIds { get; }
     internal IReadOnlyDictionary<StringName, int> SkillLevels { get; }
     internal IReadOnlyDictionary<StringName, int> SkillLevelMap => SkillLevels;
+    internal int GeneratedCoreSkillCount { get; }
     internal IReadOnlyDictionary<StringName, int> AttributeOverrides { get; }
     internal StringName TargetRank { get; }
     internal EnemyTargetRankKind TargetRankKind => BattleTypedNames.ToEnemyTargetRank(TargetRank);
@@ -233,6 +245,9 @@ internal sealed class EnemyTemplateDefinition
             source.creature_level,
             source.hit_die_sides,
             source.action_threshold,
+            BattleCognitionContentRules.ToKind(
+                source.cognition_kind
+            ),
             source.tags,
             source.save_advantage_tags,
             source.save_disadvantage_tags,
@@ -244,6 +259,7 @@ internal sealed class EnemyTemplateDefinition
             source.GetBaseAttributeOverridesResolvedTyped(),
             source.skill_ids,
             skillLevels,
+            source.generated_core_skill_count,
             source.GetAttributeOverridesTyped(),
             source.target_rank,
             drops,

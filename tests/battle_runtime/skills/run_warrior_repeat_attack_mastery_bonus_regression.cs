@@ -28,6 +28,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         TestWeaponAttackQualityReadsWeaponDiceMaxReasonFromResultPayload();
         TestGuardMasteryGrantReadsSkillDefFromTypedDictionaryKey();
         TestGuardLevelProgressionMatchesDescription();
+        TestGuardRuntimeMitigatesEachPhysicalHitOnly();
 
         return _test.Finish("Warrior repeat attack mastery bonus regression");
     }
@@ -333,10 +334,20 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             !guardDefinition.LevelDescriptionTemplate.Contains("guarding"),
             "格挡等级模板不应残留内部状态 id。"
         );
+        _test.True(
+            guardDefinition.Description.Contains("每次受到物理伤害")
+                && guardDefinition.Description.Contains("最低仍受到1点伤害")
+                && guardDefinition.Description.Contains("对非物理伤害无效"),
+            "格挡基础描述应明确逐次物理减伤、最低伤害和非物理例外。"
+        );
+        _test.True(
+            guardDefinition.LevelDescriptionTemplate.Contains("移动每格额外消耗"),
+            "格挡等级模板应描述真实的逐格移动成本，而不是笼统的移动力减少。"
+        );
 
         int[] expectedGuardPower = { 1, 1, 1, 2, 2, 3 };
         int[] expectedDurationTu = { 40, 50, 60, 60, 60, 60 };
-        int[] expectedStaminaCost = { 50, 50, 40, 40, 35, 30 };
+        int[] expectedStaminaCost = { 20, 20, 20, 20, 20, 20 };
         for (int level = 0; level <= 5; level++)
         {
             CombatEffectDefinition guarding = FindActiveStatusEffect(
@@ -387,7 +398,12 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
                 $"格挡 {level}级 体力消耗应匹配等级说明。"
             );
             _test.Eq(
-                guardDefinition.CombatProfile.CooldownTu,
+                effectiveDefinition.ResourceCosts.ApCost,
+                1,
+                $"格挡 {level}级 AP 消耗应保持1。"
+            );
+            _test.Eq(
+                effectiveDefinition.ResourceCosts.CooldownTu,
                 120,
                 $"格挡 {level}级 冷却应保持120TU。"
             );
@@ -416,6 +432,131 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             }
         }
         return null;
+    }
+
+    private void TestGuardRuntimeMitigatesEachPhysicalHitOnly()
+    {
+        _contentSnapshot.Skills.TryGetValue(
+            "warrior_guard",
+            out SkillDefinition guardDefinition
+        );
+        CombatEffectDefinition levelFiveGuard = FindActiveStatusEffect(
+            guardDefinition?.CombatProfile?.EffectDefinitions,
+            "guarding",
+            5
+        );
+        _test.True(levelFiveGuard != null, "格挡运行时回归前置：正式5级 guarding 效果应可加载。");
+        if (levelFiveGuard == null)
+        {
+            return;
+        }
+
+        BattleUnitState source = BuildMasteryUnit("guard_damage_source", "enemy");
+        BattleUnitState target = BuildMasteryUnit("guard_damage_target", "player");
+        target.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "guarding",
+                power = levelFiveGuard.Power,
+                duration = levelFiveGuard.DurationTu,
+                stacks = 1,
+            }
+        );
+        var resolver = new BattleDamageResolver();
+
+        BattleDamagePreviewResult physical = resolver.PreviewDamageEffectTyped(
+            source,
+            target,
+            BattleRuntimeEffectDefinitions.Damage(
+                "physical_slash",
+                diceCount: 0,
+                diceSides: 0,
+                diceBonus: 0,
+                power: 6
+            ),
+            DamageResolutionContext.Empty()
+        );
+        BattleDamagePreviewResult lowPhysical = resolver.PreviewDamageEffectTyped(
+            source,
+            target,
+            BattleRuntimeEffectDefinitions.Damage(
+                "physical_blunt",
+                diceCount: 0,
+                diceSides: 0,
+                diceBonus: 0,
+                power: 2
+            ),
+            DamageResolutionContext.Empty()
+        );
+        BattleDamagePreviewResult magic = resolver.PreviewDamageEffectTyped(
+            source,
+            target,
+            BattleRuntimeEffectDefinitions.Damage(
+                "force",
+                diceCount: 0,
+                diceSides: 0,
+                diceBonus: 0,
+                power: 6
+            ),
+            DamageResolutionContext.Empty()
+        );
+        BattleUnitState otherwiseMitigatedTarget = BuildMasteryUnit(
+            "guard_other_mitigation_target",
+            "player"
+        );
+        otherwiseMitigatedTarget.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "guarding",
+                power = levelFiveGuard.Power,
+                duration = levelFiveGuard.DurationTu,
+                stacks = 1,
+            }
+        );
+        otherwiseMitigatedTarget.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "passive_reduction",
+                power = 1,
+                passive_reduction = 3,
+                stacks = 1,
+            }
+        );
+        BattleDamagePreviewResult otherwiseMitigated =
+            resolver.PreviewDamageEffectTyped(
+                source,
+                otherwiseMitigatedTarget,
+                BattleRuntimeEffectDefinitions.Damage(
+                    "physical_slash",
+                    diceCount: 0,
+                    diceSides: 0,
+                    diceBonus: 0,
+                    power: 2
+                ),
+                DamageResolutionContext.Empty()
+            );
+
+        _test.Eq(
+            physical.PostSaveDamage,
+            3,
+            "5级格挡应对单次6点物理伤害固定减3。"
+        );
+        _test.Eq(
+            lowPhysical.PostSaveDamage,
+            1,
+            "格挡后的单次物理伤害最低仍应为1。"
+        );
+        _test.Eq(
+            magic.PostSaveDamage,
+            6,
+            "格挡不应减免非物理伤害。"
+        );
+        _test.Eq(
+            otherwiseMitigated.PostSaveDamage,
+            0,
+            "其他减伤已独立吸收全部伤害时，格挡的1点下限不应反向制造伤害。"
+        );
+        _test.Eq(target.GetCurrentHp(), 30, "格挡伤害预览不应改写正式目标状态。");
     }
 
     private static BattleUnitState BuildMasteryUnit(

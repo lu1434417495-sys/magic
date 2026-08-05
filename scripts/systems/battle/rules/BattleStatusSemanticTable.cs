@@ -16,7 +16,8 @@ public readonly record struct BattleStatusSemantic(
     bool ConsumeAfterApPenalty,
     bool SetApToZeroAtTurnStart,
     string DisplayLabel,
-    string TurnStartLogReasonId
+    string TurnStartLogReasonId,
+    BattleCognitionKind CognitionCeiling
 );
 
 public static class BattleStatusSemanticTable
@@ -156,7 +157,17 @@ public static class BattleStatusSemanticTable
         [STATUS_REACTION_LOCK] = new() { Semantic = RefreshSemantic(displayLabel: "反应封锁"), Harmful = true, DispellableHarmful = true },
         [STATUS_FRIGHTENED] = new() { Semantic = RefreshSemantic(displayLabel: "恐惧"), Harmful = true, DispellableHarmful = true },
         [STATUS_STUNNED] = new() { Semantic = RefreshSemantic(displayLabel: "震慑"), Harmful = true, DispellableHarmful = true },
-        [STATUS_MADNESS] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
+        [STATUS_MADNESS] = new()
+        {
+            Semantic = RefreshSemantic(
+                cognitionCeiling:
+                    BattleCognitionKind.Instinctive
+            ),
+            Harmful = true,
+            DispellableHarmful = true,
+            BlocksPendingCast = true,
+            DispelPriority = 90,
+        },
         [STATUS_PETRIFIED] = new() { Semantic = RefreshSemantic(), Harmful = true, CleanseProtected = true, BlocksPendingCast = true },
         [STATUS_TIME_STASIS] = new() { Semantic = RefreshSemantic(), Harmful = true, CleanseProtected = true, DispellableHarmful = true, DispelPriority = 90 },
         [STATUS_TIME_SLOW] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
@@ -330,6 +341,11 @@ public static class BattleStatusSemanticTable
 
     public static BattleStatusSemantic GetSemantic(StringName statusId) =>
         GetDescriptor(statusId)?.Semantic ?? default;
+
+    internal static BattleCognitionKind GetCognitionCeiling(
+        StringName statusId
+    ) =>
+        GetSemantic(statusId).CognitionCeiling;
 
     public static BattleStatusEffectState MergeStatus(
         CombatEffectDefinition effectDefinition,
@@ -683,7 +699,9 @@ public static class BattleStatusSemanticTable
         bool consumeAfterApPenalty = false,
         bool setApToZeroAtTurnStart = false,
         string displayLabel = "",
-        string turnStartLogReasonId = ""
+        string turnStartLogReasonId = "",
+        BattleCognitionKind cognitionCeiling =
+            BattleCognitionKind.Unknown
     ) =>
         BuildSemantic(
             STACK_REFRESH,
@@ -695,7 +713,8 @@ public static class BattleStatusSemanticTable
             consumeAfterApPenalty,
             setApToZeroAtTurnStart,
             displayLabel,
-            turnStartLogReasonId
+            turnStartLogReasonId,
+            cognitionCeiling
         );
 
     private static BattleStatusSemantic BuildSemantic(
@@ -708,7 +727,9 @@ public static class BattleStatusSemanticTable
         bool consumeAfterApPenalty = false,
         bool setApToZeroAtTurnStart = false,
         string displayLabel = "",
-        string turnStartLogReasonId = ""
+        string turnStartLogReasonId = "",
+        BattleCognitionKind cognitionCeiling =
+            BattleCognitionKind.Unknown
     ) =>
         new(
             true,
@@ -721,7 +742,8 @@ public static class BattleStatusSemanticTable
             consumeAfterApPenalty,
             setApToZeroAtTurnStart,
             displayLabel ?? "",
-            turnStartLogReasonId ?? ""
+            turnStartLogReasonId ?? "",
+            cognitionCeiling
         );
 
     private static int ResolveDurationTu(CombatEffectDefinition effectDefinition)

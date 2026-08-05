@@ -22,6 +22,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         TestExternalStatusDeclarationCatalogUsesCanonicalOwners();
         TestStatusDeclarationsAreCollectedBeforeReferencesAreValidated();
         TestEmptyAndMinimalValidPacksBuildAndFindBindings();
+        TestCognitionCeilingModifiersProjectAndValidate();
         TestProjectedEffectCategoriesProjectAndValidate();
         TestDependencyOrderedReplaceBinding();
         TestReplaceBindingRejectsUnrelatedBindingIdCollision();
@@ -53,9 +54,13 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
                     "state_schemas",
                     "reactions",
                     "granted_actions",
+                    "temporal_progress_modifiers",
+                    "cognition_ceiling_modifiers",
                     "weapon_profile_overlays",
                     "world_effects",
                 },
+            [typeof(EquipmentCognitionCeilingModifierDef)] =
+                new[] { "modifier_id", "cognition_ceiling" },
             [typeof(EquipmentAbilityReactionDef)] =
                 new[]
                 {
@@ -367,6 +372,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             typeof(EquipmentConditionGroupDefinition),
             typeof(EquipmentAbilityActionDefinition),
             typeof(EquipmentGrantedActionDefinition),
+            typeof(EquipmentCognitionCeilingModifierDefinition),
             typeof(EquipmentWeaponProfileOverlayDefinition),
             typeof(EquipmentWorldEffectDefinition),
             typeof(EquipmentAbilityStateSchemaDefinition),
@@ -842,6 +848,90 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
                 reservedCategory.ToString()
             );
         }
+    }
+
+    private void TestCognitionCeilingModifiersProjectAndValidate()
+    {
+        EquipmentAbilityContentPackDef validPack = BuildValidPack(
+            "pack.cognition_ceiling",
+            "binding.cognition_ceiling"
+        );
+        validPack.bindings[0].cognition_ceiling_modifiers.Add(
+            new EquipmentCognitionCeilingModifierDef
+            {
+                modifier_id = "loss_of_reason",
+                cognition_ceiling = "instinctive",
+            }
+        );
+        var registry = new EquipmentAbilityContentRegistry(
+            new TestContentResourceLoader()
+        );
+        EquipmentAbilityRegistryBuildResult validResult =
+            registry.Rebuild(
+                new[] { validPack },
+                BuildValidationContext()
+            );
+        _test.True(
+            validResult.Success,
+            $"cognition ceiling modifier should build: {FormatErrors(validResult.Errors)}"
+        );
+        if (validResult.Success)
+        {
+            IReadOnlyList<EquipmentCognitionCeilingModifierDefinition>
+                modifiers = registry
+                    .GetBindingDefinitionsTyped()[
+                        "binding.cognition_ceiling"
+                    ]
+                    .CognitionCeilingModifiers;
+            _test.Eq(
+                modifiers.Count,
+                1,
+                "runtime binding should retain cognition ceiling modifiers."
+            );
+            _test.Eq(
+                modifiers[0].ModifierId,
+                new StringName("loss_of_reason"),
+                "cognition modifier id should project exactly."
+            );
+            _test.Eq(
+                modifiers[0].CognitionCeiling,
+                BattleCognitionKind.Instinctive,
+                "cognition ceiling should project to the closed enum."
+            );
+        }
+
+        validPack.bindings[0].cognition_ceiling_modifiers[0]
+            .cognition_ceiling = "clever";
+        EquipmentAbilityRegistryBuildResult invalidKindResult =
+            registry.Rebuild(
+                new[] { validPack },
+                BuildValidationContext()
+            );
+        AssertErrorContains(
+            invalidKindResult.Errors,
+            "EQA_COGNITION_CEILING_INVALID",
+            "cognition_ceiling"
+        );
+
+        validPack.bindings[0].cognition_ceiling_modifiers[0]
+            .cognition_ceiling = "instinctive";
+        validPack.bindings[0].cognition_ceiling_modifiers.Add(
+            new EquipmentCognitionCeilingModifierDef
+            {
+                modifier_id = "loss_of_reason",
+                cognition_ceiling = "mindless",
+            }
+        );
+        EquipmentAbilityRegistryBuildResult duplicateResult =
+            registry.Rebuild(
+                new[] { validPack },
+                BuildValidationContext()
+            );
+        AssertErrorContains(
+            duplicateResult.Errors,
+            "EQA_COGNITION_CEILING_MODIFIER_DUPLICATE",
+            "loss_of_reason"
+        );
     }
 
     private void TestDependencyOrderedReplaceBinding()
@@ -2095,6 +2185,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             unit_display_name = "Test Summon",
             body_size_category = "small",
             control_mode = "ally_ai",
+            cognition_kind = "instinctive",
             hp_max = 1,
             armor_class = 10,
             natural_weapon_profile_type_id = "test_claws",

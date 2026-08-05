@@ -150,6 +150,11 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         _test.Eq(wolf.faction_id, holder.faction_id, "幽灵狼阵营应跟随来源单位。");
         _test.True(wolf.ai_blackboard?.summoned == true, "幽灵狼应标记 summoned。");
         _test.True(wolf.ai_blackboard?.temporary_unit == true, "幽灵狼应标记 temporary。");
+        _test.Eq(
+            wolf.GetBaseCognitionKindTyped(),
+            BattleCognitionKind.Instinctive,
+            "幽灵狼应由 summon payload 数据驱动为野兽心智。"
+        );
         _test.Eq(wolf.ai_blackboard?.summon_source_unit_id ?? new StringName(""), holder.unit_id, "幽灵狼应记录来源单位。");
         _test.Eq(wolf.ai_blackboard?.summon_source_equipment_instance_id ?? new StringName(""), new StringName("eq_wolf_summon"), "幽灵狼应记录来源装备实例。");
         _test.Eq(wolf.ai_blackboard?.summon_binding_id ?? new StringName(""), WolfSpiritBindingId, "幽灵狼应记录来源 binding。");
@@ -383,6 +388,8 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
             throw new InvalidOperationException("幽灵狼持续时间必须是 60TU。");
         if (payload.UnitDisplayName != "幽灵狼")
             throw new InvalidOperationException("狼灵召唤应生成幽灵狼。");
+        if (payload.CognitionKind != BattleCognitionKind.Instinctive)
+            throw new InvalidOperationException("狼灵召唤 payload 应声明野兽心智。");
         if (payload.HpMax <= 0 || payload.ArmorClass <= 0 || payload.ActionPoints <= 0)
             throw new InvalidOperationException("幽灵狼应拥有完整战斗属性。");
 

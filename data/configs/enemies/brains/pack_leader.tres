@@ -1,0 +1,78 @@
+[gd_resource type="Resource" script_class="EnemyAiBrainDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyAiBrainDef.cs" id="1_brain"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyAiStateDef.cs" id="2_state"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseChargeAction.cs" id="3_charge"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseGroundSkillAction.cs" id="4_ground"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseUnitSkillAction.cs" id="5_unit"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/MoveToRangeAction.cs" id="6_move"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/WaitAction.cs" id="7_wait"]
+
+[sub_resource type="Resource" id="Action_charge"]
+script = ExtResource("3_charge")
+action_id = &"pack_leader_charge"
+score_bucket_id = &"charge_open"
+skill_id = &"charge"
+target_selector = &"nearest_role_threat_enemy"
+
+[sub_resource type="Resource" id="Action_howl"]
+script = ExtResource("4_ground")
+action_id = &"pack_leader_howl"
+score_bucket_id = &"charge_open"
+skill_ids = Array[StringName]([&"wolf_alpha_dominance_howl"])
+minimum_hit_count = 2
+desired_min_distance = 0
+desired_max_distance = 0
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Action_cull"]
+script = ExtResource("5_unit")
+action_id = &"pack_leader_cull"
+score_bucket_id = &"charge_open"
+skill_ids = Array[StringName]([&"wolf_alpha_cull_the_weak"])
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Action_hamstring"]
+script = ExtResource("5_unit")
+action_id = &"pack_leader_hamstring"
+score_bucket_id = &"charge_open"
+skill_ids = Array[StringName]([&"wolf_alpha_hamstring_bite"])
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Action_basic"]
+script = ExtResource("5_unit")
+action_id = &"pack_leader_basic"
+score_bucket_id = &"charge_open"
+skill_ids = Array[StringName]([&"basic_attack"])
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Action_move"]
+script = ExtResource("6_move")
+action_id = &"pack_leader_close_in"
+target_selector = &"nearest_role_threat_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+
+[sub_resource type="Resource" id="Action_wait"]
+script = ExtResource("7_wait")
+action_id = &"pack_leader_wait"
+
+[sub_resource type="Resource" id="State_hunt"]
+script = ExtResource("2_state")
+state_id = &"hunt"
+actions = Array[Resource]([SubResource("Action_howl"), SubResource("Action_cull"), SubResource("Action_hamstring"), SubResource("Action_charge"), SubResource("Action_basic"), SubResource("Action_move"), SubResource("Action_wait")])
+
+[resource]
+script = ExtResource("1_brain")
+brain_id = &"pack_leader"
+default_state_id = &"hunt"
+states = Array[Resource]([SubResource("State_hunt")])

@@ -73,6 +73,19 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeBattleSelectionPort
     void IGameRuntimeBattleSelectionPort.SetSelectedSkillVariantId(StringName variantId) =>
         _selected_battle_skill_variant_id = variantId;
 
+    int IGameRuntimeBattleSelectionPort.GetSelectedWindupTier() =>
+        _battle_selection_state.selected_windup_tier;
+
+    void IGameRuntimeBattleSelectionPort.SetSelectedWindupTier(int tier) =>
+        _battle_selection_state.selected_windup_tier = Math.Max(tier, 1);
+
+    GameRuntimeBattleSelectionStage IGameRuntimeBattleSelectionPort.GetSelectionStage() =>
+        _battle_selection_state.selection_stage;
+
+    void IGameRuntimeBattleSelectionPort.SetSelectionStage(
+        GameRuntimeBattleSelectionStage stage
+    ) => _battle_selection_state.selection_stage = stage;
+
     StringName IGameRuntimeBattleSelectionPort.GetLastManualUnitId() =>
         _last_manual_battle_unit_id;
 

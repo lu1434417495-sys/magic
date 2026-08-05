@@ -20,6 +20,7 @@ enemy_count = 3
 creature_level = 0
 hit_die_sides = 6
 action_threshold = 25
+cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"rat", &"bite"])
 save_disadvantage_tags = Array[StringName]([&"frightened"])
 base_attribute_overrides = {

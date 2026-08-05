@@ -6,67 +6,187 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_2epbb"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_mi6ca"]
 
-[sub_resource type="Resource" id="Resource_7w4ol"]
+[sub_resource type="Resource" id="Resource_damage"]
 script = ExtResource("3_hivns")
 effect_type = &"damage"
-power = 7
-damage_tag = &"physical_pierce"
+power = 0
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
+
+[sub_resource type="Resource" id="Resource_suppression_l1"]
+script = ExtResource("3_hivns")
+effect_type = &"terrain_effect"
+max_skill_level = 1
+terrain_effect_id = &"suppressive_fire_zone"
+tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "压制火力"
+does_not_stack_with_status_id = &"slow"
+duration_tu = 30
+tick_interval_tu = 5
+
+[sub_resource type="Resource" id="Resource_suppression_l2"]
+script = ExtResource("3_hivns")
+effect_type = &"terrain_effect"
+min_skill_level = 2
+max_skill_level = 2
+terrain_effect_id = &"suppressive_fire_zone"
+tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "压制火力"
+does_not_stack_with_status_id = &"slow"
+duration_tu = 35
+tick_interval_tu = 5
+
+[sub_resource type="Resource" id="Resource_suppression_l3"]
+script = ExtResource("3_hivns")
+effect_type = &"terrain_effect"
+min_skill_level = 3
+max_skill_level = 3
+terrain_effect_id = &"suppressive_fire_zone"
+tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "压制火力"
+does_not_stack_with_status_id = &"slow"
+duration_tu = 40
+tick_interval_tu = 5
+
+[sub_resource type="Resource" id="Resource_suppression_l4"]
+script = ExtResource("3_hivns")
+effect_type = &"terrain_effect"
+min_skill_level = 4
+max_skill_level = 4
+terrain_effect_id = &"suppressive_fire_zone"
+tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "压制火力"
+does_not_stack_with_status_id = &"slow"
+duration_tu = 50
+tick_interval_tu = 5
+
+[sub_resource type="Resource" id="Resource_suppression_l5"]
+script = ExtResource("3_hivns")
+effect_type = &"terrain_effect"
+min_skill_level = 5
+max_skill_level = 5
+terrain_effect_id = &"suppressive_fire_zone"
+tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "压制火力"
+does_not_stack_with_status_id = &"slow"
+duration_tu = 60
+tick_interval_tu = 5
 
 [sub_resource type="Resource" id="Resource_7jhxk"]
 script = ExtResource("4_2epbb")
 skill_id = &"archer_suppressive_fire"
 projectile_kind = &"current_weapon"
 target_mode = &"ground"
-range_value = 5
+target_team_filter = &"enemy"
+range_value = 0
 area_pattern = &"line"
 area_value = 1
+requires_los = true
 ap_cost = 2
-stamina_cost = 2
-cooldown_tu = 15
-effect_defs = Array[ExtResource("3_hivns")]([SubResource("Resource_7w4ol")])
+stamina_cost = 32
+cooldown_tu = 80
+attack_roll_bonus = -1
+level_overrides = {
+2: {
+"stamina_cost": 30
+},
+3: {
+"attack_roll_bonus": 0,
+"cooldown_tu": 70,
+"stamina_cost": 28
+},
+4: {
+"cooldown_tu": 60,
+"stamina_cost": 26
+},
+5: {
+"attack_roll_bonus": 1,
+"cooldown_tu": 50,
+"stamina_cost": 24
+}
+}
+required_weapon_families = Array[StringName]([&"bow"])
+allows_natural_weapon = true
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_hivns")]([SubResource("Resource_damage"), SubResource("Resource_suppression_l1"), SubResource("Resource_suppression_l2"), SubResource("Resource_suppression_l3"), SubResource("Resource_suppression_l4"), SubResource("Resource_suppression_l5")])
 
 [resource]
 script = ExtResource("5_mi6ca")
 skill_id = &"archer_suppressive_fire"
 display_name = "压制射击"
 icon_id = &"archer_suppressive_fire"
-description = "对一条直线区域持续覆盖；被命中的敌人获得 压制，该路径在接下来的 60 TU 内移动成本 +1。"
-level_description_template = "造成{dmg}伤害，射程{range}，直线范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+description = "使用弓或天生武器沿直线倾泻火力，对路径内敌人造成武器伤害，并留下使敌方移动成本 +1 的压制地带。等级提升会延长压制、降低体力与冷却压力，并提高命中。"
+level_description_template = "造成{dmg}，留下压制地带（敌方移动成本+1，{duration}TU），射程随弓或天生武器，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
 level_description_configs = {
 	"0": {
-		"dmg": "7",
-		"range": "5",
-		"area_pattern": "line",
+		"dmg": "武器伤害",
+		"duration": "30",
+		"attack": "-1",
 		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
+		"stamina": "32",
+		"cooldown": "80"
 	},
 	"1": {
-		"dmg": "7",
-		"range": "5",
-		"area_pattern": "line",
+		"dmg": "武器伤害",
+		"duration": "30",
+		"attack": "-1",
 		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
+		"stamina": "32",
+		"cooldown": "80"
 	},
 	"2": {
-		"dmg": "7",
-		"range": "5",
-		"area_pattern": "line",
+		"dmg": "武器伤害",
+		"duration": "35",
+		"attack": "-1",
 		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
+		"stamina": "30",
+		"cooldown": "80"
 	},
 	"3": {
-		"dmg": "7",
-		"range": "5",
-		"area_pattern": "line",
+		"dmg": "武器伤害",
+		"duration": "40",
+		"attack": "无加值",
 		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
+		"stamina": "28",
+		"cooldown": "70"
+	},
+	"4": {
+		"dmg": "武器伤害",
+		"duration": "50",
+		"attack": "无加值",
+		"ap": "2",
+		"stamina": "26",
+		"cooldown": "60"
+	},
+	"5": {
+		"dmg": "武器伤害",
+		"duration": "60",
+		"attack": "+1",
+		"ap": "2",
+		"stamina": "24",
+		"cooldown": "50"
 	},
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+	"perception": 40,
+	"agility": 20,
+}
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe", &"control"])
 combat_profile = SubResource("Resource_7jhxk")

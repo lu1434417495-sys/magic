@@ -998,7 +998,14 @@ public partial class BattleAiScoreService
                 continue;
             }
             StringName targetFilter = ResolveEffectTargetFilter(skillDefinition, effectDefinition);
-            if (!IsUnitValidForEffect(sourceUnit, targetUnit, targetFilter))
+            if (
+                !IsUnitValidForEffect(
+                    sourceUnit,
+                    targetUnit,
+                    targetFilter,
+                    effectDefinition
+                )
+            )
             {
                 continue;
             }
@@ -1044,8 +1051,35 @@ public partial class BattleAiScoreService
             else if (
                 effectKind == BattleEffectKind.Status
                 || effectKind == BattleEffectKind.ApplyStatus
-                || effectKind == BattleEffectKind.ForcedMove
             )
+            {
+                StringName statusId = ProgressionDataUtils.to_string_name(
+                    effectDefinition.StatusId
+                );
+                if (IsDedicatedThreatMitigationStatus(statusId))
+                {
+                    continue;
+                }
+                if (IsTauntProtectionStatus(statusId))
+                {
+                    continue;
+                }
+                if (IsBeneficialEffectFilter(targetFilter))
+                {
+                    if (BattleStatusSemanticTable.IsHarmfulStatus(statusId))
+                    {
+                        continue;
+                    }
+                    metrics.IsEmpty = false;
+                    metrics.BeneficialControlCount += hitCount;
+                }
+                else
+                {
+                    metrics.IsEmpty = false;
+                    metrics.HarmfulControlCount += hitCount;
+                }
+            }
+            else if (effectKind == BattleEffectKind.ForcedMove)
             {
                 if (IsBeneficialEffectFilter(targetFilter))
                 {
@@ -1519,15 +1553,20 @@ public partial class BattleAiScoreService
     private static bool IsUnitValidForEffect(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        StringName targetFilter
+        StringName targetFilter,
+        CombatEffectDefinition effectDefinition = null
     )
     {
         return BattleTargetTeamRules.IsUnitValidForFilter(
-            sourceUnit,
-            targetUnit,
-            targetFilter,
-            default
-        );
+                sourceUnit,
+                targetUnit,
+                targetFilter,
+                default
+            )
+            && BattleEffectTargetRequirementRules.IsSatisfied(
+                effectDefinition,
+                targetUnit
+            );
     }
 
     private static bool IsBeneficialEffectFilter(StringName targetFilter)
@@ -1677,7 +1716,14 @@ public partial class BattleAiScoreService
                 {
                     continue;
                 }
-                if (!IsUnitValidForEffect(actor, candidate, targetFilter))
+                if (
+                    !IsUnitValidForEffect(
+                        actor,
+                        candidate,
+                        targetFilter,
+                        chainEffect
+                    )
+                )
                 {
                     continue;
                 }

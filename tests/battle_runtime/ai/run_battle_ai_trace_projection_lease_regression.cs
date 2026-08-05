@@ -83,8 +83,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             AssertLegacyTraceReference(trace, payload);
             AssertFingerprint(
                 payload,
-                11967,
-                "6530816ab192e9d20994f9026e429712d49812684a3c1bb4ac5530f908863426",
+                12205,
+                "67e896c96a9d7e19b324058e76e11d3872b2eb37d92c4635020ed4abd3ad5083",
                 "full AI trace payload"
             );
             AssertDictionaryKeysAreStrings(payload, "trace");
@@ -420,7 +420,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         using GDictionary command = payload["command"].AsGodotDictionary();
         AssertKeyOrder(
             command,
-            "command_type,unit_id,skill_id,skill_variant_id,target_unit_id,target_unit_ids,target_coord,target_coords",
+            "command_type,unit_id,skill_id,skill_variant_id,target_unit_id,target_unit_ids,target_coord,target_coords,source_retreat_direction",
             "command"
         );
         _test.Eq(ReadText(command, "command_type"), "skill", "Command type golden.");
@@ -631,8 +631,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 lease.Value,
-                9643,
-                "de25e0c257cd77166495702c38be618a3856d1c52ca49c8ed7165cfc85951de5",
+                9737,
+                "5f13015b2774ff61fcea68ca05f05755a99770057a7029845691feb87b459272",
                 "full standalone AI score payload"
             );
         }
@@ -698,8 +698,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 payload,
-                2377,
-                "2f76391f375feecca1e7757d3bcbb802be773c353b7198017f9dcde75a06c89e",
+                2414,
+                "607b566463617e2b8bcb3c09852920c1e720b56d01d357ec5a59a278a9ff00d1",
                 "full AI score profile payload"
             );
         }
@@ -812,7 +812,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         {
             AssertKeyOrder(
                 lease.Value,
-                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_texture_path,faction_id,control_mode,ai_brain_id,ai_state_id,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
+                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_texture_path,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
                 "real unit snapshot"
             );
             using GDictionary projectedCooldowns =
@@ -855,8 +855,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 lease.Value,
-                2099,
-                "6175112ed33bccb1f2741375fc6399bbcc78d46f2836085e97cd8739d7e9b979",
+                2126,
+                "50524c863288c6e1ecc9681567b15f5ca085cd3eee4f97320d2e521f228deb83",
                 "full real unit snapshot payload"
             );
         }
@@ -915,8 +915,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 reportLease.Value,
-                16195,
-                "b527123721c42fcdd55488e9932eb4285e3f046e39a5716c5cd3eac4394989c6",
+                16460,
+                "15e919b08deb7d0f4180818dc047034a219e00994c9a4a42546e0e0841ac0e6d",
                 "full simulation report payload"
             );
         }

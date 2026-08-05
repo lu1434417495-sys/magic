@@ -506,6 +506,67 @@ public sealed class ContingencyAutomationDefinition
 
 }
 
+public sealed class CombatWindupDefinition
+{
+    public CombatWindupDefinition(
+        int staminaCostPerTier,
+        int weaponDicePerTier,
+        IReadOnlyList<int> skillLevelTierCaps,
+        IReadOnlyList<int> baseWeaponDiceMultipliers
+    )
+    {
+        StaminaCostPerTier = Mathf.Max(staminaCostPerTier, 0);
+        WeaponDicePerTier = Mathf.Max(weaponDicePerTier, 0);
+        SkillLevelTierCaps = SkillDefinitionCollectionFreeze.List(skillLevelTierCaps);
+        BaseWeaponDiceMultipliers = SkillDefinitionCollectionFreeze.List(
+            baseWeaponDiceMultipliers
+        );
+    }
+
+    public int StaminaCostPerTier { get; }
+    public int WeaponDicePerTier { get; }
+    public IReadOnlyList<int> SkillLevelTierCaps { get; }
+    public IReadOnlyList<int> BaseWeaponDiceMultipliers { get; }
+
+    public int GetSkillTierCap(int skillLevel) =>
+        ReadCurveValue(SkillLevelTierCaps, skillLevel, 1);
+
+    public int GetBaseWeaponDiceMultiplier(int skillLevel) =>
+        Mathf.Max(ReadCurveValue(BaseWeaponDiceMultipliers, skillLevel, 1), 1);
+
+    internal static CombatWindupDefinition FromResource(CombatWindupDef source)
+    {
+        if (source == null)
+            return null;
+        return new CombatWindupDefinition(
+            source.stamina_cost_per_tier,
+            source.weapon_dice_per_tier,
+            CopyIntArray(source.skill_level_tier_caps),
+            CopyIntArray(source.base_weapon_dice_multipliers)
+        );
+    }
+
+    private static int ReadCurveValue(
+        IReadOnlyList<int> curve,
+        int skillLevel,
+        int fallback
+    )
+    {
+        if (curve == null || curve.Count == 0)
+            return fallback;
+        return curve[Mathf.Clamp(skillLevel, 0, curve.Count - 1)];
+    }
+
+    private static IReadOnlyList<int> CopyIntArray(int[] values)
+    {
+        if (values == null || values.Length == 0)
+            return System.Array.Empty<int>();
+        int[] result = new int[values.Length];
+        System.Array.Copy(values, result, values.Length);
+        return result;
+    }
+}
+
 public sealed class CombatSkillDefinition
 {
     private static readonly IReadOnlyList<StringName> EmptyStringNames =
@@ -576,7 +637,10 @@ public sealed class CombatSkillDefinition
         int attackRollBonusStatusStackDivisor = 0,
         int randomChainAttackCount = 0,
         bool randomChainContinueOnMiss = false,
-        IReadOnlyList<StringName> requiredWeaponTypeIds = null
+        IReadOnlyList<StringName> requiredWeaponTypeIds = null,
+        bool allowsNaturalWeapon = false,
+        CombatWindupDefinition windup = null,
+        bool requiresHeavyWeapon = false
     )
     {
         SkillId = skillId;
@@ -632,6 +696,7 @@ public sealed class CombatSkillDefinition
         RequiredWeaponFamilies = SkillDefinitionCollectionFreeze.List(
             requiredWeaponFamilies
         );
+        AllowsNaturalWeapon = allowsNaturalWeapon;
         RequiredWeaponTypeIds = SkillDefinitionCollectionFreeze.List(
             requiredWeaponTypeIds
         );
@@ -650,6 +715,8 @@ public sealed class CombatSkillDefinition
         AttackRollBonusStatusStackDivisor = attackRollBonusStatusStackDivisor;
         RandomChainAttackCount = randomChainAttackCount;
         RandomChainContinueOnMiss = randomChainContinueOnMiss;
+        Windup = windup;
+        RequiresHeavyWeapon = requiresHeavyWeapon;
     }
 
     public StringName SkillId { get; }
@@ -703,6 +770,9 @@ public sealed class CombatSkillDefinition
     public IReadOnlyList<CombatEffectDefinition> PassiveEffectDefinitions { get; }
     public IReadOnlyList<CombatCastVariantDefinition> CastVariants { get; }
     public IReadOnlyList<StringName> RequiredWeaponFamilies { get; }
+    public bool AllowsNaturalWeapon { get; }
+    public CombatWindupDefinition Windup { get; }
+    public bool RequiresHeavyWeapon { get; }
     public IReadOnlyList<StringName> RequiredWeaponTypeIds { get; }
     public IReadOnlyList<StringName> ExcludedWeaponFamilies { get; }
     public IReadOnlyList<StringName> ExcludedWeaponTypeIds { get; }
@@ -885,7 +955,10 @@ public sealed class CombatSkillDefinition
             AttackRollBonusStatusStackDivisor,
             RandomChainAttackCount,
             RandomChainContinueOnMiss,
-            RequiredWeaponTypeIds
+            RequiredWeaponTypeIds,
+            AllowsNaturalWeapon,
+            Windup,
+            RequiresHeavyWeapon
         );
 
     internal CombatSkillDefinition WithArea(StringName areaPattern, int areaValue) =>
@@ -946,7 +1019,10 @@ public sealed class CombatSkillDefinition
             AttackRollBonusStatusStackDivisor,
             RandomChainAttackCount,
             RandomChainContinueOnMiss,
-            RequiredWeaponTypeIds
+            RequiredWeaponTypeIds,
+            AllowsNaturalWeapon,
+            Windup,
+            RequiresHeavyWeapon
         );
 
     public int GetFumbleProtectionLimit(int skillLevel)
@@ -1043,7 +1119,10 @@ public sealed class CombatSkillDefinition
             source.attack_roll_bonus_status_stack_divisor,
             source.random_chain_attack_count,
             source.random_chain_continue_on_miss,
-            CopyStringNameArray(source.required_weapon_type_ids)
+            CopyStringNameArray(source.required_weapon_type_ids),
+            source.allows_natural_weapon,
+            CombatWindupDefinition.FromResource(source.windup_profile),
+            source.requires_heavy_weapon
         );
     }
 
@@ -1767,11 +1846,20 @@ public sealed class CombatEffectDefinition
         StringName terminationStatusId = default,
         int terminationStatusDurationTu = 0,
         int terminationAttackRollPenalty = 0,
-        int terminationCooldownTu = 0
+        int terminationCooldownTu = 0,
+        StringName requiredTargetCreatureTypeTag = default,
+        BattleCognitionKind requiredTargetMinCognition =
+            BattleCognitionKind.Unknown,
+        int sourceRetreatDistance = 0
     )
     {
         EffectType = effectType;
         EffectTargetTeamFilter = effectTargetTeamFilter;
+        RequiredTargetCreatureTypeTag = ProgressionDataUtils.to_string_name(
+            requiredTargetCreatureTypeTag
+        );
+        RequiredTargetMinCognition =
+            requiredTargetMinCognition;
         StatusId = statusId;
         SaveFailureStatusId = saveFailureStatusId;
         TerrainEffectId = terrainEffectId;
@@ -1841,6 +1929,7 @@ public sealed class CombatEffectDefinition
         Power = power;
         RangeBonus = rangeBonus;
         ForcedMoveDistance = forcedMoveDistance;
+        SourceRetreatDistance = System.Math.Max(sourceRetreatDistance, 0);
         JumpBaseBudget = jumpBaseBudget;
         JumpStrScale = jumpStrScale;
         JumpArcRatio = jumpArcRatio;
@@ -1956,6 +2045,8 @@ public sealed class CombatEffectDefinition
 
     public StringName EffectType { get; }
     public StringName EffectTargetTeamFilter { get; }
+    public StringName RequiredTargetCreatureTypeTag { get; }
+    public BattleCognitionKind RequiredTargetMinCognition { get; }
     public StringName StatusId { get; }
     public StringName SaveFailureStatusId { get; }
     public StringName TerrainEffectId { get; }
@@ -2023,6 +2114,7 @@ public sealed class CombatEffectDefinition
     public int Power { get; }
     public int RangeBonus { get; }
     public int ForcedMoveDistance { get; }
+    public int SourceRetreatDistance { get; }
     public int JumpBaseBudget { get; }
     public double JumpStrScale { get; }
     public double JumpArcRatio { get; }
@@ -2419,7 +2511,11 @@ public sealed class CombatEffectDefinition
             terminationStatusId: TerminationStatusId,
             terminationStatusDurationTu: TerminationStatusDurationTu,
             terminationAttackRollPenalty: TerminationAttackRollPenalty,
-            terminationCooldownTu: TerminationCooldownTu
+            terminationCooldownTu: TerminationCooldownTu,
+            requiredTargetCreatureTypeTag: RequiredTargetCreatureTypeTag,
+            requiredTargetMinCognition:
+                RequiredTargetMinCognition,
+            sourceRetreatDistance: SourceRetreatDistance
         );
     }
 
@@ -2595,7 +2691,11 @@ public sealed class CombatEffectDefinition
             terminationStatusId: TerminationStatusId,
             terminationStatusDurationTu: TerminationStatusDurationTu,
             terminationAttackRollPenalty: TerminationAttackRollPenalty,
-            terminationCooldownTu: TerminationCooldownTu
+            terminationCooldownTu: TerminationCooldownTu,
+            requiredTargetCreatureTypeTag: RequiredTargetCreatureTypeTag,
+            requiredTargetMinCognition:
+                RequiredTargetMinCognition,
+            sourceRetreatDistance: SourceRetreatDistance
         );
     }
 
@@ -2777,7 +2877,13 @@ public sealed class CombatEffectDefinition
                 terminationStatusId: source.termination_status_id,
                 terminationStatusDurationTu: source.termination_status_duration_tu,
                 terminationAttackRollPenalty: source.termination_attack_roll_penalty,
-                terminationCooldownTu: source.termination_cooldown_tu
+                terminationCooldownTu: source.termination_cooldown_tu,
+                requiredTargetCreatureTypeTag: source.required_target_creature_type_tag,
+                requiredTargetMinCognition:
+                    BattleCognitionContentRules.ToKind(
+                        source.required_target_min_cognition
+                    ),
+                sourceRetreatDistance: source.source_retreat_distance
             );
     }
 

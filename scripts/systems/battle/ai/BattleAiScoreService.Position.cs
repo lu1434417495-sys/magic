@@ -4,6 +4,8 @@ using Godot;
 
 public partial class BattleAiScoreService
 {
+    private const int DelayedResolutionScoreTuStep = 5;
+
     private sealed class HitRatePreviewEstimate
     {
         public readonly List<int> StageSuccessRates = new();
@@ -435,7 +437,8 @@ public partial class BattleAiScoreService
     private void PopulateResourceCostMetrics(
         BattleAiScoreInput scoreInput,
         SkillDefinition skillDefinition,
-        IBattleAiScoreContext context
+        IBattleAiScoreContext context,
+        BattleAiSkillCandidateScoreFacts? candidateScoreFacts
     )
     {
         if (scoreInput == null || skillDefinition == null || skillDefinition.CombatProfile == null)
@@ -451,7 +454,10 @@ public partial class BattleAiScoreService
         CombatSkillResourceCosts costs = effectiveDefinition.ResourceCosts;
         scoreInput.ap_cost = Math.Max(costs.ApCost, 0);
         scoreInput.mp_cost = Math.Max(costs.MpCost, 0);
-        scoreInput.stamina_cost = Math.Max(costs.StaminaCost, 0);
+        scoreInput.stamina_cost = Math.Max(
+            candidateScoreFacts?.FinalStaminaCost ?? costs.StaminaCost,
+            0
+        );
         scoreInput.aura_cost = Math.Max(costs.AuraCost, 0);
         scoreInput.cooldown_tu = Math.Max(costs.CooldownTu, 0);
         scoreInput.resource_cost_score =
@@ -464,6 +470,22 @@ public partial class BattleAiScoreService
             ContextUnitState(context),
             scoreInput
         );
+    }
+
+    private void PopulateDelayedResolutionMetrics(
+        BattleAiScoreInput scoreInput,
+        BattleAiSkillCandidateScoreFacts? candidateScoreFacts
+    )
+    {
+        if (scoreInput == null)
+            return;
+        scoreInput.delayed_resolution_tu = Math.Max(
+            candidateScoreFacts?.DelayedResolutionTu ?? 0,
+            0
+        );
+        scoreInput.delayed_resolution_score =
+            (scoreInput.delayed_resolution_tu / DelayedResolutionScoreTuStep)
+            * _scoreProfile.DelayedResolutionCostPer5Tu;
     }
 
     private int BuildReserveResourceCost(
@@ -724,7 +746,8 @@ public partial class BattleAiScoreService
     private void PopulatePostActionThreatProjection(
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
-        ScorePositionMetadata metadata
+        ScorePositionMetadata metadata,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions = null
     )
     {
         BattleState state = ContextState(context);
@@ -747,6 +770,14 @@ public partial class BattleAiScoreService
             projectedCoord,
             suppressedThreatIds,
             preProjection
+        );
+        ApplyTimedPhysicalMitigationProjection(
+            context,
+            projectedCoord,
+            suppressedThreatIds,
+            effectDefinitions,
+            ref preProjection,
+            ref postProjection
         );
         scoreInput.has_post_action_threat_projection = true;
         scoreInput.projected_actor_coord = projectedCoord;

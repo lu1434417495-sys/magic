@@ -58,6 +58,9 @@ public partial class EnemyTemplateDef : Resource
     public int action_threshold { get; set; } = BattleUnitState.DefaultActionThreshold;
 
     [Export]
+    public StringName cognition_kind { get; set; } = "";
+
+    [Export]
     public Godot.Collections.Array<StringName> tags { get; set; } = new();
 
     [Export]
@@ -89,6 +92,9 @@ public partial class EnemyTemplateDef : Resource
 
     [Export]
     public Godot.Collections.Dictionary skill_level_map { get; set; } = new();
+
+    [Export]
+    public int generated_core_skill_count { get; set; }
 
     [Export]
     public Godot.Collections.Dictionary attribute_overrides { get; set; } = new();
@@ -339,6 +345,15 @@ public partial class EnemyTemplateDef : Resource
             errors.Add(
                 $"Enemy template {template_id} action_threshold must be a multiple of 5 TU."
             );
+        BattleCognitionKind cognitionKind =
+            BattleCognitionContentRules.ToKind(cognition_kind);
+        if (!BattleCognitionContentRules.IsKnown(cognitionKind))
+        {
+            errors.Add(
+                $"Enemy template {template_id} cognition_kind must be one of "
+                + $"{BattleCognitionContentRules.ValidValueLabel()}; got {cognition_kind}."
+            );
+        }
         if (TargetRankKind == EnemyTargetRankKind.Unknown)
             errors.Add(
                 $"Enemy template {template_id} target_rank must be normal, elite, or boss; got {target_rank}."
@@ -371,6 +386,8 @@ public partial class EnemyTemplateDef : Resource
         foreach (var e in _validate_template_skill_ids(skillDefinitions))
             errors.Add(e);
         foreach (var e in _validate_template_skill_level_map(skillDefinitions, declaredSkillIds))
+            errors.Add(e);
+        foreach (var e in _validate_generated_core_skill_count(skillDefinitions))
             errors.Add(e);
         foreach (
             var e in _validate_brain_action_skill_levels(
@@ -689,6 +706,45 @@ public partial class EnemyTemplateDef : Resource
         return errors;
     }
 
+    private Godot.Collections.Array<string> _validate_generated_core_skill_count(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
+    {
+        var errors = new Godot.Collections.Array<string>();
+        if (generated_core_skill_count < 0)
+        {
+            errors.Add(
+                $"Enemy template {template_id} generated_core_skill_count must be >= 0."
+            );
+            return errors;
+        }
+        if (generated_core_skill_count == 0 || skillDefinitions == null)
+            return errors;
+
+        int candidateCount = 0;
+        foreach (StringName rawSkillId in skill_ids)
+        {
+            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+            if (
+                skillId == ""
+                || skillId == "basic_attack"
+                || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition?.MaxLevel <= 0
+            )
+            {
+                continue;
+            }
+            candidateCount++;
+        }
+        if (generated_core_skill_count > candidateCount)
+        {
+            errors.Add(
+                $"Enemy template {template_id} generated_core_skill_count {generated_core_skill_count} exceeds eligible generated skill count {candidateCount}."
+            );
+        }
+        return errors;
+    }
+
     private HashSet<StringName> _build_declared_skill_id_set()
     {
         var result = new HashSet<StringName>();
@@ -896,18 +952,21 @@ public partial class EnemyTemplateDef : Resource
         WeaponDice thd = WeaponDice.FromDefinition(profile.TwoHandedDice);
         var props = _weapon_profile_properties(profile);
         bool isV = props.Contains("versatile");
+        bool isHeavy = props.Contains("heavy");
         bool ut = _resolve_weapon_uses_two_hands(itemDefinition, ohd, thd, isV);
         return new WeaponProjection
         {
             weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
             weapon_item_id = itemDefinition.ItemId,
             weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.WeaponTypeId),
+            weapon_range_type = itemDefinition.GetWeaponRangeType(),
             weapon_current_grip = _resolve_weapon_current_grip(ohd, thd, ut),
             weapon_attack_range = Mathf.Max(profile.AttackRange, 0),
             weapon_one_handed_dice = ohd,
             weapon_two_handed_dice = thd,
             weapon_is_versatile = isV,
             weapon_uses_two_hands = ut,
+            weapon_is_heavy = isHeavy,
             weapon_physical_damage_tag = itemDefinition.GetWeaponPhysicalDamageTag(),
         };
     }

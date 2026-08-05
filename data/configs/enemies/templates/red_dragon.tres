@@ -27,6 +27,7 @@ body_size = 3
 creature_level = 10
 hit_die_sides = 12
 action_threshold = 40
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"dragon", &"beast"])
 save_advantage_tags = Array[StringName]([&"charm"])
 save_immunity_tags = Array[StringName]([&"sleep", &"paralysis", &"frightened"])

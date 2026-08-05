@@ -176,6 +176,10 @@ public sealed class GameRuntimeSnapshotBuilder
         return new PlainDictionary(StringComparer.Ordinal)
         {
             ["gold"] = partyState != null ? partyState.gold : 0,
+            ["world_renown"] = partyState?.GetWorldRenown() ?? 0,
+            ["country_reputations"] =
+                partyState?.country_reputations?.BuildSaveSnapshotPlain()
+                ?? new PlainDictionary(StringComparer.Ordinal),
             ["leader_member_id"] =
                 partyState != null ? partyState.leader_member_id.ToString() : "",
             ["active_member_ids"] =
@@ -668,6 +672,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["display_name"] = DictionaryString(settlementFacts, "display_name", ""),
             ["tier_name"] = DictionaryString(settlementFacts, "tier_name", ""),
             ["faction_id"] = DictionaryString(settlementFacts, "faction_id", ""),
+            ["country_id"] = DictionaryString(settlementFacts, "country_id", ""),
             ["services"] = new PlainList(
                 DictionaryArray(settlementFacts, "services", new PlainList())
             ),
@@ -821,7 +826,8 @@ public sealed class GameRuntimeSnapshotBuilder
             _runtime.GetSelectedBattleSkillVariantId(),
             _runtime.GetActiveBattleEncounterName(),
             _runtime.GetSelectedBattleSkillPreview(),
-            _runtime.GetSelectedBattleSkillEntryId()
+            _runtime.GetSelectedBattleSkillEntryId(),
+            _runtime.GetSelectedBattleSkillPresentationSelectionMode()
         );
         PlainDictionary hudPayload = FlattenBattlePresentationDictionary(
             hudSnapshot.CanonicalFacts,
@@ -1039,7 +1045,7 @@ public sealed class GameRuntimeSnapshotBuilder
             return new PlainDictionary(StringComparer.Ordinal);
         int remainingProgress = Mathf.Max(pendingCast.RemainingCastProgress, 0);
         int remainingTu = (remainingProgress + 99) / 100;
-        return new PlainDictionary(StringComparer.Ordinal)
+        PlainDictionary result = new(StringComparer.Ordinal)
         {
             ["source_unit_id"] = pendingCast.SourceUnitId.ToString(),
             ["skill_id"] = pendingCast.SkillId.ToString(),
@@ -1054,6 +1060,20 @@ public sealed class GameRuntimeSnapshotBuilder
             ["target_unit_ids"] = StringNameArrayToStringArray(pendingCast.TargetUnitIds),
             ["target_coords"] = CoordEnumerableToDictArray(pendingCast.TargetCoords),
         };
+        if (pendingCast.WindupSnapshot is BattleWindupSnapshot windup)
+        {
+            result["pending_kind"] = "windup";
+            result["windup_tier"] = windup.Tier;
+            result["windup_tu_per_tier"] = windup.TuPerTier;
+            result["windup_weapon_dice_multiplier"] = windup.WeaponDiceMultiplier;
+            result["can_manual_cancel"] = false;
+        }
+        else
+        {
+            result["pending_kind"] = "spell_cast";
+            result["can_manual_cancel"] = true;
+        }
+        return result;
     }
 
     private PlainDictionary BuildRewardSnapshot()

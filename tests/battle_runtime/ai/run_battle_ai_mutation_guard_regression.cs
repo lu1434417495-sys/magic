@@ -16,6 +16,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     {
         "weapon_profile_kind",
         "weapon_item_id",
+        "weapon_instance_id",
         "weapon_profile_type_id",
         "weapon_range_type",
         "weapon_family",
@@ -25,7 +26,36 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         "weapon_two_handed_dice",
         "weapon_is_versatile",
         "weapon_uses_two_hands",
+        "weapon_is_heavy",
         "weapon_physical_damage_tag",
+    };
+    private static readonly string[] WindupStableFieldKeys =
+    {
+        "tier",
+        "strength_modifier",
+        "constitution_modifier",
+        "tu_per_tier",
+        "total_windup_tu",
+        "additional_stamina_cost",
+        "weapon_dice_multiplier",
+        "weapon_signature",
+    };
+    private static readonly string[] WindupWeaponSignatureStableFieldKeys =
+    {
+        "profile_kind",
+        "item_id",
+        "instance_id",
+        "profile_type_id",
+        "range_type",
+        "family",
+        "current_grip",
+        "attack_range",
+        "dice_count",
+        "dice_sides",
+        "flat_bonus",
+        "uses_two_hands",
+        "is_heavy",
+        "physical_damage_tag",
     };
     private static readonly string[] CombatResourceStableFieldKeys =
     {
@@ -1832,6 +1862,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 new BattleWeaponProjectionValues(
                     "equipped",
                     "weapon_alpha",
+                    "weapon_instance_alpha",
                     "profile_alpha",
                     "ranged",
                     "bow",
@@ -1839,6 +1870,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                     7,
                     new BattleWeaponDiceValues(true, 1, 8, 2),
                     new BattleWeaponDiceValues(true, 2, 10, -1),
+                    true,
                     true,
                     true,
                     "physical_pierce"
@@ -1850,7 +1882,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         _test.Eq(
             fixture.Actor.CaptureWeaponProjectionForMutationSnapshotExact(),
             baseline,
-            "weapon projection exact restore 应保留 12 字段与两组 raw dice。"
+            "weapon projection exact restore 应保留14字段与两组 raw dice。"
         );
         AssertWeaponStableFieldContract(fixture.Actor);
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
@@ -1862,6 +1894,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 new BattleWeaponProjectionValues(
                     "natural",
                     "weapon_beta",
+                    "weapon_instance_beta",
                     "profile_beta",
                     "melee",
                     "claw",
@@ -1871,13 +1904,14 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                     BattleWeaponDiceValues.PresentEmpty,
                     false,
                     false,
+                    false,
                     "physical_slash"
                 )
             )
         );
         AssertDiffContainsAll(
             snapshot.CompareCurrentState(fixture.Context),
-            "weapon projection 12-field raw mutation",
+            "weapon projection 14-field raw mutation",
             WeaponStableFieldKeys
         );
 
@@ -2003,7 +2037,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         _test.Eq(
             actualKeys.Count,
             WeaponStableFieldKeys.Length,
-            "weapon projection stable contract 应保持恰好原 12 个 flat keys。"
+            "weapon projection stable contract 应保持恰好当前14个 flat keys。"
         );
         int comparableCount = Math.Min(
             actualKeys.Count,
@@ -2130,6 +2164,19 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         return true;
     }
 
+    private static int CountStableKeys(StableMap values)
+    {
+        int count = 0;
+        foreach (
+            KeyValuePair<string, StableValue> _ in values?.Entries
+                ?? Array.Empty<KeyValuePair<string, StableValue>>()
+        )
+        {
+            count += 1;
+        }
+        return count;
+    }
+
     private void TestDeclaredBattleUnitFieldsHaveStableCoverage()
     {
         StableMap unitStable = BattleAiMutationStableProjection.StableBattleUnitState(
@@ -2210,7 +2257,12 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                     )
                     && fieldStable.ContainsKey(
                         "temporal_progress_modifiers"
+                    )
+                    && fieldStable.ContainsKey(
+                        "cognition_ceiling_modifiers"
                     ),
+                "_baseCognitionKind" =>
+                    fieldStable.ContainsKey("cognition_kind"),
                 "_creatureTypeState" =>
                     fieldStable.ContainsKey("creature_type_tags"),
                 "_geometryState" =>
@@ -2720,7 +2772,36 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "LastMaintenanceCheckpointHp",
             "CastSequence",
             "CostTransaction",
-            "SpellControlMetadata"
+            "SpellControlMetadata",
+            "WindupSnapshot"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleWindupSnapshot),
+            "Tier",
+            "StrengthModifier",
+            "ConstitutionModifier",
+            "TuPerTier",
+            "TotalWindupTu",
+            "AdditionalStaminaCost",
+            "WeaponDiceMultiplier",
+            "WeaponSignature"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleWindupWeaponSignature),
+            "ProfileKind",
+            "ItemId",
+            "InstanceId",
+            "ProfileTypeId",
+            "RangeType",
+            "Family",
+            "CurrentGrip",
+            "AttackRange",
+            "DiceCount",
+            "DiceSides",
+            "FlatBonus",
+            "UsesTwoHands",
+            "IsHeavy",
+            "PhysicalDamageTag"
         );
         AssertDeclaredInstanceFields(
             typeof(BattleConsumedContingencySetupCollection),
@@ -2768,7 +2849,36 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "LastMaintenanceCheckpointHp",
             "CastSequence",
             "CostTransaction",
-            "SpellControlMetadata"
+            "SpellControlMetadata",
+            "WindupSnapshot"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleWindupSnapshot),
+            "Tier",
+            "StrengthModifier",
+            "ConstitutionModifier",
+            "TuPerTier",
+            "TotalWindupTu",
+            "AdditionalStaminaCost",
+            "WeaponDiceMultiplier",
+            "WeaponSignature"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleWindupWeaponSignature),
+            "ProfileKind",
+            "ItemId",
+            "InstanceId",
+            "ProfileTypeId",
+            "RangeType",
+            "Family",
+            "CurrentGrip",
+            "AttackRange",
+            "DiceCount",
+            "DiceSides",
+            "FlatBonus",
+            "UsesTwoHands",
+            "IsHeavy",
+            "PhysicalDamageTag"
         );
         AssertDeclaredWritableProperties(
             typeof(SkillCostTransaction),
@@ -3109,6 +3219,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         BattleUnitState actor = fixture.Actor;
         actor.battle_sprite_texture_path = "res://tests/original_guard_actor.png";
         actor.equipment_view_initialized = false;
+        actor.SetBaseCognitionKindTyped(BattleCognitionKind.Sapient);
         actor.ReplaceConsumedContingencySetupIdsTyped(
             new StringName[] { "contingency_alpha", "contingency_beta" }
         );
@@ -3144,6 +3255,17 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                     FailureRatePercent = 25,
                     Label = "original modifier",
                 },
+            },
+            new List<BattleCognitionCeilingModifierState>
+            {
+                new()
+                {
+                    ModifierId = "cognition_original",
+                    BindingId = "binding_original",
+                    SourceEquipmentInstanceId =
+                        "instance_original",
+                    Ceiling = BattleCognitionKind.Instinctive,
+                },
             }
         );
         actor.RestoreCreatureTypesForMutationSnapshotExact(
@@ -3158,6 +3280,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
 
         actor.battle_sprite_texture_path = "res://tests/rogue_guard_actor.png";
         actor.equipment_view_initialized = true;
+        actor.SetBaseCognitionKindTyped(BattleCognitionKind.Mindless);
         actor.ReplaceConsumedContingencySetupIdsTyped(
             new StringName[] { "contingency_rogue", "contingency_extra" }
         );
@@ -3193,6 +3316,17 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                     FailureRatePercent = 60,
                     Label = "rogue modifier",
                 },
+            },
+            new List<BattleCognitionCeilingModifierState>
+            {
+                new()
+                {
+                    ModifierId = "cognition_rogue",
+                    BindingId = "binding_rogue",
+                    SourceEquipmentInstanceId =
+                        "instance_rogue",
+                    Ceiling = BattleCognitionKind.Mindless,
+                },
             }
         );
         actor.RestoreCreatureTypesForMutationSnapshotExact(
@@ -3210,6 +3344,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "battle_sprite_texture_path",
             "equipment_view_initialized",
             "consumed_contingency_setup_ids",
+            "cognition_kind",
             "equipment_ability_sources",
             "effective_instance_key",
             "equipment_def_id",
@@ -3226,6 +3361,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "success_rate_percent",
             "failure_rate_percent",
             "label",
+            "cognition_ceiling_modifiers",
+            "cognition_ceiling",
             "creature_type_tags"
         );
     }
@@ -3251,6 +3388,17 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             new List<BattleTemporalProgressModifierState>
             {
                 BuildNullableModifier(label: ""),
+            },
+            new List<BattleCognitionCeilingModifierState>
+            {
+                new()
+                {
+                    ModifierId = "nullable_cognition",
+                    BindingId = "nullable_binding",
+                    SourceEquipmentInstanceId =
+                        "nullable_instance",
+                    Ceiling = BattleCognitionKind.Instinctive,
+                },
             }
         );
         actor.RestoreCreatureTypesForMutationSnapshotExact(
@@ -3265,6 +3413,14 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         nestedRaw.Sources[0].AbilityIds = null;
         nestedRaw.TemporalProgressModifiers[0] =
             BuildNullableModifier(label: null);
+        nestedRaw.CognitionCeilingModifiers[0] =
+            new BattleCognitionCeilingModifierState
+            {
+                ModifierId = null,
+                BindingId = null,
+                SourceEquipmentInstanceId = null,
+                Ceiling = BattleCognitionKind.Unknown,
+            };
         actor.RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
             nestedRaw
         );
@@ -3272,7 +3428,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             nestedSnapshot.CompareCurrentState(fixture.Context),
             "nullable nested unit authority fields",
             "ability_ids",
-            "label"
+            "label",
+            "cognition_ceiling_modifiers"
         );
 
         BattleAiMutationSnapshot elementSnapshot = BattleAiMutationSnapshot.Capture(
@@ -3282,6 +3439,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             actor.CaptureEquipmentAbilityProjectionForMutationSnapshotExact();
         elementRaw.Sources[0] = null;
         elementRaw.TemporalProgressModifiers[0] = null;
+        elementRaw.CognitionCeilingModifiers[0] = null;
         actor.RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
             elementRaw
         );
@@ -3289,7 +3447,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             elementSnapshot.CompareCurrentState(fixture.Context),
             "nullable unit authority elements",
             "equipment_ability_sources",
-            "temporal_progress_modifiers"
+            "temporal_progress_modifiers",
+            "cognition_ceiling_modifiers"
         );
 
         BattleAiMutationSnapshot outerSnapshot = BattleAiMutationSnapshot.Capture(
@@ -3298,6 +3457,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         actor.battle_sprite_texture_path = null;
         actor.RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
             BattleUnitEquipmentAbilityProjectionSnapshot.Present(
+                null,
                 null,
                 null
             )
@@ -3311,6 +3471,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "battle_sprite_texture_path",
             "equipment_ability_sources",
             "temporal_progress_modifiers",
+            "cognition_ceiling_modifiers",
             "creature_type_tags"
         );
 
@@ -3325,18 +3486,20 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             missingOwnerDiff,
             "equipment ability projection present-null versus missing owner",
             "equipment_ability_sources",
-            "temporal_progress_modifiers"
+            "temporal_progress_modifiers",
+            "cognition_ceiling_modifiers"
         );
         AssertDiffContainsOnly(
             missingOwnerDiff,
             "equipment ability projection missing owner stable keys",
             "equipment_ability_sources",
-            "temporal_progress_modifiers"
+            "temporal_progress_modifiers",
+            "cognition_ceiling_modifiers"
         );
         _test.Eq(
             missingOwnerDiff.Count,
-            2,
-            "missing equipment ability projection owner 应只通过两个既有 stable key 暴露。"
+            3,
+            "missing equipment ability projection owner 应只通过三个既有 stable key 暴露。"
         );
     }
 
@@ -3696,6 +3859,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         TestPartyBackpackExactStructureIsDetected();
         TestEffectiveTraitExactStructureIsDetected();
         TestPendingCastNestedNullsAreDetected();
+        TestPendingCastWindupSnapshotIsDetected();
         TestEquipmentNestedStructureIsDetected();
     }
 
@@ -3843,6 +4007,133 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "spell_control_metadata",
             "target_mode",
             "binding_mode"
+        );
+    }
+
+    private void TestPendingCastWindupSnapshotIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleWindupSnapshot baseline = new(
+            Tier: 2,
+            StrengthModifier: 3,
+            ConstitutionModifier: 4,
+            TuPerTier: 5,
+            TotalWindupTu: 10,
+            AdditionalStaminaCost: 12,
+            WeaponDiceMultiplier: 3,
+            WeaponSignature: new BattleWindupWeaponSignature(
+                ProfileKind: "equipped",
+                ItemId: "windup_weapon",
+                InstanceId: "windup_weapon_instance",
+                ProfileTypeId: "greatsword",
+                RangeType: "melee",
+                Family: "greatsword",
+                CurrentGrip: "two_handed",
+                AttackRange: 1,
+                DiceCount: 2,
+                DiceSides: 6,
+                FlatBonus: 1,
+                UsesTwoHands: true,
+                IsHeavy: true,
+                PhysicalDamageTag: "physical_slash"
+            )
+        );
+        fixture.Actor.pending_cast = new BattlePendingCastState
+        {
+            SourceUnitId = fixture.Actor.unit_id,
+            SkillId = "windup_mutation_probe",
+            RemainingCastProgress = baseline.TotalWindupTu,
+            WindupSnapshot = baseline,
+        };
+
+        BattlePendingCastState exactCopy =
+            fixture.Actor.pending_cast
+                .DuplicateForMutationSnapshotExact();
+        _test.True(
+            exactCopy?.WindupSnapshot == baseline,
+            "pending-cast exact copy 应保留完整蓄力快照值。"
+        );
+        _test.False(
+            ReferenceEquals(
+                exactCopy?.WindupSnapshot,
+                fixture.Actor.pending_cast.WindupSnapshot
+            ),
+            "pending-cast exact copy 不应借用原蓄力快照对象。"
+        );
+
+        StableMap pendingStable =
+            BattleAiMutationStableProjection.StablePendingCast(
+                fixture.Actor.pending_cast
+            );
+        StableMap windupStable =
+            pendingStable.GetMapOrEmpty("windup_snapshot");
+        _test.Eq(
+            CountStableKeys(windupStable),
+            WindupStableFieldKeys.Length,
+            "蓄力快照 stable projection 应精确覆盖8个字段。"
+        );
+        _test.True(
+            HasStableKeys(windupStable, WindupStableFieldKeys),
+            "蓄力快照 stable projection 不得漏掉权威字段。"
+        );
+        StableMap weaponStable =
+            windupStable.GetMapOrEmpty("weapon_signature");
+        _test.Eq(
+            CountStableKeys(weaponStable),
+            WindupWeaponSignatureStableFieldKeys.Length,
+            "蓄力武器签名 stable projection 应精确覆盖14个字段。"
+        );
+        _test.True(
+            HasStableKeys(
+                weaponStable,
+                WindupWeaponSignatureStableFieldKeys
+            ),
+            "蓄力武器签名 stable projection 不得压成文本或漏掉字段。"
+        );
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.pending_cast.WindupSnapshot =
+            baseline with { Tier = 3 };
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "pending cast windup tier mutation",
+            "pending_cast",
+            "windup_snapshot",
+            "tier"
+        );
+
+        fixture.Actor.pending_cast.WindupSnapshot =
+            baseline with
+            {
+                WeaponSignature =
+                    baseline.WeaponSignature with
+                    {
+                        IsHeavy = false,
+                    },
+            };
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "pending cast windup weapon signature mutation",
+            "pending_cast",
+            "windup_snapshot",
+            "weapon_signature",
+            "is_heavy"
+        );
+
+        fixture.Actor.pending_cast.WindupSnapshot = baseline;
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "蓄力快照恢复 exact baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.pending_cast.WindupSnapshot = null;
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "pending cast windup present-to-null mutation",
+            "pending_cast",
+            "windup_snapshot"
         );
     }
 

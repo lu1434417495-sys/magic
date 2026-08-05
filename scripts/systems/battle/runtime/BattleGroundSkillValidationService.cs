@@ -306,6 +306,20 @@ internal class BattleGroundSkillValidationService
         {
             return deniedResult with { Message = specialValidationMessage };
         }
+        string targetRequirementMessage =
+            GetGroundTargetRequirementValidationMessage(
+                activeUnit,
+                skillDefinition,
+                castVariantDefinition,
+                sortedTargetCoords
+            );
+        if (!string.IsNullOrEmpty(targetRequirementMessage))
+        {
+            return deniedResult with
+            {
+                Message = targetRequirementMessage,
+            };
+        }
         return BattleGroundSkillValidationResult.AllowedResult(
             "可施放。",
             new List<Vector2I>(sortedTargetCoords)
@@ -479,6 +493,20 @@ internal class BattleGroundSkillValidationService
         {
             return deniedResult with { Message = specialValidationMessage };
         }
+        string targetRequirementMessage =
+            GetGroundTargetRequirementValidationMessage(
+                activeUnit,
+                skillDefinition,
+                castVariantDefinition,
+                sortedTargetCoords
+            );
+        if (!string.IsNullOrEmpty(targetRequirementMessage))
+        {
+            return deniedResult with
+            {
+                Message = targetRequirementMessage,
+            };
+        }
         return BattleGroundSkillValidationResult.AllowedResult(
             "可施放。",
             new List<Vector2I>(sortedTargetCoords)
@@ -505,6 +533,141 @@ internal class BattleGroundSkillValidationService
             }
         }
         return "";
+    }
+
+    private string GetGroundTargetRequirementValidationMessage(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effects =
+            _coordService.CollectGroundUnitEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                activeUnit
+            );
+        if (!AllUnitEffectsRequireQualifiedTargets(effects))
+            return "";
+        IReadOnlyList<Vector2I> effectCoords =
+            Runtime?.BuildGroundEffectCoordsTyped(
+                skillDefinition,
+                targetCoords,
+                activeUnit.GetAnchorCoord(),
+                activeUnit,
+                castVariantDefinition
+            ) ?? Array.Empty<Vector2I>();
+        foreach (
+            BattleUnitState targetUnit
+            in _coordService.CollectUnitsInCoords(effectCoords)
+        )
+        {
+            foreach (CombatEffectDefinition effect in effects)
+            {
+                if (
+                    _owner._is_unit_valid_for_effect(
+                        activeUnit,
+                        targetUnit,
+                        _owner.ResolveEffectTargetFilter(
+                            skillDefinition,
+                            effect
+                        )
+                    )
+                    && BattleEffectTargetRequirementRules.IsSatisfied(
+                        effect,
+                        targetUnit
+                    )
+                )
+                {
+                    return "";
+                }
+            }
+        }
+        return "范围内没有满足效果要求的有效目标。";
+    }
+
+    private string GetGroundTargetRequirementValidationMessage(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effects =
+            _coordService.CollectGroundUnitEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                activeUnit
+            );
+        if (!AllUnitEffectsRequireQualifiedTargets(effects))
+            return "";
+        IReadOnlyList<Vector2I> effectCoords =
+            Runtime?.BuildGroundEffectCoordsTyped(
+                skillDefinition,
+                targetCoords,
+                activeUnit.Coord,
+                activeUnit,
+                castVariantDefinition
+            ) ?? Array.Empty<Vector2I>();
+        foreach (
+            BattleUnitState targetState
+            in _coordService.CollectUnitsInCoords(effectCoords)
+        )
+        {
+            BattleUnitReadView targetUnit = new(targetState);
+            foreach (CombatEffectDefinition effect in effects)
+            {
+                if (
+                    _owner._is_unit_valid_for_effect(
+                        activeUnit,
+                        targetUnit,
+                        _owner.ResolveEffectTargetFilter(
+                            skillDefinition,
+                            effect
+                        )
+                    )
+                    && BattleEffectTargetRequirementRules.IsSatisfied(
+                        effect,
+                        targetUnit
+                    )
+                )
+                {
+                    return "";
+                }
+            }
+        }
+        return "范围内没有满足效果要求的有效目标。";
+    }
+
+    private static bool AllUnitEffectsRequireQualifiedTargets(
+        IReadOnlyList<CombatEffectDefinition> effects
+    )
+    {
+        bool sawEffect = false;
+        foreach (
+            CombatEffectDefinition effect
+            in effects ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (effect == null)
+                continue;
+            sawEffect = true;
+            bool hasCreatureTypeRequirement =
+                effect.RequiredTargetCreatureTypeTag != "";
+            bool hasCognitionRequirement =
+                BattleCognitionContentRules.IsKnown(
+                    effect.RequiredTargetMinCognition
+                );
+            if (
+                !hasCreatureTypeRequirement
+                && !hasCognitionRequirement
+            )
+            {
+                return false;
+            }
+        }
+        return sawEffect;
     }
 
     private string GetGroundExecuteValidationMessage(

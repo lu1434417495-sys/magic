@@ -427,7 +427,7 @@ public partial class run_battle_ai_decision_lifetime_regression : LifecycleTestS
         );
         context.preview_command_callback = _ => new BattlePreview();
         context.move_cost_callback = (_, _) => 1;
-        context.skill_score_input_callback = (_, _, _, _, _, _) => null;
+        context.skill_score_input_callback = (_, _, _, _, _, _, _) => null;
         if (throwOnDecide)
         {
             context.action_score_input_callback = (_, _, _, _, _, _, _) =>

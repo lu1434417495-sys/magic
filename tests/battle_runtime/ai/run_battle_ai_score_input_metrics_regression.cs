@@ -20,6 +20,12 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             TestMultiHitDamageScoreConsumesPreviewShieldSequentially();
             TestLayeredBarrierProjectionTracksLayersAndLifetime();
             TestLayeredBarrierProjectionRequiresNearbyBoundaryThreat();
+            TestGuardScoreAppliesPerHitPhysicalMitigationInsideWindow();
+            TestGuardScoreIncludesFormalWeaponThreat();
+            TestGuardScoreRespectsExpiryMagicFallbackAndRedundancy();
+            TestGuardScorePricesSelfSlowWithoutGenericStatusBenefit();
+            TestTauntScoresExpectedAllyDamageReliefByCognitionAndWindow();
+            TestTauntIgnoresUnavailableOrUnreducibleThreats();
         }
         catch (Exception exception)
         {
@@ -610,6 +616,849 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         _test.Eq(score.hit_payoff_score, 0, "无边界威胁时法球效果收益应为零。");
     }
 
+    private void TestGuardScoreAppliesPerHitPhysicalMitigationInsideWindow()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_guard_per_hit",
+            new Vector2I(5, 3)
+        );
+        fixture.ScoreService.Setup(new BattleDamageResolver());
+        SkillDefinition guard = BuildGuardScoreSkill(
+            "guard_per_hit_probe",
+            guardPower: 2,
+            durationTu: 40,
+            includeSlow: false
+        );
+        SkillDefinition doublePhysical = BuildThreatDamageSkill(
+            "guard_double_physical_threat",
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                effectTargetTeamFilter: "enemy",
+                power: 3,
+                damageTag: "physical_slash"
+            ),
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                effectTargetTeamFilter: "enemy",
+                power: 3,
+                damageTag: "physical_blunt"
+            )
+        );
+        fixture.AddSkill(guard);
+        fixture.AddSkill(doublePhysical);
+
+        BattleUnitState actor = BuildUnit(
+            "guard_per_hit_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        BattleUnitState threat = BuildUnit(
+            "guard_per_hit_threat",
+            "player",
+            new Vector2I(2, 1)
+        );
+        threat.AddKnownActiveSkill(doublePhysical.SkillId);
+        threat.SetActionThresholdTyped(120);
+        threat.SetActionProgressTyped(90);
+        fixture.AddUnit(actor);
+        fixture.AddUnit(threat);
+
+        BattleAiScoreInput score = ScoreGuard(fixture, actor, guard);
+        _test.True(score?.has_post_action_threat_projection == true, "格挡评分应生成生存威胁投影。");
+        if (score == null)
+        {
+            return;
+        }
+        _test.Eq(
+            score.pre_action_threat_expected_damage,
+            6,
+            "格挡前应保留两次各3点的物理伤害。"
+        );
+        _test.Eq(
+            score.post_action_remaining_threat_expected_damage,
+            2,
+            "2点格挡应逐次作用于两段3点物理伤害，并让每段最低保留1点。"
+        );
+        _test.False(
+            actor.HasStatusEffect("guarding") || actor.HasStatusEffect("slow"),
+            "AI 格挡评分不得把候选状态写入正式施法者。"
+        );
+        _test.Eq(
+            threat.GetActionProgressTyped(),
+            90,
+            "AI 格挡时间窗评分不得修改威胁单位的行动进度。"
+        );
+    }
+
+    private void TestGuardScoreIncludesFormalWeaponThreat()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_guard_weapon_threat",
+            new Vector2I(5, 3)
+        );
+        fixture.ScoreService.Setup(new BattleDamageResolver());
+        SkillDefinition guard = BuildGuardScoreSkill(
+            "guard_weapon_probe",
+            guardPower: 2,
+            durationTu: 40,
+            includeSlow: false
+        );
+        fixture.AddSkill(guard);
+        BattleUnitState actor = BuildUnit(
+            "guard_weapon_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        BattleUnitState threat = BuildUnit(
+            "guard_weapon_threat",
+            "player",
+            new Vector2I(2, 1)
+        );
+        threat.SetNaturalWeaponProjectionTyped(
+            "natural_weapon",
+            "physical_pierce",
+            1,
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 6,
+                flat_bonus = 0,
+            }
+        );
+        threat.SetActionThresholdTyped(120);
+        threat.SetActionProgressTyped(90);
+        fixture.AddUnit(actor);
+        fixture.AddUnit(threat);
+
+        BattleAiScoreInput score = ScoreGuard(fixture, actor, guard);
+        _test.Eq(
+            score?.pre_action_threat_expected_damage ?? -1,
+            4,
+            "武器威胁应通过正式平均伤害预览计为1d6的4点伤害。"
+        );
+        _test.Eq(
+            score?.post_action_remaining_threat_expected_damage ?? -1,
+            2,
+            "2点格挡应作用于正式武器伤害威胁。"
+        );
+    }
+
+    private void TestGuardScoreRespectsExpiryMagicFallbackAndRedundancy()
+    {
+        using (Fixture boundaryFixture = BuildFixture(
+            "score_input_guard_expiry_boundary",
+            new Vector2I(5, 3)
+        ))
+        {
+            boundaryFixture.ScoreService.Setup(new BattleDamageResolver());
+            SkillDefinition guard = BuildGuardScoreSkill(
+                "guard_boundary_probe",
+                guardPower: 2,
+                durationTu: 40,
+                includeSlow: false
+            );
+            SkillDefinition physical = BuildThreatDamageSkill(
+                "guard_boundary_physical",
+                TestSkillDefinitionProjection.BuildEffect(
+                    "damage",
+                    effectTargetTeamFilter: "enemy",
+                    power: 6,
+                    damageTag: "physical_slash"
+                )
+            );
+            boundaryFixture.AddSkill(guard);
+            boundaryFixture.AddSkill(physical);
+            BattleUnitState actor = BuildUnit(
+                "guard_boundary_actor",
+                "hostile",
+                new Vector2I(1, 1)
+            );
+            BattleUnitState threat = BuildUnit(
+                "guard_boundary_threat",
+                "player",
+                new Vector2I(2, 1)
+            );
+            threat.AddKnownActiveSkill(physical.SkillId);
+            threat.SetActionThresholdTyped(120);
+            threat.SetActionProgressTyped(80);
+            boundaryFixture.AddUnit(actor);
+            boundaryFixture.AddUnit(threat);
+
+            BattleAiScoreInput boundaryScore = ScoreGuard(
+                boundaryFixture,
+                actor,
+                guard
+            );
+            _test.Eq(
+                boundaryScore?.pre_action_threat_expected_damage ?? -1,
+                6,
+                "40TU 边界回归前置：威胁应为6点物理伤害。"
+            );
+            _test.Eq(
+                boundaryScore?.post_action_remaining_threat_expected_damage ?? -1,
+                6,
+                "敌人恰好在40TU后行动时，40TU格挡应已到期，不能计入减伤。"
+            );
+        }
+
+        using (Fixture fallbackFixture = BuildFixture(
+            "score_input_guard_magic_fallback",
+            new Vector2I(5, 3)
+        ))
+        {
+            fallbackFixture.ScoreService.Setup(new BattleDamageResolver());
+            SkillDefinition guard = BuildGuardScoreSkill(
+                "guard_magic_fallback_probe",
+                guardPower: 2,
+                durationTu: 40,
+                includeSlow: false
+            );
+            SkillDefinition physical = BuildThreatDamageSkill(
+                "guard_fallback_physical",
+                TestSkillDefinitionProjection.BuildEffect(
+                    "damage",
+                    effectTargetTeamFilter: "enemy",
+                    power: 6,
+                    damageTag: "physical_slash"
+                )
+            );
+            SkillDefinition magic = BuildThreatDamageSkill(
+                "guard_fallback_magic",
+                TestSkillDefinitionProjection.BuildEffect(
+                    "damage",
+                    effectTargetTeamFilter: "enemy",
+                    power: 8,
+                    damageTag: "force"
+                )
+            );
+            fallbackFixture.AddSkill(guard);
+            fallbackFixture.AddSkill(physical);
+            fallbackFixture.AddSkill(magic);
+            BattleUnitState actor = BuildUnit(
+                "guard_fallback_actor",
+                "hostile",
+                new Vector2I(1, 1)
+            );
+            BattleUnitState threat = BuildUnit(
+                "guard_fallback_threat",
+                "player",
+                new Vector2I(2, 1)
+            );
+            threat.AddKnownActiveSkill(physical.SkillId);
+            threat.AddKnownActiveSkill(magic.SkillId);
+            threat.SetActionThresholdTyped(120);
+            threat.SetActionProgressTyped(90);
+            fallbackFixture.AddUnit(actor);
+            fallbackFixture.AddUnit(threat);
+
+            BattleAiScoreInput fallbackScore = ScoreGuard(
+                fallbackFixture,
+                actor,
+                guard
+            );
+            _test.Eq(
+                fallbackScore?.pre_action_threat_expected_damage ?? -1,
+                8,
+                "魔法替代回归前置：敌人最佳攻击应为8点非物理伤害。"
+            );
+            _test.Eq(
+                fallbackScore?.post_action_remaining_threat_expected_damage ?? -1,
+                8,
+                "AI 不应把格挡错误应用到非物理最佳攻击。"
+            );
+        }
+
+        using Fixture redundancyFixture = BuildFixture(
+            "score_input_guard_redundancy",
+            new Vector2I(5, 3)
+        );
+        redundancyFixture.ScoreService.Setup(new BattleDamageResolver());
+        SkillDefinition redundantGuard = BuildGuardScoreSkill(
+            "guard_redundancy_probe",
+            guardPower: 2,
+            durationTu: 40,
+            includeSlow: false
+        );
+        SkillDefinition redundantThreatSkill = BuildThreatDamageSkill(
+            "guard_redundancy_physical",
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                effectTargetTeamFilter: "enemy",
+                power: 6,
+                damageTag: "physical_slash"
+            )
+        );
+        redundancyFixture.AddSkill(redundantGuard);
+        redundancyFixture.AddSkill(redundantThreatSkill);
+        BattleUnitState redundantActor = BuildUnit(
+            "guard_redundancy_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        redundantActor.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "guarding",
+                power = 2,
+                duration = 40,
+                stacks = 1,
+            }
+        );
+        BattleUnitState redundantThreat = BuildUnit(
+            "guard_redundancy_threat",
+            "player",
+            new Vector2I(2, 1)
+        );
+        redundantThreat.AddKnownActiveSkill(redundantThreatSkill.SkillId);
+        redundantThreat.SetActionThresholdTyped(120);
+        redundantThreat.SetActionProgressTyped(90);
+        redundancyFixture.AddUnit(redundantActor);
+        redundancyFixture.AddUnit(redundantThreat);
+
+        BattleAiScoreInput redundancyScore = ScoreGuard(
+            redundancyFixture,
+            redundantActor,
+            redundantGuard
+        );
+        _test.Eq(
+            redundancyScore?.pre_action_threat_expected_damage ?? -1,
+            4,
+            "已有同强度格挡时，格挡前威胁应已包含现有减伤。"
+        );
+        _test.Eq(
+            redundancyScore?.post_action_remaining_threat_expected_damage ?? -1,
+            4,
+            "重复施放同强度格挡不应再次获得完整减伤收益。"
+        );
+    }
+
+    private void TestGuardScorePricesSelfSlowWithoutGenericStatusBenefit()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_guard_self_slow",
+            new Vector2I(5, 3)
+        );
+        SkillDefinition guardOnly = BuildGuardScoreSkill(
+            "guard_without_slow_probe",
+            guardPower: 1,
+            durationTu: 40,
+            includeSlow: false
+        );
+        SkillDefinition guardWithSlow = BuildGuardScoreSkill(
+            "guard_with_slow_probe",
+            guardPower: 1,
+            durationTu: 40,
+            includeSlow: true
+        );
+        fixture.AddSkill(guardOnly);
+        fixture.AddSkill(guardWithSlow);
+        BattleUnitState actor = BuildUnit(
+            "guard_slow_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        actor.SetCurrentMovePoints(6);
+        fixture.AddUnit(actor);
+
+        BattleAiScoreInput guardOnlyScore = ScoreGuard(fixture, actor, guardOnly);
+        BattleAiScoreInput slowScore = ScoreGuard(fixture, actor, guardWithSlow);
+        _test.True(
+            guardOnlyScore != null && slowScore != null,
+            "格挡移动成本回归应生成两个合法评分。"
+        );
+        if (guardOnlyScore == null || slowScore == null)
+        {
+            return;
+        }
+        _test.Eq(
+            guardOnlyScore.estimated_status_count,
+            0,
+            "专用减伤投影接管 guarding 后，不应再叠加泛化状态收益。"
+        );
+        _test.Eq(
+            slowScore.estimated_status_count,
+            0,
+            "自施加 slow 不应被当成第二个正向状态收益。"
+        );
+        int expectedLostReachCost =
+            3 * fixture.ScoreService.GetProfile().MovementCostWeight;
+        _test.Eq(
+            slowScore.resource_cost_score - guardOnlyScore.resource_cost_score,
+            expectedLostReachCost,
+            "6点移动力在每格+1成本下会损失3格可达距离，AI 应按移动权重计入机会成本。"
+        );
+    }
+
+    private void TestTauntScoresExpectedAllyDamageReliefByCognitionAndWindow()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_taunt_ally_relief",
+            new Vector2I(7, 3)
+        );
+        fixture.ScoreService.Setup(new BattleDamageResolver());
+        SkillDefinition taunt = BuildTauntScoreSkill();
+        SkillDefinition threatSkill = BuildThreatDamageSkill(
+            "taunt_damage_threat",
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                effectTargetTeamFilter: "enemy",
+                power: 10,
+                damageTag: "physical_slash"
+            )
+        );
+        fixture.AddSkill(taunt);
+        fixture.AddSkill(threatSkill);
+
+        BattleUnitState actor = BuildUnit(
+            "taunt_score_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        BattleUnitState threat = BuildUnit(
+            "taunt_score_threat",
+            "player",
+            new Vector2I(3, 1)
+        );
+        BattleUnitState protectedAlly = BuildUnit(
+            "taunt_score_protected_ally",
+            "hostile",
+            new Vector2I(4, 1)
+        );
+        threat.SetBaseCognitionKindTyped(BattleCognitionKind.Sapient);
+        threat.AddKnownActiveSkill(threatSkill.SkillId);
+        threat.SetActionThresholdTyped(120);
+        threat.SetActionProgressTyped(90);
+        protectedAlly.attribute_snapshot.SetValue(
+            AttributeService.ToStringName(AttributeIdKind.ArmorClass),
+            10
+        );
+        fixture.AddUnit(actor);
+        fixture.AddUnit(threat);
+        fixture.AddUnit(protectedAlly);
+
+        BattleAiScoreInput sapientScore = ScoreTaunt(
+            fixture,
+            actor,
+            threat,
+            taunt
+        );
+        _test.Eq(
+            sapientScore?.estimated_taunt_ally_damage_relief ?? -1,
+            2,
+            "55%命中、10点伤害在劣势下应减少约2点友军预期伤害，不能误用命中率平方。"
+        );
+        _test.Eq(
+            sapientScore?.estimated_control_count ?? -1,
+            0,
+            "挑衅不应继续领取通用状态控制分。"
+        );
+        _test.Eq(
+            sapientScore?.estimated_status_count ?? -1,
+            0,
+            "挑衅的专用收益不应伪装成通用状态数量。"
+        );
+        _test.True(
+            (sapientScore?.hit_payoff_score ?? 0) > 0,
+            "能保护友军的挑衅应产生正向 AI 收益。"
+        );
+
+        threat.SetCooldownTyped(threatSkill.SkillId, 35);
+        BattleAiScoreInput cooldownBlockedScore = ScoreTaunt(
+            fixture,
+            actor,
+            threat,
+            taunt
+        );
+        _test.Eq(
+            cooldownBlockedScore
+                ?.estimated_taunt_ally_damage_relief
+                ?? -1,
+            0,
+            "威胁30TU后行动但技能仍剩5TU冷却时，挑衅不得领取该技能的保护分。"
+        );
+        threat.SetCooldownTyped(threatSkill.SkillId, 30);
+        BattleAiScoreInput cooldownReadyScore = ScoreTaunt(
+            fixture,
+            actor,
+            threat,
+            taunt
+        );
+        _test.Eq(
+            cooldownReadyScore?.estimated_taunt_ally_damage_relief
+                ?? -1,
+            2,
+            "技能冷却恰好在威胁行动前归零时，应重新计入挑衅保护分。"
+        );
+        threat.SetCooldownTyped(threatSkill.SkillId, 0);
+
+        threat.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = BattleStatusSemanticTable.STATUS_TAUNTED,
+                source_unit_id = actor.unit_id,
+                duration = 60,
+                power = 1,
+                stacks = 1,
+            }
+        );
+        BattleAiScoreInput redundantDisadvantageScore = ScoreTaunt(
+            fixture,
+            actor,
+            threat,
+            taunt
+        );
+        _test.Eq(
+            redundantDisadvantageScore
+                ?.estimated_taunt_ally_damage_relief
+                ?? -1,
+            0,
+            "友军已经受到该威胁的攻击劣势保护时，重复挑衅不得再次计价。"
+        );
+        threat.EraseStatusEffect(
+            BattleStatusSemanticTable.STATUS_TAUNTED
+        );
+
+        threat.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = BattleStatusSemanticTable.STATUS_MADNESS,
+                duration = 60,
+                power = 1,
+                stacks = 1,
+            }
+        );
+        BattleAiScoreInput madnessScore = ScoreTaunt(
+            fixture,
+            actor,
+            threat,
+            taunt
+        );
+        _test.Eq(
+            madnessScore?.estimated_taunt_ally_damage_relief ?? -1,
+            0,
+            "疯狂将有效认知压到野兽心智后，AI 不应给挑衅保护分。"
+        );
+        threat.EraseStatusEffect(BattleStatusSemanticTable.STATUS_MADNESS);
+
+        threat.SetBaseCognitionKindTyped(BattleCognitionKind.Instinctive);
+        BattleAiScoreInput instinctiveScore = ScoreTaunt(
+            fixture,
+            actor,
+            threat,
+            taunt
+        );
+        _test.Eq(
+            instinctiveScore?.effective_target_count ?? -1,
+            0,
+            "基础认知为野兽心智的单位不应成为挑衅有效目标。"
+        );
+
+        threat.SetBaseCognitionKindTyped(BattleCognitionKind.Sapient);
+        threat.SetActionProgressTyped(80);
+        BattleAiScoreInput expiredAtReadyScore = ScoreTaunt(
+            fixture,
+            actor,
+            threat,
+            taunt
+        );
+        _test.Eq(
+            expiredAtReadyScore?.estimated_taunt_ally_damage_relief ?? -1,
+            0,
+            "敌人恰好40TU后行动时，40TU挑衅应已到期，不能领取保护分。"
+        );
+
+        using Fixture weaponFixture = BuildFixture(
+            "score_input_taunt_weapon_threat",
+            new Vector2I(5, 3)
+        );
+        weaponFixture.ScoreService.Setup(new BattleDamageResolver());
+        SkillDefinition weaponTaunt = BuildTauntScoreSkill();
+        weaponFixture.AddSkill(weaponTaunt);
+        BattleUnitState weaponActor = BuildUnit(
+            "taunt_weapon_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        BattleUnitState weaponThreat = BuildUnit(
+            "taunt_weapon_threat",
+            "player",
+            new Vector2I(3, 1)
+        );
+        BattleUnitState weaponProtectedAlly = BuildUnit(
+            "taunt_weapon_protected_ally",
+            "hostile",
+            new Vector2I(4, 1)
+        );
+        weaponThreat.SetBaseCognitionKindTyped(
+            BattleCognitionKind.Sapient
+        );
+        weaponThreat.SetNaturalWeaponProjectionTyped(
+            "taunt_test_weapon",
+            "physical_pierce",
+            1,
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 6,
+                flat_bonus = 0,
+            }
+        );
+        weaponThreat.SetActionThresholdTyped(120);
+        weaponThreat.SetActionProgressTyped(90);
+        weaponProtectedAlly.attribute_snapshot.SetValue(
+            AttributeService.ToStringName(AttributeIdKind.ArmorClass),
+            10
+        );
+        weaponFixture.AddUnit(weaponActor);
+        weaponFixture.AddUnit(weaponThreat);
+        weaponFixture.AddUnit(weaponProtectedAlly);
+
+        BattleAiScoreInput weaponScore = ScoreTaunt(
+            weaponFixture,
+            weaponActor,
+            weaponThreat,
+            weaponTaunt
+        );
+        _test.Eq(
+            weaponScore?.estimated_taunt_ally_damage_relief ?? -1,
+            1,
+            "即使敌人没有已学伤害技能，标准1d6武器攻击也应给挑衅贡献1点预期友军减伤。"
+        );
+    }
+
+    private void TestTauntIgnoresUnavailableOrUnreducibleThreats()
+    {
+        CombatEffectDefinition damageEffect =
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                effectTargetTeamFilter: "enemy",
+                power: 20,
+                damageTag: "physical_slash"
+            );
+        BattleAiScoreInput directEffectScore =
+            ScoreIsolatedTauntThreat(
+                BuildThreatDamageSkill(
+                    "taunt_direct_effect_threat",
+                    "direct_effect",
+                    0,
+                    damageEffect
+                )
+            );
+        _test.Eq(
+            directEffectScore?.estimated_taunt_ally_damage_relief
+                ?? -1,
+            0,
+            "直伤模式不做攻击检定，挑衅施加的劣势不能降低其伤害。"
+        );
+
+        BattleAiScoreInput forceHitScore =
+            ScoreIsolatedTauntThreat(
+                BuildThreatDamageSkill(
+                    "taunt_force_hit_threat",
+                    "force_hit_no_crit",
+                    0,
+                    damageEffect
+                )
+            );
+        _test.Eq(
+            forceHitScore?.estimated_taunt_ally_damage_relief ?? -1,
+            0,
+            "显式强制命中技能不受劣势影响，不得计入挑衅保护分。"
+        );
+
+        BattleAiScoreInput specialForceHitScore =
+            ScoreIsolatedTauntThreat(
+                BuildThreatDamageSkill(
+                    "black_contract_push",
+                    "",
+                    0,
+                    damageEffect
+                ),
+                bindCastRules: false
+            );
+        _test.Eq(
+            specialForceHitScore
+                ?.estimated_taunt_ally_damage_relief
+                ?? -1,
+            0,
+            "规则层认定的强制命中特例也必须由挑衅评分统一排除。"
+        );
+
+        BattleAiScoreInput insufficientStaminaScore =
+            ScoreIsolatedTauntThreat(
+                BuildThreatDamageSkill(
+                    "taunt_stamina_blocked_threat",
+                    "",
+                    20,
+                    damageEffect
+                ),
+                threat =>
+                {
+                    threat.SetCurrentStamina(0);
+                    threat.attribute_snapshot.SetValue(
+                        AttributeService.ToStringName(
+                            AttributeIdKind.StaminaMax
+                        ),
+                        10
+                    );
+                }
+            );
+        _test.Eq(
+            insufficientStaminaScore
+                ?.estimated_taunt_ally_damage_relief
+                ?? -1,
+            0,
+            "威胁在下次行动前恢复到体力上限仍付不起技能时，不得虚增挑衅收益。"
+        );
+
+        BattleAiScoreInput recoveredStaminaScore =
+            ScoreIsolatedTauntThreat(
+                BuildThreatDamageSkill(
+                    "taunt_stamina_recovers_in_time",
+                    "",
+                    0,
+                    10,
+                    damageEffect
+                ),
+                threat =>
+                {
+                    threat.SetCurrentStamina(0);
+                    threat.attribute_snapshot.SetValue(
+                        AttributeService.ToStringName(
+                            AttributeIdKind.StaminaMax
+                        ),
+                        10
+                    );
+                }
+            );
+        _test.True(
+            (
+                recoveredStaminaScore
+                    ?.estimated_taunt_ally_damage_relief
+                ?? 0
+            ) > 0,
+            "当前体力不足但能在下次行动前恢复到成本时，技能仍应计入挑衅收益。"
+        );
+
+        BattleAiScoreInput nextTurnApScore =
+            ScoreIsolatedTauntThreat(
+                BuildThreatDamageSkill(
+                    "taunt_ap_resets_in_time",
+                    "",
+                    1,
+                    0,
+                    damageEffect
+                ),
+                threat =>
+                {
+                    threat.SetCurrentAp(0);
+                    threat.attribute_snapshot.SetValue(
+                        AttributeService.ToStringName(
+                            AttributeIdKind.ActionPoints
+                        ),
+                        1
+                    );
+                }
+            );
+        _test.True(
+            (
+                nextTurnApScore?.estimated_taunt_ally_damage_relief
+                ?? 0
+            ) > 0,
+            "当前AP为0但下次行动会重置到1AP时，技能仍应计入挑衅收益。"
+        );
+
+        BattleAiScoreInput noProtectedAllyScore =
+            ScoreIsolatedTauntThreat(
+                BuildThreatDamageSkill(
+                    "taunt_no_ally_threat",
+                    damageEffect
+                ),
+                includeProtectedAlly: false
+            );
+        _test.Eq(
+            noProtectedAllyScore
+                ?.estimated_taunt_ally_damage_relief
+                ?? -1,
+            0,
+            "场上没有可被保护的其他友军时，挑衅不得凭空获得减伤收益。"
+        );
+    }
+
+    private BattleAiScoreInput ScoreIsolatedTauntThreat(
+        SkillDefinition threatSkill,
+        Action<BattleUnitState> configureThreat = null,
+        bool includeProtectedAlly = true,
+        bool bindCastRules = true
+    )
+    {
+        using Fixture fixture = BuildFixture(
+            $"score_input_{threatSkill.SkillId}",
+            new Vector2I(7, 3)
+        );
+        fixture.ScoreService.Setup(new BattleDamageResolver());
+        fixture.BindSkillCastRules = bindCastRules;
+        SkillDefinition taunt = BuildTauntScoreSkill();
+        fixture.AddSkill(taunt);
+        fixture.AddSkill(threatSkill);
+
+        BattleUnitState actor = BuildUnit(
+            "isolated_taunt_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        BattleUnitState threat = BuildUnit(
+            "isolated_taunt_threat",
+            "player",
+            new Vector2I(3, 1)
+        );
+        threat.SetBaseCognitionKindTyped(BattleCognitionKind.Sapient);
+        threat.AddKnownActiveSkill(threatSkill.SkillId);
+        threat.SetActionThresholdTyped(120);
+        threat.SetActionProgressTyped(90);
+        configureThreat?.Invoke(threat);
+        int apBeforeScore = threat.GetCurrentAp();
+        int staminaBeforeScore = threat.GetCurrentStamina();
+        int cooldownBeforeScore =
+            threat.GetCooldownTyped(threatSkill.SkillId);
+        fixture.AddUnit(actor);
+        fixture.AddUnit(threat);
+
+        if (includeProtectedAlly)
+        {
+            BattleUnitState protectedAlly = BuildUnit(
+                "isolated_taunt_protected_ally",
+                "hostile",
+                new Vector2I(4, 1)
+            );
+            protectedAlly.attribute_snapshot.SetValue(
+                AttributeService.ToStringName(
+                    AttributeIdKind.ArmorClass
+                ),
+                10
+            );
+            fixture.AddUnit(protectedAlly);
+        }
+        BattleAiScoreInput score =
+            ScoreTaunt(fixture, actor, threat, taunt);
+        _test.Eq(
+            threat.GetCurrentAp(),
+            apBeforeScore,
+            "挑衅未来行动投影不得改写威胁单位的真实AP。"
+        );
+        _test.Eq(
+            threat.GetCurrentStamina(),
+            staminaBeforeScore,
+            "挑衅未来行动投影不得改写威胁单位的真实体力。"
+        );
+        _test.Eq(
+            threat.GetCooldownTyped(threatSkill.SkillId),
+            cooldownBeforeScore,
+            "挑衅未来行动投影不得推进真实技能冷却。"
+        );
+        return score;
+    }
+
     private static Fixture BuildFixture(string battleId, Vector2I mapSize) =>
         new(battleId, mapSize);
 
@@ -707,6 +1556,169 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             )
         );
     }
+
+    private static SkillDefinition BuildGuardScoreSkill(
+        StringName skillId,
+        int guardPower,
+        int durationTu,
+        bool includeSlow
+    )
+    {
+        var effects = new List<CombatEffectDefinition>
+        {
+            TestSkillDefinitionProjection.BuildEffect(
+                "status",
+                effectTargetTeamFilter: "self",
+                statusId: "guarding",
+                power: guardPower,
+                durationTu: durationTu
+            ),
+        };
+        if (includeSlow)
+        {
+            effects.Add(
+                TestSkillDefinitionProjection.BuildEffect(
+                    "status",
+                    effectTargetTeamFilter: "self",
+                    statusId: "slow",
+                    power: 1,
+                    durationTu: durationTu
+                )
+            );
+        }
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Guard AI Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects,
+                targetMode: "unit",
+                targetTeamFilter: "self",
+                rangeValue: 0,
+                apCost: 1,
+                staminaCost: 20,
+                cooldownTu: 120,
+                targetSelectionMode: "self"
+            )
+        );
+    }
+
+    private static SkillDefinition BuildTauntScoreSkill()
+    {
+        CombatEffectDefinition effect =
+            TestSkillDefinitionProjection.BuildEffect(
+                "status",
+                effectTargetTeamFilter: "enemy",
+                statusId: BattleStatusSemanticTable.STATUS_TAUNTED,
+                power: 1,
+                durationTu: 40,
+                requiredTargetMinCognition:
+                    BattleCognitionKind.Sapient
+            );
+        return TestSkillDefinitionProjection.BuildSkill(
+            "taunt_score_probe",
+            "Taunt AI Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "taunt_score_probe",
+                effects: new[] { effect },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 1
+            )
+        );
+    }
+
+    private static SkillDefinition BuildThreatDamageSkill(
+        StringName skillId,
+        params CombatEffectDefinition[] effects
+    ) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Guard Threat Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects,
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 5
+            )
+        );
+
+    private static SkillDefinition BuildThreatDamageSkill(
+        StringName skillId,
+        StringName attackResolutionMode,
+        int staminaCost,
+        params CombatEffectDefinition[] effects
+    ) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Taunt Threat Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects,
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 5,
+                staminaCost: staminaCost,
+                attackResolutionMode: attackResolutionMode
+            )
+        );
+
+    private static SkillDefinition BuildThreatDamageSkill(
+        StringName skillId,
+        StringName attackResolutionMode,
+        int apCost,
+        int staminaCost,
+        params CombatEffectDefinition[] effects
+    ) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Taunt Threat Resource Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects,
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 5,
+                apCost: apCost,
+                staminaCost: staminaCost,
+                attackResolutionMode: attackResolutionMode
+            )
+        );
+
+    private static BattleAiScoreInput ScoreGuard(
+        Fixture fixture,
+        BattleUnitState actor,
+        SkillDefinition skill
+    ) =>
+        fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            BuildCommand(actor, skill.SkillId, actor.GetAnchorCoord(), actor),
+            BuildPreview(actor),
+            skill.CombatProfile.EffectDefinitions,
+            BuildPositionMetadata(actor, 0, 0)
+        );
+
+    private static BattleAiScoreInput ScoreTaunt(
+        Fixture fixture,
+        BattleUnitState actor,
+        BattleUnitState threat,
+        SkillDefinition skill
+    ) =>
+        fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            BuildCommand(
+                actor,
+                skill.SkillId,
+                threat.GetAnchorCoord(),
+                threat
+            ),
+            BuildPreview(threat),
+            skill.CombatProfile.EffectDefinitions,
+            BuildPositionMetadata(threat, 0, 1)
+        );
 
     private static CombatEffectDefinition BuildDamageEffect(int power, StringName targetFilter) =>
         TestSkillDefinitionProjection.BuildEffect(
@@ -920,6 +1932,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
+        public bool BindSkillCastRules = true;
         private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
         private readonly Dictionary<StringName, BarrierProfileDefinition> _barrierProfiles = new();
 
@@ -988,6 +2001,13 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             };
             context.SetSkillDefinitions(_skillDefinitions);
             context.SetBarrierProfileDefinitions(_barrierProfiles);
+            if (BindSkillCastRules)
+            {
+                var skillTurnResolver =
+                    new BattleRuntimeSkillTurnResolver();
+                context.skill_cast_block_reason_callback =
+                    skillTurnResolver.GetSkillCastBlockReason;
+            }
             return context;
         }
     }

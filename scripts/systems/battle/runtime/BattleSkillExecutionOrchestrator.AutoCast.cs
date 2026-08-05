@@ -25,6 +25,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         SkillDefinition skillDefinition = Runtime.GetSkillDefinitionTyped(request.StoredSkillId);
         if (skillDefinition?.CombatProfile == null)
             return false;
+        if (skillDefinition.CombatProfile.Windup != null)
+        {
+            batch?.AddLogLine("蓄力技能不能通过预存法术或自动施放路径触发。");
+            return false;
+        }
 
         BattleCommand command = BuildAutoCastCommand(request);
         if (command == null)

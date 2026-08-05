@@ -651,6 +651,10 @@ internal class BattleGroundEffectService
                         targetUnit,
                         ResolveEffectTargetFilter(skillDefinition, effectDefinition)
                     )
+                    && BattleEffectTargetRequirementRules.IsSatisfied(
+                        effectDefinition,
+                        targetUnit
+                    )
                 )
                 {
                     applicableEffects.Add(effectDefinition);

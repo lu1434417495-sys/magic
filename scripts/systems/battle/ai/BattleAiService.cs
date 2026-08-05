@@ -187,14 +187,23 @@ internal sealed class BattleAiService : IDisposable
     private BattleAiDecision ChooseCommandImpl(BattleAiContext context)
     {
         context.skill_score_input_callback ??=
-            (aiContext, skillDefinition, command, preview, effectDefs, metadata) =>
+            (
+                aiContext,
+                skillDefinition,
+                command,
+                preview,
+                effectDefs,
+                metadata,
+                candidateScoreFacts
+            ) =>
                 _scoreService.BuildSkillScoreInput(
                     aiContext,
                     skillDefinition,
                     command,
                     preview,
                     effectDefs ?? System.Array.Empty<CombatEffectDefinition>(),
-                    metadata
+                    metadata,
+                    candidateScoreFacts
                 );
         context.action_score_input_callback ??=
             (

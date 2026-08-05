@@ -17,6 +17,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
     {
         TestTypedEnemyUnitBuildMatchesPublicBoundary();
         TestEncounterBuilderUnlocksCasterMpResources();
+        TestEncounterBuilderProjectsTemplateCognition();
         TestEnemyAttackEquipmentProjectsAbilitySourceAndCreatureTags();
         TestPlainLootPreviewMatchesTypedDefinitions();
         RequestTestExit(_test.Finish("Encounter roster builder typed boundary regression"));
@@ -105,6 +106,56 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             _test.True(
                 unit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
                 $"{templateId} 通过 EncounterRosterBuilder 入场时应解锁 MP 资源显示。"
+            );
+        }
+    }
+
+    private void TestEncounterBuilderProjectsTemplateCognition()
+    {
+        using GameSession gameSession =
+            GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        using EncounterRosterBuilder builder = new();
+        builder.Setup(
+            gameSession.GetBattleEncounterDefinitions(),
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
+        );
+
+        var expectedByTemplate =
+            new Dictionary<StringName, BattleCognitionKind>
+            {
+                ["skeleton_soldier"] =
+                    BattleCognitionKind.Mindless,
+                ["wolf_raider"] =
+                    BattleCognitionKind.Instinctive,
+                ["red_dragon"] =
+                    BattleCognitionKind.Sapient,
+            };
+        foreach (
+            (StringName templateId, BattleCognitionKind expected)
+                in expectedByTemplate
+        )
+        {
+            BattleUnitState unit = BuildSingleTemplateUnit(
+                builder,
+                gameSession,
+                templateId
+            );
+            _test.True(
+                unit != null,
+                $"{templateId} 应能通过正式 EncounterRosterBuilder 构建战斗单位。"
+            );
+            _test.Eq(
+                unit?.GetBaseCognitionKindTyped()
+                    ?? BattleCognitionKind.Unknown,
+                expected,
+                $"{templateId} 的模板认知应原样投影到 BattleUnitState。"
+            );
+            _test.Eq(
+                unit?.GetEffectiveCognitionKindTyped()
+                    ?? BattleCognitionKind.Unknown,
+                expected,
+                $"{templateId} 无临时限制时的有效认知应等于模板基础认知。"
             );
         }
     }
@@ -554,6 +605,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             template_id = templateId,
             display_name = templateId.ToString(),
             brain_id = "",
+            cognition_kind = "sapient",
             enemy_count = 1,
             body_size = BattleUnitState.BodySizeMedium,
             action_threshold = BattleUnitState.DefaultActionThreshold,

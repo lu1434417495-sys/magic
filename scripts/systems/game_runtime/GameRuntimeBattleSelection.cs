@@ -53,6 +53,22 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
     internal string GetSelectedBattleSkillVariantName()
     {
         BattleUnitState activeUnit = GetManualActiveUnit();
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        if (
+            activeUnit != null
+            && skillDefinition?.CombatProfile?.Windup != null
+            && BattleWindupRules.TryBuildQuote(
+                activeUnit,
+                skillDefinition,
+                GetSelectedWindupTier(),
+                out BattleWindupQuote quote,
+                out _,
+                requireAffordable: false
+            )
+        )
+        {
+            return $"蓄力 {quote.Tier} 挡 · {quote.TotalWindupTu} TU · {quote.TotalStaminaCost} 体力 · {quote.WeaponDiceMultiplier}W";
+        }
         CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         return castVariant?.DisplayName ?? "";
     }
@@ -157,6 +173,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         SetSelectedSkillEntryId(skillEntryId);
         SetSelectedSkillId(skillId);
         SetSelectedSkillVariantId("");
+        SetSelectedWindupTier(1);
         ClearBattleSkillTargetSelection();
 
         if (combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain)
@@ -214,6 +231,21 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
 
         SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile?.Windup != null)
+        {
+            int maxTier = BattleWindupRules.GetMaxTier(activeUnit, skillDefinition);
+            if (maxTier <= 0)
+            {
+                UpdateStatus("当前没有可选择的蓄力挡位。");
+                return;
+            }
+            int nextTier = Math.Clamp(GetSelectedWindupTier() + step, 1, maxTier);
+            SetSelectedWindupTier(nextTier);
+            ClearBattleSkillTargetSelection();
+            RefreshBattleSelectionState();
+            UpdateStatus(BuildBattleSkillSelectionStatus(skillDefinition, activeUnit));
+            return;
+        }
         if (combatProfile == null || combatProfile.CastVariants.Count == 0)
         {
             UpdateStatus("当前技能没有可切换的施法形态。");
@@ -253,9 +285,27 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
 
     internal void ClearBattleSkillSelection(bool announce = false)
     {
+        if (
+            GetSelectionStage()
+                == GameRuntimeBattleSelectionStage.SourceRetreatDirection
+            && GetSelectedSkillId() != ""
+        )
+        {
+            ClearBattleSkillTargetSelection();
+            if (IsBattleActive())
+            {
+                RefreshBattleSelectionState();
+            }
+            if (announce)
+            {
+                UpdateStatus("已返回攻击目标选择。");
+            }
+            return;
+        }
         SetSelectedSkillEntryId("");
         SetSelectedSkillId("");
         SetSelectedSkillVariantId("");
+        SetSelectedWindupTier(1);
         ClearBattleSkillTargetSelection();
         SetLastManualUnitId("");
         if (IsBattleActive())
@@ -363,6 +413,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             RefreshBattleSelectionState();
             UpdateStatus("等待当前单位进入可操作状态。");
             return BattleRefreshMode.Overlay;
+        }
+
+        if (
+            GetSelectionStage()
+                == GameRuntimeBattleSelectionStage.SourceRetreatDirection
+        )
+        {
+            return HandleSourceRetreatDirectionClick(activeUnit, target_coord);
         }
 
         if (IsSelectedGroundSkillReady(activeUnit))
@@ -548,6 +606,10 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             {
                 continue;
             }
+            if (GetSourceRetreatEffect(activeUnit, skillDefinition) != null)
+            {
+                continue;
+            }
             CombatCastVariantDefinition castVariant = GetCastVariant(
                 combatProfile,
                 GetDefaultUnitSkillVariantId(activeUnit, skillDefinition)
@@ -563,6 +625,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
                 skill_entry_id = skillEntry.EntryRef.SkillEntryId,
                 skill_id = skillId,
                 skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
+                windup_tier = skillDefinition.CombatProfile.Windup != null ? 1 : 0,
                 target_unit_id = targetUnit.unit_id,
                 target_coord = targetUnit.GetAnchorCoord(),
             };
@@ -602,6 +665,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             skill_entry_id = GetSelectedSkillEntryId(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = GetSelectedSkillVariantId(),
+            windup_tier = GetSelectedWindupTier(),
             target_unit_id = targetUnit.unit_id,
             target_coord = targetUnit.GetAnchorCoord(),
         };
@@ -628,8 +692,32 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             skill_entry_id = GetSelectedSkillEntryId(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = castVariant?.VariantId ?? GetSelectedSkillVariantId(),
+            windup_tier = GetSelectedWindupTier(),
             target_coord = coord,
         };
+
+        if (
+            GetSelectionStage()
+                == GameRuntimeBattleSelectionStage.SourceRetreatDirection
+        )
+        {
+            BattleUnitState queuedTargetUnit = ResolveQueuedSourceRetreatTarget();
+            if (
+                queuedTargetUnit == null
+                || !BattleSourceRetreatRules.TryResolveSelectionDirection(
+                    activeUnit.GetAnchorCoord(),
+                    coord,
+                    out Vector2I direction
+                )
+            )
+            {
+                return null;
+            }
+            command.target_unit_id = queuedTargetUnit.unit_id;
+            command.target_coord = queuedTargetUnit.GetAnchorCoord();
+            command.source_retreat_direction = direction;
+            return command;
+        }
 
         BattleTargetSelectionMode selectionMode =
             GetSelectedBattleSkillTargetSelectionModeKind(activeUnit);
@@ -879,8 +967,117 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             return BattleRefreshMode.None;
         }
 
+        CombatEffectDefinition sourceRetreatEffect = GetSourceRetreatEffect(
+            activeUnit,
+            skillDefinition
+        );
+        if (sourceRetreatEffect != null)
+        {
+            CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(
+                activeUnit
+            );
+            if (
+                !CanSkillTargetUnit(
+                    activeUnit,
+                    targetUnit,
+                    skillDefinition,
+                    castVariant
+                )
+            )
+            {
+                return BattleRefreshMode.None;
+            }
+            SetTargetUnitIdsStateTyped(new[] { targetUnit.unit_id });
+            SetTargetCoordsStateTyped(
+                new[] { targetUnit.GetAnchorCoord() }
+            );
+            SetSelectionStage(
+                GameRuntimeBattleSelectionStage.SourceRetreatDirection
+            );
+            RefreshBattleSelectionState();
+            UpdateStatus(
+                $"已选择 {targetUnit.display_name}，请选择一个远离目标的直线后撤方向。"
+            );
+            return BattleRefreshMode.Overlay;
+        }
+
         BattleCommand skillCommand = BuildSelectedSkillCommand(activeUnit, targetUnit);
         return skillCommand != null ? IssueBattleCommand(skillCommand) : BattleRefreshMode.None;
+    }
+
+    private BattleRefreshMode HandleSourceRetreatDirectionClick(
+        BattleUnitState activeUnit,
+        Vector2I selectedCoord
+    )
+    {
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatEffectDefinition sourceRetreatEffect = GetSourceRetreatEffect(
+            activeUnit,
+            skillDefinition
+        );
+        BattleUnitState targetUnit = ResolveQueuedSourceRetreatTarget();
+        if (
+            activeUnit == null
+            || skillDefinition == null
+            || sourceRetreatEffect == null
+            || targetUnit == null
+        )
+        {
+            ClearBattleSkillTargetSelection();
+            RefreshBattleSelectionState();
+            UpdateStatus("后撤目标已经失效，请重新选择攻击目标。");
+            return BattleRefreshMode.Error;
+        }
+        if (
+            !BattleSourceRetreatRules.TryResolveSelectionDirection(
+                activeUnit.GetAnchorCoord(),
+                selectedCoord,
+                out Vector2I direction
+            )
+            || !BattleSourceRetreatRules.IncreasesDistanceFromTarget(
+                activeUnit.GetAnchorCoord(),
+                targetUnit.GetAnchorCoord(),
+                direction
+            )
+        )
+        {
+            RefreshBattleSelectionState();
+            UpdateStatus("请选择一个使你远离攻击目标的上下左右方向。");
+            return BattleRefreshMode.Error;
+        }
+
+        BattleCommand skillCommand = BuildSelectedSkillCommand(
+            activeUnit,
+            targetUnit
+        );
+        if (skillCommand == null)
+        {
+            RefreshBattleSelectionState();
+            UpdateStatus("当前攻击目标已经无效。");
+            return BattleRefreshMode.Error;
+        }
+        skillCommand.source_retreat_direction = direction;
+        BattlePreview preview = PreviewBattleCommand(skillCommand);
+        if (preview?.allowed == true)
+        {
+            return IssueBattleCommand(skillCommand);
+        }
+
+        RefreshBattleSelectionState();
+        UpdateStatus(
+            preview != null && preview.LogLinesTyped.Count > 0
+                ? preview.LogLinesTyped[^1]
+                : "当前后撤方向无效。"
+        );
+        return BattleRefreshMode.Error;
+    }
+
+    private BattleUnitState ResolveQueuedSourceRetreatTarget()
+    {
+        IReadOnlyList<StringName> targetUnitIds = GetTargetUnitIdsStateTyped();
+        return targetUnitIds.Count == 1
+            ? GetBattleUnitById(targetUnitIds[0])
+            : null;
     }
 
     private SkillDefinition GetSelectedBattleSkillDefinition(BattleUnitState activeUnit)
@@ -1042,6 +1239,13 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         {
             return new List<Vector2I>();
         }
+        if (
+            GetSelectionStage()
+                == GameRuntimeBattleSelectionStage.SourceRetreatDirection
+        )
+        {
+            return CollectSourceRetreatDirectionCoords(activeUnit);
+        }
         if (GetSelectedBattleSkillTargetSelectionModeKind(activeUnit) == BattleTargetSelectionMode.MultiUnit)
         {
             return CollectValidUnitSkillTargetCoords(
@@ -1064,6 +1268,36 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             return new List<Vector2I>();
         }
         return CollectValidGroundSkillTargetCoords(activeUnit, skillDefinition, castVariant);
+    }
+
+    private List<Vector2I> CollectSourceRetreatDirectionCoords(
+        BattleUnitState activeUnit
+    )
+    {
+        var result = new List<Vector2I>();
+        BattleState battleState = GetBattleState();
+        BattleUnitState targetUnit = ResolveQueuedSourceRetreatTarget();
+        if (battleState == null || activeUnit == null || targetUnit == null)
+            return result;
+
+        Vector2I sourceCoord = activeUnit.GetAnchorCoord();
+        Vector2I targetCoord = targetUnit.GetAnchorCoord();
+        foreach (Vector2I direction in BattleSourceRetreatRules.CardinalDirections)
+        {
+            Vector2I selectionCoord = sourceCoord + direction;
+            if (
+                BattleSourceRetreatRules.IncreasesDistanceFromTarget(
+                    sourceCoord,
+                    targetCoord,
+                    direction
+                )
+                && battleState.TryGetCellTyped(selectionCoord, out _)
+            )
+            {
+                result.Add(selectionCoord);
+            }
+        }
+        return SortCoordsTyped(result);
     }
 
     private List<Vector2I> CollectValidUnitSkillTargetCoords(
@@ -1694,6 +1928,36 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         return unitState.KnowsActiveSkill(skillId) ? 1 : 0;
     }
 
+    private CombatEffectDefinition GetSourceRetreatEffect(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (unitState == null || skillDefinition?.CombatProfile == null)
+            return null;
+        int skillLevel = GetUnitSkillLevel(unitState, skillDefinition.SkillId);
+        foreach (
+            CombatEffectDefinition effectDefinition
+            in skillDefinition.CombatProfile.EffectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition?.EffectKind != BattleEffectKind.SourceRetreat
+                || skillLevel < Math.Max(effectDefinition.MinSkillLevel, 0)
+                || (
+                    effectDefinition.MaxSkillLevel >= 0
+                    && skillLevel > effectDefinition.MaxSkillLevel
+                )
+            )
+            {
+                continue;
+            }
+            return effectDefinition;
+        }
+        return null;
+    }
+
     private SkillEffectiveCombatDefinition GetEffectiveCombatProfileForUnit(
         BattleUnitState unitState,
         SkillDefinition skillDefinition
@@ -1732,6 +1996,21 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         if (!string.IsNullOrEmpty(blockReason))
         {
             return $"{blockReason}按 Esc 清除选择。";
+        }
+        if (
+            combatProfile.Windup != null
+            && BattleWindupRules.TryBuildQuote(
+                activeUnit,
+                skillDefinition,
+                GetSelectedWindupTier(),
+                out BattleWindupQuote windupQuote,
+                out _,
+                requireAffordable: false
+            )
+        )
+        {
+            return
+                $"已选择 {skillDefinition.DisplayName}：蓄力 {windupQuote.Tier} 挡，{windupQuote.TotalWindupTu} TU，{windupQuote.TotalStaminaCost} 体力，{windupQuote.WeaponDiceMultiplier}W。Q/E 调整挡位，左键选择目标；确认后不能主动取消，Esc 仅清除尚未确认的选择。";
         }
         CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(activeUnit);
         StringName selectionMode = GetSelectedBattleSkillTargetSelectionMode(activeUnit);
@@ -1929,6 +2208,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             skill_entry_id = GetSelectedSkillEntryId(),
             skill_id = GetSelectedSkillId(),
             skill_variant_id = GetSelectedSkillVariantId(),
+            windup_tier = GetSelectedWindupTier(),
             target_unit_ids = DuplicateStringNameArray(GetTargetUnitIdsStateTyped()),
         };
         if (skillCommand.target_unit_ids.Count > 0)
@@ -2108,6 +2388,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
     {
         ClearTargetCoordsState();
         ClearTargetUnitIdsState();
+        SetSelectionStage(GameRuntimeBattleSelectionStage.Target);
     }
 
     private StringName GetSelectedBattleSkillTargetSelectionMode(BattleUnitState activeUnit)
@@ -2279,6 +2560,27 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             target_unit_id = targetUnit.unit_id,
             target_coord = targetUnit.GetAnchorCoord(),
         };
+        if (GetSourceRetreatEffect(activeUnit, skillDefinition) != null)
+        {
+            foreach (
+                Vector2I direction
+                in BattleSourceRetreatRules.CardinalDirections
+            )
+            {
+                if (
+                    !BattleSourceRetreatRules.IncreasesDistanceFromTarget(
+                        activeUnit.GetAnchorCoord(),
+                        targetUnit.GetAnchorCoord(),
+                        direction
+                    )
+                )
+                {
+                    continue;
+                }
+                command.source_retreat_direction = direction;
+                break;
+            }
+        }
         BattlePreview preview = PreviewBattleCommand(command);
         if (preview != null && preview.allowed)
         {
@@ -2345,6 +2647,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
     {
         Port?.SetSelectedSkillVariantId(optionId);
     }
+
+    private int GetSelectedWindupTier() =>
+        Port?.GetSelectedWindupTier() ?? 1;
+
+    private void SetSelectedWindupTier(int tier) =>
+        Port?.SetSelectedWindupTier(tier);
+
+    private GameRuntimeBattleSelectionStage GetSelectionStage() =>
+        Port?.GetSelectionStage() ?? GameRuntimeBattleSelectionStage.Target;
+
+    private void SetSelectionStage(GameRuntimeBattleSelectionStage stage) =>
+        Port?.SetSelectionStage(stage);
 
     private StringName GetLastManualUnitId()
     {

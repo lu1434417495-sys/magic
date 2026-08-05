@@ -102,7 +102,8 @@ public sealed class BattleHudAdapter : IDisposable
         StringName selected_skill_variant_id,
         string encounter_display_name,
         BattlePreview selected_skill_runtime_preview,
-        StringName selected_skill_entry_id = default
+        StringName selected_skill_entry_id = default,
+        StringName selected_skill_input_mode = default
     )
     {
         selected_skill_id = NormalizeStringName(selected_skill_id);
@@ -125,6 +126,15 @@ public sealed class BattleHudAdapter : IDisposable
             selected_skill_id,
             selectedTargetCount
         );
+        if (!IsEmpty(selected_skill_input_mode))
+        {
+            selectionInfo = selectionInfo with
+            {
+                SelectionMode = selected_skill_input_mode,
+                ConfirmReady = false,
+                AutoCastReady = false,
+            };
+        }
         AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
             runtimePreview
         );
@@ -1928,7 +1938,10 @@ public sealed class BattleHudAdapter : IDisposable
         // PosMod), so prev/next share one enable condition: more than one unlocked
         // option to switch between. Keeping both keys lets the panel label them
         // independently while staying faithful to the keyboard Q/E behaviour.
-        bool canCycleVariant = unitActing && hasSkill && GetUnlockedVariantCount(activeUnit, selectedSkillId) > 1;
+        bool canCycleVariant =
+            unitActing
+            && hasSkill
+            && GetSwitchableSkillOptionCount(activeUnit, selectedSkillId) > 1;
         return new BattleHudCommandDockSnapshot(
             unitActing,
             unitActing && hasSkill,
@@ -2016,7 +2029,13 @@ public sealed class BattleHudAdapter : IDisposable
             );
             return $"继续点选目标，还需 {remaining} 个；Esc 取消";
         }
-        return "左键选择目标格释放；Esc 取消，Q/E 切换形态";
+        SkillDefinition selectedSkillDefinition = GetSkillDefinition(
+            GetSkillDefinitions(),
+            selectedSkillId
+        );
+        return selectedSkillDefinition?.CombatProfile?.Windup != null
+            ? "左键选择目标释放；Esc 清除未确认选择，Q/E 调整蓄力挡位"
+            : "左键选择目标格释放；Esc 取消，Q/E 切换形态";
     }
 
     // Tail of the battle log, same source as RuntimeLogDock's battle view
@@ -2055,13 +2074,18 @@ public sealed class BattleHudAdapter : IDisposable
             && activeUnit.ControlModeKind == BattleUnitControlMode.Manual;
     }
 
-    private int GetUnlockedVariantCount(BattleUnitState activeUnit, StringName selectedSkillId)
+    private int GetSwitchableSkillOptionCount(
+        BattleUnitState activeUnit,
+        StringName selectedSkillId
+    )
     {
         if (activeUnit == null || IsEmpty(selectedSkillId))
             return 0;
         SkillDefinition skillDefinition = GetSkillDefinition(GetSkillDefinitions(), selectedSkillId);
         if (skillDefinition?.CombatProfile == null)
             return 0;
+        if (skillDefinition.CombatProfile.Windup != null)
+            return BattleWindupRules.GetMaxTier(activeUnit, skillDefinition);
         int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
         return GetEffectiveCombatDefinition(skillDefinition, skillLevel).UnlockedCastVariants.Count;
     }

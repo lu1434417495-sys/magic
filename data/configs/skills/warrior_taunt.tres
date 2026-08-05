@@ -10,7 +10,8 @@ effect_type = &"status"
 power = 1
 max_skill_level = 0
 status_id = &"taunted"
-duration_tu = 30
+duration_tu = 40
+required_target_min_cognition = &"sapient"
 
 [sub_resource type="Resource" id="Resource_taunt_l1"]
 script = ExtResource("3_i3bpm")
@@ -19,7 +20,8 @@ power = 1
 min_skill_level = 1
 max_skill_level = 1
 status_id = &"taunted"
-duration_tu = 45
+duration_tu = 50
+required_target_min_cognition = &"sapient"
 
 [sub_resource type="Resource" id="Resource_taunt_l2"]
 script = ExtResource("3_i3bpm")
@@ -28,7 +30,8 @@ power = 1
 min_skill_level = 2
 max_skill_level = 2
 status_id = &"taunted"
-duration_tu = 45
+duration_tu = 50
+required_target_min_cognition = &"sapient"
 
 [sub_resource type="Resource" id="Resource_taunt_l3"]
 script = ExtResource("3_i3bpm")
@@ -38,6 +41,7 @@ min_skill_level = 3
 max_skill_level = 3
 status_id = &"taunted"
 duration_tu = 60
+required_target_min_cognition = &"sapient"
 
 [sub_resource type="Resource" id="Resource_taunt_l4"]
 script = ExtResource("3_i3bpm")
@@ -47,6 +51,7 @@ min_skill_level = 4
 max_skill_level = 4
 status_id = &"taunted"
 duration_tu = 60
+required_target_min_cognition = &"sapient"
 
 [sub_resource type="Resource" id="Resource_taunt_l5"]
 script = ExtResource("3_i3bpm")
@@ -55,7 +60,8 @@ power = 1
 min_skill_level = 5
 max_skill_level = 5
 status_id = &"taunted"
-duration_tu = 90
+duration_tu = 60
+required_target_min_cognition = &"sapient"
 
 [sub_resource type="Resource" id="Resource_8rkps"]
 script = ExtResource("4_hqefb")
@@ -69,12 +75,17 @@ max_target_count = 1
 ap_cost = 1
 stamina_cost = 30
 cooldown_tu = 120
-attack_roll_bonus = 0
 level_overrides = {
-5: {
+2: {
+"stamina_cost": 25
+},
+4: {
 "area_pattern": "front_arc",
 "area_value": 1,
 "max_target_count": 3
+},
+5: {
+"cooldown_tu": 100
 }
 }
 mastery_trigger_mode = &"status_applied"
@@ -86,7 +97,7 @@ script = ExtResource("5_6n01g")
 skill_id = &"warrior_taunt"
 display_name = "挑衅"
 icon_id = &"warrior_taunt"
-description = "嘲讽目标，使其在攻击非来源单位时处于劣势。"
+description = "只有能理解言语与意图的理性敌人才会受挑衅：其攻击你以外的单位时处于劣势。敌人失去理智期间，已有挑衅不会消失，但暂时失效。"
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
@@ -95,31 +106,31 @@ attribute_growth_progress = {
 "constitution": 30,
 "willpower": 30
 }
-level_description_template = "{{?range_desc}}{range_desc}{{/range_desc}}，使其攻击非来源单位时处于劣势，持续{duration}TU"
+level_description_template = "{{?range_desc}}{range_desc}{{/range_desc}}；仅对能理解挑衅的理性敌人有效，使其攻击其他单位时处于劣势，持续{duration}TU"
 level_description_configs = {
 "0": {
 "range_desc": "对身边相邻一格的敌人嘲讽",
-"duration": "30"
+"duration": "40"
 },
 "1": {
 "range_desc": "对身边相邻一格的敌人嘲讽",
-"duration": "45"
+"duration": "50"
 },
 "2": {
 "range_desc": "对身边相邻一格的敌人嘲讽",
-"duration": "45"
+"duration": "50"
 },
 "3": {
 "range_desc": "对身边相邻一格的敌人嘲讽",
 "duration": "60"
 },
 "4": {
-"range_desc": "对身边相邻一格的敌人嘲讽",
+"range_desc": "选择相邻方向，嘲讽该方向横向3格内的敌人",
 "duration": "60"
 },
 "5": {
-"range_desc": "对身边相邻一格横向3格内的敌人嘲讽",
-"duration": "90"
+"range_desc": "选择相邻方向，嘲讽该方向横向3格内的敌人",
+"duration": "60"
 }
 }
 tags = Array[StringName]([&"warrior", &"melee", &"control"])

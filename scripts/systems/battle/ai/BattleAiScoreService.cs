@@ -325,7 +325,8 @@ public sealed partial class BattleAiScoreService : IDisposable
         BattleCommand command,
         BattlePreview preview,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions = null,
-        IReadOnlyDictionary<string, object> metadata = null
+        IReadOnlyDictionary<string, object> metadata = null,
+        BattleAiSkillCandidateScoreFacts? candidateScoreFacts = null
     )
     {
         using BattleAiTraceSpan overallTrace = new("build_skill_score_input");
@@ -367,6 +368,11 @@ public sealed partial class BattleAiScoreService : IDisposable
                 skillDefinition
             );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
+        PopulateTauntAllyDamageRelief(
+            scoreInput,
+            context,
+            effectiveEffectDefinitions
+        );
         PopulateLayeredBarrierProjection(
             scoreInput,
             context,
@@ -390,16 +396,34 @@ public sealed partial class BattleAiScoreService : IDisposable
             scoreMetadata.PathStepAoe
         );
         using (new BattleAiTraceSpan("score_input:resource_cost"))
-            PopulateResourceCostMetrics(scoreInput, skillDefinition, context);
+            PopulateResourceCostMetrics(
+                scoreInput,
+                skillDefinition,
+                context,
+                candidateScoreFacts
+            );
+        PopulateSelfAppliedMovementPenaltyCost(
+            scoreInput,
+            context,
+            skillDefinition,
+            effectiveEffectDefinitions
+        );
+        PopulateDelayedResolutionMetrics(scoreInput, candidateScoreFacts);
         using (new BattleAiTraceSpan("score_input:position"))
             PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
         using (new BattleAiTraceSpan("score_input:post_threat_projection"))
-            PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
+            PopulatePostActionThreatProjection(
+                scoreInput,
+                context,
+                scoreMetadata.Position,
+                effectiveEffectDefinitions
+            );
         scoreInput.total_score =
             ResolveActionBaseScore(scoreInput.action_kind, scoreMetadata)
             + scoreInput.hit_payoff_score
             + scoreInput.effective_target_count * _scoreProfile.TargetCountWeight
             - scoreInput.resource_cost_score
+            - scoreInput.delayed_resolution_score
             + BuildProfileScoreAdjustment(scoreInput, context, effectiveEffectDefinitions);
         return scoreInput;
     }
@@ -410,7 +434,8 @@ public sealed partial class BattleAiScoreService : IDisposable
         BattleCommand command,
         BattlePreview preview,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions = null,
-        IReadOnlyDictionary<string, object> metadata = null
+        IReadOnlyDictionary<string, object> metadata = null,
+        BattleAiSkillCandidateScoreFacts? candidateScoreFacts = null
     )
     {
         return BuildSkillScoreInput(
@@ -419,7 +444,8 @@ public sealed partial class BattleAiScoreService : IDisposable
             command,
             preview,
             effectDefinitions,
-            metadata
+            metadata,
+            candidateScoreFacts
         );
     }
 

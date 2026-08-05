@@ -50,6 +50,19 @@ internal sealed class BattleCastingTimeService
         }
 
         int skillLevel = runtime._get_unit_skill_level(activeUnit, skillDefinition.SkillId);
+        if (combatDefinition.Windup != null)
+        {
+            return TryHandleWindupStart(
+                runtime,
+                activeUnit,
+                command,
+                skillDefinition,
+                unitExecutionCastVariant,
+                groundCastVariant,
+                routesToUnitTargeting,
+                batch
+            );
+        }
         int castingTimeTu = combatDefinition.GetEffectiveCastingTimeTu(skillLevel);
         if (castingTimeTu <= 0)
         {
@@ -174,6 +187,117 @@ internal sealed class BattleCastingTimeService
         return true;
     }
 
+    private bool TryHandleWindupStart(
+        BattleRuntimeModule runtime,
+        BattleUnitState activeUnit,
+        BattleCommand command,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition unitExecutionCastVariant,
+        CombatCastVariantDefinition groundCastVariant,
+        bool routesToUnitTargeting,
+        BattleEventBatch batch
+    )
+    {
+        if (
+            !BattleWindupRules.TryBuildQuote(
+                activeUnit,
+                skillDefinition,
+                command.windup_tier,
+                out BattleWindupQuote quote,
+                out string quoteMessage
+            )
+        )
+        {
+            batch?.AddLogLine(quoteMessage);
+            return true;
+        }
+        if (activeUnit.HasPendingCast())
+        {
+            batch?.AddLogLine($"{DisplayName(activeUnit)} 正在蓄力，无法开始新的行动。");
+            return true;
+        }
+        if (BattleTemporalStatusService.HasTemporalCastBlock(activeUnit))
+        {
+            batch?.AddLogLine($"{DisplayName(activeUnit)} 处于时间静滞，无法开始蓄力。");
+            return true;
+        }
+
+        PendingCastStartPayload payload = BuildStartPayload(
+            runtime,
+            activeUnit,
+            command,
+            skillDefinition,
+            unitExecutionCastVariant,
+            groundCastVariant,
+            routesToUnitTargeting
+        );
+        if (!payload.Allowed)
+        {
+            batch?.AddLogLine(payload.Message);
+            return true;
+        }
+
+        CombatCastVariantDefinition payloadCastVariantDefinition =
+            payload.CastVariantDefinition
+            ?? unitExecutionCastVariant;
+        if (
+            !runtime._skill_turn_resolver.ConsumePendingCastResourceCosts(
+                activeUnit,
+                skillDefinition,
+                payloadCastVariantDefinition,
+                batch,
+                out SkillCostTransaction transaction,
+                quote.AdditionalStaminaCost
+            )
+        )
+        {
+            return true;
+        }
+
+        BattlePendingCastState pendingCast = new()
+        {
+            SourceUnitId = activeUnit.unit_id,
+            SkillId = skillDefinition.SkillId,
+            VariantId = payloadCastVariantDefinition?.VariantId ?? "",
+            TargetMode = payload.TargetMode,
+            BindingMode = PendingCastBindingModeKind.HardAnchor,
+            StartedCoord = activeUnit.GetAnchorCoord(),
+            StartedTu = runtime._state?.timeline?.current_tu ?? 0,
+            BaseCastingTimeTu = quote.TotalWindupTu,
+            RemainingCastProgress = quote.TotalWindupTu * CastProgressPerTu,
+            LastMaintenanceCheckpointHp = activeUnit.GetCurrentHp(),
+            CastSequence = runtime._state?.AllocateCastSequence() ?? 0,
+            CostTransaction = transaction,
+            SpellControlMetadata = BattleSpellControlMetadata.Empty(),
+            WindupSnapshot = new BattleWindupSnapshot(
+                quote.Tier,
+                quote.StrengthModifier,
+                quote.ConstitutionModifier,
+                quote.TuPerTier,
+                quote.TotalWindupTu,
+                quote.AdditionalStaminaCost,
+                quote.WeaponDiceMultiplier,
+                BattleWindupWeaponSignature.Capture(activeUnit)
+            ),
+        };
+        pendingCast.SetTargetUnitIds(payload.TargetUnitIds);
+        pendingCast.SetTargetCoords(payload.TargetCoords);
+        activeUnit.SetPendingCast(pendingCast);
+        activeUnit.CommitActionTakenThisTurnTyped();
+        activeUnit.SetCurrentAp(0);
+        runtime._record_skill_attempt(activeUnit, skillDefinition.SkillId);
+        runtime._record_action_issued(
+            activeUnit,
+            BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+            transaction.ApCost
+        );
+        runtime._append_changed_unit_id(batch, activeUnit.unit_id);
+        batch?.AddLogLine(
+            $"{DisplayName(activeUnit)} 开始为 {SkillLabel(skillDefinition)} 蓄力：{quote.Tier} 挡，{quote.TotalWindupTu} TU，{quote.WeaponDiceMultiplier}W。"
+        );
+        return true;
+    }
+
     internal void PreviewCancelCast(BattleCommand command, BattlePreview preview)
     {
         if (preview == null)
@@ -257,7 +381,10 @@ internal sealed class BattleCastingTimeService
                 );
                 continue;
             }
-            if (runtime._skill_turn_resolver.IsCastInterruptedByStatus(unitState))
+            bool interruptedByStatus = pendingCast.IsWindup
+                ? BattleWindupRules.HasInterruptingStatus(unitState)
+                : runtime._skill_turn_resolver.IsCastInterruptedByStatus(unitState);
+            if (interruptedByStatus)
             {
                 InterruptPendingCastWithCooldown(
                     runtime,
@@ -268,7 +395,24 @@ internal sealed class BattleCastingTimeService
                 );
                 continue;
             }
-            if (ShouldInterruptForHpLoss(runtime, unitState, pendingCast, batch))
+            if (
+                pendingCast.IsWindup
+                && pendingCast.WindupSnapshot?.WeaponSignature.Matches(unitState) != true
+            )
+            {
+                InterruptPendingCastWithCooldown(
+                    runtime,
+                    unitState,
+                    pendingCast,
+                    batch,
+                    "武器发生变化，蓄力中断。"
+                );
+                continue;
+            }
+            if (
+                !pendingCast.IsWindup
+                && ShouldInterruptForHpLoss(runtime, unitState, pendingCast, batch)
+            )
             {
                 InterruptPendingCastWithCooldown(
                     runtime,
@@ -637,6 +781,11 @@ internal sealed class BattleCastingTimeService
         if (!unitState.HasPendingCast())
         {
             message = "当前没有可取消的读条。";
+            return false;
+        }
+        if (unitState.pending_cast?.IsWindup == true)
+        {
+            message = "蓄力开始后不能主动取消。";
             return false;
         }
         if (unitState.ControlModeKind != BattleUnitControlMode.Manual)

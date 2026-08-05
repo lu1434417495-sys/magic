@@ -53,9 +53,15 @@ internal sealed class BattleAiTypedActionHelper
         );
         if (skillDefinition?.CombatProfile == null)
             return false;
+        if (skillDefinition.CombatProfile.Windup != null)
+            return true;
         foreach (CombatEffectDefinition effect in skillDefinition.CombatProfile.EffectDefinitions)
         {
-            if (effect?.EffectKind == BattleEffectKind.VaultBehindTarget)
+            if (
+                effect?.EffectKind
+                is BattleEffectKind.VaultBehindTarget
+                    or BattleEffectKind.SourceRetreat
+            )
                 return true;
         }
         foreach (CombatCastVariantDefinition castVariant in skillDefinition.CombatProfile.CastVariants)
@@ -64,7 +70,11 @@ internal sealed class BattleAiTypedActionHelper
                 continue;
             foreach (CombatEffectDefinition effect in castVariant.EffectDefinitions)
             {
-                if (effect?.EffectKind == BattleEffectKind.VaultBehindTarget)
+                if (
+                    effect?.EffectKind
+                    is BattleEffectKind.VaultBehindTarget
+                        or BattleEffectKind.SourceRetreat
+                )
                     return true;
             }
         }
@@ -452,6 +462,10 @@ internal sealed class BattleAiTypedActionHelper
             skill_entry_id = entryRef.SkillEntryId,
             skill_id = entryRef.SkillId,
             skill_variant_id = skillVariantId,
+            windup_tier =
+                context.GetSkillDefinitionTyped(entryRef.SkillId)?.CombatProfile?.Windup != null
+                    ? 1
+                    : 0,
             target_unit_id = targetUnit.unit_id,
             target_coord = targetUnit.GetAnchorCoord(),
         };

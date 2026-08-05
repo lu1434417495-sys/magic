@@ -22,6 +22,7 @@ internal readonly struct BattleAiDecisionContextSetup
         BattlePreview,
         IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
+        BattleAiSkillCandidateScoreFacts?,
         BattleAiScoreInput
     > SkillScoreInputCallback;
     internal readonly Func<
@@ -55,6 +56,7 @@ internal readonly struct BattleAiDecisionContextSetup
             BattlePreview,
             IReadOnlyList<CombatEffectDefinition>,
             IReadOnlyDictionary<string, object>,
+            BattleAiSkillCandidateScoreFacts?,
             BattleAiScoreInput
         > skillScoreInputCallback,
         Func<
@@ -117,6 +119,7 @@ internal readonly struct BattleAiHelperBindingContext
         BattlePreview,
         IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
+        BattleAiSkillCandidateScoreFacts?,
         BattleAiScoreInput
     > SkillScoreInputCallback;
     internal readonly Func<
@@ -161,6 +164,7 @@ internal readonly struct BattleAiHelperBindingContext
             BattlePreview,
             IReadOnlyList<CombatEffectDefinition>,
             IReadOnlyDictionary<string, object>,
+            BattleAiSkillCandidateScoreFacts?,
             BattleAiScoreInput
         > skillScoreInputCallback,
         Func<
@@ -312,7 +316,8 @@ internal sealed class BattleRuntimeServices : IDisposable
                 context.GridService,
                 context.SkillCatalog,
                 context.SkillDefinitions,
-                context.BarrierProfileDefinitions
+                context.BarrierProfileDefinitions,
+                context.SkillCastBlockReasonCallback
             );
         }
 

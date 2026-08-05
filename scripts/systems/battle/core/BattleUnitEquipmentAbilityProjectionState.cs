@@ -7,7 +7,9 @@ internal readonly record struct
         bool OwnerPresent,
         BattleEquipmentAbilitySourceListReadView Sources,
         BattleTemporalProgressModifierListReadView
-            TemporalProgressModifiers
+            TemporalProgressModifiers,
+        BattleCognitionCeilingModifierListReadView
+            CognitionCeilingModifiers
     )
 {
     internal static
@@ -19,6 +21,9 @@ internal readonly record struct
                 ),
                 new BattleTemporalProgressModifierListReadView(
                     null
+                ),
+                new BattleCognitionCeilingModifierListReadView(
+                    null
                 )
             );
 }
@@ -28,20 +33,29 @@ internal readonly record struct
         bool OwnerPresent,
         List<BattleEquipmentAbilitySourceState> Sources,
         List<BattleTemporalProgressModifierState>
-            TemporalProgressModifiers
+            TemporalProgressModifiers,
+        List<BattleCognitionCeilingModifierState>
+            CognitionCeilingModifiers
     )
 {
     internal static BattleUnitEquipmentAbilityProjectionSnapshot
         Present(
             List<BattleEquipmentAbilitySourceState> sources,
             List<BattleTemporalProgressModifierState>
-                temporalProgressModifiers
+                temporalProgressModifiers,
+            List<BattleCognitionCeilingModifierState>
+                cognitionCeilingModifiers
         ) =>
-            new(true, sources, temporalProgressModifiers);
+            new(
+                true,
+                sources,
+                temporalProgressModifiers,
+                cognitionCeilingModifiers
+            );
 
     internal static BattleUnitEquipmentAbilityProjectionSnapshot
         MissingOwner =>
-            new(false, null, null);
+            new(false, null, null, null);
 }
 
 internal sealed class BattleUnitEquipmentAbilityProjectionState
@@ -50,10 +64,14 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
         new();
     private List<BattleTemporalProgressModifierState>
         _temporalProgressModifiers = new();
+    private List<BattleCognitionCeilingModifierState>
+        _cognitionCeilingModifiers = new();
     private List<BattleEquipmentAbilitySourceReadView>
         _sourceReadViews = new();
     private List<BattleTemporalProgressModifierReadView>
         _temporalProgressModifierReadViews = new();
+    private List<BattleCognitionCeilingModifierReadView>
+        _cognitionCeilingModifierReadViews = new();
     private BattleTemporalProgressModifierReadView
         _selectedActionProgressModifier;
     private BattleTemporalProgressModifierReadView
@@ -70,6 +88,11 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
                     _temporalProgressModifiers == null
                         ? null
                         : _temporalProgressModifierReadViews
+                ),
+                new BattleCognitionCeilingModifierListReadView(
+                    _cognitionCeilingModifiers == null
+                        ? null
+                        : _cognitionCeilingModifierReadViews
                 )
             );
 
@@ -84,7 +107,9 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
     internal void ReplaceNormalized(
         IEnumerable<BattleEquipmentAbilitySourceState> sources,
         IEnumerable<BattleTemporalProgressModifierState>
-            temporalProgressModifiers
+            temporalProgressModifiers,
+        IEnumerable<BattleCognitionCeilingModifierState>
+            cognitionCeilingModifiers = null
     )
     {
         List<BattleEquipmentAbilitySourceState>
@@ -95,14 +120,22 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
                 DuplicateTemporalProgressModifiersNormalized(
                     temporalProgressModifiers
                 );
+        List<BattleCognitionCeilingModifierState>
+            normalizedCognitionCeilingModifiers =
+                DuplicateCognitionCeilingModifiersNormalized(
+                    cognitionCeilingModifiers
+                );
         ProjectionReadCache readCache = BuildReadCache(
             normalizedSources,
-            normalizedTemporalProgressModifiers
+            normalizedTemporalProgressModifiers,
+            normalizedCognitionCeilingModifiers
         );
 
         _sources = normalizedSources;
         _temporalProgressModifiers =
             normalizedTemporalProgressModifiers;
+        _cognitionCeilingModifiers =
+            normalizedCognitionCeilingModifiers;
         ApplyReadCache(readCache);
     }
 
@@ -112,6 +145,9 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
                 DuplicateSourcesExact(_sources),
                 DuplicateTemporalProgressModifiersExact(
                     _temporalProgressModifiers
+                ),
+                DuplicateCognitionCeilingModifiersExact(
+                    _cognitionCeilingModifiers
                 )
             );
 
@@ -120,7 +156,8 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
             BattleUnitEquipmentAbilityProjectionSeed
                 .CreateNormalized(
                     _sources,
-                    _temporalProgressModifiers
+                    _temporalProgressModifiers,
+                    _cognitionCeilingModifiers
                 );
 
     internal void RestoreRaw(
@@ -134,14 +171,22 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
                 DuplicateTemporalProgressModifiersExact(
                     snapshot.TemporalProgressModifiers
                 );
+        List<BattleCognitionCeilingModifierState>
+            exactCognitionCeilingModifiers =
+                DuplicateCognitionCeilingModifiersExact(
+                    snapshot.CognitionCeilingModifiers
+                );
         ProjectionReadCache readCache = BuildReadCache(
             exactSources,
-            exactTemporalProgressModifiers
+            exactTemporalProgressModifiers,
+            exactCognitionCeilingModifiers
         );
 
         _sources = exactSources;
         _temporalProgressModifiers =
             exactTemporalProgressModifiers;
+        _cognitionCeilingModifiers =
+            exactCognitionCeilingModifiers;
         ApplyReadCache(readCache);
     }
 
@@ -152,7 +197,8 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
             new BattleUnitEquipmentAbilityProjectionState();
         result.ReplaceNormalized(
             _sources,
-            _temporalProgressModifiers
+            _temporalProgressModifiers,
+            _cognitionCeilingModifiers
         );
         return result;
     }
@@ -178,6 +224,8 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
         _sourceReadViews = readCache.SourceReadViews;
         _temporalProgressModifierReadViews =
             readCache.TemporalProgressModifierReadViews;
+        _cognitionCeilingModifierReadViews =
+            readCache.CognitionCeilingModifierReadViews;
         _selectedActionProgressModifier =
             readCache.SelectedActionProgressModifier;
         _selectedCastProgressModifier =
@@ -187,7 +235,9 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
     private static ProjectionReadCache BuildReadCache(
         List<BattleEquipmentAbilitySourceState> sources,
         List<BattleTemporalProgressModifierState>
-            temporalProgressModifiers
+            temporalProgressModifiers,
+        List<BattleCognitionCeilingModifierState>
+            cognitionCeilingModifiers
     )
     {
         List<BattleEquipmentAbilitySourceReadView>
@@ -198,9 +248,15 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
                 BuildTemporalProgressModifierReadViews(
                     temporalProgressModifiers
                 );
+        List<BattleCognitionCeilingModifierReadView>
+            cognitionCeilingModifierReadViews =
+                BuildCognitionCeilingModifierReadViews(
+                    cognitionCeilingModifiers
+                );
         return new ProjectionReadCache(
             sourceReadViews,
             temporalProgressModifierReadViews,
+            cognitionCeilingModifierReadViews,
             SelectTemporalProgressModifier(
                 temporalProgressModifierReadViews,
                 actionProgress: true
@@ -311,6 +367,28 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
         return selected;
     }
 
+    private static List<BattleCognitionCeilingModifierReadView>
+        BuildCognitionCeilingModifierReadViews(
+            IEnumerable<BattleCognitionCeilingModifierState> modifiers
+        )
+    {
+        if (modifiers == null)
+            return null;
+        var result =
+            new List<BattleCognitionCeilingModifierReadView>();
+        foreach (BattleCognitionCeilingModifierState modifier in modifiers)
+        {
+            result.Add(
+                modifier == null
+                    ? null
+                    : new BattleCognitionCeilingModifierReadView(
+                        modifier
+                    )
+            );
+        }
+        return result;
+    }
+
     private static List<BattleEquipmentAbilitySourceState>
         DuplicateSourcesNormalized(
             IEnumerable<BattleEquipmentAbilitySourceState>
@@ -352,6 +430,33 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
         {
             if (modifier != null)
                 result.Add(modifier.DuplicateState());
+        }
+        return result;
+    }
+
+    private static List<BattleCognitionCeilingModifierState>
+        DuplicateCognitionCeilingModifiersNormalized(
+            IEnumerable<BattleCognitionCeilingModifierState> modifiers
+        )
+    {
+        var result =
+            new List<BattleCognitionCeilingModifierState>();
+        foreach (
+            BattleCognitionCeilingModifierState modifier
+            in modifiers
+                ?? Array.Empty<BattleCognitionCeilingModifierState>()
+        )
+        {
+            if (
+                modifier != null
+                && modifier.ModifierId != ""
+                && BattleCognitionContentRules.IsKnown(
+                    modifier.Ceiling
+                )
+            )
+            {
+                result.Add(modifier.DuplicateState());
+            }
         }
         return result;
     }
@@ -419,11 +524,27 @@ internal sealed class BattleUnitEquipmentAbilityProjectionState
         return result;
     }
 
+    private static List<BattleCognitionCeilingModifierState>
+        DuplicateCognitionCeilingModifiersExact(
+            IEnumerable<BattleCognitionCeilingModifierState> modifiers
+        )
+    {
+        if (modifiers == null)
+            return null;
+        var result =
+            new List<BattleCognitionCeilingModifierState>();
+        foreach (BattleCognitionCeilingModifierState modifier in modifiers)
+            result.Add(modifier?.DuplicateState());
+        return result;
+    }
+
     private readonly record struct ProjectionReadCache(
         List<BattleEquipmentAbilitySourceReadView>
             SourceReadViews,
         List<BattleTemporalProgressModifierReadView>
             TemporalProgressModifierReadViews,
+        List<BattleCognitionCeilingModifierReadView>
+            CognitionCeilingModifierReadViews,
         BattleTemporalProgressModifierReadView
             SelectedActionProgressModifier,
         BattleTemporalProgressModifierReadView

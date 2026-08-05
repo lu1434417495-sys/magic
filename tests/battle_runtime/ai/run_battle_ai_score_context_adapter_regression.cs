@@ -26,6 +26,12 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
         Fixture fixture = BuildFixture();
         var adapter = new BattleAiScoreContextAdapter();
         using var scoreService = new BattleAiScoreService();
+        Func<
+            BattleUnitState,
+            SkillDefinition,
+            BattleSkillCastBlockReasonKind
+        > castBlockReasonCallback =
+            (_, _) => BattleSkillCastBlockReasonKind.None;
         try
         {
             adapter.Setup(
@@ -35,7 +41,8 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
                 fixture.GridService,
                 null,
                 fixture.SkillDefinitions,
-                fixture.BarrierDefinitions
+                fixture.BarrierDefinitions,
+                castBlockReasonCallback
             );
 
         IBattleAiScoreContext scoreContext = adapter;
@@ -46,6 +53,13 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
         _test.True(
             scoreContext.barrier_profile_definitions.Count == 1,
             "IBattleAiScoreContext 应借用 process-owned BarrierProfileDefinition 视图。"
+        );
+        _test.True(
+            ReferenceEquals(
+                scoreContext.skill_cast_block_reason_callback,
+                castBlockReasonCallback
+            ),
+            "score context adapter 应向评分器透传 canonical cast-block callback。"
         );
 
         BattleCommand command = new()
@@ -111,6 +125,13 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
                 ((IBattleAiScoreContext)adapter).barrier_profile_definitions.Count,
                 0,
                 "score context adapter 清理后不得残留 barrier profile 借用。"
+            );
+            _test.True(
+                (
+                    (IBattleAiScoreContext)adapter
+                ).skill_cast_block_reason_callback
+                    == null,
+                "score context adapter 清理后不得残留 cast-block callback。"
             );
         }
     }

@@ -19,6 +19,7 @@ initial_state_id = &"engage"
 creature_level = 4
 hit_die_sides = 10
 action_threshold = 30
+cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 save_advantage_tags = Array[StringName]([&"charm"])
 base_attribute_overrides = {

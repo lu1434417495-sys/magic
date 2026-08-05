@@ -1137,6 +1137,9 @@ public sealed partial class CharacterManagementModule
         {
             weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
             weapon_item_id = itemDefinition.ItemId,
+            weapon_instance_id = ProgressionDataUtils.to_string_name(
+                equipment_state?.GetEquippedInstanceId("main_hand")
+            ),
             weapon_profile_type_id = ProgressionDataUtils.to_string_name(
                 profile.WeaponTypeId
             ),
@@ -1152,6 +1155,7 @@ public sealed partial class CharacterManagementModule
             weapon_two_handed_dice = two_handed_dice,
             weapon_is_versatile = is_versatile,
             weapon_uses_two_hands = uses_two_hands,
+            weapon_is_heavy = properties.Contains(new StringName("heavy")),
             weapon_physical_damage_tag = itemDefinition.GetWeaponPhysicalDamageTag(),
         };
     }

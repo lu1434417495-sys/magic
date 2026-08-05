@@ -20,6 +20,7 @@ enemy_count = 2
 creature_level = 3
 hit_die_sides = 8
 action_threshold = 45
+cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"mist", &"magical_beast"])
 save_advantage_tags = Array[StringName]([&"illusion", &"temporal"])
 damage_resistances = {

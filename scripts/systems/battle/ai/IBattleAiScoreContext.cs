@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -9,4 +10,9 @@ internal interface IBattleAiScoreContext
     IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions { get; }
     IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrier_profile_definitions { get; }
     ISkillCatalog skill_catalog { get; }
+    Func<
+        BattleUnitState,
+        SkillDefinition,
+        BattleSkillCastBlockReasonKind
+    > skill_cast_block_reason_callback { get; }
 }

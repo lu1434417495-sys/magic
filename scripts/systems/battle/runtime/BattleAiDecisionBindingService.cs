@@ -164,7 +164,8 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         BattleCommand command,
         BattlePreview preview,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyDictionary<string, object> metadata
+        IReadOnlyDictionary<string, object> metadata,
+        BattleAiSkillCandidateScoreFacts? candidateScoreFacts
     )
     {
         return _runtime._ai_service.GetScoreService()
@@ -174,7 +175,8 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
                 command,
                 preview,
                 effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>(),
-                metadata
+                metadata,
+                candidateScoreFacts
             );
     }
 

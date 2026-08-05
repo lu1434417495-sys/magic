@@ -103,6 +103,7 @@ internal sealed class EquipmentAbilityBindingValidator
         ValidateReactions(binding, context, declaredStateKeys, errors);
         ValidateGrantedActions(binding, context, errors);
         ValidateTemporalProgressModifiers(binding, errors);
+        ValidateCognitionCeilingModifiers(binding, errors);
         ValidateWeaponProfileOverlays(binding, context, errors);
         ValidateWorldEffects(binding, context, declaredStateKeys, errors);
     }
@@ -330,6 +331,65 @@ internal sealed class EquipmentAbilityBindingValidator
                     "EQA_TEMPORAL_PROGRESS_MODIFIER_RATE_INVALID",
                     modifierPath,
                     "temporal progress modifier rates must be positive percentages"
+                );
+            }
+        }
+    }
+
+    private static void ValidateCognitionCeilingModifiers(
+        EquipmentAbilityBindingDef binding,
+        List<string> errors
+    )
+    {
+        string path =
+            EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seenIds = new HashSet<StringName>();
+        foreach (
+            EquipmentCognitionCeilingModifierDef modifier
+            in binding.cognition_ceiling_modifiers
+        )
+        {
+            if (modifier == null)
+                continue;
+            StringName modifierId =
+                ProgressionDataUtils.to_string_name(
+                    modifier.modifier_id
+                );
+            string modifierPath =
+                $"{path}.cognition_ceiling_modifiers[{modifierId}]";
+            if (modifierId == "")
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_COGNITION_CEILING_MODIFIER_ID_MISSING",
+                    modifierPath,
+                    "cognition ceiling modifier requires modifier_id"
+                );
+            }
+            else if (!seenIds.Add(modifierId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_COGNITION_CEILING_MODIFIER_DUPLICATE",
+                    modifierPath,
+                    $"cognition ceiling modifier {modifierId} is duplicated"
+                );
+            }
+            BattleCognitionKind cognitionCeiling =
+                BattleCognitionContentRules.ToKind(
+                    modifier.cognition_ceiling
+                );
+            if (
+                !BattleCognitionContentRules.IsKnown(
+                    cognitionCeiling
+                )
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_COGNITION_CEILING_INVALID",
+                    $"{modifierPath}.cognition_ceiling",
+                    "cognition_ceiling must be mindless, instinctive, or sapient"
                 );
             }
         }
@@ -1013,6 +1073,28 @@ internal sealed class EquipmentAbilityBindingValidator
                 "EQA_REFERENCE_UNKNOWN_SKILL",
                 path,
                 $"skill_id {skillId} is not known"
+            );
+        }
+    }
+
+    internal static void ValidateAutomaticSkillReference(
+        StringName skillId,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            skillId != ""
+            && context?.WindupSkillIds != null
+            && context.WindupSkillIds.Contains(skillId)
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_REFERENCE_WINDUP_SKILL_UNSUPPORTED",
+                path,
+                $"skill_id {skillId} requires manual windup tier selection and cannot be triggered automatically"
             );
         }
     }
