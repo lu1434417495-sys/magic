@@ -10,6 +10,7 @@
 
 ## Failure Patterns To Prioritize
 
+- Embedded conflict markers in tracked or untracked source, scene, resource, test, or documentation files even when Git reports no unresolved index conflict.
 - Scene-script contract drift: renamed nodes, stale resource paths, missing signal handlers, wrong C# node/resource type assumptions.
 - Runtime state bugs: world or battle phase mismatches, modal visibility drift, stale typed caches, broken `StringName` or `Vector2I` keys.
 - Combat regressions: occupancy not updated, AP or TU cost drift, cooldown drift, preview accepting commands that execution rejects.

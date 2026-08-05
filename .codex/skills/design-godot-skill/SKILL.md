@@ -1,6 +1,6 @@
 ---
 name: design-godot-skill
-description: Design, audit, repair, or refactor combat skill content for this Godot 4.6 C# project. Use when Codex creates or edits SkillDef .tres resources; optimizes invalid, incomplete, stale, weak, or nonconforming existing skills; changes combat_profile/effect_defs/passive_effect_defs/cast_variants/special_resolution_profile_id; adjusts mastery, level rewards, targeting, costs, weapon requirements, or attribute growth; or decides whether skill work needs C# runtime, schema, AI, or regression-test changes.
+description: Design, audit, repair, or refactor combat skill content for this Godot 4.6 C# project. Use when Codex creates or edits SkillDef .tres resources; runs a batch quality audit of existing skills; optimizes invalid, incomplete, stale, weak, or nonconforming content; changes combat_profile/effect_defs/passive_effect_defs/cast_variants/special_resolution_profile_id; adds an effect that must land across execution, targeting, preview, AI, and tests; adjusts mastery, level rewards, targeting, costs, weapon requirements, or attribute growth; or decides whether skill work needs C# runtime, schema, AI, or regression-test changes.
 ---
 
 # Design Godot Skill
@@ -15,6 +15,7 @@ Use this skill to design combat skills in the progression and battle systems. A 
 - For an existing invalid or nonconforming skill, run repair mode first: identify whether the problem is schema validation, runtime support, stale description, missing test coverage, AI/HUD mismatch, role/balance weakness, or unsupported compatibility assumptions. Propose the smallest coherent fix before redesigning the skill.
 - For a new skill or an already-approved change, implement directly once the role, targeting, level rewards, mastery, and validation path are clear. Ask only for decisions that cannot be safely inferred.
 - For a new closed mode, effect type, resource kind, damage category, target selector, save tag, or parameter family, identify the enum/typed rule utility or typed DTO owner before editing resources.
+- For a batch audit, inventory first and classify findings as schema errors, runtime gaps, content-quality candidates, or unverified design questions. Do not bulk-rewrite `.tres` files from heuristic findings.
 
 ## Load Repo Context
 
@@ -33,6 +34,8 @@ Minimum source read set by task:
 | Targeting, areas, cast variants | `BattleTypedEnums.cs`, `CombatSkillTargetingContentRules.cs`, `CombatTargetTeamContentRules.cs`, `BattleSkillResolutionRules.cs`, relevant battle selection/runtime tests |
 | Bow/weapon range skills | `BattleRangeService.cs`, `CombatSkillDef.cs`, `BattleRuntimeSkillTurnResolver.cs`, equipment/weapon projection rules, and similar bow or weapon-range skills |
 | New or unusual effect behavior | `BattleTypedEnums.cs`, `SkillContentRegistry.AppendEffectValidationErrors`, `BattleSkillResolutionRules.cs`, and the runtime resolver that would execute the effect |
+| Batch existing-skill audit | Run `scripts/audit_skill_content.py`, then read `references/existing-skill-quality-audit.md`, the production validator, candidate resources, and their current consumers |
+| Cross-path effect landing | Read `references/cross-path-effect-landing.md`, then inspect every applicable producer/consumer in the matrix before choosing an owner |
 | Mastery changes | `BattleSkillMasteryService.cs`, `BattleRuntimeModule.cs`, `SkillContentRegistry.cs`, mastery regressions |
 | Weapon-gated skills | `CombatSkillDef.cs`, `BattleRuntimeSkillTurnResolver.cs`, equipment/weapon projection rules, weapon dice regressions |
 | Special-profile skills | `BattleSpecialProfileRegistry.cs`, the profile manifest/def, profile-specific runtime resolver, preview/HUD/AI/report tests |
@@ -48,6 +51,14 @@ When previewing or repairing an existing skill, include:
 - Optional design improvement after repair: role, costs, level rewards, mastery, tags, growth, and whether C# code is needed.
 - Validation plan and concrete regression commands.
 - Open decisions that require user approval.
+
+For a repository-wide inventory, run:
+
+```powershell
+python .codex/skills/design-godot-skill/scripts/audit_skill_content.py --repo-root . --summary-only
+```
+
+Rerun without `--summary-only` only when candidate paths are needed. The script reports candidates, not approved fixes. Follow [references/existing-skill-quality-audit.md](references/existing-skill-quality-audit.md) before editing any candidate.
 
 ## Design Checklist
 
@@ -92,6 +103,8 @@ Decide before writing config:
 | New mastery trigger or amount mode | `BattleTypedEnums.cs`, `BattleSkillMasteryService.cs`, `BattleRuntimeModule.cs`, `SkillContentRegistry.cs` |
 | New special-profile behavior | special profile manifest/registry, profile resolver, preview/HUD/AI/report contracts |
 
+For any new effect kind or shared skill mechanic, complete [references/cross-path-effect-landing.md](references/cross-path-effect-landing.md). Do not stop after the resource validator or main execution path passes.
+
 ## Validation
 
 After authoring or code changes:
@@ -107,7 +120,11 @@ After authoring or code changes:
 9. Check descriptions and `level_description_configs` match the real effective values.
 10. Check new closed value domains have typed conversion and invalid-value schema coverage, not only runtime string comparisons.
 11. If runtime relationships, ownership boundaries, or recommended read sets changed, update `docs/design/project_context_units.md`. Do not add parameter-by-parameter skill notes there.
+12. For new effect kinds or shared mechanics, verify every applicable execution, special-resolver, preview, AI, presentation, and regression consumer in the cross-path matrix.
 
 ## References
 
 - `references/skill-config-schema.md` - Schema owner map, source-reading commands, stable pitfalls, and `.tres` examples. It is not a complete field list.
+- `references/existing-skill-quality-audit.md` - Batch-audit classification, evidence, and approval boundaries.
+- `references/cross-path-effect-landing.md` - Producer/consumer matrix for new effect kinds and shared battle mechanics.
+- `scripts/audit_skill_content.py` - Read-only static inventory that surfaces review candidates without modifying resources.

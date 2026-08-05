@@ -1,4 +1,4 @@
 interface:
   display_name: "Godot Code Review"
-  short_description: "Review Godot C# changes for runtime regressions and test gaps"
-  default_prompt: "Use $godot-code-review to review these Godot C# changes for behavior regressions, scene-script mismatches, and missing tests."
+  short_description: "Review changes and verify findings against current owners"
+  default_prompt: "Use $godot-code-review to review these changes or verify historical findings against current owners."

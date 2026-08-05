@@ -59,6 +59,7 @@ Use this skill to turn a feature request into a repo-grounded design packet. Kee
   State whether `docs/design/project_context_units.md` stays valid as-is as an architecture loading index or must be updated.
   Update it only if the design changes repo ownership boundaries, main runtime chains, context-unit responsibilities, or recommended read-sets.
   Do not put field-level implementation notes, migration status, or regression-script inventories into that file.
+- If the user explicitly requests multi-agent or parallel implementation, read [references/delivery-campaign.md](references/delivery-campaign.md) and add dependency, ownership, evidence, integration, and validation slices to the packet. Do not load that reference for ordinary single-agent design.
 
 ## Notes
 

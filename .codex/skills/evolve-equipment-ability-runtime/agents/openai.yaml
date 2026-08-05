@@ -1,0 +1,4 @@
+interface:
+  display_name: "Equipment Ability Runtime"
+  short_description: "Evolve typed equipment ability runtime contracts"
+  default_prompt: "Use $evolve-equipment-ability-runtime to extend this equipment ability mechanic across authoring, runtime, and tests."

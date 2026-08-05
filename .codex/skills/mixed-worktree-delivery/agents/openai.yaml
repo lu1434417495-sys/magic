@@ -1,0 +1,4 @@
+interface:
+  display_name: "Magic Mixed Worktree Delivery"
+  short_description: "Curate mixed worktrees into verified themed commits"
+  default_prompt: "Use $mixed-worktree-delivery to inventory this mixed worktree and prepare verified behavior-based commits."

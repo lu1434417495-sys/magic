@@ -1,4 +1,4 @@
 interface:
   display_name: "Design Godot Skill"
-  short_description: "Repair and design Godot combat skills"
-  default_prompt: "Use $design-godot-skill to repair or design a combat skill."
+  short_description: "Audit, repair, and design Godot combat skills"
+  default_prompt: "Use $design-godot-skill to audit, repair, or design this combat skill and its runtime consumers."

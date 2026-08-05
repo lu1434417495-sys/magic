@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quest Content Design"
+  short_description: "Design progression-safe quest content and rewards"
+  default_prompt: "Use $design-quest-content to design or audit this quest and its progression rewards."

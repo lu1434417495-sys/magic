@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Godot Design"
+  short_description: "Verify design claims against current code and tests"
+  default_prompt: "Use $review-godot-design to verify this proposal against current owners, runtime paths, and tests."

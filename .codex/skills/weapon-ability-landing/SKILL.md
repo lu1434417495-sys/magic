@@ -1,6 +1,6 @@
 ---
 name: weapon-ability-landing
-description: "Use when landing weapon content or equipment abilities in the E:/game/magic Godot C# repo: selecting weapons from docs/content/weapons/by_family, adding ItemDef/TraitDef/EquipmentAbilityContentPackDef/SkillDef .tres resources, wiring generic typed battle runtime support, or writing weapon ability regressions."
+description: "Land concrete weapon content and its configured equipment abilities in the E:/game/magic Godot 4.6 C# repository. Use when selecting a weapon from docs/content/weapons/by_family, adding or revising its ItemDef/TraitDef/EquipmentAbilityContentPackDef/SkillDef .tres resources, obtaining weapon-specific approval, or writing the real battle regression for that weapon. When the primary task is evolving the shared trigger/fact/condition/action/state ABI or equipment reaction framework without a concrete weapon landing, use evolve-equipment-ability-runtime instead."
 ---
 
 # Weapon Ability Landing
@@ -15,10 +15,10 @@ This is a project-specific workflow for `E:/game/magic`.
 
 1. Read `docs/design/project_context_units.md` first.
 2. Load the weapon source from `docs/content/weapons/by_family/`, and treat it as content intent rather than runtime truth.
-3. For equipment abilities read CU-12, CU-13, CU-15, CU-16, and CU-19 in the context map.
+3. For equipment abilities read CU-10, CU-13, CU-15, CU-16, and CU-19 in the context map.
 4. Treat C# owners as truth over design prose.
-5. Use `godot-test-writing` before adding or changing tests.
-6. Use `test-driven-development` before writing implementation code.
+5. Use `godot-test-writing` before adding or changing tests, and follow a focused red-green-refactor cycle through that repository test workflow.
+6. Use `evolve-equipment-ability-runtime` first when the work is primarily a shared ABI, reaction-ordering, projection/save, port, or lifecycle change rather than a concrete weapon landing.
 
 Core owner files to inspect as needed:
 
@@ -117,7 +117,7 @@ Do not add compatibility aliases, legacy field migrations, or fallback payload s
 
 1. Read the source weapon and similar implemented weapons.
 2. Present weapon info and test design to the user.
-3. After approval, write or update focused failing tests first.
+3. After approval, use `godot-test-writing` to write or update focused failing tests first.
 4. Implement the smallest generic typed mechanism that makes the tests pass.
 5. Add item, trait, equipment ability pack, and skill resources.
 6. Update validation rules when new authoring fields or enum values are added.
