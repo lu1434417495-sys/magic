@@ -53,7 +53,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             1,
             null,
             MakeWeaponDice(2, 6, 0),
-            Array.Empty<StringName>()
+            new[] { new StringName("two_handed"), new StringName("heavy") }
         );
         ItemDef trainingLongsword = MakeWeapon(
             "training_longsword",
@@ -187,6 +187,15 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         _test.True(
             twoHanded != null && twoHandedWeapon.UsesTwoHands,
             "two-handed weapon should mark two-handed usage."
+        );
+        _test.Eq(
+            twoHandedWeapon.InstanceId,
+            (StringName)"weapon_projection_greatsword",
+            "equipped weapon projection should preserve the concrete equipment instance id."
+        );
+        _test.True(
+            twoHandedWeapon.IsHeavy,
+            "heavy weapon property should survive character and battle-unit projection."
         );
 
         memberState.equipment_state = new EquipmentState();

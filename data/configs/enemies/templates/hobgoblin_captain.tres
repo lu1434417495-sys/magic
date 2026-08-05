@@ -19,6 +19,7 @@ initial_state_id = &"engage"
 creature_level = 4
 hit_die_sides = 8
 action_threshold = 45
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"humanoid", &"goblinoid"])
 attack_equipment_item_id = &"militia_spear"
 base_attribute_overrides = {

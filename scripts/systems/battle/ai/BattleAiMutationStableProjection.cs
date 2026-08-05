@@ -674,6 +674,43 @@ internal static class BattleAiMutationStableProjection
         return result;
     }
 
+    internal static List<StableValue> StableCognitionCeilingModifiers(
+        IEnumerable<BattleCognitionCeilingModifierState> values
+    )
+    {
+        List<StableValue> result = new();
+        foreach (
+            BattleCognitionCeilingModifierState modifier in values
+                ?? Array.Empty<BattleCognitionCeilingModifierState>()
+        )
+        {
+            if (modifier == null)
+            {
+                result.Add(StableValue.Nil());
+                continue;
+            }
+            StableMap entry = new();
+            entry.Set(
+                "modifier_id",
+                StableNullableStringName(modifier.ModifierId)
+            );
+            entry.Set(
+                "binding_id",
+                StableNullableStringName(modifier.BindingId)
+            );
+            entry.Set(
+                "source_equipment_instance_id",
+                StableNullableStringName(modifier.SourceEquipmentInstanceId)
+            );
+            entry.Set(
+                "cognition_ceiling",
+                StableValue.FromInteger((int)modifier.Ceiling)
+            );
+            result.Add(StableValue.FromMap(entry));
+        }
+        return result;
+    }
+
     internal static List<StableValue> StableEquipmentTargetMarks(
         IEnumerable<BattleEquipmentTargetMarkState> values
     )
@@ -727,7 +764,9 @@ internal static class BattleAiMutationStableProjection
         }
         result.Set("weapon_profile_kind", StableNullableStringName(projection.weapon_profile_kind));
         result.Set("weapon_item_id", StableNullableStringName(projection.weapon_item_id));
+        result.Set("weapon_instance_id", StableNullableStringName(projection.weapon_instance_id));
         result.Set("weapon_profile_type_id", StableNullableStringName(projection.weapon_profile_type_id));
+        result.Set("weapon_range_type", StableNullableStringName(projection.weapon_range_type));
         result.Set("weapon_family", StableNullableStringName(projection.weapon_family));
         result.Set("weapon_current_grip", StableNullableStringName(projection.weapon_current_grip));
         result.Set("weapon_attack_range", StableValue.FromInteger(projection.weapon_attack_range));
@@ -741,6 +780,7 @@ internal static class BattleAiMutationStableProjection
         );
         result.Set("weapon_is_versatile", StableValue.FromBool(projection.weapon_is_versatile));
         result.Set("weapon_uses_two_hands", StableValue.FromBool(projection.weapon_uses_two_hands));
+        result.Set("weapon_is_heavy", StableValue.FromBool(projection.weapon_is_heavy));
         result.Set(
             "weapon_physical_damage_tag",
             StableNullableStringName(projection.weapon_physical_damage_tag)
@@ -832,6 +872,17 @@ internal static class BattleAiMutationStableProjection
                     StableSkillCostTransaction(pendingCast.CostTransaction)
                 )
         );
+        if (pendingCast.WindupSnapshot is BattleWindupSnapshot windup)
+        {
+            result.Set(
+                "windup_snapshot",
+                StableValue.FromMap(StableWindupSnapshot(windup))
+            );
+        }
+        else
+        {
+            result.Set("windup_snapshot", StableValue.Nil());
+        }
         result.Set(
             "spell_control_metadata",
             pendingCast.SpellControlMetadata == null
@@ -839,6 +890,107 @@ internal static class BattleAiMutationStableProjection
                 : StableValue.FromMap(
                     StableSpellControlMetadata(pendingCast.SpellControlMetadata)
                 )
+        );
+        return result;
+    }
+
+    internal static StableMap StableWindupSnapshot(
+        BattleWindupSnapshot windup
+    )
+    {
+        StableMap result = new();
+        if (windup == null)
+        {
+            return result;
+        }
+        result.Set("tier", StableValue.FromInteger(windup.Tier));
+        result.Set(
+            "strength_modifier",
+            StableValue.FromInteger(windup.StrengthModifier)
+        );
+        result.Set(
+            "constitution_modifier",
+            StableValue.FromInteger(windup.ConstitutionModifier)
+        );
+        result.Set(
+            "tu_per_tier",
+            StableValue.FromInteger(windup.TuPerTier)
+        );
+        result.Set(
+            "total_windup_tu",
+            StableValue.FromInteger(windup.TotalWindupTu)
+        );
+        result.Set(
+            "additional_stamina_cost",
+            StableValue.FromInteger(windup.AdditionalStaminaCost)
+        );
+        result.Set(
+            "weapon_dice_multiplier",
+            StableValue.FromInteger(windup.WeaponDiceMultiplier)
+        );
+        result.Set(
+            "weapon_signature",
+            StableValue.FromMap(
+                StableWindupWeaponSignature(windup.WeaponSignature)
+            )
+        );
+        return result;
+    }
+
+    internal static StableMap StableWindupWeaponSignature(
+        BattleWindupWeaponSignature signature
+    )
+    {
+        StableMap result = new();
+        result.Set(
+            "profile_kind",
+            StableNullableStringName(signature.ProfileKind)
+        );
+        result.Set("item_id", StableNullableStringName(signature.ItemId));
+        result.Set(
+            "instance_id",
+            StableNullableStringName(signature.InstanceId)
+        );
+        result.Set(
+            "profile_type_id",
+            StableNullableStringName(signature.ProfileTypeId)
+        );
+        result.Set(
+            "range_type",
+            StableNullableStringName(signature.RangeType)
+        );
+        result.Set("family", StableNullableStringName(signature.Family));
+        result.Set(
+            "current_grip",
+            StableNullableStringName(signature.CurrentGrip)
+        );
+        result.Set(
+            "attack_range",
+            StableValue.FromInteger(signature.AttackRange)
+        );
+        result.Set(
+            "dice_count",
+            StableValue.FromInteger(signature.DiceCount)
+        );
+        result.Set(
+            "dice_sides",
+            StableValue.FromInteger(signature.DiceSides)
+        );
+        result.Set(
+            "flat_bonus",
+            StableValue.FromInteger(signature.FlatBonus)
+        );
+        result.Set(
+            "uses_two_hands",
+            StableValue.FromBool(signature.UsesTwoHands)
+        );
+        result.Set(
+            "is_heavy",
+            StableValue.FromBool(signature.IsHeavy)
+        );
+        result.Set(
+            "physical_damage_tag",
+            StableNullableStringName(signature.PhysicalDamageTag)
         );
         return result;
     }

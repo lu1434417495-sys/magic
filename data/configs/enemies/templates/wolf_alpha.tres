@@ -16,26 +16,29 @@ script = ExtResource("1_template")
 template_id = &"wolf_alpha"
 display_name = "荒狼头目"
 battle_sprite_texture = ExtResource("2_wolf_alpha_sprite")
-brain_id = &"melee_aggressor"
-initial_state_id = &"engage"
+brain_id = &"pack_leader"
+initial_state_id = &"hunt"
 creature_level = 4
 hit_die_sides = 10
 action_threshold = 30
+cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 save_advantage_tags = Array[StringName]([&"charm"])
 save_immunity_tags = Array[StringName]([&"frightened"])
 base_attribute_overrides = {
-&"strength": 15,
-&"agility": 16,
-&"constitution": 15,
+&"strength": 16,
+&"agility": 15,
+&"constitution": 16,
 &"perception": 14,
-&"intelligence": 4,
-&"willpower": 8,
+&"intelligence": 5,
+&"willpower": 10,
 }
-skill_ids = Array[StringName]([&"charge", &"warrior_guard_break"])
+skill_ids = Array[StringName]([&"basic_attack", &"charge", &"wolf_alpha_hamstring_bite", &"wolf_alpha_dominance_howl", &"wolf_alpha_cull_the_weak"])
+generated_core_skill_count = 3
 target_rank = &"elite"
 drop_entries = Array[Resource]([SubResource("Resource_drop_alpha_hide")])
 attribute_overrides = {
 &"mp_max": 0,
 &"action_points": 2,
+&"natural_armor_ac_bonus": 2,
 }

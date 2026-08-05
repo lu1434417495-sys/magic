@@ -800,25 +800,31 @@ internal sealed class BattleSpawnReachabilityService
         if (
             !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
                 unitState,
-                combatProfile.RequiredWeaponFamilies
+                skillDefinition
             )
         )
             return false;
         if (
             !BattleRangeService.UnitMatchesRequiredWeaponTypeIds(
                 unitState,
-                combatProfile.RequiredWeaponTypeIds
+                skillDefinition
             )
         )
             return false;
         if (
             BattleRangeService.RequiresCurrentWeapon(skillDefinition)
-            && !BattleRangeService.UnitHasEquippedWeapon(unitState)
+            && !BattleRangeService.UnitHasAllowedWeaponForSkill(
+                unitState,
+                skillDefinition
+            )
         )
             return false;
         if (
             BattleRangeService.RequiresCurrentMeleeWeapon(skillDefinition)
-            && !BattleRangeService.UnitHasMeleeWeapon(unitState)
+            && !BattleRangeService.UnitHasAllowedMeleeWeaponForSkill(
+                unitState,
+                skillDefinition
+            )
         )
             return false;
         return true;

@@ -516,6 +516,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
         {
             template_id = templateId,
             display_name = "战利品荒狼",
+            cognition_kind = "instinctive",
         };
         template.drop_entries.Add(new DropEntryDef
         {
@@ -540,6 +541,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
         {
             template_id = templateId,
             display_name = "中立掉落荒狼",
+            cognition_kind = "instinctive",
         };
         template.drop_entries.Add(new DropEntryDef
         {
@@ -557,6 +559,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
         {
             template_id = templateId,
             display_name = "持钉锤敌人",
+            cognition_kind = "sapient",
             attack_equipment_item_id = "watchman_mace",
         };
     }

@@ -1,0 +1,125 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Cull_l0_1"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+bonus_condition = &"target_low_hp"
+hp_ratio_threshold_percent = 50
+max_skill_level = 1
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+dice_count = 1
+dice_sides = 6
+bonus_damage_dice_count = 1
+bonus_damage_dice_sides = 6
+
+[sub_resource type="Resource" id="Cull_l2"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+bonus_condition = &"target_low_hp"
+hp_ratio_threshold_percent = 50
+min_skill_level = 2
+max_skill_level = 2
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+dice_count = 1
+dice_sides = 6
+bonus_damage_dice_count = 1
+bonus_damage_dice_sides = 8
+
+[sub_resource type="Resource" id="Cull_l3"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+bonus_condition = &"target_low_hp"
+hp_ratio_threshold_percent = 50
+min_skill_level = 3
+max_skill_level = 3
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+dice_count = 1
+dice_sides = 6
+bonus_damage_dice_count = 2
+bonus_damage_dice_sides = 6
+
+[sub_resource type="Resource" id="Cull_l4"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+bonus_condition = &"target_low_hp"
+hp_ratio_threshold_percent = 50
+min_skill_level = 4
+max_skill_level = 4
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+dice_count = 1
+dice_sides = 8
+bonus_damage_dice_count = 2
+bonus_damage_dice_sides = 8
+
+[sub_resource type="Resource" id="Cull_l5"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+bonus_condition = &"target_low_hp"
+hp_ratio_threshold_percent = 50
+min_skill_level = 5
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+dice_count = 2
+dice_sides = 6
+bonus_damage_dice_count = 2
+bonus_damage_dice_sides = 8
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
+skill_id = &"wolf_alpha_cull_the_weak"
+range_value = 1
+ap_cost = 2
+stamina_cost = 24
+cooldown_tu = 80
+attack_roll_bonus = 1
+allows_natural_weapon = true
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Cull_l0_1"), SubResource("Cull_l2"), SubResource("Cull_l3"), SubResource("Cull_l4"), SubResource("Cull_l5")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"wolf_alpha_cull_the_weak"
+display_name = "弱者扑杀"
+icon_id = &"wolf_alpha_cull_the_weak"
+description = "扑咬单个敌人。目标在攻击前生命值不高于50%时，命中后追加低血伤害；它不是处决，也不造成百分比伤害。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+level_description_template = "攻击检定+1，造成天生武器伤害并追加{base_dice}；若目标攻击前生命值不高于50%，再追加{low_hp_dice}。消耗2AP/24体力，冷却80TU。"
+level_description_configs = {
+"1": {
+"base_dice": "1D6",
+"low_hp_dice": "1D6"
+},
+"2": {
+"base_dice": "1D6",
+"low_hp_dice": "1D8"
+},
+"3": {
+"base_dice": "1D6",
+"low_hp_dice": "2D6"
+},
+"4": {
+"base_dice": "1D8",
+"low_hp_dice": "2D8"
+},
+"5": {
+"base_dice": "2D6",
+"low_hp_dice": "2D8"
+}
+}
+learn_source = &"internal"
+tags = Array[StringName]([&"internal", &"enemy", &"wolf", &"melee", &"finisher"])
+combat_profile = SubResource("Combat")

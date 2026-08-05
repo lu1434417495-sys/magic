@@ -8,7 +8,9 @@ public class BattleCommand
     public StringName skill_entry_id = "";
     public StringName skill_id = "";
     public StringName skill_variant_id = "";
+    public int windup_tier;
     public StringName target_unit_id = "";
+    public Vector2I source_retreat_direction = Vector2I.Zero;
     private readonly List<StringName> _targetUnitIds = new();
     public Vector2I target_coord = new(-1, -1);
     private readonly List<Vector2I> _targetCoords = new();

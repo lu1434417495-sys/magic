@@ -1469,6 +1469,11 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
         SkillDefinition skillDefinition = _runtime?.GetSkillDefinitionTyped(payload.SkillId);
         if (skillDefinition?.CombatProfile == null)
             return;
+        if (skillDefinition.CombatProfile.Windup != null)
+        {
+            context.Batch?.AddLogLine("蓄力技能不能通过装备即时攻击自动触发。");
+            return;
+        }
         IReadOnlyList<CombatEffectDefinition> effectDefinitions =
             skillDefinition.CombatProfile.EffectDefinitions ?? Array.Empty<CombatEffectDefinition>();
         if (effectDefinitions.Count == 0)

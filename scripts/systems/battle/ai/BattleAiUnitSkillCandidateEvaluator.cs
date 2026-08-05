@@ -122,119 +122,189 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                 {
                     if (target == null)
                         continue;
-                    TraceCountIncrement(actionTrace, "evaluation_count", 1);
-                    BattleCommand command = _helper.BuildUnitSkillCommand(
-                        context,
-                        skillEntry,
-                        target,
-                        optionId
-                    );
-                    BattlePreview fastPreview = BuildFastUnitSkillPreview(
-                        context,
-                        skillDefinition,
-                        command,
-                        target,
-                        out string previewRejectCounterKey
-                    );
-                    BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
-                        context,
-                        command,
-                        fastPreview
-                    );
-                    if (preview == null || !preview.allowed)
+                    int windupTierCount = skillDefinition.CombatProfile.Windup != null
+                        ? BattleWindupRules.GetMaxTier(actor, skillDefinition)
+                        : 1;
+                    for (int windupOption = 0; windupOption < windupTierCount; windupOption++)
                     {
-                        TraceCountIncrement(actionTrace, "preview_reject_count", 1);
-                        if (!string.IsNullOrEmpty(previewRejectCounterKey))
-                            TraceCountIncrement(actionTrace, previewRejectCounterKey, 1);
-                        else
-                            TraceAddBlockReason(actionTrace, "canonical_preview_reject");
-                        continue;
-                    }
-                    if (!preview.ContainsTargetUnitId(target.unit_id))
-                    {
-                        TraceCountIncrement(actionTrace, "preview_reject_count", 1);
-                        TraceAddBlockReason(actionTrace, "barrier_blocked_all_targets");
-                        continue;
-                    }
+                        IReadOnlyList<Vector2I> sourceRetreatDirections =
+                            BuildSourceRetreatDirectionOptions(
+                                skillDefinition,
+                                castVariant,
+                                skillEntry.SkillLevel,
+                                actor,
+                                target
+                            );
+                        foreach (Vector2I sourceRetreatDirection in sourceRetreatDirections)
+                        {
+                            TraceCountIncrement(actionTrace, "evaluation_count", 1);
+                            BattleCommand command = _helper.BuildUnitSkillCommand(
+                                context,
+                                skillEntry,
+                                target,
+                                optionId
+                            );
+                            command.source_retreat_direction = sourceRetreatDirection;
+                            if (skillDefinition.CombatProfile.Windup != null)
+                                command.windup_tier = windupOption + 1;
+                            string candidateLabel = skillDefinition.CombatProfile.Windup != null
+                                ? $"{optionLabel}（{command.windup_tier} 挡）"
+                                : optionLabel;
+                            if (sourceRetreatDirection != Vector2I.Zero)
+                                candidateLabel =
+                                    $"{candidateLabel}（后撤{FormatDirection(sourceRetreatDirection)}）";
+                            BattlePreview fastPreview = BuildFastUnitSkillPreview(
+                                context,
+                                skillDefinition,
+                                command,
+                                target,
+                                out string previewRejectCounterKey
+                            );
+                            BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
+                                context,
+                                command,
+                                fastPreview
+                            );
+                            if (preview == null || !preview.allowed)
+                            {
+                                TraceCountIncrement(actionTrace, "preview_reject_count", 1);
+                                if (!string.IsNullOrEmpty(previewRejectCounterKey))
+                                    TraceCountIncrement(actionTrace, previewRejectCounterKey, 1);
+                                else
+                                    TraceAddBlockReason(actionTrace, "canonical_preview_reject");
+                                continue;
+                            }
+                            if (!preview.ContainsTargetUnitId(target.unit_id))
+                            {
+                                TraceCountIncrement(actionTrace, "preview_reject_count", 1);
+                                TraceAddBlockReason(actionTrace, "barrier_blocked_all_targets");
+                                continue;
+                            }
 
-                    Dictionary<string, object> positionMetadata = _helper.BuildPositionMetadata(
-                        action,
-                        context,
-                        target,
-                        skillDefinition
-                    );
-                    positionMetadata["action_label"] = optionLabel;
-                    List<CombatEffectDefinition> effectDefinitions = _helper.CollectUnitSkillEffectDefinitions(
-                        skillDefinition,
-                        castVariant,
-                        skillEntry.SkillLevel
-                    );
-                    BattleAiScoreInput scoreInput = BuildSkillScoreInput(
-                        action,
-                        context,
-                        skillDefinition,
-                        command,
-                        preview,
-                        effectDefinitions,
-                        positionMetadata
-                    );
-                    Dictionary<string, object> candidateExtra = actionTrace != null
-                        ? BuildCandidateExtra(
-                            skillId,
-                            optionId,
-                            skillDefinition,
-                            castVariant,
-                            target
-                        )
-                        : null;
+                            Dictionary<string, object> positionMetadata = _helper.BuildPositionMetadata(
+                                action,
+                                context,
+                                target,
+                                skillDefinition
+                            );
+                            positionMetadata["action_label"] = candidateLabel;
+                            List<CombatEffectDefinition> effectDefinitions = _helper.CollectUnitSkillEffectDefinitions(
+                                skillDefinition,
+                                castVariant,
+                                skillEntry.SkillLevel
+                            );
+                            BattleWindupQuote? windupQuote = null;
+                            BattleAiSkillCandidateScoreFacts? candidateScoreFacts = null;
+                            if (skillDefinition.CombatProfile.Windup != null)
+                            {
+                                if (
+                                    !BattleWindupRules.TryBuildQuote(
+                                        actor,
+                                        skillDefinition,
+                                        command.windup_tier,
+                                        out BattleWindupQuote resolvedWindupQuote,
+                                        out _
+                                    )
+                                )
+                                {
+                                    TraceAddBlockReason(
+                                        actionTrace,
+                                        "windup_quote_invariant_reject"
+                                    );
+                                    continue;
+                                }
+                                windupQuote = resolvedWindupQuote;
+                                candidateScoreFacts = new BattleAiSkillCandidateScoreFacts(
+                                    resolvedWindupQuote.TotalStaminaCost,
+                                    resolvedWindupQuote.TotalWindupTu
+                                );
+                                effectDefinitions = new List<CombatEffectDefinition>(
+                                    BattleWindupRules.ApplyWeaponDiceMultiplier(
+                                        effectDefinitions,
+                                        resolvedWindupQuote.WeaponDiceMultiplier
+                                    )
+                                );
+                            }
+                            BattleAiScoreInput scoreInput = BuildSkillScoreInput(
+                                action,
+                                context,
+                                skillDefinition,
+                                command,
+                                preview,
+                                effectDefinitions,
+                                positionMetadata,
+                                candidateScoreFacts
+                            );
+                            Dictionary<string, object> candidateExtra = actionTrace != null
+                                ? BuildCandidateExtra(
+                                    skillId,
+                                    optionId,
+                                    skillDefinition,
+                                    castVariant,
+                                    target
+                                )
+                                : null;
+                            if (candidateExtra != null && windupQuote != null)
+                                candidateExtra["windup_tier"] = command.windup_tier;
+                            if (candidateExtra != null && sourceRetreatDirection != Vector2I.Zero)
+                            {
+                                candidateExtra["source_retreat_direction"] =
+                                    sourceRetreatDirection;
+                                candidateExtra["source_retreat_final_coord"] =
+                                    preview.resolved_anchor_coord;
+                                candidateExtra["source_retreat_path_length"] =
+                                    preview.SourceRetreatPathTyped.Count;
+                            }
 
-                    if (scoreInput == null)
-                    {
-                        fallbackDecision ??= _helper.CreateDecision(
-                            action,
-                            command,
-                            $"{actorDisplayName} 选择对 {target.display_name} 使用 {optionLabel}。"
-                        );
-                        OfferCandidate(
-                            actionTrace,
-                            optionLabel,
-                            target,
-                            command,
-                            null,
-                            candidateExtra
-                        );
-                        continue;
+                            if (scoreInput == null)
+                            {
+                                fallbackDecision ??= _helper.CreateDecision(
+                                    action,
+                                    command,
+                                    $"{actorDisplayName} 选择对 {target.display_name} 使用 {candidateLabel}。"
+                                );
+                                OfferCandidate(
+                                    actionTrace,
+                                    candidateLabel,
+                                    target,
+                                    command,
+                                    null,
+                                    candidateExtra
+                                );
+                                continue;
+                            }
+
+                            if (scoreInput.effective_target_count < action.MinimumEffectiveTargetCount)
+                            {
+                                TraceAddBlockReason(actionTrace, "minimum_effective_target_count");
+                                continue;
+                            }
+                            if (!PassesFriendlyFireLimits(action, scoreInput))
+                            {
+                                TraceAddBlockReason(actionTrace, "friendly_fire_limit");
+                                continue;
+                            }
+
+                            OfferCandidate(
+                                actionTrace,
+                                candidateLabel,
+                                target,
+                                command,
+                                scoreInput,
+                                candidateExtra
+                            );
+                            if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
+                                continue;
+
+                            bestScoreInput = scoreInput;
+                            bestDecision = _helper.CreateScoredDecision(
+                                action,
+                                command,
+                                scoreInput,
+                                $"{actorDisplayName} 选择对 {target.display_name} 使用 {candidateLabel}（评分 {scoreInput.total_score}）。"
+                            );
+                        }
                     }
-
-                    if (scoreInput.effective_target_count < action.MinimumEffectiveTargetCount)
-                    {
-                        TraceAddBlockReason(actionTrace, "minimum_effective_target_count");
-                        continue;
-                    }
-                    if (!PassesFriendlyFireLimits(action, scoreInput))
-                    {
-                        TraceAddBlockReason(actionTrace, "friendly_fire_limit");
-                        continue;
-                    }
-
-                    OfferCandidate(
-                        actionTrace,
-                        optionLabel,
-                        target,
-                        command,
-                        scoreInput,
-                        candidateExtra
-                    );
-                    if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
-                        continue;
-
-                    bestScoreInput = scoreInput;
-                    bestDecision = _helper.CreateScoredDecision(
-                        action,
-                        command,
-                        scoreInput,
-                        $"{actorDisplayName} 选择对 {target.display_name} 使用 {optionLabel}（评分 {scoreInput.total_score}）。"
-                    );
                 }
             }
         }
@@ -242,6 +312,55 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         BattleAiDecision resolvedDecision = bestDecision ?? fallbackDecision;
         FinalizeActionTrace(context, actionTrace, resolvedDecision);
         return resolvedDecision;
+    }
+
+    private IReadOnlyList<Vector2I> BuildSourceRetreatDirectionOptions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        int skillLevel,
+        BattleUnitState actor,
+        BattleUnitState target
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            _helper.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                skillLevel
+            );
+        if (!BattleSourceRetreatRules.HasEffect(effectDefinitions))
+            return new[] { Vector2I.Zero };
+        if (actor == null || target == null)
+            return Array.Empty<Vector2I>();
+
+        var result = new List<Vector2I>();
+        foreach (Vector2I direction in BattleSourceRetreatRules.CardinalDirections)
+        {
+            if (
+                BattleSourceRetreatRules.IncreasesDistanceFromTarget(
+                    actor.GetAnchorCoord(),
+                    target.GetAnchorCoord(),
+                    direction
+                )
+            )
+            {
+                result.Add(direction);
+            }
+        }
+        return result;
+    }
+
+    private static string FormatDirection(Vector2I direction)
+    {
+        if (direction == Vector2I.Up)
+            return "上";
+        if (direction == Vector2I.Right)
+            return "右";
+        if (direction == Vector2I.Down)
+            return "下";
+        if (direction == Vector2I.Left)
+            return "左";
+        return "";
     }
 
     private static bool HasExplicitDistanceContract(
@@ -278,7 +397,8 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         BattleCommand command,
         BattlePreview preview,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyDictionary<string, object> metadata
+        IReadOnlyDictionary<string, object> metadata,
+        BattleAiSkillCandidateScoreFacts? candidateScoreFacts
     )
     {
         if (context == null)
@@ -322,7 +442,8 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             command,
             preview,
             effectDefinitions,
-            scoringMetadata
+            scoringMetadata,
+            candidateScoreFacts
         );
     }
 

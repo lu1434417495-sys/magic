@@ -38,13 +38,14 @@ public class BattleAiContext : IBattleAiScoreContext
     IReadOnlyDictionary<StringName, BarrierProfileDefinition> IBattleAiScoreContext.barrier_profile_definitions =>
         BuildReadOnlyBarrierProfileDefinitionView();
     ISkillCatalog IBattleAiScoreContext.skill_catalog => skill_catalog;
-    public Func<
+    internal Func<
         BattleAiContext,
         SkillDefinition,
         BattleCommand,
         BattlePreview,
         IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
+        BattleAiSkillCandidateScoreFacts?,
         BattleAiScoreInput
     > skill_score_input_callback { get; set; }
     public Func<
@@ -633,7 +634,8 @@ public class BattleAiContext : IBattleAiScoreContext
         BattleCommand command,
         BattlePreview preview,
         IEnumerable<CombatEffectDefinition> effectDefinitions = null,
-        IReadOnlyDictionary<string, object> metadata = null
+        IReadOnlyDictionary<string, object> metadata = null,
+        BattleAiSkillCandidateScoreFacts? candidateScoreFacts = null
     )
     {
         if (skill_score_input_callback == null || skillDefinition == null || command == null)
@@ -646,7 +648,8 @@ public class BattleAiContext : IBattleAiScoreContext
             command,
             preview,
             CopyCombatEffectDefinitionList(effectDefinitions),
-            metadata
+            metadata,
+            candidateScoreFacts
         );
     }
 
@@ -1097,7 +1100,13 @@ public class BattleAiContext : IBattleAiScoreContext
         }
 
         BattleStatusEffectState tauntEntry = unit_state.GetStatusEffect(StatusTaunted);
-        if (tauntEntry == null)
+        if (
+            tauntEntry == null
+            || !BattleCognitionRules.MeetsMinimum(
+                unit_state,
+                BattleCognitionKind.Sapient
+            )
+        )
         {
             return null;
         }

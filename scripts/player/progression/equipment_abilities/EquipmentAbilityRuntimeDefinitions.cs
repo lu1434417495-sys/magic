@@ -199,6 +199,8 @@ public sealed class EquipmentAbilityBindingDefinition
         Array.Empty<EquipmentGrantedActionDefinition>();
     public IReadOnlyList<EquipmentTemporalProgressModifierDefinition> TemporalProgressModifiers { get; init; } =
         Array.Empty<EquipmentTemporalProgressModifierDefinition>();
+    public IReadOnlyList<EquipmentCognitionCeilingModifierDefinition> CognitionCeilingModifiers { get; init; } =
+        Array.Empty<EquipmentCognitionCeilingModifierDefinition>();
     public IReadOnlyList<EquipmentWeaponProfileOverlayDefinition> WeaponProfileOverlays { get; init; } =
         Array.Empty<EquipmentWeaponProfileOverlayDefinition>();
     public IReadOnlyList<EquipmentWorldEffectDefinition> WorldEffects { get; init; } =
@@ -635,6 +637,8 @@ public sealed class SummonUnitsActionPayloadDefinition
     public StringName ControlMode { get; init; } = "";
     public StringName AiBrainId { get; init; } = "";
     public StringName AiStateId { get; init; } = "";
+    public BattleCognitionKind CognitionKind { get; init; } =
+        BattleCognitionKind.Unknown;
     public int HpMax { get; init; }
     public int ArmorClass { get; init; }
     public int AttackBonus { get; init; }
@@ -685,6 +689,14 @@ public sealed class EquipmentTemporalProgressModifierDefinition
     public int SuccessRatePercent { get; init; }
     public int FailureRatePercent { get; init; }
     public string Label { get; init; } = "";
+}
+
+public sealed class EquipmentCognitionCeilingModifierDefinition
+{
+    public StringName ModifierId { get; init; } = "";
+    public StringName BindingId { get; init; } = "";
+    public BattleCognitionKind CognitionCeiling { get; init; } =
+        BattleCognitionKind.Unknown;
 }
 
 public sealed class EquipmentDurabilityDamageActionPayloadDefinition
@@ -835,6 +847,7 @@ public sealed class EquipmentAbilityContentValidationContext
     /// </summary>
     public IReadOnlySet<StringName> KnownTraitIds { get; init; }
     public IReadOnlySet<StringName> KnownSkillIds { get; init; }
+    public IReadOnlySet<StringName> WindupSkillIds { get; init; }
     public IReadOnlySet<StringName> KnownStatusIds { get; init; }
 }
 

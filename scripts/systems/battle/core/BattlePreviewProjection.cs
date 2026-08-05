@@ -79,6 +79,11 @@ internal static class BattlePreviewProjection
             preview.TargetCoordsTyped,
             "BattlePreviewProjection.target_coords"
         );
+        target["source_retreat_path"] = WriteArray(
+            lease,
+            preview.SourceRetreatPathTyped,
+            "BattlePreviewProjection.source_retreat_path"
+        );
         target["random_chain_candidate_unit_ids"] = WriteArray(
             lease,
             preview.RandomChainCandidateUnitIdsTyped,

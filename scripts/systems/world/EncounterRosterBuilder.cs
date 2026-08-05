@@ -99,7 +99,8 @@ public sealed class EncounterRosterBuilder : IDisposable
             IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
             IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
             int growthStage,
-            int? enemyUnitCountOverride
+            int? enemyUnitCountOverride,
+            long generationSeed
         )
         {
             SkillDefinitions =
@@ -113,6 +114,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                 ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
             GrowthStage = Mathf.Max(growthStage, 0);
             EnemyUnitCountOverride = enemyUnitCountOverride;
+            GenerationSeed = generationSeed;
         }
 
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; }
@@ -123,6 +125,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; }
         public int GrowthStage { get; }
         public int? EnemyUnitCountOverride { get; }
+        public long GenerationSeed { get; }
     }
 
     private Dictionary<StringName, WildEncounterRosterDefinition> _wildEncounterRosterIndex = new();
@@ -158,7 +161,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
         int? growthStageOverride = null,
-        int? enemyUnitCountOverride = null
+        int? enemyUnitCountOverride = null,
+        long generationSeed = 1
     )
     {
         return BuildEnemyUnitsFromDefinitionsLease(
@@ -170,7 +174,8 @@ public sealed class EncounterRosterBuilder : IDisposable
             traitDefs,
             equipmentAbilityBindings,
             growthStageOverride,
-            enemyUnitCountOverride
+            enemyUnitCountOverride,
+            generationSeed
         );
     }
 
@@ -185,7 +190,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
         int? growthStageOverride = null,
-        int? enemyUnitCountOverride = null
+        int? enemyUnitCountOverride = null,
+        long generationSeed = 1
     )
     {
         IReadOnlyList<BattleUnitState> units =
@@ -198,7 +204,8 @@ public sealed class EncounterRosterBuilder : IDisposable
                 traitDefs,
                 equipmentAbilityBindings,
                 growthStageOverride,
-                enemyUnitCountOverride
+                enemyUnitCountOverride,
+                generationSeed
             );
         var root = new GArray();
         GodotProjectionLease<GArray> lease = GodotProjectionLease<GArray>.CreateOwnedRoot(
@@ -241,7 +248,8 @@ public sealed class EncounterRosterBuilder : IDisposable
             IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
                 equipmentAbilityBindings = null,
             int? growthStageOverride = null,
-            int? enemyUnitCountOverride = null
+            int? enemyUnitCountOverride = null,
+            long generationSeed = 1
         )
     {
         EncounterBuildContextData buildContext = BuildEncounterBuildContextFromTyped(
@@ -254,6 +262,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             equipmentAbilityBindings,
             growthStageOverride,
             enemyUnitCountOverride,
+            generationSeed,
             allowSetupEnemyTemplateFallback: false
         );
         return BuildEnemyUnitsWithContext(
@@ -274,7 +283,8 @@ public sealed class EncounterRosterBuilder : IDisposable
                 StringName,
                 EquipmentAbilityBindingDefinition
             > equipmentAbilityBindings = null,
-            int? growthStageOverride = null
+            int? growthStageOverride = null,
+            long generationSeed = 1
         )
     {
         BattleEncounterDefinition encounter = ResolveBattleEncounter(
@@ -293,6 +303,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             equipmentAbilityBindings,
             growthStageOverride,
             null,
+            generationSeed,
             allowSetupEnemyTemplateFallback: false
         );
         var requests = new List<BattleScenarioActorSpawnRequest>();
@@ -382,6 +393,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             null,
             growthStageOverride,
             enemyUnitCountOverride,
+            1,
             allowSetupEnemyTemplateFallback: true
         );
         return BuildLootEntriesWithContextPlain(encounterAnchor, buildContext);
@@ -770,6 +782,10 @@ public sealed class EncounterRosterBuilder : IDisposable
                     : BattleUnitState.DefaultActionThreshold
             );
             unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.BodySize : 1, 1));
+            unitState.SetBaseCognitionKindTyped(
+                template?.CognitionKind
+                ?? BattleCognitionKind.Sapient
+            );
             ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
             unitState.ReplaceCreatureTypeTagsTyped(
                 BattleEquipmentAbilityProjectionService.ProjectCreatureTypeTags(
@@ -790,7 +806,9 @@ public sealed class EncounterRosterBuilder : IDisposable
             unitState.ReplaceEquipmentAbilityProjectionTyped(
                 equipmentAbilityProjection.Sources,
                 equipmentAbilityProjection
-                    .TemporalProgressModifiers
+                    .TemporalProgressModifiers,
+                equipmentAbilityProjection
+                    .CognitionCeilingModifiers
             );
             unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(
                 template,
@@ -826,16 +844,13 @@ public sealed class EncounterRosterBuilder : IDisposable
                 );
             }
             EnsureBasicAttackSkill(unitState, buildContext.SkillDefinitions);
-            foreach (
-                StringName rawSkillId in unitState.GetKnownActiveSkillsViewTyped()
-            )
-            {
-                StringName normalizedSkillId = new StringName(rawSkillId.ToString());
-                int configuredLevel = template != null
-                    ? template.GetSkillLevelTyped(normalizedSkillId, 1)
-                    : 1;
-                unitState.SetKnownSkillLevelTyped(normalizedSkillId, Mathf.Max(configuredLevel, 1));
-            }
+            EnemySkillLevelGenerationService.ApplyGeneratedLevels(
+                unitState,
+                template,
+                buildContext.SkillDefinitions,
+                buildContext.GenerationSeed,
+                globalIndex
+            );
             SyncEnemyUnlockedResources(unitState, buildContext.SkillDefinitions);
             enemyUnits.Add(unitState);
         }
@@ -1211,6 +1226,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
         int? growthStageOverride,
         int? enemyUnitCountOverride,
+        long generationSeed,
         bool allowSetupEnemyTemplateFallback
     )
     {
@@ -1224,7 +1240,8 @@ public sealed class EncounterRosterBuilder : IDisposable
             traitDefs,
             equipmentAbilityBindings,
             growthStage,
-            enemyUnitCountOverride
+            enemyUnitCountOverride,
+            generationSeed
         );
     }
 

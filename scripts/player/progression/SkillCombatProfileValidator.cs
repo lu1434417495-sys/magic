@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
@@ -243,6 +244,81 @@ internal sealed class SkillCombatProfileValidator
         if (hasCastingTime)
         {
             AppendCastingTimeCompatibilityErrors(errors, skillId, combatProfile, skillDef);
+        }
+        if (combatProfile.windup_profile != null)
+        {
+            CombatWindupDef windup = combatProfile.windup_profile;
+            if (combatProfile.casting_time_tu != 0)
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile cannot be combined with casting_time_tu."
+                );
+            if (
+                combatProfile.casting_maintenance_dc != 0
+                || combatProfile.casting_spell_control_dc != 0
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile cannot use spell casting maintenance/control DCs."
+                );
+            if (combatProfile.cast_variants.Count > 0)
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile cannot be combined with cast_variants."
+                );
+            if (
+                combatProfile.special_resolution_profile_id != ""
+                || combatProfile.random_chain_attack_count > 0
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile cannot use special or random-chain resolution."
+                );
+            if (
+                combatProfile.TargetModeKind != BattleTargetMode.Unit
+                || combatProfile.TargetSelectionModeKind != BattleTargetSelectionMode.SingleUnit
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile requires one unit target."
+                );
+            if (
+                skillDef?.contingency_automation_profile?.can_be_stored_in_contingency
+                == true
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile cannot be stored in contingency."
+                );
+            if (windup.stamina_cost_per_tier < 0 || windup.weapon_dice_per_tier <= 0)
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile costs must be >= 0 and weapon_dice_per_tier must be > 0."
+                );
+            if (
+                windup.skill_level_tier_caps == null
+                || windup.skill_level_tier_caps.Length <= Math.Max(skillDef?.max_level ?? 0, 0)
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile skill_level_tier_caps must cover levels 0 through max_level."
+                );
+            if (
+                windup.base_weapon_dice_multipliers == null
+                || windup.base_weapon_dice_multipliers.Length <= Math.Max(skillDef?.max_level ?? 0, 0)
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile base_weapon_dice_multipliers must cover levels 0 through max_level."
+                );
+            if (
+                windup.skill_level_tier_caps != null
+                && System.Array.Exists(windup.skill_level_tier_caps, value => value < 0)
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile tier caps must be >= 0."
+                );
+            if (
+                windup.base_weapon_dice_multipliers != null
+                && System.Array.Exists(
+                    windup.base_weapon_dice_multipliers,
+                    value => value <= 0
+                )
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile.windup_profile base weapon dice multipliers must be > 0."
+                );
         }
         _executeEffectValidator.AppendTemporalReleaseSkillValidationErrors(errors, skillId, combatProfile);
 
@@ -629,6 +705,101 @@ internal sealed class SkillCombatProfileValidator
                     skillDef
                 );
         }
+
+        AppendSourceRetreatProfileValidationErrors(
+            errors,
+            skillId,
+            skillDef,
+            combatProfile
+        );
+    }
+
+    private static void AppendSourceRetreatProfileValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        SkillDef skillDef,
+        CombatSkillDef combatProfile
+    )
+    {
+        if (combatProfile == null)
+            return;
+
+        int baseEffectCount = CountEffectsOfKind(
+            combatProfile.effect_defs,
+            BattleEffectKind.SourceRetreat
+        );
+        int passiveEffectCount = CountEffectsOfKind(
+            combatProfile.passive_effect_defs,
+            BattleEffectKind.SourceRetreat
+        );
+        int variantEffectCount = 0;
+        foreach (
+            CombatCastVariantDef castVariant
+            in combatProfile.cast_variants ?? new Godot.Collections.Array<CombatCastVariantDef>()
+        )
+        {
+            variantEffectCount += CountEffectsOfKind(
+                castVariant?.effect_defs,
+                BattleEffectKind.SourceRetreat
+            );
+        }
+        int totalEffectCount = baseEffectCount + passiveEffectCount + variantEffectCount;
+        if (totalEffectCount == 0)
+            return;
+
+        if (baseEffectCount != 1 || totalEffectCount != 1)
+            errors.Add(
+                $"Skill {skillId} source_retreat must appear exactly once in combat_profile.effect_defs."
+            );
+        if (
+            combatProfile.TargetModeKind != BattleTargetMode.Unit
+            || combatProfile.TargetSelectionModeKind
+                != BattleTargetSelectionMode.SingleUnit
+            || combatProfile.min_target_count != 1
+            || combatProfile.max_target_count != 1
+        )
+            errors.Add(
+                $"Skill {skillId} source_retreat requires one single_unit unit target."
+            );
+        if (combatProfile.casting_time_tu != 0 || combatProfile.windup_profile != null)
+            errors.Add(
+                $"Skill {skillId} source_retreat cannot be combined with casting_time_tu or windup_profile because the chosen direction must execute immediately."
+            );
+        if (combatProfile.cast_variants.Count > 0)
+            errors.Add(
+                $"Skill {skillId} source_retreat cannot be placed behind cast_variants."
+            );
+        if (
+            combatProfile.special_resolution_profile_id != ""
+            || combatProfile.random_chain_attack_count > 0
+        )
+            errors.Add(
+                $"Skill {skillId} source_retreat cannot use special or random-chain resolution."
+            );
+        if (
+            skillDef?.contingency_automation_profile?.can_be_stored_in_contingency
+            == true
+        )
+            errors.Add(
+                $"Skill {skillId} source_retreat cannot be stored in contingency because automatic execution has no selected direction."
+            );
+    }
+
+    private static int CountEffectsOfKind(
+        Godot.Collections.Array<CombatEffectDef> effects,
+        BattleEffectKind expectedKind
+    )
+    {
+        int count = 0;
+        foreach (
+            CombatEffectDef effect
+            in effects ?? new Godot.Collections.Array<CombatEffectDef>()
+        )
+        {
+            if (effect?.EffectKind == expectedKind)
+                count++;
+        }
+        return count;
     }
 
     private void AppendSpellFateValidationErrors(
@@ -752,6 +923,28 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported effect_target_team_filter {effectDef.effect_target_team_filter}; expected one of {CombatTargetTeamContentRules.ValidEffectTargetTeamFilterLabel()}."
             );
+        if (
+            effectDef.required_target_creature_type_tag != ""
+            && string.IsNullOrWhiteSpace(effectDef.required_target_creature_type_tag.ToString())
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} required_target_creature_type_tag must not be whitespace."
+            );
+        if (
+            effectDef.required_target_min_cognition != ""
+            && !BattleCognitionContentRules.IsKnown(
+                BattleCognitionContentRules.ToKind(
+                    effectDef.required_target_min_cognition
+                )
+            )
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} required_target_min_cognition "
+                + $"must be one of {BattleCognitionContentRules.ValidValueLabel()}; "
+                + $"got {effectDef.required_target_min_cognition}."
+            );
+        }
         if (!SkillContentRegistry.IsValidTuValue(effectDef.duration_tu))
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} duration_tu must be 0 or a multiple of {SkillContentRegistry.TuGranularity}."
@@ -855,6 +1048,13 @@ internal sealed class SkillCombatProfileValidator
         )
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} fixed_attack_count is only supported on fixed_repeat_attack."
+            );
+        if (
+            effectKind != BattleEffectKind.SourceRetreat
+            && effectDef.source_retreat_distance != 0
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} source_retreat_distance is only supported on source_retreat."
             );
 
         if (effectKind == BattleEffectKind.Damage)
@@ -1157,6 +1357,17 @@ internal sealed class SkillCombatProfileValidator
             else if (effectDef.forced_move_distance <= 0)
                 errors.Add(
                     $"Skill {skillId} forced_move effect in {contextLabel} must have forced_move_distance >= 1."
+                );
+        }
+        else if (effectKind == BattleEffectKind.SourceRetreat)
+        {
+            if (parameters.ContainsKey("distance"))
+                errors.Add(
+                    $"Skill {skillId} source_retreat effect in {contextLabel} params.distance is unsupported; use source_retreat_distance."
+                );
+            if (effectDef.source_retreat_distance <= 0)
+                errors.Add(
+                    $"Skill {skillId} source_retreat effect in {contextLabel} must have source_retreat_distance >= 1."
                 );
         }
         else if (effectKind == BattleEffectKind.Charge)

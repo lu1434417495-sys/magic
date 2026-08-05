@@ -265,6 +265,27 @@ public partial class BattleDamageResolver
         );
     }
 
+    private static int ResolveFixedMitigationDamageFloor(
+        int tierAdjustedDamage,
+        FixedMitigationResult mitigation
+    )
+    {
+        if (tierAdjustedDamage <= 0)
+        {
+            return MinDamageFloor;
+        }
+        int stanceReduction = Math.Max(mitigation?.StanceReduction ?? 0, 0);
+        if (stanceReduction <= 0)
+        {
+            return MinDamageFloor;
+        }
+        int nonStanceMitigation = Math.Max(
+            (mitigation?.Total ?? 0) - stanceReduction,
+            0
+        );
+        return tierAdjustedDamage > nonStanceMitigation ? 1 : MinDamageFloor;
+    }
+
     private FixedMitigationComponent ResolvePassiveReductionResult(BattleUnitState targetUnit)
     {
         if (targetUnit == null)

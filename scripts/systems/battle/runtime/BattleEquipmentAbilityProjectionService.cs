@@ -7,7 +7,9 @@ internal sealed class BattleEquipmentAbilityProjectionResult
     internal BattleEquipmentAbilityProjectionResult(
         IReadOnlyList<BattleEquipmentAbilitySourceState> sources,
         IReadOnlyList<BattleTemporalProgressModifierState>
-            temporalProgressModifiers
+            temporalProgressModifiers,
+        IReadOnlyList<BattleCognitionCeilingModifierState>
+            cognitionCeilingModifiers
     )
     {
         Sources =
@@ -20,6 +22,11 @@ internal sealed class BattleEquipmentAbilityProjectionResult
             ?? Array.Empty<
                 BattleTemporalProgressModifierState
             >();
+        CognitionCeilingModifiers =
+            cognitionCeilingModifiers
+            ?? Array.Empty<
+                BattleCognitionCeilingModifierState
+            >();
     }
 
     internal IReadOnlyList<BattleEquipmentAbilitySourceState>
@@ -27,6 +34,8 @@ internal sealed class BattleEquipmentAbilityProjectionResult
 
     internal IReadOnlyList<BattleTemporalProgressModifierState>
         TemporalProgressModifiers { get; }
+    internal IReadOnlyList<BattleCognitionCeilingModifierState>
+        CognitionCeilingModifiers { get; }
 }
 
 internal static class BattleEquipmentAbilityProjectionService
@@ -43,6 +52,8 @@ internal static class BattleEquipmentAbilityProjectionService
             new();
         List<BattleTemporalProgressModifierState>
             temporalProgressModifiers = new();
+        List<BattleCognitionCeilingModifierState>
+            cognitionCeilingModifiers = new();
         BattleUnitEffectiveTraitReadView effectiveTraits =
             unit?.GetEffectiveTraitsReadViewTyped()
             ?? BattleUnitEffectiveTraitReadView.MissingOwner;
@@ -56,7 +67,8 @@ internal static class BattleEquipmentAbilityProjectionService
         {
             return new BattleEquipmentAbilityProjectionResult(
                 sources,
-                temporalProgressModifiers
+                temporalProgressModifiers,
+                cognitionCeilingModifiers
             );
         }
 
@@ -116,11 +128,17 @@ internal static class BattleEquipmentAbilityProjectionService
                 matchedBindings,
                 equipmentEntry.instance_id
             );
+            AddCognitionCeilingModifiers(
+                cognitionCeilingModifiers,
+                matchedBindings,
+                equipmentEntry.instance_id
+            );
         }
 
         return new BattleEquipmentAbilityProjectionResult(
             sources,
-            temporalProgressModifiers
+            temporalProgressModifiers,
+            cognitionCeilingModifiers
         );
     }
 
@@ -137,11 +155,14 @@ internal static class BattleEquipmentAbilityProjectionService
             new();
         List<BattleTemporalProgressModifierState>
             temporalProgressModifiers = new();
+        List<BattleCognitionCeilingModifierState>
+            cognitionCeilingModifiers = new();
         if (unit == null || template == null || bindings == null || bindings.Count == 0)
         {
             return new BattleEquipmentAbilityProjectionResult(
                 sources,
-                temporalProgressModifiers
+                temporalProgressModifiers,
+                cognitionCeilingModifiers
             );
         }
 
@@ -152,7 +173,8 @@ internal static class BattleEquipmentAbilityProjectionService
         {
             return new BattleEquipmentAbilityProjectionResult(
                 sources,
-                temporalProgressModifiers
+                temporalProgressModifiers,
+                cognitionCeilingModifiers
             );
         }
 
@@ -164,7 +186,8 @@ internal static class BattleEquipmentAbilityProjectionService
         {
             return new BattleEquipmentAbilityProjectionResult(
                 sources,
-                temporalProgressModifiers
+                temporalProgressModifiers,
+                cognitionCeilingModifiers
             );
         }
 
@@ -201,11 +224,17 @@ internal static class BattleEquipmentAbilityProjectionService
                 matchedBindings,
                 ""
             );
+            AddCognitionCeilingModifiers(
+                cognitionCeilingModifiers,
+                matchedBindings,
+                ""
+            );
         }
 
         return new BattleEquipmentAbilityProjectionResult(
             sources,
-            temporalProgressModifiers
+            temporalProgressModifiers,
+            cognitionCeilingModifiers
         );
     }
 
@@ -337,6 +366,48 @@ internal static class BattleEquipmentAbilityProjectionService
                         SuccessRatePercent = modifier.SuccessRatePercent,
                         FailureRatePercent = modifier.FailureRatePercent,
                         Label = modifier.Label,
+                    }
+                );
+            }
+        }
+    }
+
+    private static void AddCognitionCeilingModifiers(
+        List<BattleCognitionCeilingModifierState> destination,
+        IReadOnlyList<EquipmentAbilityBindingDefinition> bindings,
+        StringName sourceEquipmentInstanceId
+    )
+    {
+        if (destination == null || bindings == null)
+            return;
+        foreach (EquipmentAbilityBindingDefinition binding in bindings)
+        {
+            foreach (
+                EquipmentCognitionCeilingModifierDefinition modifier
+                in binding?.CognitionCeilingModifiers
+                    ?? Array.Empty<
+                        EquipmentCognitionCeilingModifierDefinition
+                    >()
+            )
+            {
+                if (
+                    modifier == null
+                    || modifier.ModifierId == ""
+                    || !BattleCognitionContentRules.IsKnown(
+                        modifier.CognitionCeiling
+                    )
+                )
+                {
+                    continue;
+                }
+                destination.Add(
+                    new BattleCognitionCeilingModifierState
+                    {
+                        ModifierId = modifier.ModifierId,
+                        BindingId = binding.BindingId,
+                        SourceEquipmentInstanceId =
+                            sourceEquipmentInstanceId,
+                        Ceiling = modifier.CognitionCeiling,
                     }
                 );
             }

@@ -116,6 +116,8 @@ internal static class BattleAiScoreProjection
             ["stamina_cost_weight"] = profile.StaminaCostWeight,
             ["aura_cost_weight"] = profile.AuraCostWeight,
             ["cooldown_weight"] = profile.CooldownWeight,
+            ["delayed_resolution_cost_per_5_tu"] =
+                profile.DelayedResolutionCostPer5Tu,
             ["movement_cost_weight"] = profile.MovementCostWeight,
             ["mp_reserve_floor_bp"] = profile.MpReserveFloorBp,
             ["mp_reserve_pressure_weight"] = profile.MpReservePressureWeight,

@@ -203,6 +203,7 @@ internal sealed class BattleSkillPreviewService
         {
             return;
         }
+        preview.ClearSourceRetreatPath();
         preview.ClearSaveBranchPreview();
         castVariantDefinition ??= Runtime?._skill_resolution_rules
             ?.ResolveUnitCastVariantDefinition(
@@ -219,6 +220,24 @@ internal sealed class BattleSkillPreviewService
         {
             preview.AddLogLine(blockReason);
             return;
+        }
+        BattleWindupQuote? windupQuote = null;
+        if (skillDefinition?.CombatProfile?.Windup != null)
+        {
+            if (
+                !BattleWindupRules.TryBuildQuote(
+                    active_unit,
+                    skillDefinition,
+                    command?.windup_tier ?? 0,
+                    out BattleWindupQuote quote,
+                    out string windupBlockReason
+                )
+            )
+            {
+                preview.AddLogLine(windupBlockReason);
+                return;
+            }
+            windupQuote = quote;
         }
 
         BattleUnitSkillPreviewValidationResult validation;
@@ -248,6 +267,13 @@ internal sealed class BattleSkillPreviewService
                     castVariantDefinition,
                     active_unit
                 );
+            if (windupQuote is BattleWindupQuote resolvedWindupQuote)
+            {
+                previewEffectDefinitions = BattleWindupRules.ApplyWeaponDiceMultiplier(
+                    previewEffectDefinitions,
+                    resolvedWindupQuote.WeaponDiceMultiplier
+                );
+            }
             BattleLayeredBarrierService layeredBarrierService =
                 Runtime?._layered_barrier_service;
             if (hasDeterministicTargets)
@@ -382,6 +408,20 @@ internal sealed class BattleSkillPreviewService
             foreach (Vector2I previewCoord in previewCoords)
                 preview.AddTargetCoord(previewCoord);
         }
+        if (
+            preview.allowed
+            && validation.TargetUnits.Count == 1
+        )
+        {
+            AppendSourceRetreatPreview(
+                preview,
+                active_unit,
+                validation.TargetUnits[0],
+                command,
+                skillDefinition,
+                castVariantDefinition
+            );
+        }
         if (preview.allowed)
         {
             preview.hit_preview = null;
@@ -404,7 +444,8 @@ internal sealed class BattleSkillPreviewService
                         BuildUnitSkillDamagePreviewTyped(
                             active_unit,
                             skillDefinition,
-                            castVariantDefinition
+                            castVariantDefinition,
+                            windupQuote
                         )
                     );
                     preview.SetSaveBranchPreview(
@@ -421,6 +462,12 @@ internal sealed class BattleSkillPreviewService
             string skillLabel = _owner._format_skill_variant_label(skillDefinition, castVariantDefinition);
             foreach (string barrierBlockLine in barrierBlockLines)
                 preview.AddLogLine(barrierBlockLine);
+            if (windupQuote is BattleWindupQuote quotedWindup)
+            {
+                preview.AddLogLine(
+                    $"蓄力 {quotedWindup.Tier} 挡：{quotedWindup.TotalWindupTu} TU，{quotedWindup.TotalStaminaCost} 体力，伤害 {quotedWindup.WeaponDiceMultiplier}W；开始后不能主动取消。"
+                );
+            }
             if (isRandomChain)
             {
                 int configuredAttackCount =
@@ -479,6 +526,45 @@ internal sealed class BattleSkillPreviewService
         }
         preview.AddLogLine(
             string.IsNullOrEmpty(validation.Message) ? "技能或目标无效。" : validation.Message
+        );
+    }
+
+    private void AppendSourceRetreatPreview(
+        BattlePreview preview,
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        BattleCommand command,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                sourceUnit
+            );
+        CombatEffectDefinition sourceRetreatEffect =
+            BattleSourceRetreatRules.FindEffect(effectDefinitions);
+        if (sourceRetreatEffect == null)
+            return;
+
+        BattleSourceRetreatPlan plan = Runtime?._movement_service.BuildSourceRetreatPlan(
+            sourceUnit,
+            targetUnit.Coord,
+            command?.source_retreat_direction ?? Vector2I.Zero,
+            sourceRetreatEffect.SourceRetreatDistance
+        );
+        if (plan?.Allowed != true)
+            return;
+
+        preview.SetSourceRetreatPath(plan.Path);
+        preview.resolved_anchor_coord = plan.FinalCoord;
+        preview.move_cost = 0;
+        preview.AddLogLine(
+            plan.ReachableDistance < plan.RequestedDistance
+                ? $"预计沿选定方向后撤 {plan.ReachableDistance} 格，并在阻挡前停下。"
+                : $"预计沿选定方向后撤 {plan.ReachableDistance} 格。"
         );
     }
 
@@ -999,7 +1085,8 @@ internal sealed class BattleSkillPreviewService
     internal BattleDamagePreviewRangeService.SkillDamagePreview? BuildUnitSkillDamagePreviewTyped(
         BattleUnitReadView active_unit,
         SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
+        CombatCastVariantDefinition castVariant,
+        BattleWindupQuote? windupQuote = null
     )
     {
         if (!active_unit.IsValid || skillDefinition == null)
@@ -1012,6 +1099,15 @@ internal sealed class BattleSkillPreviewService
                 castVariant,
                 active_unit
             ) ?? new List<CombatEffectDefinition>();
+        if (windupQuote is BattleWindupQuote resolvedWindupQuote)
+        {
+            effectDefinitions = new List<CombatEffectDefinition>(
+                BattleWindupRules.ApplyWeaponDiceMultiplier(
+                    effectDefinitions,
+                    resolvedWindupQuote.WeaponDiceMultiplier
+                )
+            );
+        }
         return BattleDamagePreviewRangeService.BuildSkillDamagePreview(
             active_unit,
             effectDefinitions

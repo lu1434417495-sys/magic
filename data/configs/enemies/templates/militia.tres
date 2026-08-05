@@ -22,6 +22,7 @@ enemy_count = 2
 creature_level = 1
 hit_die_sides = 8
 action_threshold = 35
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"humanoid", &"militia", &"spear"])
 save_disadvantage_tags = Array[StringName]([&"frightened"])
 attack_equipment_item_id = &"militia_spear"

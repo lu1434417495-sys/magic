@@ -411,6 +411,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
                 template_id = templateId,
                 display_name = "Synthetic Enemy",
                 brain_id = "melee_aggressor",
+                cognition_kind = "sapient",
             },
             "headless.synthetic_legacy.template"
         );
@@ -495,6 +496,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             template_id = templateId,
             display_name = "Synthetic Enemy",
             brain_id = brainId,
+            cognition_kind = "sapient",
             enemy_count = 1,
         }, "headless.synthetic_facade.template");
 

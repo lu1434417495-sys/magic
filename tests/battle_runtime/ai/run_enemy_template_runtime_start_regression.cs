@@ -230,6 +230,15 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
                 "敌方模板自定义武器射程应来自 build context item_defs。"
             );
             _test.Eq(
+                weaponProjection.RangeType,
+                customWeapon.GetWeaponRangeType(),
+                "敌方模板自定义武器应保留 item definition 的 melee/ranged 分类。"
+            );
+            _test.True(
+                BattleRangeService.UnitHasMeleeWeapon(enemyUnit),
+                "装备 melee 武器的敌人应通过正式近战武器 gate。"
+            );
+            _test.Eq(
                 weaponProjection.PhysicalDamageTag,
                 new StringName("physical_pierce"),
                 "敌方模板自定义武器伤害标签应来自 build context item_defs。"
@@ -451,6 +460,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
                 template_id = templateId,
                 display_name = "公式幼龙",
                 brain_id = "melee_aggressor",
+                cognition_kind = "sapient",
                 enemy_count = 1,
                 body_size = BattleUnitState.BodySizeLarge,
                 creature_level = 10,
@@ -819,6 +829,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
                 template_id = templateId,
                 display_name = "自定义敌方长戟兵",
                 brain_id = "melee_aggressor",
+                cognition_kind = "sapient",
                 enemy_count = 1,
                 body_size = BattleUnitState.BodySizeMedium,
                 action_threshold = BattleUnitState.DefaultActionThreshold,

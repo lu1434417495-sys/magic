@@ -20,6 +20,7 @@ body_size = 3
 creature_level = 6
 hit_die_sides = 12
 action_threshold = 40
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"giant", &"troll", &"beast", &"claw"])
 damage_resistances = {
 &"fire": &"double",

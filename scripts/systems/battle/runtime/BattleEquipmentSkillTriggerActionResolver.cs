@@ -37,6 +37,11 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
             return;
         SkillDefinition skillDefinition = _runtime?.GetSkillDefinitionTyped(payload.SkillId);
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile?.Windup != null)
+        {
+            batch?.AddLogLine("蓄力技能不能通过装备 trigger_skill 自动触发。");
+            return;
+        }
         BattleUnitState anchorUnit = _owner.ResolveEquipmentActionTarget(
             payload.TargetSelector,
             sourceUnit,

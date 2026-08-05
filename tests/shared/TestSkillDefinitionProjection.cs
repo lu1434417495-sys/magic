@@ -284,7 +284,9 @@ internal static class TestSkillDefinitionProjection
         int repeatHitStatusMinSkillLevel = 0,
         int repeatHitStatusPower = 1,
         int repeatHitStatusDurationTu = 0,
-        string repeatHitStatusLogTemplate = ""
+        string repeatHitStatusLogTemplate = "",
+        BattleCognitionKind requiredTargetMinCognition =
+            BattleCognitionKind.Unknown
     )
     {
         return new CombatEffectDefinition(
@@ -375,7 +377,8 @@ internal static class TestSkillDefinitionProjection
             repeatHitStatusMinSkillLevel: repeatHitStatusMinSkillLevel,
             repeatHitStatusPower: repeatHitStatusPower,
             repeatHitStatusDurationTu: repeatHitStatusDurationTu,
-            repeatHitStatusLogTemplate: repeatHitStatusLogTemplate
+            repeatHitStatusLogTemplate: repeatHitStatusLogTemplate,
+            requiredTargetMinCognition: requiredTargetMinCognition
         );
     }
 

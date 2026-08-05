@@ -122,6 +122,9 @@ public partial class CombatSkillDef : Resource
     public int casting_spell_control_dc { get; set; }
 
     [Export]
+    public CombatWindupDef windup_profile { get; set; }
+
+    [Export]
     public StringName pending_cast_binding_mode { get; set; } = "soft_anchor";
 
     internal PendingCastBindingModeKind PendingCastBindingModeKind
@@ -314,6 +317,12 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public Godot.Collections.Array<StringName> required_weapon_families { get; set; } = new();
+
+    [Export]
+    public bool allows_natural_weapon { get; set; }
+
+    [Export]
+    public bool requires_heavy_weapon { get; set; }
 
     [Export]
     public Godot.Collections.Array<StringName> required_weapon_type_ids { get; set; } = new();

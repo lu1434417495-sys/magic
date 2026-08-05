@@ -1729,11 +1729,20 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             defaults.TemporalProgressModifiers.IsPresent,
             "默认 temporal progress modifiers 应存在。"
         );
+        _test.True(
+            defaults.CognitionCeilingModifiers.IsPresent,
+            "默认 cognition ceiling modifiers 应存在。"
+        );
         _test.Eq(defaults.Sources.Count, 0, "默认 equipment ability sources 应为空。");
         _test.Eq(
             defaults.TemporalProgressModifiers.Count,
             0,
             "默认 temporal progress modifiers 应为空。"
+        );
+        _test.Eq(
+            defaults.CognitionCeilingModifiers.Count,
+            0,
+            "默认 cognition ceiling modifiers 应为空。"
         );
 
         BattleEquipmentAbilitySourceState inputSource = BuildEquipmentAbilitySource(
@@ -1787,10 +1796,23 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
                 saveDc: 14
             ),
         };
-        unit.ReplaceEquipmentAbilityProjectionTyped(inputSources, inputModifiers);
+        var inputCognitionModifiers =
+            new List<BattleCognitionCeilingModifierState>
+            {
+                BuildCognitionCeilingModifier(
+                    "owner_instinctive_cap",
+                    BattleCognitionKind.Instinctive
+                ),
+            };
+        unit.ReplaceEquipmentAbilityProjectionTyped(
+            inputSources,
+            inputModifiers,
+            inputCognitionModifiers
+        );
         inputSource.AbilityIds[0] = "ability.mutated_input";
         inputSources.Clear();
         inputModifiers.Clear();
+        inputCognitionModifiers.Clear();
 
         BattleUnitEquipmentAbilityProjectionReadView projected =
             unit.GetEquipmentAbilityProjectionReadViewTyped();
@@ -1799,6 +1821,16 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             projected.TemporalProgressModifiers.Count,
             6,
             "共同 Replace 应同时安装 temporal modifier 组件。"
+        );
+        _test.Eq(
+            projected.CognitionCeilingModifiers.Count,
+            1,
+            "共同 Replace 应同时安装 cognition modifier 组件。"
+        );
+        _test.Eq(
+            projected.CognitionCeilingModifiers[0].Ceiling,
+            BattleCognitionKind.Instinctive,
+            "共同 Replace 应防御性复制 cognition modifier。"
         );
         _test.Eq(
             projected.Sources[0].AbilityIds[0],
@@ -1846,6 +1878,13 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
                     appliesToCastProgress: true,
                     label: "replacement cast"
                 ),
+            },
+            new[]
+            {
+                BuildCognitionCeilingModifier(
+                    "replacement_mindless_cap",
+                    BattleCognitionKind.Mindless
+                ),
             }
         );
         BattleUnitEquipmentAbilityProjectionReadView replaced =
@@ -1859,6 +1898,11 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             replaced.TemporalProgressModifiers.Count,
             1,
             "Replace 应原子替换旧 temporal modifier 组件。"
+        );
+        _test.Eq(
+            replaced.CognitionCeilingModifiers[0].ModifierId,
+            new StringName("replacement_mindless_cap"),
+            "Replace 应原子替换旧 cognition modifier 组件。"
         );
         _test.True(
             unit.GetSelectedTemporalProgressModifierTyped(actionProgress: true) == null,
@@ -1882,7 +1926,14 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
                         "ability.partial_candidate"
                     ),
                 },
-                new ThrowingEnumerable<BattleTemporalProgressModifierState>()
+                new ThrowingEnumerable<BattleTemporalProgressModifierState>(),
+                new[]
+                {
+                    BuildCognitionCeilingModifier(
+                        "partial_candidate_cap",
+                        BattleCognitionKind.Instinctive
+                    ),
+                }
             );
         }
         catch (InvalidOperationException)
@@ -1901,6 +1952,11 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             afterFailedReplace.TemporalProgressModifiers[0].ModifierId,
             new StringName("replacement_cast"),
             "Replace 失败时不得改变旧 temporal modifier。"
+        );
+        _test.Eq(
+            afterFailedReplace.CognitionCeilingModifiers[0].ModifierId,
+            new StringName("replacement_mindless_cap"),
+            "Replace 失败时不得改变旧 cognition modifier。"
         );
         _test.True(
             unit.GetSelectedTemporalProgressModifierTyped(actionProgress: true) == null,
@@ -1922,6 +1978,11 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             cleared.TemporalProgressModifiers.Count,
             0,
             "Clear 应同时清空 temporal modifiers。"
+        );
+        _test.Eq(
+            cleared.CognitionCeilingModifiers.Count,
+            0,
+            "Clear 应同时清空 cognition modifiers。"
         );
         _test.True(
             unit.GetSelectedTemporalProgressModifierTyped(actionProgress: true) == null
@@ -2095,6 +2156,20 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             FailureRatePercent = 50,
             Label = label,
         };
+
+    private static BattleCognitionCeilingModifierState
+        BuildCognitionCeilingModifier(
+            StringName modifierId,
+            BattleCognitionKind ceiling
+        ) =>
+            new()
+            {
+                ModifierId = modifierId,
+                BindingId = "owner_test_binding",
+                SourceEquipmentInstanceId =
+                    "owner_test_instance",
+                Ceiling = ceiling,
+            };
 
     private sealed class ThrowingEnumerable<T> : IEnumerable<T>
     {

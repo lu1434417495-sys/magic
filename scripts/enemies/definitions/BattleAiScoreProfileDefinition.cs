@@ -48,6 +48,7 @@ public sealed record BattleAiScoreProfileDefinition
     internal int StaminaCostWeight { get; init; } = 2;
     internal int AuraCostWeight { get; init; } = 35;
     internal int CooldownWeight { get; init; } = 8;
+    internal int DelayedResolutionCostPer5Tu { get; init; } = 1;
     internal int MovementCostWeight { get; init; } = 18;
     internal int MpReserveFloorBp { get; init; }
     internal int MpReservePressureWeight { get; init; }
@@ -155,6 +156,10 @@ public sealed record BattleAiScoreProfileDefinition
             "stamina_cost_weight" => this with { StaminaCostWeight = value },
             "aura_cost_weight" => this with { AuraCostWeight = value },
             "cooldown_weight" => this with { CooldownWeight = value },
+            "delayed_resolution_cost_per_5_tu" => this with
+            {
+                DelayedResolutionCostPer5Tu = value,
+            },
             "movement_cost_weight" => this with { MovementCostWeight = value },
             "mp_reserve_floor_bp" => this with { MpReserveFloorBp = value },
             "mp_reserve_pressure_weight" => this with { MpReservePressureWeight = value },
@@ -240,6 +245,7 @@ public sealed record BattleAiScoreProfileDefinition
             StaminaCostWeight = source.stamina_cost_weight,
             AuraCostWeight = source.aura_cost_weight,
             CooldownWeight = source.cooldown_weight,
+            DelayedResolutionCostPer5Tu = source.delayed_resolution_cost_per_5_tu,
             MovementCostWeight = source.movement_cost_weight,
             MpReserveFloorBp = source.mp_reserve_floor_bp,
             MpReservePressureWeight = source.mp_reserve_pressure_weight,

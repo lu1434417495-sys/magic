@@ -17,6 +17,7 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
         TestTypedStageSelectionUsesNearestDeclaredStage();
         TestSchemaValidationUsesTypedTemplateIdBoundary();
         TestEncounterRosterBuilderBuildsMixedMistHollowUnits();
+        TestEncounterRosterBuilderBuildsOfficialWolfStageTwoUnits();
         TestEncounterRosterBuilderProjectsActorIdWithoutReplacingUnitId();
         TestEncounterRosterBuilderBuildsBattleOnlyScenarioActor();
         RequestTestExit(_test.Finish("Wild encounter roster typed regression"));
@@ -397,6 +398,65 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
         _test.True(
             UnitHasSkillOnTemplate(enemyUnits, "mist_weaver", "mage_glacial_prison"),
             "雾沼织咒者应携带控制技能 mage_glacial_prison。"
+        );
+    }
+
+    private void TestEncounterRosterBuilderBuildsOfficialWolfStageTwoUnits()
+    {
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        using EncounterRosterBuilder builder = new();
+        builder.Setup(
+            gameSession.GetBattleEncounterDefinitions(),
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
+        );
+
+        EncounterAnchorData encounterAnchor = new()
+        {
+            entity_id = "wolf_wilds_stage2",
+            display_name = "荒狼群",
+            world_coord = new Vector2I(8, 8),
+            faction_id = "hostile",
+            region_tag = "south_wilds",
+            vision_range = 2,
+            encounter_profile_id = "wolf_wilds",
+            growth_stage = 2,
+        };
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
+            encounterAnchor,
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
+            gameSession.GetItemDefsTyped()
+        );
+        GArray enemyUnits = enemyUnitsLease.Value;
+
+        _test.Eq(enemyUnits.Count, 5, "wolf_wilds 第 2 阶段应构建五个敌方单位。");
+        _test.Eq(
+            CountUnitsWithTemplateId(enemyUnits, "wolf_pack"),
+            3,
+            "wolf_wilds 第 2 阶段应包含三只常规狼。"
+        );
+        _test.Eq(
+            CountUnitsWithTemplateId(enemyUnits, "worg"),
+            2,
+            "wolf_wilds 第 2 阶段应包含两只座狼。"
+        );
+        _test.True(
+            UnitHasSkillOnTemplate(enemyUnits, "wolf_pack", "basic_attack"),
+            "第 2 阶段的常规狼应携带基础攻击。"
+        );
+        _test.False(
+            UnitHasSkillOnTemplate(enemyUnits, "wolf_pack", "charge"),
+            "第 2 阶段的常规狼不应携带冲锋。"
+        );
+        _test.True(
+            UnitHasSkillOnTemplate(enemyUnits, "worg", "basic_attack"),
+            "第 2 阶段的座狼应携带基础攻击。"
+        );
+        _test.True(
+            UnitHasSkillOnTemplate(enemyUnits, "worg", "charge"),
+            "第 2 阶段的座狼应携带冲锋。"
         );
     }
 

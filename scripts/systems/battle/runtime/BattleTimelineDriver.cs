@@ -7,11 +7,6 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 internal sealed class BattleTimelineDriver
 {
     private const int TuGranularity = 5;
-    private const int StaminaRecoveryProgressBase = 11;
-    private const int StaminaRecoveryProgressDenominator = 10;
-    private const int StaminaRestingRecoveryMultiplier = 2;
-    private static readonly StringName StaminaRecoveryPercentBonus =
-        "stamina_recovery_percent_bonus";
     private static readonly StringName CalamityReasonLowHpEndTurn = "low_hp_end_turn";
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
@@ -190,7 +185,10 @@ internal sealed class BattleTimelineDriver
             tuDelta > 0 ? CollectTimeStasisUnitIds() : new HashSet<StringName>();
         HashSet<StringName> progressFrozenUnitIdsAtStepStart =
             tuDelta > 0 ? CollectCastingUnitIds() : new HashSet<StringName>();
+        HashSet<StringName> staminaRecoveryFrozenUnitIdsAtStepStart =
+            tuDelta > 0 ? CollectOrdinaryCastingUnitIds() : new HashSet<StringName>();
         progressFrozenUnitIdsAtStepStart.UnionWith(stasisUnitIdsAtStepStart);
+        staminaRecoveryFrozenUnitIdsAtStepStart.UnionWith(stasisUnitIdsAtStepStart);
         if (tuDelta > 0)
         {
             state.timeline.current_tu += tuDelta;
@@ -207,7 +205,12 @@ internal sealed class BattleTimelineDriver
             _AdvancePendingCasts(tuDelta, batch, stasisUnitIdsAtStepStart);
             _ReconcilePendingCasts(batch);
             _CompleteReadyPendingCasts(batch);
-            CollectTimelineReadyUnits(batch, tuDelta, progressFrozenUnitIdsAtStepStart);
+            CollectTimelineReadyUnits(
+                batch,
+                tuDelta,
+                progressFrozenUnitIdsAtStepStart,
+                staminaRecoveryFrozenUnitIdsAtStepStart
+            );
         }
         SortReadyUnitIdsByActionPriority();
     }
@@ -222,6 +225,21 @@ internal sealed class BattleTimelineDriver
         {
             var unitState = state.GetUnit(unitId);
             if (unitState?.IsCasting() == true)
+                result.Add(unitId);
+        }
+        return result;
+    }
+
+    private HashSet<StringName> CollectOrdinaryCastingUnitIds()
+    {
+        var result = new HashSet<StringName>();
+        var state = _ResolveState();
+        if (state == null)
+            return result;
+        foreach (StringName unitId in GetUnitsInOrder())
+        {
+            BattlePendingCastState pendingCast = state.GetUnit(unitId)?.pending_cast;
+            if (pendingCast != null && !pendingCast.IsWindup)
                 result.Add(unitId);
         }
         return result;
@@ -296,7 +314,8 @@ internal sealed class BattleTimelineDriver
     internal void CollectTimelineReadyUnits(
         BattleEventBatch batch,
         int tuDelta,
-        ISet<StringName> skipProgressUnitIds = null
+        ISet<StringName> skipProgressUnitIds = null,
+        ISet<StringName> skipStaminaRecoveryUnitIds = null
     )
     {
         var runtime = _ResolveRuntime();
@@ -308,15 +327,19 @@ internal sealed class BattleTimelineDriver
             var unitState = state.GetUnit(unitId);
             if (unitState == null || !unitState.IsAlive())
                 continue;
-            if (skipProgressUnitIds != null && skipProgressUnitIds.Contains(unitId))
-                continue;
             if (BattleTemporalStatusService.HasTimeStasis(unitState))
                 continue;
-            if (unitState.IsCasting())
-                continue;
-            if (ApplyStaminaRecovery(unitState, tuDelta))
+            bool skipStaminaRecovery =
+                skipStaminaRecoveryUnitIds != null
+                && skipStaminaRecoveryUnitIds.Contains(unitId);
+            if (!skipStaminaRecovery && ApplyStaminaRecovery(unitState, tuDelta))
                 _AppendChangedUnitId(batch, unitState.unit_id);
             if (!unitState.IsAlive())
+                continue;
+            if (
+                (skipProgressUnitIds != null && skipProgressUnitIds.Contains(unitId))
+                || unitState.IsCasting()
+            )
                 continue;
             int actionProgressGain =
                 BattleTemporalStatusService.ConsumeActionProgressGain(
@@ -341,7 +364,7 @@ internal sealed class BattleTimelineDriver
     {
         if (unitState == null || tuDelta <= 0)
             return false;
-        var tickCount = tuDelta / TuGranularity;
+        var tickCount = BattleStaminaRecoveryRules.ResolveTickCount(tuDelta);
         if (tickCount <= 0)
             return false;
         var staminaMax = _GetUnitStaminaMax(unitState);
@@ -354,40 +377,21 @@ internal sealed class BattleTimelineDriver
                 tickCount,
                 staminaMax,
                 0,
-                StaminaRecoveryProgressDenominator
+                BattleStaminaRecoveryRules.ProgressDenominator
             );
         }
 
-        var constitution = GetUnitConstitution(unitState);
-        var progressGainPerTick = StaminaRecoveryProgressBase + constitution;
-        progressGainPerTick = ApplyStaminaRecoveryPercentBonus(unitState, progressGainPerTick);
-        if (unitState.IsRestingTyped())
-            progressGainPerTick *= StaminaRestingRecoveryMultiplier;
+        var progressGainPerTick =
+            BattleStaminaRecoveryRules.ResolveProgressGainPerTick(
+                unitState,
+                unitState.IsRestingTyped()
+            );
         return unitState.ApplyStaminaRecoveryTyped(
             tickCount,
             staminaMax,
             progressGainPerTick,
-            StaminaRecoveryProgressDenominator
+            BattleStaminaRecoveryRules.ProgressDenominator
         );
-    }
-
-    internal int GetUnitConstitution(BattleUnitState unitState)
-    {
-        if (unitState == null || unitState.attribute_snapshot == null)
-            return 0;
-        var snapshot = unitState.attribute_snapshot;
-        return Mathf.Max(snapshot.GetValue("constitution"), 0);
-    }
-
-    internal int ApplyStaminaRecoveryPercentBonus(BattleUnitState unitState, int baseProgressGain)
-    {
-        if (unitState == null || unitState.attribute_snapshot == null)
-            return baseProgressGain;
-        var snapshot = unitState.attribute_snapshot;
-        var percentBonus = Mathf.Max(snapshot.GetValue(StaminaRecoveryPercentBonus), 0);
-        if (percentBonus <= 0)
-            return baseProgressGain;
-        return (baseProgressGain * (100 + percentBonus)) / 100;
     }
 
     internal int NormalizeUnitActionThreshold(int actionThreshold)

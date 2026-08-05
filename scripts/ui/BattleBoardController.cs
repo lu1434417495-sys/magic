@@ -573,7 +573,10 @@ public sealed class BattleBoardController : IDisposable
         _draw_objective_exit_markers();
         if (_selected_coord != new Vector2I(-1, -1) && _is_cell_inside_battle(_selected_coord))
             _set_marker_cell(_selected_coord, _get_selected_marker_source_id(_selected_coord));
-        if (_target_selection_mode == "movement")
+        if (
+            _target_selection_mode == "movement"
+            || _target_selection_mode == "source_retreat_direction"
+        )
         {
             foreach (Vector2I reachableCoord in _valid_target_coords)
             {
@@ -1024,7 +1027,10 @@ public sealed class BattleBoardController : IDisposable
         if (_target_highlight_layer == null)
             return;
         _clear_child_nodes(_target_highlight_layer);
-        if (_target_selection_mode == "movement")
+        if (
+            _target_selection_mode == "movement"
+            || _target_selection_mode == "source_retreat_direction"
+        )
             return;
         var previewCoordSet = new HashSet<Vector2I>();
         bool isMultiUnitSelection = _target_selection_mode == "multi_unit";

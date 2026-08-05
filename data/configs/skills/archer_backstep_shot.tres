@@ -9,61 +9,92 @@
 [sub_resource type="Resource" id="Resource_wc65s"]
 script = ExtResource("3_fjo0d")
 effect_type = &"damage"
-power = 10
-damage_tag = &"physical_pierce"
+power = 0
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
+
+[sub_resource type="Resource" id="Resource_backstep_retreat"]
+script = ExtResource("3_fjo0d")
+effect_type = &"source_retreat"
+source_retreat_distance = 2
 
 [sub_resource type="Resource" id="Resource_wort7"]
 script = ExtResource("4_r37ed")
 skill_id = &"archer_backstep_shot"
 projectile_kind = &"current_weapon"
-range_value = 4
-stamina_cost = 1
-cooldown_tu = 10
-attack_roll_bonus = 1
-effect_defs = Array[ExtResource("3_fjo0d")]([SubResource("Resource_wc65s")])
+range_value = 0
+requires_los = true
+ap_cost = 1
+stamina_cost = 28
+cooldown_tu = 80
+required_weapon_families = Array[StringName]([&"bow"])
+allows_natural_weapon = false
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
+level_overrides = {
+2: {
+"stamina_cost": 26
+},
+3: {
+"cooldown_tu": 70
+},
+4: {
+"stamina_cost": 24
+},
+5: {
+"attack_roll_bonus": 1
+}
+}
+effect_defs = Array[ExtResource("3_fjo0d")]([SubResource("Resource_wc65s"), SubResource("Resource_backstep_retreat")])
 
 [resource]
 script = ExtResource("5_vyr5k")
 skill_id = &"archer_backstep_shot"
 display_name = "后跃射"
 icon_id = &"archer_backstep_shot"
-description = "先攻击再后撤 2 格；若后撤路径被阻挡，则只结算攻击。"
-level_description_template = "造成{dmg}伤害，射程{range}，攻击检定+{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+description = "使用时先选择一名敌人，再选择一个使你远离目标的正交方向；使用弓发动一次标准武器攻击，结算后沿该方向直线后撤最多2格。后撤不消耗移动力，不能转弯或绕路，受阻时停在阻挡前；后撤正常处理地形、屏障与位置变化效果。无法主动移动时不能使用。"
+level_description_template = "使用弓发动一次标准武器攻击；使用时选择远离目标的正交方向，攻击结算后沿该方向直线后撤最多2格，消耗1AP/{stamina}体力，冷却{cooldown}TU{accuracy}"
 level_description_configs = {
 	"0": {
-		"dmg": "10",
-		"range": "4",
-		"attack": "+1",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "28",
+		"cooldown": "80",
+		"accuracy": ""
 	},
 	"1": {
-		"dmg": "10",
-		"range": "4",
-		"attack": "+1",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "28",
+		"cooldown": "80",
+		"accuracy": ""
 	},
 	"2": {
-		"dmg": "10",
-		"range": "4",
-		"attack": "+1",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "26",
+		"cooldown": "80",
+		"accuracy": ""
 	},
 	"3": {
-		"dmg": "10",
-		"range": "4",
-		"attack": "+1",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "26",
+		"cooldown": "70",
+		"accuracy": ""
 	},
+	"4": {
+		"stamina": "24",
+		"cooldown": "70",
+		"accuracy": ""
+	},
+	"5": {
+		"stamina": "24",
+		"cooldown": "70",
+		"accuracy": "，攻击检定+1"
+	}
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"agility": 40,
+"perception": 20
+}
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])
 combat_profile = SubResource("Resource_wort7")

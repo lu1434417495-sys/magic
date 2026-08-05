@@ -247,6 +247,13 @@ internal static class BattleAiPayloadGuard
             return false;
         if (
             !ValidateNoForbiddenObject(
+                preview.SourceRetreatPathTyped,
+                "preview.source_retreat_path"
+            )
+        )
+            return false;
+        if (
+            !ValidateNoForbiddenObject(
                 preview.RandomChainCandidateUnitIdsTyped,
                 "preview.random_chain_candidate_unit_ids"
             )

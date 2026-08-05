@@ -61,6 +61,12 @@ public partial class BattleUnitState
             ("control_mode", control_mode.ToString()),
             ("ai_brain_id", ai_brain_id.ToString()),
             ("ai_state_id", ai_state_id.ToString()),
+            (
+                "cognition_kind",
+                BattleCognitionContentRules
+                    .ToStringName(GetBaseCognitionKindTyped())
+                    .ToString()
+            ),
             ("coord", geometry.AnchorCoord),
             ("body_size", geometry.BodySize),
             (

@@ -91,20 +91,8 @@ skill_id = &"warrior_guard"
 target_team_filter = &"ally"
 range_value = 0
 ap_cost = 1
-stamina_cost = 50
+stamina_cost = 20
 cooldown_tu = 120
-attack_roll_bonus = 0
-level_overrides = {
-2: {
-"stamina_cost": 40
-},
-4: {
-"stamina_cost": 35
-},
-5: {
-"stamina_cost": 30
-}
-}
 mastery_trigger_mode = &"incoming_physical_hit"
 mastery_amount_mode = &"per_target_rank"
 target_selection_mode = &"self"
@@ -115,7 +103,7 @@ script = ExtResource("5_omw41")
 skill_id = &"warrior_guard"
 display_name = "格挡"
 icon_id = &"warrior_guard"
-description = "进入防御姿态，减少受到的固定物理伤害，但移动力受限。高等级提升减伤幅度并解除移动力惩罚。"
+description = "进入短暂的格挡姿态。姿态期间，每次受到物理伤害时固定减少1至3点伤害，最低仍受到1点伤害；4级前移动每格额外消耗1点移动力，4级起解除该惩罚。对非物理伤害无效。"
 max_level = 5
 non_core_max_level = 3
 mastery_curve = PackedInt32Array(300, 750, 1650, 3000, 4800)
@@ -123,46 +111,46 @@ growth_tier = &"basic"
 attribute_growth_progress = {
 "constitution": 60
 }
-level_description_template = "格挡姿态：物理伤害减{guard_power}{{?slow_power}}，移动力-{slow_power}{{/slow_power}}，持续{duration}TU，体力消耗{stamina}，冷却{cooldown}TU"
+level_description_template = "格挡姿态：每次受到物理伤害固定减少{guard_power}点，最低仍受到1点伤害{{?slow_power}}；移动每格额外消耗{slow_power}点移动力{{/slow_power}}；持续{duration}TU，消耗1AP/{stamina}体力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "guard_power": "1",
 "slow_power": "1",
 "duration": "40",
-"stamina": "50",
+"stamina": "20",
 "cooldown": "120"
 },
 "1": {
 "guard_power": "1",
 "slow_power": "1",
 "duration": "50",
-"stamina": "50",
+"stamina": "20",
 "cooldown": "120"
 },
 "2": {
 "guard_power": "1",
 "slow_power": "1",
 "duration": "60",
-"stamina": "40",
+"stamina": "20",
 "cooldown": "120"
 },
 "3": {
 "guard_power": "2",
 "slow_power": "1",
 "duration": "60",
-"stamina": "40",
+"stamina": "20",
 "cooldown": "120"
 },
 "4": {
 "guard_power": "2",
 "duration": "60",
-"stamina": "35",
+"stamina": "20",
 "cooldown": "120"
 },
 "5": {
 "guard_power": "3",
 "duration": "60",
-"stamina": "30",
+"stamina": "20",
 "cooldown": "120"
 }
 }

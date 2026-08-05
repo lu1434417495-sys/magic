@@ -1154,6 +1154,12 @@ public sealed partial class GameRuntimeFacade
 
     public StringName GetSelectedBattleSkillVariantId() => _selected_battle_skill_variant_id;
 
+    public StringName GetSelectedBattleSkillPresentationSelectionMode() =>
+        _battle_selection_state.selection_stage
+            == GameRuntimeBattleSelectionStage.SourceRetreatDirection
+            ? new StringName("source_retreat_direction")
+            : new StringName("");
+
     internal void SetBattleSelectionSkillEntryId(StringName skillEntryId) =>
         _selected_battle_skill_entry_id = skillEntryId;
 

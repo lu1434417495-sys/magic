@@ -32,6 +32,7 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         TestGameTextCommandResultLifecycle();
         TestTextSnapshotRedactsHostLogPaths();
         TestSnapshotBuilderExposesPartyQuestSnapshot();
+        TestSnapshotBuilderExposesPartyStandingSnapshot();
         TestSnapshotBuilderExposesMemberProgressionSnapshot();
         TestTextSnapshotRequiresExplicitQuestStageId();
         TestTextSnapshotRejectsStringNameQuestAndWindowFields();
@@ -423,7 +424,22 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
                 "real facade repeated plain snapshot"
             );
 
-            PlainArray services = ArrayValue(Dict(facadeSnapshot, "settlement"), "services");
+            PlainDictionary settlementSnapshot = Dict(facadeSnapshot, "settlement");
+            _test.True(
+                settlementSnapshot.ContainsKey("country_id"),
+                "真实 facade headless snapshot 应显式暴露据点 country_id。"
+            );
+            _test.Eq(
+                StringValue(settlementSnapshot, "country_id"),
+                "",
+                "当前未归属国家的起始据点应输出空 country_id。"
+            );
+            _test.True(
+                facadeText.Contains("country_id=", StringComparison.Ordinal),
+                "文本快照应显式渲染据点 country_id。"
+            );
+
+            PlainArray services = ArrayValue(settlementSnapshot, "services");
             PlainArray repeatedServices = ArrayValue(
                 Dict(repeatedFacadeSnapshot, "settlement"),
                 "services"
@@ -1300,6 +1316,38 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         );
         _test.Eq(ArrayValue(memberSnapshot, "skill_entries").Count, 2, "成员快照应暴露 learned skill 详情。");
         _test.Eq(ArrayValue(memberSnapshot, "profession_entries").Count, 1, "成员快照应暴露 profession 详情。");
+    }
+
+    private void TestSnapshotBuilderExposesPartyStandingSnapshot()
+    {
+        var partyState = new PartyState();
+        partyState.SetWorldRenown(64);
+        partyState.SetCountryReputation("starfall_federation", 35);
+        partyState.SetCountryReputation("frost_ash_empire", -20);
+
+        var runtime = new SnapshotTestRuntime { PartyState = partyState };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        PlainDictionary snapshot = builder.BuildHeadlessSnapshotPlain();
+        builder.Dispose();
+
+        PlainDictionary party = Dict(snapshot, "party");
+        _test.Eq(
+            IntValue(party, "world_renown", -1),
+            64,
+            "Party headless snapshot 应暴露世界名望。"
+        );
+        PlainDictionary countryReputations = Dict(party, "country_reputations");
+        _test.Eq(
+            IntValue(countryReputations, "frost_ash_empire", 999),
+            -20,
+            "Party headless snapshot 应暴露独立帝国声望。"
+        );
+        _test.Eq(
+            IntValue(countryReputations, "starfall_federation", 999),
+            35,
+            "Party headless snapshot 应暴露独立联邦声望。"
+        );
     }
 
     private void TestTextSnapshotRequiresExplicitQuestStageId()

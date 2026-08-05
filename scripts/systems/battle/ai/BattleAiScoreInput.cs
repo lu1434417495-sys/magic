@@ -39,6 +39,7 @@ public sealed class BattleAiScoreInput
     public int estimated_ally_healing { get; set; } = 0;
     public int estimated_status_count { get; set; } = 0;
     public int estimated_control_count { get; set; } = 0;
+    public int estimated_taunt_ally_damage_relief { get; set; } = 0;
     public int estimated_terrain_effect_count { get; set; } = 0;
     public int estimated_height_delta { get; set; } = 0;
     public int estimated_ground_control_cell_count { get; set; } = 0;
@@ -84,6 +85,8 @@ public sealed class BattleAiScoreInput
     public int aura_cost { get; set; } = 0;
     public int cooldown_tu { get; set; } = 0;
     public int resource_cost_score { get; set; } = 0;
+    public int delayed_resolution_tu { get; set; } = 0;
+    public int delayed_resolution_score { get; set; } = 0;
     public int move_cost { get; set; } = 0;
     public StringName position_objective_kind { get; set; } = "cast_distance";
     public int desired_min_distance { get; set; } = -1;
@@ -261,6 +264,8 @@ public sealed class BattleAiScoreInput
             ["estimated_ally_healing"] = estimated_ally_healing,
             ["estimated_status_count"] = estimated_status_count,
             ["estimated_control_count"] = estimated_control_count,
+            ["estimated_taunt_ally_damage_relief"] =
+                estimated_taunt_ally_damage_relief,
             ["estimated_terrain_effect_count"] = estimated_terrain_effect_count,
             ["estimated_height_delta"] = estimated_height_delta,
             ["estimated_ground_control_cell_count"] = estimated_ground_control_cell_count,
@@ -329,6 +334,8 @@ public sealed class BattleAiScoreInput
             ["aura_cost"] = aura_cost,
             ["cooldown_tu"] = cooldown_tu,
             ["resource_cost_score"] = resource_cost_score,
+            ["delayed_resolution_tu"] = delayed_resolution_tu,
+            ["delayed_resolution_score"] = delayed_resolution_score,
             ["move_cost"] = move_cost,
             ["position_objective_kind"] = position_objective_kind.ToString(),
             ["desired_min_distance"] = desired_min_distance,
@@ -462,6 +469,11 @@ public sealed class BattleAiScoreInput
             builder,
             "estimated_control_count",
             estimated_control_count
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_taunt_ally_damage_relief",
+            estimated_taunt_ally_damage_relief
         );
         AppendNamedValueFingerprint(
             builder,
@@ -636,6 +648,16 @@ public sealed class BattleAiScoreInput
         AppendNamedValueFingerprint(builder, "aura_cost", aura_cost);
         AppendNamedValueFingerprint(builder, "cooldown_tu", cooldown_tu);
         AppendNamedValueFingerprint(builder, "resource_cost_score", resource_cost_score);
+        AppendNamedValueFingerprint(
+            builder,
+            "delayed_resolution_tu",
+            delayed_resolution_tu
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "delayed_resolution_score",
+            delayed_resolution_score
+        );
         AppendNamedValueFingerprint(builder, "move_cost", move_cost);
         AppendNamedValueFingerprint(
             builder,

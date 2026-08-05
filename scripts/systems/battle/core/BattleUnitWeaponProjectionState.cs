@@ -63,6 +63,7 @@ internal readonly record struct BattleWeaponDiceValues(
 internal readonly record struct BattleWeaponProjectionValues(
     StringName ProfileKind,
     StringName ItemId,
+    StringName InstanceId,
     StringName ProfileTypeId,
     StringName RangeType,
     StringName Family,
@@ -72,9 +73,43 @@ internal readonly record struct BattleWeaponProjectionValues(
     BattleWeaponDiceValues TwoHandedDice,
     bool IsVersatile,
     bool UsesTwoHands,
+    bool IsHeavy,
     StringName PhysicalDamageTag
 )
 {
+    internal BattleWeaponProjectionValues(
+        StringName profileKind,
+        StringName itemId,
+        StringName profileTypeId,
+        StringName rangeType,
+        StringName family,
+        StringName currentGrip,
+        int attackRange,
+        BattleWeaponDiceValues oneHandedDice,
+        BattleWeaponDiceValues twoHandedDice,
+        bool isVersatile,
+        bool usesTwoHands,
+        StringName physicalDamageTag
+    )
+        : this(
+            profileKind,
+            itemId,
+            new StringName(""),
+            profileTypeId,
+            rangeType,
+            family,
+            currentGrip,
+            attackRange,
+            oneHandedDice,
+            twoHandedDice,
+            isVersatile,
+            usesTwoHands,
+            false,
+            physicalDamageTag
+        )
+    {
+    }
+
     internal BattleWeaponDiceValues ActiveDice =>
         UsesTwoHands ? TwoHandedDice : OneHandedDice;
 
@@ -85,10 +120,12 @@ internal readonly record struct BattleWeaponProjectionValues(
             new StringName(""),
             new StringName(""),
             new StringName(""),
+            new StringName(""),
             BattleUnitState.ToStringName(BattleWeaponGripKind.None),
             0,
             BattleWeaponDiceValues.PresentEmpty,
             BattleWeaponDiceValues.PresentEmpty,
+            false,
             false,
             false,
             new StringName("")
@@ -203,6 +240,7 @@ internal sealed class BattleUnitWeaponProjectionState
         _values = new BattleWeaponProjectionValues(
             profileKind,
             NormalizeStringName(projection.weapon_item_id),
+            NormalizeStringName(projection.weapon_instance_id),
             NormalizeStringName(projection.weapon_profile_type_id),
             NormalizeStringName(projection.weapon_range_type),
             NormalizeStringName(projection.weapon_family),
@@ -212,6 +250,7 @@ internal sealed class BattleUnitWeaponProjectionState
             twoHandedDice,
             projection.weapon_is_versatile,
             usesTwoHands,
+            projection.weapon_is_heavy,
             NormalizeStringName(
                 projection.weapon_physical_damage_tag
             )

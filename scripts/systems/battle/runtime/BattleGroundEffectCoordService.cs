@@ -242,6 +242,10 @@ internal class BattleGroundEffectCoordService
                         targetUnit,
                         _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition)
                     )
+                    && BattleEffectTargetRequirementRules.IsSatisfied(
+                        effectDefinition,
+                        targetUnit
+                    )
                 )
                 {
                     if (targetUnit != null)
@@ -276,6 +280,10 @@ internal class BattleGroundEffectCoordService
                         sourceUnit,
                         targetUnit,
                         _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition)
+                    )
+                    && BattleEffectTargetRequirementRules.IsSatisfied(
+                        effectDefinition,
+                        targetUnit
                     )
                 )
                 {

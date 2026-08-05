@@ -27,6 +27,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
             TestUnitFactoryDoesNotBuildFallbackEnemy();
             TestFormalEnemyTemplatesHaveRealPressureSkillAction();
+            TestMistHarrierCoreSkillLevelsReachRuntimeUnit();
+            TestMistHarrierSkillLevelsAreSeededAndVariable();
+            TestMistHarrierBuildsSelectedGeneratedSkillActions();
+            TestMistHarrierSelectedSkillsPassCanonicalPreview();
             TestDepletedRangedTemplatesCloseForBasicAttackFallback();
             TestEnemyTemplateUsesCanonicalTemplateId();
             RequestTestExit(_test.Finish("Battle AI enemy template runtime regression"));
@@ -70,7 +74,14 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             expectedEnemyCount: 1,
             expectedBrainId: "ranged_suppressor",
             expectedStateId: "pressure",
-            requiredSkills: new[] { "archer_suppressive_fire", "archer_pinning_shot" }
+            requiredSkills: new[]
+            {
+                "archer_suppressive_fire",
+                "archer_pinning_shot",
+                "archer_harrier_mark",
+                "archer_aimed_shot",
+                "basic_attack",
+            }
         );
         AssertTemplateStartBattle(
             "encounter_weaver",
@@ -348,6 +359,315 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         }
     }
 
+    private void TestMistHarrierBuildsSelectedGeneratedSkillActions()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleUnitState enemyUnit = BuildFormalTemplateProbeUnit(runtime, "mist_harrier");
+        _test.True(enemyUnit != null, "雾沼猎压者应能构建正式战斗单位。");
+        if (enemyUnit == null)
+        {
+            return;
+        }
+
+        try
+        {
+            runtime._ensure_ai_action_plan_for_unit(enemyUnit);
+            bool foundPlan = runtime.TryGetAiActionPlanForUnit(
+                enemyUnit.unit_id,
+                out BattleAiRuntimeActionPlan actionPlan
+            );
+            _test.True(foundPlan && actionPlan != null, "雾沼猎压者应生成正式AI动作计划。");
+            if (!foundPlan || actionPlan == null)
+            {
+                return;
+            }
+
+            AssertGeneratedSkillAction(
+                actionPlan,
+                "pressure",
+                "archer_harrier_mark",
+                "use_unit_skill",
+                "猎印追缉"
+            );
+            AssertGeneratedSkillAction(
+                actionPlan,
+                "pressure",
+                "archer_aimed_shot",
+                "use_unit_skill",
+                "精准射击"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleUnit(enemyUnit);
+        }
+    }
+
+    private void TestMistHarrierCoreSkillLevelsReachRuntimeUnit()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleUnitState enemyUnit = BuildFormalTemplateProbeUnit(
+            runtimeScope.Runtime,
+            "mist_harrier"
+        );
+        _test.True(enemyUnit != null, "雾沼猎压者应能构建用于技能等级验证的正式战斗单位。");
+        if (enemyUnit == null)
+        {
+            return;
+        }
+
+        try
+        {
+            AssertRuntimeSkillReachesCore(enemyUnit, "archer_suppressive_fire", "压制射击");
+            AssertRuntimeSkillReachesCore(enemyUnit, "archer_pinning_shot", "钉射");
+            AssertRuntimeSkillReachesCore(enemyUnit, "archer_harrier_mark", "猎印追缉");
+            AssertRuntimeSkillReachesCore(enemyUnit, "archer_aimed_shot", "精准射击");
+            _test.Eq(
+                enemyUnit.GetKnownSkillLevelTyped("basic_attack"),
+                1,
+                "基础攻击不参与核心技能随机，应保持1级。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleUnit(enemyUnit);
+        }
+    }
+
+    private void AssertRuntimeSkillReachesCore(
+        BattleUnitState unit,
+        StringName skillId,
+        string displayName
+    )
+    {
+        _test.True(unit.KnowsActiveSkill(skillId), $"雾沼猎压者的正式战斗单位应携带{displayName}。");
+        bool foundDefinition = _sharedSession.GetSkillDefinitionsTyped().TryGetValue(
+            skillId,
+            out SkillDefinition skillDefinition
+        );
+        _test.True(foundDefinition && skillDefinition != null, $"{displayName}应有正式技能定义。");
+        if (!foundDefinition || skillDefinition == null)
+        {
+            return;
+        }
+
+        int coreLevel = EnemySkillLevelGenerationService.ResolveCoreSkillLevel(
+            skillDefinition
+        );
+        int actualLevel = unit.GetKnownSkillLevelTyped(skillId);
+        _test.True(
+            actualLevel >= coreLevel,
+            $"雾沼猎压者的{displayName}应至少达到核心等级{coreLevel}，实际为{actualLevel}。"
+        );
+        _test.True(
+            actualLevel <= skillDefinition.MaxLevel,
+            $"雾沼猎压者的{displayName}随机等级不得超过最高等级{skillDefinition.MaxLevel}。"
+        );
+    }
+
+    private void TestMistHarrierSkillLevelsAreSeededAndVariable()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        string first = BuildMistHarrierSkillLevelSignature(runtime, 271828);
+        string repeated = BuildMistHarrierSkillLevelSignature(runtime, 271828);
+        _test.Eq(repeated, first, "相同战斗 seed 应生成相同的雾沼猎压者技能等级。");
+
+        var signatures = new HashSet<string>();
+        var suppressiveFireLevels = new HashSet<int>();
+        for (long seed = 1; seed <= 24; seed++)
+        {
+            signatures.Add(BuildMistHarrierSkillLevelSignature(runtime, seed));
+            suppressiveFireLevels.Add(
+                BuildMistHarrierSkillLevel(runtime, seed, "archer_suppressive_fire")
+            );
+        }
+        _test.True(
+            signatures.Count > 1,
+            "不同战斗 seed 应能生成不同的雾沼猎压者技能等级组合。"
+        );
+        _test.True(
+            suppressiveFireLevels.Count > 1,
+            "修复后的压制射击应在核心等级3至最高等级5之间实际产生随机差异。"
+        );
+    }
+
+    private int BuildMistHarrierSkillLevel(
+        BattleRuntimeModule runtime,
+        long seed,
+        StringName skillId
+    )
+    {
+        BattleUnitState unit = BuildFormalTemplateProbeUnit(runtime, "mist_harrier", seed);
+        _test.True(unit != null, "雾沼猎压者单技能等级探针应能生成正式单位。");
+        if (unit == null)
+            return 0;
+
+        try
+        {
+            return unit.GetKnownSkillLevelTyped(skillId);
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleUnit(unit);
+        }
+    }
+
+    private string BuildMistHarrierSkillLevelSignature(
+        BattleRuntimeModule runtime,
+        long seed
+    )
+    {
+        BattleUnitState unit = BuildFormalTemplateProbeUnit(
+            runtime,
+            "mist_harrier",
+            seed
+        );
+        _test.True(unit != null, "雾沼猎压者随机等级探针应能生成正式单位。");
+        if (unit == null)
+            return "";
+
+        try
+        {
+            return string.Join(
+                ",",
+                new[]
+                {
+                    unit.GetKnownSkillLevelTyped("archer_suppressive_fire"),
+                    unit.GetKnownSkillLevelTyped("archer_pinning_shot"),
+                    unit.GetKnownSkillLevelTyped("archer_harrier_mark"),
+                    unit.GetKnownSkillLevelTyped("archer_aimed_shot"),
+                }
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleUnit(unit);
+        }
+    }
+
+    private void AssertGeneratedSkillAction(
+        BattleAiRuntimeActionPlan actionPlan,
+        StringName stateId,
+        StringName skillId,
+        StringName expectedActionFamily,
+        string displayName
+    )
+    {
+        foreach (BattleAiRuntimeActionEntry entry in actionPlan.GetActionEntries(stateId))
+        {
+            BattleAiRuntimeActionPlan.RuntimeActionMetadata metadata = entry?.Metadata;
+            if (metadata?.generated != true || metadata.skill_id != skillId)
+            {
+                continue;
+            }
+
+            _test.Eq(
+                metadata.action_family,
+                expectedActionFamily,
+                $"{displayName}应通过{expectedActionFamily}进入AI动作计划。"
+            );
+            return;
+        }
+        _test.Fail($"雾沼猎压者的{displayName}未生成AI动作。");
+    }
+
+    private void TestMistHarrierSelectedSkillsPassCanonicalPreview()
+    {
+        AssertMistHarrierSkillPassesCanonicalPreview(
+            "archer_harrier_mark",
+            "猎印追缉",
+            includeClusterTarget: false
+        );
+        AssertMistHarrierSkillPassesCanonicalPreview(
+            "archer_aimed_shot",
+            "精准射击",
+            includeClusterTarget: false
+        );
+    }
+
+    private void AssertMistHarrierSkillPassesCanonicalPreview(
+        StringName expectedSkillId,
+        string displayName,
+        bool includeClusterTarget
+    )
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleUnitState enemyUnit = BuildFormalTemplateProbeUnit(runtime, "mist_harrier");
+        _test.True(enemyUnit != null, $"雾沼猎压者应能为{displayName}构建正式战斗单位。");
+        if (enemyUnit == null)
+        {
+            return;
+        }
+
+        BattleState state = BuildFlatState(new Vector2I(10, 5));
+        runtime.SetupStateForTests(state);
+        enemyUnit.SetAnchorCoord(new Vector2I(1, 2));
+        enemyUnit.ai_state_id = "pressure";
+        enemyUnit.SetCurrentMovePoints(2);
+        foreach (StringName skillId in enemyUnit.GetKnownActiveSkillsViewTyped())
+        {
+            if (skillId != expectedSkillId)
+            {
+                enemyUnit.SetCooldownTyped(skillId, 30);
+            }
+        }
+
+        BattleUnitState primaryTarget = BuildManualUnit(
+            $"selected_skill_target_{expectedSkillId}",
+            "技能目标",
+            "player",
+            new Vector2I(5, 2),
+            new[] { "basic_attack" }
+        );
+        AddUnitToState(runtime, state, enemyUnit, isEnemy: true);
+        AddUnitToState(runtime, state, primaryTarget, isEnemy: false);
+        if (includeClusterTarget)
+        {
+            BattleUnitState clusterTarget = BuildManualUnit(
+                $"selected_skill_cluster_{expectedSkillId}",
+                "技能副目标",
+                "player",
+                new Vector2I(5, 3),
+                new[] { "basic_attack" }
+            );
+            AddUnitToState(runtime, state, clusterTarget, isEnemy: false);
+        }
+
+        BattleAiDecision decision = null;
+        BattlePreview preview = null;
+        try
+        {
+            decision = runtime._ai_service
+                .ChooseCommand(BuildAiContext(runtime, enemyUnit), captureTrace: false)
+                ?.Decision;
+            _test.True(decision?.command != null, $"{displayName}应能生成AI技能指令。");
+            if (decision?.command == null)
+            {
+                return;
+            }
+            _test.Eq(
+                decision.command.command_type,
+                BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+                $"{displayName}应选择技能指令而不是移动或等待。"
+            );
+            _test.Eq(
+                decision.command.skill_id,
+                expectedSkillId,
+                $"雾沼猎压者应选择{displayName}。"
+            );
+            preview = runtime.PreviewCommand(decision.command);
+            _test.True(preview?.allowed == true, $"{displayName}必须通过正式指令预览。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(preview);
+            DisposeDecision(decision);
+        }
+    }
+
     private void TestEnemyTemplateUsesCanonicalTemplateId()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
@@ -542,14 +862,18 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         return results;
     }
 
-    private static BattleUnitState BuildFormalTemplateProbeUnit(BattleRuntimeModule runtime, StringName templateId)
+    private static BattleUnitState BuildFormalTemplateProbeUnit(
+        BattleRuntimeModule runtime,
+        StringName templateId,
+        long seed = 1701
+    )
     {
         BattleState state = null;
         try
         {
             state = runtime.StartBattle(
                 BuildEncounterAnchor($"probe_{templateId}", templateId, templateId.ToString()),
-                1701,
+                seed,
                 BattleEliminationObjectiveDefinition.Instance,
                 BuildBattleStartContext("ally_probe")
             );

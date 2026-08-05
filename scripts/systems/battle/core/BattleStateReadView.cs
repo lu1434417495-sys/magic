@@ -88,6 +88,12 @@ internal readonly struct BattleUnitReadView
     internal string DisplayName => _unit?.display_name ?? "";
     internal StringName FactionId => _unit?.faction_id ?? "";
     internal StringName ControlMode => _unit?.control_mode ?? "";
+    internal BattleCognitionKind BaseCognitionKind =>
+        _unit?.GetBaseCognitionKindTyped()
+        ?? BattleCognitionKind.Unknown;
+    internal BattleCognitionKind EffectiveCognitionKind =>
+        _unit?.GetEffectiveCognitionKindTyped()
+        ?? BattleCognitionKind.Unknown;
     internal bool MadnessTargetAnyTeam => _unit?.ai_blackboard?.madness_target_any_team == true;
     private BattleUnitGeometryReadView Geometry =>
         _unit?.GetGeometryReadViewTyped()
@@ -120,12 +126,15 @@ internal readonly struct BattleUnitReadView
         _unit?.GetWeaponProjectionReadViewTyped().Values
         ?? BattleWeaponProjectionValues.Clear;
     internal StringName WeaponFamily => WeaponProjection.Family;
+    internal StringName WeaponItemId => WeaponProjection.ItemId;
+    internal StringName WeaponInstanceId => WeaponProjection.InstanceId;
     internal StringName WeaponProfileTypeId => WeaponProjection.ProfileTypeId;
     internal StringName WeaponProfileKind => WeaponProjection.ProfileKind;
     internal StringName WeaponRangeType => WeaponProjection.RangeType;
     internal StringName WeaponCurrentGrip => WeaponProjection.CurrentGrip;
     internal int WeaponAttackRange => WeaponProjection.AttackRange;
     internal bool WeaponUsesTwoHands => WeaponProjection.UsesTwoHands;
+    internal bool WeaponIsHeavy => WeaponProjection.IsHeavy;
     internal StringName WeaponPhysicalDamageTag =>
         WeaponProjection.PhysicalDamageTag;
     internal int CurrentWeaponDamageDiceCount =>
@@ -152,6 +161,9 @@ internal readonly struct BattleUnitReadView
 
     internal bool HasStatusEffect(StringName statusId) =>
         _unit?.HasStatusEffect(statusId) == true;
+
+    internal bool HasCreatureTypeTag(StringName tag) =>
+        _unit?.HasCreatureTypeTag(tag) == true;
 
     internal int GetStatusPower(StringName statusId)
     {

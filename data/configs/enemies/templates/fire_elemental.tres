@@ -19,6 +19,7 @@ initial_state_id = &"pressure"
 creature_level = 6
 hit_die_sides = 8
 action_threshold = 30
+cognition_kind = &"instinctive"
 tags = Array[StringName]([&"elemental", &"fire", &"beast"])
 save_immunity_tags = Array[StringName]([&"sleep", &"poison"])
 damage_resistances = {

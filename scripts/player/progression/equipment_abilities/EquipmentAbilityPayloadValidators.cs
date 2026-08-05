@@ -117,6 +117,12 @@ internal static class EquipmentAbilityPayloadValidators
             );
         }
         EquipmentAbilityBindingValidator.ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
+        EquipmentAbilityBindingValidator.ValidateAutomaticSkillReference(
+            payload.skill_id,
+            context,
+            $"{path}.payload.skill_id",
+            errors
+        );
         StringName filter = ProgressionDataUtils.to_string_name(payload.target_team_filter);
         if (filter != "enemy" && filter != "ally" && filter != "any")
         {
@@ -879,6 +885,22 @@ internal static class EquipmentAbilityPayloadValidators
                 "summon_units spawn_radius must be >= 0"
             );
         }
+        if (
+            payload != null
+            && !BattleCognitionContentRules.IsKnown(
+                BattleCognitionContentRules.ToKind(
+                    payload.cognition_kind
+                )
+            )
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_SUMMON_COGNITION_INVALID",
+                $"{path}.payload.cognition_kind",
+                "summon_units cognition_kind must be mindless, instinctive, or sapient"
+            );
+        }
         foreach (StringName skillId in payload?.known_active_skill_ids ?? new Godot.Collections.Array<StringName>())
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
@@ -1104,6 +1126,12 @@ internal static class EquipmentAbilityPayloadValidators
             );
         }
         EquipmentAbilityBindingValidator.ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
+        EquipmentAbilityBindingValidator.ValidateAutomaticSkillReference(
+            payload.skill_id,
+            context,
+            $"{path}.payload.skill_id",
+            errors
+        );
     }
 
     private static void ValidateStatusSemanticPayload(

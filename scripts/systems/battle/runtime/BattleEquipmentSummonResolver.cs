@@ -437,6 +437,7 @@ internal sealed class BattleEquipmentSummonResolver
         unit.SetBodySizeCategory(
             payload.BodySizeCategory == "" ? new StringName("tiny") : payload.BodySizeCategory
         );
+        unit.SetBaseCognitionKindTyped(payload.CognitionKind);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hpMax);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, Math.Max(payload.ArmorClass, 1));
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, payload.AttackBonus);

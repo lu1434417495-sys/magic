@@ -28,6 +28,10 @@ internal interface IGameRuntimeBattleSelectionPort
     void SetSelectedSkillId(StringName skillId);
     StringName GetSelectedSkillVariantId();
     void SetSelectedSkillVariantId(StringName variantId);
+    int GetSelectedWindupTier();
+    void SetSelectedWindupTier(int tier);
+    GameRuntimeBattleSelectionStage GetSelectionStage();
+    void SetSelectionStage(GameRuntimeBattleSelectionStage stage);
     StringName GetLastManualUnitId();
     void SetLastManualUnitId(StringName unitId);
     IReadOnlyList<Vector2I> GetTargetCoords();

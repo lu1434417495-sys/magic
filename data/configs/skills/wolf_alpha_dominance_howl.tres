@@ -1,0 +1,112 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Howl_l0_1"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"ally"
+required_target_creature_type_tag = &"wolf"
+status_id = &"attack_roll_bonus_up"
+power = 1
+max_skill_level = 1
+duration_tu = 30
+stack_behavior = &"refresh"
+
+[sub_resource type="Resource" id="Howl_l2"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"ally"
+required_target_creature_type_tag = &"wolf"
+status_id = &"attack_roll_bonus_up"
+power = 1
+min_skill_level = 2
+max_skill_level = 2
+duration_tu = 40
+stack_behavior = &"refresh"
+
+[sub_resource type="Resource" id="Howl_l3"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"ally"
+required_target_creature_type_tag = &"wolf"
+status_id = &"attack_roll_bonus_up"
+power = 1
+min_skill_level = 3
+max_skill_level = 3
+duration_tu = 60
+stack_behavior = &"refresh"
+
+[sub_resource type="Resource" id="Howl_l4"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"ally"
+required_target_creature_type_tag = &"wolf"
+status_id = &"attack_roll_bonus_up"
+power = 1
+min_skill_level = 4
+max_skill_level = 4
+duration_tu = 80
+stack_behavior = &"refresh"
+
+[sub_resource type="Resource" id="Howl_l5"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"ally"
+required_target_creature_type_tag = &"wolf"
+status_id = &"attack_roll_bonus_up"
+power = 2
+min_skill_level = 5
+duration_tu = 80
+stack_behavior = &"refresh"
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
+skill_id = &"wolf_alpha_dominance_howl"
+target_mode = &"ground"
+target_team_filter = &"ally"
+range_value = 0
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 1
+stamina_cost = 20
+cooldown_tu = 120
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Howl_l0_1"), SubResource("Howl_l2"), SubResource("Howl_l3"), SubResource("Howl_l4"), SubResource("Howl_l5")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"wolf_alpha_dominance_howl"
+display_name = "统御长嚎"
+icon_id = &"wolf_alpha_dominance_howl"
+description = "强化自身及周围2格具有狼类标签的友军，提高攻击检定。效果刷新而不叠加。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+level_description_template = "自身周围2格的狼类友军攻击检定+{hit}，持续{duration}TU。消耗1AP/20体力，冷却120TU。"
+level_description_configs = {
+"1": {
+"hit": "1",
+"duration": "30"
+},
+"2": {
+"hit": "1",
+"duration": "40"
+},
+"3": {
+"hit": "1",
+"duration": "60"
+},
+"4": {
+"hit": "1",
+"duration": "80"
+},
+"5": {
+"hit": "2",
+"duration": "80"
+}
+}
+learn_source = &"internal"
+tags = Array[StringName]([&"internal", &"enemy", &"wolf", &"support"])
+combat_profile = SubResource("Combat")

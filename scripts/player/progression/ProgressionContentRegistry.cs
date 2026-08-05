@@ -722,6 +722,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         {
             KnownTraitIds = ReadOnlyKeySet(_traitDefIndex),
             KnownSkillIds = ReadOnlyKeySet(_skillDefinitionIndex),
+            WindupSkillIds = new HashSet<StringName>(
+                _skillDefinitionIndex
+                    .Values
+                    .Where(skill => skill?.CombatProfile?.Windup != null)
+                    .Select(skill => skill.SkillId)
+            ),
             KnownStatusIds =
                 EquipmentAbilityStatusDeclarationCatalog.CollectExternalStatusDeclarations(
                     _traitDefIndex.Values,

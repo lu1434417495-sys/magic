@@ -25,6 +25,7 @@ public sealed partial class EquipmentAbilityBindingDef : Resource
     [Export] public Godot.Collections.Array<EquipmentAbilityReactionDef> reactions { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentGrantedActionDef> granted_actions { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentTemporalProgressModifierDef> temporal_progress_modifiers { get; set; } = new();
+    [Export] public Godot.Collections.Array<EquipmentCognitionCeilingModifierDef> cognition_ceiling_modifiers { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentWeaponProfileOverlayDef> weapon_profile_overlays { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentWorldEffectDef> world_effects { get; set; } = new();
 }
@@ -368,6 +369,7 @@ public sealed partial class SummonUnitsActionPayloadDef : Resource
     [Export] public StringName control_mode { get; set; } = "ai";
     [Export] public StringName ai_brain_id { get; set; } = "";
     [Export] public StringName ai_state_id { get; set; } = "";
+    [Export] public StringName cognition_kind { get; set; } = "";
     [Export] public int hp_max { get; set; } = 1;
     [Export] public int armor_class { get; set; } = 10;
     [Export] public int attack_bonus { get; set; }
@@ -429,6 +431,13 @@ public sealed partial class EquipmentTemporalProgressModifierDef : Resource
     [Export] public int success_rate_percent { get; set; } = 200;
     [Export] public int failure_rate_percent { get; set; } = 50;
     [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class EquipmentCognitionCeilingModifierDef : Resource
+{
+    [Export] public StringName modifier_id { get; set; } = "";
+    [Export] public StringName cognition_ceiling { get; set; } = "";
 }
 
 [GlobalClass]

@@ -151,6 +151,7 @@ unit_id_prefix = &"wolf_bow_ghost_wolf"
 unit_display_name = "幽灵狼"
 body_size_category = &"medium"
 control_mode = &"ai"
+cognition_kind = &"instinctive"
 hp_max = 16
 armor_class = 13
 attack_bonus = 4

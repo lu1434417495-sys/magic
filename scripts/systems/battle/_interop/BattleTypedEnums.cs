@@ -85,6 +85,7 @@ internal enum BattleEffectKind
     ChainDamage,
     Charge,
     ForcedMove,
+    SourceRetreat,
     VaultBehindTarget,
     PathStepAoe,
     RepeatAttackUntilFail,
@@ -264,6 +265,7 @@ internal static class BattleTypedNames
         "equipment_durability_damage";
     internal static readonly StringName EffectExecute = "execute";
     internal static readonly StringName EffectForcedMove = "forced_move";
+    internal static readonly StringName EffectSourceRetreat = "source_retreat";
     internal static readonly StringName EffectVaultBehindTarget = "vault_behind_target";
     internal static readonly StringName EffectGradedSaveExecute = "graded_save_execute";
     internal static readonly StringName EffectHeal = "heal";
@@ -575,6 +577,8 @@ internal static class BattleTypedNames
             return BattleEffectKind.Charge;
         if (value == EffectForcedMove)
             return BattleEffectKind.ForcedMove;
+        if (value == EffectSourceRetreat)
+            return BattleEffectKind.SourceRetreat;
         if (value == EffectVaultBehindTarget)
             return BattleEffectKind.VaultBehindTarget;
         if (value == EffectPathStepAoe)
@@ -638,6 +642,7 @@ internal static class BattleTypedNames
             BattleEffectKind.ChainDamage => EffectChainDamage,
             BattleEffectKind.Charge => EffectCharge,
             BattleEffectKind.ForcedMove => EffectForcedMove,
+            BattleEffectKind.SourceRetreat => EffectSourceRetreat,
             BattleEffectKind.VaultBehindTarget => EffectVaultBehindTarget,
             BattleEffectKind.PathStepAoe => EffectPathStepAoe,
             BattleEffectKind.RepeatAttackUntilFail => EffectRepeatAttackUntilFail,
@@ -1021,6 +1026,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.ApplyStatus
                 or BattleEffectKind.BodySizeCategoryOverride
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.SourceRetreat
                 or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.Execute
                 or BattleEffectKind.GradedSaveExecute;

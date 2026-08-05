@@ -692,12 +692,17 @@ internal sealed class BattleUnitFieldsSnapshot
         _equipmentAbilityProjectionStateOwnerPresent = true;
     private List<BattleEquipmentAbilitySourceState> _equipmentAbilitySources = new();
     private List<BattleTemporalProgressModifierState> _temporalProgressModifiers = new();
+    private List<BattleCognitionCeilingModifierState>
+        _cognitionCeilingModifiers = new();
+    private BattleCognitionKind _baseCognitionKind =
+        BattleCognitionKind.Sapient;
     private bool _creatureTypeStateOwnerPresent = true;
     private List<StringName> _creatureTypeTags = new();
     private StringName _versatilityPick = "";
     private bool _weaponProjectionStateOwnerPresent = true;
     private StringName _weaponProfileKind = "";
     private StringName _weaponItemId = "";
+    private StringName _weaponInstanceId = "";
     private StringName _weaponProfileTypeId = "";
     private StringName _weaponRangeType = "";
     private StringName _weaponFamily = "";
@@ -707,6 +712,7 @@ internal sealed class BattleUnitFieldsSnapshot
     private WeaponDiceSnapshot _weaponTwoHandedDice = new();
     private bool _weaponIsVersatile;
     private bool _weaponUsesTwoHands;
+    private bool _weaponIsHeavy;
     private StringName _weaponPhysicalDamageTag = "";
     private StringNameIntMapSnapshot _cooldowns = new();
     private int _lastTurnTu;
@@ -891,6 +897,9 @@ internal sealed class BattleUnitFieldsSnapshot
             equipmentAbilityProjection.Sources;
         snapshot._temporalProgressModifiers =
             equipmentAbilityProjection.TemporalProgressModifiers;
+        snapshot._cognitionCeilingModifiers =
+            equipmentAbilityProjection.CognitionCeilingModifiers;
+        snapshot._baseCognitionKind = unit.GetBaseCognitionKindTyped();
         BattleUnitCreatureTypeSnapshot creatureTypes =
             unit.CaptureCreatureTypesForMutationSnapshotExact();
         snapshot._creatureTypeStateOwnerPresent =
@@ -909,6 +918,7 @@ internal sealed class BattleUnitFieldsSnapshot
             weaponProjection.OwnerPresent;
         snapshot._weaponProfileKind = weaponValues.ProfileKind;
         snapshot._weaponItemId = weaponValues.ItemId;
+        snapshot._weaponInstanceId = weaponValues.InstanceId;
         snapshot._weaponProfileTypeId = weaponValues.ProfileTypeId;
         snapshot._weaponRangeType = weaponValues.RangeType;
         snapshot._weaponFamily = weaponValues.Family;
@@ -920,6 +930,7 @@ internal sealed class BattleUnitFieldsSnapshot
             WeaponDiceSnapshot.FromExact(weaponValues.TwoHandedDice);
         snapshot._weaponIsVersatile = weaponValues.IsVersatile;
         snapshot._weaponUsesTwoHands = weaponValues.UsesTwoHands;
+        snapshot._weaponIsHeavy = weaponValues.IsHeavy;
         snapshot._weaponPhysicalDamageTag =
             weaponValues.PhysicalDamageTag;
         BattleUnitCooldownSnapshot cooldownState =
@@ -1150,12 +1161,31 @@ internal sealed class BattleUnitFieldsSnapshot
                 )
         );
         result.Set(
+            "cognition_ceiling_modifiers",
+            !_equipmentAbilityProjectionStateOwnerPresent
+                ? StableValue.FromText(
+                    "<missing-equipment-ability-projection-owner>"
+                )
+                : _cognitionCeilingModifiers == null
+                ? StableValue.Nil()
+                : StableValue.FromArray(
+                    BattleAiMutationStableProjection.StableCognitionCeilingModifiers(
+                        _cognitionCeilingModifiers
+                    )
+                )
+        );
+        result.Set(
+            "cognition_kind",
+            StableValue.FromInteger((int)_baseCognitionKind)
+        );
+        result.Set(
             "creature_type_tags",
             StableCreatureTypeTags()
         );
         result.Set("versatility_pick", BattleAiMutationStableProjection.StableNullableStringName(_versatilityPick));
         result.Set("weapon_profile_kind", StableWeaponProfileKind());
         result.Set("weapon_item_id", BattleAiMutationStableProjection.StableNullableStringName(_weaponItemId));
+        result.Set("weapon_instance_id", BattleAiMutationStableProjection.StableNullableStringName(_weaponInstanceId));
         result.Set("weapon_profile_type_id", BattleAiMutationStableProjection.StableNullableStringName(_weaponProfileTypeId));
         result.Set("weapon_range_type", BattleAiMutationStableProjection.StableNullableStringName(_weaponRangeType));
         result.Set("weapon_family", BattleAiMutationStableProjection.StableNullableStringName(_weaponFamily));
@@ -1165,6 +1195,7 @@ internal sealed class BattleUnitFieldsSnapshot
         result.Set("weapon_two_handed_dice", _weaponTwoHandedDice.ToStableValue());
         result.Set("weapon_is_versatile", StableValue.FromBool(_weaponIsVersatile));
         result.Set("weapon_uses_two_hands", StableValue.FromBool(_weaponUsesTwoHands));
+        result.Set("weapon_is_heavy", StableValue.FromBool(_weaponIsHeavy));
         result.Set("weapon_physical_damage_tag", BattleAiMutationStableProjection.StableNullableStringName(_weaponPhysicalDamageTag));
         result.Set("cooldowns", _cooldowns.ToStableValue());
         result.Set("last_turn_tu", StableValue.FromInteger(_lastTurnTu));

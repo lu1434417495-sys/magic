@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
 // A2.1 data-layer regression: locks the command_dock / hint_text /
@@ -16,6 +17,7 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
         {
             TestManualUnitActingDockAndHint();
             TestSelectedSkillDockAndSingleTargetHint();
+            TestWindupSkillDockAndHint();
             TestModalBlockDisablesDock();
             TestAutoModeHint();
             TestRecentBattleLogLinesTrimAndOrder();
@@ -72,6 +74,45 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
         _test.False(dock.ResolveEnabled, "模态阻断时 resolve_enabled 应为假。");
         _test.False(dock.ClearSkillEnabled, "模态阻断时 clear_skill_enabled 应为假。");
         _test.Eq(Hint(snapshot), "战斗结算中…请稍候", "模态阻断时应提示战斗结算中。");
+    }
+
+    private void TestWindupSkillDockAndHint()
+    {
+        using BattleTestFixture fixture = BuildFixture(
+            out BattleUnitState caster,
+            "manual"
+        );
+        SkillDefinition windupSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/warrior_heavy_blow.tres",
+            "battle_command_dock_windup"
+        );
+        caster.AddKnownActiveSkill(windupSkill.SkillId);
+        caster.SetKnownSkillLevelTyped(windupSkill.SkillId, 2);
+        caster.attribute_snapshot.SetValue("constitution_modifier", 4);
+        using var adapter = new BattleHudAdapter();
+        adapter.SetupRuntimeContext(new WindupHudContext(fixture.State, windupSkill));
+        BattleHudSnapshot snapshot = adapter.BuildSnapshot(
+            fixture.State,
+            new Vector2I(1, 1),
+            windupSkill.SkillId,
+            windupSkill.DisplayName,
+            "蓄力 1 挡 · 10 TU · 18 体力 · 2W",
+            Array.Empty<Vector2I>(),
+            1,
+            Array.Empty<StringName>(),
+            new StringName(""),
+            "遭遇",
+            null
+        );
+        BattleHudCommandDockSnapshot dock = snapshot.CommandDock;
+
+        _test.True(dock.PrevVariantEnabled, "多个蓄力挡位时 Q 向前切换应启用。");
+        _test.True(dock.NextVariantEnabled, "多个蓄力挡位时 E 向后切换应启用。");
+        _test.Eq(
+            Hint(snapshot),
+            "左键选择目标释放；Esc 清除未确认选择，Q/E 调整蓄力挡位",
+            "蓄力技能 HUD 应区分未确认选择与进入 pending 后不可取消。"
+        );
     }
 
     private void TestAutoModeHint()
@@ -140,4 +181,54 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
     }
 
     private static string Hint(BattleHudSnapshot snapshot) => snapshot?.HintText ?? "";
+
+    private sealed class WindupHudContext : IBattleHudContext
+    {
+        private static readonly IReadOnlyDictionary<
+            StringName,
+            EquipmentAbilityBindingDefinition
+        > EmptyBindings = new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+        private static readonly IReadOnlyDictionary<StringName, ItemDefinition> EmptyItems =
+            new Dictionary<StringName, ItemDefinition>();
+        private readonly BattleState _state;
+        private readonly IReadOnlyDictionary<StringName, SkillDefinition> _skills;
+
+        internal WindupHudContext(BattleState state, SkillDefinition skillDefinition)
+        {
+            _state = state;
+            _skills = new Dictionary<StringName, SkillDefinition>
+            {
+                [skillDefinition.SkillId] = skillDefinition,
+            };
+        }
+
+        public BattleState GetBattleState() => _state;
+
+        public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+            GetEquipmentAbilityBindings() => EmptyBindings;
+
+        public int GetBattleWorldStep() => 0;
+
+        public BattlePreview PreviewBattleCommand(BattleCommand command) => null;
+
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefinitions() =>
+            EmptyItems;
+
+        public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitions() =>
+            _skills;
+
+        public ISkillCatalog GetSkillCatalog() => null;
+
+        public PartyMemberState GetPartyMemberState(StringName memberId) => null;
+
+        public AttributeSnapshot GetMemberAttributeSnapshotForEquipmentView(
+            StringName memberId,
+            EquipmentState equipmentView
+        ) => null;
+
+        public string GetBattleSkillCastBlockMessage(
+            BattleUnitState activeUnit,
+            StringName skillId
+        ) => "";
+    }
 }

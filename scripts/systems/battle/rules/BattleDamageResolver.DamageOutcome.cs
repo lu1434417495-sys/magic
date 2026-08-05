@@ -303,7 +303,10 @@ public partial class BattleDamageResolver
         int guardBlock = mitigation.GuardBlock;
         int guardIgnoreApplied = mitigation.GuardIgnoreApplied;
         int fixedMitigationTotal = mitigation.Total;
-        int resolvedDamage = Math.Max(tierAdjustedDamage - fixedMitigationTotal, MinDamageFloor);
+        int resolvedDamage = Math.Max(
+            tierAdjustedDamage - fixedMitigationTotal,
+            ResolveFixedMitigationDamageFloor(tierAdjustedDamage, mitigation)
+        );
         DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
             criticalHit,
             damageRoll,
@@ -471,7 +474,10 @@ public partial class BattleDamageResolver
             sourceUnit
         );
         TrimFixedMitigationSources(mitigation);
-        int resolvedDamage = Math.Max(tierAdjustedDamage - mitigation.Total, MinDamageFloor);
+        int resolvedDamage = Math.Max(
+            tierAdjustedDamage - mitigation.Total,
+            ResolveFixedMitigationDamageFloor(tierAdjustedDamage, mitigation)
+        );
         DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
             false,
             damageRoll,
@@ -668,7 +674,7 @@ public partial class BattleDamageResolver
         TrimFixedMitigationSources(mitigation);
         int resolvedDamage = Math.Max(
             tierAdjustedDamage - mitigation.Total,
-            MinDamageFloor
+            ResolveFixedMitigationDamageFloor(tierAdjustedDamage, mitigation)
         );
         DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
             criticalHit,
@@ -803,7 +809,10 @@ public partial class BattleDamageResolver
         );
         TrimFixedMitigationSources(mitigation);
         int fixedMitigationTotal = mitigation.Total;
-        int resolvedDamage = Math.Max(tierAdjustedDamage - fixedMitigationTotal, MinDamageFloor);
+        int resolvedDamage = Math.Max(
+            tierAdjustedDamage - fixedMitigationTotal,
+            ResolveFixedMitigationDamageFloor(tierAdjustedDamage, mitigation)
+        );
         DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
             criticalHit,
             DicePoolRollResult.Empty,

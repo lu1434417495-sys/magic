@@ -16,9 +16,10 @@ template_id = &"worg"
 display_name = "座狼"
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
-creature_level = 3
+creature_level = 1
 hit_die_sides = 10
 action_threshold = 30
+cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 save_advantage_tags = Array[StringName]([&"charm"])
 base_attribute_overrides = {
@@ -29,7 +30,7 @@ base_attribute_overrides = {
 &"intelligence": 6,
 &"willpower": 9,
 }
-skill_ids = Array[StringName]([&"basic_attack"])
+skill_ids = Array[StringName]([&"basic_attack", &"charge"])
 drop_entries = Array[Resource]([SubResource("Resource_drop_worg_hide")])
 attribute_overrides = {
 &"mp_max": 0,

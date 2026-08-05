@@ -123,6 +123,7 @@ unit_id_prefix = &"ravenplume_crow"
 unit_display_name = "乌鸦"
 body_size_category = &"tiny"
 control_mode = &"ai"
+cognition_kind = &"instinctive"
 hp_max = 1
 armor_class = 12
 creature_type_tags = Array[StringName]([&"beast", &"familiar", &"summoned"])

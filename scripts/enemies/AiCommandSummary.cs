@@ -12,6 +12,7 @@ public sealed class AiCommandSummary
     public List<StringName> TargetUnitIds { get; } = new();
     public Vector2I TargetCoord { get; set; } = Vector2I.Zero;
     public List<Vector2I> TargetCoords { get; } = new();
+    public Vector2I SourceRetreatDirection { get; set; } = Vector2I.Zero;
 
     public AiCommandSummary() { }
 
@@ -23,7 +24,8 @@ public sealed class AiCommandSummary
         string p_target_unit_id,
         IEnumerable<StringName> p_target_unit_ids,
         Vector2I p_target_coord,
-        IEnumerable<Vector2I> p_target_coords
+        IEnumerable<Vector2I> p_target_coords,
+        Vector2I p_source_retreat_direction = default
     )
     {
         CommandType = p_command_type ?? "";
@@ -34,6 +36,7 @@ public sealed class AiCommandSummary
         AddStringNames(TargetUnitIds, p_target_unit_ids);
         TargetCoord = p_target_coord;
         AddCoords(TargetCoords, p_target_coords);
+        SourceRetreatDirection = p_source_retreat_direction;
     }
 
     public static AiCommandSummary FromCommand(BattleCommand command)
@@ -57,7 +60,8 @@ public sealed class AiCommandSummary
             command.target_unit_id.ToString(),
             targetUnitIds,
             command.target_coord,
-            targetCoords
+            targetCoords,
+            command.source_retreat_direction
         );
     }
 
@@ -71,7 +75,8 @@ public sealed class AiCommandSummary
             TargetUnitId,
             TargetUnitIds,
             TargetCoord,
-            TargetCoords
+            TargetCoords,
+            SourceRetreatDirection
         );
     }
 
@@ -87,6 +92,7 @@ public sealed class AiCommandSummary
             ["target_unit_ids"] = new List<StringName>(TargetUnitIds),
             ["target_coord"] = TargetCoord,
             ["target_coords"] = new List<Vector2I>(TargetCoords),
+            ["source_retreat_direction"] = SourceRetreatDirection,
         };
     }
 

@@ -15,6 +15,7 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
         {
             TestBaseRangeHandlesNullSkill();
             TestRangeUsesWeaponProjectionAndStatusLayer();
+            TestAimedShotAllowsBowAndNaturalWeaponButRejectsUnarmed();
             TestGroundAreaThreatRangeIncludesOuterEdge();
 
             RequestTestExit(_test.Finish("Battle range service contract regression"));
@@ -171,6 +172,89 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
             3,
             3,
             "front_arc"
+        );
+    }
+
+    private void TestAimedShotAllowsBowAndNaturalWeaponButRejectsUnarmed()
+    {
+        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        bool foundSkill = registry.GetSkillDefinitionsTyped().TryGetValue(
+            "archer_aimed_shot",
+            out SkillDefinition aimedShot
+        );
+        _test.True(foundSkill && aimedShot != null, "正式技能内容应包含精准射击。");
+        if (!foundSkill || aimedShot == null)
+        {
+            return;
+        }
+
+        BattleUnitState bowUser = BuildUnit("aimed_shot_bow_user");
+        bowUser.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = "equipped",
+                weapon_profile_type_id = "longbow",
+                weapon_range_type = "ranged",
+                weapon_family = "bow",
+                weapon_current_grip = "two_handed",
+                weapon_attack_range = 6,
+                weapon_one_handed_dice = new WeaponDice
+                {
+                    dice_count = 1,
+                    dice_sides = 8,
+                },
+                weapon_physical_damage_tag = "physical_pierce",
+            }
+        );
+
+        BattleUnitState naturalWeaponUser = BuildUnit("aimed_shot_natural_user");
+        naturalWeaponUser.SetNaturalWeaponProjectionTyped(
+            "mist_spine",
+            "physical_pierce",
+            5,
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 6,
+            }
+        );
+
+        BattleUnitState unarmedUser = BuildUnit("aimed_shot_unarmed_user");
+        unarmedUser.SetUnarmedWeaponProjectionTyped(
+            "physical_blunt",
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 4,
+            },
+            1
+        );
+
+        AssertAimedShotWeaponSourceAllowed(bowUser, aimedShot, true, "弓");
+        AssertAimedShotWeaponSourceAllowed(naturalWeaponUser, aimedShot, true, "天生武器");
+        AssertAimedShotWeaponSourceAllowed(unarmedUser, aimedShot, false, "徒手");
+        _test.Eq(
+            BattleRangeService.GetEffectiveSkillRange(naturalWeaponUser, aimedShot),
+            5,
+            "天生武器使用精准射击时应沿用天生武器射程。"
+        );
+    }
+
+    private void AssertAimedShotWeaponSourceAllowed(
+        BattleUnitState unit,
+        SkillDefinition aimedShot,
+        bool expected,
+        string sourceLabel
+    )
+    {
+        bool allowed =
+            BattleRangeService.UnitMatchesRequiredWeaponFamilies(unit, aimedShot)
+            && BattleRangeService.UnitMatchesRequiredWeaponTypeIds(unit, aimedShot)
+            && BattleRangeService.UnitHasAllowedWeaponForSkill(unit, aimedShot);
+        _test.Eq(
+            allowed,
+            expected,
+            $"精准射击的{sourceLabel}武器资格应为{expected}。"
         );
     }
 

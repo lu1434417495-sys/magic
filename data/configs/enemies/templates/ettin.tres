@@ -20,6 +20,7 @@ body_size = 3
 creature_level = 7
 hit_die_sides = 10
 action_threshold = 50
+cognition_kind = &"sapient"
 tags = Array[StringName]([&"giant", &"ettin"])
 save_advantage_tags = Array[StringName]([&"sleep", &"illusion"])
 attack_equipment_item_id = &"iron_greatclub"

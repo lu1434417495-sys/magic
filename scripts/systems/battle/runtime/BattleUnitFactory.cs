@@ -819,25 +819,31 @@ internal sealed class BattleUnitFactory
             if (
                 !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
                     us,
-                    combatProfile.RequiredWeaponFamilies
+                    skillDefinition
                 )
             )
                 continue;
             if (
                 !BattleRangeService.UnitMatchesRequiredWeaponTypeIds(
                     us,
-                    combatProfile.RequiredWeaponTypeIds
+                    skillDefinition
                 )
             )
                 continue;
             if (
                 BattleRangeService.RequiresCurrentWeapon(skillDefinition)
-                && !BattleRangeService.UnitHasEquippedWeapon(us)
+                && !BattleRangeService.UnitHasAllowedWeaponForSkill(
+                    us,
+                    skillDefinition
+                )
             )
                 continue;
             if (
                 BattleRangeService.RequiresCurrentMeleeWeapon(skillDefinition)
-                && !BattleRangeService.UnitHasMeleeWeapon(us)
+                && !BattleRangeService.UnitHasAllowedMeleeWeaponForSkill(
+                    us,
+                    skillDefinition
+                )
             )
                 continue;
             f.Add(sid);
@@ -1083,7 +1089,8 @@ internal sealed class BattleUnitFactory
                 );
         us.ReplaceEquipmentAbilityProjectionTyped(
             projection.Sources,
-            projection.TemporalProgressModifiers
+            projection.TemporalProgressModifiers,
+            projection.CognitionCeilingModifiers
         );
     }
 

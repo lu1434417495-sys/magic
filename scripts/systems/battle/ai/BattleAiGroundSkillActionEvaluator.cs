@@ -737,7 +737,10 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             StringName targetFilter = effectDef.EffectTargetTeamFilter != ""
                 ? effectDef.EffectTargetTeamFilter
                 : combatProfile.TargetTeamFilter;
-            if (MatchesTargetFilter(context, targetUnit, targetFilter))
+            if (
+                MatchesTargetFilter(context, targetUnit, targetFilter)
+                && BattleEffectTargetRequirementRules.IsSatisfied(effectDef, targetUnit)
+            )
             {
                 return true;
             }

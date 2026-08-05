@@ -123,13 +123,15 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleUnitState active_unit,
         BattleCommand command,
         SkillDefinition skillDefinition,
-        CombatCastVariantDefinition cast_variant = null
+        CombatCastVariantDefinition cast_variant = null,
+        bool requireAp = true
     ) =>
         _targetValidationService._validate_unit_skill_targets_result(
             active_unit,
             command,
             skillDefinition,
-            cast_variant
+            cast_variant,
+            requireAp
         );
 
     internal void _apply_chain_damage_effects(
@@ -1166,6 +1168,37 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             return false;
         }
         SkillDefinition skillDefinition = Runtime.GetSkillDefinitionTyped(pending_cast.SkillId);
+        if (pending_cast.IsWindup)
+        {
+            var validationCommand = new BattleCommand
+            {
+                CommandKind = BattleCommandKind.Skill,
+                unit_id = active_unit.unit_id,
+                skill_id = pending_cast.SkillId,
+                skill_variant_id = pending_cast.VariantId,
+                windup_tier = pending_cast.WindupSnapshot?.Tier ?? 0,
+            };
+            validationCommand.SetTargetUnitIds(pending_cast.TargetUnitIds);
+            if (pending_cast.TargetUnitIds.Count > 0)
+            {
+                validationCommand.target_unit_id = pending_cast.TargetUnitIds[0];
+            }
+            BattleUnitSkillValidationResult completionValidation =
+                _validate_unit_skill_targets_result(
+                    active_unit,
+                    validationCommand,
+                    skillDefinition,
+                    null,
+                    requireAp: false
+                );
+            if (!completionValidation.Allowed)
+            {
+                batch?.AddLogLine(
+                    $"{active_unit.display_name} 的 {skillDefinition?.DisplayName ?? pending_cast.SkillId.ToString()} 蓄力完成，但目标已不在有效攻击范围或视线内，攻击落空。"
+                );
+                return false;
+            }
+        }
         CombatCastVariantDefinition castVariantDefinition =
             pending_cast.TargetMode == BattleTargetMode.Ground
                 ? Runtime?._skill_resolution_rules?.ResolveGroundCastVariantDefinition(
@@ -1192,6 +1225,15 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 castVariantDefinition,
                 active_unit
             );
+            if (pending_cast.WindupSnapshot is BattleWindupSnapshot windupSnapshot)
+            {
+                effectDefinitions = new List<CombatEffectDefinition>(
+                    BattleWindupRules.ApplyWeaponDiceMultiplier(
+                        effectDefinitions,
+                        windupSnapshot.WeaponDiceMultiplier
+                    )
+                );
+            }
             bool definitionApplied = ResolvePendingUnitCast(
                 active_unit,
                 pending_cast,
@@ -1509,12 +1551,23 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         IReadOnlyList<CombatEffectDefinition> resolvedEffectDefinitions =
             effectDefinitions
             ?? CollectUnitSkillEffectDefinitions(skillDefinition, castVariantDefinition, active_unit);
+        CombatEffectDefinition sourceRetreatEffect =
+            BattleSourceRetreatRules.FindEffect(resolvedEffectDefinitions);
         if (
             !CanApplyUnitSkillOrRepeatResultFromDefinitions(resolvedEffectDefinitions)
         )
         {
             return false;
         }
+        if (sourceRetreatEffect != null && isRandomChain)
+        {
+            return false;
+        }
+
+        Vector2I sourceRetreatTargetCoord =
+            sourceRetreatEffect != null && validation.TargetUnits.Count == 1
+                ? validation.TargetUnits[0].GetAnchorCoord()
+                : new Vector2I(-1, -1);
 
         if (!_consume_skill_costs(active_unit, skillDefinition, castVariantDefinition, batch))
         {
@@ -1596,6 +1649,17 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             {
                 applied = true;
             }
+        }
+        if (sourceRetreatEffect != null)
+        {
+            Runtime?._movement_service.ExecuteSourceRetreat(
+                active_unit,
+                sourceRetreatTargetCoord,
+                command.source_retreat_direction,
+                sourceRetreatEffect.SourceRetreatDistance,
+                batch
+            );
+            applied = true;
         }
         return applied;
     }

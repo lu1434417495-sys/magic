@@ -1,6 +1,12 @@
 using System.Collections.Generic;
 using Godot;
 
+public enum GameRuntimeBattleSelectionStage
+{
+    Target = 0,
+    SourceRetreatDirection,
+}
+
 public sealed class GameRuntimeBattleSelectionState
 {
     public Vector2I battle_selected_coord { get; set; } = new Vector2I(-1, -1);
@@ -10,6 +16,11 @@ public sealed class GameRuntimeBattleSelectionState
     public StringName selected_skill_id { get; set; } = "";
 
     public StringName selected_skill_variant_id { get; set; } = "";
+
+    public int selected_windup_tier { get; set; } = 1;
+
+    public GameRuntimeBattleSelectionStage selection_stage { get; set; } =
+        GameRuntimeBattleSelectionStage.Target;
 
     public List<Vector2I> queued_target_coords { get; } = new();
 
@@ -48,6 +59,8 @@ public sealed class GameRuntimeBattleSelectionState
         queued_target_coords.Clear();
 
         queued_target_unit_ids.Clear();
+
+        selection_stage = GameRuntimeBattleSelectionStage.Target;
     }
 
     public void ClearSkillSelection(bool reset_last_manual = false)
@@ -57,6 +70,10 @@ public sealed class GameRuntimeBattleSelectionState
         selected_skill_id = "";
 
         selected_skill_variant_id = "";
+
+        selected_windup_tier = 1;
+
+        selection_stage = GameRuntimeBattleSelectionStage.Target;
 
         ClearTargets();
         if (reset_last_manual)

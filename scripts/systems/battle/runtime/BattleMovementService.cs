@@ -62,7 +62,7 @@ internal class BattleMovementService
         return coords;
     }
 
-    private bool IsMovementBlocked(BattleUnitState unit_state)
+    internal bool IsMovementBlocked(BattleUnitState unit_state)
     {
         return _runtime != null && _runtime._is_movement_blocked(unit_state);
     }
@@ -78,6 +78,111 @@ internal class BattleMovementService
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_PARALYZED)
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS)
             );
+    }
+
+    internal BattleSourceRetreatPlan BuildSourceRetreatPlan(
+        BattleUnitState sourceUnit,
+        Vector2I targetCoord,
+        Vector2I direction,
+        int distance
+    )
+    {
+        return BattleSourceRetreatRules.BuildPlan(
+            State,
+            GridService,
+            LayeredBarrierService,
+            sourceUnit,
+            targetCoord,
+            direction,
+            distance,
+            IsMovementBlocked(sourceUnit)
+        );
+    }
+
+    internal BattleSourceRetreatPlan BuildSourceRetreatPlan(
+        BattleUnitReadView sourceUnit,
+        Vector2I targetCoord,
+        Vector2I direction,
+        int distance
+    )
+    {
+        return BattleSourceRetreatRules.BuildPlan(
+            State,
+            GridService,
+            LayeredBarrierService,
+            sourceUnit,
+            targetCoord,
+            direction,
+            distance,
+            IsMovementBlocked(sourceUnit)
+        );
+    }
+
+    internal int ExecuteSourceRetreat(
+        BattleUnitState sourceUnit,
+        Vector2I targetCoord,
+        Vector2I direction,
+        int distance,
+        BattleEventBatch batch
+    )
+    {
+        BattleSourceRetreatPlan plan = BuildSourceRetreatPlan(
+            sourceUnit,
+            targetCoord,
+            direction,
+            distance
+        );
+        if (!plan.Allowed)
+        {
+            AppendLog(
+                batch,
+                string.IsNullOrEmpty(plan.Message)
+                    ? "当前无法完成后撤。"
+                    : plan.Message
+            );
+            return 0;
+        }
+        if (plan.Path.Count <= 1)
+        {
+            AppendLog(batch, $"{sourceUnit.display_name} 的后撤路径起点即被阻挡，停在原地。");
+            return 0;
+        }
+
+        Vector2I previousAnchor = sourceUnit.GetAnchorCoord();
+        List<Vector2I> previousCoords = CloneCoords(
+            sourceUnit.GetOccupiedCoordsReadViewTyped()
+        );
+        BattleValidatedMoveExecutionResult executionResult =
+            MoveUnitAlongValidatedPathTyped(
+                sourceUnit,
+                plan.Path,
+                plan.FinalCoord,
+                batch
+            );
+        int movedSteps = Math.Max(executionResult.ExecutedPath.Count - 1, 0);
+        if (movedSteps <= 0)
+        {
+            AppendLog(batch, $"{sourceUnit.display_name} 的后撤落点已经失效，停在原地。");
+            return 0;
+        }
+
+        batch?.AddChangedUnitId(sourceUnit.unit_id);
+        AppendChangedCoords(batch, previousCoords);
+        AppendChangedUnitCoords(batch, sourceUnit);
+        Vector2I finalAnchor = sourceUnit.GetAnchorCoord();
+        AppendLog(
+            batch,
+            movedSteps < Math.Max(distance, 0)
+                ? $"{sourceUnit.display_name} 沿选定方向后撤 {movedSteps} 格，并在阻挡前停下。"
+                : $"{sourceUnit.display_name} 沿选定方向后撤 {movedSteps} 格。"
+        );
+        _runtime?.EmitContingencyPositionChanged(
+            sourceUnit,
+            previousAnchor,
+            finalAnchor,
+            _runtime.AllocateContingencySourceEventId("position_changed")
+        );
+        return movedSteps;
     }
 
     private bool HasStatus(BattleUnitState unit_state, StringName status_id)
