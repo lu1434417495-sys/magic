@@ -2,6 +2,8 @@
 
 > 本文档为 20 套传奇装备（共 100 件）定义具体的套装触发机制与效果数值，并给出代码实现建议。
 > 所有效果均基于现有 `ItemDef.tag` 标记体系设计，可直接在 `PartyEquipmentService.build_attribute_modifiers()` 中落地。
+>
+> **获取阶段规则**：套装统一属于角色 10 级以后的高阶装备，部分套装可定位于 20 级阶段；不得使用角色创建数值、普通低级装备或 4–5 级敌人作为套装强度基线。每套装备在正式内容冻结前仍须明确自己的推荐等级区间和掉落、任务、锻造或商店获取 owner。
 
 ---
 
@@ -253,12 +255,16 @@ class SetThresholdEffect:
 
 **主题**：以龙之道还龙之身，屠龙者终成龙的守护。
 
+> **完整落地说明**：本节阈值效果与 `sets_06_to_10.md` 的四件基础属性、单件特殊效果一并交付，不允许只落静态 modifier。旧稿的 `resistance_fire +10` 与当前抗性 schema 冲突，数值直接废止；正式内容通过 threshold trait 的 `damage_resistance_entries` 授予 `fire=half`，不换算为百分比或固定 DR。套装 membership、derived battle source、dragon breath 条件 tier、fear save、每日用量 owner、preview/AI/save/UI 的字段级方案见 [龙鳞铠甲套装完整落地方案](../../proposals/inventory/dragon_scale_set_full_landing.md)。
+
 #### 2件套 · 龙之威慑
 > *"龙鳞不只是防御，它是警告——告诉所有龙，有人曾经撕下过它们的逆鳞。"*
 
 - **触发条件**：穿戴任意 2 件 `dragon_scale_set`
 - **效果**：
-  - `attribute_modifiers`: `[{ attribute_id = "resistance_fire", mode = "flat", value = 10 }, { attribute_id = "saving_throw_fear", mode = "flat", value = 3 }]`
+  - threshold trait 授予 `fire=half`
+  - `attribute_modifiers`: `[{ attribute_id = "saving_throw_fear", mode = "flat", value = 3 }]`
+  - `saving_throw_fear +3` 与龙鳞胫甲的同类 `+3` 按 `add` 相加；完整套装的 trait 加值为 `+6`
   - 特殊：免疫龙类「frightful presence」（龙威）
 - **视觉表现**：角色面对龙类敌人时，铠甲龙鳞微微竖立，反射对应龙种的颜色。
 
@@ -269,9 +275,9 @@ class SetThresholdEffect:
 - **效果**：
   - 属性：对 dragon 类型生物，`attack_bonus` +2
   - 战斗触发（`special_effect_id = "dragon_slayer_oath"`）：
-    - 对 dragon 类型生物，所有伤害额外 +2D6（龙鳞共鸣反制龙血）
+    - 对 dragon 类型生物，每次实际主直接伤害结算额外 +1D4（龙鳞共鸣反制龙血）；重复攻击、随机链与其他多段攻击逐个独立结算触发，不设每次施放上限，但 `extra_damage_segments`、持续/地形/反射伤害和装备生成伤害不再次触发
     - 受到 dragon 的 breath weapon 时，免疫该 breath 对应元素伤害的 50%（龙鳞预判吐息属性）
-    - 每日一次，「龙血沸腾」：1 分钟内，对 dragon 的攻击检定 +3，且每次命中回复 1D6 HP（最高 3 次）
+    - 每日一次，「龙血沸腾」：持续 300 TU，对 dragon 的攻击检定 +3，且每次命中回复 1D6 HP（最高 3 次）；持续时间只按战斗时间线结算，不映射现实秒或分钟
 - **视觉表现**：面对龙类时，铠甲五处龙鳞同时发光，胸甲浮现屠龙誓言符文。
 
 ---
@@ -547,7 +553,7 @@ class SetThresholdEffect:
 | 大地守护者 | 免疫位移，震反，大地之握 | 坦克 |
 | 风暴行者 | 近战 +1D6 lightning，蓄电，风暴优势 | 战士/游侠 |
 | 亡灵收割者 | 击杀回 2D8 HP，斩杀线 +2D6 necrotic | 战士/死灵 |
-| 龙鳞铠甲 | 对龙 +2D6，龙息减半，龙血沸腾 | 屠龙特化 |
+| 龙鳞铠甲 | 对龙每次主直接伤害 +1D4，龙息减半，龙血沸腾 | 屠龙特化 |
 | 铁壁要塞 | 团队减伤 25%，坚守阵地，免疫暴击 | 纯坦克 |
 | 古代帝王 | 众敌 AC +3，低等级 +1D6，帝王敕令 | 领导型战士 |
 
