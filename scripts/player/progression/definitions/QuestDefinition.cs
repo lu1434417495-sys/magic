@@ -41,7 +41,7 @@ public sealed class QuestObjectiveDefinition
         ObjectiveType = objectiveType;
         TargetId = targetId;
         TargetValue = targetValue;
-        EncounterProfileId = encounterProfileId;
+        EncounterProfileId = encounterProfileId ?? new StringName("");
         EncounterDisplayName = IdentityDefinitionProjection.CopyString(
             encounterDisplayName,
             "QuestObjectiveDefinition.EncounterDisplayName"

@@ -231,6 +231,7 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
             enemy_count = 1,
             body_size = BattleUnitState.BodySizeMedium,
             action_threshold = BattleUnitState.DefaultActionThreshold,
+            cognition_kind = "sapient",
             target_rank = "boss",
         };
         using EnemyTemplateDef guardTemplateResource = new()
@@ -240,6 +241,7 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
             enemy_count = 1,
             body_size = BattleUnitState.BodySizeMedium,
             action_threshold = BattleUnitState.DefaultActionThreshold,
+            cognition_kind = "sapient",
         };
         var itemDefinitions = new Dictionary<StringName, ItemDefinition>();
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
