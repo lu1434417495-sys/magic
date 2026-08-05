@@ -227,6 +227,8 @@ attribute_modifiers = [
 
 **套装主题**：屠龙者公会「龙血誓言」历代精英的战利品熔铸而成。每一代屠龙者都会将猎获的龙鳞贡献给公会，由大师铁匠锻造成装备。集齐四件时，穿戴者获得「龙血沸腾」——对龙类敌人伤害提升，且免疫对应龙种的吐息伤害。
 
+> **实现口径**：主题句中的“免疫吐息”以 `set_bonus_design.md` 的详细规则“dragon breath 获得 `half` mitigation tier”为准。本文旧片段中的 `resistance_fire/cold/lightning +15/+5` 与当前抗性 schema 冲突，数值直接废止，不换算为百分比或固定 DR；正式内容按“抗性 = `half`、免疫 = `immune`、弱点 = `double`”写入 trait `damage_resistance_entries`，其中 `cold` 归一化为 `freeze`。四件基础属性、每件“特殊效果（设计预留）”以及 2/4 件套效果均属于完整交付范围；相同的 `half` 不重复乘算。龙鳞套只在角色 10 级以后进入获取区间，具体是 10–12、15–17 还是 18–20 级档由正式获取内容冻结。字段归一化、叠加规则和缺失接口见 [龙鳞铠甲套装完整落地方案](../../proposals/inventory/dragon_scale_set_full_landing.md)。
+
 **历史渊源**：龙血誓言的创始人「第一屠龙者」西格德，原本是一位被龙焰烧毁家园的孤儿。他在废墟中捡到了一片龙鳞，发现龙焰无法烧毁龙鳞本身——"如果龙的武器无法伤害龙，那就用龙来对抗龙。"
 
 ---
@@ -247,9 +249,9 @@ equipment_type_id = "armor"
 max_dex_bonus = 1
 base_price = 20000
 attribute_modifiers = [
-    { attribute_id = "armor_ac_bonus", mode = "flat", value = 2, source_type = "equipment", source_id = "armor_dragon_scale_head" },
-    { attribute_id = "resistance_fire", mode = "flat", value = 15, source_type = "equipment", source_id = "armor_dragon_scale_head" }
+    { attribute_id = "armor_ac_bonus", mode = "flat", value = 2, source_type = "equipment", source_id = "armor_dragon_scale_head" }
 ]
+trait_ids = ["armor.dragon_scale.head.fire_resistance"]
 ```
 
 **特殊效果（设计预留）**：对dragon类型生物的攻击检定+2。
@@ -273,11 +275,9 @@ max_dex_bonus = 1
 base_price = 36000
 attribute_modifiers = [
     { attribute_id = "armor_ac_bonus", mode = "flat", value = 7, source_type = "equipment", source_id = "armor_dragon_scale_body" },
-    { attribute_id = "resistance_fire", mode = "flat", value = 5, source_type = "equipment", source_id = "armor_dragon_scale_body" },
-    { attribute_id = "resistance_cold", mode = "flat", value = 5, source_type = "equipment", source_id = "armor_dragon_scale_body" },
-    { attribute_id = "resistance_lightning", mode = "flat", value = 5, source_type = "equipment", source_id = "armor_dragon_scale_body" },
     { attribute_id = "max_hp", mode = "flat", value = 10, source_type = "equipment", source_id = "armor_dragon_scale_body" }
 ]
+trait_ids = ["armor.dragon_scale.body.element_resistance"]
 ```
 
 **特殊效果（设计预留）**：受到对应龙种吐息伤害时，免疫该种元素伤害的一半。
@@ -304,7 +304,7 @@ attribute_modifiers = [
 ]
 ```
 
-**特殊效果（设计预留）**：对dragon类型生物的近战伤害额外+1D6。
+**特殊效果（设计预留）**：每次近战武器命中dragon类型生物时，伤害额外+1D4；重复攻击和随机链逐个独立命中段触发。
 
 ---
 
@@ -329,6 +329,8 @@ attribute_modifiers = [
 ```
 
 **特殊效果（设计预留）**：免疫龙威（frightful presence）效果。
+
+本件的 `saving_throw_fear +3` 与 2 件套的同类 `+3` 按 `add` 相加；完整套装的 trait 加值为 `+6`。龙威 immunity 是布尔语义，不因两个来源重复增强。
 
 ---
 

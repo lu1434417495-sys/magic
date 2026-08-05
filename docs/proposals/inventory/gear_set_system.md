@@ -1,6 +1,8 @@
 # 装备套装系统实现方案
 
 > 本文档是对 `set_bonus_design.md` 中提出的套装效果的技术落地方案，包含对抗性审查中发现的问题、修正后的最终实现设计，以及支持全部 1500 件装备所需的补充路线图。
+>
+> **状态说明（2026-07-31）**：本文保留为早期需求与缺口记录，不再作为当前实现蓝图。其中 GDScript registry、目录自行扫描、按 tag occurrence 计数、弱 `Dictionary` DTO 与 opaque `special_effect_ids` 均已被当前 C# typed content/runtime 边界取代。首个完整套装的现行方案见 [龙鳞铠甲套装完整落地方案](dragon_scale_set_full_landing.md)。
 
 ---
 
