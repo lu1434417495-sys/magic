@@ -236,7 +236,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             );
             string phase = measured ? "measured" : "warmup";
             ConsoleProcessOutput.WriteStandard(
-                $"[AiBaseline]   run {runIndex + 1}/{repeatCount} ({phase}): ai_turns={runResult.AiTurns} manual_turns={runResult.ManualTurns} final_tu={runResult.FinalTu} iterations={runResult.Iterations} ended={runResult.BattleEnded} termination={runResult.TerminationReason} winner={runResult.WinnerFactionId} movement_rebuilds={runResult.MovementCacheDiagnostics.SnapshotRebuildCount} path_cache={runResult.MovementCacheDiagnostics.PathTargetCacheHitCount}/{runResult.MovementCacheDiagnostics.PathTargetCacheMissCount} elapsed={runResult.ElapsedSeconds:F2}s"
+                $"[AiBaseline]   run {runIndex + 1}/{repeatCount} ({phase}): ai_turns={runResult.AiTurns} manual_turns={runResult.ManualTurns} final_tu={runResult.FinalTu} iterations={runResult.Iterations} ended={runResult.BattleEnded} termination={runResult.TerminationReason} winner={runResult.WinnerFactionId} movement_rebuilds={runResult.MovementCacheDiagnostics.SnapshotRebuildCount} path_cache={runResult.MovementCacheDiagnostics.PathTargetCacheHitCount}/{runResult.MovementCacheDiagnostics.PathTargetCacheMissCount} actor_workspace={runResult.MovementCacheDiagnostics.ActorPathWorkspaceBuildCount}/{runResult.MovementCacheDiagnostics.ActorPathWorkspaceReuseCount}/{runResult.MovementCacheDiagnostics.ActorPathWorkspaceEntryCount} elapsed={runResult.ElapsedSeconds:F2}s"
             );
 
             if (runResult.TerminationReason == "fixture_contract_invalid")
@@ -281,6 +281,12 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                         runResult.MovementCacheDiagnostics.PathTargetCacheMissCount,
                     ["movement_path_cache_entry_count"] =
                         runResult.MovementCacheDiagnostics.PathTargetCacheEntryCount,
+                    ["movement_actor_workspace_build_count"] =
+                        runResult.MovementCacheDiagnostics.ActorPathWorkspaceBuildCount,
+                    ["movement_actor_workspace_reuse_count"] =
+                        runResult.MovementCacheDiagnostics.ActorPathWorkspaceReuseCount,
+                    ["movement_actor_workspace_entry_count"] =
+                        runResult.MovementCacheDiagnostics.ActorPathWorkspaceEntryCount,
                     ["hotspots"] = runResult.Hotspots,
                 }
             );

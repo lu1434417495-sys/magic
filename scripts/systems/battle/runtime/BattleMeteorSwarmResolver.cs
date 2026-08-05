@@ -1157,12 +1157,12 @@ internal sealed class BattleMeteorSwarmResolver
         var componentBreakdown = new List<MeteorSwarmComponentBreakdownEntry>();
         int expectedDamage = 0;
         int worstCaseDamage = 0;
-        BattleUnitState expectedSourcePreview =
-            plan.source_unit != null ? plan.source_unit.clone() : null;
-        BattleUnitState worstSourcePreview =
-            plan.source_unit != null ? plan.source_unit.clone() : null;
-        BattleUnitState expectedTargetPreview = target_unit.clone();
-        BattleUnitState worstTargetPreview = target_unit.clone();
+        // Performance contract: each branch owns one detached pair for the complete
+        // component sequence. Per-component cloning would multiply full unit-state copies.
+        BattleDamagePreviewWorkingSet expectedWorkingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(plan.source_unit, target_unit);
+        BattleDamagePreviewWorkingSet worstWorkingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(plan.source_unit, target_unit);
         var resistanceTiers = new Dictionary<StringName, StringName>();
         int guardBlockEstimate = 0;
         foreach (MeteorSwarmImpactComponentData component in plan.profile.impact_components)
@@ -1174,16 +1174,14 @@ internal sealed class BattleMeteorSwarmResolver
             CombatEffectDefinition effectDefinition = _build_damage_effect_def(component, distance);
             BattleDamagePreviewResult expectedPreview = BuildComponentDamagePreview(
                 plan,
-                expectedSourcePreview,
-                expectedTargetPreview,
+                expectedWorkingSet,
                 effectDefinition,
                 BattleDamagePreviewRollMode.Average,
                 BattleDamagePreviewSaveMode.Expected
             );
             BattleDamagePreviewResult worstPreview = BuildComponentDamagePreview(
                 plan,
-                worstSourcePreview,
-                worstTargetPreview,
+                worstWorkingSet,
                 effectDefinition,
                 BattleDamagePreviewRollMode.Maximum,
                 BattleDamagePreviewSaveMode.Worst
@@ -1213,26 +1211,6 @@ internal sealed class BattleMeteorSwarmResolver
             int worstAfterShield = worstPreview?.HpDamage ?? worstComponentDamage;
             expectedDamage += expectedAfterShield;
             worstCaseDamage += worstAfterShield;
-            BattleUnitState nextExpectedSource = expectedPreview?.SourcePreviewAfter;
-            BattleUnitState nextExpectedTarget = expectedPreview?.TargetPreviewAfter;
-            BattleUnitState nextWorstSource = worstPreview?.SourcePreviewAfter;
-            BattleUnitState nextWorstTarget = worstPreview?.TargetPreviewAfter;
-            if (nextExpectedSource != null)
-            {
-                expectedSourcePreview = nextExpectedSource;
-            }
-            if (nextExpectedTarget != null)
-            {
-                expectedTargetPreview = nextExpectedTarget;
-            }
-            if (nextWorstSource != null)
-            {
-                worstSourcePreview = nextWorstSource;
-            }
-            if (nextWorstTarget != null)
-            {
-                worstTargetPreview = nextWorstTarget;
-            }
             componentBreakdown.Add(
                 new MeteorSwarmComponentBreakdownEntry
                 {
@@ -1670,8 +1648,7 @@ internal sealed class BattleMeteorSwarmResolver
 
     private BattleDamagePreviewResult BuildComponentDamagePreview(
         MeteorSwarmTargetPlan plan,
-        BattleUnitState source_preview,
-        BattleUnitState target_preview,
+        BattleDamagePreviewWorkingSet working_set,
         CombatEffectDefinition effectDefinition,
         BattleDamagePreviewRollMode roll_mode,
         BattleDamagePreviewSaveMode save_mode
@@ -1679,8 +1656,7 @@ internal sealed class BattleMeteorSwarmResolver
     {
         if (
             _runtime == null
-            || source_preview == null
-            || target_preview == null
+            || working_set == null
             || effectDefinition == null
         )
         {
@@ -1691,9 +1667,8 @@ internal sealed class BattleMeteorSwarmResolver
         {
             return BattleDamagePreviewResult.Empty();
         }
-        return damageResolver.PreviewDamageEffectTyped(
-            source_preview,
-            target_preview,
+        return damageResolver.PreviewDamageEffectOnWorkingSetTyped(
+            working_set,
             effectDefinition,
             DamageResolutionContext.ForSkill(plan != null ? plan.skill_id : DEFAULT_SKILL_ID),
             roll_mode,

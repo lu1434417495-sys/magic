@@ -1029,91 +1029,148 @@ public partial class BattleDamageResolver : IDisposable
         {
             return BattleDamagePreviewResult.Empty();
         }
-        BattleDamagePreviewRollMode resolvedRollMode =
-            roll_mode == BattleDamagePreviewRollMode.Unknown
-                ? BattleDamagePreviewRollMode.Average
-                : roll_mode;
-        BattleDamagePreviewSaveMode resolvedSaveMode =
-            save_mode == BattleDamagePreviewSaveMode.Unknown
-                ? BattleDamagePreviewSaveMode.Expected
-                : save_mode;
-        StringName resolvedRollModeName = ToStringName(resolvedRollMode);
-        StringName resolvedSaveModeName = ToStringName(resolvedSaveMode);
-        BattleUnitState sourcePreview = source_unit.clone();
-        BattleUnitState targetPreview = target_unit.clone();
-        if (sourcePreview == null || targetPreview == null)
+        // Compatibility/isolation boundary: one-shot callers still receive defensive copies.
+        // Hot multi-effect paths opt into PreviewDamageEffectOnWorkingSetTyped explicitly.
+        BattleDamagePreviewWorkingSet workingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(source_unit, target_unit);
+        return PreviewDamageEffectOnWorkingSetTyped(
+            workingSet,
+            effect_definition,
+            damage_context,
+            roll_mode,
+            save_mode
+        );
+    }
+
+    internal BattleDamagePreviewResult PreviewDamageEffectOnWorkingSetTyped(
+        BattleDamagePreviewWorkingSet working_set,
+        CombatEffectDefinition effect_definition,
+        DamageResolutionContext damage_context,
+        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
+        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
+    )
+    {
+        BattleUnitState sourcePreview = working_set?.SourcePreview;
+        BattleUnitState targetPreview = working_set?.TargetPreview;
+        if (sourcePreview == null || targetPreview == null || effect_definition == null)
         {
             return BattleDamagePreviewResult.Empty();
         }
-
-        DamageResolutionContext previewContextFlags =
-            (damage_context ?? DamageResolutionContext.Empty()).WithDamageRollMode(
-                resolvedRollModeName
-            );
-        DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
-            sourcePreview,
-            targetPreview,
+        DamagePreviewCoreResult core = ResolveDamagePreviewCore(
+            working_set,
             effect_definition,
-            previewContextFlags
+            damage_context,
+            roll_mode,
+            save_mode
         );
-        if (damageOutcome.InvalidDamageTag)
+        StringName resolvedRollModeName = ToStringName(core.RollMode);
+        StringName resolvedSaveModeName = ToStringName(core.SaveMode);
+        if (core.InvalidDamageTag)
         {
             return BattleDamagePreviewResult.Create(
                 rollMode: resolvedRollModeName,
                 saveMode: resolvedSaveModeName,
-                shieldHpBefore: target_unit.GetShieldStateTyped().CurrentHp,
-                shieldHpAfter: targetPreview.GetShieldStateTyped().CurrentHp,
-                errorCode: damageOutcome.ErrorCode,
-                damageOutcome: ProjectDamageOutcomePayload(damageOutcome),
+                shieldHpBefore: core.ShieldHpBefore,
+                shieldHpAfter: core.ShieldHpAfter,
+                errorCode: core.DamageOutcome.ErrorCode,
+                damageOutcome: ProjectDamageOutcomePayload(core.DamageOutcome),
                 damageResult: new Dictionary<string, object>(StringComparer.Ordinal),
                 saveEstimate: BattleDamagePreviewSaveEstimate.None(0),
                 diagnostics: new List<object>
                 {
                     BuildInvalidDamageTagDiagnostic(
-                        source_unit,
-                        target_unit,
+                        core.SourcePreview,
+                        core.TargetPreview,
                         effect_definition,
-                        damageOutcome
+                        core.DamageOutcome
                     ),
                 },
-                sourcePreviewAfter: sourcePreview,
-                targetPreviewAfter: targetPreview
+                sourcePreviewAfter: core.SourcePreview,
+                targetPreviewAfter: core.TargetPreview
             );
         }
 
-        int preSaveDamage = damageOutcome.ResolvedDamage;
-        DamagePreviewSaveEstimate saveEstimate = BuildDamagePreviewSaveEstimate(
-            sourcePreview,
-            targetPreview,
-            effect_definition,
-            previewContextFlags,
-            preSaveDamage,
-            resolvedSaveMode
-        );
-        damageOutcome = WithDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
-        AppliedDamageResult damageResult = ApplyDamageToTargetResult(
-            targetPreview,
-            damageOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
-            sourcePreview
-        );
         return BattleDamagePreviewResult.Create(
-            applied: damageResult.HasAppliedDamage,
+            applied: core.DamageResult.HasAppliedDamage,
             rollMode: resolvedRollModeName,
             saveMode: resolvedSaveModeName,
-            preSaveDamage: preSaveDamage,
-            postSaveDamage: saveEstimate.DamageAfterSave,
-            hpDamage: damageResult.HpDamage,
-            damage: damageResult.Damage,
-            incomingBudgetDamage: saveEstimate.DamageAfterSave,
-            shieldAbsorbed: damageResult.ShieldAbsorbed,
-            shieldBroken: damageResult.ShieldBroken,
-            shieldHpBefore: target_unit.GetShieldStateTyped().CurrentHp,
-            shieldHpAfter: targetPreview.GetShieldStateTyped().CurrentHp,
-            damageOutcome: ProjectDamageOutcomePayload(damageOutcome),
-            damageResult: ProjectAppliedDamagePayload(damageResult),
-            saveEstimate: saveEstimate.ToPreviewSaveEstimate(),
-            sourcePreviewAfter: sourcePreview,
-            targetPreviewAfter: targetPreview
+            preSaveDamage: core.PreSaveDamage,
+            postSaveDamage: core.SaveEstimate.DamageAfterSave,
+            hpDamage: core.DamageResult.HpDamage,
+            damage: core.DamageResult.Damage,
+            incomingBudgetDamage: core.SaveEstimate.DamageAfterSave,
+            shieldAbsorbed: core.DamageResult.ShieldAbsorbed,
+            shieldBroken: core.DamageResult.ShieldBroken,
+            shieldHpBefore: core.ShieldHpBefore,
+            shieldHpAfter: core.ShieldHpAfter,
+            damageOutcome: ProjectDamageOutcomePayload(core.DamageOutcome),
+            damageResult: ProjectAppliedDamagePayload(core.DamageResult),
+            saveEstimate: core.SaveEstimate.ToPreviewSaveEstimate(),
+            sourcePreviewAfter: core.SourcePreview,
+            targetPreviewAfter: core.TargetPreview
+        );
+    }
+
+    internal BattleDamagePreviewScoreResult PreviewDamageScoreOnWorkingSetTyped(
+        BattleDamagePreviewWorkingSet working_set,
+        CombatEffectDefinition effect_definition,
+        DamageResolutionContext damage_context,
+        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
+        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
+    )
+    {
+        BattleUnitState sourcePreview = working_set?.SourcePreview;
+        BattleUnitState targetPreview = working_set?.TargetPreview;
+        if (sourcePreview == null || targetPreview == null || effect_definition == null)
+        {
+            return BattleDamagePreviewScoreResult.Empty();
+        }
+
+        DamagePreviewCoreResult core = ResolveDamagePreviewCore(
+            working_set,
+            effect_definition,
+            damage_context,
+            roll_mode,
+            save_mode
+        );
+        StringName resolvedRollModeName = ToStringName(core.RollMode);
+        StringName resolvedSaveModeName = ToStringName(core.SaveMode);
+        if (core.InvalidDamageTag)
+        {
+            return BattleDamagePreviewScoreResult.Create(
+                rollMode: resolvedRollModeName,
+                saveMode: resolvedSaveModeName,
+                shieldHpBefore: core.ShieldHpBefore,
+                shieldHpAfter: core.ShieldHpAfter,
+                errorCode: core.DamageOutcome.ErrorCode,
+                diagnostics: new List<object>
+                {
+                    BuildInvalidDamageTagDiagnostic(
+                        core.SourcePreview,
+                        core.TargetPreview,
+                        effect_definition,
+                        core.DamageOutcome
+                    ),
+                }
+            );
+        }
+
+        // Performance contract: AI scoring consumes only scalar/save fields. Keep the
+        // dictionary-heavy BattleDamagePreviewResult projection for UI and trace callers.
+        return BattleDamagePreviewScoreResult.Create(
+            applied: core.DamageResult.HasAppliedDamage,
+            rollMode: resolvedRollModeName,
+            saveMode: resolvedSaveModeName,
+            preSaveDamage: core.PreSaveDamage,
+            postSaveDamage: core.SaveEstimate.DamageAfterSave,
+            hpDamage: core.DamageResult.HpDamage,
+            damage: core.DamageResult.Damage,
+            incomingBudgetDamage: core.SaveEstimate.DamageAfterSave,
+            shieldAbsorbed: core.DamageResult.ShieldAbsorbed,
+            shieldBroken: core.DamageResult.ShieldBroken,
+            shieldHpBefore: core.ShieldHpBefore,
+            shieldHpAfter: core.ShieldHpAfter,
+            saveEstimate: core.SaveEstimate.ToPreviewSaveEstimate()
         );
     }
 

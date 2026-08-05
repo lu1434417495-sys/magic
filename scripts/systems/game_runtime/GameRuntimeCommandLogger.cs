@@ -434,6 +434,10 @@ public sealed class GameRuntimeCommandLogger
     {
         if (batch == null)
             return new Dictionary();
+        // ReportEntriesTyped is intentionally defensive and deep-copies. Reuse one snapshot
+        // for both metadata and payload so command logging stays linear in report count.
+        IReadOnlyList<IReadOnlyDictionary<string, object>> reportEntries =
+            batch.ReportEntriesTyped;
         return new Dictionary
         {
             ["phase_changed"] = batch.phase_changed,
@@ -446,8 +450,8 @@ public sealed class GameRuntimeCommandLogger
             ["changed_units"] = BuildBattleUnitLogEntries(
                 _port?.CaptureCommandLogBattleUnits(batch.ChangedUnitIdsTyped)
             ),
-            ["report_entry_count"] = batch.ReportEntriesTyped.Count,
-            ["report_entries"] = NormalizeLogArray(batch.ReportEntriesTyped),
+            ["report_entry_count"] = reportEntries.Count,
+            ["report_entries"] = NormalizeLogArray(reportEntries),
         };
     }
 

@@ -21,6 +21,7 @@ public partial class run_battle_ai_advantage_behavior_regression : LifecycleTest
         {
             TestFormalSurvivalPositionEscapesBeyondThreatMargin();
             TestFormalSurvivalPositionStopsWhenAlreadySafe();
+            TestFormalSurvivalPositionStopsWhenNearestFocusIsSafe();
         }
         catch (Exception exception)
         {
@@ -217,6 +218,69 @@ public partial class run_battle_ai_advantage_behavior_regression : LifecycleTest
         _test.True(
             before.MatchesCurrentState(context),
             $"already-safe evaluator 不应改写 battle state：{string.Join(" | ", before.CompareCurrentState(context))}"
+        );
+    }
+
+    private void TestFormalSurvivalPositionStopsWhenNearestFocusIsSafe()
+    {
+        using RuntimeScope scope = RuntimeScope.Create(
+            "battle_ai_advantage_multi_target_safe_regression",
+            new Vector2I(12, 5)
+        );
+        BattleUnitState actor = BuildUnit(
+            "multi_target_safe_actor",
+            "多目标安全法师",
+            "hostile",
+            new Vector2I(7, 2),
+            controlMode: "ai",
+            brainId: BrainId,
+            stateId: StateId
+        );
+        actor.SetCurrentMovePoints(4);
+        BattleUnitState nearestSafeThreat = BuildUnit(
+            "nearest_safe_threat",
+            "近处安全威胁",
+            "player",
+            new Vector2I(2, 2),
+            controlMode: "manual"
+        );
+        AddBasicAttack(nearestSafeThreat, attackRange: 1);
+        BattleUnitState fartherDangerousThreat = BuildUnit(
+            "farther_dangerous_threat",
+            "远处高射程威胁",
+            "player",
+            new Vector2I(0, 2),
+            controlMode: "manual"
+        );
+        AddBasicAttack(fartherDangerousThreat, attackRange: 8);
+
+        scope.AddUnit(actor, isEnemy: true);
+        scope.AddUnit(nearestSafeThreat, isEnemy: false);
+        scope.AddUnit(fartherDangerousThreat, isEnemy: false);
+        scope.ActivateState();
+
+        BattleAiContext context = scope.BuildAiContext(actor, traceEnabled: true);
+        BattleAiRuntimeActionEntry entry = FindFormalActionEntry(
+            scope,
+            context,
+            StateId,
+            ActionId
+        );
+
+        BattleAiMutationSnapshot before = BattleAiMutationSnapshot.Capture(context);
+        BattleAiDecision decision = EvaluateThroughDecisionEngine(context, entry);
+        _test.True(
+            decision == null,
+            "nearest_enemy selector 的首选目标已安全时，不应再因次要高射程目标触发移动。"
+        );
+        AiActionTrace trace = FindTrace(context, ActionId);
+        _test.True(
+            trace?.BlockReasons.GetValueOrDefault("already_safe", 0) == 1,
+            "多目标 already-safe 路径应只按首选目标收束。"
+        );
+        _test.True(
+            before.MatchesCurrentState(context),
+            $"多目标 already-safe evaluator 不应改写 battle state：{string.Join(" | ", before.CompareCurrentState(context))}"
         );
     }
 

@@ -162,7 +162,8 @@ internal sealed class BattleAiMoveToAdvantageActionEvaluator
                 if (currentFocusDistance >= currentSafeDistance)
                 {
                     EnemyAiActionHelper.TraceAddBlockReason(trace, "already_safe");
-                    continue;
+                    EnemyAiActionHelper.FinalizeActionTrace(context, trace);
+                    return null;
                 }
             }
 

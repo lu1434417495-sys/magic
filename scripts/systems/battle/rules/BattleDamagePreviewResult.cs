@@ -2,6 +2,100 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
+internal sealed class BattleDamagePreviewWorkingSet
+{
+    private BattleDamagePreviewWorkingSet(
+        BattleUnitState sourcePreview,
+        BattleUnitState targetPreview
+    )
+    {
+        SourcePreview = sourcePreview;
+        TargetPreview = targetPreview;
+    }
+
+    internal BattleUnitState SourcePreview { get; }
+    internal BattleUnitState TargetPreview { get; }
+
+    internal static BattleDamagePreviewWorkingSet CreateDetached(
+        BattleUnitState source,
+        BattleUnitState target
+    )
+    {
+        if (source == null || target == null)
+        {
+            return null;
+        }
+
+        // Performance contract: clone each unit once for the whole multi-effect preview
+        // sequence. Callers must reuse this detached working set instead of cloning per hit.
+        BattleUnitState sourcePreview = source.DuplicateForPreview();
+        BattleUnitState targetPreview = target.DuplicateForPreview();
+        return sourcePreview != null && targetPreview != null
+            ? new BattleDamagePreviewWorkingSet(sourcePreview, targetPreview)
+            : null;
+    }
+}
+
+internal sealed class BattleDamagePreviewScoreResult
+{
+    internal bool Applied { get; private set; }
+    internal StringName RollMode { get; private set; }
+    internal StringName SaveMode { get; private set; }
+    internal int PreSaveDamage { get; private set; }
+    internal int PostSaveDamage { get; private set; }
+    internal int HpDamage { get; private set; }
+    internal int Damage { get; private set; }
+    internal int IncomingBudgetDamage { get; private set; }
+    internal int ShieldAbsorbed { get; private set; }
+    internal bool ShieldBroken { get; private set; }
+    internal int ShieldHpBefore { get; private set; }
+    internal int ShieldHpAfter { get; private set; }
+    internal string ErrorCode { get; private set; } = "";
+    internal BattleDamagePreviewSaveEstimate SaveEstimate { get; private set; } =
+        BattleDamagePreviewSaveEstimate.None(0);
+    internal IReadOnlyList<object> Diagnostics { get; private set; } = Array.Empty<object>();
+
+    internal static BattleDamagePreviewScoreResult Empty() => Create();
+
+    internal static BattleDamagePreviewScoreResult Create(
+        bool applied = false,
+        StringName rollMode = default,
+        StringName saveMode = default,
+        int preSaveDamage = 0,
+        int postSaveDamage = 0,
+        int hpDamage = 0,
+        int damage = 0,
+        int incomingBudgetDamage = 0,
+        int shieldAbsorbed = 0,
+        bool shieldBroken = false,
+        int shieldHpBefore = 0,
+        int shieldHpAfter = 0,
+        string errorCode = "",
+        BattleDamagePreviewSaveEstimate saveEstimate = null,
+        IReadOnlyList<object> diagnostics = null
+    )
+    {
+        return new BattleDamagePreviewScoreResult
+        {
+            Applied = applied,
+            RollMode = rollMode,
+            SaveMode = saveMode,
+            PreSaveDamage = Math.Max(preSaveDamage, 0),
+            PostSaveDamage = Math.Max(postSaveDamage, 0),
+            HpDamage = Math.Max(hpDamage, 0),
+            Damage = Math.Max(damage, 0),
+            IncomingBudgetDamage = Math.Max(incomingBudgetDamage, 0),
+            ShieldAbsorbed = Math.Max(shieldAbsorbed, 0),
+            ShieldBroken = shieldBroken,
+            ShieldHpBefore = Math.Max(shieldHpBefore, 0),
+            ShieldHpAfter = Math.Max(shieldHpAfter, 0),
+            ErrorCode = errorCode ?? "",
+            SaveEstimate = saveEstimate ?? BattleDamagePreviewSaveEstimate.None(preSaveDamage),
+            Diagnostics = diagnostics ?? Array.Empty<object>(),
+        };
+    }
+}
+
 public sealed class BattleDamagePreviewSaveEstimate
 {
     public bool HasSave { get; private set; }

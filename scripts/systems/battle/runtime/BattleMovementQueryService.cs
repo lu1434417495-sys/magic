@@ -24,6 +24,8 @@ internal sealed class BattleMovementQueryService : IDisposable
         new();
     private readonly System.Collections.Generic.Dictionary<PathTargetQueryCacheKey, MovementPathTargetResult> _pathTargetQueryCache =
         new();
+    private readonly System.Collections.Generic.Dictionary<ActorPathWorkspaceKey, ActorPathWorkspace> _actorPathWorkspaces =
+        new();
     private readonly System.Collections.Generic.Dictionary<StringName, long> _moveCostSignatureCache =
         new();
     private long _snapshotRevision = long.MinValue;
@@ -32,6 +34,8 @@ internal sealed class BattleMovementQueryService : IDisposable
     private long _snapshotRebuildCount;
     private long _pathTargetCacheHitCount;
     private long _pathTargetCacheMissCount;
+    private long _actorPathWorkspaceBuildCount;
+    private long _actorPathWorkspaceReuseCount;
     private WeakReference<BattleState> _battleStateIdentity;
     private WeakReference<BattleGridService> _gridServiceIdentity;
     private WeakReference<Func<StringName, Vector2I, Vector2I, int>> _moveCostProviderIdentity;
@@ -44,6 +48,9 @@ internal sealed class BattleMovementQueryService : IDisposable
         long PathTargetCacheHitCount,
         long PathTargetCacheMissCount,
         int PathTargetCacheEntryCount,
+        long ActorPathWorkspaceBuildCount,
+        long ActorPathWorkspaceReuseCount,
+        int ActorPathWorkspaceEntryCount,
         bool DecisionBound
     );
 
@@ -59,6 +66,14 @@ internal sealed class BattleMovementQueryService : IDisposable
         int PathTreeMinDestinationCount,
         bool IncludeOrigin,
         bool PreferProgress
+    );
+
+    private readonly record struct ActorPathWorkspaceKey(
+        StringName UnitId,
+        Vector2I FromCoord,
+        Vector2I FootprintSize,
+        long MoveCostSignature,
+        int MaxCost
     );
 
     private readonly record struct DistanceFromAnchorToTargetKey(
@@ -200,6 +215,19 @@ internal sealed class BattleMovementQueryService : IDisposable
         Vector2I ParentCoord
     );
 
+    private sealed class ActorPathWorkspace
+    {
+        public PathTargetNodeMeta[] MetaByIndex = System.Array.Empty<PathTargetNodeMeta>();
+        public bool[] SettledByIndex = System.Array.Empty<bool>();
+        public readonly PriorityQueue<PathSearchNode, int> Frontier = new();
+        public readonly List<Vector2I> SettlementOrder = new();
+        public bool HasPendingExpansion;
+        public PathSearchNode PendingExpansion;
+        public int MaxCost;
+        public bool Exhausted;
+        public bool InvalidMoveCost;
+    }
+
     private sealed class PathSearchTree
     {
         public readonly System.Collections.Generic.Dictionary<Vector2I, int> Costs = new();
@@ -288,6 +316,9 @@ internal sealed class BattleMovementQueryService : IDisposable
             _pathTargetCacheHitCount,
             _pathTargetCacheMissCount,
             _pathTargetQueryCache.Count,
+            _actorPathWorkspaceBuildCount,
+            _actorPathWorkspaceReuseCount,
+            _actorPathWorkspaces.Count,
             _decisionBound
         );
 
@@ -299,11 +330,14 @@ internal sealed class BattleMovementQueryService : IDisposable
         _edges.Clear();
         _distanceFromAnchorToTargetCache.Clear();
         _pathTargetQueryCache.Clear();
+        _actorPathWorkspaces.Clear();
         _moveCostSignatureCache.Clear();
         _snapshotRevision = long.MinValue;
         _snapshotRebuildCount = 0;
         _pathTargetCacheHitCount = 0;
         _pathTargetCacheMissCount = 0;
+        _actorPathWorkspaceBuildCount = 0;
+        _actorPathWorkspaceReuseCount = 0;
     }
 
     private bool BattleIdentityChanged(
@@ -670,12 +704,14 @@ internal sealed class BattleMovementQueryService : IDisposable
         );
         PathTargetQueryCacheKey cacheKey = default;
         bool canUseCache = overlay == null;
+        long moveCostSignature = 0;
         if (canUseCache)
         {
+            moveCostSignature = BuildMoveCostCacheSignature(unitId);
             cacheKey = new PathTargetQueryCacheKey(
                 unitId,
                 focusTargetId,
-                BuildMoveCostCacheSignature(unitId),
+                moveCostSignature,
                 minDistance,
                 maxDistance,
                 maxCost,
@@ -699,7 +735,9 @@ internal sealed class BattleMovementQueryService : IDisposable
             maxDistance,
             maxCost,
             overlay,
-            budget
+            budget,
+            useActorPathWorkspace: canUseCache && budget.MaxNodes == 0,
+            moveCostSignature: moveCostSignature
         );
         CachePathTargetResult(canUseCache, cacheKey, result);
         return result;
@@ -712,7 +750,9 @@ internal sealed class BattleMovementQueryService : IDisposable
         int maxDistance,
         int maxCost,
         BattleVirtualBoardOverlay overlay,
-        PathSearchBudget budget
+        PathSearchBudget budget,
+        bool useActorPathWorkspace = false,
+        long moveCostSignature = 0
     )
     {
         List<Vector2I> destinations = CollectDistanceBandDestinationList(
@@ -744,18 +784,34 @@ internal sealed class BattleMovementQueryService : IDisposable
         }
 
         var destinationSet = new HashSet<Vector2I>(destinations);
-        PathTargetSearchResult searchResult = BuildPathTargetCandidates(
-            unit,
-            target,
-            unit.Coord,
-            destinationSet,
-            maxCost,
-            overlay,
-            budget,
-            currentDistance,
-            resolvedMin,
-            resolvedMax
-        );
+        // Performance contract: only the overlay-free, unlimited-node query may reuse
+        // the actor tree. Focus target stays out of that key because it only filters
+        // destinations; overlays and bounded searches retain the isolated legacy path.
+        PathTargetSearchResult searchResult =
+            useActorPathWorkspace
+                ? BuildPathTargetCandidatesFromActorWorkspace(
+                    unit,
+                    target,
+                    destinationSet,
+                    maxCost,
+                    budget,
+                    currentDistance,
+                    resolvedMin,
+                    resolvedMax,
+                    moveCostSignature
+                )
+                : BuildPathTargetCandidates(
+                    unit,
+                    target,
+                    unit.Coord,
+                    destinationSet,
+                    maxCost,
+                    overlay,
+                    budget,
+                    currentDistance,
+                    resolvedMin,
+                    resolvedMax
+                );
         if (searchResult.InvalidMoveCost)
         {
             return MovementPathTargetResult.Failure("invalid_move_cost");
@@ -1081,6 +1137,7 @@ internal sealed class BattleMovementQueryService : IDisposable
         _edges.Clear();
         _distanceFromAnchorToTargetCache.Clear();
         _pathTargetQueryCache.Clear();
+        _actorPathWorkspaces.Clear();
         _moveCostSignatureCache.Clear();
         EnsureRuntimeEdges();
 
@@ -1496,6 +1553,281 @@ internal sealed class BattleMovementQueryService : IDisposable
     {
         int distance = DistanceFromAnchorToTarget(anchorCoord, unit.FootprintSize, target);
         return GetDistanceGap(distance, minDistance, maxDistance);
+    }
+
+    private PathTargetSearchResult BuildPathTargetCandidatesFromActorWorkspace(
+        UnitInfo unit,
+        UnitInfo target,
+        HashSet<Vector2I> destinationSet,
+        int maxCost,
+        PathSearchBudget budget,
+        int currentDistance,
+        int resolvedMin,
+        int resolvedMax,
+        long moveCostSignature
+    )
+    {
+        var result = new PathTargetSearchResult();
+        if (
+            unit == null
+            || target == null
+            || destinationSet == null
+            || destinationSet.Count == 0
+            || !IsInside(unit.Coord)
+            || _cells.Length == 0
+        )
+        {
+            return result;
+        }
+
+        ActorPathWorkspace workspace = GetOrCreateActorPathWorkspace(
+            unit,
+            Math.Max(maxCost, 0),
+            moveCostSignature
+        );
+        if (workspace.InvalidMoveCost)
+        {
+            result.InvalidMoveCost = true;
+            return result;
+        }
+
+        int remainingDestinationCount = 0;
+        foreach (Vector2I destination in destinationSet)
+        {
+            if (!IsActorPathWorkspaceNodeSettled(workspace, destination))
+            {
+                remainingDestinationCount++;
+            }
+        }
+
+        if (remainingDestinationCount > 0 && !workspace.Exhausted)
+        {
+            if (workspace.HasPendingExpansion)
+            {
+                PathSearchNode pendingNode = workspace.PendingExpansion;
+                workspace.HasPendingExpansion = false;
+                if (!RelaxActorPathWorkspaceNode(workspace, unit, pendingNode, result))
+                {
+                    return result;
+                }
+            }
+
+            while (
+                remainingDestinationCount > 0
+                && workspace.Frontier.TryDequeue(
+                    out PathSearchNode currentNode,
+                    out int currentPriority
+                )
+            )
+            {
+                Vector2I current = currentNode.Coord;
+                if (!IsInside(current))
+                {
+                    continue;
+                }
+                int currentIndex = ToIndex(current);
+                PathTargetNodeMeta currentMeta = workspace.MetaByIndex[currentIndex];
+                if (
+                    workspace.SettledByIndex[currentIndex]
+                    || !currentMeta.HasValue
+                    || currentNode.Cost != currentMeta.Cost
+                    || currentPriority != currentMeta.Cost
+                )
+                {
+                    continue;
+                }
+
+                workspace.SettledByIndex[currentIndex] = true;
+                workspace.SettlementOrder.Add(current);
+                result.VisitedCount++;
+                if (destinationSet.Contains(current))
+                {
+                    remainingDestinationCount--;
+                    if (remainingDestinationCount == 0)
+                    {
+                        // Preserve the old early-stop boundary. If a later focus target
+                        // needs more of the tree, resume by expanding this settled node.
+                        workspace.HasPendingExpansion = true;
+                        workspace.PendingExpansion = currentNode;
+                        break;
+                    }
+                }
+
+                if (!RelaxActorPathWorkspaceNode(workspace, unit, currentNode, result))
+                {
+                    return result;
+                }
+            }
+
+            if (
+                remainingDestinationCount > 0
+                && !workspace.HasPendingExpansion
+                && workspace.Frontier.Count == 0
+            )
+            {
+                workspace.Exhausted = true;
+            }
+        }
+
+        var bestByTargetCoord = new System.Collections.Generic.Dictionary<
+            Vector2I,
+            PathTargetCandidate
+        >();
+        // Preserve the legacy Dijkstra settlement order for exact candidate tie behavior.
+        // HashSet iteration can otherwise select a different DestinationCoord when two
+        // equally good destinations share one current-turn landing coordinate.
+        foreach (Vector2I destination in workspace.SettlementOrder)
+        {
+            if (!destinationSet.Contains(destination))
+            {
+                continue;
+            }
+            result.ReachedDestinationCount++;
+            PathTargetNodeMeta destinationMeta = workspace.MetaByIndex[ToIndex(destination)];
+            if (destinationMeta.LandingCoord == unit.Coord)
+            {
+                result.SkippedOriginCount++;
+                continue;
+            }
+
+            int targetDistance = DistanceFromAnchorToTarget(
+                destinationMeta.LandingCoord,
+                unit.FootprintSize,
+                target
+            );
+            var candidate = new PathTargetCandidate(
+                destination,
+                destinationMeta.LandingCoord,
+                destinationMeta.Cost,
+                destinationMeta.PathLength,
+                destinationMeta.SpentCost,
+                targetDistance,
+                GetDistanceGap(targetDistance, resolvedMin, resolvedMax)
+            );
+            if (
+                !bestByTargetCoord.TryGetValue(
+                    candidate.TargetCoord,
+                    out PathTargetCandidate existing
+                )
+                || IsBetterPathTargetCandidate(
+                    candidate,
+                    existing,
+                    currentDistance,
+                    resolvedMin,
+                    resolvedMax,
+                    budget.PreferProgress
+                )
+            )
+            {
+                bestByTargetCoord[candidate.TargetCoord] = candidate;
+            }
+        }
+
+        result.Candidates.AddRange(bestByTargetCoord.Values);
+        return result;
+    }
+
+    private ActorPathWorkspace GetOrCreateActorPathWorkspace(
+        UnitInfo unit,
+        int maxCost,
+        long moveCostSignature
+    )
+    {
+        var key = new ActorPathWorkspaceKey(
+            unit.UnitId,
+            unit.Coord,
+            unit.FootprintSize,
+            moveCostSignature,
+            Math.Max(maxCost, 0)
+        );
+        if (_actorPathWorkspaces.TryGetValue(key, out ActorPathWorkspace existing))
+        {
+            _actorPathWorkspaceReuseCount++;
+            return existing;
+        }
+
+        if (_actorPathWorkspaces.Count >= 64)
+        {
+            _actorPathWorkspaces.Clear();
+        }
+        var workspace = new ActorPathWorkspace
+        {
+            MetaByIndex = new PathTargetNodeMeta[_cells.Length],
+            SettledByIndex = new bool[_cells.Length],
+            MaxCost = Math.Max(maxCost, 0),
+        };
+        int startIndex = ToIndex(unit.Coord);
+        workspace.MetaByIndex[startIndex] = new PathTargetNodeMeta(
+            true,
+            0,
+            unit.Coord,
+            0,
+            1,
+            InvalidCoord
+        );
+        workspace.Frontier.Enqueue(new PathSearchNode(unit.Coord, 0), 0);
+        _actorPathWorkspaces[key] = workspace;
+        _actorPathWorkspaceBuildCount++;
+        return workspace;
+    }
+
+    private bool RelaxActorPathWorkspaceNode(
+        ActorPathWorkspace workspace,
+        UnitInfo unit,
+        PathSearchNode currentNode,
+        PathTargetSearchResult result
+    )
+    {
+        Vector2I current = currentNode.Coord;
+        PathTargetNodeMeta currentMeta = workspace.MetaByIndex[ToIndex(current)];
+        foreach (Vector2I neighbor in GetNeighbors4(current))
+        {
+            if (!CanStep(unit, current, neighbor, null))
+            {
+                continue;
+            }
+            int stepCost = GetMoveCost(unit.UnitId, current, neighbor);
+            if (stepCost <= 0)
+            {
+                workspace.InvalidMoveCost = true;
+                result.InvalidMoveCost = true;
+                return false;
+            }
+            int nextCost = currentMeta.Cost + stepCost;
+            int neighborIndex = ToIndex(neighbor);
+            PathTargetNodeMeta existingMeta = workspace.MetaByIndex[neighborIndex];
+            if (existingMeta.HasValue && nextCost >= existingMeta.Cost)
+            {
+                continue;
+            }
+
+            Vector2I landingCoord =
+                nextCost <= workspace.MaxCost ? neighbor : currentMeta.LandingCoord;
+            int spentCost =
+                nextCost <= workspace.MaxCost ? nextCost : currentMeta.SpentCost;
+            workspace.MetaByIndex[neighborIndex] = new PathTargetNodeMeta(
+                true,
+                nextCost,
+                landingCoord,
+                spentCost,
+                currentMeta.PathLength + 1,
+                current
+            );
+            result.RelaxCount++;
+            workspace.Frontier.Enqueue(new PathSearchNode(neighbor, nextCost), nextCost);
+        }
+        return true;
+    }
+
+    private bool IsActorPathWorkspaceNodeSettled(
+        ActorPathWorkspace workspace,
+        Vector2I coord
+    )
+    {
+        return workspace != null
+            && IsInside(coord)
+            && workspace.SettledByIndex.Length == _cells.Length
+            && workspace.SettledByIndex[ToIndex(coord)];
     }
 
     private PathTargetSearchResult BuildPathTargetCandidates(

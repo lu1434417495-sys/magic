@@ -13,7 +13,12 @@ internal static class BattlePresentationDeltaFactory
         if ((changeFlags & BattleChangeFlags.Log) != 0)
             dirtyFlags |= BattlePresentationDirtyFlags.Log;
         if ((changeFlags & BattleChangeFlags.Objective) != 0)
-            dirtyFlags |= BattlePresentationDirtyFlags.Hud;
+        {
+            dirtyFlags |=
+                BattlePresentationDirtyFlags.Hud
+                | BattlePresentationDirtyFlags.Selection
+                | BattlePresentationDirtyFlags.FullBoard;
+        }
         if (
             (changeFlags
                 & (
