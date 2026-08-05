@@ -13,6 +13,9 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         try
         {
             TestPreviewDamageEffectUsesSharedDamageMathWithoutMutatingUnits();
+            TestPreviewWorkingSetReusesDetachedUnitsAcrossDamageSequence();
+            TestPreviewWorkingSetCopiesAttributeSnapshotExactly();
+            TestCompactScorePreviewMatchesFullPreview();
             TestPreviewDamageEffectUsesSaveProbabilityWithoutRolling();
             TestAttributeScaledRecoveryDiceUseFormalFields();
             TestHealFatalUsesTypedEffectParams();
@@ -31,6 +34,10 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("preview_source", "player");
         BattleUnitState target = MakeUnit("preview_target", "enemy");
+        source.equipment_view = null;
+        source.equipment_view_initialized = false;
+        target.equipment_view = null;
+        target.equipment_view_initialized = false;
         SetStatus(source, "attack_up", 2, new GDictionary());
         SetStatus(target, "damage_reduction_up", 1, new GDictionary());
         target.SetDamageResistanceTyped("fire", "half");
@@ -91,6 +98,84 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         );
         _test.True(target.HasStatusEffect("damage_reduction_up"), "Preview should not mutate target statuses.");
         _test.True(source.HasStatusEffect("attack_up"), "Preview should not mutate source statuses.");
+        _test.True(
+            source.equipment_view == null && !source.equipment_view_initialized,
+            "Preview should not lazily initialize source equipment state."
+        );
+        _test.True(
+            target.equipment_view == null && !target.equipment_view_initialized,
+            "Preview should not lazily initialize target equipment state."
+        );
+    }
+
+    private void TestPreviewWorkingSetReusesDetachedUnitsAcrossDamageSequence()
+    {
+        var resolver = new BattleDamageResolver();
+        BattleUnitState source = MakeUnit("working_set_source", "player");
+        BattleUnitState target = MakeUnit("working_set_target", "enemy");
+        target.ReplaceShieldStateTyped(
+            5,
+            5,
+            100,
+            "working_set_shield",
+            source.unit_id,
+            "working_set_skill"
+        );
+        BattleUnitShieldSnapshot liveShieldBefore = target.GetShieldStateTyped();
+        int liveHpBefore = target.GetCurrentHp();
+        BattleDamagePreviewWorkingSet workingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(source, target);
+
+        _test.True(workingSet != null, "Damage preview working set should clone valid units.");
+        if (workingSet == null)
+        {
+            return;
+        }
+        _test.False(
+            ReferenceEquals(source, workingSet.SourcePreview),
+            "Working set source must be detached from live combat state."
+        );
+        _test.False(
+            ReferenceEquals(target, workingSet.TargetPreview),
+            "Working set target must be detached from live combat state."
+        );
+
+        CombatEffectDefinition firstEffect = MakeDamageEffect("force", 4);
+        CombatEffectDefinition secondEffect = MakeDamageEffect("force", 4);
+        BattleDamagePreviewResult firstPreview =
+            resolver.PreviewDamageEffectOnWorkingSetTyped(
+                workingSet,
+                firstEffect,
+                DamageResolutionContext.Empty()
+            );
+        BattleDamagePreviewResult secondPreview =
+            resolver.PreviewDamageEffectOnWorkingSetTyped(
+                workingSet,
+                secondEffect,
+                DamageResolutionContext.Empty()
+            );
+
+        _test.True(
+            ReferenceEquals(firstPreview.SourcePreviewAfter, workingSet.SourcePreview)
+                && ReferenceEquals(secondPreview.SourcePreviewAfter, workingSet.SourcePreview),
+            "A damage sequence should reuse one detached source preview."
+        );
+        _test.True(
+            ReferenceEquals(firstPreview.TargetPreviewAfter, workingSet.TargetPreview)
+                && ReferenceEquals(secondPreview.TargetPreviewAfter, workingSet.TargetPreview),
+            "A damage sequence should reuse one detached target preview."
+        );
+        _test.Eq(firstPreview.ShieldHpBefore, 5, "First hit should see the initial shield.");
+        _test.Eq(firstPreview.ShieldHpAfter, 1, "First hit should consume four shield points.");
+        _test.Eq(secondPreview.ShieldHpBefore, 1, "Second hit should see the first hit's shield state.");
+        _test.Eq(secondPreview.ShieldHpAfter, 0, "Second hit should consume the remaining shield.");
+        _test.Eq(secondPreview.HpDamage, 3, "Second hit should carry damage through the depleted shield.");
+        _test.Eq(target.GetCurrentHp(), liveHpBefore, "Working-set preview must not mutate live HP.");
+        _test.Eq(
+            target.GetShieldStateTyped(),
+            liveShieldBefore,
+            "Working-set preview must not mutate the live shield."
+        );
     }
 
     private void TestPreviewDamageEffectUsesSaveProbabilityWithoutRolling()
@@ -130,6 +215,125 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         );
         _test.Eq(DictInt(preview, "post_save_damage", -1), 10, "Successful partial save should halve damage.");
         _test.Eq(target.GetCurrentHp(), 30, "Save preview should not mutate the target by rolling a real save.");
+    }
+
+    private void TestPreviewWorkingSetCopiesAttributeSnapshotExactly()
+    {
+        BattleUnitState source = MakeUnit("attribute_copy_source", "player");
+        BattleUnitState target = MakeUnit("attribute_copy_target", "enemy");
+        source.attribute_snapshot.ReplaceValuesForMutationSnapshotExact(
+            new Dictionary<StringName, int>
+            {
+                ["strength_modifier"] = 99,
+                ["strength"] = 10,
+            }
+        );
+
+        BattleDamagePreviewWorkingSet workingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(source, target);
+        _test.True(workingSet != null, "Preview attribute copy requires a working set.");
+        if (workingSet == null)
+        {
+            return;
+        }
+        _test.Eq(
+            workingSet.SourcePreview.attribute_snapshot.GetValue("strength_modifier"),
+            99,
+            "Preview should preserve the exact stored attribute snapshot without re-deriving modifiers."
+        );
+        workingSet.SourcePreview.attribute_snapshot.SetValue("strength", 14);
+        _test.Eq(
+            source.attribute_snapshot.GetValue("strength_modifier"),
+            99,
+            "Preview attribute mutations must stay detached from live state."
+        );
+    }
+
+    private void TestCompactScorePreviewMatchesFullPreview()
+    {
+        var resolver = new BattleDamageResolver();
+        BattleUnitState source = MakeUnit("score_projection_source", "player");
+        BattleUnitState target = MakeUnit("score_projection_target", "enemy");
+        target.SetDamageResistanceTyped("fire", "half");
+        target.ReplaceShieldStateTyped(
+            6,
+            6,
+            100,
+            "score_projection_shield",
+            source.unit_id,
+            "score_projection_skill"
+        );
+        CombatEffectDefinition effect = MakeDamageEffect(
+            "fire",
+            20,
+            saveDc: 10,
+            saveAbility: "agility",
+            saveTag: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic),
+            savePartialOnSuccess: true
+        );
+        DamageResolutionContext context = DamageResolutionContext.FromDictionary(
+            new GDictionary { ["save_roll_override"] = 20 }
+        );
+        BattleDamagePreviewWorkingSet fullWorkingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(source, target);
+        BattleDamagePreviewWorkingSet scoreWorkingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(source, target);
+
+        BattleDamagePreviewResult full = resolver.PreviewDamageEffectOnWorkingSetTyped(
+            fullWorkingSet,
+            effect,
+            context,
+            BattleDamagePreviewRollMode.Average,
+            BattleDamagePreviewSaveMode.Expected
+        );
+        BattleDamagePreviewScoreResult score =
+            resolver.PreviewDamageScoreOnWorkingSetTyped(
+                scoreWorkingSet,
+                effect,
+                context,
+                BattleDamagePreviewRollMode.Average,
+                BattleDamagePreviewSaveMode.Expected
+            );
+
+        _test.Eq(score.Applied, full.Applied, "Compact score preview should preserve applied.");
+        _test.Eq(score.RollMode, full.RollMode, "Compact score preview should preserve roll mode.");
+        _test.Eq(score.SaveMode, full.SaveMode, "Compact score preview should preserve save mode.");
+        _test.Eq(score.PreSaveDamage, full.PreSaveDamage, "Compact score preview should preserve pre-save damage.");
+        _test.Eq(score.PostSaveDamage, full.PostSaveDamage, "Compact score preview should preserve post-save damage.");
+        _test.Eq(score.HpDamage, full.HpDamage, "Compact score preview should preserve HP damage.");
+        _test.Eq(score.Damage, full.Damage, "Compact score preview should preserve applied damage.");
+        _test.Eq(
+            score.IncomingBudgetDamage,
+            full.IncomingBudgetDamage,
+            "Compact score preview should preserve incoming damage budget."
+        );
+        _test.Eq(score.ShieldAbsorbed, full.ShieldAbsorbed, "Compact score preview should preserve shield absorption.");
+        _test.Eq(score.ShieldBroken, full.ShieldBroken, "Compact score preview should preserve shield break.");
+        _test.Eq(score.ShieldHpBefore, full.ShieldHpBefore, "Compact score preview should preserve shield before.");
+        _test.Eq(score.ShieldHpAfter, full.ShieldHpAfter, "Compact score preview should preserve shield after.");
+        _test.Eq(score.ErrorCode, full.ErrorCode, "Compact score preview should preserve errors.");
+        _test.Eq(
+            score.SaveEstimate.HasSave,
+            full.SaveEstimate.HasSave,
+            "Compact score preview should preserve save presence."
+        );
+        _test.Eq(
+            score.SaveEstimate.DamageAfterSaveEstimate,
+            full.SaveEstimate.DamageAfterSaveEstimate,
+            "Compact score preview should preserve expected save damage."
+        );
+        _test.Eq(
+            score.SaveEstimate.SaveSuccessProbabilityBasisPoints,
+            full.SaveEstimate.SaveSuccessProbabilityBasisPoints,
+            "Compact score preview should preserve save probability."
+        );
+        _test.Eq(source.GetCurrentHp(), 30, "Compact score preview must not mutate live source.");
+        _test.Eq(target.GetCurrentHp(), 30, "Compact score preview must not mutate live target.");
+        _test.Eq(
+            target.GetShieldStateTyped().CurrentHp,
+            6,
+            "Compact score preview must not mutate the live shield."
+        );
     }
 
     private void TestAttributeScaledRecoveryDiceUseFormalFields()

@@ -201,60 +201,6 @@ public partial class BattleAiScoreService
         }
     }
 
-    private sealed class DamagePreviewSnapshot
-    {
-        public int HpDamage;
-        public int Damage;
-        public int PostSaveDamage;
-        public int IncomingBudgetDamage;
-        public int ShieldAbsorbed;
-        public bool ShieldBroken;
-        public bool StableLethal;
-        public int LethalProbabilityBasisPoints;
-        public DamageSaveEstimate PrimarySaveEstimate;
-        public List<DamageSaveEstimate> SaveEstimates = new();
-        public List<object> DamageEvents = new();
-        public List<object> Diagnostics = new();
-        public BattleUnitState SourcePreviewAfter;
-        public BattleUnitState TargetPreviewAfter;
-
-        public static DamagePreviewSnapshot FromPreviewResult(BattleDamagePreviewResult preview)
-        {
-            if (preview == null)
-            {
-                return new DamagePreviewSnapshot();
-            }
-            int hpDamage = preview.HpDamage;
-            DamageSaveEstimate primarySaveEstimate = DamageSaveEstimate.FromPreviewSaveEstimate(
-                preview.SaveEstimate
-            );
-            List<DamageSaveEstimate> saveEstimates = ReadSaveEstimatesFromPreviewList(
-                preview.SaveEstimates
-            );
-            if (saveEstimates.Count == 0 && primarySaveEstimate != null)
-            {
-                saveEstimates.Add(primarySaveEstimate);
-            }
-            return new DamagePreviewSnapshot
-            {
-                HpDamage = hpDamage,
-                Damage = hpDamage,
-                PostSaveDamage = preview.PostSaveDamage,
-                IncomingBudgetDamage = preview.IncomingBudgetDamage,
-                ShieldAbsorbed = preview.ShieldAbsorbed,
-                ShieldBroken = preview.ShieldBroken,
-                StableLethal = preview.StableLethal,
-                LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
-                PrimarySaveEstimate = primarySaveEstimate,
-                SaveEstimates = saveEstimates,
-                DamageEvents = CloneTraceObjectList(preview.DamageEvents),
-                Diagnostics = CloneTraceObjectList(preview.Diagnostics),
-                SourcePreviewAfter = preview.SourcePreviewAfter,
-                TargetPreviewAfter = preview.TargetPreviewAfter,
-            };
-        }
-    }
-
     private sealed class PathStepHitCountEntry
     {
         public StringName UnitId;
@@ -376,26 +322,6 @@ public partial class BattleAiScoreService
         foreach (object value in values)
         {
             result.Add(CloneTraceObject(value));
-        }
-        return result;
-    }
-
-    private static List<DamageSaveEstimate> ReadSaveEstimatesFromPreviewList(
-        IReadOnlyList<BattleDamagePreviewSaveEstimate> estimates
-    )
-    {
-        var result = new List<DamageSaveEstimate>();
-        if (estimates == null)
-        {
-            return result;
-        }
-        foreach (BattleDamagePreviewSaveEstimate estimateData in estimates)
-        {
-            DamageSaveEstimate estimate = DamageSaveEstimate.FromPreviewSaveEstimate(estimateData);
-            if (estimate != null)
-            {
-                result.Add(estimate);
-            }
         }
         return result;
     }
@@ -779,8 +705,11 @@ public partial class BattleAiScoreService
         int lethalProbabilityBasisPoints = 0;
         var saveEstimates = new List<DamageSaveEstimate>();
         var damageEstimates = new List<DamageEstimateBreakdown>();
-        BattleUnitState workingSource = sourceUnit?.clone() ?? sourceUnit;
-        BattleUnitState workingTarget = targetUnit?.clone() ?? targetUnit;
+        // Performance contract: all damage effects in this target sequence share one
+        // detached pair. Reintroducing PreviewDamageEffectTyped here restores 2 clones/hit.
+        BattleDamagePreviewWorkingSet previewWorkingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(sourceUnit, targetUnit);
+        BattleUnitState workingTarget = previewWorkingSet?.TargetPreview;
         DamageResolutionContext damageContext = DamageResolutionContext.ForSkill(skillId);
 
         foreach (
@@ -802,21 +731,21 @@ public partial class BattleAiScoreService
                     ?? 0,
                 0
             );
-            BattleDamagePreviewResult effectPreview = _damageResolver.PreviewDamageEffectTyped(
-                workingSource,
-                workingTarget,
+            BattleDamagePreviewScoreResult effectPreview =
+                _damageResolver.PreviewDamageScoreOnWorkingSetTyped(
+                previewWorkingSet,
                 effectDefinition,
                 damageContext,
                 BattleDamagePreviewRollMode.Average,
                 BattleDamagePreviewSaveMode.Expected
             );
-            DamagePreviewSnapshot previewSnapshot = DamagePreviewSnapshot.FromPreviewResult(
-                effectPreview
+            DamageEstimateResult normalized = NormalizeDamageScorePreview(
+                effectPreview,
+                out DamageSaveEstimate primarySaveEstimate
             );
-            DamageEstimateResult normalized = NormalizeDamageSequenceEstimate(previewSnapshot);
             ApplyBranchLethalEstimate(
                 normalized,
-                previewSnapshot,
+                primarySaveEstimate,
                 targetHpBefore,
                 targetShieldBefore
             );
@@ -831,11 +760,10 @@ public partial class BattleAiScoreService
                 lethalProbabilityBasisPoints,
                 normalized.LethalProbabilityBasisPoints
             );
-            saveEstimates.AddRange(CloneSaveEstimates(normalized.SaveEstimates));
-            damageEstimates.AddRange(CloneDamageEstimates(normalized.DamageEstimates));
-
-            workingSource = previewSnapshot.SourcePreviewAfter ?? workingSource;
-            workingTarget = previewSnapshot.TargetPreviewAfter ?? workingTarget;
+            // Performance contract: normalized is a per-effect temporary whose entries
+            // are transferred once into the aggregate. Re-cloning here adds no isolation.
+            saveEstimates.AddRange(normalized.SaveEstimates);
+            damageEstimates.AddRange(normalized.DamageEstimates);
         }
 
         return new DamageEstimateResult
@@ -901,48 +829,53 @@ public partial class BattleAiScoreService
         return Math.Max(RoundToInt(normalizedCount * (normalizedSides + 1) / 2.0 + diceBonus), 0);
     }
 
-    private static DamageEstimateResult NormalizeDamageSequenceEstimate(
-        DamagePreviewSnapshot preview
+    private static DamageEstimateResult NormalizeDamageScorePreview(
+        BattleDamagePreviewScoreResult preview,
+        out DamageSaveEstimate primarySaveEstimate
     )
     {
-        preview ??= new DamagePreviewSnapshot();
+        preview ??= BattleDamagePreviewScoreResult.Empty();
+        primarySaveEstimate = DamageSaveEstimate.FromPreviewSaveEstimate(
+            preview.SaveEstimate
+        );
+        var saveEstimates = new List<DamageSaveEstimate>();
+        var breakdownSaveEstimates = new List<DamageSaveEstimate>();
+        if (primarySaveEstimate != null)
+        {
+            saveEstimates.Add(primarySaveEstimate);
+            breakdownSaveEstimates.Add(primarySaveEstimate.Clone());
+        }
         var damageEstimate = new DamageEstimateBreakdown
         {
             HpDamage = preview.HpDamage,
-            Damage = preview.Damage,
+            Damage = preview.HpDamage,
             PostSaveDamage = preview.PostSaveDamage,
             IncomingBudgetDamage = preview.IncomingBudgetDamage,
             ShieldAbsorbed = preview.ShieldAbsorbed,
             ShieldBroken = preview.ShieldBroken,
-            StableLethal = preview.StableLethal,
-            LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
-            SaveEstimates = CloneSaveEstimates(preview.SaveEstimates),
-            DamageEvents = CloneTraceObjectList(preview.DamageEvents),
+            SaveEstimates = breakdownSaveEstimates,
             Diagnostics = CloneTraceObjectList(preview.Diagnostics),
         };
         return new DamageEstimateResult
         {
-            Damage = preview.Damage,
+            Damage = preview.HpDamage,
             HpDamage = preview.HpDamage,
             PostSaveDamage = preview.PostSaveDamage,
             IncomingBudgetDamage = preview.IncomingBudgetDamage,
             ShieldAbsorbed = preview.ShieldAbsorbed,
             ShieldBroken = preview.ShieldBroken,
-            StableLethal = preview.StableLethal,
-            LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
-            SaveEstimates = CloneSaveEstimates(preview.SaveEstimates),
+            SaveEstimates = saveEstimates,
             DamageEstimates = new List<DamageEstimateBreakdown> { damageEstimate },
         };
     }
 
     private static void ApplyBranchLethalEstimate(
         DamageEstimateResult normalized,
-        DamagePreviewSnapshot preview,
+        DamageSaveEstimate saveEstimate,
         int targetHpBefore,
         int targetShieldBefore
     )
     {
-        DamageSaveEstimate saveEstimate = preview?.PrimarySaveEstimate;
         if (saveEstimate == null)
         {
             bool stableLethal = normalized.HpDamage >= targetHpBefore;

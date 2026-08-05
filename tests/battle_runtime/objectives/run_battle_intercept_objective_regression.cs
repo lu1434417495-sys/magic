@@ -26,6 +26,7 @@ public partial class run_battle_intercept_objective_regression
             TestAtomicTargetAndPartyDefeatDraws();
             TestLargeTargetRequiresFullFootprintInsideExit();
             TestMissingAndDuplicateTargetBindingsAreRejected();
+            TestTerrainBoundObjectiveDefinitionsUsePlacementRetry();
             TestFormalInterceptEncounterStartsWithBoundRosterTarget();
         }
         catch (Exception exception)
@@ -36,6 +37,37 @@ public partial class run_battle_intercept_objective_regression
         }
 
         RequestTestExit(_test.Finish("Battle intercept objective regression"));
+    }
+
+    private void TestTerrainBoundObjectiveDefinitionsUsePlacementRetry()
+    {
+        _test.True(
+            BattleRuntimeModule.ObjectiveBindingUsesTerrainRetry(BuildDefinition()),
+            "Intercept objective binding 失败后应尝试下一个 terrain seed。"
+        );
+        _test.True(
+            BattleRuntimeModule.ObjectiveBindingUsesTerrainRetry(
+                new BattleNodeOperationObjectiveDefinition(
+                    new[]
+                    {
+                        new BattleOperationNodeDefinition(
+                            "retry_node",
+                            "重试节点",
+                            "retry_zone",
+                            BattleMapEdge.Left,
+                            1
+                        ),
+                    }
+                )
+            ),
+            "NodeOperation objective binding 失败后应尝试下一个 terrain seed。"
+        );
+        _test.False(
+            BattleRuntimeModule.ObjectiveBindingUsesTerrainRetry(
+                BattleEliminationObjectiveDefinition.Instance
+            ),
+            "不依赖地形绑定的 Elimination objective 不应进入 binding retry 分支。"
+        );
     }
 
     private void TestTargetDefeatSucceedsWhileGuardsSurvive()

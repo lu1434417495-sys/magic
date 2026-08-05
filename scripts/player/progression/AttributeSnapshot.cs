@@ -72,6 +72,17 @@ public class AttributeSnapshot
         return new Dictionary<StringName, int>(_values);
     }
 
+    internal AttributeSnapshot DuplicateForPreviewExact()
+    {
+        // Performance contract: preview copies preserve the already-derived snapshot
+        // exactly in one dictionary allocation. Rebuilding through SetValue creates an
+        // intermediate dictionary and recomputes base-attribute modifiers on every AI hit.
+        return new AttributeSnapshot
+        {
+            _values = new Dictionary<StringName, int>(_values),
+        };
+    }
+
     internal void ReplaceValuesForMutationSnapshotExact(
         IReadOnlyDictionary<StringName, int> values
     )

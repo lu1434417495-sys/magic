@@ -83,6 +83,20 @@ public partial class BattleDamageResolver
         }
     }
 
+    private readonly record struct DamagePreviewCoreResult(
+        BattleUnitState SourcePreview,
+        BattleUnitState TargetPreview,
+        BattleDamagePreviewRollMode RollMode,
+        BattleDamagePreviewSaveMode SaveMode,
+        int PreSaveDamage,
+        int ShieldHpBefore,
+        int ShieldHpAfter,
+        DamageOutcomeResult DamageOutcome,
+        DamagePreviewSaveEstimate SaveEstimate,
+        AppliedDamageResult DamageResult,
+        bool InvalidDamageTag
+    );
+
     private readonly record struct DamagePreviewBranchLethalEstimate(
         bool FailureKills,
         bool SuccessKills,
@@ -91,6 +105,85 @@ public partial class BattleDamageResolver
         bool StableLethal,
         int LethalProbabilityBasisPoints
     );
+
+    // Performance contract: full presentation previews and compact AI score previews
+    // must share this exact resolver core. Duplicating a cheaper AI damage formula here
+    // would trade the allocation win for stale save/shield/resistance scoring.
+    private DamagePreviewCoreResult ResolveDamagePreviewCore(
+        BattleDamagePreviewWorkingSet workingSet,
+        CombatEffectDefinition effectDefinition,
+        DamageResolutionContext damageContext,
+        BattleDamagePreviewRollMode rollMode,
+        BattleDamagePreviewSaveMode saveMode
+    )
+    {
+        BattleUnitState sourcePreview = workingSet.SourcePreview;
+        BattleUnitState targetPreview = workingSet.TargetPreview;
+        BattleDamagePreviewRollMode resolvedRollMode =
+            rollMode == BattleDamagePreviewRollMode.Unknown
+                ? BattleDamagePreviewRollMode.Average
+                : rollMode;
+        BattleDamagePreviewSaveMode resolvedSaveMode =
+            saveMode == BattleDamagePreviewSaveMode.Unknown
+                ? BattleDamagePreviewSaveMode.Expected
+                : saveMode;
+        int shieldHpBefore = targetPreview.GetShieldStateTyped().CurrentHp;
+        DamageResolutionContext previewContextFlags =
+            (damageContext ?? DamageResolutionContext.Empty()).WithDamageRollMode(
+                ToStringName(resolvedRollMode)
+            );
+        DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
+            sourcePreview,
+            targetPreview,
+            effectDefinition,
+            previewContextFlags
+        );
+        if (damageOutcome.InvalidDamageTag)
+        {
+            return new DamagePreviewCoreResult(
+                sourcePreview,
+                targetPreview,
+                resolvedRollMode,
+                resolvedSaveMode,
+                0,
+                shieldHpBefore,
+                targetPreview.GetShieldStateTyped().CurrentHp,
+                damageOutcome,
+                DamagePreviewSaveEstimate.None(0),
+                default,
+                true
+            );
+        }
+
+        int preSaveDamage = damageOutcome.ResolvedDamage;
+        DamagePreviewSaveEstimate saveEstimate = BuildDamagePreviewSaveEstimate(
+            sourcePreview,
+            targetPreview,
+            effectDefinition,
+            previewContextFlags,
+            preSaveDamage,
+            resolvedSaveMode
+        );
+        damageOutcome = WithDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
+        AppliedDamageResult damageResult = ApplyDamageToTargetResult(
+            targetPreview,
+            damageOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
+            sourcePreview
+        );
+        return new DamagePreviewCoreResult(
+            sourcePreview,
+            targetPreview,
+            resolvedRollMode,
+            resolvedSaveMode,
+            preSaveDamage,
+            shieldHpBefore,
+            targetPreview.GetShieldStateTyped().CurrentHp,
+            damageOutcome,
+            saveEstimate,
+            damageResult,
+            false
+        );
+    }
 
     private AppliedDamageResult BuildExpectedSaveBranchDamageResult(
         BattleUnitState targetPreview,

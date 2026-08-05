@@ -25,6 +25,10 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
     {
         BattleUnitState source = MakeUnit("caster", "player", 30);
         BattleUnitState target = MakeUnit("target", "hostile", 35);
+        source.equipment_view = null;
+        source.equipment_view_initialized = false;
+        target.equipment_view = null;
+        target.equipment_view_initialized = false;
         var state = new BattleState();
         state.SetUnit(source);
         state.SetUnit(target);
@@ -59,7 +63,9 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
         };
         preview.AddTargetUnitId(target.unit_id);
 
+        using var damageResolver = new BattleDamageResolver();
         using var scoreService = new BattleAiScoreService();
+        scoreService.Setup(damageResolver);
         BattleAiScoreInput scoreInput = scoreService.BuildSkillScoreInput(
             context,
             skill,
@@ -104,6 +110,14 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
             estimate.DamageAfterSaveEstimate,
             30,
             "trace 中也应保留豁免加权后的期望伤害。"
+        );
+        _test.True(
+            source.equipment_view == null && !source.equipment_view_initialized,
+            "AI damage scoring 不应惰性初始化 source equipment state。"
+        );
+        _test.True(
+            target.equipment_view == null && !target.equipment_view_initialized,
+            "AI damage scoring 不应惰性初始化 target equipment state。"
         );
     }
 
