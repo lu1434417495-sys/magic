@@ -120,6 +120,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "CombatSkillDefinition.FromResource",
                 "CombatSkillDefinition.ProjectCastVariants",
                 "CombatSkillDefinition.ProjectEffectDefinitions",
+                "CombatWindupDefinition.FromResource",
                 "CombatTargetDamageMultiplierRuleDefinition.FromResource",
                 "CombatTargetDamageMultiplierRuleDefinition.ProjectArray",
                 "ContingencyAutomationDefinition.FromResource",

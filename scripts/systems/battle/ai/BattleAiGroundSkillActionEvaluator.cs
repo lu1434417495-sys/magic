@@ -923,6 +923,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             || scoreInput.estimated_enemy_healing > 0
             || scoreInput.estimated_status_count > 0
             || scoreInput.estimated_control_count > 0
+            || scoreInput.estimated_taunt_ally_damage_relief > 0
             || scoreInput.estimated_lethal_target_count > 0
             || scoreInput.estimated_lethal_threat_target_count > 0
         )

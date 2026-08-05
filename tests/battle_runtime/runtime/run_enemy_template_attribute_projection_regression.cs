@@ -219,6 +219,7 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
             display_name = "Typed Attribute Enemy",
             brain_id = "melee_aggressor",
             initial_state_id = "engage",
+            cognition_kind = "sapient",
             enemy_count = 1,
             target_rank = "elite",
         };

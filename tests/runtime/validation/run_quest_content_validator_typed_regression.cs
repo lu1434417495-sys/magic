@@ -16,6 +16,7 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
     {
         _snapshot = GameSessionTestFactory.GetProcessSnapshot();
         TestOfficialQuestValidationTypedBoundary();
+        TestUnboundObjectiveNormalizesEncounterProfileId();
         TestMissingReferenceErrorsUseTypedBoundary();
         TestDanglingEncounterProfileReferenceIsRejected();
         TestEncounterGrowthStageValidation();
@@ -65,6 +66,48 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
             farmerPlea.Objectives[0].EncounterGrowthStage,
             1,
             "《农夫的恳求》应选择共享狼群 roster 的五狼阶段。"
+        );
+    }
+
+    private void TestUnboundObjectiveNormalizesEncounterProfileId()
+    {
+        var objective = new QuestObjectiveDefinition(
+            "complete_training",
+            "settlement_action",
+            "service:training",
+            1
+        );
+        _test.True(
+            objective.EncounterProfileId is not null,
+            "未绑定接取遭遇的 objective 应把默认 StringName 归一化为空值对象。"
+        );
+        _test.Eq(
+            objective.EncounterProfileId,
+            new StringName(""),
+            "未绑定接取遭遇的 objective 应公开空 encounter_profile_id。"
+        );
+
+        QuestDefinition quest = BuildQuestDefinition(
+            "unbound_encounter_profile_quest",
+            objectives: [objective]
+        );
+        Dictionary<StringName, QuestDefinition> questDefs = new()
+        {
+            [quest.QuestId] = quest,
+        };
+        List<string> errors = QuestContentValidator.ValidateTyped(
+            questDefs,
+            _snapshot.Items,
+            _snapshot.Skills,
+            _snapshot.EnemyTemplates,
+            Array.Empty<string>(),
+            _snapshot.BattleEncounters,
+            _snapshot.EncounterRosters
+        );
+        _test.Eq(
+            errors.Count,
+            0,
+            $"未绑定 encounter 的 objective 不应进入 encounter 字典查询。 errors={FormatErrors(errors)}"
         );
     }
 

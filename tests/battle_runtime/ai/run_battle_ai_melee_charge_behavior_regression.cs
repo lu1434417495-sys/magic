@@ -21,6 +21,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             TestFormalAdvanceCommitsDecisionStatePatchOnce();
             TestFrontlineBulwarkChargeDecisionMovesTowardTarget();
             TestFrontlineBulwarkTauntProducesGroundSkillCommand();
+            TestFrontlineBulwarkTauntDeclinesWithoutProtectedAlly();
             TestShortRegularMovePrefersCloseInOverCharge();
             TestChargeActionScoresWithResolvedStopAnchor();
             TestChargeTraceBalancesWhenPreviewThrows();
@@ -248,9 +249,11 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
 
     private void TestFrontlineBulwarkTauntProducesGroundSkillCommand()
     {
-        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(
+            useFormalDamageEstimates: true
+        );
         BattleRuntimeModule runtime = runtimeScope.Runtime;
-        BattleState state = BuildFlatState(new Vector2I(3, 3));
+        BattleState state = BuildFlatState(new Vector2I(4, 3));
         BattleUnitState vanguard = BuildAiUnit(
             "taunt_vanguard",
             "嘲讽先锋",
@@ -271,11 +274,46 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             new Vector2I(1, 1),
             new[] { "basic_attack" }
         );
+        EquipThreateningRangedWeapon(player);
+        player.SetActionThresholdTyped(120);
+        player.SetActionProgressTyped(119);
+        BattleUnitState protectedAlly = BuildManualUnit(
+            "taunt_protected_ally",
+            "受保护友军",
+            "hostile",
+            new Vector2I(3, 1),
+            Array.Empty<string>()
+        );
         AddUnitToState(runtime, state, vanguard, isEnemy: true);
+        AddUnitToState(runtime, state, protectedAlly, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
         BattleAiContext context = BuildAiContext(runtime, vanguard);
+        SkillDefinition tauntDefinition = runtime.GetSkillDefinitionTyped(
+            "warrior_taunt"
+        );
+        var scorePreview = new BattlePreview { allowed = true };
+        scorePreview.AddTargetUnitId(player.unit_id);
+        scorePreview.AddTargetCoord(player.GetAnchorCoord());
+        BattleAiScoreInput tauntScore = runtime._ai_service
+            .GetScoreService()
+            .BuildSkillScoreInput(
+                context,
+                tauntDefinition,
+                null,
+                scorePreview,
+                tauntDefinition?.CombatProfile?.EffectDefinitions
+            );
+        _test.True(
+            (tauntScore?.estimated_taunt_ally_damage_relief ?? 0) > 0,
+            "即将攻击另一名友军的理性目标应给挑衅产生正向保护收益。"
+                + $" relief={tauntScore?.estimated_taunt_ally_damage_relief ?? -1}"
+                + $" cast_block={runtime.GetSkillCastBlockReason(player, runtime.GetSkillDefinitionTyped("basic_attack"))}"
+                + $" stamina={player.GetCurrentStamina()} ap={player.GetCurrentAp()}"
+                + $" weapon_range={BattleRangeService.GetWeaponAttackRange(player)}"
+                + $" already_disadvantaged={state.IsAttackDisadvantage(player, protectedAlly)}"
+        );
         context.trace_enabled = true;
         BattleAiDecisionResult decisionResult = runtime._ai_service.ChooseCommand(
             context,
@@ -299,6 +337,63 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         _test.True(
             runtime.PreviewCommand(decision?.command)?.allowed == true,
             "frontline_bulwark 生成的嘲讽 ground 指令应通过正式 preview。"
+        );
+    }
+
+    private void TestFrontlineBulwarkTauntDeclinesWithoutProtectedAlly()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(
+            useFormalDamageEstimates: true
+        );
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(3, 3));
+        BattleUnitState vanguard = BuildAiUnit(
+            "solo_taunt_vanguard",
+            "单挑嘲讽先锋",
+            "hostile",
+            new Vector2I(0, 1),
+            "frontline_bulwark",
+            "pressure",
+            new[] { "warrior_taunt" },
+            42,
+            2
+        );
+        vanguard.SetCurrentStamina(80);
+        vanguard.attribute_snapshot.SetValue("stamina_max", 80);
+        BattleUnitState player = BuildManualUnit(
+            "solo_taunt_target",
+            "单挑目标",
+            "player",
+            new Vector2I(1, 1),
+            new[] { "basic_attack" }
+        );
+        EquipThreateningRangedWeapon(player);
+        player.SetActionThresholdTyped(120);
+        player.SetActionProgressTyped(119);
+        AddUnitToState(runtime, state, vanguard, isEnemy: true);
+        AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        BattleAiContext context = BuildAiContext(runtime, vanguard);
+        context.trace_enabled = true;
+        BattleAiDecisionResult decisionResult = runtime._ai_service.ChooseCommand(
+            context,
+            captureTrace: true
+        );
+        BattleAiDecision decision = decisionResult?.Decision;
+        string traceSummary = FormatActionTraces(
+            decisionResult?.TurnTrace?.ActionTraces
+        );
+
+        _test.Eq(
+            decision?.action_id ?? (StringName)"",
+            new StringName("vanguard_wait"),
+            $"没有其他友军可保护时，frontline_bulwark 不应浪费嘲讽。 trace={traceSummary}"
+        );
+        _test.True(
+            decision?.command?.command_type
+                == BattleTypedNames.ToStringName(BattleCommandKind.Wait),
+            $"没有嘲讽保护收益时应产出合法等待指令。 trace={traceSummary}"
         );
     }
 
@@ -473,7 +568,9 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         );
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
+    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(
+        bool useFormalDamageEstimates = false
+    )
     {
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
@@ -485,7 +582,9 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-        var damageResolver = new FixedSuccessOneDamageResolver();
+        BattleDamageResolver damageResolver = useFormalDamageEstimates
+            ? new BattleDamageResolver()
+            : new FixedSuccessOneDamageResolver();
         damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
         return new BattleRuntimeScope(runtime, gameSession);
@@ -644,6 +743,37 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             );
         }
         return unit;
+    }
+
+    private static void EquipThreateningRangedWeapon(BattleUnitState unit)
+    {
+        unit?.UnlockCombatResource(
+            CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina)
+        );
+        unit?.SetCurrentStamina(80);
+        unit?.attribute_snapshot.SetValue("stamina_max", 80);
+        unit?.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = "equipped",
+                weapon_item_id = "taunt_test_bow",
+                weapon_profile_type_id = "longbow",
+                weapon_range_type = "ranged",
+                weapon_family = "bow",
+                weapon_current_grip = "two_handed",
+                weapon_attack_range = 2,
+                weapon_one_handed_dice = new WeaponDice(),
+                weapon_two_handed_dice = new WeaponDice
+                {
+                    dice_count = 2,
+                    dice_sides = 8,
+                    flat_bonus = 2,
+                },
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = true,
+                weapon_physical_damage_tag = "physical_pierce",
+            }
+        );
     }
 
     private void AddUnitToState(
