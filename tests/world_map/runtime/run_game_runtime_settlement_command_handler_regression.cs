@@ -1368,6 +1368,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             ["tier"] = 1,
             ["tier_name"] = "村镇",
             ["faction_id"] = "neutral",
+            ["country_id"] = "",
             ["origin"] = origin,
             ["footprint_size"] = Vector2I.One,
             ["facilities"] = new GArray(),

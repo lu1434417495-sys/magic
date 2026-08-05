@@ -1093,6 +1093,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             ["tier"] = 1,
             ["tier_name"] = "村镇",
             ["faction_id"] = "neutral",
+            ["country_id"] = "",
             ["origin"] = origin,
             ["footprint_size"] = Vector2I.One,
             ["facilities"] = new GArray(),

@@ -22,8 +22,8 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         TestDecodePayloadRejectsMissingPartySchemaFields();
         TestDecodePayloadRejectsFailedStateInActiveCollection();
         TestDecodePayloadRejectsIncompleteSettlementState();
-        TestCurrentRootRejectsPartyVersion7WithoutMigration();
-        TestRootVersion14IsRejectedWithoutMigration();
+        TestCurrentRootRejectsPartyVersion8WithoutMigration();
+        TestRootVersion17IsRejectedWithoutMigration();
         TestRootVersion10PartyVersion6OldEquipmentPayloadIsRejectedByVersionGate();
         TestExtractSaveMetaRejectsMissingSlotFields();
         RequestTestExit(_test.Finish("Save serializer quest round trip regression"));
@@ -68,6 +68,9 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         );
         partyState.SetFailedQuestState(failedQuest);
         partyState.AddCompletedQuestId("intro_contract");
+        partyState.SetWorldRenown(72);
+        partyState.SetCountryReputation("frost_ash_empire", 35);
+        partyState.SetCountryReputation("starfall_federation", -20);
 
         SaveSerializer serializer = gameSession._save_serializer;
         using GodotProjectionLease<GDictionary> payloadLease =
@@ -75,8 +78,8 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         GDictionary payload = payloadLease.Value;
         _test.Eq(
             DictInt(payload, "version", -1),
-            17,
-            "Current strict world schema should use top-level save version 17."
+            18,
+            "Current strict world schema should use top-level save version 18."
         );
         Dictionary<string, object> payloadPlain = RuntimePlainPayload.RestoreSaveDictionary(
             payload,
@@ -97,10 +100,21 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         {
             _test.Eq(
                 restoredPartyState.version,
-                8,
-                "Quest journal schema should bump PartyState.version to 8."
+                9,
+                "Social standing schema should bump PartyState.version to 9."
             );
             _test.Eq(restoredPartyState.main_character_member_id, partyState.main_character_member_id, "完整 save round-trip 后应保留 main_character_member_id。");
+            _test.Eq(restoredPartyState.GetWorldRenown(), 72, "完整 save round-trip 后应保留世界名望。");
+            _test.Eq(
+                restoredPartyState.GetCountryReputation("frost_ash_empire"),
+                35,
+                "完整 save round-trip 后应保留帝国声望。"
+            );
+            _test.Eq(
+                restoredPartyState.GetCountryReputation("starfall_federation"),
+                -20,
+                "完整 save round-trip 后应保留联邦声望。"
+            );
             _test.True(restoredPartyState.HasActiveQuest("contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。");
             _test.True(restoredPartyState.HasClaimableQuest("contract_settlement_warehouse"), "SaveSerializer 往返后应保留 claimable_quests。");
             _test.True(restoredPartyState.HasFailedQuest("contract_failed_patrol"), "SaveSerializer 往返后应保留 failed_quests。");
@@ -185,13 +199,13 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         CleanupTestSession(gameSession);
     }
 
-    private void TestRootVersion14IsRejectedWithoutMigration()
+    private void TestRootVersion17IsRejectedWithoutMigration()
     {
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
-            _test.Eq(createError, Error.Ok, "v14 rejection regression requires a valid current save.");
+            _test.Eq(createError, Error.Ok, "v17 rejection regression requires a valid current save.");
             if (createError != Error.Ok)
                 return;
 
@@ -200,13 +214,13 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
                 BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
             Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
                 payloadLease.Value,
-                "settlement-v14.payload"
+                "social-standing-v17.payload"
             );
-            payload["version"] = 14;
+            payload["version"] = 17;
 
             _test.True(
                 !serializer.TryExtractSaveMetaPlain(payload, out _),
-                "v14 save metadata must be rejected; current world schema has no compatibility path."
+                "v17 save metadata must be rejected; current social standing schema has no compatibility path."
             );
             bool decoded = serializer.TryDecodePayload(
                 payload,
@@ -214,11 +228,11 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );
-            _test.True(!decoded, "v14 save payload must be rejected without migration.");
+            _test.True(!decoded, "v17 save payload must be rejected without migration.");
             _test.Eq(
                 decodeResult.Error,
                 (int)Error.InvalidData,
-                "v14 rejection must report InvalidData."
+                "v17 rejection must report InvalidData."
             );
         }
         finally
@@ -227,13 +241,13 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         }
     }
 
-    private void TestCurrentRootRejectsPartyVersion7WithoutMigration()
+    private void TestCurrentRootRejectsPartyVersion8WithoutMigration()
     {
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
-            _test.Eq(createError, Error.Ok, "PartyState v7 rejection regression requires a valid current save.");
+            _test.Eq(createError, Error.Ok, "PartyState v8 rejection regression requires a valid current save.");
             if (createError != Error.Ok)
                 return;
 
@@ -242,9 +256,9 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
                 BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
             Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
                 payloadLease.Value,
-                "party-v7.payload"
+                "party-v8.payload"
             );
-            PlainDictionary(payload, "party_state")["version"] = 7;
+            PlainDictionary(payload, "party_state")["version"] = 8;
 
             bool decoded = serializer.TryDecodePayload(
                 payload,
@@ -254,12 +268,12 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             );
             _test.True(
                 !decoded,
-                "Current root save with PartyState v7 must reject because failed_quests has no compatibility migration."
+                "Current root save with PartyState v8 must reject because social standing has no compatibility migration."
             );
             _test.Eq(
                 decodeResult.Error,
                 (int)Error.InvalidData,
-                "PartyState v7 rejection must report InvalidData."
+                "PartyState v8 rejection must report InvalidData."
             );
         }
         finally
@@ -457,6 +471,8 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
                 "main_character_member_id",
                 "claimable_quests",
                 "failed_quests",
+                "world_renown",
+                "country_reputations",
             }
         )
         {

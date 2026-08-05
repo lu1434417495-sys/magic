@@ -267,7 +267,8 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
                 new SettlementDistributionDefinition(
                     "missing_settlement",
                     Vector2I.Zero,
-                    "test_faction"
+                    "test_faction",
+                    "test_country"
                 ),
             },
             source.WildMonsterDistribution,

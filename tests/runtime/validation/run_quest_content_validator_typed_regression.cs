@@ -17,6 +17,8 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         _snapshot = GameSessionTestFactory.GetProcessSnapshot();
         TestOfficialQuestValidationTypedBoundary();
         TestMissingReferenceErrorsUseTypedBoundary();
+        TestDanglingEncounterProfileReferenceIsRejected();
+        TestEncounterGrowthStageValidation();
         TestNpcProviderAcceptsNonServiceInteractionId();
         TestProviderKindValidationNegativeBoundary();
         TestListingChannelValidationNegativeBoundary();
@@ -34,12 +36,35 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
             _snapshot.Items,
             _snapshot.Skills,
             _snapshot.EnemyTemplates,
-            Array.Empty<string>()
+            Array.Empty<string>(),
+            _snapshot.BattleEncounters,
+            _snapshot.EncounterRosters
         );
         _test.Eq(
             typedErrors.Count,
             0,
             $"正式 quest typed boundary 不应报错: {FormatErrors(typedErrors)}"
+        );
+
+        bool hasFarmerPlea = _snapshot.Quests.TryGetValue(
+            "folk_farmers_plea",
+            out QuestDefinition farmerPlea
+        );
+        _test.True(hasFarmerPlea, "正式 quest snapshot 应发布《农夫的恳求》。");
+        if (!hasFarmerPlea)
+            return;
+        _test.Eq(farmerPlea.Objectives.Count, 1, "《农夫的恳求》应只有一个正式战斗目标。");
+        if (farmerPlea.Objectives.Count != 1)
+            return;
+        _test.Eq(
+            farmerPlea.Objectives[0].EncounterProfileId,
+            new StringName("wolf_wilds"),
+            "《农夫的恳求》应复用正式共享 wolf_wilds 遭遇模板。"
+        );
+        _test.Eq(
+            farmerPlea.Objectives[0].EncounterGrowthStage,
+            1,
+            "《农夫的恳求》应选择共享狼群 roster 的五狼阶段。"
         );
     }
 
@@ -63,6 +88,157 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         _test.True(
             typedErrors.Count >= 4,
             $"typed quest validator 应把缺失引用和 registration error 视为非法。 errors={FormatErrors(typedErrors)}"
+        );
+    }
+
+    private void TestDanglingEncounterProfileReferenceIsRejected()
+    {
+        StringName validEnemyTemplateId = "";
+        foreach (StringName enemyTemplateId in _snapshot.EnemyTemplates.Keys)
+        {
+            validEnemyTemplateId = enemyTemplateId;
+            break;
+        }
+        _test.True(validEnemyTemplateId != "", "正式 enemy template 索引应至少包含一个条目。");
+
+        QuestDefinition danglingEncounterQuest = BuildQuestDefinition(
+            "dangling_encounter_profile_quest",
+            objectives:
+            [
+                new QuestObjectiveDefinition(
+                    "defeat_at_missing_encounter",
+                    "defeat_enemy",
+                    validEnemyTemplateId,
+                    1,
+                    "missing_quest_encounter_profile",
+                    "Missing Encounter"
+                ),
+            ]
+        );
+        Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
+        {
+            [danglingEncounterQuest.QuestId] = danglingEncounterQuest,
+        };
+
+        List<string> typedErrors = QuestContentValidator.ValidateTyped(
+            typedQuestDefs,
+            _snapshot.Items,
+            _snapshot.Skills,
+            _snapshot.EnemyTemplates,
+            Array.Empty<string>(),
+            _snapshot.BattleEncounters,
+            _snapshot.EncounterRosters
+        );
+        _test.True(
+            typedErrors.Contains(
+                "Quest dangling_encounter_profile_quest objective defeat_at_missing_encounter references missing battle encounter missing_quest_encounter_profile."
+            ),
+            $"dangling encounter_profile_id 应报告缺失 encounter profile。 errors={FormatErrors(typedErrors)}"
+        );
+    }
+
+    private void TestEncounterGrowthStageValidation()
+    {
+        QuestDefinition negativeStageQuest = BuildQuestDefinition(
+            "negative_encounter_growth_stage_quest",
+            objectives:
+            [
+                new QuestObjectiveDefinition(
+                    "defeat_wolves",
+                    "defeat_enemy",
+                    "wolf_pack",
+                    1,
+                    "wolf_wilds",
+                    "Wolves",
+                    -1
+                ),
+            ]
+        );
+        QuestDefinition unboundStageQuest = BuildQuestDefinition(
+            "unbound_encounter_growth_stage_quest",
+            objectives:
+            [
+                new QuestObjectiveDefinition(
+                    "defeat_wolves",
+                    "defeat_enemy",
+                    "wolf_pack",
+                    1,
+                    "",
+                    "",
+                    1
+                ),
+            ]
+        );
+        QuestDefinition undeclaredStageQuest = BuildQuestDefinition(
+            "undeclared_encounter_growth_stage_quest",
+            objectives:
+            [
+                new QuestObjectiveDefinition(
+                    "defeat_wolves",
+                    "defeat_enemy_in_single_battle",
+                    "wolf_pack",
+                    1,
+                    "wolf_wilds",
+                    "Wolves",
+                    99
+                ),
+            ]
+        );
+        QuestDefinition insufficientStageQuest = BuildQuestDefinition(
+            "insufficient_encounter_growth_stage_quest",
+            objectives:
+            [
+                new QuestObjectiveDefinition(
+                    "defeat_wolves",
+                    "defeat_enemy_in_single_battle",
+                    "wolf_pack",
+                    5,
+                    "wolf_wilds",
+                    "Wolves",
+                    0
+                ),
+            ]
+        );
+        Dictionary<StringName, QuestDefinition> questDefs = new()
+        {
+            [negativeStageQuest.QuestId] = negativeStageQuest,
+            [unboundStageQuest.QuestId] = unboundStageQuest,
+            [undeclaredStageQuest.QuestId] = undeclaredStageQuest,
+            [insufficientStageQuest.QuestId] = insufficientStageQuest,
+        };
+
+        List<string> errors = QuestContentValidator.ValidateTyped(
+            questDefs,
+            _snapshot.Items,
+            _snapshot.Skills,
+            _snapshot.EnemyTemplates,
+            Array.Empty<string>(),
+            _snapshot.BattleEncounters,
+            _snapshot.EncounterRosters
+        );
+        _test.True(
+            errors.Contains(
+                "Quest negative_encounter_growth_stage_quest: QuestDef negative_encounter_growth_stage_quest 的 objective defeat_wolves 的 encounter_growth_stage 不能为负数。"
+            ),
+            $"负 encounter_growth_stage 应被拒绝。 errors={FormatErrors(errors)}"
+        );
+        _test.True(
+            errors.Contains(
+                "Quest unbound_encounter_growth_stage_quest: QuestDef unbound_encounter_growth_stage_quest 的 objective defeat_wolves 只有绑定接取遭遇时才能配置 encounter_growth_stage。"
+            ),
+            $"未绑定 encounter 时不得单独配置 growth stage。 errors={FormatErrors(errors)}"
+        );
+        _test.True(
+            errors.Contains(
+                "Quest undeclared_encounter_growth_stage_quest objective defeat_wolves references undeclared growth stage 99 in encounter roster wolf_pack_skirmish."
+            ),
+            $"任务必须绑定 roster 中精确定义的 growth stage。 errors={FormatErrors(errors)}"
+        );
+        _test.True(
+            errors.Contains(
+                "Quest insufficient_encounter_growth_stage_quest objective defeat_wolves requires 5 wolf_pack in one battle, but encounter wolf_wilds roster wolf_pack_skirmish stage 0 provides 2."
+            ),
+            $"单场击败目标不得绑定敌人数不足的共享 roster stage。 errors={FormatErrors(errors)}"
         );
     }
 
@@ -474,6 +650,12 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
                     "defeat_enemy",
                     "missing_enemy_template",
                     1
+                ),
+                new QuestObjectiveDefinition(
+                    "defeat_missing_enemy_together",
+                    "defeat_enemy_in_single_battle",
+                    "missing_single_battle_enemy_template",
+                    5
                 ),
             ],
             rewards:

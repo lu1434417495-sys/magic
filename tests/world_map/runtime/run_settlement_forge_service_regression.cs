@@ -515,6 +515,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             ["tier"] = 1,
             ["tier_name"] = "村镇",
             ["faction_id"] = "neutral",
+            ["country_id"] = "",
             ["origin"] = Vector2I.Zero,
             ["footprint_size"] = Vector2I.One,
             ["facilities"] = new GArray { facility },

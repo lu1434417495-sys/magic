@@ -22,6 +22,8 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         TestCustomStatsRejectNonIntValues();
         TestReputationsRejectNonIntValues();
         TestValidTypedPayloadsRoundTrip();
+        TestSocialStandingStateContracts();
+        TestPartyStateRejectsInvalidSocialStandingPayloads();
         TestPartyStateUsesCurrentSaveVersion();
 
         RequestTestExit(_test.Finish("Typed party quest state regression"));
@@ -167,7 +169,10 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
     private void TestReputationsRejectNonIntValues()
     {
         ExpectArgumentException(
-            () => UnitReputationMap.FromDictionary(new GDictionary { ["renown"] = "bad" }),
+            () =>
+                UnitReputationMap.FromDictionary(
+                    new GDictionary { ["guild_esteem"] = "bad" }
+                ),
             "custom reputation 中的非 int value 应在解析阶段被拒绝。"
         );
     }
@@ -213,11 +218,11 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         );
 
         UnitReputationMap reputations = UnitReputationMap.FromDictionary(
-            new GDictionary { ["renown"] = 5 }
+            new GDictionary { ["guild_esteem"] = 5 }
         );
-        _test.Eq(reputations.Get("renown"), 5, "typed reputation 应读取 int 值。");
+        _test.Eq(reputations.Get("guild_esteem"), 5, "typed reputation 应读取 int 值。");
         _test.Eq(
-            reputations.ToDictionary()["renown"].AsInt32(),
+            reputations.ToDictionary()["guild_esteem"].AsInt32(),
             5,
             "typed reputation 应 roundtrip 为 save 字典。"
         );
@@ -238,15 +243,224 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         );
     }
 
+    private void TestSocialStandingStateContracts()
+    {
+        PartyState state = BuildValidPartyState();
+        _test.Eq(state.GetWorldRenown(), 0, "新队伍的世界名望应默认为 0。");
+
+        _test.Eq(state.SetWorldRenown(140), 100, "世界名望写入应在上界饱和。");
+        _test.Eq(state.AddWorldRenown(-170), 0, "世界名望增量应在下界饱和。");
+        state.SetWorldRenown(63);
+
+        _test.Eq(
+            state.SetCountryReputation("frost_ash_empire", 35),
+            35,
+            "国家声望应按 country_id 写入。"
+        );
+        _test.Eq(
+            state.SetCountryReputation("starfall_federation", -20),
+            -20,
+            "不同国家应拥有独立声望值。"
+        );
+        _test.Eq(
+            state.AddCountryReputation("frost_ash_empire", 80),
+            100,
+            "单一国家声望增量应在上界饱和。"
+        );
+        _test.Eq(
+            state.GetCountryReputation("starfall_federation"),
+            -20,
+            "修改帝国声望不得联动联邦声望。"
+        );
+        _test.Eq(
+            state.AddCountryReputation("starfall_federation", -90),
+            -100,
+            "单一国家声望增量应在下界饱和。"
+        );
+        _test.Eq(
+            state.GetCountryReputation("frost_ash_empire"),
+            100,
+            "修改联邦声望不得联动帝国声望。"
+        );
+
+        PartyState duplicate = state.DuplicateState();
+        _test.Eq(duplicate.GetWorldRenown(), 63, "DuplicateState 应保留世界名望。");
+        _test.Eq(
+            duplicate.GetCountryReputation("frost_ash_empire"),
+            100,
+            "DuplicateState 应保留帝国声望。"
+        );
+        _test.Eq(
+            duplicate.GetCountryReputation("starfall_federation"),
+            -100,
+            "DuplicateState 应保留联邦声望。"
+        );
+        duplicate.SetWorldRenown(7);
+        duplicate.SetCountryReputation("frost_ash_empire", -45);
+        _test.Eq(state.GetWorldRenown(), 63, "修改 duplicate 世界名望不得影响源队伍。");
+        _test.Eq(
+            state.GetCountryReputation("frost_ash_empire"),
+            100,
+            "修改 duplicate 国家声望不得影响源队伍。"
+        );
+
+        using GodotProjectionLease<GDictionary> payloadLease =
+            state.ToDictionaryLease("TypedPartyQuestState.SocialStandingRoundTrip");
+        GDictionary payload = payloadLease.Value;
+        _test.Eq(
+            payload["world_renown"].AsInt32(),
+            63,
+            "Party save payload 应输出世界名望。"
+        );
+        using GDictionary countryPayload =
+            payload["country_reputations"].AsGodotDictionary();
+        _test.Eq(
+            countryPayload["frost_ash_empire"].AsInt32(),
+            100,
+            "Party save payload 应输出帝国声望。"
+        );
+        _test.Eq(
+            countryPayload["starfall_federation"].AsInt32(),
+            -100,
+            "Party save payload 应输出联邦声望。"
+        );
+
+        PartyState restored = PartyState.FromDictionary(payload);
+        _test.True(restored != null, "合法社会声望字段应通过 PartyState round-trip。");
+        if (restored == null)
+            return;
+        _test.Eq(restored.GetWorldRenown(), 63, "round-trip 后应保留世界名望。");
+        _test.Eq(
+            restored.GetCountryReputation("frost_ash_empire"),
+            100,
+            "round-trip 后应保留帝国声望。"
+        );
+        _test.Eq(
+            restored.GetCountryReputation("starfall_federation"),
+            -100,
+            "round-trip 后应保留联邦声望。"
+        );
+    }
+
+    private void TestPartyStateRejectsInvalidSocialStandingPayloads()
+    {
+        AssertPartyPayloadRejected(
+            payload => payload.Remove("world_renown"),
+            "缺少 world_renown 的 PartyState payload 应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload => payload["world_renown"] = "bad",
+            "非 int world_renown 应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload => payload["world_renown"] = -1,
+            "低于下界的 world_renown 应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload => payload["world_renown"] = 101,
+            "高于上界的 world_renown 应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload => payload["world_renown"] = long.MaxValue,
+            "超出 int 范围的 world_renown 不得截断后通过校验。"
+        );
+        AssertPartyPayloadRejected(
+            payload => payload.Remove("country_reputations"),
+            "缺少 country_reputations 的 PartyState payload 应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload => payload["country_reputations"] = new Godot.Collections.Array(),
+            "非 Dictionary country_reputations 应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload =>
+            {
+                using GDictionary countryPayload =
+                    payload["country_reputations"].AsGodotDictionary();
+                countryPayload["frost_ash_empire"] = "bad";
+            },
+            "国家声望的非 int value 应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload =>
+            {
+                using GDictionary countryPayload =
+                    payload["country_reputations"].AsGodotDictionary();
+                countryPayload["frost_ash_empire"] = -101;
+            },
+            "低于下界的国家声望应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload =>
+            {
+                using GDictionary countryPayload =
+                    payload["country_reputations"].AsGodotDictionary();
+                countryPayload["frost_ash_empire"] = 101;
+            },
+            "高于上界的国家声望应被拒绝。"
+        );
+        AssertPartyPayloadRejected(
+            payload =>
+            {
+                using GDictionary countryPayload =
+                    payload["country_reputations"].AsGodotDictionary();
+                countryPayload["frost_ash_empire"] = long.MinValue;
+            },
+            "超出 int 范围的国家声望不得截断后通过校验。"
+        );
+        AssertPartyPayloadRejected(
+            payload =>
+            {
+                using GDictionary countryPayload =
+                    payload["country_reputations"].AsGodotDictionary();
+                countryPayload.Clear();
+                countryPayload[1] = 10;
+            },
+            "国家声望字典不得把非字符串键转换成 country_id。"
+        );
+    }
+
     private void TestPartyStateUsesCurrentSaveVersion()
     {
         PartyState state = new();
-        _test.Eq(state.version, 8, "PartyState save schema 应升级到 8。");
+        _test.Eq(state.version, 9, "PartyState save schema 应升级到 9。");
         _test.Eq(
             Convert.ToInt32(state.BuildSaveSnapshotPlain()["version"]),
-            8,
-            "PartyState save snapshot 应输出 schema 8。"
+            9,
+            "PartyState save snapshot 应输出 schema 9。"
         );
+    }
+
+    private void AssertPartyPayloadRejected(Action<GDictionary> mutate, string message)
+    {
+        PartyState state = BuildValidPartyState();
+        state.SetWorldRenown(40);
+        state.SetCountryReputation("frost_ash_empire", 25);
+        using GodotProjectionLease<GDictionary> payloadLease =
+            state.ToDictionaryLease("TypedPartyQuestState.InvalidSocialStanding");
+        using GDictionary payload = (GDictionary)payloadLease.Value.Duplicate(true);
+        mutate(payload);
+        _test.True(PartyState.FromDictionary(payload) == null, message);
+    }
+
+    private static PartyState BuildValidPartyState()
+    {
+        PartyMemberState member = new()
+        {
+            member_id = "hero",
+            display_name = "Hero",
+        };
+        member.progression.unit_id = "hero";
+        member.progression.display_name = "Hero";
+
+        PartyState state = new()
+        {
+            leader_member_id = "hero",
+            main_character_member_id = "hero",
+        };
+        state.SetMemberState(member);
+        state.active_member_ids.Add("hero");
+        return state;
     }
 
     private void ExpectArgumentException(Action action, string message)

@@ -17,6 +17,9 @@ public sealed class QuestProgressService
     private static readonly StringName EventAccept = "accept";
     private static readonly StringName EventProgress = "progress";
     private static readonly StringName EventComplete = "complete";
+    private static readonly StringName ObjectiveDefeatEnemy = "defeat_enemy";
+    private static readonly StringName ObjectiveDefeatEnemyInSingleBattle =
+        "defeat_enemy_in_single_battle";
     private static readonly IReadOnlyList<QuestObjectiveDefData> EmptyObjectiveDefs =
         new List<QuestObjectiveDefData>();
 
@@ -168,10 +171,14 @@ public sealed class QuestProgressService
         if (_party_state == null || questId == "" || objectiveId == "" || delta <= 0)
             return false;
 
+        QuestObjectiveDefData objectiveDef = FindObjectiveDef(questId, objectiveId);
+        if (objectiveDef.RequiresSingleBattleCompletion)
+            return false;
+
         int resolvedTarget =
             targetValue > 0
                 ? targetValue
-                : ResolveObjectiveTargetValue(FindObjectiveDef(questId, objectiveId));
+                : ResolveObjectiveTargetValue(objectiveDef);
         if (resolvedTarget <= 0)
             return false;
 
@@ -347,15 +354,24 @@ public sealed class QuestProgressService
             if (objectiveId == "")
                 return progressedQuestIds;
 
-            int targetValue = ResolveEventTargetValue(eventData, questId, objectiveId);
+            QuestObjectiveDefData objectiveDef = FindObjectiveDef(questId, objectiveId);
+            int targetValue = ResolveEventTargetValue(eventData, objectiveDef);
             if (targetValue <= 0)
+                return progressedQuestIds;
+
+            int resolvedProgressDelta = ResolveProgressDeltaForObjective(
+                eventData,
+                objectiveDef,
+                targetValue
+            );
+            if (resolvedProgressDelta <= 0)
                 return progressedQuestIds;
 
             if (
                 !_party_state.RecordQuestObjectiveProgress(
                     questId,
                     objectiveId,
-                    progressDelta,
+                    resolvedProgressDelta,
                     targetValue,
                     eventData.BuildContext(),
                     out _
@@ -381,11 +397,19 @@ public sealed class QuestProgressService
             if (targetValue <= 0)
                 continue;
 
+            int resolvedProgressDelta = ResolveProgressDeltaForObjective(
+                eventData,
+                objectiveDef,
+                targetValue
+            );
+            if (resolvedProgressDelta <= 0)
+                continue;
+
             if (
                 _party_state.RecordQuestObjectiveProgress(
                     questState.quest_id,
                     objectiveId,
-                    progressDelta,
+                    resolvedProgressDelta,
                     targetValue,
                     eventData.BuildContext(),
                     out _
@@ -396,21 +420,47 @@ public sealed class QuestProgressService
         return progressedQuestIds;
     }
 
-    private int ResolveEventTargetValue(
+    private static int ResolveEventTargetValue(
         QuestProgressEventData eventData,
-        StringName questId,
-        StringName objectiveId
+        QuestObjectiveDefData objectiveDef
     )
     {
-        if (objectiveId == "")
-            return 0;
+        if (objectiveDef?.RequiresSingleBattleCompletion == true)
+            return ResolveObjectiveTargetValue(objectiveDef);
         if (eventData.HasTargetValue)
             return eventData.TargetValue;
-        return ResolveObjectiveTargetValue(FindObjectiveDef(questId, objectiveId));
+        return ResolveObjectiveTargetValue(objectiveDef);
     }
 
     private static int ResolveObjectiveTargetValue(QuestObjectiveDefData objectiveDef) =>
         objectiveDef != null && objectiveDef.Exists ? objectiveDef.TargetValue : 0;
+
+    private static int ResolveProgressDeltaForObjective(
+        QuestProgressEventData eventData,
+        QuestObjectiveDefData objectiveDef,
+        int targetValue
+    )
+    {
+        int progressDelta = eventData?.ProgressDelta ?? 0;
+        if (progressDelta <= 0 || targetValue <= 0)
+            return 0;
+
+        if (objectiveDef == null || !objectiveDef.RequiresSingleBattleCompletion)
+            return progressDelta;
+
+        if (
+            eventData.QuestId != ""
+            || eventData.ObjectiveId != ""
+            || eventData.ObjectiveType != objectiveDef.ProgressEventObjectiveType
+            || objectiveDef.TargetId == ""
+            || eventData.TargetId != objectiveDef.TargetId
+            || eventData.EncounterId == ""
+            || progressDelta < targetValue
+        )
+            return 0;
+
+        return targetValue;
+    }
 
     private QuestObjectiveDefData FindObjectiveDef(StringName questId, StringName objectiveId)
     {
@@ -456,7 +506,7 @@ public sealed class QuestProgressService
                 if (!objectiveDef.Exists)
                     continue;
 
-                if (objectiveDef.ObjectiveType != objectiveType)
+                if (objectiveDef.ProgressEventObjectiveType != objectiveType)
                     continue;
 
                 StringName objectiveTargetId = objectiveDef.TargetId;
@@ -860,20 +910,30 @@ public sealed class QuestProgressService
 
     private sealed class QuestObjectiveDefData
     {
-        public static readonly QuestObjectiveDefData Empty = new(false, "", "", "", 0);
+        public static readonly QuestObjectiveDefData Empty = new(
+            false,
+            "",
+            "",
+            "",
+            0,
+            false
+        );
 
         public readonly bool Exists;
         public readonly StringName ObjectiveId;
         public readonly StringName ObjectiveType;
         public readonly StringName TargetId;
         public readonly int TargetValue;
+        public readonly bool RequiresSingleBattleCompletion;
+        public readonly StringName ProgressEventObjectiveType;
 
         private QuestObjectiveDefData(
             bool exists,
             StringName objectiveId,
             StringName objectiveType,
             StringName targetId,
-            int targetValue
+            int targetValue,
+            bool requiresSingleBattleCompletion
         )
         {
             Exists = exists;
@@ -881,6 +941,10 @@ public sealed class QuestProgressService
             ObjectiveType = objectiveType;
             TargetId = targetId;
             TargetValue = Mathf.Max(targetValue, 0);
+            RequiresSingleBattleCompletion = requiresSingleBattleCompletion;
+            ProgressEventObjectiveType = requiresSingleBattleCompletion
+                ? ObjectiveDefeatEnemy
+                : objectiveType;
         }
 
         public static QuestObjectiveDefData FromVariant(Variant value)
@@ -894,14 +958,19 @@ public sealed class QuestProgressService
         {
             if (data == null || data.Count == 0)
                 return Empty;
+            StringName objectiveType = QuestProgressDataReader.ReadStringName(
+                data,
+                "objective_type"
+            );
             return new QuestObjectiveDefData(
                 true,
                 QuestProgressDataReader.ReadStringName(data, "objective_id"),
-                QuestProgressDataReader.ReadStringName(data, "objective_type"),
+                objectiveType,
                 QuestProgressDataReader.ReadStringName(data, "target_id"),
                 QuestProgressDataReader.TryReadInt(data, "target_value", out int targetValue)
                     ? targetValue
-                    : 0
+                    : 0,
+                objectiveType == ObjectiveDefeatEnemyInSingleBattle
             );
         }
 
@@ -914,7 +983,8 @@ public sealed class QuestProgressService
                 entry.ObjectiveId,
                 entry.ObjectiveType,
                 entry.TargetId,
-                entry.TargetValue
+                entry.TargetValue,
+                entry.ObjectiveKind == QuestObjectiveKind.DefeatEnemyInSingleBattle
             );
         }
     }

@@ -841,7 +841,18 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         {
             return $"据点事务 {targetId}";
         }
-        if (objective_data.ObjectiveKind == QuestObjectiveKind.DefeatEnemy)
+        if (
+            objective_data.ObjectiveKind
+            == QuestObjectiveKind.DefeatEnemyInSingleBattle
+        )
+        {
+            return "在同一场战斗中击败敌对目标";
+        }
+        if (
+            objective_data.ObjectiveKind
+            is QuestObjectiveKind.DefeatEnemy
+                or QuestObjectiveKind.DefeatEnemyInSingleBattle
+        )
         {
             return "击败敌对遭遇";
         }
@@ -1231,7 +1242,21 @@ internal sealed class GameRuntimeContractBoardCommandHandler
                 if (objectiveData.TargetId == "")
                     return false;
             }
-            else if (objectiveData.ObjectiveKind != QuestObjectiveKind.DefeatEnemy)
+            else if (
+                objectiveData.ObjectiveKind
+                is not (
+                    QuestObjectiveKind.DefeatEnemy
+                    or QuestObjectiveKind.DefeatEnemyInSingleBattle
+                )
+            )
+            {
+                return false;
+            }
+            else if (
+                objectiveData.ObjectiveKind
+                    == QuestObjectiveKind.DefeatEnemyInSingleBattle
+                && objectiveData.TargetId == ""
+            )
             {
                 return false;
             }

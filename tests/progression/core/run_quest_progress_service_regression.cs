@@ -16,6 +16,8 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
     private void Run()
     {
         TestFormalProgressEventSchema();
+        TestSingleBattleDefeatObjectiveRequiresOneBattleEvent();
+        TestNormalDefeatObjectiveStillAccumulatesAcrossBattles();
         TestDirectRecordProgressMovesCompletedQuestToClaimable();
         TestAuthoredFailurePolicyProjection();
         TestFailureTransitionsAndRestartPolicy();
@@ -113,6 +115,166 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         );
         _test.Eq(SummaryCount(matchedSummary, "progressed_quest_ids"), 1, "按 objective_type/target_id 匹配的正式事件应推进任务。");
         _test.True(partyState.HasClaimableQuest(questDef.quest_id), "达到正式 objective target_value 后任务应进入 claimable。");
+    }
+
+    private void TestSingleBattleDefeatObjectiveRequiresOneBattleEvent()
+    {
+        QuestDef questDef = BuildQuestDef(
+            "folk_single_battle_wolves",
+            "单场荒狼",
+            "defeat_wolves",
+            QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemyInSingleBattle),
+            "wolf_pack",
+            5
+        );
+        QuestDefinition questDefinition = TestProgressionDefinitionProjection.Quest(questDef);
+        PartyState partyState = new();
+        QuestProgressService service = BuildQuestProgressService(
+            partyState,
+            questDefinition
+        );
+
+        _test.True(service.AcceptQuest(questDefinition.QuestId, 1), "单场击败任务应可接取。");
+        _test.False(
+            service.RecordProgress(questDefinition.QuestId, "defeat_wolves", 5),
+            "RecordProgress 直接入口不得绕过单场战斗事件约束。"
+        );
+
+        service.ApplyQuestProgressEventsTyped(
+            new[] { BuildWolfDefeatProgressEvent(5, 2, "") }
+        );
+        _test.Eq(
+            partyState
+                .GetActiveQuestState(questDefinition.QuestId)
+                ?.GetObjectiveProgress("defeat_wolves") ?? -1,
+            0,
+            "缺少 encounter_id 的击败事件不得推进单场战斗目标。"
+        );
+
+        service.ApplyQuestProgressEventsTyped(
+            new[]
+            {
+                BuildWolfDefeatProgressEvent(
+                    5,
+                    3,
+                    "wrong_event_type_battle",
+                    QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemyInSingleBattle)
+                ),
+            }
+        );
+        _test.Eq(
+            partyState
+                .GetActiveQuestState(questDefinition.QuestId)
+                ?.GetObjectiveProgress("defeat_wolves") ?? -1,
+            0,
+            "单场目标只应匹配现有 defeat_enemy 聚合事件，不匹配同名 objective type 事件。"
+        );
+
+        service.ApplyQuestProgressEventsTyped(
+            new[] { BuildWolfDefeatProgressEvent(2, 4, "wolf_battle_a") }
+        );
+        service.ApplyQuestProgressEventsTyped(
+            new[] { BuildWolfDefeatProgressEvent(3, 5, "wolf_battle_b") }
+        );
+        _test.Eq(
+            partyState
+                .GetActiveQuestState(questDefinition.QuestId)
+                ?.GetObjectiveProgress("defeat_wolves") ?? -1,
+            0,
+            "两场分别击败 2 和 3 只荒狼不得跨战累计为 5。"
+        );
+        _test.False(
+            partyState.HasClaimableQuest(questDefinition.QuestId),
+            "未在单场达到 5 只前任务不得进入 claimable。"
+        );
+
+        service.ApplyQuestProgressEventsTyped(
+            new[]
+            {
+                QuestProgressEvent(
+                    new GDictionary
+                    {
+                        ["event_type"] = "progress",
+                        ["objective_type"] = QuestDef
+                            .ToStringName(QuestObjectiveKind.DefeatEnemy)
+                            .ToString(),
+                        ["target_id"] = "wolf_pack",
+                        ["progress_delta"] = 1,
+                        ["target_value"] = 1,
+                        ["world_step"] = 6,
+                        ["encounter_id"] = "wolf_override_battle",
+                        ["encounter_kind"] = "single",
+                    }
+                ),
+            }
+        );
+        _test.Eq(
+            partyState
+                .GetActiveQuestState(questDefinition.QuestId)
+                ?.GetObjectiveProgress("defeat_wolves") ?? -1,
+            0,
+            "事件携带的较小 target_value 不得覆盖单场任务正式配置的 5 只。"
+        );
+
+        service.ApplyQuestProgressEventsTyped(
+            new[] { BuildWolfDefeatProgressEvent(5, 7, "wolf_battle_c") }
+        );
+        _test.True(
+            partyState.HasClaimableQuest(questDefinition.QuestId),
+            "单个正式战斗事件击败 5 只荒狼时任务应进入 claimable。"
+        );
+        _test.Eq(
+            partyState
+                .GetClaimableQuestState(questDefinition.QuestId)
+                ?.GetObjectiveProgress("defeat_wolves") ?? -1,
+            5,
+            "满足单场目标时应一次写满正式 target_value。"
+        );
+    }
+
+    private void TestNormalDefeatObjectiveStillAccumulatesAcrossBattles()
+    {
+        QuestDef questDef = BuildQuestDef(
+            "bounty_accumulating_wolves",
+            "累计荒狼",
+            "defeat_wolves",
+            QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
+            "wolf_pack",
+            5
+        );
+        QuestDefinition questDefinition = TestProgressionDefinitionProjection.Quest(questDef);
+        PartyState partyState = new();
+        QuestProgressService service = BuildQuestProgressService(
+            partyState,
+            questDefinition
+        );
+
+        _test.True(service.AcceptQuest(questDefinition.QuestId, 1), "普通击败任务应可接取。");
+        service.ApplyQuestProgressEventsTyped(
+            new[] { BuildWolfDefeatProgressEvent(2, 2, "normal_wolf_battle_a") }
+        );
+        _test.Eq(
+            partyState
+                .GetActiveQuestState(questDefinition.QuestId)
+                ?.GetObjectiveProgress("defeat_wolves") ?? -1,
+            2,
+            "普通 defeat_enemy 目标仍应记录第一场的击败数量。"
+        );
+
+        service.ApplyQuestProgressEventsTyped(
+            new[] { BuildWolfDefeatProgressEvent(3, 3, "normal_wolf_battle_b") }
+        );
+        _test.True(
+            partyState.HasClaimableQuest(questDefinition.QuestId),
+            "普通 defeat_enemy 目标应保持跨战累计行为。"
+        );
+        _test.Eq(
+            partyState
+                .GetClaimableQuestState(questDefinition.QuestId)
+                ?.GetObjectiveProgress("defeat_wolves") ?? -1,
+            5,
+            "普通 defeat_enemy 的 2+3 应累计至正式 target_value。"
+        );
     }
 
     private void TestDirectRecordProgressMovesCompletedQuestToClaimable()
@@ -489,6 +651,50 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         );
         return manager;
     }
+
+    private static QuestProgressService BuildQuestProgressService(
+        PartyState partyState,
+        QuestDefinition questDefinition
+    )
+    {
+        QuestProgressService service = new();
+        service.Setup(
+            partyState,
+            new Dictionary<StringName, QuestDefinition>
+            {
+                [questDefinition.QuestId] = questDefinition,
+            }
+        );
+        return service;
+    }
+
+    private static QuestProgressService.QuestProgressEventData BuildWolfDefeatProgressEvent(
+        int progressDelta,
+        int worldStep,
+        StringName encounterId
+    ) =>
+        BuildWolfDefeatProgressEvent(
+            progressDelta,
+            worldStep,
+            encounterId,
+            QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy)
+        );
+
+    private static QuestProgressService.QuestProgressEventData BuildWolfDefeatProgressEvent(
+        int progressDelta,
+        int worldStep,
+        StringName encounterId,
+        StringName objectiveType
+    ) =>
+        QuestProgressService.QuestProgressEventData.CreateProgressByObjectiveTarget(
+            objectiveType,
+            "wolf_pack",
+            progressDelta,
+            worldStep,
+            "wolf_pack",
+            encounterId,
+            "single"
+        );
 
     private static Dictionary<StringName, QuestDefinition> ProjectQuestDefs(
         GDictionary questDefs

@@ -444,6 +444,39 @@ public sealed class WorldMapDataContext
         _rebuild_world_coord_lookups();
     }
 
+    internal bool TryAddEncounterAnchor(EncounterAnchorData encounterAnchor)
+    {
+        if (
+            _activeRuntimeData == null
+            || !_activeRuntimeData.TryAddEncounterAnchor(encounterAnchor)
+        )
+        {
+            return false;
+        }
+        _sync_active_world_payload_from_typed();
+        _rebuild_world_coord_lookups();
+        return true;
+    }
+
+    internal bool IsEncounterPlacementCoordAvailable(Vector2I coord)
+    {
+        if (
+            _settlementByCoord.ContainsKey(coord)
+            || _worldNpcByCoord.ContainsKey(coord)
+            || _encounterAnchorByCoord.ContainsKey(coord)
+            || _resourceNodeByCoord.ContainsKey(coord)
+        )
+        {
+            return false;
+        }
+        foreach (WorldMapEventData worldEvent in _activeRuntimeData.WorldEvents)
+        {
+            if (worldEvent != null && worldEvent.WorldCoord == coord)
+                return false;
+        }
+        return true;
+    }
+
     internal void SyncActiveWorldPayloadFromTypedState() =>
         SyncActiveWorldPayloadFromTypedState(rebuildLookups: true);
 
@@ -1270,6 +1303,7 @@ public sealed class WorldMapSettlementRecordData
         "tier",
         "tier_name",
         "faction_id",
+        "country_id",
         "origin",
         "footprint_size",
         "facilities",
@@ -1286,6 +1320,7 @@ public sealed class WorldMapSettlementRecordData
         "display_name",
         "tier_name",
         "faction_id",
+        "country_id",
     };
     internal static readonly string[] SaveCoordFields = { "origin", "footprint_size" };
     internal static readonly string[] SaveArrayFields =
@@ -1298,6 +1333,7 @@ public sealed class WorldMapSettlementRecordData
     public readonly string EntityId;
     public readonly string SettlementId;
     public readonly string DisplayName;
+    public readonly string CountryId;
     public readonly Vector2I Origin;
     public readonly Vector2I FootprintSize;
     public readonly int Tier;
@@ -1308,6 +1344,7 @@ public sealed class WorldMapSettlementRecordData
         string entityId,
         string settlementId,
         string displayName,
+        string countryId,
         Vector2I origin,
         Vector2I footprintSize,
         int tier,
@@ -1318,6 +1355,7 @@ public sealed class WorldMapSettlementRecordData
         EntityId = entityId ?? "";
         SettlementId = settlementId ?? "";
         DisplayName = displayName ?? "";
+        CountryId = countryId ?? "";
         Origin = origin;
         FootprintSize = footprintSize;
         Tier = tier;
@@ -1347,6 +1385,7 @@ public sealed class WorldMapSettlementRecordData
                 EntityId,
                 SettlementId,
                 DisplayName,
+                CountryId,
                 Origin,
                 FootprintSize,
                 Tier,
@@ -1389,6 +1428,7 @@ public sealed class WorldMapSettlementRecordData
             WorldMapDictionaryReaders.ReadString(data, "entity_id"),
             WorldMapDictionaryReaders.ReadString(data, "settlement_id"),
             WorldMapDictionaryReaders.ReadString(data, "display_name"),
+            WorldMapDictionaryReaders.ReadString(data, "country_id"),
             WorldMapDictionaryReaders.ReadVector2I(data, "origin", Vector2I.Zero),
             WorldMapDictionaryReaders.ReadVector2I(data, "footprint_size", Vector2I.One),
             WorldMapDictionaryReaders.ReadInt(data, "tier", 0),

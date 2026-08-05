@@ -31,19 +31,31 @@ public sealed class QuestObjectiveDefinition
         StringName objectiveId,
         StringName objectiveType,
         StringName targetId,
-        int targetValue
+        int targetValue,
+        StringName encounterProfileId = default,
+        string encounterDisplayName = "",
+        int encounterGrowthStage = 0
     )
     {
         ObjectiveId = objectiveId;
         ObjectiveType = objectiveType;
         TargetId = targetId;
         TargetValue = targetValue;
+        EncounterProfileId = encounterProfileId;
+        EncounterDisplayName = IdentityDefinitionProjection.CopyString(
+            encounterDisplayName,
+            "QuestObjectiveDefinition.EncounterDisplayName"
+        );
+        EncounterGrowthStage = encounterGrowthStage;
     }
 
     public StringName ObjectiveId { get; }
     public StringName ObjectiveType { get; }
     public StringName TargetId { get; }
     public int TargetValue { get; }
+    public StringName EncounterProfileId { get; }
+    public string EncounterDisplayName { get; }
+    public int EncounterGrowthStage { get; }
     internal QuestObjectiveKind ObjectiveKind => QuestDef.ToObjectiveKind(ObjectiveType);
 }
 
@@ -356,6 +368,7 @@ public sealed class QuestDefinition
         if (source.Count == 0)
             return System.Array.Empty<QuestObjectiveDefinition>();
         var result = new List<QuestObjectiveDefinition>(source.Count);
+        bool hasEncounterBinding = false;
         for (int index = 0; index < source.Count; index++)
         {
             QuestDef.ObjectiveEntryData entry = source[index];
@@ -385,17 +398,73 @@ public sealed class QuestDefinition
             }
             if (
                 objectiveKind == QuestObjectiveKind.SubmitItem
+                || objectiveKind == QuestObjectiveKind.DefeatEnemyInSingleBattle
                 || objectiveKind == QuestObjectiveKind.SettlementAction
             )
             {
                 RequireNonEmpty(entry.TargetId, $"{entryPath}.target_id");
             }
+            bool hasEncounterProfile = entry.EncounterProfileId != "";
+            bool hasEncounterDisplayName = !string.IsNullOrWhiteSpace(
+                entry.EncounterDisplayName
+            );
+            if (
+                entry.HasEncounterGrowthStage
+                && !entry.HasStrictEncounterGrowthStage
+            )
+            {
+                throw new InvalidDataException(
+                    $"Content value at '{entryPath}.encounter_growth_stage' must be Int."
+                );
+            }
+            if (
+                entry.HasStrictEncounterGrowthStage
+                && entry.EncounterGrowthStage < 0
+            )
+            {
+                throw new InvalidDataException(
+                    $"Content value at '{entryPath}.encounter_growth_stage' must be non-negative."
+                );
+            }
+            if (hasEncounterProfile != hasEncounterDisplayName)
+            {
+                throw new InvalidDataException(
+                    $"Content values at '{entryPath}.encounter_profile_id' and '{entryPath}.encounter_display_name' must be configured together."
+                );
+            }
+            if (entry.HasEncounterGrowthStage && !hasEncounterProfile)
+            {
+                throw new InvalidDataException(
+                    $"Content value at '{entryPath}.encounter_growth_stage' requires an encounter binding."
+                );
+            }
+            if (
+                hasEncounterProfile
+                && objectiveKind
+                    is not QuestObjectiveKind.DefeatEnemy
+                        and not QuestObjectiveKind.DefeatEnemyInSingleBattle
+            )
+            {
+                throw new InvalidDataException(
+                    $"Content value at '{entryPath}.encounter_profile_id' is only supported for enemy defeat objectives."
+                );
+            }
+            if (hasEncounterProfile && hasEncounterBinding)
+            {
+                throw new InvalidDataException(
+                    $"Content collection at '{path}' may contain at most one encounter binding."
+                );
+            }
+            hasEncounterBinding |= hasEncounterProfile;
             result.Add(
                 new QuestObjectiveDefinition(
                     entry.ObjectiveId,
                     entry.ObjectiveType,
                     entry.TargetId,
-                    entry.TargetValue
+                    entry.TargetValue,
+                    entry.EncounterProfileId,
+                    entry.EncounterDisplayName,
+                    entry.EncounterGrowthStage
                 )
             );
         }

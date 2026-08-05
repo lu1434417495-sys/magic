@@ -6,6 +6,7 @@ internal enum QuestObjectiveKind
     Unknown = 0,
     SubmitItem,
     DefeatEnemy,
+    DefeatEnemyInSingleBattle,
     SettlementAction,
 }
 
@@ -22,6 +23,8 @@ public partial class QuestDef : Resource
 {
     private static readonly StringName ObjectiveSubmitItem = "submit_item";
     private static readonly StringName ObjectiveDefeatEnemy = "defeat_enemy";
+    private static readonly StringName ObjectiveDefeatEnemyInSingleBattle =
+        "defeat_enemy_in_single_battle";
     private static readonly StringName ObjectiveSettlementAction = "settlement_action";
     private static readonly StringName RewardGold = "gold";
     private static readonly StringName RewardItem = "item";
@@ -55,6 +58,8 @@ public partial class QuestDef : Resource
         {
             QuestObjectiveKind.SubmitItem => ObjectiveSubmitItem,
             QuestObjectiveKind.DefeatEnemy => ObjectiveDefeatEnemy,
+            QuestObjectiveKind.DefeatEnemyInSingleBattle =>
+                ObjectiveDefeatEnemyInSingleBattle,
             QuestObjectiveKind.SettlementAction => ObjectiveSettlementAction,
             _ => new StringName(""),
         };
@@ -66,10 +71,15 @@ public partial class QuestDef : Resource
             return QuestObjectiveKind.SubmitItem;
         if (value == ObjectiveDefeatEnemy)
             return QuestObjectiveKind.DefeatEnemy;
+        if (value == ObjectiveDefeatEnemyInSingleBattle)
+            return QuestObjectiveKind.DefeatEnemyInSingleBattle;
         if (value == ObjectiveSettlementAction)
             return QuestObjectiveKind.SettlementAction;
         return QuestObjectiveKind.Unknown;
     }
+
+    internal static bool IsEnemyDefeatObjectiveKind(QuestObjectiveKind kind) =>
+        kind is QuestObjectiveKind.DefeatEnemy or QuestObjectiveKind.DefeatEnemyInSingleBattle;
 
     internal static StringName ToStringName(QuestRewardKind kind)
     {
@@ -191,13 +201,23 @@ public partial class QuestDef : Resource
         public readonly StringName TargetId;
         public readonly bool HasStrictTargetValue;
         public readonly int TargetValue;
+        public readonly StringName EncounterProfileId;
+        public readonly string EncounterDisplayName;
+        public readonly bool HasEncounterGrowthStage;
+        public readonly bool HasStrictEncounterGrowthStage;
+        public readonly int EncounterGrowthStage;
 
         private ObjectiveEntryData(
             StringName objectiveId,
             StringName objectiveType,
             StringName targetId,
             bool hasStrictTargetValue,
-            int targetValue
+            int targetValue,
+            StringName encounterProfileId,
+            string encounterDisplayName,
+            bool hasEncounterGrowthStage,
+            bool hasStrictEncounterGrowthStage,
+            int encounterGrowthStage
         )
         {
             ObjectiveId = objectiveId;
@@ -205,6 +225,11 @@ public partial class QuestDef : Resource
             TargetId = targetId;
             HasStrictTargetValue = hasStrictTargetValue;
             TargetValue = targetValue;
+            EncounterProfileId = encounterProfileId;
+            EncounterDisplayName = encounterDisplayName ?? "";
+            HasEncounterGrowthStage = hasEncounterGrowthStage;
+            HasStrictEncounterGrowthStage = hasStrictEncounterGrowthStage;
+            EncounterGrowthStage = encounterGrowthStage;
         }
 
         public static ObjectiveEntryData FromDictionary(Godot.Collections.Dictionary objectiveData)
@@ -214,12 +239,30 @@ public partial class QuestDef : Resource
                 "target_value",
                 out int targetValue
             );
+            bool hasEncounterGrowthStage =
+                objectiveData?.ContainsKey("encounter_growth_stage") == true;
+            bool hasStrictEncounterGrowthStage = TryGetStrictInt(
+                objectiveData,
+                "encounter_growth_stage",
+                out int encounterGrowthStage
+            );
             return new ObjectiveEntryData(
                 DictStringName(objectiveData, "objective_id"),
                 DictStringName(objectiveData, "objective_type"),
                 DictStringName(objectiveData, "target_id"),
                 hasStrictTargetValue,
-                hasStrictTargetValue ? targetValue : 0
+                hasStrictTargetValue ? targetValue : 0,
+                DictStringName(objectiveData, "encounter_profile_id"),
+                TryGetStrictString(
+                    objectiveData,
+                    "encounter_display_name",
+                    out string encounterDisplayName
+                )
+                    ? encounterDisplayName.StripEdges()
+                    : "",
+                hasEncounterGrowthStage,
+                hasStrictEncounterGrowthStage,
+                hasStrictEncounterGrowthStage ? encounterGrowthStage : 0
             );
         }
     }
@@ -356,6 +399,7 @@ public partial class QuestDef : Resource
             );
 
         var seenObjectiveIds = new System.Collections.Generic.HashSet<StringName>();
+        int encounterBindingCount = 0;
         foreach (ObjectiveEntryData objective in GetObjectiveEntriesTyped())
         {
             var objectiveId = objective.ObjectiveId;
@@ -399,12 +443,20 @@ public partial class QuestDef : Resource
                     $"QuestDef {(string)quest_id} 的 objective {(string)objectiveId} 必须有正 target_value。"
                 );
 
+            QuestObjectiveKind objectiveKind = ToObjectiveKind(objectiveType);
             if (objectiveType == ObjectiveSubmitItem)
             {
                 var submitItemId = objective.TargetId;
                 if (submitItemId == "")
                     errors.Add(
                         $"QuestDef {(string)quest_id} 的 submit_item objective {(string)objectiveId} 缺少 target_id。"
+                    );
+            }
+            else if (objectiveKind == QuestObjectiveKind.DefeatEnemyInSingleBattle)
+            {
+                if (objective.TargetId == "")
+                    errors.Add(
+                        $"QuestDef {(string)quest_id} 的 {(string)objectiveType} objective {(string)objectiveId} 缺少 target_id。"
                     );
             }
             else if (objectiveType == ObjectiveSettlementAction)
@@ -415,7 +467,54 @@ public partial class QuestDef : Resource
                         $"QuestDef {(string)quest_id} 的 settlement_action objective {(string)objectiveId} 缺少 target_id（settlement action 必须显式指定 action_id）。"
                     );
             }
+
+            bool hasEncounterProfile = objective.EncounterProfileId != "";
+            bool hasEncounterDisplayName = !string.IsNullOrWhiteSpace(
+                objective.EncounterDisplayName
+            );
+            if (
+                objective.HasEncounterGrowthStage
+                && !objective.HasStrictEncounterGrowthStage
+            )
+            {
+                errors.Add(
+                    $"QuestDef {(string)quest_id} 的 objective {(string)objectiveId} 的 encounter_growth_stage 必须是 int。"
+                );
+            }
+            if (
+                objective.HasStrictEncounterGrowthStage
+                && objective.EncounterGrowthStage < 0
+            )
+            {
+                errors.Add(
+                    $"QuestDef {(string)quest_id} 的 objective {(string)objectiveId} 的 encounter_growth_stage 不能为负数。"
+                );
+            }
+            if (hasEncounterProfile != hasEncounterDisplayName)
+            {
+                errors.Add(
+                    $"QuestDef {(string)quest_id} 的 objective {(string)objectiveId} 必须同时配置 encounter_profile_id 与 encounter_display_name。"
+                );
+            }
+            if (objective.HasEncounterGrowthStage && !hasEncounterProfile)
+            {
+                errors.Add(
+                    $"QuestDef {(string)quest_id} 的 objective {(string)objectiveId} 只有绑定接取遭遇时才能配置 encounter_growth_stage。"
+                );
+            }
+            if (hasEncounterProfile)
+            {
+                encounterBindingCount++;
+                if (!IsEnemyDefeatObjectiveKind(objectiveKind))
+                {
+                    errors.Add(
+                        $"QuestDef {(string)quest_id} 的 objective {(string)objectiveId} 仅击败敌人目标可绑定接取遭遇。"
+                    );
+                }
+            }
         }
+        if (encounterBindingCount > 1)
+            errors.Add($"QuestDef {(string)quest_id} 最多只能配置一个接取遭遇。");
 
         foreach (RewardEntryData reward in GetRewardEntriesTyped())
         {
@@ -645,6 +744,7 @@ public partial class QuestDef : Resource
         {
             ObjectiveSubmitItem,
             ObjectiveDefeatEnemy,
+            ObjectiveDefeatEnemyInSingleBattle,
             ObjectiveSettlementAction,
         };
     }

@@ -414,6 +414,36 @@ internal sealed class WorldRuntimeData
         return false;
     }
 
+    internal bool TryAddEncounterAnchor(EncounterAnchorData encounterAnchor)
+    {
+        if (
+            encounterAnchor == null
+            || encounterAnchor.entity_id == ""
+            || encounterAnchor.encounter_profile_id == ""
+            || string.IsNullOrWhiteSpace(encounterAnchor.display_name)
+            || encounterAnchor.world_coord.X < 0
+            || encounterAnchor.world_coord.Y < 0
+        )
+        {
+            return false;
+        }
+        foreach (EncounterAnchorData existing in _encounterAnchors)
+        {
+            if (
+                existing != null
+                && (
+                    existing.entity_id == encounterAnchor.entity_id
+                    || existing.world_coord == encounterAnchor.world_coord
+                )
+            )
+            {
+                return false;
+            }
+        }
+        _encounterAnchors.Add(encounterAnchor.DuplicateState());
+        return true;
+    }
+
     internal void SetWorldStep(int worldStep)
     {
         WorldStep = worldStep;

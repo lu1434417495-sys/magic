@@ -13,10 +13,12 @@
 | `quest_id` | `StringName` | 本设计统一使用 `snake_case` 内部 ID。 |
 | `display_name` | `string` | 游戏中显示的任务名称。 |
 | `description` | `string` | 游戏中显示的任务描述（多行文本）。 |
-| `provider_interaction_id` | `StringName` | 当前仅支持 `service_contract_board`（委托板）与 `service_bounty_registry`（悬赏板）。 |
+| `provider_kind` | `StringName` | 支持 `service_contract_board`、`service_bounty_registry` 与 `npc`。 |
+| `provider_interaction_id` | `StringName` | 服务任务使用对应 service ID；NPC 任务使用设施中正式绑定的 NPC interaction ID。 |
+| `listing_channels` | `Array<StringName>` | 支持 `contract_board`、`bounty_registry` 与 `npc_offer`。 |
 | `tags` | `Array<StringName>` | 如 `tutorial`、`main_story`、`contract`、`side`、`bounty`、`ashen_intersection`、`main_world`、`cathedral`、`library`、`abyss` 等。 |
-| `accept_requirements` | `Array<Dictionary>` | 配置层保留，当前运行时仅部分校验；本设计使用 `quest_completed` 作为链式前置。 |
-| `objective_defs` | `Array<Dictionary>` | `objective_type` 仅支持 `defeat_enemy`、`submit_item`、`settlement_action`。 |
+| `accept_requirements` | `Array<Dictionary>` | 当前运行时支持 `quest_completed`、`quest_active` 与 `quest_not_completed`。 |
+| `objective_defs` | `Array<Dictionary>` | `objective_type` 支持 `defeat_enemy`、`defeat_enemy_in_single_battle`、`submit_item`、`settlement_action`；击败目标可用成对的 `encounter_profile_id` / `encounter_display_name` 在接取时生成绑定遭遇标记，并用非负 `encounter_growth_stage` 选择同一 roster 的阶段。 |
 | `reward_entries` | `Array<Dictionary>` | `reward_type` 仅支持 `gold`、`item`、`pending_character_reward`。 |
 | `is_repeatable` | `bool` | 悬赏任务为 `true`，剧情任务为 `false`。 |
 
@@ -28,7 +30,7 @@
 
 **合法 attribute_progress target_id**：`strength`、`agility`、`constitution`、`perception`、`intelligence`、`willpower`。
 
-> 设计备注：接取对话、成功/失败反馈、确认弹窗等字段（`accept_dialogue_text` 等）当前尚未纳入 `QuestDef` schema，因此仅在正文的「触发流程」或「设计备注」中以纯文本形式保留设计意图，不写入 JSON 规格块。
+> 设计备注：`accept_dialogue_text`、`accept_feedback_success`、`accept_feedback_failure` 与 `accept_confirmation_text` 已纳入正式 `QuestDef`；只有接取表面确实需要确认时才配置确认文本。
 
 ---
 
@@ -2286,26 +2288,31 @@
 
 #### Q038 农夫的恳求
 
-**目标**：清理农田里的害兽。
+**目标**：在农田的一场战斗中击败五只荒狼，并调查异常足迹。
 
 > 老农夫的玉米地被糟蹋了一半。他说是狼，但玉米秆不是被咬断的——是被烧断的，断口处有灰色的灰烬。"去年还没有这种火。"
 >
-> 你在田地中央找到了一个 footprint，不是狼的，不是人的，是某种东西的混合体。它有三个前趾和一个后趾，趾尖有 burns。
+> 你在田地中央找到了一枚脚印：不像狼，也不像人，而像是两者扭曲后的混合物。它有三个前趾和一个后趾，趾尖还留着灼痕。
 
 **触发流程**：
-- 触发方式：完成 Q001 后，春泉村委托板刷新。
+- 触发方式：完成 Q001 后，回到玩家起始村落，在 `village_hearth` 与村长交谈。
 - 前置条件：`quest_completed: tutorial_first_blood`。
-- 发布者：春泉村委托板 `service_contract_board`。
-- 接取情境：老农夫的农田被异界污染生物糟蹋，请求清理。
+- 发布者：村长 `npc_village_chief`，代老农夫转交求助。
+- 接取情境：老农夫的农田被异界污染生物糟蹋，请求清理。接取后，村南受袭农田会作为任务绑定标记出现在大地图附近，并复用正式 `wolf_wilds` 狼群遭遇模板。文档叙事中的“春泉村”对应当前程序化世界里的玩家起始村落，实际村名由地图生成。
 
 **任务规格**：
 ```json
 {
   "quest_id": "folk_farmers_plea",
   "display_name": "农夫的恳求",
-  "description": "老农夫的玉米地被能烧断作物的异界害兽糟蹋了一半。清理农田里的威胁。",
-  "provider_interaction_id": "service_contract_board",
-  "tags": ["contract", "side", "main_world", "folk"],
+  "description": "一位老农夫的玉米地被能烧断作物的异界害兽糟蹋了一半。前往任务标记的农田，在同一场战斗中击败五只荒狼，并留意田边的异常足迹。",
+  "provider_kind": "npc",
+  "provider_interaction_id": "npc_village_chief",
+  "listing_channels": ["npc_offer"],
+  "tags": ["side", "main_world", "folk"],
+  "accept_dialogue_text": "村南的老农夫今早来求助：玉米地像被狼群踏毁，可断掉的秆上全是灰色焦痕。前往农田，在同一场战斗中击败五只荒狼，再留意那串不像狼爪的足印。",
+  "accept_feedback_success": "村长把老农夫的求助交给了你，村南农田的狼群已经标记在地图上。",
+  "accept_feedback_failure": "先完成《初阵》，村长才会把农田的异常交给你。",
   "accept_requirements": [
     {
       "requirement_type": "quest_completed",
@@ -2314,10 +2321,13 @@
   ],
   "objective_defs": [
     {
-      "objective_id": "defeat_wolves",
-      "objective_type": "defeat_enemy",
+      "objective_id": "defeat_five_wolves_single_battle",
+      "objective_type": "defeat_enemy_in_single_battle",
       "target_id": "wolf_pack",
-      "target_value": 5
+      "target_value": 5,
+      "encounter_profile_id": "wolf_wilds",
+      "encounter_display_name": "村南受袭农田",
+      "encounter_growth_stage": 1
     }
   ],
   "reward_entries": [
@@ -2331,7 +2341,8 @@
       "quantity": 3
     }
   ],
-  "is_repeatable": false
+  "is_repeatable": false,
+  "failure_policy": "terminal"
 }
 ```
 
@@ -2402,22 +2413,27 @@
 
 > 小女孩五天前在森林里采蘑菇，没有回来。搜索队找到了她的篮子，里面的蘑菇排列成一个圆环，圆环中央有一小块烧焦的地面。
 >
-> 你跟着 footprints 走到森林深处。她在那里，坐在一棵倒下的树上，正在和一个"东西"说话——那个东西穿着她的斗篷，有着她的脸，但当你喊她的名字时，两个头同时转了过来。
+> 你循着足迹走到森林深处。她在那里，坐在一棵倒下的树上，正在和一个“东西”说话——那个东西穿着她的斗篷，有着她的脸，但当你喊她的名字时，两个头同时转了过来。
 
 **触发流程**：
-- 触发方式：完成 Q003 后，春泉村委托板刷新。
+- 触发方式：完成 Q003 后，前往任一城镇级及以上的非初始聚落，在行会大厅与告示书记员交谈并打开委托板。
 - 前置条件：`quest_completed: tutorial_wolf_alpha`。
-- 发布者：春泉村委托板 `service_contract_board`。
-- 接取情境：村民请求寻找在森林中失踪的孩子。
+- 发布者：行会大厅委托板 `service_contract_board`，由失踪孩子的家人登记求助。
+- 接取情境：搜索队只找到孩子的篮子和通往雾林深处的足迹，请求冒险者继续寻找。
 
 **任务规格**：
 ```json
 {
   "quest_id": "folk_missing_child",
   "display_name": "失踪的孩子",
-  "description": "小女孩五天前在森林里采蘑菇后失踪。搜索队找到了她的篮子，但人不见踪影。",
+  "description": "一个进森林采蘑菇的孩子已经失踪五天。循着搜索队留下的线索清理雾沼猎压者，并带回月蕨样本作为找到她的凭证。",
+  "provider_kind": "service_contract_board",
   "provider_interaction_id": "service_contract_board",
+  "listing_channels": ["contract_board"],
   "tags": ["contract", "side", "main_world", "folk"],
+  "accept_dialogue_text": "委托板上新钉着一张失踪人口求助：采蘑菇的孩子已经五天没回来，搜索队只找到她的篮子和通往雾林深处的足迹。清理沿途的三只雾沼猎压者，再带两份月蕨样本回来确认搜索路线。",
+  "accept_feedback_success": "你从行会大厅的委托板接下了寻找失踪孩子的求助。",
+  "accept_feedback_failure": "先完成狼群首领的调查，告示书记员才会开放这份深入雾林的委托。",
   "accept_requirements": [
     {
       "requirement_type": "quest_completed",
@@ -2449,7 +2465,8 @@
       "quantity": 3
     }
   ],
-  "is_repeatable": false
+  "is_repeatable": false,
+  "failure_policy": "terminal"
 }
 ```
 

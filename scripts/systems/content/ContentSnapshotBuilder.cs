@@ -110,7 +110,9 @@ internal sealed class ContentSnapshotBuilder
                 itemDefinitions,
                 skillDefinitions,
                 enemyDefinitions.EnemyTemplates,
-                progression.GetQuestRegistrationErrorsTyped()
+                progression.GetQuestRegistrationErrorsTyped(),
+                battleEncounterDefinitions,
+                enemyDefinitions.EncounterRosters
             )
         );
         AppendWorldValidationErrors(

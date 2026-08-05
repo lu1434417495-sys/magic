@@ -79,7 +79,7 @@ internal static class QuestDangerRatingPolicy
 
 /// <summary>
 /// 纯函数 resolver：从 QuestDefinition 与敌人模板推导 1-5 星危险度。
-/// V1 只对全部目标均为可解析 defeat_enemy 的任务自动计算；
+/// V1 只对全部目标均为可解析敌人击败目标的任务自动计算；
 /// 存在空 target_id、缺失模板或非战斗目标时返回未评级（除非作者 override）。
 /// 公式：objective_threat = max(level+1,1) × rank_weight × √target_value × √enemy_count，
 /// quest_threat = Σ objective_threat。enemy_count 只以平方根表达同场压力，避免重复计数。
@@ -107,7 +107,14 @@ internal static class QuestDangerRatingResolver
         bool derivable = true;
         foreach (QuestObjectiveDefinition objective in objectives)
         {
-            if (objective == null || objective.ObjectiveKind != QuestObjectiveKind.DefeatEnemy)
+            if (
+                objective == null
+                || objective.ObjectiveKind
+                    is not (
+                        QuestObjectiveKind.DefeatEnemy
+                        or QuestObjectiveKind.DefeatEnemyInSingleBattle
+                    )
+            )
             {
                 derivable = false;
                 continue;

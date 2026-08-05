@@ -48,6 +48,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
             ["tier_name"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "tier_name"),
             ["footprint_size"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "footprint_size"),
             ["faction_id"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "faction_id"),
+            ["country_id"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "country_id"),
             ["facilities"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "facilities"),
             ["available_services"] = _build_service_entries(settlement),
             ["service_npcs"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "service_npcs"),
@@ -80,6 +81,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
             ["display_name"] = GameRuntimeSettlementCommandHandler.ReadPlainString(settlement, "display_name"),
             ["tier_name"] = GameRuntimeSettlementCommandHandler.ReadPlainString(settlement, "tier_name"),
             ["faction_id"] = GameRuntimeSettlementCommandHandler.ReadPlainString(settlement, "faction_id"),
+            ["country_id"] = GameRuntimeSettlementCommandHandler.ReadPlainString(settlement, "country_id"),
             ["services"] = BuildSettlementServiceIdentityFactsPlain(settlement),
         };
     }

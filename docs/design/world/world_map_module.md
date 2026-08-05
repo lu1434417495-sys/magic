@@ -1,9 +1,9 @@
 # 世界地图模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-23`
+> 核对日期：`2026-07-29`
 
-更新日期：`2026-07-23`
+更新日期：`2026-07-29`
 
 ## 目标与边界
 
@@ -75,6 +75,7 @@ LoginScreen / Save
 ### 据点与设施资源
 
 - `SettlementConfig`：`settlement_id` 是模板 id；`tier` 取 `VILLAGE=0`、`TOWN=1`、`CITY=2`、`CAPITAL=3`、`WORLD_STRONGHOLD=4`、`METROPOLIS=5`。
+- `SettlementDistributionRule.country_id` 是固定据点的国家归属 id；空字符串表示该据点没有国家归属。它与 `faction_id` 是两个独立维度。
 - 据点 footprint 由 tier 决定：村 `1x1`，镇/城 `2x2`，主城 `3x3`，世界据点 `4x4`，都会 `5x5`。
 - `facility_slots` 定义设施在据点 footprint 内的本地坐标和 slot tag；`guaranteed_facility_ids` 必定尝试放置；`optional_facility_pool` 最多放置 `max_optional_facilities` 个。
 - `FacilityConfig.facility_id` 是设施模板 id；`interaction_type` 通过固定表映射为服务 action id，例如 `party_warehouse -> service:warehouse`、`service_contract_board -> service:contract_board`、`service_stagecoach -> service:stagecoach`。
@@ -90,7 +91,7 @@ LoginScreen / Save
 
 世界生成输出和存档中的世界数据是 `Dictionary`。根世界和每个子地图的 `world_data` 使用同一主体 schema：
 
-根字段名称与 required/optional/array/string 分类由 `WorldRuntimeSaveSchema` 唯一声明，`WorldRuntimeData` 的 canonical 读写和 `SaveSerializer` 的磁盘边界校验共同消费。nested settlement、event、resource node、mounted submap 与 return-stack entry 的字段集合归各自 typed record；serializer 只负责递归顺序与可定位错误，不再复制 record 字段表。
+根字段名称与 required/optional/array/string 分类由 `WorldRuntimeSaveSchema` 唯一声明，`WorldRuntimeData` 的 canonical 读写和 `SaveSerializer` 的磁盘边界校验共同消费。nested settlement、event、resource node、mounted submap 与 return-stack entry 的字段集合归各自 typed record；serializer 只负责递归顺序与可定位错误，不再复制 record 字段表。当前顶层存档版本为 SaveVersion 18。
 
 | key | 类型 | 说明 |
 |---|---|---|
@@ -111,7 +112,9 @@ LoginScreen / Save
 
 ### settlement 实例
 
-每个据点字典必须包含：`entity_id`、`template_id`、`settlement_id`、`display_name`、`tier`、`tier_name`、`faction_id`、`origin`、`footprint_size`、`facilities`、`is_player_start`、`settlement_state`、`available_services`、`service_npcs`。
+每个据点字典必须精确包含：`entity_id`、`template_id`、`settlement_id`、`display_name`、`tier`、`tier_name`、`faction_id`、`country_id`、`origin`、`footprint_size`、`facilities`、`is_player_start`、`settlement_state`、`available_services`、`service_npcs`。
+
+`country_id` 是据点记录级的国家归属键；空字符串精确表示“无国家归属”。它不属于 `settlement_state`，也不等价于决定迷雾/敌对关系的 `faction_id`。运行时和内容生成不得从 `faction_id`、`display_name`、据点名称池或名称前缀推导 `country_id`。国家声望由 `PartyState.country_reputations` 按相同 `country_id` 独立持有。
 
 `settlement_state` 由 `WorldMapSettlementStateData` 完整持有，当前 schema 精确为 `visited`、`reputation`、`active_conditions`、`cooldowns`、`shop_states`。每个 `shop_states[shop_id]` 独立持有自身的 `seed`、`last_refresh_step` 和库存；据点层没有共享的商店随机状态，刷新一个商店不得改动其他商店。服务不得通过未知字段临时扩展该 payload；新增持久字段必须同步 typed owner、生成默认值、严格校验与 save version。单字段修改通过完整聚合的 `With*` API 写回 `WorldRuntimeData`，不能用局部投影替换整个状态。`world_step` 与服务反馈分别属于 world owner 和 modal/context，不进入 `settlement_state`。
 
@@ -315,6 +318,7 @@ proxy 在命令后负责调用 render target 的 `RenderFromRuntime(refreshWorld
 | `display_name` | 模板名、默认名称池或 fallback；必须非空可显示。|
 | `tier` / `tier_name` | 来自 `SettlementConfig.tier` / `GetTierName()`。|
 | `faction_id` | 固定分布用规则 faction；程序化起始村为 `player`，其他默认为 `neutral`。|
+| `country_id` | 固定分布使用规则中的国家 id；当前程序化据点写入空字符串，即无国家归属。不得从 faction、显示名或名称池推导。|
 | `origin` | footprint 左上角 cell。|
 | `footprint_size` | `SettlementConfig.GetFootprintSize()`。|
 | `is_player_start` | 程序化起始村 true；固定分布通常 false，除非生成逻辑显式指定。|
@@ -373,7 +377,7 @@ mounted submap entry 必须包含：
 
 1. 遍历每个 `SettlementDistributionRule` 资源。
 2. 读取 `settlement_id` 并从 settlement library 找模板；找不到则跳过。
-3. 使用 `preferred_origin` 和规则 `faction_id` 创建实例。
+3. 使用 `preferred_origin`、规则 `faction_id` 与规则 `country_id` 创建实例；空 `country_id` 保持为空，不做推导。
 4. 若 `gridSystem.CanPlaceFootprint(origin, footprint)` 失败，记录错误并跳过该实例。
 5. 成功后调用 `gridSystem.RegisterFootprint(entityId, origin, footprint)`，再生成设施和服务。
 

@@ -18,6 +18,7 @@ public partial class run_quest_danger_rating_resolver_regression : LifecycleTest
         TestStarThresholdBoundaries();
         TestOfficialBountyQuestStarTable();
         TestOverrideWinsOverDerivation();
+        TestSingleBattleEnemyObjectiveIsRated();
         TestUnratedBoundaries();
         TestStarsLabelRendering();
 
@@ -46,7 +47,7 @@ public partial class run_quest_danger_rating_resolver_regression : LifecycleTest
         {
             ("bounty_wolf_raider", 1),
             ("bounty_wolf_pack", 1),
-            ("bounty_mist_harrier", 2),
+            ("bounty_mist_harrier", 3),
             ("bounty_wolf_alpha", 2),
             ("bounty_mist_beast", 3),
             ("bounty_wolf_vanguard", 3),
@@ -111,6 +112,33 @@ public partial class run_quest_danger_rating_resolver_regression : LifecycleTest
             "非战斗目标 + override 时 override 应优先生效。"
         );
         _test.Eq(syntheticRating.Stars, 4, "override=4 应直接映射为 4 星。");
+    }
+
+    private void TestSingleBattleEnemyObjectiveIsRated()
+    {
+        QuestDefinition quest = BuildQuestDefinition(
+            "synthetic_single_battle_hunt",
+            [
+                BuildObjective(
+                    "defeat_pack_together",
+                    "defeat_enemy_in_single_battle",
+                    "wolf_pack",
+                    5
+                ),
+            ]
+        );
+
+        QuestDangerRatingResult rating = QuestDangerRatingResolver.Resolve(
+            quest,
+            _snapshot.EnemyTemplates
+        );
+
+        _test.True(rating.IsRated, "单场击败敌人的目标应沿用敌人威胁度推导。");
+        _test.Eq(
+            rating.Source,
+            QuestDangerRatingResult.SourceDerived,
+            "单场击败敌人的目标应得到公式推导评级。"
+        );
     }
 
     private void TestUnratedBoundaries()

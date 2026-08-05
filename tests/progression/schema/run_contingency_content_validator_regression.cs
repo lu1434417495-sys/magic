@@ -563,7 +563,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
 
         PartyState partyState = new()
         {
-            version = 8,
+            version = 9,
             gold = 25,
             leader_member_id = "hero_001",
             main_character_member_id = "hero_001",

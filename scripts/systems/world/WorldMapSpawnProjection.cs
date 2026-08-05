@@ -138,6 +138,7 @@ internal static class WorldMapSpawnProjection
             ["tier"] = settlement.Tier,
             ["tier_name"] = settlement.TierName,
             ["faction_id"] = settlement.FactionId,
+            ["country_id"] = settlement.CountryId,
             ["origin"] = settlement.Origin,
             ["footprint_size"] = settlement.FootprintSize,
             ["facilities"] = BuildFacilitiesPlain(settlement.Facilities),

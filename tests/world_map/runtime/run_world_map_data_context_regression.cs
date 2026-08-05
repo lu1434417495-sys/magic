@@ -206,6 +206,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                     ["entity_id"] = "settlement_spring_village",
                     ["settlement_id"] = "spring_village",
                     ["display_name"] = "Spring Village",
+                    ["country_id"] = "spring_republic",
                     ["origin"] = new Vector2I(1, 1),
                     ["footprint_size"] = new Vector2I(2, 1),
                     ["settlement_state"] = BuildSettlementState(false),
@@ -221,6 +222,17 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             _test.True(!firstCell.IsEmpty, "Typed settlement query should find settlement origin.");
             _test.Eq(firstCell.SettlementId, "spring_village", "Typed settlement query should expose settlement_id.");
             _test.Eq(firstCell.DisplayName, "Spring Village", "Typed settlement query should expose display_name.");
+            _test.Eq(
+                context.ActiveRuntimeData.Settlements[0].CountryId,
+                "spring_republic",
+                "WorldMapDataContext typed owner should preserve settlement country_id."
+            );
+            WorldRuntimeData roundTrip = WorldRuntimeData.FromDictionary(ProjectRootWorldData(context));
+            _test.Eq(
+                roundTrip.Settlements[0].CountryId,
+                "spring_republic",
+                "WorldMapDataContext projection roundtrip should preserve settlement country_id."
+            );
             _test.Eq(
                 footprintCell.SettlementId,
                 "spring_village",
@@ -248,6 +260,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                     ["entity_id"] = "settlement_spring_village",
                     ["settlement_id"] = "spring_village",
                     ["display_name"] = "Spring Village",
+                    ["country_id"] = "spring_republic",
                     ["origin"] = new Vector2I(1, 1),
                     ["footprint_size"] = new Vector2I(1, 1),
                     ["settlement_state"] = BuildSettlementStateWithServiceData(false),
@@ -268,11 +281,21 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 context.GetSettlementStateData("spring_village"),
                 "typed settlement state"
             );
+            _test.Eq(
+                context.ActiveRuntimeData.Settlements[0].CountryId,
+                "spring_republic",
+                "MarkSettlementVisited 的 WithSettlementState 路径不应丢失 country_id。"
+            );
 
             GDictionary projectedRootWorldData = ProjectRootWorldData(context);
             GDictionary settlementRecord =
                 projectedRootWorldData["settlements"].AsGodotArray()[0].AsGodotDictionary();
             GDictionary settlementState = settlementRecord["settlement_state"].AsGodotDictionary();
+            _test.Eq(
+                settlementRecord["country_id"].AsString(),
+                "spring_republic",
+                "公开 settlement record 投影应保留 country_id。"
+            );
             _test.True(
                 settlementState["visited"].AsBool(),
                 "公开 settlement record 投影应返回更新后的 settlement_state。"

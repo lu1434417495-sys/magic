@@ -1,9 +1,9 @@
 # 角色成长与 CharacterManagement 模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-24`
+> 核对日期：`2026-07-29`
 
-更新日期：`2026-07-24`
+更新日期：`2026-07-29`
 
 ## 目标与边界
 
@@ -29,6 +29,8 @@ GameRuntimeFacade sidecars
 
 PartyState 至少包含：active members、reserve members、leader member id、warehouse、quest state、achievement progress、pending rewards、货币/声望等队伍级字段。可持久化的正常游戏态必须保持 active/reserve 成员 id 唯一、主角始终位于 active、active 非空，并由一名 active 成员担任 leader。主角死亡后的空 roster 只属于 Game Over 临时态，不得覆盖最近一次正常存档。
 
+PartyState v9 的 canonical schema 额外精确包含 `world_renown: int` 与 `country_reputations: Dictionary`。`world_renown` 是全队共享的世界知名度，合法范围为 `0..100`；它不表示任何具体国家对队伍的态度。`country_reputations` 以非空、规范化后的 `country_id` 为键，每个国家独立保存 `-100..100` 的声望值，未记录的国家读取为 `0`。写入与增减 API 对数值执行范围钳制，并拒绝空 `country_id`；不同国家的值不得共享，也不得从 faction id、据点名或显示名推导。
+
 PartyMemberState 包含 member id、display name、identity（race/subrace/age/bloodline/faith 等）、base attributes、equipment state、UnitProgress、当前资源/状态摘要。`current_hp` 是生死状态的唯一权威字段：运行时的 `is_dead` 只由 `current_hp <= 0` 派生；存档仍输出 `is_dead` 作为冗余一致性校验，载入时严格拒绝二者矛盾的 payload，不做自动归一化。
 
 ## UnitProgress 契约
@@ -38,6 +40,8 @@ UnitProgress 是技能/职业成长 owner：
 - skill progress 和 profession progress 正式承载面是 internal typed dictionary；Godot dictionary 只作边界投影。
 - combat resource id 合法性由 `CombatResourceIds` 统一拥有，不在 UnitProgress/BattleUnitState 复制 HashSet。
 - `merged_skill_source_map` 等来源映射应保持 typed owner，避免 UI dictionary 成为业务态。
+
+善恶度继续由每名成员各自的 `UnitProgress.reputation_state.morality: int` 持有，并随成员状态保存、载入和深复制；它不是 PartyState 的全队共享值，也不是国家声望。当前字段层只提供 `GetReputationValue("morality")` / `SetReputationValue("morality", value)`，尚未定义区间、阵营判定或由任务自动传播的规则；世界名望与国家声望的写入不得隐式联动善恶度。
 
 ## 内容定义
 
@@ -82,6 +86,8 @@ setup 输入：PartyState、typed skill defs、profession defs、achievement def
 ## 任务与成就
 
 Quest runtime setup 直接消费 typed `QuestDefinition`。`PartyState` 内部的 `QuestJournalState` 是任务阶段唯一 owner，active、claimable、failed 与 rewarded id 的迁移必须原子完成；对外任务查询返回 detached `QuestState`。任务 accept/progress/complete/claim/fail 都必须校验 quest id/objective id、状态、提交物品、奖励空间或失败原因。contract board 只投影 UI 字典，不反向驱动任务业务。
+
+`defeat_enemy_in_single_battle` 消费战斗结算按敌人模板生成的单场聚合事件：事件必须携带非空 encounter id，且本场击败数一次达到目标值才写满进度；不足目标的战斗不写入部分进度，不能跨战累加。普通 `defeat_enemy` 保持原有累计语义。击败目标可选配一组 `encounter_profile_id` / `encounter_display_name`，并用非负 `encounter_growth_stage` 选择该 encounter 共享 roster 的正式阶段；接取命令据此在发布者附近创建稳定任务遭遇锚点，并用同一个 party + world transaction 提交或回滚。阶段直接写入 encounter anchor 已有的 `growth_stage`，不增加存档字段或版本。
 
 成功领奖后的重复接取由 `is_repeatable` 控制；失败后的重启由独立的 `failure_policy = terminal/restartable` 控制。失败任务保存 `failed_at_world_step`、`failure_reason_id` 与失败上下文，不能继续推进、完成或领奖；restartable 重新接取时创建全新的 active state，不继承旧进度和失败元数据。
 
@@ -207,7 +213,7 @@ AchievementProgressState 记录 progress、unlocked、claimed/reward state。事
 
 ## 实现级补充：奖励队列
 
-PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 canonical schema 序列化。当前 quest journal 破坏性调整后的持久化契约是 PartyState v8、顶层 SaveVersion 17；旧版本不提供兼容迁移。后续源码物理迁移不得隐式改变版本、类型名、字段或 payload key。奖励确认流程：
+PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 canonical schema 序列化。当前持久化契约是 PartyState v9、顶层 SaveVersion 18；旧版本不提供兼容迁移。后续源码物理迁移不得隐式改变版本、类型名、字段或 payload key。奖励确认流程：
 
 1. peek active reward。
 2. UI 展示 reward choices。
@@ -503,6 +509,12 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public bool MarkQuestClaimable(StringName qid, int ws = -1)`
 - `public bool MarkQuestCompleted(StringName qid, int ws = -1) => MarkQuestClaimable(qid, ws);`
 - `public bool MarkQuestRewardClaimed(StringName qid, int ws = -1)`
+- `public int GetWorldRenown()`
+- `public int SetWorldRenown(int value)`
+- `public int AddWorldRenown(int delta)`
+- `public int GetCountryReputation(StringName countryId)`
+- `public int SetCountryReputation(StringName countryId, int value)`
+- `public int AddCountryReputation(StringName countryId, int delta)`
 - `public Godot.Collections.Dictionary ToDictionary()`
 - `public static PartyState FromDictionary(Godot.Collections.Dictionary data)`
 

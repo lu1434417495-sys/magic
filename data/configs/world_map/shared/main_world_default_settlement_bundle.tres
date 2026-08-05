@@ -214,7 +214,7 @@ display_name = "行会大厅"
 category = "civic"
 min_settlement_tier = 1
 allowed_slot_tags = Array[String](["core", "civic"])
-bound_service_npcs = Array[Resource]([SubResource("Resource_guild_npc"), SubResource("Resource_guild_bounty_clerk_npc")])
+bound_service_npcs = Array[Resource]([SubResource("Resource_guild_npc"), SubResource("Resource_guild_bounty_clerk_npc"), SubResource("Resource_notice_npc")])
 interaction_type = "guild"
 
 [sub_resource type="Resource" id="Resource_market_square"]
