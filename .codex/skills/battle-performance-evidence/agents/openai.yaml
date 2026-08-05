@@ -1,0 +1,4 @@
+interface:
+  display_name: "Battle Performance Evidence"
+  short_description: "Audit battle performance and coverage provenance"
+  default_prompt: "Use $battle-performance-evidence to analyze battle performance or coverage with reproducible provenance."

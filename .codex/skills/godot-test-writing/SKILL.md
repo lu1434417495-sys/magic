@@ -1,6 +1,6 @@
 ---
 name: godot-test-writing
-description: Write and revise focused regression tests for this Godot 4.6 C# repository. Use when Codex needs to add, update, or evaluate tests under `tests/`, choose between service/runtime/headless/text/snapshot coverage, decide what assertions belong in a test, reuse project shared test fixtures, or verify that a change has appropriate Godot headless regression coverage.
+description: Write and revise focused regression tests for this Godot 4.6 C# repository. Use when Codex needs to add, update, or evaluate tests under `tests/`; choose between service, runtime, headless, text, snapshot, lifecycle, or application E2E coverage; diagnose path-backed Resource fixture or shutdown/finalizer failures; distinguish a passing regression from line/branch coverage; decide what assertions belong in a test; reuse shared fixtures; or verify that a change has appropriate Godot headless regression coverage.
 ---
 
 # Godot Test Writing
@@ -24,14 +24,17 @@ Choose the narrowest layer that proves the behavior:
 - **Text command/snapshot test**: Use `GameTextCommandRunner` for automation-facing command behavior and snapshot fields. Follow `tests/text_runtime/README.md`.
 - **Scene/UI schema test**: Test scene-facing payload shape, signal/callable contracts, and stable UI data. Do not use UI tests for rule logic that belongs in services.
 - **Application E2E test**: Use `tests/e2e/` only when the contract requires the configured production main scene, canonical autoloads, real Godot input propagation, scene transitions, or a cold-process save/load journey. Drive UI through `E2eInputDriver`, isolate `user://` through `tests/run_e2e_suite.py`, and keep multi-process steps serialized in one declared sandbox group. A deterministic E2E seed may fix randomness, but must not invoke callbacks/runtime commands directly or force an outcome.
+- **Lifecycle correctness test**: Use the production shutdown pipeline plus the outer lifecycle-correctness runner when the contract concerns wrapper ownership, borrower teardown, projection leases, finalizers, or process exit. Read [references/fixture-lifecycle.md](references/fixture-lifecycle.md).
 - **Battle simulation or balance test**: Do not include routine numeric simulation, balance, benchmark, or analysis runners unless the user explicitly asks for simulation or balance work. Use `battle-sim-analysis` for that workflow.
+
+Read [references/application-e2e.md](references/application-e2e.md) before adding or changing an E2E scenario. Read [references/coverage-vs-regression.md](references/coverage-vs-regression.md) when the request asks whether tests or a runner provide coverage.
 
 ## Reuse Shared Framework
 
 Prefer existing project fixtures:
 
-- Use `tests/shared/TestHarness.cs` for assertions and final status. Avoid ad hoc `GD.PushError` assertion frameworks in new tests.
-- Use `TestHarness.Finish(...)` as the only normal runner-level finalizer drain. Do not call `GodotSharpCleanup.CollectPendingFinalizers()` or `GodotObjectLifecycle.CollectPendingFinalizers()` from ordinary test runners; register Godot runtime graphs with the appropriate owner scope and let the centralized exit path drain known owners.
+- Use `tests/shared/TestHarness.cs` for assertions and the immutable `TestResult`. Avoid ad hoc `GD.PushError` assertion frameworks in new tests.
+- Treat `TestHarness.Finish(...)` as assertion/result finalization only. Let `LifecycleTestSceneTree` and `TestExitCoordinator` submit the result through the production shutdown pipeline. Do not call forced GC/finalizer drains from ordinary runners.
 - Use `SnapshotTestRuntime` for snapshot renderer tests instead of rebuilding a fake runtime source from scratch.
 - Reuse deterministic damage resolvers in `tests/shared/` and domain helpers in `tests/battle_runtime/helpers/` before adding new battle test doubles.
 - Use `HeadlessGameTestSession.GetGameSessionTyped()` / `GetRuntimeFacadeTyped()` and typed runtime APIs. Do not route formal test setup through `GodotObject.Call(...)` or string method names when typed APIs exist.
@@ -49,6 +52,8 @@ Prefer existing project fixtures:
 6. Build the smallest fixture that exercises the behavior. Prefer typed setup APIs and formal content injection helpers already present in the codebase.
 7. Dispose owned sessions, runtimes, registries, windows, resources, and services in `finally` blocks when cleanup affects later assertions or finalizers, but do not run a local forced-GC/finalizer drain there.
 8. If the runtime relationship, ownership boundary, or recommended read set changed, update `docs/design/project_context_units.md` after the code change.
+
+For path-backed `.tres` fixtures, keep one scoped `TestContentResourceLoader` alive through projection and every assertion that borrows the projected graph. Prefer `CacheMode.IgnoreDeep` through the shared loader rather than repeated default-cache `GD.Load(...)`.
 
 ## Assert These Things
 
@@ -103,6 +108,12 @@ Do not pass `--include-simulation` or `--include-benchmarks` unless the user exp
 
 ## Keep This Skill Current
 
-After using this skill to write, revise, or review tests, compare the actual workflow against these instructions before the final response. If the task revealed a reusable process improvement, missing shared helper rule, assertion boundary, validation command, or anti-pattern, update `.codex/skills/godot-test-writing/SKILL.md` in the same work before finishing.
+After using this skill, compare the actual workflow with these instructions. Update this skill only when the user requested skill/process maintenance or the current task explicitly includes repository workflow documentation. Otherwise report a reusable gap without expanding a normal test task into unrelated skill edits.
 
-Do not update the skill for one-off facts that only apply to a single bug or temporary local artifact. Update it when the lesson should guide future test-writing tasks in this repository.
+Do not record one-off bugs, transient paths, current test counts, or temporary artifacts here.
+
+## References
+
+- `references/fixture-lifecycle.md`: Resource ownership, loader scope, shutdown, and cross-platform CI diagnosis.
+- `references/application-e2e.md`: production-main-scene input, sandbox, polling, and journey design.
+- `references/coverage-vs-regression.md`: evidence classes and coverage-report provenance.

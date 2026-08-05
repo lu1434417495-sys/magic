@@ -1,0 +1,4 @@
+interface:
+  display_name: "Battle AI Engineering"
+  short_description: "Design and validate battle AI runtime changes"
+  default_prompt: "Use $battle-ai-engineering to design or implement this battle AI change with preview and mutation safety."
