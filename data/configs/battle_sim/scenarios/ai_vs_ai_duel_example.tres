@@ -13,8 +13,9 @@ ai_brain_id = &"melee_aggressor"
 ai_state_id = &"engage"
 coord = Vector2i(0, 1)
 current_hp = 48
-current_stamina = 3
+current_stamina = 120
 current_ap = 2
+current_move_points = 2
 action_threshold = 110
 base_attributes = {
 "strength": 14,
@@ -26,15 +27,36 @@ base_attributes = {
 }
 attribute_overrides = {
 "hp_max": 48,
-"stamina_max": 3,
+"stamina_max": 120,
 "action_points": 2,
 "attack_bonus": 6,
 "armor_ac_bonus": 6
 }
-skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_ids = Array[StringName]([&"basic_attack", &"charge", &"warrior_heavy_strike"])
 skill_level_map = {
+"basic_attack": 1,
 "charge": 1,
 "warrior_heavy_strike": 1
+}
+weapon_projection = {
+"weapon_profile_kind": "equipped",
+"weapon_item_id": "steel_longsword",
+"weapon_profile_type_id": "longsword",
+"weapon_range_type": "melee",
+"weapon_family": "sword",
+"weapon_current_grip": "one_handed",
+"weapon_attack_range": 1,
+"weapon_one_handed_dice": {
+"dice_count": 1,
+"dice_sides": 8
+},
+"weapon_two_handed_dice": {
+"dice_count": 1,
+"dice_sides": 10
+},
+"weapon_is_versatile": true,
+"weapon_uses_two_hands": false,
+"weapon_physical_damage_tag": "physical_slash"
 }
 
 [sub_resource type="Resource" id="Resource_enemy_harrier"]
@@ -48,8 +70,9 @@ ai_state_id = &"pressure"
 coord = Vector2i(5, 1)
 current_hp = 42
 current_mp = 20
-current_stamina = 20
+current_stamina = 120
 current_ap = 2
+current_move_points = 2
 action_threshold = 120
 base_attributes = {
 "strength": 10,
@@ -62,15 +85,36 @@ base_attributes = {
 attribute_overrides = {
 "hp_max": 42,
 "mp_max": 20,
-"stamina_max": 20,
+"stamina_max": 120,
 "action_points": 2,
 "attack_bonus": 6,
 "armor_ac_bonus": 4
 }
-skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
+skill_ids = Array[StringName]([&"basic_attack", &"archer_suppressive_fire", &"archer_pinning_shot"])
 skill_level_map = {
+"basic_attack": 1,
 "archer_suppressive_fire": 1,
 "archer_pinning_shot": 1
+}
+weapon_projection = {
+"weapon_profile_kind": "equipped",
+"weapon_item_id": "ash_longbow",
+"weapon_profile_type_id": "longbow",
+"weapon_range_type": "ranged",
+"weapon_family": "bow",
+"weapon_current_grip": "two_handed",
+"weapon_attack_range": 4,
+"weapon_one_handed_dice": {
+"dice_count": 0,
+"dice_sides": 0
+},
+"weapon_two_handed_dice": {
+"dice_count": 1,
+"dice_sides": 8
+},
+"weapon_is_versatile": false,
+"weapon_uses_two_hands": true,
+"weapon_physical_damage_tag": "physical_pierce"
 }
 
 [resource]

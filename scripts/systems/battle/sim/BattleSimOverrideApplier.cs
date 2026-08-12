@@ -384,7 +384,9 @@ public sealed class BattleSimOverrideApplier
                     reposition.ActionBaseScore,
                     path == "min_survival_margin_gain_to_escape"
                         ? value
-                        : reposition.MinSurvivalMarginGainToEscape
+                        : reposition.MinSurvivalMarginGainToEscape,
+                    reposition.PositioningMode,
+                    reposition.HighGroundWeight
                 );
                 return true;
             case RetreatActionDefinition retreat when path == "minimum_safe_distance":

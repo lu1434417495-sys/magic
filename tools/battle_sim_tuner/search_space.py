@@ -8,6 +8,7 @@ patches), so tuning one faction's mage does not touch the other side.
 from __future__ import annotations
 
 from .evaluator import ParamSpec
+from .score_weight_catalog import load_score_weight_specs
 
 _BRAIN = "mage_controller"
 _GAIN = "min_survival_margin_gain_to_escape"
@@ -31,86 +32,13 @@ MAGE_SPACE = [
 ]
 
 
-# Full BattleAiScoreProfile weight set as per-faction patches (needs the engine's
-# per-faction score-profile support). Tuning these for ONE faction vs a baseline
-# opponent is only meaningful in an arena where the weights have gradient — e.g. a
-# multi-unit faction makes friendly-fire / heal / target-count weights matter; a
-# single-unit faction leaves many of them as free-drift dimensions.
-# (name, lo, hi) — bounds bracket the shipped default.
-_SCORE_WEIGHTS = [
-    ("damage_weight", 0, 40),
-    ("heal_weight", 0, 40),
-    ("status_weight", 0, 80),
-    ("terrain_weight", 0, 60),
-    ("height_weight", 0, 48),
-    ("lethal_target_weight", 0, 1500),
-    ("lethal_threat_target_weight", 0, 2500),
-    ("target_count_weight", 0, 160),
-    ("friendly_fire_damage_weight", 0, 120),
-    ("friendly_fire_target_weight", 0, 800),
-    ("friendly_control_target_weight", 0, 1000),
-    ("friendly_lethal_target_weight", 0, 15000),
-    ("ap_cost_weight", 0, 100),
-    ("mp_cost_weight", 0, 80),
-    ("stamina_cost_weight", 0, 40),
-    ("aura_cost_weight", 0, 120),
-    ("cooldown_weight", 0, 48),
-    ("delayed_resolution_cost_per_5_tu", 0, 40),
-    ("movement_cost_weight", 0, 80),
-    ("mp_reserve_floor_bp", 0, 8000),
-    ("mp_reserve_pressure_weight", 0, 200),
-    ("mp_reserve_breach_penalty", 0, 3000),
-    ("stamina_reserve_floor_bp", 0, 8000),
-    ("stamina_reserve_pressure_weight", 0, 200),
-    ("stamina_reserve_breach_penalty", 0, 3000),
-    ("aura_reserve_floor_bp", 0, 8000),
-    ("aura_reserve_pressure_weight", 0, 200),
-    ("aura_reserve_breach_penalty", 0, 3000),
-    ("resource_conservation_weight", 0, 300),
-    ("position_base_score", 0, 200),
-    ("position_distance_step", 0, 20),
-    ("position_undershoot_penalty", 0, 60),
-    ("position_overshoot_penalty", 0, 60),
-    ("survival_margin_gain_weight", 0, 120),
-    ("post_action_threat_damage_weight", 0, 120),
-    ("post_action_threat_count_weight", 0, 400),
-    ("lethal_survival_risk_penalty", 0, 8000),
-    ("incoming_threat_relief_weight", 0, 120),
-    ("low_hp_urgency_threshold_bp", 0, 10000),
-    ("low_hp_urgency_weight", 0, 200),
-    ("execute_target_hp_threshold_bp", 0, 10000),
-    ("execute_bonus_weight", 0, 1500),
-    ("overkill_damage_penalty_weight", 0, 120),
-    ("role_threat_min_effective_range", 1, 10),
-    ("role_threat_distance_window", 0, 10),
-    ("role_threat_max_approach_distance", 1, 12),
-    ("role_threat_max_contact_range", 0, 4),
-    ("role_threat_in_range_score_step", 0, 40),
-    ("enemy_target_count_weight", 0, 160),
-    ("chain_enemy_target_weight", 0, 160),
-    ("focus_fire_wounded_target_weight", 0, 300),
-    ("hit_rate_reliability_weight", 0, 160),
-    ("save_reliable_damage_weight", 0, 120),
-    ("shield_absorbed_weight", 0, 40),
-    ("control_weight", 0, 160),
-    ("ground_control_weight", 0, 160),
-    ("status_redundancy_penalty", 0, 1500),
-    ("position_objective_weight", 0, 300),
-    ("safe_distance_adherence_weight", 0, 300),
-    ("threat_healer_bias_basis_points", 0, 5000),
-    ("threat_control_bias_basis_points", 0, 3000),
-    ("threat_ranged_bias_basis_points", 0, 3000),
-    ("threat_range_step_bias_basis_points", 0, 1000),
-    ("threat_multiplier_cap_basis_points", 5000, 30000),
-    ("meteor_high_priority_threat_multiplier_bp", 8000, 20000),
-    ("meteor_high_priority_damage_hp_percent", 0, 100),
-    ("meteor_high_priority_target_priority_score", 0, 800),
-    ("meteor_top_threat_rank", 1, 5),
-    ("meteor_friendly_fire_soft_expected_hp_percent", 0, 100),
-    ("meteor_friendly_fire_hard_expected_hp_percent", 0, 100),
-    ("meteor_friendly_fire_hard_worst_case_hp_percent", 0, 100),
-    ("default_bucket_priority", -200, 200),
-]
+# Full BattleAiScoreProfile weight set as per-faction patches. The JSON catalog
+# is the cross-language contract consumed by both this Python tuner and the C#
+# BattleSim override validation.
+_SCORE_WEIGHTS = tuple(
+    (spec.path, spec.minimum, spec.maximum)
+    for spec in load_score_weight_specs()
+)
 
 SCORE_ACTION_BASE_DEFAULTS = {
     "skill": 0,
