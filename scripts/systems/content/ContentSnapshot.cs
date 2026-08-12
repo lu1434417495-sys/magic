@@ -28,6 +28,7 @@ internal sealed class ContentSnapshot
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfiles,
         IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> contingencyTemplates,
         IReadOnlyDictionary<StringName, ItemDefinition> items,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gearSets,
         IReadOnlyDictionary<StringName, RecipeDefinition> recipes,
         IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> equipmentAbilityPacks,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
@@ -71,6 +72,7 @@ internal sealed class ContentSnapshot
         BarrierProfiles = Freeze(barrierProfiles);
         ContingencyTemplates = Freeze(contingencyTemplates);
         Items = Freeze(items);
+        GearSets = Freeze(gearSets);
         Recipes = Freeze(recipes);
         EquipmentAbilityPacks = Freeze(equipmentAbilityPacks);
         EquipmentAbilityBindings = Freeze(equipmentAbilityBindings);
@@ -102,6 +104,7 @@ internal sealed class ContentSnapshot
     internal IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfiles { get; }
     internal IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> ContingencyTemplates { get; }
     internal IReadOnlyDictionary<StringName, ItemDefinition> Items { get; }
+    internal IReadOnlyDictionary<StringName, GearSetDefinition> GearSets { get; }
     internal IReadOnlyDictionary<StringName, RecipeDefinition> Recipes { get; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> EquipmentAbilityPacks { get; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; }

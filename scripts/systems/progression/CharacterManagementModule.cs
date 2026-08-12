@@ -82,6 +82,9 @@ public sealed partial class CharacterManagementModule
 
         public ItemDefinition GetItemDefForTraitAggregation(StringName itemId) =>
             _owner?.GetItemDef(itemId);
+
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsForTraitAggregation() =>
+            _owner?._item_def_view;
     }
 
     private sealed class AchievementProgressSummaryEntry
@@ -143,6 +146,11 @@ public sealed partial class CharacterManagementModule
         new ReadOnlyDictionary<StringName, ItemDefinition>(
             new Dictionary<StringName, ItemDefinition>()
         );
+    private Dictionary<StringName, GearSetDefinition> _gear_set_def_index = new();
+    private IReadOnlyDictionary<StringName, GearSetDefinition> _gear_set_def_view =
+        new ReadOnlyDictionary<StringName, GearSetDefinition>(
+            new Dictionary<StringName, GearSetDefinition>()
+        );
     private Dictionary<StringName, QuestDefinition> _quest_def_index = new();
     private Dictionary<StringName, TraitDefinition> _trait_def_index = new();
     private Dictionary<StringName, RaceDefinition> _race_def_index = new();
@@ -190,6 +198,7 @@ public sealed partial class CharacterManagementModule
         _profession_def_index.Clear();
         _achievement_def_index.Clear();
         _item_def_index.Clear();
+        _gear_set_def_index.Clear();
         _quest_def_index.Clear();
         _trait_def_index.Clear();
         _race_def_index.Clear();
@@ -212,7 +221,8 @@ public sealed partial class CharacterManagementModule
         IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null,
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs = null,
         Func<StringName> equipment_instance_id_allocator = null,
-        ProgressionIdentityCatalogData progression_identity_catalog = null
+        ProgressionIdentityCatalogData progression_identity_catalog = null,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gear_set_defs = null
     ) =>
         setup(
             party_state,
@@ -223,7 +233,8 @@ public sealed partial class CharacterManagementModule
             quest_defs,
             quest_defs != null && quest_defs.Count > 0,
             equipment_instance_id_allocator,
-            progression_identity_catalog
+            progression_identity_catalog,
+            gear_set_defs
         );
 
     public void setup(
@@ -235,7 +246,8 @@ public sealed partial class CharacterManagementModule
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         IReadOnlyDictionary<StringName, TraitDefinition> trait_defs,
         Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
+        ProgressionIdentityCatalogData progression_identity_catalog,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gear_set_defs = null
     ) =>
         setup(
             party_state,
@@ -247,7 +259,8 @@ public sealed partial class CharacterManagementModule
             quest_defs != null && quest_defs.Count > 0,
             trait_defs,
             equipment_instance_id_allocator,
-            progression_identity_catalog
+            progression_identity_catalog,
+            gear_set_defs
         );
 
     public void setup(
@@ -259,7 +272,8 @@ public sealed partial class CharacterManagementModule
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         bool has_quest_def_catalog,
         Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
+        ProgressionIdentityCatalogData progression_identity_catalog,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gear_set_defs = null
     ) =>
         setup(
             party_state,
@@ -271,7 +285,8 @@ public sealed partial class CharacterManagementModule
             has_quest_def_catalog,
             new Dictionary<StringName, TraitDefinition>(),
             equipment_instance_id_allocator,
-            progression_identity_catalog
+            progression_identity_catalog,
+            gear_set_defs
         );
 
     public void setup(
@@ -284,7 +299,8 @@ public sealed partial class CharacterManagementModule
         bool has_quest_def_catalog,
         IReadOnlyDictionary<StringName, TraitDefinition> trait_defs,
         Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
+        ProgressionIdentityCatalogData progression_identity_catalog,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gear_set_defs = null
     )
     {
         _party_state = party_state ?? new PartyState();
@@ -294,6 +310,10 @@ public sealed partial class CharacterManagementModule
         _achievement_def_index = CloneContentDefIndex(achievement_defs);
         _item_def_index = CloneContentDefIndex(item_defs);
         _item_def_view = new ReadOnlyDictionary<StringName, ItemDefinition>(_item_def_index);
+        _gear_set_def_index = CloneContentDefIndex(gear_set_defs);
+        _gear_set_def_view = new ReadOnlyDictionary<StringName, GearSetDefinition>(
+            _gear_set_def_index
+        );
         _has_quest_def_catalog = has_quest_def_catalog;
         _quest_def_index = CloneContentDefIndex(quest_defs);
         _trait_def_index = CloneContentDefIndex(trait_defs);
@@ -323,7 +343,8 @@ public sealed partial class CharacterManagementModule
         );
         _character_trait_service = new CharacterTraitService(
             _trait_def_index.Values,
-            new CharacterTraitGatewayAdapter(this)
+            new CharacterTraitGatewayAdapter(this),
+            _gear_set_def_view
         );
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
         _party_warehouse_service.Setup(
@@ -352,6 +373,23 @@ public sealed partial class CharacterManagementModule
 
     public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
         _item_def_view;
+
+    public IReadOnlyDictionary<StringName, GearSetDefinition> GetGearSetDefinitionsTyped() =>
+        _gear_set_def_view;
+
+    public GearSetEvaluationSnapshot EvaluateGearSets(
+        StringName member_id,
+        EquipmentState equipment_state_override = null
+    )
+    {
+        PartyMemberState memberState = GetMemberState(member_id);
+        EquipmentState equipment = equipment_state_override ?? memberState?.equipment_state;
+        return GearSetEvaluationService.Evaluate(
+            equipment,
+            _item_def_view,
+            _gear_set_def_view
+        );
+    }
 
     public bool HasItemDefCatalog() => _item_def_index.Count > 0;
 
@@ -525,17 +563,28 @@ public sealed partial class CharacterManagementModule
         var equipment_state = equipment_state_override ?? member_state.equipment_state;
         IReadOnlyList<AttributeModifierDefinition> equipmentModifiers =
             _party_equipment_service.BuildAttributeModifiersTyped(equipment_state);
-        context.equipment_state = equipmentModifiers;
+        var combinedEquipmentModifiers = new List<AttributeModifierDefinition>(
+            equipmentModifiers
+        );
         if (_character_trait_service != null)
         {
             EffectiveTraitSet effectiveTraits = _character_trait_service.BuildEffectiveTraits(
                 member_id,
-                equipment_state
+                equipment_state,
+                out GearSetEvaluationSnapshot gearSetEvaluation
             );
+            combinedEquipmentModifiers.AddRange(gearSetEvaluation.AttributeModifiers);
             IReadOnlyList<AttributeModifierDefinition> traitModifiers =
                 _character_trait_service.ResolveTraitAttributeModifiers(effectiveTraits);
             context.trait_attribute_modifiers = traitModifiers;
         }
+        else
+        {
+            combinedEquipmentModifiers.AddRange(
+                EvaluateGearSets(member_id, equipment_state).AttributeModifiers
+            );
+        }
+        context.equipment_state = combinedEquipmentModifiers.AsReadOnly();
         context.stage_advancement_modifiers = _collect_active_stage_advancement_modifiers(
             member_state
         );

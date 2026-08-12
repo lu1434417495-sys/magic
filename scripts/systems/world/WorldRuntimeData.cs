@@ -14,6 +14,7 @@ internal sealed class WorldRuntimeData
         new(System.StringComparer.Ordinal);
     private readonly List<WorldMapNpcData> _worldNpcs = new();
     private readonly Dictionary<string, object> _fogStates = new(System.StringComparer.Ordinal);
+    private WorldUniqueEquipmentPoolState _uniqueEquipmentPool;
 
     public long MapSeed { get; private set; } = 1;
     public int WorldStep { get; private set; }
@@ -27,12 +28,14 @@ internal sealed class WorldRuntimeData
     public bool HasPlayerStartSettlementName { get; private set; }
     public bool HasFogStates { get; private set; }
     public bool HasWorldNpcs { get; private set; }
+    public bool HasUniqueEquipmentPool => _uniqueEquipmentPool != null;
 
     public IReadOnlyList<WorldMapSettlementRecordData> Settlements => _settlements;
     public IReadOnlyList<EncounterAnchorData> EncounterAnchors => _encounterAnchors;
     public IReadOnlyList<WorldMapResourceNodeData> ResourceNodes => _resourceNodes;
     public IReadOnlyList<WorldMapEventData> WorldEvents => _worldEvents;
     public IReadOnlyList<WorldMapNpcData> WorldNpcs => _worldNpcs;
+    internal WorldUniqueEquipmentPoolState UniqueEquipmentPool => _uniqueEquipmentPool;
 
     private WorldRuntimeData() { }
 
@@ -78,6 +81,7 @@ internal sealed class WorldRuntimeData
         {
             copy._fogStates[entry.Key] = entry.Value;
         }
+        copy._uniqueEquipmentPool = _uniqueEquipmentPool?.DuplicateState();
         return copy;
     }
 
@@ -136,6 +140,22 @@ internal sealed class WorldRuntimeData
             {
                 result._fogStates[entry.Key] = entry.Value;
             }
+        }
+        if (data.ContainsKey(WorldRuntimeSaveSchema.UniqueEquipmentPool))
+        {
+            if (
+                data[WorldRuntimeSaveSchema.UniqueEquipmentPool].VariantType
+                != Variant.Type.Dictionary
+            )
+            {
+                return null;
+            }
+            using GDictionary uniqueEquipmentPoolPayload =
+                data[WorldRuntimeSaveSchema.UniqueEquipmentPool].AsGodotDictionary();
+            result._uniqueEquipmentPool =
+                WorldUniqueEquipmentPoolState.FromDictionary(uniqueEquipmentPoolPayload);
+            if (result._uniqueEquipmentPool == null)
+                return null;
         }
 
         using GArray returnStackValues =
@@ -279,8 +299,21 @@ internal sealed class WorldRuntimeData
         if (HasFogStates)
             result[WorldRuntimeSaveSchema.FogStates] =
                 RuntimePlainPayload.CloneDictionary(_fogStates);
+        if (_uniqueEquipmentPool != null)
+        {
+            result[WorldRuntimeSaveSchema.UniqueEquipmentPool] =
+                _uniqueEquipmentPool.BuildSaveSnapshotPlain();
+        }
         return result;
     }
+
+    internal void SetUniqueEquipmentPool(WorldUniqueEquipmentPoolState pool) =>
+        _uniqueEquipmentPool = pool;
+
+    internal void RestoreUniqueEquipmentPool(
+        bool hadPool,
+        WorldUniqueEquipmentPoolState snapshot
+    ) => _uniqueEquipmentPool = hadPool ? snapshot?.DuplicateState() : null;
 
     // Write fog states straight into the typed payload, so saving fog after a move
     // doesn't have to ToDictionary/FromDictionary the whole world.

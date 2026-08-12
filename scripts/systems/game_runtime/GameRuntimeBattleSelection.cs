@@ -1478,7 +1478,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
 
         CombatEffectDefinition relocationEffectDefinition = ResolveGroundRelocationEffectDef(
             skillDefinition,
-            castVariant
+            castVariant,
+            Math.Max(activeUnit.GetKnownSkillLevelTyped(skillDefinition.SkillId), 1)
         );
         var seenCoords = new HashSet<Vector2I>();
         foreach (Vector2I coord in targetCoords ?? Array.Empty<Vector2I>())
@@ -1550,14 +1551,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
 
     private static CombatEffectDefinition ResolveGroundRelocationEffectDef(
         SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
+        CombatCastVariantDefinition castVariant,
+        int skillLevel
     )
     {
         if (castVariant != null)
         {
             foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
             {
-                if (IsGroundRelocationEffect(effectDefinition))
+                if (
+                    IsGroundRelocationEffect(effectDefinition)
+                    && effectDefinition.IsUnlockedAtSkillLevel(skillLevel)
+                )
                 {
                     return effectDefinition;
                 }
@@ -1567,7 +1572,10 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         {
             foreach (CombatEffectDefinition effectDefinition in skillDefinition.CombatProfile.EffectDefinitions)
             {
-                if (IsGroundRelocationEffect(effectDefinition))
+                if (
+                    IsGroundRelocationEffect(effectDefinition)
+                    && effectDefinition.IsUnlockedAtSkillLevel(skillLevel)
+                )
                 {
                     return effectDefinition;
                 }
@@ -1583,7 +1591,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             return false;
         }
         return effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Jump
-            || effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Blink;
+            || effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Blink
+            || effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.GrappleAscent;
     }
 
     private static bool CanUseGroundRelocation(
@@ -1605,6 +1614,15 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         if (effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Blink)
         {
             return battleGridService.CanBlinkToCoord(battleState, activeUnit, coord, effectDefinition);
+        }
+        if (effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.GrappleAscent)
+        {
+            return battleGridService.CanGrappleAscent(
+                battleState,
+                activeUnit,
+                coord,
+                effectDefinition
+            );
         }
         return false;
     }

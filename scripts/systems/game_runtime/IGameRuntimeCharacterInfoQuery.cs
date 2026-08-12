@@ -16,5 +16,10 @@ internal interface IGameRuntimeCharacterInfoQuery
 
     bool TryGetTraitDefinition(StringName traitId, out TraitDefinition traitDefinition);
 
+    GearSetEvaluationSnapshot EvaluateGearSets(
+        StringName memberId,
+        EquipmentState equipmentStateOverride
+    ) => GearSetEvaluationSnapshot.Empty;
+
     GDictionary GetIdentitySummary(StringName memberId);
 }

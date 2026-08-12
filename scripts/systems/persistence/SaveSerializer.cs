@@ -555,6 +555,14 @@ public sealed class SaveSerializer
             if (!string.IsNullOrEmpty(fogStateError))
                 return $"Corrupt save world_data.fog_states: {fogStateError}";
         }
+        if (
+            worldData.ContainsKey(WorldRuntimeSaveSchema.UniqueEquipmentPool)
+            && worldData[WorldRuntimeSaveSchema.UniqueEquipmentPool].VariantType
+                != Variant.Type.Dictionary
+        )
+        {
+            return $"Corrupt save world_data.{WorldRuntimeSaveSchema.UniqueEquipmentPool}: expected Dictionary.";
+        }
         return "";
     }
 
@@ -588,6 +596,17 @@ public sealed class SaveSerializer
             && worldData["world_npcs"].VariantType != Variant.Type.Array
         )
             return "Corrupt save world_data.world_npcs: expected Array.";
+        if (worldData.ContainsKey(WorldRuntimeSaveSchema.UniqueEquipmentPool))
+        {
+            using GDictionary uniqueEquipmentPool =
+                worldData[WorldRuntimeSaveSchema.UniqueEquipmentPool].AsGodotDictionary();
+            string uniqueEquipmentError =
+                WorldUniqueEquipmentPoolState.GetPayloadValidationError(uniqueEquipmentPool);
+            if (!string.IsNullOrEmpty(uniqueEquipmentError))
+            {
+                return $"Corrupt save world_data.{WorldRuntimeSaveSchema.UniqueEquipmentPool}: {uniqueEquipmentError}";
+            }
+        }
         return "";
     }
 

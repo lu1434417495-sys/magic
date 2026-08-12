@@ -663,6 +663,13 @@ public partial class PartyManagementWindow : ModalWindowShell
         }
 
         EquipmentState equipmentState = memberState.equipment_state;
+        bool hasGearSetSummary = _append_gear_set_summary(lines, memberState, equipmentState);
+        if (hasGearSetSummary)
+        {
+            lines.Add("");
+            lines.Add("[b][color=#e8c36a]装备明细[/color][/b]");
+            lines.Add("[color=#4d5468]━━━━━━━━━━━━━━━━━━━━━━━━[/color]");
+        }
         var occupiedNotes = new List<string>();
         var emptySlotLabels = new List<string>();
         int filledCount = 0;
@@ -697,6 +704,42 @@ public partial class PartyManagementWindow : ModalWindowShell
                 $"[color=#6b7385]空置槽位：{_escape_bbcode(string.Join("、", emptySlotLabels))}[/color]"
             );
         return lines;
+    }
+
+    private bool _append_gear_set_summary(
+        List<string> lines,
+        PartyMemberState memberState,
+        EquipmentState equipmentState
+    )
+    {
+        if (lines == null || memberState == null || _character_management == null)
+            return false;
+
+        GearSetEvaluationSnapshot snapshot = _character_management.EvaluateGearSets(
+            memberState.member_id,
+            equipmentState
+        );
+        IReadOnlyList<GameRuntimeCharacterInfoEntry> entries =
+            GameRuntimeCharacterInfoBuilder.BuildGearSetEntries(snapshot);
+        if (entries.Count == 0)
+            return false;
+
+        lines.Add("[b][color=#e8c36a]套装进度[/color][/b]");
+        lines.Add("[color=#4d5468]━━━━━━━━━━━━━━━━━━━━━━━━[/color]");
+        foreach (GameRuntimeCharacterInfoEntry entry in entries)
+        {
+            if (entry == null || entry.Kind != GameRuntimeCharacterInfoEntryKind.Pair)
+                continue;
+            lines.Add(
+                $"[b][color=#f0d78c]{_escape_bbcode(entry.Label)}[/color][/b]  {_escape_bbcode(entry.Value)}"
+            );
+            if (!string.IsNullOrEmpty(entry.Tooltip))
+                lines.Add($"[color=#9fb0c4]{_escape_bbcode(entry.Tooltip)}[/color]");
+            lines.Add("");
+        }
+        if (lines.Count > 0 && lines[^1] == "")
+            lines.RemoveAt(lines.Count - 1);
+        return true;
     }
 
     private void _append_equipment_card(List<string> lines, StringName itemId)

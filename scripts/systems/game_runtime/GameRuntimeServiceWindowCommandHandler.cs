@@ -164,7 +164,9 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             _owner.GetPartyWarehouseService(),
             _owner.GetPartyState(),
             item_id,
-            quantity
+            quantity,
+            _owner.GetUniqueEquipmentPoolState(),
+            settlementId
         );
         if (!result.Success)
         {
@@ -215,7 +217,18 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         {
             return _owner.RuntimeCommandError("当前商店上下文缺失。");
         }
+        string settlementId = GameRuntimeSettlementCommandHandler.ReadString(
+            context,
+            "settlement_id"
+        );
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool =
+            _owner.GetUniqueEquipmentPoolState();
+        bool transferUniqueInstanceToShop =
+            uniqueEquipmentPool != null
+            && _owner.IsUniqueWorldEquipmentItem(item_id);
         RuntimeTransaction transaction = new RuntimeTransaction().MarkPartyChanged();
+        if (transferUniqueInstanceToShop)
+            transaction.MarkWorldChanged();
         GameRuntimeSettlementCommandHandler.SettlementCommandRollbackSnapshot rollbackSnapshot =
             _owner.CaptureRollbackSnapshot(transaction);
         SettlementShopTradeResult result = _owner._shop_service.SellTyped(
@@ -225,7 +238,11 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             _owner.GetPartyState(),
             item_id,
             quantity,
-            instance_id
+            instance_id,
+            _owner.GetSettlementStateData(settlementId),
+            uniqueEquipmentPool,
+            settlementId,
+            transferUniqueInstanceToShop
         );
         if (!result.Success)
         {
@@ -236,9 +253,20 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             _refresh_active_shop_context(failureMessage);
             return _owner.RuntimeCommandError(failureMessage);
         }
+        if (
+            result.UpdatedSettlementState != null
+            && !_owner.SetActiveSettlementState(
+                settlementId,
+                result.UpdatedSettlementState
+            )
+        )
+        {
+            _owner.RestoreRollbackSnapshotForFailure(rollbackSnapshot, transaction);
+            return _owner.RuntimeCommandError("出售失败：无法写回据点状态。");
+        }
         GameRuntimeSettlementCommandHandler.SettlementPersistResult persistResult = _owner.PersistChangesTyped(
             true,
-            false,
+            result.UpdatedSettlementState != null,
             false,
             rollbackSnapshot
         );
@@ -345,6 +373,10 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         }
         using GodotProjectionLease<GDictionary> settlementLease =
             _owner.GetSettlementRecordLease(settlementId);
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool =
+            _owner.GetUniqueEquipmentPoolState();
+        WorldUniqueEquipmentPoolState uniqueEquipmentPoolCheckpoint =
+            uniqueEquipmentPool?.DuplicateState();
         SettlementShopWindowBuildResult buildResult =
             _owner._shop_service.BuildWindowDataTyped(
                 GameRuntimeSettlementCommandHandler.ReadString(
@@ -358,10 +390,14 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
                 _owner._GetItemDefsTyped(),
                 _owner.GetPartyWarehouseService(),
                 _owner.GetPartyGold(),
-                _owner._GetTraitDefsTyped()
+                _owner._GetTraitDefsTyped(),
+                uniqueEquipmentPool
             );
         if (buildResult.WindowDataPlain.Count == 0)
+        {
+            uniqueEquipmentPool?.RestoreFrom(uniqueEquipmentPoolCheckpoint);
             return _owner.RuntimeCommandError("无法打开商店：商店配置无效。");
+        }
         using GodotProjectionLease<GDictionary> windowDataLease =
             buildResult.ProjectWindowDataLease(
                 "GameRuntimeServiceWindowCommandHandler.OpenShopModalTyped"
@@ -375,6 +411,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             )
         )
         {
+            uniqueEquipmentPool?.RestoreFrom(uniqueEquipmentPoolCheckpoint);
             return _owner.RuntimeCommandError("无法打开商店：据点状态写回失败。");
         }
         windowData["settlement_id"] = settlementId;
@@ -456,6 +493,10 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             return;
         using GodotProjectionLease<GDictionary> settlementLease =
             _owner.GetSettlementRecordLease(settlementId);
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool =
+            _owner.GetUniqueEquipmentPoolState();
+        WorldUniqueEquipmentPoolState uniqueEquipmentPoolCheckpoint =
+            uniqueEquipmentPool?.DuplicateState();
         string nextFeedback = feedbackText
             ?? GameRuntimeSettlementCommandHandler.ReadString(context, "feedback_text");
         SettlementShopWindowBuildResult buildResult =
@@ -471,10 +512,14 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
                 _owner._GetItemDefsTyped(),
                 _owner.GetPartyWarehouseService(),
                 _owner.GetPartyGold(),
-                _owner._GetTraitDefsTyped()
+                _owner._GetTraitDefsTyped(),
+                uniqueEquipmentPool
             );
         if (buildResult.WindowDataPlain.Count == 0)
+        {
+            uniqueEquipmentPool?.RestoreFrom(uniqueEquipmentPoolCheckpoint);
             return;
+        }
         using GodotProjectionLease<GDictionary> nextContextLease =
             buildResult.ProjectWindowDataLease(
                 "GameRuntimeServiceWindowCommandHandler.refresh_active_shop_context"
@@ -488,6 +533,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             )
         )
         {
+            uniqueEquipmentPool?.RestoreFrom(uniqueEquipmentPoolCheckpoint);
             return;
         }
         nextContext["settlement_id"] = settlementId;

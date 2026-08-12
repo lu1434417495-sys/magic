@@ -97,6 +97,92 @@ public class EquipmentInstanceState
         };
     }
 
+    internal Dictionary<string, object> BuildSaveSnapshotPlain()
+    {
+        var traitInstances = new List<object>();
+        foreach (TraitInstanceState trait in trait_instances ?? new List<TraitInstanceState>())
+        {
+            if (trait == null)
+                continue;
+            var rollValues = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (TraitRollValueState rollValue in TraitInstanceState.NormalizeRollValues(
+                trait.roll_values
+            ))
+            {
+                if (rollValue == null || rollValue.key == "")
+                    continue;
+                rollValues[rollValue.key.ToString()] = rollValue.ValueTypeKind switch
+                {
+                    TraitRollValueType.Int => rollValue.int_value,
+                    TraitRollValueType.StringName => rollValue.string_name_value.ToString(),
+                    TraitRollValueType.Bool => rollValue.bool_value,
+                    _ => throw new InvalidOperationException(
+                        $"Unsupported trait roll value type for {rollValue.key}."
+                    ),
+                };
+            }
+            traitInstances.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["trait_instance_id"] = trait.trait_instance_id.ToString(),
+                    ["trait_id"] = trait.trait_id.ToString(),
+                    ["source_type"] = trait.source_type.ToString(),
+                    ["source_id"] = trait.source_id.ToString(),
+                    ["rank"] = trait.rank,
+                    ["stacks"] = trait.stacks,
+                    ["roll_values"] = rollValues,
+                }
+            );
+        }
+
+        var usagePeriods = new List<object>();
+        foreach (
+            EquipmentAbilityUsagePeriodState usage in ability_usage_periods
+                ?? new List<EquipmentAbilityUsagePeriodState>()
+        )
+        {
+            if (usage == null)
+                continue;
+            usagePeriods.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["ability_id"] = usage.AbilityId ?? "",
+                    ["period_kind"] = usage.PeriodKind ?? "",
+                    ["period_index"] = usage.PeriodIndex,
+                    ["used_count"] = usage.UsedCount,
+                }
+            );
+        }
+
+        var counters = new List<object>();
+        foreach (
+            EquipmentAbilityPersistentCounterState counter in ability_persistent_counters
+                ?? new List<EquipmentAbilityPersistentCounterState>()
+        )
+        {
+            if (counter == null)
+                continue;
+            counters.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["counter_id"] = counter.CounterId ?? "",
+                    ["value"] = counter.Value,
+                }
+            );
+        }
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["instance_id"] = instance_id.ToString(),
+            ["item_id"] = item_id.ToString(),
+            ["rarity"] = rarity,
+            ["current_durability"] = current_durability,
+            ["trait_instances"] = traitInstances,
+            ["ability_usage_periods"] = usagePeriods,
+            ["ability_persistent_counters"] = counters,
+        };
+    }
+
     public EquipmentInstanceState DuplicateState()
     {
         return new EquipmentInstanceState

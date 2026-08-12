@@ -306,7 +306,8 @@ public sealed partial class GameRuntimeFacade
             _content_catalog.GetQuestDefsTyped(),
             _content_catalog.GetTraitDefsTyped(),
             GetEquipmentInstanceIdAllocator(),
-            _content_catalog.GetProgressionIdentityCatalogTyped()
+            _content_catalog.GetProgressionIdentityCatalogTyped(),
+            _content_catalog.GetGearSetDefinitionsTyped()
         );
         SetupPartyWarehouseService(
             _party_warehouse_service,
@@ -900,6 +901,13 @@ public sealed partial class GameRuntimeFacade
         return result.AsReadOnly();
     }
 
+    public GearSetEvaluationSnapshot EvaluateMemberGearSetsTyped(
+        StringName member_id,
+        EquipmentState equipment_state_override = null
+    ) =>
+        _character_management?.EvaluateGearSets(member_id, equipment_state_override)
+        ?? GearSetEvaluationSnapshot.Empty;
+
     public string GetMemberDisplayName(StringName member_id) =>
         GetMemberDisplayNameInternal(member_id);
 
@@ -1287,6 +1295,11 @@ public sealed partial class GameRuntimeFacade
         }
         return contentCatalog.GetTraitDefsTyped().TryGetValue(traitId, out traitDefinition);
     }
+
+    GearSetEvaluationSnapshot IGameRuntimeCharacterInfoQuery.EvaluateGearSets(
+        StringName memberId,
+        EquipmentState equipmentStateOverride
+    ) => EvaluateMemberGearSetsTyped(memberId, equipmentStateOverride);
 
     GDictionary IGameRuntimeCharacterInfoQuery.GetIdentitySummary(StringName memberId) =>
         GetCharacterManagement()?.GetIdentitySummaryForMember(memberId) ?? new GDictionary();

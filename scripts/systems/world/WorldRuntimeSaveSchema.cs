@@ -19,6 +19,7 @@ internal static class WorldRuntimeSaveSchema
     internal const string PlayerStartSettlementId = "player_start_settlement_id";
     internal const string PlayerStartSettlementName = "player_start_settlement_name";
     internal const string FogStates = "fog_states";
+    internal const string UniqueEquipmentPool = "unique_equipment_pool";
 
     internal static readonly string[] RequiredFields =
     {
@@ -41,6 +42,7 @@ internal static class WorldRuntimeSaveSchema
         PlayerStartSettlementId,
         PlayerStartSettlementName,
         FogStates,
+        UniqueEquipmentPool,
     };
 
     internal static readonly string[] RequiredArrayFields =

@@ -30,6 +30,7 @@ internal sealed class ContentSnapshotBuilder
         using var progression = new ProgressionContentRegistry(_loader);
         using var barrier = new BarrierContentRegistry(_loader);
         using var items = new ItemContentRegistry(_loader);
+        using var gearSets = new GearSetContentRegistry(_loader);
         using var recipes = new RecipeContentRegistry(_loader);
         using var specialProfiles = new BattleSpecialProfileRegistry(_loader);
         using var enemies = new EnemyContentRegistry(_loader, loadDefaultContent: false);
@@ -37,6 +38,7 @@ internal sealed class ContentSnapshotBuilder
         var faith = new FaithContentRegistry(_loader);
 
         items.Rebuild();
+        gearSets.Rebuild();
         recipes.Setup(items.GetItemDefsTyped());
         faith.Rebuild();
         specialProfiles.Rebuild(progression.GetSkillDefinitionsTyped());
@@ -59,6 +61,8 @@ internal sealed class ContentSnapshotBuilder
         }
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
             new ReadOnlyDictionary<StringName, ItemDefinition>(itemDefinitionIndex);
+        IReadOnlyDictionary<StringName, GearSetDefinition> gearSetDefinitions =
+            gearSets.GetDefinitionsTyped();
         enemies.Rebuild(
             new EnemyContentValidationContext(itemDefinitions, skillDefinitions)
         );
@@ -86,6 +90,14 @@ internal sealed class ContentSnapshotBuilder
         AppendErrors(validationErrors, progression.ValidateTyped());
         AppendErrors(validationErrors, barrier.ValidateTyped());
         AppendErrors(validationErrors, items.ValidateTyped());
+        AppendErrors(
+            validationErrors,
+            gearSets.ValidateTyped(
+                itemDefinitions,
+                traitDefinitions,
+                progression.GetEquipmentAbilityBindingDefinitionsTyped()
+            )
+        );
         AppendErrors(validationErrors, recipes.ValidateTyped());
         AppendErrors(validationErrors, faith.GetValidationErrors());
         AppendErrors(validationErrors, specialProfiles.ValidateTyped());
@@ -141,6 +153,7 @@ internal sealed class ContentSnapshotBuilder
             barrierDefinitions,
             progression.GetContingencySetupTemplatesTyped(),
             itemDefinitions,
+            gearSetDefinitions,
             recipes.GetRecipeDefsTyped(),
             progression.GetEquipmentAbilityPackDefinitionsTyped(),
             progression.GetEquipmentAbilityBindingDefinitionsTyped(),

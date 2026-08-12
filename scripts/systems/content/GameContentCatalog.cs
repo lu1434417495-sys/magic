@@ -30,6 +30,7 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindings;
     private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions;
     private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions;
+    private IReadOnlyDictionary<StringName, GearSetDefinition> _gearSetDefinitions;
     private IReadOnlyDictionary<StringName, RecipeDefinition> _recipeDefinitions;
     private IReadOnlyDictionary<StringName, EnemyTemplateDefinition> _enemyTemplateDefinitions;
     private IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> _enemyBrainDefinitions;
@@ -78,6 +79,7 @@ public sealed class GameContentCatalog
         _equipmentAbilityBindings = snapshot.EquipmentAbilityBindings;
         _barrierProfileDefinitions = snapshot.BarrierProfiles;
         _itemDefinitions = snapshot.Items;
+        _gearSetDefinitions = snapshot.GearSets;
         _recipeDefinitions = snapshot.Recipes;
         _enemyTemplateDefinitions = snapshot.EnemyTemplates;
         _enemyBrainDefinitions = snapshot.EnemyBrains;
@@ -102,6 +104,7 @@ public sealed class GameContentCatalog
         _equipmentAbilityBindings = EmptyTyped<EquipmentAbilityBindingDefinition>();
         _barrierProfileDefinitions = EmptyTyped<BarrierProfileDefinition>();
         _itemDefinitions = EmptyTyped<ItemDefinition>();
+        _gearSetDefinitions = EmptyTyped<GearSetDefinition>();
         _recipeDefinitions = EmptyTyped<RecipeDefinition>();
         _enemyTemplateDefinitions = EmptyTyped<EnemyTemplateDefinition>();
         _enemyBrainDefinitions = EmptyTyped<EnemyAiBrainDefinition>();
@@ -175,6 +178,9 @@ public sealed class GameContentCatalog
 
     public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
         _itemDefinitions;
+
+    public IReadOnlyDictionary<StringName, GearSetDefinition> GetGearSetDefinitionsTyped() =>
+        _gearSetDefinitions;
 
     public IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped() =>
         _recipeDefinitions;

@@ -53,6 +53,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSettlementCommandPor
         IGameRuntimeSettlementStatePort.GetSettlementStateData(string settlementId) =>
         GetSettlementStateData(settlementId);
 
+    WorldUniqueEquipmentPoolState
+        IGameRuntimeSettlementStatePort.GetUniqueEquipmentPoolState() =>
+        _world_map_data_context.RootRuntimeData?.UniqueEquipmentPool;
+
+    bool IGameRuntimeSettlementStatePort.IsUniqueWorldEquipmentItem(StringName itemId) =>
+        IsPhoenixRebirthMember(itemId);
+
     bool IGameRuntimeSettlementStatePort.SetActiveSettlementState(
         string settlementId,
         WorldMapSettlementStateData settlementState

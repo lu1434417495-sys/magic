@@ -653,6 +653,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             return characterCreationError;
         }
 
+        int uniqueEquipmentError = InitializeNewWorldUniqueEquipmentPool();
+        if (uniqueEquipmentError != (int)Error.Ok)
+        {
+            RestoreRuntimeState(previousRuntimeState, previousGenerationDefinition);
+            return uniqueEquipmentError;
+        }
+
         int timestamp = (int)Time.GetUnixTimeFromSystem();
         string saveId = GenerateUniqueSaveId(timestamp);
         if (string.IsNullOrEmpty(saveId))
@@ -1629,10 +1636,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         bool racialGrantsChanged = false;
         racialGrantsChanged = RevokeOrphanRacialSkills(_party_state) || racialGrantsChanged;
         racialGrantsChanged = BackfillRacialGrantedSkills(_party_state) || racialGrantsChanged;
+        WarehouseStateRepairResult warehouseRepair = RepairWarehouseStateForLoad(_party_state);
         if (bodySizeChanged)
             QueuePostDecodeSave("identity_body_size");
         if (racialGrantsChanged)
             QueuePostDecodeSave("racial_granted_skills");
+        if (warehouseRepair.Changed)
+            QueuePostDecodeSave("warehouse_state_repair");
         return (int)Error.Ok;
     }
 
@@ -1664,6 +1674,36 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             GetProfessionDefsTyped()
         );
+    }
+
+    private WarehouseStateRepairResult RepairWarehouseStateForLoad(PartyState party_state)
+    {
+        if (party_state?.warehouse_state == null)
+            return new WarehouseStateRepairResult(0, 0, 0);
+
+        WarehouseStateRepairResult repair = WarehouseStateItemValidator.RepairForLoad(
+            party_state.warehouse_state,
+            GetItemDefsTyped()
+        );
+        if (!repair.Changed)
+            return repair;
+
+        // 丢弃是不可逆的数据损失，必须留痕：条目本身在 runtime 里走不通，
+        // 但玩家看不到自己少了什么，只能靠日志追溯。
+        LogSessionInfo(
+            "session.save.load.warehouse_state_repaired",
+            "存档中的共享仓库条目已修复：超量堆叠被钳制，放错集合的条目被丢弃。",
+            StringifyPlainContext(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["clamped_stack_count"] = repair.ClampedStackCount,
+                    ["dropped_stack_count"] = repair.DroppedStackCount,
+                    ["dropped_instance_count"] = repair.DroppedInstanceCount,
+                },
+                "GameSession.session.save.load.warehouse_state_repaired"
+            )
+        );
+        return repair;
     }
 
     private bool RevokeOrphanRacialSkills(PartyState party_state)

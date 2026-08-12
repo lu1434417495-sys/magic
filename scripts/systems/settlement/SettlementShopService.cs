@@ -8,6 +8,7 @@ using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 public sealed class SettlementShopService : IDisposable
 {
     private const int PriceBasisPointsDefault = 10000;
+    private const int UniqueEquipmentOfferChancePercent = 5;
     private enum ShopItemId
     {
         HealingHerb,
@@ -166,6 +167,10 @@ public sealed class SettlementShopService : IDisposable
     };
 
     private readonly RuntimeRandom _rng = new();
+    private Func<int, int, int> _uniqueOfferRollRangeForTesting;
+
+    internal void SetUniqueOfferRollRangeForTesting(Func<int, int, int> rollRange) =>
+        _uniqueOfferRollRangeForTesting = rollRange;
 
     public void Dispose()
     {
@@ -181,7 +186,8 @@ public sealed class SettlementShopService : IDisposable
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouse,
         int currentGold,
-        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null)
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool = null)
     {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null || settlementState == null)
@@ -193,11 +199,14 @@ public sealed class SettlementShopService : IDisposable
             );
         }
 
+        string settlementId = GetString(settlementRecord, "settlement_id");
         ShopStateResolution resolution = GetOrRefreshShopState(
             shopDef,
             settlementState,
             itemDefs,
-            currentWorldStep
+            currentWorldStep,
+            settlementId,
+            uniqueEquipmentPool
         );
         SettlementShopStateData shopState = resolution.ShopState;
         var buyEntries = new GDictionaryArray();
@@ -209,13 +218,25 @@ public sealed class SettlementShopService : IDisposable
                 continue;
             }
 
+            StringName uniqueInstanceId = "";
+            bool isUniqueOffer = uniqueEquipmentPool != null
+                && uniqueEquipmentPool.TryGetShopOffer(
+                    settlementId,
+                    shopDef.ShopId,
+                    new StringName(stockEntry.ItemId),
+                    out uniqueInstanceId
+                );
             bool canBuy = stockEntry.Quantity > 0 && currentGold >= stockEntry.UnitPrice;
-            string stockText = stockEntry.Quantity <= 0 ? "售罄" : $"库存 {stockEntry.Quantity}";
+            string stockText = stockEntry.Quantity <= 0
+                ? "售罄"
+                : isUniqueOffer
+                    ? $"唯一实例 {uniqueInstanceId}"
+                    : $"库存 {stockEntry.Quantity}";
             string description = itemDef.Description;
             buyEntries.Add(new GDictionary
             {
                 { "item_id", stockEntry.ItemId },
-                { "entry_id", $"buy:{stockEntry.ItemId}" },
+                { "entry_id", isUniqueOffer ? $"buy:{stockEntry.ItemId}:{uniqueInstanceId}" : $"buy:{stockEntry.ItemId}" },
                 { "display_name", GetItemDisplayName(itemDef, stockEntry.ItemId) },
                 { "description", description },
                 { "icon", itemDef.Icon },
@@ -288,7 +309,7 @@ public sealed class SettlementShopService : IDisposable
                 { "meta", $"商店：{shopDef.Title}  |  金币：{gold}" },
                 { "shop_id", shopDef.ShopId },
                 { "interaction_script_id", interactionScriptId },
-                { "settlement_id", GetString(settlementRecord, "settlement_id") },
+                { "settlement_id", settlementId },
                 { "panel_kind", SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Shop) },
                 { "gold", gold },
                 { "buy_entries", buyEntries },
@@ -320,7 +341,9 @@ public sealed class SettlementShopService : IDisposable
         PartyWarehouseService warehouse,
         PartyState party,
         StringName itemId,
-        int quantity)
+        int quantity,
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool = null,
+        string settlementId = "")
     {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
@@ -342,7 +365,9 @@ public sealed class SettlementShopService : IDisposable
             shopDef,
             settlementState,
             itemDefs,
-            currentWorldStep
+            currentWorldStep,
+            settlementId,
+            null
         );
         SettlementShopStateData shopState = resolution.ShopState;
         string normalizedItemId = NormalizeId(itemId);
@@ -359,7 +384,17 @@ public sealed class SettlementShopService : IDisposable
             return BuildFail("该商品当前已售罄。");
         }
 
-        int actualQuantity = Mathf.Min(requestedQuantity, stockEntry.Quantity);
+        StringName uniqueInstanceId = "";
+        bool isUniqueOffer = uniqueEquipmentPool != null
+            && uniqueEquipmentPool.TryGetShopOffer(
+                settlementId,
+                shopDef.ShopId,
+                new StringName(normalizedItemId),
+                out uniqueInstanceId
+            );
+        int actualQuantity = isUniqueOffer
+            ? 1
+            : Mathf.Min(requestedQuantity, stockEntry.Quantity);
         int totalCost = stockEntry.UnitPrice * actualQuantity;
         if (!party.CanAfford(totalCost))
         {
@@ -373,8 +408,39 @@ public sealed class SettlementShopService : IDisposable
             return BuildFail("共享仓库空间不足，无法购买该商品。");
         }
 
-        var addResult = warehouse.AddItemTyped(itemIdName, actualQuantity);
-        int addedQuantity = addResult.AddedQuantity;
+        int addedQuantity;
+        string transferredInstanceId = null;
+        if (isUniqueOffer)
+        {
+            if (
+                uniqueEquipmentPool == null
+                || !uniqueEquipmentPool.TryTakeShopOffer(
+                    settlementId,
+                    shopDef.ShopId,
+                    itemIdName,
+                    out EquipmentInstanceState uniqueInstance
+                )
+            )
+            {
+                return BuildFail("该唯一装备已不在当前商店。请刷新商店后重试。");
+            }
+            var uniqueAddResult = warehouse.AddEquipmentInstanceTyped(uniqueInstance);
+            addedQuantity = uniqueAddResult.AddedQuantity;
+            transferredInstanceId = uniqueInstance.instance_id.ToString();
+            if (addedQuantity <= 0)
+            {
+                uniqueEquipmentPool.TryReturnToShop(
+                    uniqueInstance,
+                    settlementId,
+                    shopDef.ShopId
+                );
+            }
+        }
+        else
+        {
+            var addResult = warehouse.AddItemTyped(itemIdName, actualQuantity);
+            addedQuantity = addResult.AddedQuantity;
+        }
         if (addedQuantity <= 0)
         {
             return BuildFail("当前无法将商品放入共享仓库。");
@@ -397,7 +463,7 @@ public sealed class SettlementShopService : IDisposable
             -spendCost,
             normalizedItemId,
             addedQuantity,
-            null,
+            transferredInstanceId,
             nextSettlementState
         );
     }
@@ -409,7 +475,11 @@ public sealed class SettlementShopService : IDisposable
         PartyState party,
         StringName itemId,
         int quantity,
-        StringName instanceId = default)
+        StringName instanceId = default,
+        WorldMapSettlementStateData settlementState = null,
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool = null,
+        string settlementId = "",
+        bool transferUniqueInstanceToShop = false)
     {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
@@ -455,6 +525,8 @@ public sealed class SettlementShopService : IDisposable
 
         int actualQuantity = Mathf.Min(requestedQuantity, ownedQuantity);
         PartyWarehouseService.WarehouseRemoveItemResult removeResult;
+        EquipmentInstanceState uniqueInstance = null;
+        WorldMapSettlementStateData uniqueUpdatedSettlementState = null;
         if (itemDef.IsEquipment())
         {
             if (string.IsNullOrEmpty(normalizedInstanceId) && ownedQuantity > 1)
@@ -463,6 +535,36 @@ public sealed class SettlementShopService : IDisposable
             }
 
             actualQuantity = 1;
+            if (transferUniqueInstanceToShop)
+            {
+                if (uniqueEquipmentPool == null || settlementState == null)
+                    return BuildFail("当前唯一装备商店状态无效，无法出售。");
+                if (string.IsNullOrEmpty(normalizedInstanceId))
+                {
+                    foreach (WarehouseInventoryEntry entry in warehouse.GetInventoryEntriesTyped())
+                    {
+                        if (!entry.HasEquipmentInstance || entry.ItemId != itemIdName)
+                            continue;
+                        instanceIdName = entry.InstanceId;
+                        normalizedInstanceId = instanceIdName.ToString();
+                        break;
+                    }
+                }
+                uniqueInstance = warehouse.GetEquipmentInstanceById(
+                    instanceIdName,
+                    itemIdName
+                );
+                if (uniqueInstance == null)
+                    return BuildFail("共享仓库中没有指定的唯一装备实例。");
+                uniqueUpdatedSettlementState = BuildUniqueResaleSettlementState(
+                    shopDef,
+                    settlementState,
+                    itemDef,
+                    normalizedItemId
+                );
+                if (uniqueUpdatedSettlementState == null)
+                    return BuildFail("当前商店无法接收该唯一装备实例。");
+            }
             removeResult = !string.IsNullOrEmpty(normalizedInstanceId)
                 ? warehouse.RemoveEquipmentInstanceTyped(itemIdName, instanceIdName)
                 : warehouse.RemoveItemTyped(itemIdName, 1);
@@ -478,6 +580,24 @@ public sealed class SettlementShopService : IDisposable
             return BuildFail(BuildSellRemoveFailureMessage(itemDef, normalizedItemId, removeResult));
         }
 
+        if (
+            transferUniqueInstanceToShop
+            && !uniqueEquipmentPool.TryReturnToShop(
+                uniqueInstance,
+                settlementId,
+                shopDef.ShopId
+            )
+        )
+        {
+            PartyWarehouseService.WarehouseAddItemResult restoreResult =
+                warehouse.AddEquipmentInstanceTyped(uniqueInstance);
+            return BuildFail(
+                restoreResult.AddedQuantity > 0
+                    ? "该唯一装备无法转移到当前商店，出售已回滚。"
+                    : "该唯一装备无法转移到当前商店，且仓库回滚失败。"
+            );
+        }
+
         int totalGain = unitPrice * removedQuantity;
         party.AddGold(totalGain);
 
@@ -488,7 +608,8 @@ public sealed class SettlementShopService : IDisposable
             totalGain,
             normalizedItemId,
             removedQuantity,
-            normalizedInstanceId
+            normalizedInstanceId,
+            uniqueUpdatedSettlementState
         );
     }
 
@@ -496,7 +617,9 @@ public sealed class SettlementShopService : IDisposable
         ShopDefinition shopDef,
         WorldMapSettlementStateData settlementState,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
-        int currentWorldStep)
+        int currentWorldStep,
+        string settlementId = "",
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool = null)
     {
         SettlementShopStateData shopState = settlementState.GetShopState(shopDef.ShopId);
         int refreshInterval = Mathf.Max(shopDef.RefreshIntervalSteps, 0);
@@ -505,7 +628,14 @@ public sealed class SettlementShopService : IDisposable
             || refreshInterval > 0 && currentWorldStep - lastRefreshStep >= refreshInterval;
         if (needsRefresh)
         {
-            shopState = GenerateShopState(shopDef, itemDefs, currentWorldStep);
+            uniqueEquipmentPool?.ReturnShopOffers(settlementId, shopDef.ShopId);
+            shopState = GenerateShopState(
+                shopDef,
+                itemDefs,
+                currentWorldStep,
+                settlementId,
+                uniqueEquipmentPool
+            );
             WorldMapSettlementStateData updated = settlementState.WithShopState(shopState);
             return new ShopStateResolution(updated, shopState, true);
         }
@@ -515,7 +645,9 @@ public sealed class SettlementShopService : IDisposable
     private SettlementShopStateData GenerateShopState(
         ShopDefinition shopDef,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
-        int currentWorldStep
+        int currentWorldStep,
+        string settlementId = "",
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool = null
     )
     {
         long seed = TrueRandomSeedService.GenerateSeed();
@@ -541,6 +673,13 @@ public sealed class SettlementShopService : IDisposable
             if (built != null)
                 MergeShopEntry(inventory, built);
         }
+        TryAppendUniqueEquipmentOffer(
+            inventory,
+            shopDef,
+            settlementId,
+            itemDefs,
+            uniqueEquipmentPool
+        );
         return SettlementShopStateData.Create(
             shopDef.ShopId,
             inventory,
@@ -548,6 +687,60 @@ public sealed class SettlementShopService : IDisposable
             Mathf.Max(currentWorldStep, 0)
         );
     }
+
+    private void TryAppendUniqueEquipmentOffer(
+        List<SettlementShopStockEntryData> inventory,
+        ShopDefinition shopDef,
+        string settlementId,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        WorldUniqueEquipmentPoolState uniqueEquipmentPool
+    )
+    {
+        if (uniqueEquipmentPool == null || string.IsNullOrWhiteSpace(settlementId))
+            return;
+        int chanceRoll = RollUniqueOfferRange(1, 100);
+        if (chanceRoll > UniqueEquipmentOfferChancePercent)
+            return;
+        if (
+            !uniqueEquipmentPool.TryAssignRandomReserveToShop(
+                settlementId,
+                shopDef.ShopId,
+                RollUniqueOfferRange,
+                out StringName itemId,
+                out _
+            )
+        )
+        {
+            return;
+        }
+        ItemDefinition itemDefinition = GetItemDef(itemDefs, itemId.ToString());
+        int unitPrice = ResolveBuyPrice(itemDefinition, PriceBasisPointsDefault);
+        SettlementShopStockEntryData offer = unitPrice > 0
+            ? SettlementShopStockEntryData.Create(itemId.ToString(), 1, unitPrice)
+            : null;
+        if (offer != null)
+        {
+            MergeShopEntry(inventory, offer);
+            return;
+        }
+
+        if (
+            uniqueEquipmentPool.TryTakeShopOffer(
+                settlementId,
+                shopDef.ShopId,
+                itemId,
+                out EquipmentInstanceState rejectedInstance
+            )
+        )
+        {
+            uniqueEquipmentPool.TryReturnToReserve(rejectedInstance);
+        }
+    }
+
+    private int RollUniqueOfferRange(int minInclusive, int maxInclusive) =>
+        _uniqueOfferRollRangeForTesting != null
+            ? _uniqueOfferRollRangeForTesting(minInclusive, maxInclusive)
+            : _rng.RandiRange(minInclusive, maxInclusive);
 
     private SettlementShopStockEntryData BuildShopEntry(
         ShopItemSeed source,
@@ -675,6 +868,28 @@ public sealed class SettlementShopService : IDisposable
             break;
         }
         return shopState.WithInventory(inventory);
+    }
+
+    private static WorldMapSettlementStateData BuildUniqueResaleSettlementState(
+        ShopDefinition shopDef,
+        WorldMapSettlementStateData settlementState,
+        ItemDefinition itemDef,
+        string itemId
+    )
+    {
+        if (shopDef == null || settlementState == null || itemDef == null)
+            return null;
+        SettlementShopStateData shopState = settlementState.GetShopState(shopDef.ShopId);
+        if (shopState == null)
+            return null;
+        int unitPrice = ResolveBuyPrice(itemDef, PriceBasisPointsDefault);
+        SettlementShopStockEntryData resaleEntry =
+            SettlementShopStockEntryData.Create(itemId, 1, unitPrice);
+        if (resaleEntry == null)
+            return null;
+        var inventory = new List<SettlementShopStockEntryData>(shopState.CurrentInventory);
+        MergeShopEntry(inventory, resaleEntry);
+        return settlementState.WithShopState(shopState.WithInventory(inventory));
     }
 
     private static string BuildSellStockText(int totalQuantity, string instanceId)

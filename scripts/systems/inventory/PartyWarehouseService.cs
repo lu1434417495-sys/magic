@@ -493,8 +493,17 @@ public sealed class PartyWarehouseService : IDisposable
         var itemDef = GetItemDef(itemId);
         bool itemFound = itemDef != null;
         bool isEquipment = itemDef != null && itemDef.IsEquipment();
+        bool requiresExistingWorldUniqueInstance =
+            WorldUniqueEquipmentContentRules.IsWorldUniqueEquipment(itemDef)
+            && (forceNewInstanceId || instance?.instance_id == "");
 
-        if (instance == null || itemId == "" || itemDef == null || !itemDef.IsEquipment())
+        if (
+            instance == null
+            || itemId == ""
+            || itemDef == null
+            || !itemDef.IsEquipment()
+            || requiresExistingWorldUniqueInstance
+        )
             return new WarehouseAddItemResult
             {
                 ItemId = itemId,
@@ -575,6 +584,15 @@ public sealed class PartyWarehouseService : IDisposable
     {
         if (instance == null)
             return false;
+
+        ItemDefinition itemDefinition = GetItemDef(instance.item_id);
+        if (
+            instance.instance_id == ""
+            && WorldUniqueEquipmentContentRules.IsWorldUniqueEquipment(itemDefinition)
+        )
+        {
+            return false;
+        }
 
         var warehouseState = _ensure_warehouse_state();
         bool allocatedNewStableId = false;
@@ -934,6 +952,28 @@ public sealed class PartyWarehouseService : IDisposable
                 ItemFound = itemFound,
                 IsEquipment = isEquipment,
             };
+
+        if (
+            consumeAllocator
+            && WorldUniqueEquipmentContentRules.IsWorldUniqueEquipment(itemDef)
+        )
+        {
+            return new WarehouseAddItemResult
+            {
+                ItemId = normalizedItemId,
+                RequestedQuantity = requestedQuantity,
+                AddedQuantity = 0,
+                RemainingQuantity = requestedQuantity,
+                UsedSlotsBefore = usedSlotsBefore,
+                UsedSlotsAfter = currentUsed,
+                FreeSlotsAfter = Mathf.Max(GetTotalCapacity() - currentUsed, 0),
+                CreatedStackCount = 0,
+                FilledExistingQuantity = 0,
+                IsOverCapacity = currentUsed > GetTotalCapacity(),
+                ItemFound = true,
+                IsEquipment = true,
+            };
+        }
 
         int remainingQuantity = requestedQuantity;
         int createdStackCount = 0;

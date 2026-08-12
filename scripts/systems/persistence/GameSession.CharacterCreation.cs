@@ -8,6 +8,14 @@ using GDictionary = Godot.Collections.Dictionary;
 // Pure physical split: same class, no behavior change. See GameSession.cs.
 public partial class GameSession
 {
+    private Func<IReadOnlyList<StringName>, StringName> _randomStartingSkillSelectorForTests;
+
+    internal void SetRandomStartingSkillSelectorForTests(
+        Func<IReadOnlyList<StringName>, StringName> selector
+    )
+    {
+        _randomStartingSkillSelectorForTests = selector;
+    }
 
     private int ApplyCharacterCreationPayloadToMainCharacter(GDictionary payload)
     {
@@ -439,9 +447,9 @@ public partial class GameSession
         if (eligibleSkillIds.Count == 0)
             return null;
 
-        StringName selectedSkillId = eligibleSkillIds[
-            TrueRandomSeedService.RandiRange(0, eligibleSkillIds.Count - 1)
-        ];
+        StringName selectedSkillId = SelectRandomStartingSkillId(eligibleSkillIds);
+        if (selectedSkillId == "")
+            return null;
         SkillDefinition selectedSkillDefinition = skillDefinitions.TryGetValue(
             selectedSkillId,
             out SkillDefinition resolvedSelectedSkillDefinition
@@ -468,6 +476,18 @@ public partial class GameSession
         skillProgress.total_mastery_earned = 0;
         progression.SetSkillProgress(skillProgress);
         return selectedSkillDefinition;
+    }
+
+    private StringName SelectRandomStartingSkillId(List<StringName> eligibleSkillIds)
+    {
+        if (eligibleSkillIds == null || eligibleSkillIds.Count == 0)
+            return "";
+        if (_randomStartingSkillSelectorForTests != null)
+        {
+            StringName selectedSkillId = _randomStartingSkillSelectorForTests(eligibleSkillIds);
+            return eligibleSkillIds.Contains(selectedSkillId) ? selectedSkillId : new StringName();
+        }
+        return eligibleSkillIds[TrueRandomSeedService.RandiRange(0, eligibleSkillIds.Count - 1)];
     }
 
     private void EquipStartingWeaponForSkill(

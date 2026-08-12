@@ -80,6 +80,10 @@ internal sealed class GameRuntimeCharacterInfoBuilder
             BuildBattleCharacterIdentityEntries(unit);
         if (identityEntries.Count > 0)
             sections.Add(new GameRuntimeCharacterInfoSection("身份与特性", identityEntries));
+        IReadOnlyList<GameRuntimeCharacterInfoEntry> gearSetEntries =
+            BuildBattleCharacterGearSetEntries(unit);
+        if (gearSetEntries.Count > 0)
+            sections.Add(new GameRuntimeCharacterInfoSection("套装", gearSetEntries));
         IReadOnlyList<GameRuntimeCharacterInfoEntry> equipmentEntries =
             BuildBattleCharacterEquipmentEntries(unit);
         if (equipmentEntries.Count > 0)
@@ -276,6 +280,60 @@ internal sealed class GameRuntimeCharacterInfoBuilder
                     )
                 )
             );
+        return entries.AsReadOnly();
+    }
+
+    internal IReadOnlyList<GameRuntimeCharacterInfoEntry> BuildBattleCharacterGearSetEntries(
+        BattleUnitState unit
+    )
+    {
+        if (unit == null || unit.source_member_id == "" || _query == null)
+            return System.Array.Empty<GameRuntimeCharacterInfoEntry>();
+
+        GearSetEvaluationSnapshot snapshot = _query.EvaluateGearSets(
+            unit.source_member_id,
+            unit.GetEquipmentView()
+        );
+        return BuildGearSetEntries(snapshot);
+    }
+
+    internal static IReadOnlyList<GameRuntimeCharacterInfoEntry> BuildGearSetEntries(
+        GearSetEvaluationSnapshot snapshot
+    )
+    {
+        if (snapshot == null || snapshot.ActiveSets.Count == 0)
+            return System.Array.Empty<GameRuntimeCharacterInfoEntry>();
+
+        var entries = new List<GameRuntimeCharacterInfoEntry>();
+        foreach (GearSetActivationSummary set in snapshot.ActiveSets)
+        {
+            if (set == null || set.EquippedPieceCount <= 0)
+                continue;
+            string setName = string.IsNullOrEmpty(set.DisplayName)
+                ? set.GearSetId.ToString()
+                : set.DisplayName;
+            var thresholdLines = new List<string>();
+            foreach (GearSetThresholdStatus threshold in set.Thresholds)
+            {
+                if (threshold == null)
+                    continue;
+                string thresholdName = string.IsNullOrEmpty(threshold.DisplayName)
+                    ? threshold.ThresholdId.ToString()
+                    : threshold.DisplayName;
+                string stateLabel = threshold.IsActive ? "已激活" : "未激活";
+                string line = $"[{stateLabel}] {threshold.RequiredPieceCount}件 · {thresholdName}";
+                if (!string.IsNullOrEmpty(threshold.Description))
+                    line += $"\n{threshold.Description}";
+                thresholdLines.Add(line);
+            }
+            entries.Add(
+                GameRuntimeCharacterInfoEntry.Pair(
+                    setName,
+                    $"{set.EquippedPieceCount}/{set.TotalPieceCount}件 ⓘ",
+                    string.Join("\n\n", thresholdLines)
+                )
+            );
+        }
         return entries.AsReadOnly();
     }
 

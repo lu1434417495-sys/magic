@@ -2173,6 +2173,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     internal WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>
         _has_runtime() ? Port.GetSettlementStateData(settlement_id) : null;
 
+    internal WorldUniqueEquipmentPoolState GetUniqueEquipmentPoolState() =>
+        _has_runtime() ? Port.GetUniqueEquipmentPoolState() : null;
+
+    internal bool IsUniqueWorldEquipmentItem(StringName itemId) =>
+        _has_runtime() && Port.IsUniqueWorldEquipmentItem(itemId);
+
     private static GodotProjectionLease<GDictionary> EmptyDictionaryLease(string reason) =>
         RuntimePlainPayload.ProjectDictionaryLease(
             new System.Collections.Generic.Dictionary<string, object>(StringComparer.Ordinal),

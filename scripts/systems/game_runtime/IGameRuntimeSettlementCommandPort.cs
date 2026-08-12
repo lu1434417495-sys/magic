@@ -21,6 +21,8 @@ internal interface IGameRuntimeSettlementStatePort
     GodotProjectionLease<GArray> GetAllSettlementRecordsLease();
     IReadOnlyDictionary<string, object> GetSettlementRecordSnapshotPlain(string settlementId);
     WorldMapSettlementStateData GetSettlementStateData(string settlementId);
+    WorldUniqueEquipmentPoolState GetUniqueEquipmentPoolState();
+    bool IsUniqueWorldEquipmentItem(StringName itemId) => false;
     bool SetActiveSettlementState(
         string settlementId,
         WorldMapSettlementStateData settlementState
