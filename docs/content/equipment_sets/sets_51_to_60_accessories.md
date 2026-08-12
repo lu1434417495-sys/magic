@@ -287,12 +287,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "acc_phoenix_rebirth_cloak"
 display_name = "凤凰重生烈焰披风"
-description = "一件由凤凰羽毛与火焰丝编织而成的披风，披风表面不断有微型火焰在燃烧——不是装饰，而是真正的火焰被封印在了丝线中。这些火焰不会烧伤穿戴者，但会烧伤任何试图触碰披风的敌人。当穿戴者受伤时，火焰会变得更旺，仿佛在愤怒。\n\n这件披风是凤凰使者在「凤凰巢穴」中，从凤凰蜕下的第一根羽毛编织的。他说："这根羽毛承载了凤凰的记忆——它的死亡，它的重生，它的永恒。这件披风让我能够分享这种永恒。"\n\n披风的效果是：fire 抗性 +20，且在 HP 低于 50% 时，火焰自动爆发——5 尺半径 2D6 fire（凤凰怒火）。当穿戴者 HP 降至 0 时，有 25% 概率自动恢复 1D12 HP（凤凰余烬，每场战斗一次）。"
+description = "一件由凤凰羽毛与火焰丝编织而成的披风，封印在丝线中的真实火焰会在穿戴者受伤时燃得更旺。\n\n受到 fire 伤害时减半，constitution save +2。每场战斗一次：第一次因外部、非自身且非装备能力生成的正原始伤害从高于 50% 生命降至不高于 50% 时，对穿戴者半径 1 格内所有敌人造成 2D6 fire，无豁免；范围内没有敌人也会消耗本场次数。普通致死伤害另有 25% 概率恢复 1D12 HP，正式尝试即消耗其每场战斗一次的次数；致死拦截恢复后若完成跨 50% 阈值，同样可触发凤凰怒火。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["accessory", "cloak", "phoenix_rebirth_set"]
+tags = ["accessory", "cloak", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["cloak"]
 equipment_type_id = "accessory"
 base_price = 12000
@@ -309,12 +309,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "acc_phoenix_rebirth_necklace"
 display_name = "凤凰重生涅槃之心项链"
-description = "一条由凤凰心金与火焰水晶编织而成的项链，吊坠是一颗涅槃之心——一颗由凤凰的心脏碎片凝结的宝石。宝石内部有一团微型火焰，火焰中不断有凤凰的虚影在飞舞、死亡、重生。据说这颗心脏经历了九十九次涅槃，每一次都让它更加强大。\n\n这条项链是凤凰使者在「涅槃祭坛」上，从凤凰的灰烬中找到的。他说："这颗心脏承载了九十九次死亡和重生的记忆。它知道如何在最黑暗的时刻找到光明。"\n\n项链的效果是：宗教检定 +3，且每日一次，可以释放「涅槃之火」——自身或 5 尺内一个友方恢复 3D8 HP，并移除一个非传奇疾病或诅咒效果（凤凰治愈）。"
+description = "一条由凤凰心金与火焰水晶编织而成的项链，吊坠是一颗涅槃之心。\n\n每日一次可消耗 1 AP 释放「涅槃之火」：自身或 1 格内一个存活友方恢复 3D8 HP，并移除至多一个当前状态系统认定为可驱散的有害魔法；不可驱散状态不受影响。当前状态系统尚未独立区分 disease、curse 与 legendary，因此不额外伪造该筛选。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["accessory", "necklace", "phoenix_rebirth_set"]
+tags = ["accessory", "necklace", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["necklace"]
 equipment_type_id = "accessory"
 base_price = 10000
@@ -331,12 +331,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "acc_phoenix_rebirth_ring_1"
 display_name = "凤凰重生重生之戒"
-description = "一枚由涅槃石与凤凰金铸造的戒指，戒指表面刻有微型凤凰图案。当佩戴者死亡时，戒指会自动激活，释放出一股涅槃之力，将佩戴者从死亡的边缘拉回。但这种力量不是无限的——每次使用，戒指上的凤凰图案就会变淡一点。当图案完全消失时，戒指就会碎裂。\n\n这枚戒指是凤凰使者在「凤凰神殿」中，从凤凰的眼泪中取出的精华铸造的。他说："这枚戒指给了我第二次生命。但每一次使用，我都感到自己的一部分永远留在了死亡的那一边。"\n\n戒指的效果是：max HP +10（生命强化），且每场战斗一次，当 HP 降至 0 时，自动恢复 1D10 HP（凤凰重生）。"
+description = "一枚由涅槃石与凤凰金铸造的戒指，戒指表面刻有微型凤凰图案。\n\n生命不高于 50% 时可使用「生命重燃」：消耗 2 AP，恢复已损失生命的 60%，每场战斗一次。该治疗不能复活，并会受到治疗削减效果影响。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["accessory", "ring_1", "phoenix_rebirth_set"]
+tags = ["accessory", "ring_1", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["ring_1"]
 equipment_type_id = "accessory"
 base_price = 8000
@@ -352,12 +352,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "acc_phoenix_rebirth_ring_2"
 display_name = "凤凰重生灰烬之戒"
-description = "一枚由凤凰灰烬与火焰银铸造的戒指，戒指表面覆盖着一层微型灰烬。当佩戴者集中精神时，灰烬会重新燃烧，释放出凤凰的火焰。这种火焰可以治愈伤口，也可以焚烧敌人。但灰烬是有限的——每次使用后，戒指会变得更轻，更脆弱。\n\n这枚戒指是凤凰使者在「灰烬平原」中，从凤凰最后一次涅槃的灰烬中取出的核心铸造的。他说："这枚戒指让我能够从灰烬中召唤火焰。但记住——火焰需要燃料，而燃料终将耗尽。"\n\n戒指的效果是：每日一次，可以释放「灰烬之火」——选择治愈或攻击：治愈：自身或 5 尺内友方恢复 2D10 HP；攻击：5 尺射程 3D10 fire（凤凰灰烬）。"
+description = "一枚由凤凰灰烬与火焰银铸造的戒指，戒指表面的灰烬会在佩戴者集中精神时重新燃烧。\n\n受到 fire 伤害时减半，constitution save +1。每日一次可消耗 1 AP 释放「灰烬之火」：自身或 1 格内一个存活友方恢复 2D10 HP，或对 1 格内一个敌人造成 3D10 fire。治疗与攻击是同一技能入口的两个目标分支，共享同一个每日次数。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["accessory", "ring_2", "phoenix_rebirth_set"]
+tags = ["accessory", "ring_2", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["ring_2"]
 equipment_type_id = "accessory"
 base_price = 8000
@@ -374,12 +374,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "acc_phoenix_rebirth_trinket"
 display_name = "凤凰重生凤凰蛋"
-description = "一颗微型的凤凰蛋，蛋壳由纯粹火焰结晶而成，蛋壳内部有一团微弱的火光——这是凤凰的胚胎，正在沉睡。这颗蛋不会孵化——它永远处于「即将孵化」的状态。但当佩戴者需要时，可以借用蛋中的生命力，治愈伤口或强化攻击。\n\n这颗蛋是凤凰使者在「凤凰巢穴」中，从凤凰的巢里取出的。他说："这颗蛋包含了无限的可能性。它既是死亡，也是重生；既是终结，也是开始。"\n\n蛋的效果是：每日一次，可以释放「凤凰涅槃」——当 HP 降至 0 时，自动触发：恢复至 max HP 的 30%，对 10 尺内所有敌人造成 3D10 fire（凤凰爆发），且自身获得「火焰化身」2 回合——攻击附加 1D10 fire，免疫 fire。"
+description = "一颗微型的凤凰蛋，蛋壳由纯粹火焰结晶而成，蛋壳内部有一团微弱的火光——这是凤凰的胚胎，正在沉睡。这颗蛋不会孵化——它永远处于「即将孵化」的状态。但当佩戴者需要时，可以借用蛋中的生命力，治愈伤口或强化攻击。\n\n这颗蛋是凤凰使者在「凤凰巢穴」中，从凤凰的巢里取出的。他说："这颗蛋包含了无限的可能性。它既是死亡，也是重生；既是终结，也是开始。"\n\n蛋的效果是：仅在凤凰重生10件套完整激活时，每个世界月一次，致死伤害（包括「律令死亡」）会自动触发「凤凰涅槃」：恢复至 max HP 的 30%，获得 120 TU「火焰化身」——攻击附加 1D10 fire、免疫 fire——随后对半径 2 格内所有敌人造成 3D10 fire（凤凰爆发）。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["accessory", "special_trinket", "phoenix_rebirth_set"]
+tags = ["accessory", "special_trinket", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["special_trinket"]
 equipment_type_id = "accessory"
 base_price = 10000
@@ -395,12 +395,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "acc_phoenix_rebirth_badge"
 display_name = "凤凰重生徽章"
-description = "一枚由凤凰金与火焰石铸造的徽章，徽章上刻着一只展翅的凤凰——凤凰重生的标志。徽章背面刻着一行小字："从灰烬中升起，比从前更强大。"这枚徽章是凤凰使者的信物，拥有它意味着你已理解重生的真谛。\n\n徽章的效果是：10 尺内所有友方获得 +5 fire 抗性（火焰庇护）。且每日一次，可以释放「凤凰祝福」——10 尺内所有友方获得「涅槃」2 回合：HP 降至 0 时自动恢复 1D10 HP（每场战斗一次），且攻击附加 1D6 fire。"
+description = "一枚由凤凰金与火焰石铸造的徽章，徽章上刻着一只展翅的凤凰——凤凰重生的标志。\n\nconstitution save +1。佩戴者及半径 2 格内所有存活友方受到 fire 伤害时减半（火焰庇护，多个徽章不叠加）。每日一次可消耗 2 AP 释放「凤凰祝福」——使自身及半径 2 格内所有存活友方获得 120 TU「凤凰祝福」：HP 降至 0 时自动恢复 1D10 HP（每名受益者每场战斗一次），且攻击主直接段附加 1D6 fire。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["accessory", "badge", "phoenix_rebirth_set"]
+tags = ["accessory", "badge", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["badge"]
 equipment_type_id = "accessory"
 base_price = 9000
@@ -409,6 +409,8 @@ attribute_modifiers = [
     { attribute_id = "religion_bonus", mode = "flat", value = 1, source_type = "equipment", source_id = "acc_phoenix_rebirth_badge" }
 ]
 ```
+
+凤凰套装内的攻击附伤共享 `phoenix_attack_append`：余烬展翼、凤凰祝福、凤凰蛋火焰化身、太阳涅槃金焰的优先级依次为 `100/200/300/400`，只取当前最高项，不相加；致死爆发、火盾反伤与移动足迹不参与该互斥组。
 
 ---
 
