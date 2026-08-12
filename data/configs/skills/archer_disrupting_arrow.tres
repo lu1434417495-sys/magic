@@ -1,69 +1,82 @@
-[gd_resource type="Resource" script_class="SkillDef" format=3]
+[gd_resource type="Resource" script_class="SkillDef" load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_idp1d"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_2gmeb"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_4ot32"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_pa42w"]
-[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_nt07w"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSpellReactionDef.cs" id="2_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_skill"]
 
-[sub_resource type="Resource" id="Resource_1t008"]
-script = ExtResource("3_4ot32")
-effect_type = &"damage"
-power = 8
-damage_tag = &"physical_pierce"
+[sub_resource type="Resource" id="Resource_disrupting_arrow_ready"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+status_id = &"disrupting_arrow_ready"
+display_name = "扰咒箭待机"
+power = 1
+lifetime_policy = &"battle"
 
-[sub_resource type="Resource" id="Resource_cfykn"]
-script = ExtResource("4_pa42w")
+[sub_resource type="Resource" id="Resource_spell_reaction"]
+script = ExtResource("2_reaction")
+trigger_delivery_category = &"spell"
+reaction_skill_id = &"basic_attack"
+readiness_status_id = &"disrupting_arrow_ready"
+required_weapon_family = &"bow"
+save_ability = &"constitution"
+save_tag = &"spell_maintenance"
+base_save_dc = 10
+hp_damage_divisor = 2
+attack_roll_bonus_by_skill_level = PackedInt32Array(0, 0, 0, 0, 0, 1)
+save_dc_bonus_by_skill_level = PackedInt32Array(0, 0, 0, 1, 1, 2)
+require_hp_damage = true
+consume_on_trigger = true
+expire_on_owner_turn_start = true
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("3_combat")
 skill_id = &"archer_disrupting_arrow"
-projectile_kind = &"current_weapon"
-range_value = 5
-stamina_cost = 1
-cooldown_tu = 15
-attack_roll_bonus = 1
-effect_defs = Array[ExtResource("3_4ot32")]([SubResource("Resource_1t008")])
+target_mode = &"unit"
+target_team_filter = &"self"
+target_selection_mode = &"self"
+selection_order_mode = &"stable"
+range_value = 0
+ap_cost = 1
+stamina_cost = 30
+cooldown_tu = 120
+required_weapon_families = Array[StringName]([&"bow"])
+allows_natural_weapon = false
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+level_overrides = {
+2: {
+"stamina_cost": 28
+},
+4: {
+"cooldown_tu": 100
+}
+}
+spell_reaction_profile = SubResource("Resource_spell_reaction")
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Resource_disrupting_arrow_ready")])
 
 [resource]
-script = ExtResource("5_nt07w")
+script = ExtResource("4_skill")
 skill_id = &"archer_disrupting_arrow"
 display_name = "扰咒箭"
 icon_id = &"archer_disrupting_arrow"
-description = "命中后令目标下一次技能消耗 +1，并使其施法类动作命中 -15%。"
-level_description_template = "造成{dmg}伤害，射程{range}，攻击检定+{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+description = "持弓进入扰咒待机，直到你的下一次行动开始或反应射击触发。期间，处于标准武器攻击有效范围内的敌人主动施放法术并提交消耗后、产生效果前，你立即以当前弓发动一次标准武器攻击。未命中或未造成生命伤害时法术照常结算；造成生命伤害时，施法者进行体质维持检定，DC=max(10，本次生命伤害/2)+技能加值，失败则法术中断，已支付消耗与冷却不返还；击倒施法者也会中断。自动施法、装备触发与应急预案不会触发扰咒箭。"
+level_description_template = "进入扰咒待机；反应射击命中并造成生命伤害时迫使施法者进行体质维持检定（DC=max(10，生命伤害/2){dc_bonus}），消耗1AP/{stamina}体力，冷却{cooldown}TU{accuracy}"
 level_description_configs = {
-	"0": {
-		"dmg": "8",
-		"range": "5",
-		"attack": "+1",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "15"
-	},
-	"1": {
-		"dmg": "8",
-		"range": "5",
-		"attack": "+1",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "15"
-	},
-	"2": {
-		"dmg": "8",
-		"range": "5",
-		"attack": "+1",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "15"
-	},
-	"3": {
-		"dmg": "8",
-		"range": "5",
-		"attack": "+1",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "15"
-	},
+	"0": { "stamina": "30", "cooldown": "120", "dc_bonus": "", "accuracy": "" },
+	"1": { "stamina": "30", "cooldown": "120", "dc_bonus": "", "accuracy": "" },
+	"2": { "stamina": "28", "cooldown": "120", "dc_bonus": "", "accuracy": "" },
+	"3": { "stamina": "28", "cooldown": "120", "dc_bonus": "+1", "accuracy": "" },
+	"4": { "stamina": "28", "cooldown": "100", "dc_bonus": "+1", "accuracy": "" },
+	"5": { "stamina": "28", "cooldown": "100", "dc_bonus": "+2", "accuracy": "，反应射击攻击检定+1" }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])
-combat_profile = SubResource("Resource_cfykn")
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"agility": 40,
+"perception": 20
+}
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control", &"reaction"])
+combat_profile = SubResource("Resource_combat")

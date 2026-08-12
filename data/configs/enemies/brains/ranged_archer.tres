@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiGenerationSlotDef.cs" id="11_slot"]
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiTransitionRuleDef.cs" id="12_transition_rule"]
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiTransitionConditionDef.cs" id="13_transition_condition"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseGroundRepositionSkillAction.cs" id="14_ground_reposition"]
 
 [sub_resource type="Resource" id="Action_survival_position"]
 script = ExtResource("10_adv_pos")
@@ -36,6 +37,19 @@ range_skill_ids = Array[StringName]([&"archer_aimed_shot", &"archer_multishot", 
 minimum_safe_distance = 3
 positioning_mode = &"high_ground"
 min_distance_progress_when_beyond_band = 1
+
+[sub_resource type="Resource" id="Action_grapple_high_ground"]
+script = ExtResource("14_ground_reposition")
+action_id = &"archer_grapple_high_ground"
+score_bucket_id = &"archer_positioning"
+skill_ids = Array[StringName]([&"archer_grapple_redeploy"])
+target_selector = &"nearest_enemy"
+positioning_mode = &"high_ground"
+minimum_safe_distance = 3
+safe_distance_margin = 1
+desired_max_distance_bonus = 1
+action_base_score = 1200
+high_ground_weight = 180
 
 [sub_resource type="Resource" id="Action_pressure_aimed"]
 script = ExtResource("4_unit")
@@ -153,7 +167,7 @@ distance_reference = &"target_unit"
 [sub_resource type="Resource" id="State_engage"]
 script = ExtResource("2_state")
 state_id = &"engage"
-actions = Array[Resource]([SubResource("Action_survival_position"), SubResource("Action_high_ground_position"), SubResource("Action_tripwire_control"), SubResource("Action_pressure_aimed"), SubResource("Action_pressure_multishot"), SubResource("Action_multishot_position"), SubResource("Action_engage_move"), SubResource("Action_melee_fallback"), SubResource("Action_wait")])
+actions = Array[Resource]([SubResource("Action_survival_position"), SubResource("Action_high_ground_position"), SubResource("Action_grapple_high_ground"), SubResource("Action_tripwire_control"), SubResource("Action_pressure_aimed"), SubResource("Action_pressure_multishot"), SubResource("Action_multishot_position"), SubResource("Action_engage_move"), SubResource("Action_melee_fallback"), SubResource("Action_wait")])
 generation_slots = Array[Resource]([SubResource("Slot_engage_unit"), SubResource("Slot_engage_multi"), SubResource("Slot_engage_position")])
 
 [sub_resource type="Resource" id="Action_retreat_shoot"]
@@ -219,7 +233,7 @@ distance_reference = &"target_unit"
 [sub_resource type="Resource" id="State_pressure"]
 script = ExtResource("2_state")
 state_id = &"pressure"
-actions = Array[Resource]([SubResource("Action_survival_position"), SubResource("Action_high_ground_position"), SubResource("Action_tripwire_control"), SubResource("Action_pressure_aimed"), SubResource("Action_pressure_multishot"), SubResource("Action_multishot_position"), SubResource("Action_pressure_move"), SubResource("Action_melee_fallback"), SubResource("Action_wait")])
+actions = Array[Resource]([SubResource("Action_survival_position"), SubResource("Action_high_ground_position"), SubResource("Action_grapple_high_ground"), SubResource("Action_tripwire_control"), SubResource("Action_pressure_aimed"), SubResource("Action_pressure_multishot"), SubResource("Action_multishot_position"), SubResource("Action_pressure_move"), SubResource("Action_melee_fallback"), SubResource("Action_wait")])
 generation_slots = Array[Resource]([SubResource("Slot_pressure_unit"), SubResource("Slot_pressure_multi"), SubResource("Slot_pressure_position")])
 
 [sub_resource type="Resource" id="Slot_retreat_unit"]

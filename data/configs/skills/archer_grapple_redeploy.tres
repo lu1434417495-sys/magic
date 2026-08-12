@@ -1,72 +1,84 @@
-[gd_resource type="Resource" script_class="SkillDef" format=3]
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_n2p70"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_oljqi"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_57ewk"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_r2n3l"]
-[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_x3p2b"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_10qsy"]
-script = ExtResource("3_57ewk")
-effect_type = &"status"
-power = 1
-status_id = &"archer_range_up"
-effect_target_team_filter = &"ally"
-duration_tu = 60
+[sub_resource type="Resource" id="Effect_grapple_l0_l2"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+effect_target_team_filter = &"self"
+forced_move_mode = &"grapple_ascent"
+forced_move_distance = 1
+grapple_max_height_gain = 2
+max_skill_level = 2
 
-[sub_resource type="Resource" id="Resource_2y4pb"]
-script = ExtResource("4_r2n3l")
+[sub_resource type="Resource" id="Effect_grapple_l3_l4"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+effect_target_team_filter = &"self"
+forced_move_mode = &"grapple_ascent"
+forced_move_distance = 1
+grapple_max_height_gain = 3
+min_skill_level = 3
+max_skill_level = 4
+
+[sub_resource type="Resource" id="Effect_grapple_l5"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+effect_target_team_filter = &"self"
+forced_move_mode = &"grapple_ascent"
+forced_move_distance = 1
+grapple_max_height_gain = 4
+min_skill_level = 5
+
+[sub_resource type="Resource" id="Combat_grapple"]
+script = ExtResource("2_combat")
 skill_id = &"archer_grapple_redeploy"
+projectile_kind = &"nonmagical"
+target_mode = &"ground"
 target_team_filter = &"ally"
-range_value = 4
-area_pattern = &"self"
-stamina_cost = 1
-cooldown_tu = 15
-target_selection_mode = &"self"
-effect_defs = Array[ExtResource("3_57ewk")]([SubResource("Resource_10qsy")])
+range_value = 1
+ap_cost = 1
+stamina_cost = 28
+cooldown_tu = 80
+required_weapon_families = Array[StringName]([&"bow"])
+allows_natural_weapon = false
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+ai_tags = Array[StringName]([&"mobility", &"high_ground"])
+level_overrides = {
+	2: {
+		"stamina_cost": 26
+	},
+	4: {
+		"cooldown_tu": 70
+	}
+}
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_grapple_l0_l2"), SubResource("Effect_grapple_l3_l4"), SubResource("Effect_grapple_l5")])
 
 [resource]
-script = ExtResource("5_x3p2b")
+script = ExtResource("3_skill")
 skill_id = &"archer_grapple_redeploy"
-display_name = "索钩转位"
+display_name = "索钩登高"
 icon_id = &"archer_grapple_redeploy"
-description = "牵引至高地、障碍物边缘或己方布置点附近；转位后下一个弓技射程 +1。"
-level_description_template = "牵引至目标点，获得{status}（{duration}TU），自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+description = "装备弓时，选择一个正交相邻、比当前位置高至少2层的空地格，射出索钩攀登至该格。登高不消耗移动力；只能向上攀登，不能斜向、平移或下降。最大可攀高差随技能等级提升。"
+level_description_template = "攀登至正交相邻且高2至{height}层的空地格，不消耗移动力；消耗1AP/{stamina}体力，冷却{cooldown}TU"
 level_description_configs = {
-	"0": {
-		"status": "射程提升",
-		"duration": "60",
-		"range": "4",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "15"
-	},
-	"1": {
-		"status": "射程提升",
-		"duration": "60",
-		"range": "4",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "15"
-	},
-	"2": {
-		"status": "射程提升",
-		"duration": "60",
-		"range": "4",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "15"
-	},
-	"3": {
-		"status": "射程提升",
-		"duration": "60",
-		"range": "4",
-		"ap": "1",
-		"stamina": "1",
-		"cooldown": "15"
-	},
+	"0": { "height": "2", "stamina": "28", "cooldown": "80" },
+	"1": { "height": "2", "stamina": "28", "cooldown": "80" },
+	"2": { "height": "2", "stamina": "26", "cooldown": "80" },
+	"3": { "height": "3", "stamina": "26", "cooldown": "80" },
+	"4": { "height": "3", "stamina": "26", "cooldown": "70" },
+	"5": { "height": "4", "stamina": "26", "cooldown": "70" }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+	"agility": 40,
+	"perception": 20
+}
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])
-combat_profile = SubResource("Resource_2y4pb")
+combat_profile = SubResource("Combat_grapple")

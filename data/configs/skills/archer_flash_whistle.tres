@@ -1,72 +1,109 @@
-[gd_resource type="Resource" script_class="SkillDef" format=3]
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_n66cx"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_j8dw0"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_dyp25"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_rt7ro"]
-[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_3ugen"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_s7i04"]
-script = ExtResource("3_dyp25")
-effect_type = &"damage"
-power = 7
-damage_tag = &"physical_blunt"
+[sub_resource type="Resource" id="Resource_dazzled_l0_l2"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+power = 1
+max_skill_level = 2
+status_id = &"flash_whistle_dazzled"
+display_name = "炫目"
+duration_tu = 30
+stack_behavior = &"refresh"
+attack_roll_penalty = 2
+counts_as_debuff_override = true
+counts_as_debuff = true
+lock_counterattack = true
 
-[sub_resource type="Resource" id="Resource_wooa3"]
-script = ExtResource("4_rt7ro")
+[sub_resource type="Resource" id="Resource_dazzled_l3_l4"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
+status_id = &"flash_whistle_dazzled"
+display_name = "炫目"
+duration_tu = 35
+stack_behavior = &"refresh"
+attack_roll_penalty = 2
+counts_as_debuff_override = true
+counts_as_debuff = true
+lock_counterattack = true
+
+[sub_resource type="Resource" id="Resource_dazzled_l5"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+power = 1
+min_skill_level = 5
+status_id = &"flash_whistle_dazzled"
+display_name = "炫目"
+duration_tu = 40
+stack_behavior = &"refresh"
+attack_roll_penalty = 2
+counts_as_debuff_override = true
+counts_as_debuff = true
+lock_counterattack = true
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("2_combat")
 skill_id = &"archer_flash_whistle"
-projectile_kind = &"current_weapon"
+projectile_kind = &"nonmagical"
 target_mode = &"ground"
-range_value = 5
+target_team_filter = &"enemy"
+range_value = 0
+requires_los = true
 area_pattern = &"radius"
 area_value = 1
-ap_cost = 2
-stamina_cost = 2
-cooldown_tu = 15
-effect_defs = Array[ExtResource("3_dyp25")]([SubResource("Resource_s7i04")])
+ap_cost = 1
+stamina_cost = 30
+cooldown_tu = 100
+required_weapon_families = Array[StringName]([&"bow"])
+allows_natural_weapon = false
+mastery_trigger_mode = &"status_applied"
+mastery_amount_mode = &"per_target_rank"
+ai_tags = Array[StringName]([&"aoe", &"control", &"debuff"])
+level_overrides = {
+	2: {
+		"stamina_cost": 28
+	},
+	4: {
+		"cooldown_tu": 90
+	},
+	5: {
+		"stamina_cost": 26,
+		"cooldown_tu": 80
+	}
+}
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Resource_dazzled_l0_l2"), SubResource("Resource_dazzled_l3_l4"), SubResource("Resource_dazzled_l5")])
 
 [resource]
-script = ExtResource("5_3ugen")
+script = ExtResource("3_skill")
 skill_id = &"archer_flash_whistle"
 display_name = "炫目鸣镝"
 icon_id = &"archer_flash_whistle"
-description = "爆出刺耳鸣响，范围内敌人获得持续 60 TU 的 命中 -15%，并失去反击资格。"
-level_description_template = "造成{dmg}伤害，射程{range}，半径范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+description = "向弓射程内的地格发射一支不造成伤害的鸣镝，爆响使半径1格内的敌人炫目：攻击检定-2且无法反击。炫目不影响移动、施法、AP、格挡或闪避加值，不视为致盲；重复施加只刷新持续时间，不叠加效果。"
+level_description_template = "不造成伤害；使半径1格内敌人炫目{duration}TU（攻击检定-2且无法反击），射程随弓，消耗1AP/{stamina}体力，冷却{cooldown}TU"
 level_description_configs = {
-	"0": {
-		"dmg": "7",
-		"range": "5",
-		"area_pattern": "radius",
-		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
-	},
-	"1": {
-		"dmg": "7",
-		"range": "5",
-		"area_pattern": "radius",
-		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
-	},
-	"2": {
-		"dmg": "7",
-		"range": "5",
-		"area_pattern": "radius",
-		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
-	},
-	"3": {
-		"dmg": "7",
-		"range": "5",
-		"area_pattern": "radius",
-		"ap": "2",
-		"stamina": "2",
-		"cooldown": "15"
-	},
+	"0": { "duration": "30", "stamina": "30", "cooldown": "100" },
+	"1": { "duration": "30", "stamina": "30", "cooldown": "100" },
+	"2": { "duration": "30", "stamina": "28", "cooldown": "100" },
+	"3": { "duration": "35", "stamina": "28", "cooldown": "100" },
+	"4": { "duration": "35", "stamina": "28", "cooldown": "90" },
+	"5": { "duration": "40", "stamina": "26", "cooldown": "80" }
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])
-combat_profile = SubResource("Resource_wooa3")
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+	"perception": 40,
+	"agility": 20
+}
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control", &"aoe"])
+combat_profile = SubResource("Resource_combat")
