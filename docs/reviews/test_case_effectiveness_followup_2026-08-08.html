@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:,">
+  <title>测试用例有效性整改复核 · 2026-08-08</title>
+  <style>
+    :root {
+      --canvas: #e9ece8;
+      --paper: #fbfcf8;
+      --ink: #17201d;
+      --muted: #5f6965;
+      --line: #c7ceca;
+      --strong-line: #89948f;
+      --green: #08654b;
+      --green-soft: #dcece5;
+      --blue: #225f83;
+      --blue-soft: #dce9f1;
+      --amber: #785a16;
+      --amber-soft: #f1e8cf;
+      --red: #8a3e37;
+      --red-soft: #f1dfdc;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(23, 32, 29, .025) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(90deg, rgba(23, 32, 29, .025) 1px, transparent 1px) 0 0 / 24px 24px,
+        var(--canvas);
+      font-family: var(--sans);
+      line-height: 1.58;
+    }
+    a { color: var(--green); text-underline-offset: 3px; }
+    code {
+      font-family: var(--mono);
+      font-size: .88em;
+      overflow-wrap: anywhere;
+    }
+    .shell {
+      width: min(1320px, calc(100% - 2rem));
+      margin: 0 auto;
+    }
+    header {
+      padding: 2.7rem 0 2rem;
+      border-bottom: 1px solid var(--strong-line);
+      background: color-mix(in srgb, var(--paper) 90%, transparent);
+    }
+    .kicker {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: .8rem;
+      color: var(--muted);
+      font: 700 .76rem/1.4 var(--mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .state { color: var(--green); }
+    h1 {
+      max-width: 1000px;
+      margin: 0;
+      font-size: clamp(2.15rem, 5vw, 4.5rem);
+      line-height: .98;
+      letter-spacing: -.045em;
+    }
+    .lede {
+      max-width: 980px;
+      margin: 1.1rem 0 0;
+      color: var(--muted);
+      font-size: 1.04rem;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 2rem;
+      border-block: 1px solid var(--strong-line);
+    }
+    .metric {
+      margin: 0;
+      padding: 1rem;
+      border-right: 1px solid var(--line);
+    }
+    .metric:last-child { border-right: 0; }
+    .metric dt {
+      color: var(--muted);
+      font-size: .72rem;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+    .metric dd {
+      margin: .12rem 0 0;
+      font-size: clamp(1.55rem, 3vw, 2.5rem);
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+    .good { color: var(--green); }
+    .warn { color: var(--amber); }
+    main { padding: 2rem 0 4rem; }
+    section {
+      margin: 0 0 1.3rem;
+      padding: 1.35rem;
+      border: 1px solid var(--line);
+      background: var(--paper);
+    }
+    h2, h3 { margin: 0 0 .75rem; line-height: 1.15; }
+    h2 { font-size: clamp(1.35rem, 2.4vw, 2rem); }
+    h3 { margin-top: 1.2rem; font-size: 1.08rem; }
+    p { margin: .55rem 0; }
+    ul, ol { margin: .55rem 0; padding-left: 1.35rem; }
+    li + li { margin-top: .35rem; }
+    .verdict {
+      border-left: 5px solid var(--green);
+      background: var(--green-soft);
+    }
+    .boundary {
+      border-left: 5px solid var(--amber);
+      background: var(--amber-soft);
+    }
+    .note {
+      padding: .8rem .95rem;
+      border-left: 4px solid var(--blue);
+      background: var(--blue-soft);
+    }
+    .table-wrap {
+      margin-top: .8rem;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+    }
+    table {
+      width: 100%;
+      min-width: 960px;
+      border-collapse: collapse;
+      font-size: .88rem;
+    }
+    th, td {
+      padding: .7rem .75rem;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    tbody tr:last-child td { border-bottom: 0; }
+    th {
+      color: var(--muted);
+      background: #eef1ed;
+      font: 700 .73rem/1.35 var(--mono);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    tbody tr:hover { background: #f4f7f3; }
+    .status {
+      display: inline-block;
+      padding: .12rem .45rem;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      color: var(--green);
+      background: var(--green-soft);
+      font: 700 .72rem/1.4 var(--mono);
+      white-space: nowrap;
+    }
+    .status.bound {
+      color: var(--amber);
+      background: var(--amber-soft);
+    }
+    details {
+      margin-top: .8rem;
+      padding: .75rem .9rem;
+      border: 1px solid var(--line);
+      background: #f4f6f2;
+    }
+    summary { cursor: pointer; font-weight: 750; }
+    .command {
+      display: block;
+      margin: .45rem 0;
+      padding: .65rem .75rem;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      background: #19211f;
+      color: #eaf1ed;
+      white-space: pre-wrap;
+    }
+    footer {
+      padding: 1.2rem 0 2.5rem;
+      color: var(--muted);
+      border-top: 1px solid var(--strong-line);
+      font-size: .88rem;
+    }
+    @media (max-width: 820px) {
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
+      .kicker { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <div class="kicker">
+        <span>Test effectiveness · follow-up remediation</span>
+        <span class="state">Implemented · verified</span>
+      </div>
+      <h1>逐项确认测试到底在检查什么，以及退化时会不会失败</h1>
+      <p class="lede">
+        本报告不是“把用例执行一遍”的结果。每个处理项都按 Act、可观察结果、反向退化和处置结论复核；
+        纯源码/配置文本扫描不作为测试保留。基线详单见
+        <a href="test_case_effectiveness_audit_2026-08-06.html">2026-08-06 有效性审计</a>，
+        第一批删除与替换见
+        <a href="test_ineffective_case_remediation_2026-08-07.html">2026-08-07 无效用例整改</a>；
+        当前 427 个常规入口的逐方法 Act、oracle 与人工结论见
+        <a href="test_case_method_effectiveness_audit_2026-08-08.html">方法级有效性附录</a>。
+      </p>
+      <dl class="metrics">
+        <div class="metric">
+          <dt>源码文本扫描</dt>
+          <dd class="good">38 → 0</dd>
+        </div>
+        <div class="metric">
+          <dt>首批有效性目标</dt>
+          <dd>11</dd>
+        </div>
+        <div class="metric">
+          <dt>异步处理记录 / 当前入口</dt>
+          <dd>25 / 24</dd>
+        </div>
+        <div class="metric">
+          <dt>最终全量验证</dt>
+          <dd class="good">427 / 427</dd>
+        </div>
+      </dl>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="verdict">
+      <h2>结论</h2>
+      <p>
+        旧报告中的 38 个源码/资源/工作流文本扫描已从当前测试树移除；当前 C#、GDScript
+        测试中没有读取生产源码再匹配 token/正则的断言。能落到常规行为用例的约束已经替换为真实
+        SceneTree、服务调用、正式命令分发、生命周期快照或编译后的 typed contract；只能限制调用点、
+        文件布局或实现拼写、且没有行为 oracle 的检查不再保留。
+      </p>
+      <p>
+        首批记录 36 个审查目标：11 个测试有效性目标和 25 个异步边界处理记录；其中 A05 后续作为重复
+        runner 删除，所以当前仍存在 24 个入口（21 个常规 runner、2 个 opt-in 工具和 1 个共享退出适配器）。
+        本页另记录第二轮 R01–R18 的实际测试代码整改。不是所有
+        <em>partial</em> 或 <em>diagnostic</em> 都应删除：有直接状态 oracle 的窄单元测试、故障注入和
+        mutation guard 仍然有效；本轮只修复会假绿、会吞异步异常或把辅助记录误算成独立覆盖的项目。
+      </p>
+    </section>
+
+    <section>
+      <h2>判定方法</h2>
+      <ol>
+        <li><strong>Act：</strong>测试是否真正调用声称保护的生产入口或正式测试边界。</li>
+        <li><strong>Oracle：</strong>是否读取由该行为产生的状态、事件、退出结果或持久化结果，而非实现文本。</li>
+        <li><strong>反向退化：</strong>删除目标调用、把条件反转、硬编码成功或让写入失败时，哪个断言会失败。</li>
+        <li><strong>处置：</strong>删除纯结构扫描；用行为测试替换可观察契约；给窄但有效的测试补反例；保留直接故障注入。</li>
+      </ol>
+      <p class="note">
+        报告中的文本搜索仅用于确认当前 checkout 不再含源码读取型测试，它不是新增到回归套件里的测试用例。
+      </p>
+    </section>
+
+    <section>
+      <h2>11 个有效性目标逐项复核</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID / 文件</th>
+              <th>旧检查为何不够</th>
+              <th>现在真正执行什么</th>
+              <th>现在观察什么</th>
+              <th>能杀死的退化</th>
+              <th>结果</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>F01<br><a href="../../tests/runtime/lifecycle/run_application_lifetime_coordinator_regression.cs"><code>run_application_lifetime_coordinator_regression.cs</code></a></td>
+              <td>WorldMap 部分只反射接口、私有常量和接口映射；删掉 <code>_Ready()</code> 注册或把关闭做成 no-op 仍可通过。</td>
+              <td>启动真实 GameSession，实例化 <code>world_map.tscn</code>，等待 <code>_Ready()</code>，再走正式应用关闭接口。</td>
+              <td>runtime/proxy 已建立；同 ID 重复注册被拒绝；关闭后 runtime、proxy、session 释放且同 ID 可重新注册。</td>
+              <td>删除注册、错误 participant ID、关闭不释放、注销遗漏、非幂等关闭。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F02<br><a href="../../tests/shared/TestExitCoordinator.cs"><code>TestExitCoordinator.cs</code></a></td>
+              <td>只用成功 <code>TestResult</code> 走终止流程；异步等待或 shutdown submit 抛异常时，detached 调用可能只留下超时。</td>
+              <td>正式入口改为受控 <code>Task</code> 管线；行为回归分别注入 process-frame await 失败与首次 submit 失败。</td>
+              <td>异常被转换为 failed terminal result、退出码 1、阶段诊断；submit 失败只恢复重试一次，并继续通过正式 shutdown owner。</td>
+              <td>失败结果被改成成功、await 异常逃逸、提交异常无诊断或绕过正式 shutdown owner。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F03<br><a href="../../tests/shared/run_shared_test_fixture_regression.cs"><code>run_shared_test_fixture_regression.cs</code></a></td>
+              <td>只检查 <code>Failures.Count</code>；<code>Finish()</code> 即使硬编码成功也不会失败。</td>
+              <td>制造真实断言失败后调用 <code>TestHarness.Finish()</code>。</td>
+              <td><code>Passed=false</code>、<code>ExitCode=1</code>、label 和具体失败快照全部一致。</td>
+              <td><code>Finish()</code> 硬编码成功、错误退出码、丢失诊断。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F04<br><a href="../../tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs"><code>run_runtime_lifecycle_boundary_regression.cs</code></a></td>
+              <td>active 阶段只看总数；把 Request、Battle、SceneTree 全归到一个域仍可通过。</td>
+              <td>分别在三个域打开 projection lease 和 native scope，并在存活期间抓取 typed 生命周期快照。</td>
+              <td>目标域各 kind 精确增加；所有非目标域不变；关闭后完整向量回到基线。</td>
+              <td>域硬编码、kind 归错、泄漏、错误聚合。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F05<br><a href="../../tests/battle_runtime/simulation/run_battle_ai_vs_ai_simulation_regression.cs"><code>run_battle_ai_vs_ai_simulation_regression.cs</code></a></td>
+              <td>旧用例只看 run 数、trace 和 control mode；两个 seed 都耗尽迭代预算时仍然通过。</td>
+              <td>通过正式 loader 加载 <a href="../../data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres"><code>ai_vs_ai_duel_example.tres</code></a> 后直接 <code>ToDefinition()</code> 并交给 <code>BattleSimRunner</code>；测试不再改写地图、单位、HP、技能、武器、seed 或预算。</td>
+              <td>先锁定 authored resource 的双方 AI、正常 stamina、<code>basic_attack</code>、匹配 sword/bow 投影和 seeds 301/302；再要求 2/2 <code>BattleEnded</code>、0 unfinished、双方均有真实 turn/trace 和伤害。</td>
+              <td>authored fixture 再次不可执行、资源与测试分叉、预算耗尽被当成功、只生成一方 AI trace或伪造结束。</td>
+              <td><span class="status">2 seeds complete</span></td>
+            </tr>
+            <tr>
+              <td>F06<br><a href="../../tests/battle_runtime/benchmarks/run_longsword_3v3_mastery_analysis.cs"><code>run_longsword_3v3_mastery_analysis.cs</code></a></td>
+              <td>JSON 打开/写入失败只打印错误，退出码仍只由战斗结束数决定。</td>
+              <td>main artifact 委托共享 <code>BattleSimAnalysisArtifactFileWriter</code>，复用 checked <code>GodotBattleSimOutputFileSink</code>；typed completion status 统一交给退出策略。</td>
+              <td><a href="../../tests/battle_runtime/runtime/run_battle_sim_analysis_output_contract_regression.cs">常规 fault-injection regression</a> 直接断言：complete+success=0、incomplete+success=2、complete+main failure=1，并验证目录/open/store/flush/文件存在契约由 checked sink 承担。</td>
+              <td>任一必需报告失败仍返回 0；把未完成批次与输出失败混成同一不可辨状态。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F07<br><a href="../../tests/battle_runtime/benchmarks/run_mixed_2s1a_mirror_analysis.cs"><code>run_mixed_2s1a_mirror_analysis.cs</code></a></td>
+              <td>与 F06 相同：报告可能没写出，但分析器仍返回成功。</td>
+              <td>与 3v3 共用 checked artifact writer 和 typed exit policy，不再保留私有 bool writer。</td>
+              <td>同一常规回归以 synthetic completion status 和可注入 sink 验证成功、未完成及 main failure 三种可区分结果。</td>
+              <td>任何报告写入失败仍返回 0，或只能通过耗时 batch 才能验证退出仲裁。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F08<br><a href="../../tests/battle_runtime/benchmarks/RunMixed6v12MirrorAnalysis.cs"><code>RunMixed6v12MirrorAnalysis.cs</code></a></td>
+              <td>main report 或 trace 写失败只记日志；最终退出码仍只看 batch complete。</td>
+              <td>main、trace summary 与 AI profile 全部委托共享 checked writer；<code>AiProfileCapture</code> 返回 typed aggregate status，退出策略一次裁决三类 artifact。</td>
+              <td>常规回归分别注入 main、trace、profile failure，逐项要求 artifact status 失败、保留错误诊断且 complete batch 返回 1；profile 内 hotspots、functions CSV 与真实采集后成为 required 的 trace JSON 也分别注入失败，逐项验证 wrote flag、aggregate status 和 exit 1。</td>
+              <td>任一输出失败仍放行、profile 内 writer 假报成功、trace/profile 局部失败被忽略。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F09<br><a href="../../tests/battle_runtime/runtime/run_battle_metrics_collector_regression.cs"><code>run_battle_metrics_collector_regression.cs</code></a></td>
+              <td>原测试直接调用多个 <code>_record_*</code>；能证明 collector 投影，却不能证明正式命令链真的接线。</td>
+              <td>保留窄 collector 测试，并新增真实技能 preview + <code>IssueCommand</code> + 正式命中/伤害/击杀结算。</td>
+              <td>skill action、attempt、success、双方伤害、kill、death 全部由正式分发产生且互相一致。</td>
+              <td>IssueCommand 漏记 action、技能接线被删、伤害或击杀指标未传播。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F10<br><a href="../../tests/battle_runtime/ai/run_battle_ai_ground_reposition_behavior_regression.cs"><code>run_battle_ai_ground_reposition_behavior_regression.cs</code></a></td>
+              <td>只有“受威胁时成功闪现”的正向场景；条件被放宽成总是闪现也可能通过。</td>
+              <td>保留正式 preview 的成功路径；增加“已经安全”和“没有更安全落点”两种真实 evaluator 反例。</td>
+              <td>成功路径命令可 preview 且距离增大；两种反例都必须返回 null。</td>
+              <td>忽略安全距离、接受无改善落点、无条件生成命令。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+            <tr>
+              <td>F11<br><a href="../../tests/battle_runtime/skills/run_battle_on_kill_gain_resources_regression.cs"><code>run_battle_on_kill_gain_resources_regression.cs</code></a></td>
+              <td>只有低 HP 击杀并返还资源；把 on-kill 条件改成 on-hit 仍可能通过。</td>
+              <td>新增高 HP 非致死目标，仍走正式 preview、<code>IssueCommand</code> 和固定真实伤害结算。</td>
+              <td>目标确实受伤但存活；AP 只扣成本、移动力不返还、行动后移动不解锁。</td>
+              <td>非击杀也返 AP/移动力、on-kill gate 被删除或反转。</td>
+              <td><span class="status">PASS</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>25 条异步处理记录（当前 24 个入口）</h2>
+      <p>
+        原处理表中 22 个属于常规套件、2 个属于 opt-in capture/benchmark、1 个是所有 runner 共用的退出适配器；
+        A05 随后因覆盖重复被删除且不计入当前 427，因此当前构成为 21 + 2 + 1。表中仍存在的 runner awaited 主体
+        用外层 <code>try / catch (System.Exception) / finally</code> 把异常写入
+        <code>TestHarness</code>，并从 finally 发出唯一退出请求；共享适配器则用可注入的受控
+        <code>Task</code> 管线，把 frame wait 和 shutdown submit 异常转成确定失败，再交给正式生命周期 owner。
+        原有资源清理 finally 均保留。
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Runner</th>
+              <th>范围</th>
+              <th>原风险</th>
+              <th>当前失败 oracle / 清理</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>A01</td><td><a href="../../tests/battle_runtime/rendering/run_battle_board_regression.cs"><code>run_battle_board_regression.cs</code></a></td><td>常规</td><td>await render 异常可跳过退出</td><td>异常进入 TestHarness；finally 退出</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A02</td><td><a href="../../tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs"><code>run_battle_hit_preview_contract_regression.cs</code></a></td><td>常规</td><td>await preview fixture 异常可逃逸</td><td>完整异常 + 单一退出</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A03</td><td><a href="../../tests/battle_runtime/runtime/run_battle_map_panel_schema_regression.cs"><code>run_battle_map_panel_schema_regression.cs</code></a></td><td>常规</td><td>UI frame await 异常可逃逸</td><td>异常失败；原清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A04</td><td><a href="../../tests/runtime/lifecycle/run_game_session_close_lifecycle_regression.cs"><code>run_game_session_close_lifecycle_regression.cs</code></a></td><td>常规</td><td>close await 异常可漏报</td><td>异常失败；finally 退出</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A05</td><td><code>run_content_snapshot_session_recreate_regression.cs</code></td><td>历史常规入口；后续删除</td><td>session recreate await 异常可漏报</td><td>先补异常边界；随后作为重复入口删除，不计入当前 427</td><td><span class="status">fixed → removed</span></td></tr>
+            <tr><td>A06</td><td><a href="../../tests/text_runtime/headless/run_headless_game_test_session_regression.cs"><code>run_headless_game_test_session_regression.cs</code></a></td><td>常规</td><td>headless async 链可中断</td><td>异常失败；原 session 清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A07</td><td><a href="../../tests/warehouse/run_party_warehouse_window_schema_regression.cs"><code>run_party_warehouse_window_schema_regression.cs</code></a></td><td>常规</td><td>UI await 可绕过退出</td><td>异常失败；节点清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A08</td><td><a href="../../tests/world_map/runtime/run_character_info_payload_schema_regression.cs"><code>run_character_info_payload_schema_regression.cs</code></a></td><td>常规</td><td>payload async 链可漏报</td><td>完整异常 + 单一退出</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A09</td><td><a href="../../tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.cs"><code>run_game_runtime_settlement_command_handler_regression.cs</code></a></td><td>常规</td><td>settlement command await 可漏报</td><td>异常失败；fixture 清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A10</td><td><a href="../../tests/world_map/runtime/run_npc_quest_offer_regression.cs"><code>run_npc_quest_offer_regression.cs</code></a></td><td>常规</td><td>20 个 await 子场景之一异常会中断</td><td>外层捕获；单一 finally 退出</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A11</td><td><a href="../../tests/world_map/runtime/run_settlement_action_request_boundary_regression.cs"><code>run_settlement_action_request_boundary_regression.cs</code></a></td><td>常规</td><td>request boundary await 可漏报</td><td>完整异常 + 单一退出</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A12</td><td><a href="../../tests/world_map/runtime/run_settlement_persist_failure_rollback_regression.cs"><code>run_settlement_persist_failure_rollback_regression.cs</code></a></td><td>常规</td><td>rollback await 异常可漏报</td><td>异常失败；rollback 清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A13</td><td><a href="../../tests/world_map/runtime/run_world_map_battle_start_confirm_regression.cs"><code>run_world_map_battle_start_confirm_regression.cs</code></a></td><td>常规</td><td>world map frame await 可漏报</td><td>异常失败；<code>Cleanup()</code> 内层执行</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A14</td><td><a href="../../tests/world_map/runtime/run_world_map_runtime_log_dock_regression.cs"><code>run_world_map_runtime_log_dock_regression.cs</code></a></td><td>常规</td><td>world map frame await 可漏报</td><td>异常失败；<code>Cleanup()</code> 内层执行</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A15</td><td><a href="../../tests/world_map/runtime/run_world_map_view_color_config_regression.cs"><code>run_world_map_view_color_config_regression.cs</code></a></td><td>常规</td><td>world map frame await 可漏报</td><td>异常失败；<code>Cleanup()</code> 内层执行</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A16</td><td><a href="../../tests/world_map/ui/run_character_info_window_fate_regression.cs"><code>run_character_info_window_fate_regression.cs</code></a></td><td>常规</td><td>window await 可绕过退出</td><td>异常失败；节点清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A17</td><td><a href="../../tests/world_map/ui/run_contingency_setup_window_regression.cs"><code>run_contingency_setup_window_regression.cs</code></a></td><td>常规</td><td>window await 可绕过退出</td><td>异常失败；节点清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A18</td><td><a href="../../tests/world_map/ui/run_modal_window_shell_regression.cs"><code>run_modal_window_shell_regression.cs</code></a></td><td>常规</td><td>modal frame await 可漏报</td><td>异常失败；节点清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A19</td><td><a href="../../tests/world_map/ui/run_npc_quest_offer_dialog_action_regression.cs"><code>run_npc_quest_offer_dialog_action_regression.cs</code></a></td><td>常规</td><td>dialog await 异常会跳过退出</td><td>dialog 清理嵌套；外层异常失败和退出</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A20</td><td><a href="../../tests/world_map/ui/run_party_management_window_regression.cs"><code>run_party_management_window_regression.cs</code></a></td><td>常规</td><td>window await 可绕过退出</td><td>异常失败；节点清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A21</td><td><a href="../../tests/world_map/ui/run_promotion_choice_window_schema_regression.cs"><code>run_promotion_choice_window_schema_regression.cs</code></a></td><td>常规</td><td>window await 可绕过退出</td><td>异常失败；节点清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A22</td><td><a href="../../tests/world_map/ui/run_settlement_shop_window_schema_regression.cs"><code>run_settlement_shop_window_schema_regression.cs</code></a></td><td>常规</td><td>多段 UI await 可中断</td><td>异常失败；原多层资源清理保留</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A23</td><td><a href="../../tests/shared/TestExitCoordinator.cs"><code>TestExitCoordinator.cs</code></a></td><td>共享适配器</td><td>frame wait / submit 异常可脱离 runner 结果</td><td>可注入 Task 管线；异常转 failed result；submit 恢复一次；正式 shutdown owner 不变</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A24</td><td><a href="../../tests/battle_runtime/capture/capture_canyon_battle_board.cs"><code>capture_canyon_battle_board.cs</code></a></td><td>opt-in capture</td><td>render/capture await 异常可变成超时或缺产物</td><td>完整异常进入 TestHarness；节点清理后唯一退出</td><td><span class="status">fixed</span></td></tr>
+            <tr><td>A25</td><td><a href="../../tests/battle_runtime/benchmarks/run_battle_panel_full_refresh_benchmark.cs"><code>run_battle_panel_full_refresh_benchmark.cs</code></a></td><td>opt-in benchmark</td><td>frame/timing await 异常可变成超时</td><td>异常失败；panel 清理；finally 唯一退出</td><td><span class="status">fixed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>实际测试代码第二轮整改</h2>
+      <p>
+        下表不是按 runner 是否 PASS 做归类，而是逐组核对测试代码中的真实 Act、直接 oracle 与反向退化。
+        “能杀死的错误”表示把目标行为删掉、反转或硬编码后，当前哪一项观察会失败。
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th># / 代码</th>
+              <th>旧无效或弱检查</th>
+              <th>当前真实 Act</th>
+              <th>直接 oracle</th>
+              <th>能杀死的错误</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>R01<br>38 个文本扫描</td>
+              <td>读取生产 C#/GDScript、资源或工作流文本并匹配 token、正则、调用点或文件布局。</td>
+              <td>38 条历史扫描记录不再存在：32 条直接删除，6 条改为行为测试；可观察约束落到 SceneTree、服务、正式命令、typed snapshot/definition 或构建。</td>
+              <td>状态、事件、退出码、typed validation/result 与编译结果；不再把源码拼写当 oracle。</td>
+              <td>实现改名仍行为正确不会误红；跳过真实调用、状态未改变或契约值错误会失败。</td>
+            </tr>
+            <tr>
+              <td>R02<br><a href="../../tests/progression/schema/run_equipment_ability_content_registry_regression.cs">equipment ABI</a><br><a href="../../tests/battle_runtime/ai/run_battle_ai_mutation_guard_regression.cs">AI mutation guard</a></td>
+              <td>删除 417 行只枚举 attribute、继承、字段/属性形状的 equipment ABI 反射测试；它只约束实现结构。</td>
+              <td>该 ABI gate 直接删除而非由 AI 用例一对一替代；另行修正的 mutation guard 对 15 个真实可写 <code>BattleUnitState</code> 字段逐一建立 fixture、抓取 snapshot、执行字段突变（其中仅 <code>equipment_view</code> 与装备视图有关）。</td>
+              <td>每次突变都必须在 <code>CompareCurrentState</code> 的 <code>StableDiff</code> 中出现对应稳定路径。</td>
+              <td>新增可写状态却未被快照捕获，或 snapshot 比较遗漏真实状态变化。</td>
+            </tr>
+            <tr>
+              <td>R03<br><a href="../../tests/battle_runtime/rules/run_status_effect_typed_fields_regression.cs">status typed fields</a></td>
+              <td>5 个用例只调用 <code>_set_runtime_*</code> wrapper，再确认 wrapper 把参数转发给字段。</td>
+              <td>删除 wrapper-forwarding 用例；这不是一对一替代，wrapper 边界不再单独覆盖；保留正式 schema、typed status semantics、round-trip 与 guard-lock 技能门禁。</td>
+              <td>非法旧参数被拒绝、top-level 字段往返一致，且 guard-granting skill 返回独立拒绝原因。</td>
+              <td>旧 params 重新驱动语义、typed 字段失效、round-trip 丢值或 guard lock 不再阻断技能。</td>
+            </tr>
+            <tr>
+              <td>R04<br><a href="../../tests/battle_runtime/runtime/run_battle_shield_service_typed_context_regression.cs">shield service</a></td>
+              <td>删除独立 Godot boundary round-trip/result projection 测试；没有伪称存在一对一 caller-test 替代。</td>
+              <td>经真实 <code>ResolveShieldHp</code> 建缓存、修改缓存后再次 Resolve；再经 <code>ApplyUnitShieldEffectsResult</code> 正式应用 typed shield effect。</td>
+              <td>首次缓存唯一、二次返回缓存值；护盾 HP/持续时间/family/source 均落入目标 typed state，第二次正式应用读取更新缓存；同族刷新/no-op、弱异族拒绝与等 HP 长持续替换也读取完整 snapshot。</td>
+              <td>正式 Resolve 绕开缓存、缓存 key 错、应用结果未写完整状态、source/family 丢失或 replacement comparator 错误；不宣称已等价保留被删 boundary 的独立覆盖。</td>
+            </tr>
+            <tr>
+              <td>R05<br><a href="../../tests/battle_runtime/skills/run_time_stasis_regression.cs">time stasis</a></td>
+              <td>只调用窄 helper 无法证明目标门禁、preview、扣费和解除状态处于同一正式工作流。</td>
+              <td>真实调用 <code>GetUnitSkillTargetAffordance</code>、<code>PreviewCommand</code>、<code>IssueCommand</code>；分别发普通技能与 temporal release。</td>
+              <td>普通技能 affordance/preview/issue 均拒绝且 AP 不扣；release 三层均允许并真实清除 stasis。</td>
+              <td>静滞目标被普通技能命中、拒绝命令仍扣费、release 被误拒或执行后状态仍存在。</td>
+            </tr>
+            <tr>
+              <td>R06<br><a href="../../tests/battle_runtime/runtime/run_battle_rating_projection_regression.cs">rating map</a></td>
+              <td>key 与 value 内 member id 相同，错误实现偷偷改用 value id 仍会假绿。</td>
+              <td>构造不对称 fixture：map key 为 <code>map_owned_member</code>，value 的 <code>member_id</code> 为另一个值，再正式投影。</td>
+              <td>结果必须存在 map key、不得出现 value id，并保留该 key 对应成员内容。</td>
+              <td>投影器忽略字典所有权、改用 value 内部 id 重建 key。</td>
+            </tr>
+            <tr>
+              <td>R07<br><a href="../../tests/battle_runtime/runtime/run_fixed_repeat_attack_execution_regression.cs">fixed repeat</a></td>
+              <td>旧覆盖分散在技能 helper 与具体技能，不能证明 canonical fixed-repeat 命令执行。</td>
+              <td>新 runner 通过正式 <code>PreviewCommand</code>/<code>IssueCommand</code> 执行配置为 3 段的 fixed-repeat。</td>
+              <td>preview 报 3 段；命中三段只扣一次 AP/Stamina；中段 miss 后继续；首段击杀后立即停止且 resolver 从不收到尸体。</td>
+              <td>按段重复扣费、miss 误停、死亡后继续攻击、preview 段数与执行配置漂移。</td>
+            </tr>
+            <tr>
+              <td>R08<br><a href="../../tests/battle_runtime/skills/run_warrior_chain_slashes_regression.cs">Chain Slashes</a> / <a href="../../tests/battle_runtime/skills/run_warrior_double_strike_regression.cs">Double Strike</a><br><a href="../../tests/battle_runtime/runtime/run_battle_unit_factory_weapon_projection_regression.cs">weapon projection owner</a></td>
+              <td>删除两个技能中重复的 melee gate/helper-direct 调用；35 个武器 runner 末尾重复验证通用卸装清理。</td>
+              <td>技能只保留自身正式命令行为；通用武器安装/卸装、setup/clear 由 canonical unit-factory projection runner 的代表性武器实例统一执行，各武器仍保留 equip/reaction 行为。</td>
+              <td>具体技能的段数/伤害/成本，以及统一 projection 的安装后能力与清理后消失分别由各自 owner 观察；不把 35 份删除称为零覆盖损失。</td>
+              <td>技能独有行为退化，或通用清理算法失效；被删的逐武器 named trait/range/grip 清理不再由 35 份同构尾部逐个重复声明。</td>
+            </tr>
+            <tr>
+              <td>R09<br><a href="../../tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs">Prismatic Sphere</a></td>
+              <td>旧随机链 fixture 混入不稳定候选/命中路径，存在偶发结果且没有分别提交屏障内外目标。</td>
+              <td>使用 synthetic random-chain probe 固定 mixed-preview 候选池；用 inside-only 与 outside-only 单候选分别走正式 <code>PreviewCommand</code>/<code>IssueCommand</code>，并注入 <code>FixedHit</code>。</td>
+              <td>重复 preview 候选/有效目标稳定；内侧目标受屏障阻挡，外侧目标提交后真实受伤，事件与 HP 一致。</td>
+              <td>随机候选漂移、preview/commit 屏障边界不一致、outside 命令未真实落伤或 inside 穿透；该 probe 保护 runtime，不冒充 authored Chain Lightning 内容测试。</td>
+            </tr>
+            <tr>
+              <td>R10<br><a href="../../tests/battle_runtime/rules/run_battle_hit_rate_legacy_cleanup_regression.cs">hit rate</a><br><a href="../../tests/battle_runtime/rules/run_battle_report_formatter_contract_regression.cs">report formatter</a></td>
+              <td>只判断文本存在或非空，可能把 legacy <code>hit_rate_percent=87</code> 与错误摘要也当成功。</td>
+              <td>分别给 formal success rate 42%、缺失时 0%、legacy 87%；再把 typed damage 与 meteor summary 送入 formatter。</td>
+              <td>preview/repeat/HUD/AI 使用 42% 或 0% 且排除 87%；日志精确为伤害 18、护盾吸收 3、破盾，meteor 精确为 2 目标/42 伤害/terrain 分类。</td>
+              <td>legacy 字段重新生效、缺失值不归零、formatter 丢数值/护盾事件或把 terrain 聚合错。</td>
+            </tr>
+            <tr>
+              <td>R11<br><a href="../../tests/battle_runtime/rules/run_attack_policy_parity_regression.cs">attack policy</a><br><a href="../../tests/battle_runtime/rules/run_battle_damage_resolver_preview_contract_regression.cs">damage preview</a></td>
+              <td>删除只约束 capability 恰好调用一次的 call-count；旧 shield preview 只调用算骰 helper。</td>
+              <td>attack policy 继续比较真实结果，并给目标设置 AC 12 + DodgeBonus 4；shield 改走 <code>ApplyUnitShieldEffectsResult</code> 正式入口，接入 deterministic seed 1729。</td>
+              <td>无 equipment query 的 baseline AC=12，注入 <code>AddLockDodgeBonus</code> 后 AC=8；heal/stamina 的 max-roll 2D7=14，shield seed 1729 在 2D7 精确为 10（若退成 2D4 则为 3），且 current=max/source 保留。</td>
+              <td>合法重构导致调用次数变化不再误红；删除 defense query、忽略 CON/WILL 属性缩放、非原子写 shield 或丢 source 都会失败。</td>
+            </tr>
+            <tr>
+              <td>R12<br><a href="../../tests/battle_runtime/runtime/run_wild_encounter_roster_typed_regression.cs">wild encounter</a><br><a href="../../tests/progression/schema/run_skill_attribute_growth_typed_regression.cs">growth schema</a><br><a href="../../tests/battle_runtime/ai/run_enemy_ai_generation_slots_schema_regression.cs">AI slots</a> / <a href="../../tests/battle_runtime/ai/run_enemy_ai_transition_schema_regression.cs">transition</a><br><a href="../../tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.cs">status params</a> / <a href="../../tests/progression/schema/run_skill_requirements_typed_regression.cs">requirements</a> / <a href="../../tests/runtime/validation/run_quest_content_validator_typed_regression.cs">quest refs</a> / <a href="../../tests/progression/schema/run_skill_level_description_typed_regression.cs">level descriptions</a></td>
+              <td><code>errors.Count &gt; 0</code>/<code>&gt;= N</code> 允许任意旁路错误替目标规则假绿。</td>
+              <td>每个非法 fixture 只改变目标 key/value、template、slot 或 transition 规则，再调用正式 typed validator；晚审计发现的 11 处 count-only schema 断言也已逐项改成目标诊断。</td>
+              <td>逐条匹配包含 owner/id/value 的精确诊断；wild missing-template 还反断言不得夹带 duplicate actor 错误。status 7 组 legacy key、requirements 4 项、quest 5 项及 level-description key/shape 均不能再由旁路噪声凑数。</td>
+              <td>validator 报错对象、key/value、slot/order、state 引用错误，或测试 fixture 被无关错误污染。</td>
+            </tr>
+            <tr>
+              <td>R13<br><a href="../../tests/warehouse/run_skill_book_item_helpers_regression.cs">skill-book validation</a></td>
+              <td>非法 fixture 只要求 <code>Count &gt;= 4</code>，四条完全错误的诊断也会通过。</td>
+              <td>同一 fixture 经正式 skill-book cross-table validator。</td>
+              <td>精确要求 missing skill、非 book learn_source、生成 ID 分类冲突、错误 granted skill 四项诊断。</td>
+              <td>漏掉任一跨表规则、诊断归属错误或只用其它噪声凑够数量。</td>
+            </tr>
+            <tr>
+              <td>R14<br><a href="../../tests/battle_runtime/ai/run_enemy_template_schema_boundary_regression.cs">enemy template schema</a> / <a href="../../tests/battle_runtime/ai/run_enemy_template_runtime_start_regression.cs">runtime start</a></td>
+              <td>类型/字段形状反射不能证明 Godot Resource 真能保存、重载并进入战斗。</td>
+              <td>构造正式 <code>EnemyTemplateDef</code>，保存为 <code>.tres</code>、重新加载，再由 runtime start 消费 typed save tags/definition。</td>
+              <td>save/load 返回成功且字段往返；战斗创建出的单位保留模板值并按 save tag 行为结算。</td>
+              <td>Resource 序列化丢字段、加载失败、registry/runtime 投影遗漏或 save 行为未使用正式值。</td>
+            </tr>
+            <tr>
+              <td>R15<br><a href="../../tests/battle_runtime/runtime/run_repeat_attack_decay_multiplier_regression.cs">repeat decay</a> / <a href="../../tests/battle_runtime/skills/run_warrior_repeat_attack_mastery_bonus_regression.cs">mastery</a><br><a href="../../tests/battle_runtime/runtime/run_battle_ground_effect_typed_sets_regression.cs">ground dedupe</a></td>
+              <td>旧用例直接调用 helper/resolver，绕过命令成本、stage 生命周期、正式 ground effect 分发。</td>
+              <td>repeat 场景直接经 canonical <code>BattleRepeatAttackResolver.ApplyRepeatAttackSkillResult</code>，同时注入 fixed max-damage 与 <code>FixedHitResolver(10)</code>；ground duplicate weapon attack 经 <code>ResolveGroundUnitEffectResult</code> 正式 ground resolver 与固定最大伤害 resolver。</td>
+              <td>每段衰减值、第五段 mastery、付不起成本停止，以及同一 effect 引用重复出现时 ground target 只受一次伤害，均读真实结果/HP。</td>
+              <td>衰减/精通段位 off-by-one、资源不足仍继续、重复坐标导致同一目标多次受伤。</td>
+            </tr>
+            <tr>
+              <td>R16<br><a href="../../tests/text_runtime/headless/run_text_command_party_battle_surface_regression.cs">text battle surface</a><br><a href="../../tests/runtime/persistence/run_game_session_random_start_skill_regression.cs">CreateNewSave</a> / <a href="../../tests/runtime/facade/run_battle_seed_source_regression.cs">StartBattle</a></td>
+              <td>23 个 runtime/text runner 曾允许 skipped 与 ok 混用，或只构造 DTO/helper，未证明命令真正执行。</td>
+              <td>成功路径统一要求 <code>!skipped &amp;&amp; ok</code>；move/wait/variant 走真实文本命令，起始技能走 <code>CreateNewSave</code>，seed 走 <code>StartBattle</code>，registry 还执行消费方突变。</td>
+              <td>坐标/移动力、timeline、selected variant、pending seed/anchor 与 registry 不可变性直接变化；CreateNewSave 还精确断言只授予 selector 选中的 1 个 book skill、奥术飞弹初始等级为规则计算的 3、mastery 为 0，并装备 oak staff。</td>
+              <td>命令被静默跳过、返回假 ok、正式 facade 未转发 seed、save 多授予 book skill/写错初始等级/绕过装备选择，或 registry 被消费方污染。</td>
+            </tr>
+            <tr>
+              <td>R17<br><a href="../../tests/shared/TestExitCoordinator.cs">exit coordinator</a><br><a href="../../tests/battle_runtime/runtime/run_battle_sim_analysis_output_contract_regression.cs">analysis output</a></td>
+              <td>await 异常可能绕过 Finish/退出；artifact 用例只验证“有文件”或依赖长耗时 batch。</td>
+              <td>当前 24 个入口将 awaited 主体纳入明确异常边界；共享适配器注入 frame-wait/submit 失败；output contract 注入 main/trace/profile/hotspots/CSV 写失败。A05 只保留为已删除的历史处理记录。</td>
+              <td>异步异常成为 failed terminal result 且唯一退出；complete success=0、incomplete=2、任一 required artifact failure=1，并保留具体错误标记。</td>
+              <td>异步异常假绿/超时、写入失败仍 exit 0、required artifact 缺失却汇总成功。</td>
+            </tr>
+            <tr>
+              <td>R18<br><a href="../../tests/battle_runtime/runtime/run_battle_map_panel_schema_regression.cs">MapPanel</a> / AI / simulation shape cleanup</td>
+              <td>删除 MapPanel、AI 与 simulation 中只检查字段/属性/继承或方法存在的纯 shape reflection。</td>
+              <td>MapPanel 实例真实 Show/Hide 并跨 frame 观察 reveal 取消/重启；AI/simulation 通过真实 instance graph、运行结果、生命周期或 mutation sentinel。</td>
+              <td>panel visibility/loading 状态不反弹；AI snapshot/diff、sim definition/result 与生命周期状态为直接 oracle。</td>
+              <td>异步 reveal 取消后复活、实例装配缺失、AI 状态突变漏检或 simulation 结果未被正式路径消费。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>最终复扫关闭项（不新增 R 编号）</h3>
+      <ul>
+        <li>
+          <a href="../../tests/progression/identity/run_identity_payload_validator_regression.cs"><code>TestRejectsAscensionDisallowedRace</code></a>
+          不再把 member 的 race/subrace 一并破坏；fixture 保持 <code>human/high_human</code> 合法，只把
+          <code>dragon_ascension.allowed_race_ids</code> 改为 <code>elf</code>。正式 validator 必须只返回唯一且完整的
+          <code>member hero ascension dragon_ascension does not allow race human</code>，因此不能再由 subrace 等旁路错误假绿。
+        </li>
+        <li>
+          <a href="../../tests/runtime/validation/run_world_map_content_validator_typed_regression.cs"><code>run_world_map_content_validator_typed_regression.cs</code></a>
+          删除弱 oracle <code>TestProjectedInvalidGenerationDefinitionReportsErrors</code> 及其专用 builder；相同边界已经由
+          <code>TestTypedGenerationValidationUsesExactCatalogIds</code> 的成对 fixture 覆盖：同一 projected definition 对不匹配 catalog ID 必须拒绝，换成精确 <code>StringName</code> ID 后必须零错误接受。
+        </li>
+        <li>
+          最终全套首次复跑暴露
+          <a href="../../tests/battle_runtime/runtime/run_repeat_attack_decay_multiplier_regression.cs"><code>run_repeat_attack_decay_multiplier_regression.cs</code></a>
+          只固定 damage roll、却未固定 attack roll：负倍率 fixture 第三段随机 natural 1 miss，导致 200/300 的非契约性假失败。
+          当前 formal repeat fixture 同时注入 <code>FixedHitResolver(10)</code>，使倍率 oracle 只受被测衰减规则影响。
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>原 partial / diagnostic 记录如何处理</h2>
+      <h3>198 个 partial 不是 198 个独立坏用例</h3>
+      <ul>
+        <li>历史表中的 142 条记录来自 19 个异步 runner 的重复展开，并非 142 个不同入口；首批核对出 25 条处理记录，其中 A05 后续作为重复入口删除。当前实际存在 24 个入口：21 个常规 runner、2 个 opt-in 工具和 1 个共享退出适配器。</li>
+        <li>metrics、ground reposition、on-kill 三个用例是“窄检查本身有效、但不能支撑过宽声明”，所以保留原测试并补正式工作流或反例。</li>
+        <li>已失效的历史定位不继续计作待办；其余具有直接 typed 状态或服务结果 oracle 的窄用例不因标签为 partial 就删除。</li>
+      </ul>
+
+      <h3>327 个 diagnostic 的记录膨胀已拆开</h3>
+      <ul>
+        <li>按常规发现规则（仅 <code>run_*.cs</code>，排除 simulation、benchmark/analysis、tools、E2E）回放旧审计，命中 183 条；其中 <code>TestRequiredRuntimeBarrierFilesExist</code>、<code>TestChangedCoordPathsStayTyped</code> 这 2 条属于已删除的 <code>run_barrier_architecture_contract_regression.cs</code> static parent records，因此当前可映射记录是 181 条。</li>
+        <li>这 181 条精确分为：59 条 AI mutation guard 的直接故障注入、4 条 shared fixture 的直接 oracle、118 条 non-independent helper/aggregator 记录。</li>
+        <li>59 条故障注入会在状态被修改时产生明确 diff，4 条 shared fixture 会直接观察 harness/RNG/runtime/resolver 行为；它们是有效测试。118 条只是旧提取器把父 runner、inline 入口、schema 子项或重复 helper 再记了一次，不能增加任何业务覆盖。</li>
+        <li>其余 146 条属于 opt-in、默认排除或不参与常规发现的记录，不能计入当前发现的 427 项常规套件，也不能用于补足常规业务覆盖。</li>
+        <li>真正会假绿的 4 个 opt-in 文件是本报告 F05–F08；现在已改为 authored scenario 直接执行或可注入的常规 artifact/exit-contract 回归。</li>
+      </ul>
+
+      <details>
+        <summary>118 条 non-independent helper / aggregator 清单（52 个文件）</summary>
+        <p>
+          下表保留旧审计中的全部 subcase ID，便于逐项追溯。这里的“数量”只表示历史审计记录数：
+          <strong>不得把任一行或任一 subcase ID 计作新增业务覆盖</strong>；覆盖声明只能来自对应父 runner
+          实际执行的 production Act 与直接 oracle。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>历史记录路径</th>
+                <th>数量</th>
+                <th>全部历史 subcase ID</th>
+              </tr>
+            </thead>
+            <tbody>
+            <tr><td>1</td><td><a href="../../tests/battle_runtime/ai/run_battle_ai_mutation_guard_regression.cs"><code>tests/battle_runtime/ai/run_battle_ai_mutation_guard_regression.cs</code></a></td><td>1</td><td><code>TestProductionDefaultDisablesFullSnapshotGuard</code></td></tr>
+            <tr><td>2</td><td><a href="../../tests/battle_runtime/ai/run_wolf_alpha_content_regression.cs"><code>tests/battle_runtime/ai/run_wolf_alpha_content_regression.cs</code></a></td><td>1</td><td><code>TestSkillContracts</code></td></tr>
+            <tr><td>3</td><td><a href="../../tests/battle_runtime/presentation/run_battle_hud_typed_projection_regression.cs"><code>tests/battle_runtime/presentation/run_battle_hud_typed_projection_regression.cs</code></a></td><td>1</td><td><code>ArrayValue@884</code></td></tr>
+            <tr><td>4</td><td><a href="../../tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.cs"><code>tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.cs</code></a></td><td>1</td><td><code>TestTypesArePlainCSharp</code></td></tr>
+            <tr><td>5</td><td><a href="../../tests/battle_runtime/rules/run_phantasmal_kill_execution_rules_regression.cs"><code>tests/battle_runtime/rules/run_phantasmal_kill_execution_rules_regression.cs</code></a></td><td>3</td><td><code>TestGradeDistributionNormalAdvantageDisadvantage</code><br><code>TestGradeDistributionImmuneIsAllImmune</code><br><code>TestRollOverridesProduceDeterministicDistribution</code></td></tr>
+            <tr><td>6</td><td><a href="../../tests/battle_runtime/runtime/run_battle_loot_commit_service_regression.cs"><code>tests/battle_runtime/runtime/run_battle_loot_commit_service_regression.cs</code></a></td><td>6</td><td><code>RunTest@18</code><br><code>RunTest@22</code><br><code>RunTest@26</code><br><code>RunTest@30</code><br><code>RunTest@34</code><br><code>RunTest@38</code></td></tr>
+            <tr><td>7</td><td><a href="../../tests/battle_runtime/runtime/run_battle_save_resolver_regression.cs"><code>tests/battle_runtime/runtime/run_battle_save_resolver_regression.cs</code></a></td><td>1</td><td><code>TestSaveResolverResolvesSaveDegree</code></td></tr>
+            <tr><td>8</td><td><a href="../../tests/battle_runtime/runtime/run_contingency_autocast_origin_regression.cs"><code>tests/battle_runtime/runtime/run_contingency_autocast_origin_regression.cs</code></a></td><td>1</td><td><code>TestInvalidTargetResolutionSkipAndAbortGateExecution</code></td></tr>
+            <tr><td>9</td><td><a href="../../tests/battle_runtime/runtime/run_contingency_trigger_contract_regression.cs"><code>tests/battle_runtime/runtime/run_contingency_trigger_contract_regression.cs</code></a></td><td>1</td><td><code>TestSuppressedAndDepletedReportVocabulary</code></td></tr>
+            <tr><td>10</td><td><a href="../../tests/battle_runtime/runtime/run_executioner_axe_weapon_ability_regression.cs"><code>tests/battle_runtime/runtime/run_executioner_axe_weapon_ability_regression.cs</code></a></td><td>1</td><td><code>TestEliteAndBossPostHitThresholdBranches</code></td></tr>
+            <tr><td>11</td><td><a href="../../tests/battle_runtime/runtime/run_frost_mace_weapon_ability_regression.cs"><code>tests/battle_runtime/runtime/run_frost_mace_weapon_ability_regression.cs</code></a></td><td>1</td><td><code>TestSealPowerAddsExtraColdDamageAgainstUndeadAndFiend</code></td></tr>
+            <tr><td>12</td><td><a href="../../tests/battle_runtime/runtime/run_meteor_swarm_manifest_gate_regression.cs"><code>tests/battle_runtime/runtime/run_meteor_swarm_manifest_gate_regression.cs</code></a></td><td>4</td><td><code>DuplicateProfile@165</code><br><code>DuplicateProfile@177</code><br><code>DuplicateProfile@189</code><br><code>DuplicateProfile@201</code></td></tr>
+            <tr><td>13</td><td><a href="../../tests/battle_runtime/runtime/run_movement_query_typed_result_regression.cs"><code>tests/battle_runtime/runtime/run_movement_query_typed_result_regression.cs</code></a></td><td>1</td><td><code>TestMovementQueryEntryPointsReturnTypedResults</code></td></tr>
+            <tr><td>14</td><td><a href="../../tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs"><code>tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs</code></a></td><td>5</td><td><code>TestProjectedWeaponAbilityCategoriesRespectRangedBoundary</code><br><code>TestProjectedWeaponCategoriesMatchBasicAttackPreviewAndCommit</code><br><code>TestSingleLayerWardCommandsCreateExactlyOneLayer</code><br><code>TestCombinedGenericAndSpecialEffectsDoNotDoubleGrantMastery</code><br><code>TestLayerDamageUsesConfiguredDamageTagMitigation</code></td></tr>
+            <tr><td>15</td><td><a href="../../tests/battle_runtime/runtime/run_prismatic_sphere_special_entry_regression.cs"><code>tests/battle_runtime/runtime/run_prismatic_sphere_special_entry_regression.cs</code></a></td><td>1</td><td><code>TestRepeatAttackEntryPointsRespectBarrier</code></td></tr>
+            <tr><td>16</td><td><a href="../../tests/battle_runtime/runtime/run_void_axe_weapon_ability_regression.cs"><code>tests/battle_runtime/runtime/run_void_axe_weapon_ability_regression.cs</code></a></td><td>1</td><td><code>TestBoundaryCutKeepsOnlyThreeActiveRifts</code></td></tr>
+            <tr><td>17</td><td><a href="../../tests/battle_runtime/state_schema/run_battle_unit_state_schema_contract_regression.cs"><code>tests/battle_runtime/state_schema/run_battle_unit_state_schema_contract_regression.cs</code></a></td><td>10</td><td><code>TestRejectsWrongTopLevelTypes</code><br><code>TestRejectsStringNumericValues</code><br><code>TestRejectsBadStringNameArrays</code><br><code>TestRejectsBadIdentityProjectionFields</code><br><code>TestRejectsBadEffectiveTraitPayloads</code><br><code>TestRejectsBadEquipmentAbilitySourcePayloads</code><br><code>TestRejectsBadCombatResourceUnlocks</code><br><code>TestRejectsBadStatusEffectEntries</code><br><code>TestRejectsEquipmentViewBadPayload</code><br><code>TestRejectsBadWeaponDicePayloads</code></td></tr>
+            <tr><td>18</td><td><a href="../../tests/battle_runtime/status/run_battle_status_effect_typed_state_regression.cs"><code>tests/battle_runtime/status/run_battle_status_effect_typed_state_regression.cs</code></a></td><td>1</td><td><code>TestCollectionRejectsMalformedPayloads</code></td></tr>
+            <tr><td>19</td><td><a href="../../tests/equipment/run_equipment_drop_service_regression.cs"><code>tests/equipment/run_equipment_drop_service_regression.cs</code></a></td><td>2</td><td><code>TestRollDropRarityHitsAllThresholdTiers</code><br><code>TestRollDropRarityAcceptsCallerClampedExtremes</code></td></tr>
+            <tr><td>20</td><td><a href="../../tests/equipment/run_party_equipment_regression.cs"><code>tests/equipment/run_party_equipment_regression.cs</code></a></td><td>1</td><td><code>TestEquipmentAbilityPersistentStateStrictSchema</code></td></tr>
+            <tr><td>21</td><td><a href="../../tests/progression/core/run_bounty_mist_harrier_quest_regression.cs"><code>tests/progression/core/run_bounty_mist_harrier_quest_regression.cs</code></a></td><td>1</td><td><code>Run#inline</code></td></tr>
+            <tr><td>22</td><td><a href="../../tests/progression/core/run_typed_party_quest_state_regression.cs"><code>tests/progression/core/run_typed_party_quest_state_regression.cs</code></a></td><td>6</td><td><code>TestPartyMembersRejectNonMemberValues</code><br><code>TestQuestProgressRejectsNonIntValues</code><br><code>TestQuestContextRejectsNonIntValues</code><br><code>TestCustomStatsRejectNonIntValues</code><br><code>TestReputationsRejectNonIntValues</code><br><code>TestPartyStateRejectsInvalidSocialStandingPayloads</code></td></tr>
+            <tr><td>23</td><td><a href="../../tests/progression/fate/run_luck_getter_regression.cs"><code>tests/progression/fate/run_luck_getter_regression.cs</code></a></td><td>2</td><td><code>TestUnitBaseAttributesLuckGettersCoverBoundaries</code><br><code>TestPartyMemberStateLuckGettersDelegateAndStayNullSafe</code></td></tr>
+            <tr><td>24</td><td><a href="../../tests/progression/fate/run_misfortune_black_omen_regression.cs"><code>tests/progression/fate/run_misfortune_black_omen_regression.cs</code></a></td><td>2</td><td><code>TestMissingTypedCursedRelicItemDefDoesNotGrant</code><br><code>TestIncompleteTypedPayloadsDoNotMeetConditions</code></td></tr>
+            <tr><td>25</td><td><a href="../../tests/progression/identity/run_identity_payload_validator_regression.cs"><code>tests/progression/identity/run_identity_payload_validator_regression.cs</code></a></td><td>11</td><td><code>TestRejectsMissingRace</code><br><code>TestRejectsMissingSubrace</code><br><code>TestRejectsSubraceParentMismatch</code><br><code>TestRejectsRaceThatDoesNotListSubrace</code><br><code>TestRejectsHalfSetBloodlinePair</code><br><code>TestRejectsBloodlineStageThatDoesNotBelong</code><br><code>TestRejectsHalfSetAscensionPair</code><br><code>TestRejectsAscensionStageThatDoesNotBelong</code><br><code>TestRejectsAscensionDisallowedRace</code><br><code>TestRejectsAscensionDisallowedSubrace</code><br><code>TestRejectsAscensionDisallowedBloodline</code></td></tr>
+            <tr><td>26</td><td><a href="../../tests/progression/run_contingency_charge_transaction_regression.cs"><code>tests/progression/run_contingency_charge_transaction_regression.cs</code></a></td><td>1</td><td><code>RunAsync#inline</code></td></tr>
+            <tr><td>27</td><td><a href="../../tests/progression/schema/run_barrier_profile_schema_contract_regression.cs"><code>tests/progression/schema/run_barrier_profile_schema_contract_regression.cs</code></a></td><td>1</td><td><code>TestBarrierProfileScriptsExist</code></td></tr>
+            <tr><td>28</td><td><a href="../../tests/progression/schema/run_contingency_content_validator_regression.cs"><code>tests/progression/schema/run_contingency_content_validator_regression.cs</code></a></td><td>9</td><td><code>TestCatalogContainsV1StorableAutomationProfiles</code><br><code>TestStoredSkillWithoutAutomationProfileIsRejected</code><br><code>TestCanBeStoredFalseIsRejected</code><br><code>TestNonPlayerLearnedSourceSkillIsRejected</code><br><code>TestMinSkillLevelGreaterThanSourceSkillLevelIsRejected</code><br><code>TestSourceSkillLevelAboveKnownLevelIsRejected</code><br><code>TestStoredCastLevelAboveKnownLevelIsRejected</code><br><code>TestTargetResolverOutsideAllowlistIsRejected</code><br><code>TestUnsupportedParameterBindingKeyIsRejected</code></td></tr>
+            <tr><td>29</td><td><a href="../../tests/progression/schema/run_contingency_setup_schema_regression.cs"><code>tests/progression/schema/run_contingency_setup_schema_regression.cs</code></a></td><td>1</td><td><code>TestRejectsUnknownFieldsInEveryContingencyPayload</code></td></tr>
+            <tr><td>30</td><td><a href="../../tests/progression/schema/run_identity_required_text_schema_regression.cs"><code>tests/progression/schema/run_identity_required_text_schema_regression.cs</code></a></td><td>1</td><td><code>TestIdentityRegistriesRejectBlankRequiredText</code></td></tr>
+            <tr><td>31</td><td><a href="../../tests/progression/schema/run_phantasmal_kill_schema_regression.cs"><code>tests/progression/schema/run_phantasmal_kill_schema_regression.cs</code></a></td><td>4</td><td><code>TestGradedSaveExecuteRejectsWrongSaveAndTargeting</code><br><code>TestPhantasmalKillRejectsWrongBindingCombatProfileShape</code><br><code>TestGradedSaveExecuteRejectsUnknownOrMissingParams</code><br><code>TestPhantasmalKillRequiresNineLevelDescriptionCoverage</code></td></tr>
+            <tr><td>32</td><td><a href="../../tests/progression/schema/run_power_word_kill_execute_schema_regression.cs"><code>tests/progression/schema/run_power_word_kill_execute_schema_regression.cs</code></a></td><td>3</td><td><code>TestExecuteRejectsWrongSaveAndTargeting</code><br><code>TestExecuteRejectsSiblingPassiveSpecialAndGroundShapes</code><br><code>TestExecuteRejectsOldFieldsAndHiddenSiblings</code></td></tr>
+            <tr><td>33</td><td><a href="../../tests/runtime/facade/run_game_runtime_snapshot_builder_regression.cs"><code>tests/runtime/facade/run_game_runtime_snapshot_builder_regression.cs</code></a></td><td>1</td><td><code>TestSnapshotBuilderExposesBattleObjectiveProgress</code></td></tr>
+            <tr><td>34</td><td><a href="../../tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs"><code>tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs</code></a></td><td>1</td><td><code>Run#inline</code></td></tr>
+            <tr><td>35</td><td><a href="../../tests/runtime/lifecycle/run_application_lifetime_coordinator_regression.cs"><code>tests/runtime/lifecycle/run_application_lifetime_coordinator_regression.cs</code></a></td><td>2</td><td><code>Run#inline</code><br><code>TestIdempotentRequestAndSuccessfulHistory</code></td></tr>
+            <tr><td>36</td><td><a href="../../tests/runtime/lifecycle/run_application_shutdown_pipeline_regression.cs"><code>tests/runtime/lifecycle/run_application_shutdown_pipeline_regression.cs</code></a></td><td>2</td><td><code>_Initialize#inline</code><br><code>TestPreContentHookFailuresSkipUnsafeRelease</code></td></tr>
+            <tr><td>37</td><td><a href="../../tests/runtime/lifecycle/run_content_snapshot_query_soak_regression.cs"><code>tests/runtime/lifecycle/run_content_snapshot_query_soak_regression.cs</code></a></td><td>1</td><td><code>Run#inline</code></td></tr>
+            <tr><td>38</td><td><a href="../../tests/runtime/lifecycle/run_lifecycle_soak_statistics_regression.cs"><code>tests/runtime/lifecycle/run_lifecycle_soak_statistics_regression.cs</code></a></td><td>1</td><td><code>_Initialize#inline</code></td></tr>
+            <tr><td>39</td><td><a href="../../tests/runtime/validation/run_barrier_skill_content_validation_regression.cs"><code>tests/runtime/validation/run_barrier_skill_content_validation_regression.cs</code></a></td><td>1</td><td><code>_Initialize#inline</code></td></tr>
+            <tr><td>40</td><td><a href="../../tests/runtime/validation/run_battle_sim_definition_patch_regression.cs"><code>tests/runtime/validation/run_battle_sim_definition_patch_regression.cs</code></a></td><td>1</td><td><code>Run#inline</code></td></tr>
+            <tr><td>41</td><td><a href="../../tests/runtime/validation/run_battle_sim_scenario_definition_regression.cs"><code>tests/runtime/validation/run_battle_sim_scenario_definition_regression.cs</code></a></td><td>1</td><td><code>Run#inline</code></td></tr>
+            <tr><td>42</td><td><a href="../../tests/runtime/validation/run_item_recipe_registry_typed_regression.cs"><code>tests/runtime/validation/run_item_recipe_registry_typed_regression.cs</code></a></td><td>1</td><td><code>TestItemTraitValidationRejectsWrongSourceAndUnsatisfiableRollGroups</code></td></tr>
+            <tr><td>43</td><td><a href="../../tests/runtime/validation/run_process_content_host_regression.cs"><code>tests/runtime/validation/run_process_content_host_regression.cs</code></a></td><td>1</td><td><code>Run#inline</code></td></tr>
+            <tr><td>44</td><td><a href="../../tests/runtime/validation/run_skill_definition_plain_value_graph_regression.cs"><code>tests/runtime/validation/run_skill_definition_plain_value_graph_regression.cs</code></a></td><td>3</td><td><code>TestMalformedGodotValuesReportFullSkillPaths</code><br><code>TestStrictDictionaryAndPackedValueRejection</code><br><code>TestSyntheticIllegalObjectAndCycleRejection</code></td></tr>
+            <tr><td>45</td><td><a href="../../tests/runtime/validation/run_world_map_content_validator_typed_regression.cs"><code>tests/runtime/validation/run_world_map_content_validator_typed_regression.cs</code></a></td><td>1</td><td><code>TestWorldDefinitionProjectionRejectsCyclesAndNullEntries</code></td></tr>
+            <tr><td>46</td><td><a href="../../tests/shared/run_item_trait_detail_text_regression.cs"><code>tests/shared/run_item_trait_detail_text_regression.cs</code></a></td><td>1</td><td><code>_Initialize#inline</code></td></tr>
+            <tr><td>47</td><td><a href="../../tests/world_map/runtime/run_settlement_forge_service_regression.cs"><code>tests/world_map/runtime/run_settlement_forge_service_regression.cs</code></a></td><td>1</td><td><code>RunAsync#inline</code></td></tr>
+            <tr><td>48</td><td><a href="../../tests/world_map/runtime/run_settlement_research_service_schema_regression.cs"><code>tests/world_map/runtime/run_settlement_research_service_schema_regression.cs</code></a></td><td>5</td><td><code>TestRejectsMissingFacilityName</code><br><code>TestRejectsNonStringNpcName</code><br><code>TestRejectsMissingSettlementDisplayName</code><br><code>TestRejectsCandidateMissingTargetLabel</code><br><code>TestRejectsCandidateMissingResearchId</code></td></tr>
+            <tr><td>49</td><td><a href="../../tests/world_map/runtime/run_world_map_battle_loading_overlay_regression.cs"><code>tests/world_map/runtime/run_world_map_battle_loading_overlay_regression.cs</code></a></td><td>1</td><td><code>_Initialize#inline</code></td></tr>
+            <tr><td>50</td><td><a href="../../tests/world_map/runtime/run_world_map_shared_content_injection_regression.cs"><code>tests/world_map/runtime/run_world_map_shared_content_injection_regression.cs</code></a></td><td>5</td><td><code>TestSharedSettlementNamePoolExposes1000UniqueNames</code><br><code>TestSharedTownNamePoolExposes500UniqueNames</code><br><code>TestSharedCityNamePoolExposes300UniqueNames</code><br><code>TestSharedCapitalNamePoolExposes100UniqueNames</code><br><code>TestSharedMetropolisNamePoolExposes50UniqueNames</code></td></tr>
+            <tr><td>51</td><td><a href="../../tests/world_map/runtime/run_world_map_system_surface_regression.cs"><code>tests/world_map/runtime/run_world_map_system_surface_regression.cs</code></a></td><td>1</td><td><code>Run#inline</code></td></tr>
+            <tr><td>52</td><td><a href="../../tests/world_map/ui/run_character_creation_window_payload_regression.cs"><code>tests/world_map/ui/run_character_creation_window_payload_regression.cs</code></a></td><td>1</td><td><code>_Initialize#inline</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <p class="note">
+        因此当前没有“仅因为 partial/diagnostic 标签就必须删除”的剩余项。后续若新增用例只有文件布局、
+        调用点或实现 token oracle，应直接拒绝进入常规套件。
+      </p>
+    </section>
+
+    <section>
+      <h2>验证证据</h2>
+      <p><strong>环境：</strong>Godot 4.6.2 stable mono；Windows；当前共享 checkout。</p>
+
+      <h3>最终构建、聚焦验证与完整常规套件</h3>
+      <code class="command">dotnet build magic.csproj --no-incremental
+# PASS · 0 warnings / 0 errors
+
+python tests/run_regression_suite.py --list
+# 427 routine runners
+
+python tests/run_regression_suite.py --jobs 4 --fail-on-output-error
+# FIRST RUN · 426/427 · failed=1 · wall=457.3s
+# resource_validation: isolated user root made the manifest path 262 chars;
+# DirAccess.Open failed before the expected unknown-profile diagnostic
+
+python tests/run_regression_suite.py --pattern run_resource_validation_regression.cs --jobs 4 --fail-on-output-error
+# PASS · repeated 5 consecutive times after fixture root user://rv/bsp
+
+python tests/run_regression_suite.py --jobs 4 --fail-on-output-error
+# PASS · 427/427 · failed=0 · wall=451.2s
+
+python tests/run_regression_suite.py --pattern run_fixed_repeat_attack_execution_regression.cs --jobs 1 --fail-on-output-error --lifecycle-correctness
+# PASS · 1/1 · failures=0 · legacy_debt=0
+
+python tests/run_regression_suite.py --pattern run_battlesim_formal_fixture_regression.cs --jobs 1 --fail-on-output-error --include-simulation
+# PASS · 1/1 · opt-in simulation
+
+python -m unittest discover -s tests/tooling -p "test_*.py" -v
+# PASS · 34/34</code>
+      <p class="note">
+        当前 inventory 为 427 个常规入口；常规发现规则排除 simulation、benchmarks、analysis 与 E2E。
+        最终首次全量复跑真实保留为 426/427：并行隔离后的绝对路径达到 262 字符，导致
+        <code>DirAccess.Open</code> 在目标 unknown-profile 诊断前失败。将测试专用 root 从
+        <code>user://resource_validation/battle_special_profiles</code> 缩短为 <code>user://rv/bsp</code> 后，
+        同一 resource-validation 模式连续 5 次通过，随后完整套件 427/427 通过。该修复只改变测试 fixture
+        路径，没有掩盖生产错误，也没有修改 production。
+      </p>
+
+      <p class="note">
+        本轮整改台账合计 <strong>48 个 distinct routine runner</strong>：44 个既有 runner 加 4 个新增入口；
+        <code>run_resource_validation_regression.cs</code> 的短路径修复属于既有 44，不额外计成第 49 个。
+        另有 2 个 Python tooling 文件，共 34 个 <code>test_*</code>，已 34/34 通过。四个新增入口的根工作树
+        聚焦验证为 4/4 PASS。
+      </p>
+
+      <h3>测试暴露但本轮未修复的 production gap</h3>
+      <p class="note">
+        旧的 <a href="../../tests/text_runtime/commands/run_contingency_text_commands_regression.cs"><code>contingency text</code></a>
+        用例通过私有 append helper 伪造 report entry，因此并未证明正式时间线会产出该报告。整改后，用例改为调用
+        <code>battleRuntime.advance(0)</code> 获取公开 advance batch，直接核对其 <code>ReportEntriesTyped</code>，再通过
+        <code>GameRuntimeFacade.ApplyBattleBatch</code> 后从 active snapshot 观察 owner 激活。这个真实 Act 同时暴露了一个
+        尚未修复的生产缺口：<a href="../../scripts/systems/game_runtime/BattleSessionFacade.cs"><code>facade batch application</code></a>
+        会刷新战斗状态并记录日志，但不会把 advance batch 的 <code>ReportEntriesTyped</code> 持久化到
+        <a href="../../scripts/systems/battle/core/BattleState.cs"><code>BattleState</code></a> snapshot。本轮没有修改 production；
+        因此测试只证明“公开 batch 报告正确 + ApplyBattleBatch 后 active snapshot 正确”，不能宣称 snapshot 已持久化报告条目。
+      </p>
+
+      <h3>当前 routine inventory</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>域</th><th>发现数</th><th>是否计入 427</th></tr></thead>
+          <tbody>
+            <tr><td>battle_runtime</td><td>252</td><td>是</td></tr>
+            <tr><td>equipment</td><td>5</td><td>是</td></tr>
+            <tr><td>progression</td><td>63</td><td>是</td></tr>
+            <tr><td>runtime</td><td>44</td><td>是</td></tr>
+            <tr><td>shared</td><td>2</td><td>是</td></tr>
+            <tr><td>text_runtime</td><td>12</td><td>是</td></tr>
+            <tr><td>warehouse</td><td>8</td><td>是</td></tr>
+            <tr><td>world_map</td><td>41</td><td>是</td></tr>
+            <tr><td><strong>合计</strong></td><td><strong>427</strong></td><td><strong>是</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>聚焦行为验证</h3>
+      <ul>
+        <li>晚审计发现并关闭的 3 个行为缺口均聚焦 PASS：CreateNewSave 随机 book skill 唯一性/等级、属性缩放 heal/stamina/shield、equipment defense adjustment 的非零 AC 变化。</li>
+        <li>晚审计发现的 schema count-only 项已在 status params、skill requirements、quest missing references、level-description 四个 runner 中改为逐项精确诊断，四个聚焦 runner 全部 PASS。</li>
+        <li>repeat decay 补齐 deterministic hit 后连续 10/10 聚焦 PASS；每次 lifecycle <code>failures=0</code>、<code>legacy_debt=0</code>。</li>
+        <li>fixed-repeat 在 lifecycle-correctness 下独立 1/1 PASS；Prismatic Sphere 连续重跑 5 次均 PASS，未复现原随机假失败。</li>
+        <li>formal battle-sim fixture 通过 <code>--include-simulation</code> 独立 1/1 PASS；其它受影响聚焦行为 runner 也通过，但本页不虚构一个聚焦总数。</li>
+        <li>既有 formal report output regression、新增 analysis output contract regression、application lifetime regression 与 shared fixture regression 均已进入当前 routine inventory，并随最终完整套件通过。</li>
+        <li>3v3、2s1a、6v12 的 main output 各自以真实不可写目标做调用点探针，三者均输出明确写入错误并以 process exit 1 结束；6v12 的 profile 与 trace summary 又分别做了独立调用点故障探针，均观察到对应错误标记与 exit 1。</li>
+        <li>常规 fault-injection regression 独立证明 complete+success=0、incomplete+success=2、任一 required artifact failure=1；因此不以 <code>COUNT=0</code> 探针单独证明退出优先级。</li>
+        <li>Python tooling 当前发现 34 个 <code>test_*</code> 方法并 34/34 PASS；完整清单见方法级附录。当前 21 个常规 runner、2 个 opt-in 工具、1 个共享退出适配器均有明确异步异常边界；A05 是已删除的历史记录。</li>
+      </ul>
+
+      <h3>文本扫描退出与工作树卫生</h3>
+      <code class="command">rg -n "File\.(ReadAllText|ReadAllLines)|GetFileAsString|Directory\.GetFiles|Regex" tests -g "*.cs"
+# no matches
+
+rg -n "get_file_as_string|FileAccess\.open|RegEx|read_line" tests -g "*.gd"
+# no matches
+
+git diff --check
+# clean</code>
+      <p>
+        Python 测试仍有两处 <code>read_text()</code>，读取的是刚生成的
+        <code>summary_for_llm.json</code> 和 <code>focus_traces.jsonl</code> 输出产物；它们验证工具行为，
+        不读取生产源码、配置实现或 CI 文件，因此不属于这 38 个违规扫描。
+      </p>
+
+      <h3>最终语义重扫</h3>
+      <ul>
+        <li><strong>生产源码文本断言：0。</strong>C# 与 GDScript 的目标模式重扫均无命中；合法的输出产物或测试 fixture 读取不被误报为源码契约测试。</li>
+        <li><strong>正在执行的纯字段/属性/继承 shape reflection：0。</strong>剩余反射点只遍历已构造的真实 instance graph，或服务于生命周期检查与 mutation sentinel；没有用成员形状本身宣称业务行为正确。</li>
+        <li><strong>未被入口或 case delegate 引用的 <code>Test*</code> 方法：0。</strong>扫描同时计算直接调用和 method-group/runner-case 引用，避免把 table-driven case 误判为 dead method。</li>
+        <li><strong>生命周期路径字符串不是文件读取。</strong><code>run_application_shutdown_contract_regression.cs</code> 中两处 <code>scripts/ui/BattleBoardController.cs</code> 仅作为 <code>LifecycleLegacyDebtSnapshot</code> 的 data/diagnostic 值参与报告断言，没有打开或读取该文件。</li>
+        <li><strong>工作树格式检查：PASS。</strong><code>git diff --check</code> 未发现 whitespace error。</li>
+      </ul>
+    </section>
+
+    <section class="boundary">
+      <h2>明确验证边界</h2>
+      <p>
+        Mixed 6v12 的长耗时完整正向批次仍未作为常规验证运行，也不需要为了证明输出失败契约而运行。
+        输出有效性现在由快速常规回归使用 synthetic <code>BatchIsComplete</code> 与可注入 sink 独立证明：
+        complete+success、incomplete+success，以及 main/trace/profile 各自失败都具有不同的 typed oracle。
+        完整 6v12 正向仍只用于 opt-in simulation/balance 证据，不能反向计入常规测试覆盖。
+        本页列出的构建、聚焦 runner 与 427 项 full suite 已完成；最终完整套件为 427/427 PASS。
+        opt-in 长耗时正向数值批次仍不计入 routine 终验，也不影响这里已由聚焦行为回归证明的输出失败合同。
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">
+      报告日期：2026-08-08 · 范围：当前 checkout 的测试有效性后续整改 ·
+      结论只覆盖本报告列出的目标与验证命令。
+    </div>
+  </footer>
+</body>
+</html>

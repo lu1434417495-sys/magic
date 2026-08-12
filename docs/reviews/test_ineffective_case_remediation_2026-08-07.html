@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:,">
+  <title>无效测试用例逐项整改复核 · 2026-08-07</title>
+  <style>
+    :root {
+      --canvas: #ebe9e2;
+      --paper: #f9f8f3;
+      --ink: #1c2523;
+      --muted: #69716e;
+      --line: #cacbc4;
+      --line-strong: #8e948f;
+      --green: #0b6b50;
+      --green-soft: #dcebe4;
+      --blue: #275f80;
+      --blue-soft: #dce8ef;
+      --red: #8a463d;
+      --red-soft: #efe0dc;
+      --amber: #7d5e1d;
+      --amber-soft: #f0e8d5;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(rgba(28, 37, 35, .025) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(90deg, rgba(28, 37, 35, .025) 1px, transparent 1px) 0 0 / 24px 24px,
+        var(--canvas);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.62;
+    }
+
+    a { color: var(--green); text-underline-offset: 3px; }
+    code {
+      font-family: var(--mono);
+      font-size: .88em;
+      overflow-wrap: anywhere;
+    }
+
+    .shell {
+      width: min(1260px, calc(100% - 2rem));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 2.6rem 0 2rem;
+      border-bottom: 1px solid var(--line-strong);
+      background: color-mix(in srgb, var(--paper) 88%, transparent);
+    }
+
+    .kicker {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin: 0 0 .8rem;
+      color: var(--muted);
+      font: 700 .76rem/1.3 var(--mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .state {
+      color: var(--green);
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 4.25rem);
+      font-weight: 780;
+      letter-spacing: -.045em;
+      line-height: 1;
+    }
+
+    .lede {
+      max-width: 900px;
+      margin: 1.15rem 0 0;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      margin-top: 2rem;
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .metric {
+      margin: 0;
+      padding: .9rem 1rem 1rem;
+      border-right: 1px solid var(--line);
+    }
+
+    .metric:last-child { border-right: 0; }
+    .metric dt {
+      color: var(--muted);
+      font-size: .72rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .metric dd {
+      margin: .1rem 0 0;
+      font-size: clamp(1.55rem, 3vw, 2.4rem);
+      font-weight: 780;
+      letter-spacing: -.04em;
+    }
+    .metric dd.good { color: var(--green); }
+
+    main { padding: 3rem 0 5rem; }
+    section + section { margin-top: 4.2rem; }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3vw, 2.45rem);
+      letter-spacing: -.035em;
+      line-height: 1.1;
+    }
+
+    h3 { margin: 0; font-size: 1rem; }
+    .section-note {
+      max-width: 900px;
+      margin: .65rem 0 0;
+      color: var(--muted);
+    }
+
+    .reconcile {
+      display: grid;
+      grid-template-columns: 1.2fr .9fr .9fr;
+      margin-top: 1.6rem;
+      border: 1px solid var(--line-strong);
+      background: var(--paper);
+    }
+
+    .reconcile article {
+      min-height: 150px;
+      padding: 1.35rem;
+      border-right: 1px solid var(--line);
+    }
+    .reconcile article:last-child { border-right: 0; }
+    .reconcile strong {
+      display: block;
+      margin-bottom: .25rem;
+      font-size: 1.65rem;
+      letter-spacing: -.035em;
+    }
+    .reconcile p { margin: 0; color: var(--muted); }
+
+    .rule-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      margin-top: 1.6rem;
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .rule {
+      padding: 1.35rem 1.4rem 1.5rem 0;
+    }
+    .rule + .rule {
+      padding-left: 1.4rem;
+      border-left: 1px solid var(--line);
+    }
+    .rule p { margin: .45rem 0 0; color: var(--muted); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      padding: .18rem .48rem;
+      font: 700 .72rem/1.2 var(--mono);
+      white-space: nowrap;
+    }
+    .b-old { color: var(--amber); background: var(--amber-soft); }
+    .b-new { color: var(--red); background: var(--red-soft); }
+    .b-central { color: var(--blue); background: var(--blue-soft); }
+    .b-behavior { color: var(--green); background: var(--green-soft); }
+    .b-delete { color: var(--red); background: var(--red-soft); }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .55rem;
+      margin-top: 1.5rem;
+      padding: .8rem 0;
+      border-bottom: 1px solid var(--line-strong);
+      background: color-mix(in srgb, var(--canvas) 93%, transparent);
+      backdrop-filter: blur(10px);
+    }
+
+    button {
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--ink);
+      cursor: pointer;
+      font: 680 .78rem/1 var(--sans);
+      padding: .58rem .78rem;
+    }
+    button[aria-pressed="true"] {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .search {
+      min-width: min(330px, 100%);
+      margin-left: auto;
+      border: 0;
+      border-bottom: 1px solid var(--line-strong);
+      border-radius: 0;
+      background: transparent;
+      color: var(--ink);
+      font: 500 .88rem/1.2 var(--sans);
+      outline: 0;
+      padding: .62rem .1rem;
+    }
+    .search:focus { border-bottom-color: var(--green); }
+    .visible { width: 100%; color: var(--muted); font-size: .78rem; }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-bottom: 1px solid var(--line-strong);
+      background: var(--paper);
+    }
+    table {
+      width: 100%;
+      min-width: 1120px;
+      border-collapse: collapse;
+    }
+    th {
+      padding: .8rem .7rem;
+      border-bottom: 1px solid var(--line-strong);
+      color: var(--muted);
+      font-size: .72rem;
+      letter-spacing: .04em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+    td {
+      padding: .95rem .7rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      font-size: .86rem;
+    }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: rgba(11, 107, 80, .035); }
+    tbody tr[hidden] { display: none; }
+
+    .id {
+      color: var(--muted);
+      font: 700 .78rem/1.4 var(--mono);
+    }
+    .case {
+      display: block;
+      margin-top: .28rem;
+      color: var(--ink);
+      font-weight: 720;
+    }
+    .why { color: var(--red); }
+    .proof { color: var(--muted); }
+    .proof strong { color: var(--ink); }
+
+    .validation {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      margin-top: 1.6rem;
+      border: 1px solid var(--line-strong);
+      background: var(--paper);
+    }
+    .validation article {
+      padding: 1.25rem 1.35rem;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .validation article:nth-child(2n) { border-right: 0; }
+    .validation article:nth-last-child(-n+2) { border-bottom: 0; }
+    .validation p { margin: .4rem 0 0; color: var(--muted); }
+    .pass { color: var(--green); }
+
+    .limitations {
+      margin-top: 1.5rem;
+      padding: 1.25rem 1.35rem;
+      border-left: 4px solid var(--amber);
+      background: var(--amber-soft);
+    }
+    .limitations p { margin: 0; }
+    .limitations p + p { margin-top: .65rem; }
+
+    footer {
+      padding-top: 3rem;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    @media (max-width: 900px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .metric { border-bottom: 1px solid var(--line); }
+      .reconcile, .rule-grid, .validation { grid-template-columns: 1fr; }
+      .reconcile article, .rule, .rule + .rule, .validation article {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        padding: 1.2rem;
+      }
+      .reconcile article:last-child, .rule:last-child, .validation article:last-child {
+        border-bottom: 0;
+      }
+      .search { width: 100%; margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <p class="kicker"><span>TEST EFFECTIVENESS / REMEDIATION</span><span class="state">29 / 29 CLOSED</span></p>
+      <h1>无效测试用例逐项整改复核</h1>
+      <p class="lede">
+        本报告不是“再跑一遍测试”。它逐项恢复原 Act、observable、oracle 与可杀死退化，
+        对只约束调用点、工作流排布或实现文本的检查直接删除；只有可观察行为和明确的编译后架构边界被保留。
+        补扫候选中有 1 条经复核并非恒绿，而是有效但冗余，也在矩阵中如实重分类。
+      </p>
+      <dl class="metrics">
+        <div class="metric"><dt>旧报告无效项</dt><dd>65</dd></div>
+        <div class="metric"><dt>此前已处理</dt><dd>43</dd></div>
+        <div class="metric"><dt>旧项本轮处理</dt><dd>22</dd></div>
+        <div class="metric"><dt>补扫候选 6 无效 + 1 冗余</dt><dd>7</dd></div>
+        <div class="metric"><dt>本轮矩阵关闭</dt><dd class="good">29</dd></div>
+      </dl>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section aria-labelledby="scope-title">
+      <h2 id="scope-title">65 条如何对齐到本轮 29 条</h2>
+      <p class="section-note">
+        基线来自 <a href="test_case_effectiveness_audit_2026-08-06.html">2026-08-06 全量有效性审查</a>；
+        上一轮处置见 <a href="test_text_scan_remediation_2026-08-07.html">38 个文本扫描违规整改报告</a>。
+      </p>
+      <div class="reconcile">
+        <article>
+          <strong>36 + 7 = 43</strong>
+          <p>
+            旧 65 条中，36 条本身是源码/配置文本检查，已在上一轮消除；删除 barrier 静态 runner 时，
+            同时消除了其中 7 条只验证文件存在的 <code>AssertFileExists</code>。它们不再重复列入本轮矩阵。
+          </p>
+        </article>
+        <article>
+          <strong>22</strong>
+          <p>旧报告剩余的空 helper、恒真断言、重复 wrapper 和伪类型检查，本轮逐条处理，见矩阵 01–22。</p>
+        </article>
+        <article>
+          <strong>+ 7</strong>
+          <p>重新读取具体测试体得到 7 个候选；逐项复核后确认 6 个无效，另 1 个 setter/getter 检查并非恒绿、但与正式 schema/runtime 场景冗余，见 23–29。</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="rules-title">
+      <h2 id="rules-title">处置准则</h2>
+      <p class="section-note">分类依据是“这个检查能否在目标退化发生时失败”，而不是方法名像不像测试。</p>
+      <div class="rule-grid">
+        <article class="rule">
+          <h3><span class="badge b-behavior">2 · 行为替换</span></h3>
+          <p>能通过正式 production 入口观察状态、结果或副作用时，改写为常规行为回归，并加入会走相反结果的负向场景。</p>
+        </article>
+        <article class="rule">
+          <h3><span class="badge b-central">14 · 集中契约</span></h3>
+          <p>
+            “不得继承 Godot native wrapper / 不得注册 GlobalClass”是编译后类型与生命周期边界，不是业务行为。
+            用反射分别检查编译后的基类与属性，并用 <code>Godot.Node</code>、已注册的 <code>ItemDef</code>
+            校准两种反射观察面；不读取任何源码文本。
+          </p>
+        </article>
+        <article class="rule">
+          <h3><span class="badge b-delete">13 · 直接退役</span></h3>
+          <p>只能锁定私有 helper、调用点、工作流布局或文件存在的检查直接删除；另有 1 条虽能检查 setter/getter，却被更强 schema/runtime 场景完全覆盖，也按冗余退役。</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="matrix-title">
+      <h2 id="matrix-title">29 项逐项矩阵</h2>
+      <p class="section-note">
+        “击穿证据”描述什么退化会让保留的检查失败；删除项则说明为何不应该伪造替代测试，以及旁边仍保留的真实行为覆盖。
+      </p>
+
+      <div class="toolbar" aria-label="矩阵筛选">
+        <button type="button" data-filter="all" aria-pressed="true">全部</button>
+        <button type="button" data-filter="old" aria-pressed="false">旧报告 22</button>
+        <button type="button" data-filter="new" aria-pressed="false">补扫 7</button>
+        <button type="button" data-filter="central" aria-pressed="false">集中契约 14</button>
+        <button type="button" data-filter="behavior" aria-pressed="false">行为替换 2</button>
+        <button type="button" data-filter="delete" aria-pressed="false">删除 13</button>
+        <input class="search" id="search" type="search" placeholder="搜索路径、用例、原因或证据" aria-label="搜索矩阵">
+        <div class="visible" aria-live="polite">显示 <strong id="visibleCount">29</strong> / 29</div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th># / 来源</th>
+              <th>路径与原用例</th>
+              <th>原检查实际做了什么</th>
+              <th>为什么无效</th>
+              <th>处置与击穿证据</th>
+            </tr>
+          </thead>
+          <tbody id="auditRows">
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">01</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_attack_roll_modifier_bundle_regression.cs</code><span class="case">AssertPlainCSharpType@23 · BattleAttackCheckPolicyContext</span></td>
+              <td>把类型传给空方法；没有 Act、observable 或断言。</td>
+              <td class="why">任意修改甚至删除 production 类型行为都不会改变结果。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 编译后检查该类型既不继承 <code>GodotObject</code>，也没有 <code>GlobalClassAttribute</code>。<strong>加回任一项会失败。</strong></td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">02</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_attack_roll_modifier_bundle_regression.cs</code><span class="case">AssertPlainCSharpType@24 · BattleAttackRollModifierBundle</span></td>
+              <td>调用与 01 相同的空 helper。</td>
+              <td class="why">方法名声称 plain type，执行体却不观察类型。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 迁入同一编译类型契约；<strong>继承 native wrapper 或注册 GlobalClass 会失败。</strong></td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">03</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_attack_roll_modifier_bundle_regression.cs</code><span class="case">AssertPlainCSharpType@25 · BattleAttackRollModifierSpec</span></td>
+              <td>调用空 helper，没有任何断言。</td>
+              <td class="why">恒绿；不能检出声称的类型边界退化。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 由编译程序集元数据给出 observable；<strong>错误基类/属性会使谓词为 false。</strong></td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">04</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_attack_roll_modifier_bundle_regression.cs</code><span class="case">AssertPlainCSharpType@26 · BattleAttackCheckPolicyService</span></td>
+              <td>调用空 helper，没有触达 service 或类型元数据。</td>
+              <td class="why">删除 service 逻辑也能继续通过。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 检查 service 的 managed-only 边界；业务规则仍由原 runner 的 attack policy 场景覆盖。</td>
+            </tr>
+            <tr data-origin="old" data-action="delete">
+              <td><span class="id">05</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_battle_execution_rules_contract_regression.cs</code><span class="case">AssertPlainType</span></td>
+              <td>未被调用的空私有方法。</td>
+              <td class="why">既不在调用图中，也没有断言；只增加“似乎测过”的错觉。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> 不为私有 helper 形状补测试；保留同 runner 的字段投影、payload 拒绝与阈值行为断言。</td>
+            </tr>
+            <tr data-origin="old" data-action="delete">
+              <td><span class="id">06</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_battle_ground_effect_typed_sets_regression.cs</code><span class="case">TestGroundEffectServiceUsesPlainTypedHelperBoundary</span></td>
+              <td>空测试体；只用名称宣称 helper boundary。</td>
+              <td class="why">只能表达实现结构，不能证明地面效果结果。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> 用户要求下不保留私有 helper/call-site 结构门禁；正式风推与地形效果行为场景仍在。</td>
+            </tr>
+            <tr data-origin="old" data-action="delete">
+              <td><span class="id">07</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_battle_ground_effect_typed_sets_regression.cs</code><span class="case">TestSpecialSkillResolverUsesPlainTypedHelperBoundary</span></td>
+              <td>空测试体。</td>
+              <td class="why">没有调用 special resolver，也没有可观察输出。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> 不用常规测试锁定 helper 组织方式；保留 special forced-move 的正式上下文与方向结果。</td>
+            </tr>
+            <tr data-origin="old" data-action="delete">
+              <td><span class="id">08</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_battle_ground_effect_typed_sets_regression.cs</code><span class="case">TestGroundApplicationResultPublicApiStaysTyped</span></td>
+              <td>空测试体，用例名声称 public API typed。</td>
+              <td class="why">既不反射 API，也不调用 result projection。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> public API 的实现形状不作为行为回归；实际 result projection 的键和值断言保留。</td>
+            </tr>
+            <tr data-origin="old" data-action="delete">
+              <td><span class="id">09</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_battle_ground_effect_typed_sets_regression.cs</code><span class="case">AssertResultTypePublicApiStaysTyped</span></td>
+              <td>未调用、无断言的类型 helper。</td>
+              <td class="why">死代码；任何 API 退化都不会触发。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> 与 08 一样不建立实现签名门禁，使用已有 projection 行为作为真实 observable。</td>
+            </tr>
+            <tr data-origin="old" data-action="behavior">
+              <td><span class="id">10</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_battle_ground_effect_typed_sets_regression.cs</code><span class="case">TestEdgeClearUsesTypedPrivateBoundary → TestEdgeClearAppliesThroughGroundTerrainEffectPath</span></td>
+              <td>原用例为空，只声称 private boundary。</td>
+              <td class="why">没有建立边缘、没有走 runtime、没有检查清除结果。</td>
+              <td class="proof"><span class="badge b-behavior">行为替换</span> Skill 同时配置 edge-clear 与 damage，先经正式 <code>CollectGroundTerrainEffectDefinitionsTyped</code> 只收集前者，再进入 apply；覆盖 Right/Down，wall/door/gate 必须移除并报告两端，<code>low_wall</code> 必须拒绝。<strong>删除分类、清除逻辑或反转白名单都会失败。</strong></td>
+            </tr>
+            <tr data-origin="old" data-action="behavior">
+              <td><span class="id">11</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_battle_unit_factory_weapon_projection_regression.cs</code><span class="case">TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts → TestBattleUnitFactoryProjectsLearnedActiveSkillLevel</span></td>
+              <td>原用例为空，没有 factory Act。</td>
+              <td class="why">既不构建 ally unit，也不观察技能/等级。</td>
+              <td class="proof"><span class="badge b-behavior">行为替换</span> 给角色学习 L4 active skill，经 <code>BuildAllyUnits</code> 后断言已知技能、typed 等级条目与精确等级 4；另以 unlearned、passive、不可战斗 active 为负对照。<strong>漏投影、写错等级或删除三种门禁都会失败。</strong> 原空用例名中的 ResourceCosts 没有可恢复 oracle，未冒充覆盖。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">12</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_battlesim_formal_fixture_regression.cs</code><span class="case">TestFixtureNoLongerRegistersGlobalClass</span></td>
+              <td>空测试体。</td>
+              <td class="why">没有观察 fixture 类型；仅用名称陈述迁移完成。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 删除本地空壳，由已有集中严格 service 契约检查 <code>BattleSimFormalCombatFixture</code> 的 <code>IDisposable</code> 与 managed-only；roster/fallback 行为仍由本 runner 覆盖。</td>
+            </tr>
+            <tr data-origin="old" data-action="delete">
+              <td><span class="id">13</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>tests/battle_runtime/skills/run_jump_arc_regression.cs</code><span class="case">inline::_Initialize</span></td>
+              <td>legacy runner 只委托另一个 typed runner，本身没有独立场景或断言。</td>
+              <td class="why">常规 discovery 会把两者都收集，重复执行不能增加故障输入或 oracle。</td>
+              <td class="proof"><span class="badge b-delete">删除 runner</span> 保留并执行 canonical <code>run_jump_arc_regression_typed.cs</code>；删除的是重复入口，不是 jump arc 行为覆盖。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">14</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_equipment_drop_service_regression.cs</code><span class="case">TestEquipmentDropServiceIsPlainService</span></td>
+              <td>本地测试把类型交给空 helper。</td>
+              <td class="why">没有检验 service 生命周期或业务行为。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> <code>EquipmentDropService</code> 必须实现 <code>IDisposable</code> 且为 managed-only；<strong>丢失显式释放或引入 native wrapper 会失败。</strong> 掉落业务场景保留。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">15</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_character_creation_service_regression.cs</code><span class="case">TestServiceNoLongerRegistersGlobalClass</span></td>
+              <td>调用空 helper，不读取编译类型。</td>
+              <td class="why">重新加回 Godot 注册仍会通过。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 对 <code>CharacterCreationService</code> 检查 compiled inheritance/attribute；角色创建业务场景保留在原 runner。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">16</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_character_creation_service_regression.cs</code><span class="case">TestIdentityOptionServiceNoLongerRequiresGodotRegistration</span></td>
+              <td>调用同一个空 helper。</td>
+              <td class="why">没有检查 <code>CharacterCreationIdentityOptionService</code> 的真实类型元数据。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 编译后类型必须为 managed-only；身份选项的业务结果仍由领域测试负责。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">17</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_character_management_identity_stage_regression.cs</code><span class="case">TestAgeStageResolverNoLongerRequiresGodotRegistration</span></td>
+              <td>空 helper 调用。</td>
+              <td class="why">不能检出 resolver 被改回 GodotObject/GlobalClass。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 检查 <code>AgeStageResolver</code> 编译类型；年龄阶段解析行为仍由原 runner 的输入/输出断言覆盖。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">18</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_profession_rule_service_regression.cs</code><span class="case">TestServiceNoLongerRequiresGodotRegistration</span></td>
+              <td>空 helper 调用。</td>
+              <td class="why">没有 observable，名称不是 oracle。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 检查 <code>ProfessionRuleService</code> compiled type；职业规则的合法/非法输入行为保留。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">19</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_skill_effective_max_level_rules_regression.cs</code><span class="case">TestRulesNoLongerRequireGodotRegistration</span></td>
+              <td>把 <code>SkillEffectiveMaxLevelRules</code> 交给空 helper。</td>
+              <td class="why">不能检出类型边界退化。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> compiled managed-only 检查承接架构不变量；max-level 计算仍由固定输入/期望覆盖。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">20</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_skill_effective_max_level_rules_regression.cs</code><span class="case">TestProgressionServiceNoLongerRequiresGlobalClassRegistration</span></td>
+              <td>同一个空 helper，没有 service Act。</td>
+              <td class="why">GlobalClass 回归不会触发失败。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 对 <code>ProgressionService</code> 检查编译属性与基类；进度业务行为仍在领域 runner。</td>
+            </tr>
+            <tr data-origin="old" data-action="central">
+              <td><span class="id">21</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_bloodline_ascension_regression.cs</code><span class="case">TestApplyServicesNoLongerRequireGodotRegistration</span></td>
+              <td>分别调用同一个空 helper 声称三个 apply service 是 plain type。</td>
+              <td class="why">没有观察 <code>BloodlineApplyService</code>、<code>AscensionApplyService</code>、<code>StageAdvancementApplyService</code>。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 三个 compiled type 都进入 managed-only 清单；validate-before-mutation、刷新 grants 与 stage 行为测试保留。</td>
+            </tr>
+            <tr data-origin="old" data-action="delete">
+              <td><span class="id">22</span><br><span class="badge b-old">旧报告</span></td>
+              <td><code>run_world_map_low_level_defensive_regression.cs</code><span class="case">TestRuntimeCommandHandlersNoLongerRequireGodotRegistration</span></td>
+              <td>被调用，但方法体完全为空，甚至没有列出目标 handler。</td>
+              <td class="why">没有可恢复的目标集合、Act 或 oracle；无法写成有意义的常规测试。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> 不猜测调用点/工作流约束；world preset、footprint、fog revision 与存取行为断言全部保留。</td>
+            </tr>
+
+            <tr data-origin="new" data-action="central">
+              <td><span class="id">23</span><br><span class="badge b-new">补扫</span></td>
+              <td><code>run_passive_status_orchestrator_regression.cs</code><span class="case">TestPassiveContextAndResolversNoLongerRequireGodotRegistration</span></td>
+              <td>调用空 <code>AssertPlainType</code> 五次。</td>
+              <td class="why">对 context、orchestrator 与三个 resolver 均没有真实断言。</td>
+              <td class="proof"><span class="badge b-central">集中契约</span> 五个 compiled type 全部纳入 managed-only 清单；identity/race/ascension/skill passive 投影行为场景保留。</td>
+            </tr>
+            <tr data-origin="new" data-action="delete">
+              <td><span class="id">24</span><br><span class="badge b-new">补扫</span></td>
+              <td><code>run_battle_shield_service_typed_context_regression.cs</code><span class="case">TestApplyResultPublicApiStaysTyped</span></td>
+              <td>只执行 <code>Type type = typeof(BattleShieldApplyResult)</code>，随后丢弃变量。</td>
+              <td class="why">加载类型不等于断言；任何继承/注册变化都照样通过。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> 不把 managed-only 类型谓词冒充成“public API 不暴露 Godot collections”；apply result projection 的具体键值行为断言保留。</td>
+            </tr>
+            <tr data-origin="new" data-action="delete">
+              <td><span class="id">25</span><br><span class="badge b-new">补扫</span></td>
+              <td><code>tests/battle_runtime/terrain/run_battle_grid_service_pathfinding_invariants.cs</code><span class="case">inline::_Initialize</span></td>
+              <td>legacy runner 只委托 typed runner，没有新增输入或 oracle。</td>
+              <td class="why">两个入口均被常规 discovery 收集，重复 PASS 不增加有效性。</td>
+              <td class="proof"><span class="badge b-delete">删除 runner</span> canonical <code>run_battle_grid_service_pathfinding_invariants_typed.cs</code> 保留并通过。</td>
+            </tr>
+            <tr data-origin="new" data-action="delete">
+              <td><span class="id">26</span><br><span class="badge b-new">补扫</span></td>
+              <td><code>run_move_to_range_progress_regression.cs</code><span class="case">AssertNoGlobalClass</span></td>
+              <td>未调用的空私有 helper。</td>
+              <td class="why">不在执行路径中，且没有任何断言。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> move-to-range 的路径推进、停步与失败边界行为测试保留并通过。</td>
+            </tr>
+            <tr data-origin="new" data-action="delete">
+              <td><span class="id">27</span><br><span class="badge b-new">补扫</span></td>
+              <td><code>run_skill_catalog_query_regression.cs</code><span class="case">AssertUnlockedVariantsMatch</span></td>
+              <td>内容看似有断言，但整个 overload 从未被调用。</td>
+              <td class="why">死 helper 的断言永远不执行，不能提供覆盖。</td>
+              <td class="proof"><span class="badge b-delete">删除</span> 实际被调用的两个 <code>AssertRuntimeVariantsMatch</code> overload 保留，继续对拍固定 variant id、等级与数量。</td>
+            </tr>
+            <tr data-origin="new" data-action="delete">
+              <td><span class="id">28</span><br><span class="badge b-new">补扫</span></td>
+              <td><code>run_meteor_swarm_preview_surface_contract_regression.cs</code><span class="case">preview.Source 与 preview.Source 自比较</span></td>
+              <td>actual 与 expected 是同一个属性读取。</td>
+              <td class="why">无论 production 返回什么都恒等，不能检出 source 退化。</td>
+              <td class="proof"><span class="badge b-delete">删除单条断言</span> 同场景仍以固定值 <code>special_profile_preview_facts</code> 和 HUD source oracle 检查真实来源。</td>
+            </tr>
+            <tr data-origin="new" data-action="delete">
+              <td><span class="id">29</span><br><span class="badge b-new">补扫</span></td>
+              <td><code>run_status_effect_typed_fields_regression.cs</code><span class="case">TestCombatEffectDefExposesLockGuardTypedField</span></td>
+              <td>测试自己 new 一个资源、赋值字段，再读回同一字段。</td>
+              <td class="why"><strong>重分类：并非恒绿。</strong> 字段缺失会编译失败，setter/getter 不保值也会失败；但它只证明 Resource 属性往返，未经过 production consumer。</td>
+              <td class="proof"><span class="badge b-delete">冗余退役</span> 更强的 legacy schema 拒绝、正式 status consumer 与 typed round-trip 场景保留，因此删除浅层重复项，不把它计作“新增无效”。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="validation-title">
+      <h2 id="validation-title">验证结果</h2>
+      <p class="section-note">全集通过只用于确认没有破坏现有回归；两条行为替换的有效性来自上表的真实 Act、正反场景与固定 oracle。</p>
+      <div class="validation">
+        <article>
+          <h3 class="pass">PASS · 编译</h3>
+          <p><code>dotnet build magic.csproj --no-restore</code>：0 warnings，0 errors。</p>
+        </article>
+        <article>
+          <h3 class="pass">PASS · 受影响 runner</h3>
+          <p>22 个实际受影响/保留 canonical runner 全部通过；shutdown failures = 0，legacy debt = 0。</p>
+        </article>
+        <article>
+          <h3 class="pass">PASS · 常规全集</h3>
+          <p><code>python tests/run_regression_suite.py --jobs 8 --fail-on-output-error --lifecycle-correctness</code>：426 / 426 PASS。</p>
+        </article>
+        <article>
+          <h3 class="pass">PASS · 静态复扫</h3>
+          <p>旧空方法名、自比较、重复 wrapper、源码/配置文本读取模式均为 0；<code>git diff --check</code> 通过。</p>
+        </article>
+      </div>
+      <div class="limitations">
+        <p><strong>没有冒充 mutation score。</strong> 本轮没有自动对每个 production 分支注入变异；“能击穿”是根据具体 Act、observable、独立 oracle 和正反输入逐项判断。</p>
+        <p><strong>范围边界：</strong> 本报告关闭旧报告确认的 65 个 ineffective、本轮补扫确认的 6 个新增无效项，并退役 1 个有效但冗余的浅层检查；不把旧报告中的 198 个 partial、327 个 diagnostic 自动改判为已整改。</p>
+      </div>
+    </section>
+
+    <footer>
+      <p>快照日期：2026-08-07 · 工作区：<code>E:/game/magic</code> · 报告为本地离线 HTML，无外部依赖。</p>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      const rows = [...document.querySelectorAll("#auditRows tr")];
+      const buttons = [...document.querySelectorAll("[data-filter]")];
+      const search = document.querySelector("#search");
+      const visibleCount = document.querySelector("#visibleCount");
+      let activeFilter = "all";
+
+      function matchesFilter(row) {
+        if (activeFilter === "all") return true;
+        return row.dataset.origin === activeFilter || row.dataset.action === activeFilter;
+      }
+
+      function applyFilters() {
+        const query = search.value.trim().toLocaleLowerCase("zh-CN");
+        let count = 0;
+        for (const row of rows) {
+          const visible = matchesFilter(row)
+            && (!query || row.textContent.toLocaleLowerCase("zh-CN").includes(query));
+          row.hidden = !visible;
+          if (visible) count += 1;
+        }
+        visibleCount.textContent = String(count);
+      }
+
+      for (const button of buttons) {
+        button.addEventListener("click", () => {
+          activeFilter = button.dataset.filter;
+          for (const candidate of buttons) {
+            candidate.setAttribute(
+              "aria-pressed",
+              String(candidate === button)
+            );
+          }
+          applyFilters();
+        });
+      }
+
+      search.addEventListener("input", applyFilters);
+      applyFilters();
+    })();
+  </script>
+</body>
+</html>

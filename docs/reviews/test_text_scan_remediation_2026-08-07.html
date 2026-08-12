@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>38 个文本扫描违规整改报告 · 2026-08-07</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f1e9;
+      --surface: #fffdf8;
+      --ink: #18201d;
+      --muted: #66706b;
+      --line: #d7d4ca;
+      --strong-line: #aca99f;
+      --accent: #0d7456;
+      --accent-soft: #dceee7;
+      --retired: #87514a;
+      --retired-soft: #f0e4e1;
+      --warning: #8a6218;
+      --warning-soft: #f6ebce;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      --sans: Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(90deg, rgba(24, 32, 29, .025) 1px, transparent 1px) 0 0 / 28px 28px,
+        var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.58;
+    }
+
+    a { color: var(--accent); text-underline-offset: 3px; }
+
+    code {
+      font-family: var(--mono);
+      font-size: .88em;
+      overflow-wrap: anywhere;
+    }
+
+    .masthead {
+      border-bottom: 1px solid var(--strong-line);
+      padding: 4.5rem max(1.25rem, calc((100vw - 1180px) / 2)) 3rem;
+      background: rgba(255, 253, 248, .82);
+      backdrop-filter: blur(12px);
+    }
+
+    .eyebrow {
+      margin: 0 0 1rem;
+      color: var(--accent);
+      font: 700 .78rem/1.2 var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 920px;
+      margin: 0;
+      font-size: clamp(2.6rem, 6vw, 6rem);
+      font-weight: 760;
+      letter-spacing: -.055em;
+      line-height: .95;
+    }
+
+    .lede {
+      max-width: 780px;
+      margin: 1.75rem 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      max-width: 1180px;
+      margin: 2.8rem auto 0;
+      border-top: 1px solid var(--strong-line);
+      border-bottom: 1px solid var(--strong-line);
+    }
+
+    .metric {
+      padding: 1.1rem 1.25rem 1.25rem;
+      border-right: 1px solid var(--line);
+    }
+
+    .metric:last-child { border-right: 0; }
+
+    .metric dt {
+      color: var(--muted);
+      font-size: .78rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .metric dd {
+      margin: .15rem 0 0;
+      font-size: clamp(1.6rem, 3vw, 2.6rem);
+      font-weight: 750;
+      letter-spacing: -.04em;
+    }
+
+    .metric dd.good { color: var(--accent); }
+
+    main {
+      width: min(1180px, calc(100% - 2.5rem));
+      margin: 0 auto;
+      padding: 3.5rem 0 6rem;
+    }
+
+    section { margin-top: 4.5rem; }
+
+    section:first-child { margin-top: 0; }
+
+    h2 {
+      margin: 0 0 .65rem;
+      font-size: clamp(1.65rem, 3vw, 2.65rem);
+      letter-spacing: -.035em;
+      line-height: 1.05;
+    }
+
+    .section-note {
+      max-width: 790px;
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin-top: 2rem;
+      border-top: 1px solid var(--strong-line);
+      border-bottom: 1px solid var(--strong-line);
+    }
+
+    .decision {
+      padding: 1.6rem 1.8rem 1.8rem 0;
+    }
+
+    .decision + .decision {
+      padding-left: 1.8rem;
+      border-left: 1px solid var(--line);
+    }
+
+    .decision h3 { margin: 0 0 .5rem; font-size: 1.08rem; }
+    .decision p { margin: 0; color: var(--muted); }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .65rem;
+      margin: 1.6rem 0 0;
+      padding: .85rem 0;
+      background: color-mix(in srgb, var(--paper) 92%, transparent);
+      border-bottom: 1px solid var(--strong-line);
+      backdrop-filter: blur(12px);
+    }
+
+    .filter {
+      appearance: none;
+      border: 1px solid var(--strong-line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      font: 650 .84rem/1 var(--sans);
+      padding: .65rem .85rem;
+      transition: background .18s ease, color .18s ease, transform .18s ease;
+    }
+
+    .filter:hover { transform: translateY(-1px); }
+
+    .filter[aria-pressed="true"] {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: var(--surface);
+    }
+
+    .search {
+      min-width: min(340px, 100%);
+      margin-left: auto;
+      border: 0;
+      border-bottom: 1px solid var(--strong-line);
+      border-radius: 0;
+      background: transparent;
+      color: var(--ink);
+      font: 500 .92rem/1.2 var(--sans);
+      padding: .66rem .1rem;
+      outline: none;
+    }
+
+    .search:focus { border-bottom-color: var(--accent); }
+
+    .visible-count {
+      width: 100%;
+      color: var(--muted);
+      font-size: .78rem;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-bottom: 1px solid var(--strong-line);
+    }
+
+    table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th {
+      position: sticky;
+      top: 88px;
+      z-index: 10;
+      padding: .8rem .7rem;
+      background: var(--paper);
+      border-bottom: 1px solid var(--strong-line);
+      color: var(--muted);
+      font-size: .74rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    td {
+      padding: 1.05rem .7rem 1.15rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      transition: background .16s ease;
+    }
+
+    tbody tr:hover td { background: rgba(255, 253, 248, .68); }
+    tbody tr[hidden] { display: none; }
+
+    .num {
+      color: var(--muted);
+      font: 650 .78rem/1.4 var(--mono);
+    }
+
+    .case-id {
+      display: block;
+      color: var(--ink);
+      font: 650 .82rem/1.45 var(--mono);
+      text-decoration: none;
+    }
+
+    .case-id:hover { color: var(--accent); }
+
+    .intent, .result { color: var(--muted); font-size: .88rem; }
+
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: .35rem .58rem;
+      font-size: .74rem;
+      font-weight: 750;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .tag.behavior { background: var(--accent-soft); color: var(--accent); }
+    .tag.delete { background: var(--retired-soft); color: var(--retired); }
+    .tag.limit { background: var(--warning-soft); color: var(--warning); }
+
+    .evidence-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin: 2rem 0 0;
+      border-top: 1px solid var(--strong-line);
+    }
+
+    .evidence {
+      padding: 1.35rem 1.6rem 1.45rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .evidence:nth-child(even) {
+      padding-left: 1.6rem;
+      border-left: 1px solid var(--line);
+    }
+
+    .evidence h3 { margin: 0 0 .45rem; font-size: 1rem; }
+    .evidence p { margin: 0; color: var(--muted); font-size: .9rem; }
+
+    .validation {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 2.5rem;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--strong-line);
+    }
+
+    .checks, .limits { margin: 0; padding: 0; list-style: none; }
+
+    .checks li, .limits li {
+      position: relative;
+      padding: .65rem 0 .65rem 1.5rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .checks li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 800;
+    }
+
+    .limits li::before {
+      content: "—";
+      position: absolute;
+      left: 0;
+      color: var(--warning);
+      font-weight: 800;
+    }
+
+    .limits-title {
+      margin: 0 0 .4rem;
+      color: var(--warning);
+      font-size: .78rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .provenance {
+      margin-top: 4.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--strong-line);
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    .reveal {
+      animation: enter .48s cubic-bezier(.2, .8, .2, 1) both;
+    }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 820px) {
+      .masthead { padding-top: 3rem; }
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .decision-grid, .evidence-list, .validation { grid-template-columns: 1fr; }
+      .decision + .decision, .evidence:nth-child(even) {
+        padding-left: 0;
+        border-left: 0;
+      }
+      .search { width: 100%; margin-left: 0; }
+      th { top: 138px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+
+    @media print {
+      body { background: white; }
+      .masthead { padding: 1.5rem 0; }
+      main { width: 100%; padding: 1rem 0; }
+      .toolbar { display: none; }
+      th { position: static; }
+      tr { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead reveal">
+    <p class="eyebrow">Test effectiveness / remediation report</p>
+    <h1>38 个文本扫描违规已清零</h1>
+    <p class="lede">
+      本报告逐项回答旧用例“到底在检查什么、是否能由常规测试实现”。结论遵循最终口径：
+      只能约束调用点、唯一调用者、文件/token 缺失或 CI workflow 结构的，直接删除；
+      只有能通过真实输入、生产 owner 与可观察结果证明的，才保留为测试。
+    </p>
+    <dl class="metrics" aria-label="整改摘要">
+      <div class="metric"><dt>原始违规</dt><dd>38</dd></div>
+      <div class="metric"><dt>直接删除</dt><dd>32</dd></div>
+      <div class="metric"><dt>行为 / typed 替换</dt><dd>6</dd></div>
+      <div class="metric"><dt>本次剩余</dt><dd class="good">0</dd></div>
+    </dl>
+  </header>
+
+  <main>
+    <section class="reveal" aria-labelledby="decision-title">
+      <h2 id="decision-title">判定口径</h2>
+      <p class="section-note">
+        “测试能运行”不等于“测试有效”。有效用例必须让错误实现改变可观察结果，并由明确 oracle 判失败；
+        对源码拼写、调用点或 workflow 行文本的断言不满足这一条件。
+      </p>
+      <div class="decision-grid">
+        <article class="decision">
+          <h3><span class="tag delete">直接删除 · 32</span></h3>
+          <p>检查唯一调用者、继承写法、历史文件名、禁用 token、字段直写或 CI 参数文本。常规运行时用例无法证明“全仓不存在旁路”，按要求不迁 analyzer，也不制造替代测试。</p>
+        </article>
+        <article class="decision">
+          <h3><span class="tag behavior">行为 / typed 替换 · 6</span></h3>
+          <p>通过生产服务、运行时状态、typed definition、结构化目录或真实事件批次观察结果。每一项都给出能杀死的错误实现，不再读取生产代码文本。</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="matrix-title">
+      <h2 id="matrix-title">38 项逐项处置</h2>
+      <p class="section-note">
+        行号与
+        <a href="test_case_effectiveness_audit_2026-08-06.html">2026-08-06 原始审计</a>
+        的违规列表一一对应。新增的 candidate 与 barrier 行为断言属于邻接补强，不把原结构扫描伪称为一对一替换。
+      </p>
+
+      <div class="toolbar" aria-label="处置矩阵筛选">
+        <button class="filter" type="button" data-filter="all" aria-pressed="true">全部 38</button>
+        <button class="filter" type="button" data-filter="behavior" aria-pressed="false">行为替换 6</button>
+        <button class="filter" type="button" data-filter="delete" aria-pressed="false">直接删除 32</button>
+        <input class="search" id="search" type="search" placeholder="搜索文件、方法或检查意图" aria-label="搜索处置项">
+        <div class="visible-count" id="visible-count" aria-live="polite">显示 38 / 38</div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <colgroup>
+            <col style="width:4%">
+            <col style="width:31%">
+            <col style="width:23%">
+            <col style="width:12%">
+            <col style="width:30%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>原违规子用例</th>
+              <th>实际检查</th>
+              <th>处置</th>
+              <th>有效性结论 / 当前证据</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr data-kind="behavior"><td class="num">01</td><td><a class="case-id" href="../../tests/battle_runtime/ai/run_ai_trace_recorder_regression.cs">run_ai_trace_recorder_regression :: TestBattleSkillPreviewServiceUsesScopedTraceSpans</a></td><td class="intent">扫描 preview service 是否含 span token、是否不含裸 Enter/Exit。</td><td><span class="tag behavior">行为替换</span></td><td class="result">改为真实调用 preview service 的异常路径；断言 recorder 平衡且出现 <code>preview:skill.orchestrator</code> 统计。删除 span 或异常时不闭合都会失败。</td></tr>
+            <tr data-kind="delete"><td class="num">02</td><td><a class="case-id" href="../../tests/battle_runtime/ai/run_battle_ai_unit_skill_candidate_evaluator_regression.cs">run_battle_ai_unit_skill_candidate_evaluator_regression :: TestAuthoredEnemyActionsResolveAvailabilityEntriesBeforeBuildingSkillCommands</a></td><td class="intent">扫描 3 个旧 action 源文件中 5 段 forbidden snippet。</td><td><span class="tag delete">直接删除</span></td><td class="result">旧文件已不是 runtime evaluator owner，文本门禁过时。邻接补强为真实反例：actor 未学习 preferred skill 时不得生成 decision；不把它称为原扫描的一对一替换。</td></tr>
+            <tr data-kind="delete"><td class="num">03</td><td><span class="case-id">run_barrier_architecture_contract_regression :: AssertSourceUsesTypedChangedCoords@58</span></td><td class="intent">扫描 <code>BattleBarrierService</code> 的 typed helper 调用拼写。</td><td><span class="tag delete">直接删除</span></td><td class="result">只能约束调用点，整个架构 runner 删除。邻接行为用例现在验证法球创建事件实际报告 13 个 changed coords。</td></tr>
+            <tr data-kind="delete"><td class="num">04</td><td><span class="case-id">run_barrier_architecture_contract_regression :: AssertSourceUsesTypedChangedCoords@62</span></td><td class="intent">扫描 <code>BattleBarrierOutcomeResolver</code> 的 typed helper 调用拼写。</td><td><span class="tag delete">直接删除</span></td><td class="result">只能约束调用点，直接删除。邻接行为用例验证紫层传送的事件批次同时包含旧、新占用格。</td></tr>
+
+            <tr data-kind="delete"><td class="num">05</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertNoTestLocalFinalizerControl</span></td><td class="intent">扫描 tests 中 GC/finalizer 控制调用。</td><td><span class="tag delete">直接删除</span></td><td class="result">“没有旁路调用”不是常规行为测试可证明的结果；删除，不迁 analyzer。</td></tr>
+            <tr data-kind="delete"><td class="num">06</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertNoDirectTestQuit</span></td><td class="intent">扫描 tests 中直接 Quit 调用。</td><td><span class="tag delete">直接删除</span></td><td class="result">唯一调用点/全仓缺失约束，按口径直接删除。</td></tr>
+            <tr data-kind="delete"><td class="num">07</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertConcreteRunnersUseLifecycleBase</span></td><td class="intent">按源码继承声明检查 runner 基类。</td><td><span class="tag delete">直接删除</span></td><td class="result">属于 runner 结构门禁；不再由 Godot 回归读取源码宣称全仓合规。</td></tr>
+            <tr data-kind="delete"><td class="num">08</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertFinalizerBarrierCallersAreExact</span></td><td class="intent">扫描 GC API 并比对精确 caller 文件清单。</td><td><span class="tag delete">直接删除</span></td><td class="result">只能证明调用拓扑，直接删除。</td></tr>
+            <tr data-kind="delete"><td class="num">09</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertMigrationArtifactsAreDeleted</span></td><td class="intent">检查历史迁移文件名/token 不再出现。</td><td><span class="tag delete">直接删除</span></td><td class="result">实现考古清单没有运行时 oracle；删除且不替换。</td></tr>
+            <tr data-kind="behavior"><td class="num">10</td><td><a class="case-id" href="../../tests/runtime/lifecycle/run_application_lifetime_coordinator_regression.cs">run_runtime_lifecycle_boundary_regression :: AssertTestExitComponentsAreNarrow</a></td><td class="intent">扫描 TestExit adapter/harness 是否含特定构造和禁用依赖。</td><td><span class="tag behavior">行为替换</span></td><td class="result">调用点约束删除；coordinator 行为回归现在断言真实 <code>FirstRequest</code> 的 reason、exit code、label 与 passed facts。</td></tr>
+            <tr data-kind="delete"><td class="num">11</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertRawEnemyAuthoringInventory</span></td><td class="intent">扫描 raw Enemy/AI Resource 的精确文件库存。</td><td><span class="tag delete">直接删除</span></td><td class="result">文件数量/名字不是业务行为；删除。</td></tr>
+            <tr data-kind="delete"><td class="num">12</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertNoRawAuthoredResourceRuntimeSignatures</span></td><td class="intent">源码正则先推断 production 类型，再反射检查签名。</td><td><span class="tag delete">直接删除</span></td><td class="result">依赖源码分类与 allowlist，不能证明运行时路径；整段删除。boundary runner只保留已加载类型和 owner 状态的可观察检查。</td></tr>
+            <tr data-kind="delete"><td class="num">13</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertNoLegacyEnemyContentCatalog</span></td><td class="intent">检查旧 catalog 类名/token 不存在。</td><td><span class="tag delete">直接删除</span></td><td class="result">未使用旧名字本身不应使业务测试失败；历史名称门禁删除。</td></tr>
+            <tr data-kind="delete"><td class="num">14</td><td><a class="case-id" href="../../tests/tooling/test_run_regression_suite.py">run_runtime_lifecycle_boundary_regression :: AssertRetryFreeStrictRunnerSource</a></td><td class="intent">扫描 Python runner 与 CI workflow 的 retry/strict marker 文本。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow/runner 结构扫描删除；现有 Python 行为测试仍直接验证旧参数被拒、每结果只启动一次、fatal/leak marker 强制失败。</td></tr>
+            <tr data-kind="behavior"><td class="num">15</td><td><a class="case-id" href="../../tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs">run_runtime_lifecycle_boundary_regression :: AssertAutoloadOrderAndProcessSnapshotBinding/source_autoload_order</a></td><td class="intent">读取 <code>project.godot</code> 行文本比较 autoload 顺序。</td><td><span class="tag behavior">行为替换</span></td><td class="result">改为检查真实 SceneTree 子节点顺序、发布 snapshot epoch、skills index 引用 identity 与 borrower diagnostics。</td></tr>
+            <tr data-kind="delete"><td class="num">16</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertNoDynamicAttributeModifierConstruction</span></td><td class="intent">扫描 <code>new AttributeModifier</code> 调用点。</td><td><span class="tag delete">直接删除</span></td><td class="result">全仓 object creation 调用点约束，直接删除。</td></tr>
+            <tr data-kind="delete"><td class="num">17</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertProductionQuitOwner</span></td><td class="intent">扫描 production 的 SceneTree.Quit 唯一调用者。</td><td><span class="tag delete">直接删除</span></td><td class="result">唯一 caller 结构门禁，直接删除；coordinator 退出行为仍由 runtime 回归验证。</td></tr>
+            <tr data-kind="delete"><td class="num">18</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertTestAdapterHasNoQuit</span></td><td class="intent">扫描 TestExit adapter 不含 Quit token。</td><td><span class="tag delete">直接删除</span></td><td class="result">与 #06/#17 重复的调用点约束，删除。</td></tr>
+            <tr data-kind="delete"><td class="num">19</td><td><span class="case-id">run_runtime_lifecycle_boundary_regression :: AssertProcessExitDiagnosticsHaveNoGodotApi</span></td><td class="intent">扫描 process-exit 方法不含 Godot API token。</td><td><span class="tag delete">直接删除</span></td><td class="result">依赖实现文本/调用拓扑，按要求删除。</td></tr>
+
+            <tr data-kind="delete"><td class="num">20</td><td><span class="case-id">run_runtime_lifecycle_cleanup_regression :: ScanRoot/Run@59</span></td><td class="intent">递归扫描 scripts 的历史文件/token 与 SuppressFinalize。</td><td><span class="tag delete">直接删除</span></td><td class="result">整个 cleanup runner 为源码扫描器，整文件删除。</td></tr>
+            <tr data-kind="delete"><td class="num">21</td><td><span class="case-id">run_runtime_lifecycle_cleanup_regression :: ScanRoot/Run@60</span></td><td class="intent">递归扫描 tests 的历史文件/token 与 SuppressFinalize。</td><td><span class="tag delete">直接删除</span></td><td class="result">同 #20；无独立运行时行为，整文件删除。</td></tr>
+            <tr data-kind="behavior"><td class="num">22</td><td><a class="case-id" href="../../tests/battle_runtime/runtime/run_contingency_autocast_origin_regression.cs">run_contingency_autocast_no_known_spoof_regression :: Run#inline</a></td><td class="intent">抽取 <code>ExecuteAutoCast</code> 方法体并查找 4 个禁用调用名。</td><td><span class="tag behavior">行为替换</span></td><td class="result">在真实 <code>ResolveAttackEffects</code> 期间观察 caster；临时 Add/Set 后再恢复的历史坏实现会被当场识别，而不仅比较前后状态。</td></tr>
+            <tr data-kind="delete"><td class="num">23</td><td><span class="case-id">run_direct_field_write_guard_regression :: TestRepositoryScripts</span></td><td class="intent">正则扫描 scripts 中 protected 字段直写和 RefreshFootprint 调用。</td><td><span class="tag delete">直接删除</span></td><td class="result">只能约束全仓调用点，且大量 owner/字段形状已过时；整文件删除，不迁 analyzer。</td></tr>
+
+            <tr data-kind="delete"><td class="num">24</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertEqual_3@31</span></td><td class="intent">数 workflow 中 full-suite 命令出现次数。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow 结构，不是 runner 行为；删除。</td></tr>
+            <tr data-kind="delete"><td class="num">25</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertIn_1@29</span></td><td class="intent">匹配 <code>timeout-minutes: 120</code>。</td><td><span class="tag delete">直接删除</span></td><td class="result">纯 CI 配置文本，删除。</td></tr>
+            <tr data-kind="delete"><td class="num">26</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertIn_2@30</span></td><td class="intent">匹配 Godot import 命令文本。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow 编排结构，删除。</td></tr>
+            <tr data-kind="delete"><td class="num">27</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertIn_4@32</span></td><td class="intent">匹配固定 <code>--jobs 16</code>。</td><td><span class="tag delete">直接删除</span></td><td class="result">不仅是结构门禁，而且已与动态 jobs 现状冲突；删除。</td></tr>
+            <tr data-kind="delete"><td class="num">28</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertIn_5@33</span></td><td class="intent">匹配 <code>--test-timeout-seconds 180</code>。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow 参数文本，删除；parser 的 timeout 行为测试保留。</td></tr>
+            <tr data-kind="delete"><td class="num">29</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertIn_6@34</span></td><td class="intent">匹配 <code>--fail-on-output-error</code>。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow 参数文本删除；output error 真实判定测试保留。</td></tr>
+            <tr data-kind="delete"><td class="num">30</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertIn_7@35</span></td><td class="intent">匹配 <code>--lifecycle-correctness</code>。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow 参数文本删除；strict env/fatal marker 行为测试保留。</td></tr>
+            <tr data-kind="delete"><td class="num">31</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertNotIn_10@38</span></td><td class="intent">匹配旧 lifecycle gate step 名不存在。</td><td><span class="tag delete">直接删除</span></td><td class="result">历史 workflow 名称门禁，删除。</td></tr>
+            <tr data-kind="delete"><td class="num">32</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertNotIn_11@39</span></td><td class="intent">匹配 boundary runner 命令不在 workflow。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow 编排结构，删除。</td></tr>
+            <tr data-kind="delete"><td class="num">33</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertNotIn_8@36</span></td><td class="intent">匹配 finalizer retry 参数不在 workflow。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow token 删除；runner parser 拒绝旧参数的行为测试保留。</td></tr>
+            <tr data-kind="delete"><td class="num">34</td><td><span class="case-id">test_ci_imports_resources_and_runs_one_strict_full_suite :: assertNotIn_9@37</span></td><td class="intent">匹配 <code>--stop-on-failure</code> 不在 workflow。</td><td><span class="tag delete">直接删除</span></td><td class="result">workflow 参数文本，删除。</td></tr>
+            <tr data-kind="delete"><td class="num">35</td><td><span class="case-id">test_runner_source_has_no_retry_or_shutdown_exemption_path :: assertIn_2@66</span></td><td class="intent">读取 runner 源码并检查 required marker 常量名。</td><td><span class="tag delete">直接删除</span></td><td class="result">token 存在不能证明判定生效；删除。marker 注入后使退出失败的行为测试保留。</td></tr>
+            <tr data-kind="delete"><td class="num">36</td><td><span class="case-id">test_runner_source_has_no_retry_or_shutdown_exemption_path :: assertNotIn_1@57</span></td><td class="intent">读取 runner 源码并检查 retry/exemption token 不存在。</td><td><span class="tag delete">直接删除</span></td><td class="result">全文件 token 缺失约束，删除；单次进程启动和 leak 不豁免由行为测试证明。</td></tr>
+
+            <tr data-kind="behavior"><td class="num">37</td><td><a class="case-id" href="../../tests/battle_runtime/skills/run_warrior_taunt_cognition_regression.cs">run_warrior_taunt_cognition_regression :: TestAuthoredSkillContract</a></td><td class="intent">读取 <code>warrior_taunt.tres</code> 并断言不含 <code>attack_roll_bonus</code> token。</td><td><span class="tag behavior">行为替换</span></td><td class="result">逐等级调用 typed combat profile，断言有效攻击检定加值恒为 0；序列化是否显式写默认值不再影响测试。</td></tr>
+            <tr data-kind="behavior"><td class="num">38</td><td><a class="case-id" href="../../tests/battle_runtime/simulation/run_battle_sim_override_applier_regression.cs">run_battle_sim_override_applier_regression :: TestTunerScoreScalarPathParity</a></td><td class="intent">正则抽取 Python <code>_SCORE_WEIGHTS</code> 源码，再与 C# scalar path 比对。</td><td><span class="tag behavior">typed 目录</span></td><td class="result">72 个路径/边界移到共享 JSON；Python 与 C# 各自结构化加载。C# 用例对每条路径的 min/max 调用 <code>TryWithScalar</code> 并通过真实 OverrideApplier。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="effectiveness-title">
+      <h2 id="effectiveness-title">为什么新的检查真的起作用</h2>
+      <p class="section-note">以下不是“跑过一次”的描述，而是每个 oracle 能杀死的具体错误实现。</p>
+      <div class="evidence-list">
+        <article class="evidence"><h3>AI trace 异常闭合</h3><p>移除 service span 会丢失统计 key；恢复裸 Enter/Exit 会在异常路径留下未闭合 frame。两种 mutation 都会使测试失败。</p></article>
+        <article class="evidence"><h3>Contingency 执行中状态</h3><p>observer 位于正式伤害 resolver 内部。历史“先伪装已学、结算后 finally 恢复”的实现会在中途被看到，前后快照无法蒙混。</p></article>
+        <article class="evidence"><h3>TestExit 请求事实</h3><p>错误 reason、退出码、label 或 passed 映射会直接改变 coordinator 捕获到的 <code>FirstRequest</code>，不是检查构造函数文本。</p></article>
+        <article class="evidence"><h3>真实 autoload 与 snapshot</h3><p>交换 SceneTree 中 coordinator/session 顺序、借用错误 epoch、复制 skills index 或丢失 borrower 登记，都会触发现有断言。</p></article>
+        <article class="evidence"><h3>挑衅 typed 数值</h3><p>任意等级出现非零攻击加值会由 <code>GetEffectiveAttackRollBonus(level)</code> 直接暴露；资源里是否省略默认字段不再是 oracle。</p></article>
+        <article class="evidence"><h3>Tuner 共享数据 owner</h3><p>目录重复/非法边界由 loader 拒绝；任一路径未被 C# definition 或 OverrideApplier 支持会失败。测试解析 JSON 结构，不读取 Python/C# 源码找 token。</p></article>
+        <article class="evidence"><h3>AI 未学习技能反例</h3><p>若 evaluator 绕过 available skill entry、直接把 authored skill id 组装为命令，未知技能会产生 decision，反例立即失败。</p></article>
+        <article class="evidence"><h3>Barrier 事件结果</h3><p>少报法球区域格、传送只报新格或只报旧格，都会改变 <code>BattleEventBatch.ChangedCoordsTyped</code> 的真实观察结果。</p></article>
+      </div>
+    </section>
+
+    <section aria-labelledby="validation-title">
+      <h2 id="validation-title">当前 checkout 验证</h2>
+      <p class="section-note">
+        验证运行在共享、非干净工作树上；未回退 warehouse、persistence 与既有 review 文档改动。
+        因此结果描述的是当前 checkout，不把无关改动归因于本次整改。
+      </p>
+      <div class="validation">
+        <ul class="checks">
+          <li><code>dotnet build magic.csproj --no-restore</code>：0 warning / 0 error。</li>
+          <li>Python runner 行为测试：16 / 16 PASS。</li>
+          <li>8 个聚焦 Godot runner：8 / 8 PASS；shutdown report 均为 effective=0、legacy_debt=0。</li>
+          <li>常规完整回归：<strong id="full-suite-result">428 / 428 PASS</strong>。</li>
+          <li>共享 score catalog：72 项、72 个唯一 path；Python public search space 顺序与 patch path 一致。</li>
+          <li>原 38 项涉及的目标文件中，源码/resource/workflow 文本读取匹配为 0。</li>
+          <li>全仓 <code>tests/</code> 剩余两处 <code>read_text</code> 均解析测试生成的 JSON/JSONL 输出，不读取生产代码。</li>
+          <li><code>git diff --check</code>：PASS。</li>
+        </ul>
+        <div>
+          <p class="limits-title">明确限制</p>
+          <ul class="limits">
+            <li>按要求不再用测试证明唯一调用者、全仓无字段直写或 CI workflow 结构。</li>
+            <li>完整常规回归按仓库规则排除 numeric battle simulation；override applier 已另行直接运行并 PASS。</li>
+            <li>模拟 override 的 unsupported-path 负例会主动写一条 ERROR 日志，但 runner 最终 PASS。</li>
+            <li>原生 Windows 直接 import tuner 仍被既有 <code>fcntl</code> 依赖阻断；本次只用 import stub 验证 catalog → search space 接线，未验证完整 tuner 流程。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <p class="provenance">
+      生成日期：2026-08-07 · 范围：原审计列出的 38 个 source/resource/config text violations ·
+      处置依据：真实生产入口、可观察 oracle、mutation killability 与用户确认的“调用点/workflow 结构直接删除”规则。
+    </p>
+  </main>
+
+  <script>
+    (() => {
+      const buttons = [...document.querySelectorAll(".filter")];
+      const rows = [...document.querySelectorAll("#rows tr")];
+      const search = document.querySelector("#search");
+      const count = document.querySelector("#visible-count");
+      let active = "all";
+
+      function applyFilters() {
+        const query = search.value.trim().toLocaleLowerCase("zh-CN");
+        let visible = 0;
+        rows.forEach((row) => {
+          const kindMatches = active === "all" || row.dataset.kind === active;
+          const textMatches = !query || row.textContent.toLocaleLowerCase("zh-CN").includes(query);
+          row.hidden = !(kindMatches && textMatches);
+          if (!row.hidden) visible += 1;
+        });
+        count.textContent = `显示 ${visible} / ${rows.length}`;
+      }
+
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          active = button.dataset.filter;
+          buttons.forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+          applyFilters();
+        });
+      });
+      search.addEventListener("input", applyFilters);
+      applyFilters();
+    })();
+  </script>
+</body>
+</html>
