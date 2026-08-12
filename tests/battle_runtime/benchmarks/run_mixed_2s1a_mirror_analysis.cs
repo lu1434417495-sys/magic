@@ -34,9 +34,16 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             ? ReadLongEnvironment("START_SEED", 1)
             : TrueRandomSeedService.GenerateSeed();
         string startSeedSource = OS.HasEnvironment("START_SEED") ? "environment" : "true_random";
-        int runCount = ReadIntEnvironment("COUNT", 10);
+        if (!TryReadPositiveIntEnvironment("COUNT", 10, out int runCount))
+        {
+            ConsoleProcessOutput.WriteFailure(
+                $"COUNT must be a positive integer, got '{OS.GetEnvironment("COUNT")}'."
+            );
+            return 1;
+        }
         string outputPath = ReadStringEnvironment("OUTPUT_FILE", "");
         bool progressEnabled = ReadBoolEnvironment("PROGRESS", string.IsNullOrEmpty(outputPath));
+        var artifactWriter = new BattleSimAnalysisArtifactFileWriter();
 
         BattleSimScenarioDef scenarioResource =
             ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
@@ -106,6 +113,8 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                     contentSnapshot,
                     rosterOptions
                 );
+                if (fixture == null)
+                    return 1;
                 try
                 {
                     GDictionary result = RunSingleSimulation(
@@ -255,16 +264,38 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                 ),
             };
 
+            BattleSimAnalysisArtifactStatus mainArtifactStatus =
+                BattleSimAnalysisArtifactStatus.NotRequired;
             if (string.IsNullOrEmpty(outputPath))
             {
                 ConsoleProcessOutput.WriteStandard(Json.Stringify(report, "\t"));
             }
             else
             {
-                WriteJsonFile(outputPath, report);
+                BattleSimAnalysisArtifactWriteResult mainWriteResult =
+                    artifactWriter.WriteText(
+                        BattleSimAnalysisArtifactKind.Main,
+                        outputPath,
+                        "mixed-2s1a-analysis-json",
+                        Json.Stringify(report, "\t")
+                    );
+                mainArtifactStatus = mainWriteResult.Status;
+                if (!mainWriteResult.Status.Succeeded)
+                {
+                    ConsoleProcessOutput.WriteFailure(
+                        $"Failed to write analysis report '{outputPath}': {mainWriteResult.ErrorMessage}"
+                    );
+                }
             }
 
-            return endedCount == runCount ? 0 : 2;
+            return BattleSimAnalysisExitCodePolicy.Resolve(
+                new BattleSimAnalysisCompletionStatus(
+                    endedCount == runCount,
+                    mainArtifactStatus,
+                    BattleSimAnalysisArtifactStatus.NotRequired,
+                    BattleSimAnalysisArtifactStatus.NotRequired
+                )
+            );
         }
         finally
         {
@@ -301,7 +332,11 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         if (
             !fixture.BuildRoster(scenarioDefinition.ScenarioId, rosterOptions)
         )
+        {
             ConsoleProcessOutput.WriteFailure($"Unsupported formal battle sim roster: {scenarioDefinition.ScenarioId}");
+            fixture.Dispose();
+            return null;
+        }
         return fixture;
     }
 
@@ -425,28 +460,26 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         };
     }
 
-    private static void WriteJsonFile(string outputPath, GDictionary report)
-    {
-        string absolutePath = outputPath.StartsWith("res://") || outputPath.StartsWith("user://")
-            ? ProjectSettings.GlobalizePath(outputPath)
-            : outputPath;
-        string directory = absolutePath.GetBaseDir();
-        if (!string.IsNullOrEmpty(directory))
-            DirAccess.MakeDirRecursiveAbsolute(directory);
-        using FileAccess file = FileAccess.Open(absolutePath, FileAccess.ModeFlags.Write);
-        if (file == null)
-        {
-            ConsoleProcessOutput.WriteFailure($"Failed to write: {absolutePath}");
-            return;
-        }
-        file.StoreString(Json.Stringify(report, "\t"));
-    }
-
     private static int ReadIntEnvironment(string key, int fallback)
     {
         return OS.HasEnvironment(key) && int.TryParse(OS.GetEnvironment(key), out int value)
             ? value
             : fallback;
+    }
+
+    private static bool TryReadPositiveIntEnvironment(
+        string key,
+        int fallback,
+        out int value
+    )
+    {
+        if (!OS.HasEnvironment(key))
+        {
+            value = fallback;
+            return value > 0;
+        }
+
+        return int.TryParse(OS.GetEnvironment(key).StripEdges(), out value) && value > 0;
     }
 
     private static long ReadLongEnvironment(string key, long fallback)

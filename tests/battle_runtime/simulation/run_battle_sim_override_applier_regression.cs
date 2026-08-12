@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text.RegularExpressions;
 using Godot;
 
 public partial class run_battle_sim_override_applier_regression : LifecycleTestSceneTree
@@ -25,7 +23,7 @@ public partial class run_battle_sim_override_applier_regression : LifecycleTestS
         {
             TestDeepBrainTransitionPatchStillWorks();
             TestAiScoreProfileNestedPatchWritesBackTypedProjection();
-            TestTunerScoreScalarPathParity();
+            TestSharedTunerScoreScalarCatalogParity();
             TestUnknownPatchPathReportsError();
             TestFormalTransitionProfilesApplyWithoutErrors();
             TestFormalMistControllerActionPatchesAllMatchingStates();
@@ -191,32 +189,45 @@ public partial class run_battle_sim_override_applier_regression : LifecycleTestS
         );
     }
 
-    private void TestTunerScoreScalarPathParity()
+    private void TestSharedTunerScoreScalarCatalogParity()
     {
-        IReadOnlyList<string> tunerPaths = ReadTunerScorePaths();
-        _test.Eq(tunerPaths.Count, 71, "tuner _SCORE_WEIGHTS 应保持 71 个标量路径。");
+        IReadOnlyList<BattleSimTuningParameterSpec> tunerSpecs =
+            BattleSimTuningParameterCatalog.LoadCanonical();
+        _test.True(tunerSpecs.Count > 0, "共享 tuner 标量目录不应为空。");
         _test.Eq(
-            new HashSet<string>(tunerPaths, StringComparer.Ordinal).Count,
-            71,
-            "tuner 标量路径不得重复。"
+            new HashSet<string>(
+                System.Linq.Enumerable.Select(tunerSpecs, spec => spec.Path),
+                StringComparer.Ordinal
+            ).Count,
+            tunerSpecs.Count,
+            "共享 tuner 标量目录中的路径不得重复。"
         );
 
         var patches = new List<BattleSimOverridePatchDefinition>();
-        for (int index = 0; index < tunerPaths.Count; index++)
+        for (int index = 0; index < tunerSpecs.Count; index++)
         {
-            string path = tunerPaths[index];
-            int value = 100_000 + index;
+            BattleSimTuningParameterSpec spec = tunerSpecs[index];
+            string path = spec.Path;
+            int value = spec.MinimumValue;
             _test.True(
                 BattleAiScoreProfileDefinition.Default.TryWithScalar(
                     path,
                     value,
                     out BattleAiScoreProfileDefinition patched
                 ),
-                $"BattleAiScoreProfileDefinition.TryWithScalar 应支持 tuner 路径 {path}。"
+                $"BattleAiScoreProfileDefinition.TryWithScalar 应支持共享目录路径 {path}。"
             );
             _test.False(
                 ReferenceEquals(patched, BattleAiScoreProfileDefinition.Default),
                 $"TryWithScalar({path}) 应返回新的 immutable definition。"
+            );
+            _test.True(
+                BattleAiScoreProfileDefinition.Default.TryWithScalar(
+                    path,
+                    spec.MaximumValue,
+                    out _
+                ),
+                $"TryWithScalar 应接受共享目录路径 {path} 的最大搜索边界。"
             );
             patches.Add(
                 new BattleSimOverridePatchDefinition(
@@ -234,8 +245,8 @@ public partial class run_battle_sim_override_applier_regression : LifecycleTestS
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, EnemyAiBrainDefinition>(),
             new BattleSimProfileDefinition(
-                "tuner_71_path_parity",
-                "Tuner 71 Path Parity",
+                "shared_tuner_path_parity",
+                "Shared Tuner Path Parity",
                 "",
                 BattleAiScoreProfileDefinition.Default,
                 patches
@@ -244,7 +255,7 @@ public partial class run_battle_sim_override_applier_regression : LifecycleTestS
         _test.Eq(
             result.Errors.Count,
             0,
-            $"OverrideApplier 应接受 tuner 的全部 71 个标量路径: {FormatErrors(result.Errors)}"
+            $"OverrideApplier 应接受共享 tuner 目录中的全部标量路径: {FormatErrors(result.Errors)}"
         );
         _test.False(
             BattleAiScoreProfileDefinition.Default.TryWithScalar(
@@ -423,32 +434,6 @@ public partial class run_battle_sim_override_applier_regression : LifecycleTestS
             3,
             "指定 state_id 时不得更新 engage action。"
         );
-    }
-
-    private static IReadOnlyList<string> ReadTunerScorePaths()
-    {
-        string sourcePath = ProjectSettings.GlobalizePath(
-            "res://tools/battle_sim_tuner/search_space.py"
-        );
-        string source = File.ReadAllText(sourcePath);
-        int start = source.IndexOf("_SCORE_WEIGHTS = [", StringComparison.Ordinal);
-        int end = source.IndexOf("SCORE_ACTION_BASE_DEFAULTS", start, StringComparison.Ordinal);
-        if (start < 0 || end <= start)
-            throw new InvalidDataException("Unable to locate tuner _SCORE_WEIGHTS block.");
-
-        string block = source[start..end];
-        var paths = new List<string>();
-        foreach (
-            Match match in Regex.Matches(
-                block,
-                "\\(\\s*\"(?<path>[a-z0-9_]+)\"\\s*,",
-                RegexOptions.CultureInvariant
-            )
-        )
-        {
-            paths.Add(match.Groups["path"].Value);
-        }
-        return paths;
     }
 
     private static TAction FindAction<TAction>(

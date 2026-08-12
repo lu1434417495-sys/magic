@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -21,79 +22,119 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
     private readonly TestHarness _test = new();
     private readonly BattleGridService _gridService = new();
 
-    public override async void _Initialize()
+    public override void _Initialize()
     {
-        Root.Size = ViewportSize;
-        BattleMapPanel panel = BattlePanelScene.Instantiate<BattleMapPanel>();
-        if (panel == null)
+        RunAfterProcessStartup(Run);
+    }
+
+    private async void Run()
+    {
+        BattleMapPanel panel = null;
+        try
         {
-            ConsoleProcessOutput.WriteFailure("BattlePanelRefreshBenchmark could not instantiate BattleMapPanel.");
-            RequestTestExit(_test.Finish("Battle panel full refresh benchmark", 1));
-            return;
-        }
+            Root.Size = ViewportSize;
+            panel = BattlePanelScene.Instantiate<BattleMapPanel>();
+            if (panel == null)
+            {
+                _test.Fail(
+                    "BattlePanelRefreshBenchmark could not instantiate BattleMapPanel."
+                );
+                return;
+            }
 
-        Root.AddChild(panel);
-        await ProcessFrames(1);
-        panel.Size = ViewportSize;
-        panel.Visible = true;
+            Root.AddChild(panel);
+            await ProcessFrames(1);
+            panel.Size = ViewportSize;
+            panel.Visible = true;
 
-        BattleState state = BuildFlatState(MapSize);
-        PopulateUnits(state);
-        List<Vector2I> selectedCycle = BuildSelectedCycle(state);
-        GVector2IArray validTargetCoords = CollectAllCoords(state);
-        if (selectedCycle.Count == 0)
-            _test.Fail("BattlePanelRefreshBenchmark could not build a selected cycle.");
+            BattleState state = BuildFlatState(MapSize);
+            PopulateUnits(state);
+            List<Vector2I> selectedCycle = BuildSelectedCycle(state);
+            GVector2IArray validTargetCoords = CollectAllCoords(state);
+            if (selectedCycle.Count == 0)
+                _test.Fail("BattlePanelRefreshBenchmark could not build a selected cycle.");
 
-        if (_test.Failures.Count == 0)
-        {
-            panel.Refresh(
+            if (_test.Failures.Count == 0)
+            {
+                panel.Refresh(
+                    state,
+                    selectedCycle[0],
+                    "",
+                    "",
+                    "",
+                    new GVector2IArray(),
+                    validTargetCoords,
+                    0,
+                    new GStringNameArray(),
+                    ""
+                );
+                if (!await WaitForPanelRenderReady(panel))
+                    _test.Fail("BattlePanelRefreshBenchmark did not reach render-ready state before timing.");
+            }
+            if (_test.Failures.Count > 0)
+                return;
+
+            GDictionary fullRefresh = await RunPanelPass(
+                "full_refresh",
+                panel,
                 state,
-                selectedCycle[0],
-                "",
-                "",
-                "",
-                new GVector2IArray(),
+                selectedCycle,
                 validTargetCoords,
-                0,
-                new GStringNameArray(),
-                ""
+                true
             );
-            if (!await WaitForPanelRenderReady(panel))
-                _test.Fail("BattlePanelRefreshBenchmark did not reach render-ready state before timing.");
+            GDictionary overlayOnly = await RunPanelPass(
+                "overlay_only",
+                panel,
+                state,
+                selectedCycle,
+                validTargetCoords,
+                false
+            );
+            GDictionary unitDelta = await RunUnitDeltaPass(panel, state);
+
+            if (_test.Failures.Count > 0)
+                return;
+
+            ConsoleProcessOutput.WriteStandard(FormatResult(fullRefresh));
+            ConsoleProcessOutput.WriteStandard(FormatResult(overlayOnly));
+            ConsoleProcessOutput.WriteStandard(FormatResult(unitDelta));
+            ConsoleProcessOutput.WriteStandard(FormatComparison(fullRefresh, overlayOnly, unitDelta));
         }
-
-        GDictionary fullRefresh = await RunPanelPass(
-            "full_refresh",
-            panel,
-            state,
-            selectedCycle,
-            validTargetCoords,
-            true
-        );
-        GDictionary overlayOnly = await RunPanelPass(
-            "overlay_only",
-            panel,
-            state,
-            selectedCycle,
-            validTargetCoords,
-            false
-        );
-        GDictionary unitDelta = await RunUnitDeltaPass(panel, state);
-
-        panel.QueueFree();
-        await ProcessFrames(1);
-
-        if (_test.Failures.Count > 0)
+        catch (Exception exception)
         {
-            RequestTestExit(_test.Finish("Battle panel full refresh benchmark"));
-            return;
+            _test.Fail(
+                $"Unexpected BattlePanelRefreshBenchmark exception: {exception}"
+            );
         }
+        finally
+        {
+            try
+            {
+                if (ReleaseNode(panel))
+                    await ProcessFrames(1);
+            }
+            catch (Exception exception)
+            {
+                _test.Fail(
+                    $"BattlePanelRefreshBenchmark cleanup failed: {exception}"
+                );
+            }
+            RequestTestExit(_test.Finish("Battle panel full refresh benchmark"));
+        }
+    }
 
-        ConsoleProcessOutput.WriteStandard(FormatResult(fullRefresh));
-        ConsoleProcessOutput.WriteStandard(FormatResult(overlayOnly));
-        ConsoleProcessOutput.WriteStandard(FormatResult(unitDelta));
-        ConsoleProcessOutput.WriteStandard(FormatComparison(fullRefresh, overlayOnly, unitDelta));
-        RequestTestExit(_test.Finish("Battle panel full refresh benchmark"));
+    private static bool ReleaseNode(Node node)
+    {
+        if (node == null || !GodotObject.IsInstanceValid(node))
+            return false;
+        if (!node.IsInsideTree())
+        {
+            node.Free();
+            return false;
+        }
+        if (!node.IsQueuedForDeletion())
+            node.QueueFree();
+        return true;
     }
 
     private async Task<GDictionary> RunUnitDeltaPass(

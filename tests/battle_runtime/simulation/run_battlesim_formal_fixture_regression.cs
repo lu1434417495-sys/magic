@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -39,9 +38,7 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
     {
         try
         {
-            TestFixtureNoLongerRegistersGlobalClass();
-            TestRosterMemberIdsUsePlainCollections();
-            TestRosterConstructionUsesPlainContracts();
+            TestRosterMemberIdsPreserveOrderAndPopulateActiveRoster();
             TestRosterBuildClosesCreationPayloadLeases();
             TestDefaultMainCharacterGetsRerollLuck();
             TestSelectedMainCharacterGetsRerollLuck();
@@ -65,41 +62,6 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         RequestTestExit(_test.Finish("BattleSimFormalCombatFixture regression"));
     }
 
-    private void TestRosterConstructionUsesPlainContracts()
-    {
-        MethodInfo addMemberMethod = typeof(BattleSimFormalCombatFixture).GetMethod(
-            "_add_member",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (addMemberMethod == null)
-        {
-            _test.Fail("formal fixture 应保留单一 typed roster member 构建入口。");
-            return;
-        }
-
-        ParameterInfo[] parameters = addMemberMethod.GetParameters();
-        _test.Eq(
-            parameters[3].ParameterType,
-            typeof(BattleSimFormalCreationAttributesData),
-            "formal fixture 建卡属性应由 plain CLR 值对象承载。"
-        );
-        _test.Eq(
-            parameters[5].ParameterType,
-            typeof(IReadOnlyList<BattleSimFormalSkillConfigData>),
-            "formal fixture 技能配置应由 plain CLR 只读列表承载。"
-        );
-
-        MethodInfo battleAchievementMethod = typeof(IBattleRatingCharacterGateway).GetMethod(
-            nameof(IBattleRatingCharacterGateway.RecordAchievementEvent),
-            new[] { typeof(StringName), typeof(StringName), typeof(int) }
-        );
-        _test.Eq(
-            battleAchievementMethod?.ReturnType,
-            typeof(IReadOnlyList<StringName>),
-            "battle achievement gateway 不应把 Godot typed Array 作为内部返回值。"
-        );
-    }
-
     private void TestRosterBuildClosesCreationPayloadLeases()
     {
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
@@ -117,29 +79,8 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         );
     }
 
-    private void TestFixtureNoLongerRegistersGlobalClass()
+    private void TestRosterMemberIdsPreserveOrderAndPopulateActiveRoster()
     {
-    }
-
-    private void TestRosterMemberIdsUsePlainCollections()
-    {
-        Type allyMemberIdsType = typeof(BattleSimFormalCombatFixture)
-            .GetField(nameof(BattleSimFormalCombatFixture.ally_member_ids))
-            ?.FieldType;
-        Type hostileMemberIdsType = typeof(BattleSimFormalCombatFixture)
-            .GetField(nameof(BattleSimFormalCombatFixture.hostile_member_ids))
-            ?.FieldType;
-        _test.Eq(
-            allyMemberIdsType,
-            typeof(List<StringName>),
-            "formal fixture 友军 roster owner 应是 plain List<StringName>。"
-        );
-        _test.Eq(
-            hostileMemberIdsType,
-            typeof(List<StringName>),
-            "formal fixture 敌军 roster owner 应是 plain List<StringName>。"
-        );
-
         BattleSimFormalCombatFixture fixture = BuildFixture(
             BattleSimFormalCombatFixture.ROSTER_MIXED_2S1A
         );

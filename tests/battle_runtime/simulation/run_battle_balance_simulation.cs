@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 public partial class run_battle_balance_simulation : LifecycleTestSceneTree
@@ -11,8 +12,20 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
 
     private void RunDeferred()
     {
-        int exitCode = Run();
-        RequestTestExit(_test.Finish("Battle balance simulation", exitCode));
+        int exitCode = 1;
+        try
+        {
+            exitCode = Run();
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"Unexpected battle balance simulation exception: {exception}");
+            exitCode = 1;
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Battle balance simulation", exitCode));
+        }
     }
 
     private int Run()

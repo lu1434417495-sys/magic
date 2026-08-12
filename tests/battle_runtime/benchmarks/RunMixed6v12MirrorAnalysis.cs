@@ -51,7 +51,10 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         bool validateSpawnReachability = ReadBoolEnvironment("VALIDATE_SPAWN_REACHABILITY", true);
         bool validateBidirectionalSpawnReachability = ReadBoolEnvironment("VALIDATE_BIDIRECTIONAL_SPAWN_REACHABILITY", true);
         bool aiProfileEnabled = ReadBoolEnvironment("AI_PROFILE", false);
-        using AiProfileCapture aiProfiler = aiProfileEnabled ? new AiProfileCapture() : null;
+        var artifactWriter = new BattleSimAnalysisArtifactFileWriter();
+        using AiProfileCapture aiProfiler = aiProfileEnabled
+            ? new AiProfileCapture(artifactWriter)
+            : null;
         if (aiProfiler != null)
         {
             aiProfiler.Setup(
@@ -225,15 +228,34 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             report.TryGetValue("is_complete", out object isCompleteValue)
             && isCompleteValue is bool isComplete
             && isComplete;
+        BattleSimAnalysisArtifactStatus mainArtifactStatus =
+            BattleSimAnalysisArtifactStatus.NotRequired;
+        BattleSimAnalysisArtifactStatus traceArtifactStatus =
+            BattleSimAnalysisArtifactStatus.NotRequired;
+        BattleSimAnalysisArtifactStatus profileArtifactStatus =
+            BattleSimAnalysisArtifactStatus.NotRequired;
         if (traceAi)
             report["trace_summary_file"] = ResolveTraceSummaryPath(outputPath);
         if (aiProfiler != null)
         {
-            Dictionary<string, object> plainProfileReport = aiProfiler.WriteReports();
+            AiProfileReportWriteResult profileWriteResult = aiProfiler.WriteReports();
+            Dictionary<string, object> plainProfileReport = profileWriteResult.Report;
             report["ai_profile"] = plainProfileReport;
-            PrintProgress(
-                $"[Progress] wrote AI profile {GetPlainString(plainProfileReport, "hotspots_path")}"
-            );
+            profileArtifactStatus = profileWriteResult.ArtifactStatus;
+            if (!profileArtifactStatus.Succeeded)
+            {
+                GameLog.Error(
+                    $"[ERROR] Failed to write one or more AI profile artifacts: {GetProfileWriteErrors(plainProfileReport)}",
+                    "bench.ai_profile_write_failed",
+                    "bench"
+                );
+            }
+            else
+            {
+                PrintProgress(
+                    $"[Progress] wrote AI profile {GetPlainString(plainProfileReport, "hotspots_path")}"
+                );
+            }
         }
         traceSummaryReport.ProfileEntries[0].Summary = new BattleSimReportBuilder()
             .BuildProfileSummary(
@@ -252,13 +274,28 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 );
             GameLog.Info(Json.Stringify(reportLease.Value, "\t"), "bench.report", "bench");
         }
-        else if (!WritePlainJsonFile(outputPath, report))
-        {
-            GameLog.Error($"[ERROR] Failed to write: {outputPath}.", "bench.output_write_failed", "bench");
-        }
         else
         {
-            PrintProgress($"[Progress] wrote report {outputPath}");
+            BattleSimAnalysisArtifactWriteResult mainWriteResult =
+                WritePlainJsonFile(
+                    artifactWriter,
+                    BattleSimAnalysisArtifactKind.Main,
+                    outputPath,
+                    report
+                );
+            mainArtifactStatus = mainWriteResult.Status;
+            if (!mainWriteResult.Status.Succeeded)
+            {
+                GameLog.Error(
+                    $"[ERROR] Failed to write report {outputPath}: {mainWriteResult.ErrorMessage}",
+                    "bench.output_write_failed",
+                    "bench"
+                );
+            }
+            else
+            {
+                PrintProgress($"[Progress] wrote report {outputPath}");
+            }
         }
 
         if (traceAi)
@@ -277,8 +314,23 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                         IsComplete = batchIsComplete,
                     }
                 );
-            if (!WriteLeasedJsonFile(traceSummaryPath, compactReportLease.Value))
-                GameLog.Error($"[ERROR] Failed to write trace summary: {traceSummaryPath}.", "bench.trace_write_failed", "bench");
+            BattleSimAnalysisArtifactWriteResult traceWriteResult =
+                WriteLeasedJsonFile(
+                    artifactWriter,
+                    BattleSimAnalysisArtifactKind.Trace,
+                    traceSummaryPath,
+                    compactReportLease.Value,
+                    "mixed-mirror-analysis-trace-summary"
+                );
+            traceArtifactStatus = traceWriteResult.Status;
+            if (!traceWriteResult.Status.Succeeded)
+            {
+                GameLog.Error(
+                    $"[ERROR] Failed to write trace summary {traceSummaryPath}: {traceWriteResult.ErrorMessage}",
+                    "bench.trace_write_failed",
+                    "bench"
+                );
+            }
             else
                 PrintProgress($"[Progress] wrote trace summary {traceSummaryPath}");
         }
@@ -289,7 +341,14 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             overrideApplier,
             contentProvider
         );
-        return batchIsComplete ? 0 : 2;
+        return BattleSimAnalysisExitCodePolicy.Resolve(
+            new BattleSimAnalysisCompletionStatus(
+                batchIsComplete,
+                mainArtifactStatus,
+                traceArtifactStatus,
+                profileArtifactStatus
+            )
+        );
     }
 
     private static void DisposeObjects(params object[] objects)
@@ -858,7 +917,9 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         return $"user://simulation_reports/mixed_6v12_trace_summary_{(long)Time.GetUnixTimeFromSystem()}.json";
     }
 
-    private static bool WritePlainJsonFile(
+    private static BattleSimAnalysisArtifactWriteResult WritePlainJsonFile(
+        BattleSimAnalysisArtifactFileWriter artifactWriter,
+        BattleSimAnalysisArtifactKind kind,
         string path,
         IReadOnlyDictionary<string, object> payload
     )
@@ -870,37 +931,37 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 LifetimeDomain.Request,
                 $"RunMixed6v12MirrorAnalysis.write:{path}"
             );
-        return WriteLeasedJsonFile(path, lease.Value);
+        return WriteLeasedJsonFile(
+            artifactWriter,
+            kind,
+            path,
+            lease.Value,
+            "mixed-mirror-analysis-json"
+        );
     }
 
-    private static bool WriteLeasedJsonFile(string path, GDictionary payload)
-    {
-        if (string.IsNullOrEmpty(path))
-            return false;
-        string absolutePath = path.StartsWith("res://") || path.StartsWith("user://")
-            ? ProjectSettings.GlobalizePath(path)
-            : path;
-        string directory = absolutePath.GetBaseDir();
-        if (!string.IsNullOrEmpty(directory))
-            DirAccess.MakeDirRecursiveAbsolute(directory);
-        using NativeLeaseScope fileScope = new(
-            "mixed-mirror-analysis-json-file",
-            LifetimeDomain.Request
+    private static BattleSimAnalysisArtifactWriteResult WriteLeasedJsonFile(
+        BattleSimAnalysisArtifactFileWriter artifactWriter,
+        BattleSimAnalysisArtifactKind kind,
+        string path,
+        GDictionary payload,
+        string ownerLabel
+    ) =>
+        artifactWriter.WriteText(
+            kind,
+            path,
+            ownerLabel,
+            Json.Stringify(payload, "\t")
         );
-        FileAccess openedFile = FileAccess.Open(absolutePath, FileAccess.ModeFlags.Write);
-        if (openedFile == null)
-            return false;
-        try
-        {
-            FileAccess file = fileScope.Own(openedFile, $"open:{absolutePath}");
-            file.StoreString(Json.Stringify(payload, "\t"));
-            return true;
-        }
-        finally
-        {
-            openedFile.Close();
-        }
-    }
+
+    private static string GetProfileWriteErrors(
+        IReadOnlyDictionary<string, object> report
+    ) =>
+        report != null
+        && report.TryGetValue("write_errors", out object value)
+        && value is IReadOnlyList<string> errors
+            ? string.Join(" | ", errors)
+            : "unknown output failure";
 
     private static Dictionary<string, object> ProjectScenarioPlain(
         BattleSimScenarioDefinition scenario

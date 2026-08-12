@@ -27,9 +27,16 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
     private int Run()
     {
         long startSeed = ReadLongEnvironment("START_SEED", 0);
-        int runCount = ReadIntEnvironment("COUNT", 1000);
+        if (!TryReadPositiveIntEnvironment("COUNT", 1000, out int runCount))
+        {
+            ConsoleProcessOutput.WriteFailure(
+                $"COUNT must be a positive integer, got '{OS.GetEnvironment("COUNT")}'."
+            );
+            return 1;
+        }
         string outputPath = ReadStringEnvironment("OUTPUT_FILE", "");
         bool progressEnabled = ReadBoolEnvironment("PROGRESS", string.IsNullOrEmpty(outputPath));
+        var artifactWriter = new BattleSimAnalysisArtifactFileWriter();
 
         BattleSimScenarioDef scenarioResource =
             ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
@@ -173,16 +180,38 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
                 },
             };
 
+            BattleSimAnalysisArtifactStatus mainArtifactStatus =
+                BattleSimAnalysisArtifactStatus.NotRequired;
             if (string.IsNullOrEmpty(outputPath))
             {
                 ConsoleProcessOutput.WriteStandard(Json.Stringify(report, "\t"));
             }
             else
             {
-                WriteJsonFile(outputPath, report);
+                BattleSimAnalysisArtifactWriteResult mainWriteResult =
+                    artifactWriter.WriteText(
+                        BattleSimAnalysisArtifactKind.Main,
+                        outputPath,
+                        "longsword-3v3-analysis-json",
+                        Json.Stringify(report, "\t")
+                    );
+                mainArtifactStatus = mainWriteResult.Status;
+                if (!mainWriteResult.Status.Succeeded)
+                {
+                    ConsoleProcessOutput.WriteFailure(
+                        $"Failed to write analysis report '{outputPath}': {mainWriteResult.ErrorMessage}"
+                    );
+                }
             }
 
-            return endedCount == runCount ? 0 : 2;
+            return BattleSimAnalysisExitCodePolicy.Resolve(
+                new BattleSimAnalysisCompletionStatus(
+                    endedCount == runCount,
+                    mainArtifactStatus,
+                    BattleSimAnalysisArtifactStatus.NotRequired,
+                    BattleSimAnalysisArtifactStatus.NotRequired
+                )
+            );
         }
         finally
         {
@@ -403,28 +432,19 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
         }
     }
 
-    private static void WriteJsonFile(string outputPath, GDictionary report)
+    private static bool TryReadPositiveIntEnvironment(
+        string key,
+        int fallback,
+        out int value
+    )
     {
-        string absolutePath = outputPath.StartsWith("res://") || outputPath.StartsWith("user://")
-            ? ProjectSettings.GlobalizePath(outputPath)
-            : outputPath;
-        string directory = absolutePath.GetBaseDir();
-        if (!string.IsNullOrEmpty(directory))
-            DirAccess.MakeDirRecursiveAbsolute(directory);
-        using FileAccess file = FileAccess.Open(absolutePath, FileAccess.ModeFlags.Write);
-        if (file == null)
+        if (!OS.HasEnvironment(key))
         {
-            ConsoleProcessOutput.WriteFailure($"Failed to write: {absolutePath}");
-            return;
+            value = fallback;
+            return value > 0;
         }
-        file.StoreString(Json.Stringify(report, "\t"));
-    }
 
-    private static int ReadIntEnvironment(string key, int fallback)
-    {
-        return OS.HasEnvironment(key) && int.TryParse(OS.GetEnvironment(key), out int value)
-            ? value
-            : fallback;
+        return int.TryParse(OS.GetEnvironment(key).StripEdges(), out value) && value > 0;
     }
 
     private static long ReadLongEnvironment(string key, long fallback)

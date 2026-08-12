@@ -4,6 +4,11 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
+internal sealed record AiProfileReportWriteResult(
+    Dictionary<string, object> Report,
+    BattleSimAnalysisArtifactStatus ArtifactStatus
+);
+
 internal sealed class AiProfileCapture : IDisposable
 {
     public string ScenarioId { get; private set; } = "";
@@ -28,10 +33,12 @@ internal sealed class AiProfileCapture : IDisposable
         "ai-profile-capture",
         LifetimeDomain.Request
     );
+    private readonly BattleSimAnalysisArtifactFileWriter _artifactWriter;
     private GodotProjectionLease<GArray> _traceEventsLease;
 
-    internal AiProfileCapture()
+    internal AiProfileCapture(BattleSimAnalysisArtifactFileWriter artifactWriter = null)
     {
+        _artifactWriter = artifactWriter ?? new BattleSimAnalysisArtifactFileWriter();
         AggregateStats = _lifetimeScope.Own(
             new GDictionary(),
             "AiProfileCapture.AggregateStats"
@@ -107,7 +114,7 @@ internal sealed class AiProfileCapture : IDisposable
         return BuildSummary();
     }
 
-    public Dictionary<string, object> WriteReports()
+    public AiProfileReportWriteResult WriteReports()
     {
         string timestamp = FormatTimestamp();
         string basename = $"{FilePrefix}_{ScenarioId}_{timestamp}";
@@ -115,14 +122,22 @@ internal sealed class AiProfileCapture : IDisposable
         string body = FormatBody();
         string hotspotsPath = $"{OutputDir}{basename}.hotspots.txt";
         string csvPath = $"{OutputDir}{basename}.functions.csv";
-        bool okText = AiHotspotsFormatter.WriteTextReport(hotspotsPath, header, body);
-        bool okCsv = AiHotspotsFormatter.WriteCsv(csvPath, AggregateStats);
+        BattleSimAnalysisArtifactWriteResult textResult =
+            AiHotspotsFormatter.WriteTextReport(
+                hotspotsPath,
+                header,
+                body,
+                _artifactWriter
+            );
+        BattleSimAnalysisArtifactWriteResult csvResult =
+            AiHotspotsFormatter.WriteCsv(csvPath, AggregateStats, _artifactWriter);
         string tracePath = "";
-        bool okTrace = false;
-        if (DumpTraceJson && _traceEventsLease?.Value.Count > 0)
+        bool traceRequired = DumpTraceJson && _traceEventsLease?.Value.Count > 0;
+        BattleSimAnalysisArtifactWriteResult traceResult = default;
+        if (traceRequired)
         {
             tracePath = $"{OutputDir}{basename}.trace.json";
-            okTrace = WriteTraceJson(tracePath);
+            traceResult = WriteTraceJson(tracePath);
         }
 
         LastReport = BuildSummary();
@@ -131,10 +146,26 @@ internal sealed class AiProfileCapture : IDisposable
         LastReport["hotspots_path"] = hotspotsPath;
         LastReport["functions_csv_path"] = csvPath;
         LastReport["trace_path"] = tracePath;
-        LastReport["wrote_hotspots"] = okText;
-        LastReport["wrote_functions_csv"] = okCsv;
-        LastReport["wrote_trace"] = okTrace;
-        return LastReport;
+        LastReport["wrote_hotspots"] = textResult.Status.Succeeded;
+        LastReport["wrote_functions_csv"] = csvResult.Status.Succeeded;
+        LastReport["wrote_trace"] = traceRequired && traceResult.Status.Succeeded;
+        var writeErrors = new List<string>();
+        AddWriteError(writeErrors, textResult);
+        AddWriteError(writeErrors, csvResult);
+        if (traceRequired)
+            AddWriteError(writeErrors, traceResult);
+        LastReport["write_errors"] = writeErrors;
+
+        bool profileSucceeded =
+            textResult.Status.Succeeded
+            && csvResult.Status.Succeeded
+            && (!traceRequired || traceResult.Status.Succeeded);
+        return new AiProfileReportWriteResult(
+            LastReport,
+            profileSucceeded
+                ? BattleSimAnalysisArtifactStatus.Success
+                : BattleSimAnalysisArtifactStatus.Failure
+        );
     }
 
     public string FormatHeader() =>
@@ -213,10 +244,16 @@ internal sealed class AiProfileCapture : IDisposable
         }
     }
 
-    private bool WriteTraceJson(string path)
+    private BattleSimAnalysisArtifactWriteResult WriteTraceJson(string path)
     {
         if (_traceEventsLease == null)
-            return false;
+        {
+            return BattleSimAnalysisArtifactWriteResult.Failed(
+                BattleSimAnalysisArtifactKind.Profile,
+                path,
+                "AI profile trace events are unavailable."
+            );
+        }
         using NativeLeaseScope requestScope = new(
             "ai-profile-trace-json",
             LifetimeDomain.Request
@@ -239,14 +276,21 @@ internal sealed class AiProfileCapture : IDisposable
             },
             "AiProfileCapture.WriteTraceJson.document"
         );
-        string dirPart = path.GetBaseDir();
-        if (!DirAccess.DirExistsAbsolute(dirPart))
-            DirAccess.MakeDirRecursiveAbsolute(dirPart);
-        using FileAccess file = FileAccess.Open(path, FileAccess.ModeFlags.Write);
-        if (file == null)
-            return false;
-        file.StoreString(Json.Stringify(traceDoc));
-        return true;
+        return _artifactWriter.WriteText(
+            BattleSimAnalysisArtifactKind.Profile,
+            path,
+            "ai-profile-trace-json",
+            Json.Stringify(traceDoc)
+        );
+    }
+
+    private static void AddWriteError(
+        List<string> errors,
+        BattleSimAnalysisArtifactWriteResult result
+    )
+    {
+        if (!result.Status.Succeeded && !string.IsNullOrEmpty(result.ErrorMessage))
+            errors.Add($"{result.Path}: {result.ErrorMessage}");
     }
 
     public void Dispose()
