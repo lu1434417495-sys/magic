@@ -91,7 +91,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         }
 
         TestHeadlessBattleContingencySnapshot();
-        TestHeadlessBattleContingencyReportEntries();
+        TestHeadlessBattleContingencyTimelineReportBatch();
         RequestTestExit(_test.Finish("Contingency text commands regression"));
     }
 
@@ -315,7 +315,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         }
     }
 
-    private void TestHeadlessBattleContingencyReportEntries()
+    private void TestHeadlessBattleContingencyTimelineReportBatch()
     {
         GameTextCommandRunner runner = CreateRunnerWithGemContent();
         try
@@ -323,8 +323,8 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
             RunCommand(runner, "game new test");
             string memberId = PrepareContingencyMemberFixture(runner, "player_sword_01");
             InstallOwnerTurnContingencySetup(runner, memberId);
-            using BattleEventBatch ownerTurnBatch = new();
-            BattleRuntimeModule battleRuntime = runner.GetSession().GetRuntimeFacadeTyped().GetBattleRuntime();
+            GameRuntimeFacade runtime = runner.GetSession().GetRuntimeFacadeTyped();
+            BattleRuntimeModule battleRuntime = runtime.GetBattleRuntime();
             IReadOnlyDictionary<string, object> battle = Dict(
                 runner.GetSession().BuildSnapshotPlain(),
                 "battle"
@@ -334,13 +334,36 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
             );
             BattleUnitState ownerBattleUnit = battleRuntime?.GetState()?.GetUnit(DictString(ownerInstance, "owner_unit_id"));
             _test.True(ownerBattleUnit != null, "headless contingency report fixture should resolve owner battle unit.");
-            battleRuntime?._record_turn_started(ownerBattleUnit, ownerTurnBatch);
-            battleRuntime?._append_batch_logs_to_state(ownerTurnBatch);
+            BattleState battleState = battleRuntime?.GetState();
+            _test.True(
+                battleState?.timeline != null,
+                "headless contingency report fixture should expose a live battle timeline."
+            );
+            if (ownerBattleUnit == null || battleState?.timeline == null)
+                return;
 
-            IReadOnlyDictionary<string, object> reportSnapshot =
+            battleState.PhaseKind = BattlePhaseKind.TimelineRunning;
+            battleState.ModalStateKind = BattleModalStateKind.None;
+            battleState.active_unit_id = "";
+            battleState.timeline.frozen = false;
+            battleState.timeline.ready_unit_ids.Clear();
+            battleState.timeline.ready_unit_ids.Add(ownerBattleUnit.unit_id);
+            using BattleEventBatch ownerTurnBatch = battleRuntime.advance(0);
+            runtime.ApplyBattleBatch(ownerTurnBatch);
+
+            IReadOnlyDictionary<string, object> publishedSnapshot =
                 runner.GetSession().BuildSnapshotPlain();
+            IReadOnlyDictionary<string, object> publishedBattle = Dict(
+                publishedSnapshot,
+                "battle"
+            );
+            _test.Eq(
+                DictString(publishedBattle, "active_unit_id"),
+                ownerBattleUnit.unit_id.ToString(),
+                "facade batch application should publish the owner activated by the public timeline advance."
+            );
             IReadOnlyDictionary<string, object> reportEntry = FindReportEntry(
-                ArrayValue(Dict(reportSnapshot, "battle"), "report_entries"),
+                ownerTurnBatch.ReportEntriesTyped,
                 "contingency_triggered"
             );
             AssertStructuredContingencyReportEntry(
@@ -500,7 +523,10 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         string triggerType
     )
     {
-        _test.True(entry.Count > 0, "headless battle.report_entries should contain a structured contingency entry.");
+        _test.True(
+            entry.Count > 0,
+            "public timeline advance batch should contain a structured contingency entry."
+        );
         if (entry.Count == 0)
             return;
         _test.Eq(DictString(entry, "entry_type"), "contingency_triggered", "report entry type mismatch.");
@@ -517,13 +543,13 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
     }
 
     private static IReadOnlyDictionary<string, object> FindReportEntry(
-        IReadOnlyList<object> entries,
+        IReadOnlyList<IReadOnlyDictionary<string, object>> entries,
         string entryType
     )
     {
-        foreach (object value in entries)
+        foreach (IReadOnlyDictionary<string, object> entry in entries)
         {
-            if (value is not IReadOnlyDictionary<string, object> entry)
+            if (entry == null)
                 continue;
             if (DictString(entry, "entry_type") == entryType)
                 return entry;
@@ -534,12 +560,10 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
     private GameTextCommandResult RunCommand(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
-        if (result.skipped)
-            return result;
-        if (!result.ok)
+        if (result.skipped || !result.ok)
         {
             ConsoleProcessOutput.WriteStandard(result.Render());
-            _test.Fail($"命令失败：{commandText} | {result.message}");
+            _test.Fail($"命令未实际执行或失败：{commandText} | {result.message}");
         }
         return result;
     }
@@ -547,6 +571,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
     private GameTextCommandResult RunCommandExpectFail(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
+        ConsoleProcessOutput.WriteStandard(result.Render());
         if (result.skipped)
         {
             _test.Fail($"命令被跳过，无法验证失败：{commandText}");
@@ -554,7 +579,6 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         }
         if (result.ok)
         {
-            ConsoleProcessOutput.WriteStandard(result.Render());
             _test.Fail($"命令应失败但成功：{commandText}");
         }
         return result;

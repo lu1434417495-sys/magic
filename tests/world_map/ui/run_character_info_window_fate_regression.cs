@@ -14,11 +14,21 @@ public partial class run_character_info_window_fate_regression : LifecycleTestSc
 
     public override async void _Initialize()
     {
-        await TestCharacterInfoWindowRendersFateSectionHappyPath();
-        await TestCharacterInfoWindowRejectsBadSectionSchema();
-        await TestCharacterInfoWindowRejectsBadFatePayload();
-        await TestCharacterInfoWindowRejectsStringNameStringFields();
-        RequestTestExit(_test.Finish("CharacterInfoWindow fate regression"));
+        try
+        {
+            await TestCharacterInfoWindowRendersFateSectionHappyPath();
+            await TestCharacterInfoWindowRejectsBadSectionSchema();
+            await TestCharacterInfoWindowRejectsBadFatePayload();
+            await TestCharacterInfoWindowRejectsStringNameStringFields();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("CharacterInfoWindow fate regression"));
+        }
     }
 
     private async Task<CharacterInfoWindow> CreateWindow()

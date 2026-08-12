@@ -58,6 +58,10 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
             );
 
             GameTextCommandResult promotionResult = runner.ExecuteLine("promotion choose warrior");
+            _test.True(
+                !promotionResult.skipped,
+                "promotion choose 负例必须实际进入 reward-flow runtime。"
+            );
             _test.False(
                 promotionResult.ok,
                 "promotion choose 缺失职业选项时应返回正式失败。"
@@ -83,6 +87,10 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
             );
 
             GameTextCommandResult blockedCloseResult = runner.ExecuteLine("close");
+            _test.True(
+                !blockedCloseResult.skipped,
+                "reward modal close 负例必须实际进入 reward-flow runtime。"
+            );
             _test.False(
                 blockedCloseResult.ok,
                 "reward modal 不应允许通过 close 跳过。"
@@ -220,6 +228,9 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
 
     private void AssertCommandOk(GameTextCommandResult result, string message)
     {
-        _test.True(result != null && result.ok, $"{message} message={result?.message}");
+        _test.True(
+            result != null && !result.skipped && result.ok,
+            $"{message} skipped={result?.skipped} message={result?.message}"
+        );
     }
 }

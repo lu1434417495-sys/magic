@@ -17,8 +17,18 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
 
     private async void RunAsync()
     {
-        await TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress();
-        RequestTestExit(_test.Finish("Settlement action request boundary regression"));
+        try
+        {
+            await TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Settlement action request boundary regression"));
+        }
     }
 
     private async Task TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress()

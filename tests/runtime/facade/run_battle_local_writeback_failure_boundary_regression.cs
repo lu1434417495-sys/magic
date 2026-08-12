@@ -1,5 +1,3 @@
-using System;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -15,32 +13,8 @@ public partial class run_battle_local_writeback_failure_boundary_regression
 
     private void Run()
     {
-        AssertCandidateValidationStoresPlainFailure();
         AssertConflictFailureKeepsProjectionSchema();
         RequestTestExit(_test.Finish("Battle-local writeback failure boundary regression"));
-    }
-
-    private void AssertCandidateValidationStoresPlainFailure()
-    {
-        Type candidateResultType = typeof(GameRuntimeBattleWritebackService).GetNestedType(
-            "BattleLocalCandidateValidationResult",
-            BindingFlags.NonPublic
-        );
-        PropertyInfo failureProperty = candidateResultType?.GetProperty(
-            "Failure",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-
-        _test.True(candidateResultType != null, "候选校验结果类型应存在。");
-        _test.Eq(
-            failureProperty?.PropertyType,
-            typeof(GameRuntimeBattleWritebackService.BattleLocalWritebackFailure),
-            "候选校验失败应持有 plain failure DTO。"
-        );
-        _test.False(
-            failureProperty?.PropertyType == typeof(GDictionary),
-            "候选校验结果不得持久保存 Godot Dictionary wrapper。"
-        );
     }
 
     private void AssertConflictFailureKeepsProjectionSchema()

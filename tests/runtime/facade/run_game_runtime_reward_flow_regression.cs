@@ -124,16 +124,6 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
                 runtime.GetCharacterInfoContextLease();
             _test.Eq(characterInfoLease.Value.Count, 0, "关闭人物信息窗后上下文应清空。");
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "关闭人物信息窗后应继续展示待领奖励。");
-
-            RuntimeCommandResult blockedResult =
-                handler.CommandCloseActiveModalTyped();
-            _test.False(blockedResult.Ok, "reward modal 不应直接关闭。");
-            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "reward modal 被阻止时应保持打开。");
-            _test.Eq(
-                blockedResult.Code,
-                RuntimeCommandCode.InvalidState,
-                "reward modal 被阻止时 typed result 应给出 InvalidState code。"
-            );
         }
         finally
         {

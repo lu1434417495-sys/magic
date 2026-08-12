@@ -17,16 +17,25 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
 
     private async void RunAsync()
     {
-        await TestFacadeUsesSettlementHandlerSurface();
-        await TestSettlementHandlerRoutesResearchService();
-        await TestSettlementHandlerRoutesActionsAndModalState();
-        await TestContractBoardEvaluatorAndFeedback();
-        await TestSettlementHandlerRejectsStringNameSubmissionFields();
-        TestSettlementShopServiceRejectsBadEntrySchema();
-        await TestSettlementHandlerRejectsInvalidOrSpoofedActions();
-        await TestWorldGenerationExposesResearchService();
-
-        RequestTestExit(_test.Finish("Game runtime settlement command handler regression"));
+        try
+        {
+            await TestFacadeUsesSettlementHandlerSurface();
+            await TestSettlementHandlerRoutesResearchService();
+            await TestSettlementHandlerRoutesActionsAndModalState();
+            await TestContractBoardEvaluatorAndFeedback();
+            await TestSettlementHandlerRejectsStringNameSubmissionFields();
+            TestSettlementShopServiceRejectsBadEntrySchema();
+            await TestSettlementHandlerRejectsInvalidOrSpoofedActions();
+            await TestWorldGenerationExposesResearchService();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Game runtime settlement command handler regression"));
+        }
     }
 
     private async Task TestFacadeUsesSettlementHandlerSurface()

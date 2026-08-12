@@ -36,62 +36,96 @@ public partial class run_non_ai_content_snapshot_regression : LifecycleTestScene
             "snapshot dictionaries should be immutable"
         );
 
-        foreach (Type type in EnumerateTypeGraph(typeof(ContentSnapshot)))
-        {
-            _test.False(
-                typeof(Resource).IsAssignableFrom(type),
-                $"non-AI snapshot type graph should not contain Resource: {type.FullName}"
-            );
-            _test.False(
-                type.Namespace?.StartsWith("Godot.Collections", StringComparison.Ordinal) == true,
-                $"non-AI snapshot type graph should not contain Godot collections: {type.FullName}"
-            );
-            _test.False(
-                type == typeof(Variant) || type == typeof(GodotObject),
-                $"non-AI snapshot type graph should not contain object Variant wrappers: {type.FullName}"
-            );
-            _test.False(
-                type == typeof(EnemyTemplateDef)
-                    || type == typeof(EnemyAiBrainDef)
-                    || type == typeof(WildEncounterRosterDef)
-                    || type == typeof(BattleSimProfileDef),
-                $"legacy enemy content must remain outside ContentSnapshot: {type.FullName}"
-            );
-        }
+        AssertSnapshotInstanceGraphIsDetached(
+            snapshot,
+            "snapshot",
+            new HashSet<object>(ReferenceEqualityComparer.Instance)
+        );
 
         RequestTestExit(_test.Finish("Non-AI content snapshot regression"));
     }
 
-    private static IEnumerable<Type> EnumerateTypeGraph(Type root)
+    private void AssertSnapshotInstanceGraphIsDetached(
+        object value,
+        string path,
+        HashSet<object> visited
+    )
     {
-        var pending = new Stack<Type>();
-        var visited = new HashSet<Type>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            Type current = pending.Pop();
-            if (current == null || !visited.Add(current))
-                continue;
-            yield return current;
+        if (value == null)
+            return;
 
-            if (current.IsArray)
-                pending.Push(current.GetElementType());
-            if (current.IsGenericType)
+        Type type = value.GetType();
+        if (
+            value is Variant
+            || value is GodotObject
+            || type.Namespace?.StartsWith("Godot.Collections", StringComparison.Ordinal) == true
+        )
+        {
+            _test.Fail($"{path} retains native/Godot wrapper instance {type.FullName}.");
+            return;
+        }
+
+        if (
+            value is EnemyTemplateDef
+            || value is EnemyAiBrainDef
+            || value is WildEncounterRosterDef
+            || value is BattleSimProfileDef
+        )
+        {
+            _test.Fail($"{path} retains authored enemy Resource {type.FullName}.");
+            return;
+        }
+
+        if (IsDetachedScalar(type))
+            return;
+        if (!type.IsValueType && !visited.Add(value))
+            return;
+
+        if (value is IEnumerable enumerable)
+        {
+            int index = 0;
+            foreach (object entry in enumerable)
             {
-                foreach (Type argument in current.GetGenericArguments())
-                    pending.Push(argument);
+                AssertSnapshotInstanceGraphIsDetached(entry, $"{path}[{index}]", visited);
+                index++;
             }
-            foreach (
-                PropertyInfo property in current.GetProperties(
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                )
+            return;
+        }
+
+        bool inspectFields = type.Assembly == typeof(ContentSnapshot).Assembly
+            || (
+                type.IsGenericType
+                && type.GetGenericTypeDefinition() == typeof(KeyValuePair<,>)
+            );
+        if (!inspectFields)
+            return;
+
+        for (Type current = type; current != null; current = current.BaseType)
+        foreach (
+            FieldInfo field in current.GetFields(
+                BindingFlags.Instance
+                    | BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.DeclaredOnly
             )
-            {
-                if (property.DeclaringType == current)
-                    pending.Push(property.PropertyType);
-            }
+        )
+        {
+            AssertSnapshotInstanceGraphIsDetached(
+                field.GetValue(value),
+                $"{path}.{field.Name}",
+                visited
+            );
         }
     }
+
+    private static bool IsDetachedScalar(Type type) =>
+        type.IsPrimitive
+        || type.IsEnum
+        || type == typeof(string)
+        || type == typeof(decimal)
+        || type == typeof(DateTime)
+        || type == typeof(Guid)
+        || (type.IsValueType && string.Equals(type.Namespace, "Godot", StringComparison.Ordinal));
 
     private static bool Throws<TException>(Action action)
         where TException : Exception

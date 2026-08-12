@@ -14,11 +14,27 @@ public partial class run_world_map_view_color_config_regression : LifecycleTestS
 
     public override async void _Initialize()
     {
-        await EnsureGameSession();
-        await ResetSession();
-        await TestWorldMapSceneExposesDefaultViewPalette();
-        await Cleanup();
-        RequestTestExit(_test.Finish("World map view color config regression"));
+        try
+        {
+            try
+            {
+                await EnsureGameSession();
+                await ResetSession();
+                await TestWorldMapSceneExposesDefaultViewPalette();
+            }
+            finally
+            {
+                await Cleanup();
+            }
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("World map view color config regression"));
+        }
     }
 
     private async Task TestWorldMapSceneExposesDefaultViewPalette()
@@ -92,23 +108,43 @@ public partial class run_world_map_view_color_config_regression : LifecycleTestS
                 );
             }
 
-            var tierToProperty = new Dictionary<int, string>
+            Color villageSentinel = new(0.11f, 0.12f, 0.13f, 0.14f);
+            Color townSentinel = new(0.21f, 0.22f, 0.23f, 0.24f);
+            Color citySentinel = new(0.31f, 0.32f, 0.33f, 0.34f);
+            Color capitalSentinel = new(0.41f, 0.42f, 0.43f, 0.44f);
+            Color strongholdSentinel = new(0.51f, 0.52f, 0.53f, 0.54f);
+            Color metropolisSentinel = new(0.61f, 0.62f, 0.63f, 0.64f);
+            Color fallbackSentinel = new(0.71f, 0.72f, 0.73f, 0.74f);
+            worldMapView.village_tier_color = villageSentinel;
+            worldMapView.town_tier_color = townSentinel;
+            worldMapView.city_tier_color = citySentinel;
+            worldMapView.capital_tier_color = capitalSentinel;
+            worldMapView.world_stronghold_tier_color = strongholdSentinel;
+            worldMapView.metropolis_tier_color = metropolisSentinel;
+            worldMapView.fallback_tier_color = fallbackSentinel;
+
+            var tierToSentinel = new Dictionary<int, Color>
             {
-                [0] = "village_tier_color",
-                [1] = "town_tier_color",
-                [2] = "city_tier_color",
-                [3] = "capital_tier_color",
-                [4] = "world_stronghold_tier_color",
-                [5] = "metropolis_tier_color",
+                [(int)SettlementTierKind.Village] = villageSentinel,
+                [(int)SettlementTierKind.Town] = townSentinel,
+                [(int)SettlementTierKind.City] = citySentinel,
+                [(int)SettlementTierKind.Capital] = capitalSentinel,
+                [(int)SettlementTierKind.WorldStronghold] = strongholdSentinel,
+                [(int)SettlementTierKind.Metropolis] = metropolisSentinel,
             };
-            foreach ((int tier, string propertyName) in tierToProperty)
+            foreach ((int tier, Color expectedColor) in tierToSentinel)
             {
                 _test.Eq(
                     worldMapView._get_settlement_color(tier),
-                    worldMapView.Get(propertyName).AsColor(),
-                    $"tier {tier} 应通过导出字段提供颜色，而不是回退到 draw 内硬编码。"
+                    expectedColor,
+                    $"tier {tier} 应返回当前导出配置的 sentinel 颜色。"
                 );
             }
+            _test.Eq(
+                worldMapView._get_settlement_color(-999),
+                fallbackSentinel,
+                "未知 tier 应返回当前导出配置的 fallback sentinel 颜色。"
+            );
         }
 
         await DisposeNode(worldMap);

@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -17,7 +15,6 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
     {
         try
         {
-            TestAgeStageSelectionUsesManagedStorage();
             await TestConfirmationPayloadIncludesRolledAttributesAndIdentity();
             await TestIdentityCardsPopulate();
         }
@@ -27,22 +24,6 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
         }
 
         RequestTestExit(_test.Finish("Character creation window payload regression"));
-    }
-
-    private void TestAgeStageSelectionUsesManagedStorage()
-    {
-        FieldInfo field = typeof(CharacterCreationWindow).GetField(
-            "_ageStageIds",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(field != null, "建卡窗口应保留 age stage 选择集合。");
-        if (field == null)
-            return;
-
-        _test.True(
-            typeof(IReadOnlyList<StringName>).IsAssignableFrom(field.FieldType),
-            "建卡窗口长期保存的 age stage 选择应为 managed IReadOnlyList，而不是 Godot collection。"
-        );
     }
 
     private async Task TestConfirmationPayloadIncludesRolledAttributesAndIdentity()

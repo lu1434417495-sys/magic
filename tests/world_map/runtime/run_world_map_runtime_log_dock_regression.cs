@@ -14,11 +14,27 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
 
     public override async void _Initialize()
     {
-        await EnsureGameSession();
-        await ResetSession();
-        await TestRuntimeLogDockReusesSameWindowForWorldAndBattle();
-        await Cleanup();
-        RequestTestExit(_test.Finish("World map runtime log dock regression"));
+        try
+        {
+            try
+            {
+                await EnsureGameSession();
+                await ResetSession();
+                await TestRuntimeLogDockReusesSameWindowForWorldAndBattle();
+            }
+            finally
+            {
+                await Cleanup();
+            }
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("World map runtime log dock regression"));
+        }
     }
 
     private async Task TestRuntimeLogDockReusesSameWindowForWorldAndBattle()
@@ -74,10 +90,6 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
             _test.True(
                 runtimeLogDock.log_output.GetThemeFontSize("normal_font_size") >= 18,
                 "共享日志窗口正文输出字体应放大到更易读的尺寸。"
-            );
-            _test.True(
-                runtimeLogDock.GetThemeStylebox("panel") is StyleBoxFlat,
-                "共享日志窗口应使用半透明深色填充面板。"
             );
             var panelStyle = runtimeLogDock.GetThemeStylebox("panel") as StyleBoxFlat;
             _test.True(panelStyle != null && panelStyle.BgColor.A < 1.0f, "共享日志窗口面板背景应为半透明（alpha < 1）。");

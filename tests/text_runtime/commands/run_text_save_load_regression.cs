@@ -214,7 +214,7 @@ public partial class run_text_save_load_regression : LifecycleTestSceneTree
     private void AssertCommandOk(GameTextCommandRunner runner, string commandText)
     {
         using GameTextCommandResult result = runner.ExecuteLine(commandText);
-        _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
+        _test.True(!result.skipped && result.ok, $"命令未实际执行或失败：{commandText} | {result.message}");
     }
 
     private static IReadOnlyDictionary<string, object> TypedDict(

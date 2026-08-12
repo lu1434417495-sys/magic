@@ -16,21 +16,30 @@ public partial class run_npc_quest_offer_dialog_action_regression : LifecycleTes
 
     private async void RunAsync()
     {
-        NpcQuestOfferDialog dialog = DialogScene.Instantiate<NpcQuestOfferDialog>();
-        Root.AddChild(dialog);
-        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         try
         {
-            TestActionLabelsFollowRuntimeState(dialog);
-            await TestActionSignalKeepsRuntimePayload(dialog);
+            NpcQuestOfferDialog dialog = DialogScene.Instantiate<NpcQuestOfferDialog>();
+            Root.AddChild(dialog);
+            await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+            try
+            {
+                TestActionLabelsFollowRuntimeState(dialog);
+                await TestActionSignalKeepsRuntimePayload(dialog);
+            }
+            finally
+            {
+                dialog.QueueFree();
+                await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+            }
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
         }
         finally
         {
-            dialog.QueueFree();
-            await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+            RequestTestExit(_test.Finish("NPC quest offer dialog action regression"));
         }
-
-        RequestTestExit(_test.Finish("NPC quest offer dialog action regression"));
     }
 
     private void TestActionLabelsFollowRuntimeState(NpcQuestOfferDialog dialog)

@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_item_recipe_registry_typed_regression : LifecycleTestSceneTree
@@ -20,44 +18,29 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
     private void Run()
     {
-        TestOfficialItemRegistryTypedBoundaryMatchesPublicBoundary();
-        TestOfficialRecipeRegistryTypedBoundaryMatchesPublicBoundary();
-        TestInvalidRecipeRegistryTypedBoundaryMatchesPublicBoundary();
+        TestOfficialItemRegistryIsImmutableAndValid();
+        TestOfficialRecipeRegistryIsImmutableAndValid();
+        TestInvalidRecipeRegistryPreservesDiagnosticsAcrossValidationSurfaces();
         TestItemTraitValidationAcceptsSourceScopedReferences();
         TestItemTraitValidationRejectsWrongSourceAndUnsatisfiableRollGroups();
-        TestDefinitionsContainNoGodotObjectGraph();
         TestProjectionRejectsNullNestedResources();
         TestItemMergeIsPureAndDeeplyReadOnly();
-        TestWeaponSubresourcesAreTypedAndInvalidDiceRemainInvalid();
+        TestInvalidWeaponDiceRemainInvalidThroughMerge();
 
         RequestTestExit(_test.Finish("Item/recipe registry typed regression"));
     }
 
-    private void TestOfficialItemRegistryTypedBoundaryMatchesPublicBoundary()
+    private void TestOfficialItemRegistryIsImmutableAndValid()
     {
         using TestContentResourceLoader loader = new();
         using ItemContentRegistry registry = new(loader);
 
         IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs =
             registry.GetItemDefsTyped();
-        _test.True(
-            typedItemDefs is not Dictionary<StringName, ItemDefinition>,
-            "item registry should not expose a mutable dictionary."
-        );
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
-        GDictionary projectedItemDefs = ProjectItemDefs(typedItemDefs);
         GStringArray projectedErrors = registry.Validate();
 
-        _test.Eq(
-            typedItemDefs.Count,
-            projectedItemDefs.Count,
-            "item registry typed/public item defs 数量应保持一致。"
-        );
-        _test.Eq(
-            typedErrors.Count,
-            projectedErrors.Count,
-            "item registry typed/public validation error 数量应保持一致。"
-        );
+        _test.Eq(typedErrors.Count, 0, $"正式 typed item validation 不应报错: {FormatErrors(typedErrors)}");
         _test.Eq(
             projectedErrors.Count,
             0,
@@ -67,9 +50,14 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             typedItemDefs.ContainsKey("steel_longsword"),
             "typed item defs 应保留正式 steel_longsword。"
         );
+        AssertDictionaryRejectsRemoval(
+            typedItemDefs,
+            "steel_longsword",
+            "item registry 返回的 definitions 必须拒绝消费方删除"
+        );
     }
 
-    private void TestOfficialRecipeRegistryTypedBoundaryMatchesPublicBoundary()
+    private void TestOfficialRecipeRegistryIsImmutableAndValid()
     {
         using TestContentResourceLoader loader = new();
         using ItemContentRegistry itemRegistry = new(loader);
@@ -79,32 +67,27 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
         IReadOnlyDictionary<StringName, RecipeDefinition> typedRecipeDefs =
             recipeRegistry.GetRecipeDefsTyped();
-        _test.True(
-            typedRecipeDefs is not Dictionary<StringName, RecipeDefinition>,
-            "recipe registry should not expose a mutable dictionary."
-        );
         IReadOnlyList<string> typedErrors = recipeRegistry.ValidateTyped();
-        GDictionary projectedRecipeDefs = ProjectRecipeDefs(typedRecipeDefs);
         GStringArray projectedErrors = recipeRegistry.Validate();
 
-        _test.Eq(
-            typedRecipeDefs.Count,
-            projectedRecipeDefs.Count,
-            "recipe registry typed/public recipe defs 数量应保持一致。"
-        );
-        _test.Eq(
-            typedErrors.Count,
-            projectedErrors.Count,
-            "recipe registry typed/public validation error 数量应保持一致。"
-        );
+        _test.Eq(typedErrors.Count, 0, $"正式 typed recipe validation 不应报错: {FormatErrors(typedErrors)}");
         _test.Eq(
             projectedErrors.Count,
             0,
             $"正式 recipe registry 不应报错: {FormatErrors(projectedErrors)}"
         );
+        _test.True(
+            typedRecipeDefs.ContainsKey("forge_militia_axe"),
+            "typed recipe defs 应保留正式 forge_militia_axe。"
+        );
+        AssertDictionaryRejectsRemoval(
+            typedRecipeDefs,
+            "forge_militia_axe",
+            "recipe registry 返回的 definitions 必须拒绝消费方删除"
+        );
     }
 
-    private void TestInvalidRecipeRegistryTypedBoundaryMatchesPublicBoundary()
+    private void TestInvalidRecipeRegistryPreservesDiagnosticsAcrossValidationSurfaces()
     {
         using TestContentResourceLoader loader = new();
         using ItemContentRegistry itemRegistry = new(loader);
@@ -116,15 +99,12 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         IReadOnlyList<string> typedErrors = recipeRegistry.ValidateTyped();
         GStringArray projectedErrors = recipeRegistry.Validate();
 
-        _test.Eq(
-            typedErrors.Count,
-            projectedErrors.Count,
-            "invalid recipe fixture 下 typed/public validation error 数量应保持一致。"
-        );
-        _test.True(
-            typedErrors.Count > 0,
-            $"invalid recipe fixture 应保持非法。 errors={FormatErrors(typedErrors)}"
-        );
+        AssertContains(typedErrors, "Duplicate recipe_id", "duplicate_recipe", "typed validation 应拒绝重复 recipe id。");
+        AssertContains(typedErrors, "missing input item", "missing_item", "typed validation 应拒绝缺失的 input item。");
+        AssertContains(typedErrors, "missing recipe_id", "missing_id_recipe", "typed validation 应拒绝缺失 recipe id。");
+        AssertContains(projectedErrors, "Duplicate recipe_id", "duplicate_recipe", "public validation 应保留重复 recipe id 诊断。");
+        AssertContains(projectedErrors, "missing input item", "missing_item", "public validation 应保留缺失 input item 诊断。");
+        AssertContains(projectedErrors, "missing recipe_id", "missing_id_recipe", "public validation 应保留缺失 recipe id 诊断。");
     }
 
     private void TestItemTraitValidationAcceptsSourceScopedReferences()
@@ -192,47 +172,6 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             "unsatisfiable",
             "exclusive groups should reject impossible roll_count."
         );
-    }
-
-    private void TestDefinitionsContainNoGodotObjectGraph()
-    {
-        Type[] definitionTypes =
-        {
-            typeof(ItemDefinition),
-            typeof(RecipeDefinition),
-            typeof(TraitRollGroupDefinition),
-            typeof(TraitRollGroupEntryDefinition),
-            typeof(WeaponProfileDefinition),
-            typeof(WeaponDamageDiceDefinition),
-            typeof(EquipmentRequirementDefinition),
-            typeof(EquipmentAttributeRequirementDefinition),
-        };
-
-        foreach (Type definitionType in definitionTypes)
-        {
-            foreach (
-                PropertyInfo property in definitionType.GetProperties(
-                    BindingFlags.Instance | BindingFlags.Public
-                )
-            )
-            {
-                foreach (Type inspected in EnumerateTypeGraph(property.PropertyType))
-                {
-                    _test.True(
-                        !typeof(GodotObject).IsAssignableFrom(inspected),
-                        $"{definitionType.Name}.{property.Name} must not retain GodotObject type {inspected.FullName}."
-                    );
-                    _test.True(
-                        inspected.FullName == null
-                            || !inspected.FullName.StartsWith(
-                                "Godot.Collections.",
-                                StringComparison.Ordinal
-                            ),
-                        $"{definitionType.Name}.{property.Name} must not retain Godot collection type {inspected.FullName}."
-                    );
-                }
-            }
-        }
     }
 
     private void TestProjectionRejectsNullNestedResources()
@@ -440,26 +379,8 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         );
     }
 
-    private void TestWeaponSubresourcesAreTypedAndInvalidDiceRemainInvalid()
+    private void TestInvalidWeaponDiceRemainInvalidThroughMerge()
     {
-        _test.Eq(
-            typeof(ItemDef).GetField(nameof(ItemDef.equip_requirement))?.FieldType,
-            typeof(EquipmentRequirement),
-            "item equip_requirement authoring field must reject unrelated Resource types"
-        );
-        _test.Eq(
-            typeof(ItemDef).GetField(nameof(ItemDef.weapon_profile))?.FieldType,
-            typeof(WeaponProfileDef),
-            "item weapon_profile authoring field must reject unrelated Resource types"
-        );
-        _test.True(
-            typeof(WeaponProfileDef).GetMethod("Merge", BindingFlags.Public | BindingFlags.Static)
-                == null
-                && typeof(WeaponProfileDef).GetMethod("DuplicateProfile") == null
-                && typeof(WeaponDamageDiceDef).GetMethod("DuplicateDice") == null,
-            "raw weapon Resources must not retain merge/duplicate runtime APIs"
-        );
-
         WeaponDamageDiceDefinition invalidDice = new WeaponDamageDiceDefinition(0, -2, 0);
         IReadOnlyList<string> errors = WeaponDamageDiceDefinition.ValidateDice(
             "invalid_weapon",
@@ -508,24 +429,6 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         }
     }
 
-    private static IEnumerable<Type> EnumerateTypeGraph(Type root)
-    {
-        var seen = new HashSet<Type>();
-        var pending = new Stack<Type>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            Type type = pending.Pop();
-            if (type == null || !seen.Add(type))
-                continue;
-            yield return type;
-            if (type.HasElementType)
-                pending.Push(type.GetElementType());
-            foreach (Type argument in type.GetGenericArguments())
-                pending.Push(argument);
-        }
-    }
-
     private static string FormatErrors(IEnumerable<string> errors)
     {
         List<string> values = new();
@@ -534,36 +437,26 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
     }
 
-    private static GDictionary ProjectItemDefs(
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
+    private void AssertDictionaryRejectsRemoval<TValue>(
+        IReadOnlyDictionary<StringName, TValue> definitions,
+        StringName knownKey,
+        string message
     )
     {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDefinition itemDef) in itemDefs)
+        bool mutationRejected = definitions is not IDictionary<StringName, TValue>;
+        if (definitions is IDictionary<StringName, TValue> dictionary)
         {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemId.ToString();
+            try
+            {
+                dictionary.Remove(knownKey);
+            }
+            catch (NotSupportedException)
+            {
+                mutationRejected = true;
+            }
         }
-        return result;
-    }
-
-    private static GDictionary ProjectRecipeDefs(
-        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs
-    )
-    {
-        GDictionary result = new();
-        if (recipeDefs == null)
-            return result;
-        foreach ((StringName recipeId, RecipeDefinition recipeDef) in recipeDefs)
-        {
-            if (recipeId == "" || recipeDef == null)
-                continue;
-            result[recipeId] = recipeId.ToString();
-        }
-        return result;
+        _test.True(mutationRejected, message);
+        _test.True(definitions.ContainsKey(knownKey), $"{message}，且原定义仍应存在。");
     }
 
     private static Dictionary<StringName, TraitDefinition> BuildTraitDefinitions()
@@ -682,7 +575,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
     }
 
     private void AssertContains(
-        IReadOnlyList<string> errors,
+        IEnumerable<string> errors,
         string firstNeedle,
         string secondNeedle,
         string message

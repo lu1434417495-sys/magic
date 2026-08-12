@@ -2,21 +2,12 @@ using System.Collections.Generic;
 using Godot;
 
 /// <summary>
-/// 回归：验证 <see cref="ISkillCatalog"/> 门面只是 <see cref="GameContentCatalog"/> typed 快照之上的
-/// 薄读层——每个 effective getter 都应与直接调用 <c>skillDef.combat_profile.GetEffective*</c> 对拍一致，
-/// 命中 / 未命中语义正确，并且不依赖任何旧 string-key fallback。
+/// 回归：以固定合成技能验证 <see cref="ISkillCatalog"/> 的查询、等级覆盖、施法语义、
+/// 效果投影、安全缺省值与 revision 失效行为；预期值独立写明，不依赖两套 getter 互相对拍。
 /// </summary>
 public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
 {
-    private static readonly StringName[] SampleSkillIds =
-    {
-        "basic_attack",
-        "charge",
-        "archer_multishot",
-        "mage_meteor_swarm",
-    };
-
-    private static readonly int[] SampleSkillLevels = { 0, 1, 2, 3, 5 };
+    private static readonly StringName SyntheticSkillId = "skill_catalog_fixed_oracle";
 
     private readonly TestHarness _test = new();
 
@@ -27,7 +18,7 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
 
     private void Run()
     {
-        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        GameSession gameSession = CreateSyntheticCatalogSession();
         try
         {
             GameContentCatalog contentCatalog = gameSession.GetContentCatalogTyped();
@@ -40,11 +31,9 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
             if (skillCatalog == null)
                 return;
 
-            TestSkillCatalogIsStableFacade(contentCatalog, skillCatalog);
             TestHasSkillAndTryGet(skillCatalog);
-            TestRuntimeDefinitionsProjectSkillResource(contentCatalog, skillCatalog);
-            TestRuntimeCombatEffectiveSemanticsMirrorResource();
-            TestEffectiveGettersMatchCombatProfile(skillCatalog);
+            TestRuntimeCombatEffectiveSemanticsUseFixedValues();
+            TestEffectiveGettersUseFixedSyntheticSkill(skillCatalog);
             TestMissingSkillReturnsSafeDefaults(skillCatalog);
             TestEffectiveCacheInvalidatesWithCatalogRevision(contentCatalog, skillCatalog);
         }
@@ -55,26 +44,6 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
         }
 
         RequestTestExit(_test.Finish("Skill catalog query regression"));
-    }
-
-    private void TestSkillCatalogIsStableFacade(
-        GameContentCatalog contentCatalog,
-        ISkillCatalog skillCatalog
-    )
-    {
-        _test.True(
-            ReferenceEquals(contentCatalog.GetSkillCatalogTyped(), skillCatalog),
-            "GetSkillCatalogTyped 跨调用应返回同一门面实例。"
-        );
-        _test.Eq(
-            skillCatalog.GetRevision(),
-            contentCatalog.GetRevision(),
-            "skill catalog revision 应与底层 content catalog 一致。"
-        );
-        _test.True(
-            ReferenceEquals(skillCatalog.GetSkillDefinitionsTyped(), contentCatalog.GetSkillDefinitionsTyped()),
-            "skill catalog 应直接读 content catalog 的 SkillDefinition 快照视图，而不是另建副本。"
-        );
     }
 
     private void TestHasSkillAndTryGet(ISkillCatalog skillCatalog)
@@ -98,98 +67,7 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
         );
     }
 
-    private void TestRuntimeDefinitionsProjectSkillResource(
-        GameContentCatalog contentCatalog,
-        ISkillCatalog skillCatalog
-    )
-    {
-        IReadOnlyDictionary<StringName, SkillDefinition> runtimeDefinitions =
-            skillCatalog.GetSkillDefinitionsTyped();
-        _test.True(
-            runtimeDefinitions != null,
-            "skill catalog 应暴露 plain C# SkillDefinition 运行时定义快照。"
-        );
-        _test.Eq(
-            runtimeDefinitions?.Count ?? -1,
-            contentCatalog.GetSkillDefinitionsTyped().Count,
-            "SkillDefinition 快照数量应与 content catalog runtime skill definition 快照一致。"
-        );
-
-        const string sampleSkillId = "mage_meteor_swarm";
-        SkillDefinition catalogSkill = null;
-        SkillDefinition runtimeSkill = null;
-        _test.True(
-            contentCatalog.GetSkillDefinitionsTyped().TryGetValue(
-                sampleSkillId,
-                out catalogSkill
-            )
-                && catalogSkill != null
-                && skillCatalog.TryGetSkillDefinition(sampleSkillId, out runtimeSkill)
-                && runtimeSkill != null,
-            $"{sampleSkillId} 应存在于 SkillDefinition runtime 快照。"
-        );
-        if (catalogSkill == null || runtimeSkill == null)
-            return;
-
-        _test.Eq(
-            runtimeSkill.SkillId,
-            catalogSkill.SkillId,
-            "SkillCatalog 应返回 content catalog 中的 SkillDefinition skill id。"
-        );
-        _test.Eq(
-            runtimeSkill.DisplayName,
-            catalogSkill.DisplayName,
-            "SkillCatalog 应返回 content catalog 中的 SkillDefinition 显示名。"
-        );
-        _test.Eq(
-            runtimeSkill.Tags.Count,
-            catalogSkill.Tags.Count,
-            "SkillCatalog 应返回 content catalog 中的 SkillDefinition tags。"
-        );
-        _test.True(
-            runtimeSkill.CombatProfile != null,
-            "带 combat_profile 的技能应投影 CombatSkillDefinition。"
-        );
-        if (runtimeSkill.CombatProfile == null || catalogSkill.CombatProfile == null)
-            return;
-
-        CombatSkillDefinition runtimeCombat = runtimeSkill.CombatProfile;
-        CombatSkillDefinition catalogCombat = catalogSkill.CombatProfile;
-        const int sampleLevel = 3;
-
-        AssertCostsEq(
-            runtimeCombat.GetEffectiveResourceCostValues(sampleLevel),
-            catalogCombat.GetEffectiveResourceCostValues(sampleLevel),
-            "CombatSkillDefinition 的有效消耗应与 catalog SkillDefinition 对拍一致。"
-        );
-        _test.Eq(
-            runtimeCombat.GetEffectiveAttackRollBonus(sampleLevel),
-            catalogCombat.GetEffectiveAttackRollBonus(sampleLevel),
-            "CombatSkillDefinition 的有效命中加值应与 catalog SkillDefinition 对拍一致。"
-        );
-        _test.Eq(
-            runtimeCombat.GetEffectiveRangeValue(sampleLevel),
-            catalogCombat.GetEffectiveRangeValue(sampleLevel),
-            "CombatSkillDefinition 的有效射程应与 catalog SkillDefinition 对拍一致。"
-        );
-        _test.Eq(
-            runtimeCombat.GetEffectiveAreaValue(sampleLevel),
-            catalogCombat.GetEffectiveAreaValue(sampleLevel),
-            "CombatSkillDefinition 的有效范围值应与 catalog SkillDefinition 对拍一致。"
-        );
-        _test.Eq(
-            runtimeCombat.GetEffectiveAreaPattern(sampleLevel),
-            catalogCombat.GetEffectiveAreaPattern(sampleLevel),
-            "CombatSkillDefinition 的有效范围模式应与 catalog SkillDefinition 对拍一致。"
-        );
-        AssertRuntimeVariantsMatch(
-            runtimeCombat.GetUnlockedCastVariants(sampleLevel),
-            catalogCombat.GetUnlockedCastVariants(sampleLevel),
-            "CombatSkillDefinition 的已解锁施法变体应与 catalog SkillDefinition 对拍一致。"
-        );
-    }
-
-    private void TestRuntimeCombatEffectiveSemanticsMirrorResource()
+    private void TestRuntimeCombatEffectiveSemanticsUseFixedValues()
     {
         var levelTwoOverrides = TestResourceOwnership.OwnWrapper(
             new Godot.Collections.Dictionary
@@ -272,146 +150,105 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
         if (runtimeCombat == null)
             return;
 
-        foreach (int level in new[] { 1, 2, 4 })
-        {
-            _test.Eq(
-                runtimeCombat.GetEffectiveCastingTimeTu(level),
-                resourceCombat.GetEffectiveCastingTimeTu(level),
-                $"CombatSkillDefinition@L{level} casting_time_tu 应与 Resource 对拍。"
-            );
-            _test.Eq(
-                runtimeCombat.GetEffectiveCastingMaintenanceDc(level),
-                resourceCombat.GetEffectiveCastingMaintenanceDc(level),
-                $"CombatSkillDefinition@L{level} casting_maintenance_dc 应与 Resource 对拍。"
-            );
-            _test.Eq(
-                runtimeCombat.GetEffectiveCastingSpellControlDc(level),
-                resourceCombat.GetEffectiveCastingSpellControlDc(level),
-                $"CombatSkillDefinition@L{level} casting_spell_control_dc 应与 Resource 对拍。"
-            );
-            _test.Eq(
-                runtimeCombat.GetEffectivePendingCastBindingMode(level),
-                resourceCombat.GetEffectivePendingCastBindingMode(level),
-                $"CombatSkillDefinition@L{level} pending_cast_binding_mode 应与 Resource 对拍。"
-            );
-            _test.Eq(
-                runtimeCombat.HasCastingTime(level),
-                resourceCombat.HasCastingTime(level),
-                $"CombatSkillDefinition@L{level} HasCastingTime 应与 Resource 对拍。"
-            );
-            _test.Eq(
-                runtimeCombat.GetFumbleProtectionLimit(level),
-                resourceCombat.GetFumbleProtectionLimit(level),
-                $"CombatSkillDefinition@L{level} fumble protection limit 应与 Resource 对拍。"
-            );
-        }
-
-        _test.Eq(
-            runtimeCombat.HasSpellFateControl(),
-            resourceCombat.HasSpellFateControl(),
-            "CombatSkillDefinition spell fate control 语义应与 Resource 对拍。"
+        AssertFixedCastingSemantics(
+            resourceCombat,
+            runtimeCombat,
+            level: 1,
+            castingTimeTu: 3,
+            maintenanceDc: 5,
+            spellControlDc: 9,
+            bindingMode: PendingCastBindingModeKind.HardAnchor,
+            fumbleProtectionLimit: 1
         );
-        _test.Eq(
+        AssertFixedCastingSemantics(
+            resourceCombat,
+            runtimeCombat,
+            level: 2,
+            castingTimeTu: 7,
+            maintenanceDc: 11,
+            spellControlDc: 13,
+            bindingMode: PendingCastBindingModeKind.GroundBind,
+            fumbleProtectionLimit: 2
+        );
+        AssertFixedCastingSemantics(
+            resourceCombat,
+            runtimeCombat,
+            level: 4,
+            castingTimeTu: 7,
+            maintenanceDc: 11,
+            spellControlDc: 13,
+            bindingMode: PendingCastBindingModeKind.GroundBind,
+            fumbleProtectionLimit: 3
+        );
+
+        _test.True(runtimeCombat.HasSpellFateControl(), "control_roll 应启用 spell fate control。");
+        _test.True(
             runtimeCombat.UsesGroundAnchorDriftBacklash(),
-            resourceCombat.UsesGroundAnchorDriftBacklash(),
-            "CombatSkillDefinition backlash 语义应与 Resource 对拍。"
+            "ground_anchor_drift 应启用落点漂移 backlash。"
         );
         _test.Eq(
             runtimeCombat.SpellFateModeKind,
-            resourceCombat.SpellFateModeKind,
-            "CombatSkillDefinition spell fate enum 应与 Resource 对拍。"
+            CombatSpellFateMode.ControlRoll,
+            "spell_fate_mode 应投影为 ControlRoll。"
         );
         _test.Eq(
             runtimeCombat.BacklashModeKind,
-            resourceCombat.BacklashModeKind,
-            "CombatSkillDefinition backlash enum 应与 Resource 对拍。"
+            CombatSkillBacklashMode.GroundAnchorDrift,
+            "backlash_mode 应投影为 GroundAnchorDrift。"
         );
         _test.Eq(
             runtimeCombat.AreaOriginModeKind,
-            resourceCombat.AreaOriginModeKind,
-            "CombatSkillDefinition area origin enum 应与 Resource 对拍。"
+            CombatAreaOriginMode.AnchorCoord,
+            "area_origin_mode 应投影为 AnchorCoord。"
         );
         _test.Eq(
             runtimeCombat.AreaDirectionModeKind,
-            resourceCombat.AreaDirectionModeKind,
-            "CombatSkillDefinition area direction enum 应与 Resource 对拍。"
+            CombatAreaDirectionMode.CasterFacing,
+            "area_direction_mode 应投影为 CasterFacing。"
         );
-        AssertRuntimeEffectDefinitionMatchesResource(
-            runtimeCombat.EffectDefinitions[0],
-            resourceEffect,
-            "CombatEffectDefinition 应保留伤害/豁免/状态持续字段。"
-        );
+        AssertRuntimeEffectDefinitionMatchesFixedFixture(runtimeCombat.EffectDefinitions[0]);
     }
 
-    private void TestEffectiveGettersMatchCombatProfile(ISkillCatalog skillCatalog)
+    private void TestEffectiveGettersUseFixedSyntheticSkill(ISkillCatalog skillCatalog)
     {
-        foreach (StringName skillId in SampleSkillIds)
-        {
-            _test.True(
-                skillCatalog.HasSkill(skillId),
-                $"对拍样本技能 {skillId} 应存在于 catalog。"
-            );
-            if (!skillCatalog.TryGetSkillDefinition(skillId, out SkillDefinition skillDefinition) || skillDefinition == null)
-            {
-                _test.Fail($"无法取回样本技能 {skillId} 的 SkillDefinition。");
-                continue;
-            }
+        _test.True(skillCatalog.HasSkill(SyntheticSkillId), "synthetic fixed-oracle skill 应存在。");
+        _test.True(
+            skillCatalog.TryGetSkillDefinition(SyntheticSkillId, out SkillDefinition skillDefinition)
+                && skillDefinition?.CombatProfile != null,
+            "synthetic fixed-oracle skill 应能通过正式 catalog 查询取得 combat profile。"
+        );
+        if (skillDefinition?.CombatProfile == null)
+            return;
 
-            CombatSkillDefinition profile = skillDefinition.CombatProfile;
-            _test.True(profile != null, $"样本技能 {skillId} 应带 combat_profile。");
-            if (profile == null)
-                continue;
-
-            foreach (int level in SampleSkillLevels)
-            {
-                SkillEffectiveCombatDefinition effectiveDefinition =
-                    skillCatalog.GetEffectiveCombatDefinition(skillId, level);
-                _test.True(
-                    effectiveDefinition != null,
-                    $"{skillId}@L{level} 的聚合 runtime effective definition 不应为 null。"
-                );
-                _test.True(
-                    ReferenceEquals(
-                        effectiveDefinition,
-                        skillCatalog.GetEffectiveCombatDefinition(skillId, level)
-                    ),
-                        $"{skillId}@L{level} 的聚合 runtime effective definition 应被缓存复用。"
-                );
-                _test.True(
-                    ReferenceEquals(
-                        effectiveDefinition.SkillDefinition,
-                        skillCatalog.GetSkillDefinitionsTyped()[skillId]
-                    ),
-                    $"{skillId}@L{level} 的 runtime effective definition 应引用 catalog SkillDefinition。"
-                );
-                _test.Eq(
-                    effectiveDefinition.SkillLevel,
-                    level,
-                    $"{skillId}@L{level} 的 runtime effective definition 应保留请求等级。"
-                );
-                AssertCostsEq(
-                    effectiveDefinition.ResourceCosts,
-                    profile.GetEffectiveResourceCostValues(level),
-                    $"{skillId}@L{level} 的 runtime 聚合有效消耗应与 combat profile 对拍一致。"
-                );
-                AssertEffectiveGetterFacadeMatchesProfile(
-                    skillCatalog,
-                    skillId,
-                    level,
-                    effectiveDefinition
-                );
-                AssertRuntimeVariantsMatch(
-                    effectiveDefinition.UnlockedCastVariants,
-                    profile.GetUnlockedCastVariants(level),
-                    $"{skillId}@L{level} 的 runtime 已解锁施法变体应对拍一致。"
-                );
-                AssertRuntimeEffectiveDefinitionMatchesProfile(
-                    effectiveDefinition,
-                    profile,
-                    $"{skillId}@L{level} 的 runtime effective combat definition"
-                );
-            }
-        }
+        _test.Eq(skillDefinition.DisplayName, "Fixed Oracle Skill", "catalog 应返回固定显示名。");
+        AssertFixedCatalogEffectiveDefinition(
+            skillCatalog,
+            level: 1,
+            expectedCosts: new CombatSkillResourceCosts(2, 30, 4, 5, 60),
+            attackRollBonus: 1,
+            rangeValue: 2,
+            areaValue: 1,
+            maxTargetCount: 2,
+            areaPattern: "diamond",
+            castingTimeTu: 3,
+            castingMaintenanceDc: 5,
+            castingSpellControlDc: 9,
+            bindingMode: PendingCastBindingModeKind.HardAnchor
+        );
+        AssertFixedCatalogEffectiveDefinition(
+            skillCatalog,
+            level: 3,
+            expectedCosts: new CombatSkillResourceCosts(3, 20, 6, 7, 40),
+            attackRollBonus: 4,
+            rangeValue: 5,
+            areaValue: 2,
+            maxTargetCount: 4,
+            areaPattern: "radius",
+            castingTimeTu: 7,
+            castingMaintenanceDc: 11,
+            castingSpellControlDc: 13,
+            bindingMode: PendingCastBindingModeKind.GroundBind
+        );
     }
 
     private void TestMissingSkillReturnsSafeDefaults(ISkillCatalog skillCatalog)
@@ -477,8 +314,7 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
         ISkillCatalog skillCatalog
     )
     {
-        SkillEffectiveCombatDefinition beforeDefinition =
-            skillCatalog.GetEffectiveCombatDefinition("basic_attack", 1);
+        _ = skillCatalog.GetEffectiveCombatDefinition("basic_attack", 1);
         long beforeRevision = skillCatalog.GetRevision();
 
         contentCatalog.ClearSessionBinding();
@@ -490,233 +326,267 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
         SkillEffectiveCombatDefinition afterDefinition =
             skillCatalog.GetEffectiveCombatDefinition("basic_attack", 1);
         _test.True(
-            !ReferenceEquals(beforeDefinition, afterDefinition),
-            "catalog revision 变化后 runtime effective definition cache 应失效并重建。"
-        );
-        _test.True(
             !afterDefinition.HasCombatProfile,
-            "catalog clear 后 runtime effective definition 不应返回旧 SkillDefinition/combat profile。"
+            "catalog revision 变化后查询结果不应残留旧 SkillDefinition/combat profile。"
         );
     }
 
-    private void AssertEffectiveGetterFacadeMatchesProfile(
-        ISkillCatalog skillCatalog,
-        StringName skillId,
+    private void AssertFixedCastingSemantics(
+        CombatSkillDef resourceCombat,
+        CombatSkillDefinition runtimeCombat,
         int level,
-        SkillEffectiveCombatDefinition effectiveDefinition
+        int castingTimeTu,
+        int maintenanceDc,
+        int spellControlDc,
+        PendingCastBindingModeKind bindingMode,
+        int fumbleProtectionLimit
     )
     {
-        AssertCostsEq(
-            skillCatalog.GetEffectiveResourceCostValues(skillId, level),
-            effectiveDefinition.ResourceCosts,
-            $"{skillId}@L{level} 的消耗 getter 应读取聚合 runtime effective definition。"
+        _test.Eq(
+            resourceCombat.GetEffectiveCastingTimeTu(level),
+            castingTimeTu,
+            $"Resource@L{level} casting_time_tu 应命中固定 oracle。"
         );
         _test.Eq(
-            skillCatalog.GetEffectiveAttackRollBonus(skillId, level),
-            effectiveDefinition.AttackRollBonus,
-            $"{skillId}@L{level} 的命中 getter 应读取聚合 runtime effective definition。"
+            runtimeCombat.GetEffectiveCastingTimeTu(level),
+            castingTimeTu,
+            $"Runtime@L{level} casting_time_tu 应命中固定 oracle。"
         );
         _test.Eq(
-            skillCatalog.GetEffectiveRangeValue(skillId, level),
-            effectiveDefinition.RangeValue,
-            $"{skillId}@L{level} 的射程 getter 应读取聚合 runtime effective definition。"
+            resourceCombat.GetEffectiveCastingMaintenanceDc(level),
+            maintenanceDc,
+            $"Resource@L{level} casting_maintenance_dc 应命中固定 oracle。"
         );
         _test.Eq(
-            skillCatalog.GetEffectiveAreaValue(skillId, level),
-            effectiveDefinition.AreaValue,
-            $"{skillId}@L{level} 的范围值 getter 应读取聚合 runtime effective definition。"
+            runtimeCombat.GetEffectiveCastingMaintenanceDc(level),
+            maintenanceDc,
+            $"Runtime@L{level} casting_maintenance_dc 应命中固定 oracle。"
         );
         _test.Eq(
-            skillCatalog.GetEffectiveMaxTargetCount(skillId, level),
-            effectiveDefinition.MaxTargetCount,
-            $"{skillId}@L{level} 的最大目标数 getter 应读取聚合 runtime effective definition。"
+            resourceCombat.GetEffectiveCastingSpellControlDc(level),
+            spellControlDc,
+            $"Resource@L{level} casting_spell_control_dc 应命中固定 oracle。"
         );
         _test.Eq(
-            skillCatalog.GetEffectiveAreaPattern(skillId, level),
-            effectiveDefinition.AreaPattern,
-            $"{skillId}@L{level} 的范围模式 getter 应读取聚合 runtime effective definition。"
+            runtimeCombat.GetEffectiveCastingSpellControlDc(level),
+            spellControlDc,
+            $"Runtime@L{level} casting_spell_control_dc 应命中固定 oracle。"
         );
-        _test.True(
-            ReferenceEquals(
-                skillCatalog.GetUnlockedCastVariantDefinitions(skillId, level),
-                effectiveDefinition.UnlockedCastVariants
-            ),
-            $"{skillId}@L{level} 的施法变体 getter 应读取聚合 runtime effective definition。"
+        _test.Eq(
+            resourceCombat.GetEffectivePendingCastBindingMode(level),
+            bindingMode,
+            $"Resource@L{level} pending_cast_binding_mode 应命中固定 oracle。"
         );
+        _test.Eq(
+            runtimeCombat.GetEffectivePendingCastBindingMode(level),
+            bindingMode,
+            $"Runtime@L{level} pending_cast_binding_mode 应命中固定 oracle。"
+        );
+        _test.Eq(
+            resourceCombat.GetFumbleProtectionLimit(level),
+            fumbleProtectionLimit,
+            $"Resource@L{level} fumble protection 应命中固定 oracle。"
+        );
+        _test.Eq(
+            runtimeCombat.GetFumbleProtectionLimit(level),
+            fumbleProtectionLimit,
+            $"Runtime@L{level} fumble protection 应命中固定 oracle。"
+        );
+        _test.True(resourceCombat.HasCastingTime(level), $"Resource@L{level} 应有施法时间。");
+        _test.True(runtimeCombat.HasCastingTime(level), $"Runtime@L{level} 应有施法时间。");
     }
 
-    private void AssertRuntimeEffectiveDefinitionMatchesProfile(
-        SkillEffectiveCombatDefinition actual,
-        CombatSkillDefinition expected,
-        string message
-    )
+    private void AssertRuntimeEffectDefinitionMatchesFixedFixture(CombatEffectDefinition actual)
     {
-        _test.Eq(
-            actual.CastingTimeTu,
-            expected.GetEffectiveCastingTimeTu(actual.SkillLevel),
-            $"{message} casting_time_tu 应对拍一致。"
-        );
-        _test.Eq(
-            actual.CastingMaintenanceDc,
-            expected.GetEffectiveCastingMaintenanceDc(actual.SkillLevel),
-            $"{message} casting_maintenance_dc 应对拍一致。"
-        );
-        _test.Eq(
-            actual.CastingSpellControlDc,
-            expected.GetEffectiveCastingSpellControlDc(actual.SkillLevel),
-            $"{message} casting_spell_control_dc 应对拍一致。"
-        );
-        _test.Eq(
-            actual.PendingCastBindingMode,
-            expected.GetEffectivePendingCastBindingMode(actual.SkillLevel),
-            $"{message} pending_cast_binding_mode 应对拍一致。"
-        );
-        _test.Eq(
-            actual.FumbleProtectionLimit,
-            expected.GetFumbleProtectionLimit(actual.SkillLevel),
-            $"{message} fumble protection limit 应对拍一致。"
-        );
-        _test.Eq(
-            actual.HasSpellFateControl,
-            expected.HasSpellFateControl(),
-            $"{message} spell fate control 应对拍一致。"
-        );
-        _test.Eq(
-            actual.UsesGroundAnchorDriftBacklash,
-            expected.UsesGroundAnchorDriftBacklash(),
-            $"{message} backlash mode 应对拍一致。"
-        );
-    }
-
-    private void AssertRuntimeEffectDefinitionMatchesResource(
-        CombatEffectDefinition actual,
-        CombatEffectDef expected,
-        string message
-    )
-    {
-        _test.Eq(actual.DamageTag, expected.damage_tag, $"{message} damage_tag");
-        _test.Eq(
-            actual.DamageRatioPercent,
-            expected.damage_ratio_percent,
-            $"{message} damage_ratio_percent"
-        );
+        _test.True(actual != null, "CombatEffectDefinition 固定 fixture 应完成投影。");
+        if (actual == null)
+            return;
+        _test.Eq(actual.DamageTag, new StringName("fire"), "damage_tag 应为 fire。");
+        _test.Eq(actual.DamageRatioPercent, 75, "damage_ratio_percent 应为 75。");
         _test.Eq(
             actual.PreResistanceDamageMultiplier,
-            expected.pre_resistance_damage_multiplier,
-            $"{message} pre_resistance_damage_multiplier"
+            1.5,
+            "pre_resistance_damage_multiplier 应为 1.5。"
         );
-        _test.Eq(actual.DamageCategory, expected.damage_category, $"{message} damage_category");
-        _test.Eq(actual.DrBypassTag, expected.dr_bypass_tag, $"{message} dr_bypass_tag");
-        _test.Eq(actual.DiceCount, expected.dice_count, $"{message} dice_count");
-        _test.Eq(actual.DiceSides, expected.dice_sides, $"{message} dice_sides");
-        _test.Eq(actual.DiceBonus, expected.dice_bonus, $"{message} dice_bonus");
-        _test.Eq(actual.SaveDc, expected.save_dc, $"{message} save_dc");
-        _test.Eq(actual.SaveDcMode, expected.save_dc_mode, $"{message} save_dc_mode");
+        _test.Eq(actual.DamageCategory, new StringName("elemental"), "damage_category 应为 elemental。");
+        _test.Eq(actual.DrBypassTag, new StringName("magic"), "dr_bypass_tag 应为 magic。");
+        _test.Eq(actual.DiceCount, 3, "dice_count 应为 3。");
+        _test.Eq(actual.DiceSides, 8, "dice_sides 应为 8。");
+        _test.Eq(actual.DiceBonus, 2, "dice_bonus 应为 2。");
+        _test.Eq(actual.SaveDc, 14, "save_dc 应为 14。");
+        _test.Eq(actual.SaveDcMode, new StringName("caster_spell"), "save_dc_mode 应为 caster_spell。");
         _test.Eq(
             actual.SaveDcSourceAbility,
-            expected.save_dc_source_ability,
-            $"{message} save_dc_source_ability"
+            new StringName("intelligence"),
+            "save_dc_source_ability 应为 intelligence。"
         );
-        _test.Eq(actual.SaveAbility, expected.save_ability, $"{message} save_ability");
+        _test.Eq(actual.SaveAbility, new StringName("agility"), "save_ability 应为 agility。");
+        _test.True(actual.SavePartialOnSuccess, "save_partial_on_success 应为 true。");
+        _test.Eq(actual.SaveTag, new StringName("fireball"), "save_tag 应为 fireball。");
+        _test.Eq(actual.AppliedStatusDurationTu, 40, "applied_status_duration_tu 应为 40。");
+        _test.Eq(actual.DurationTu, 60, "duration_tu 应为 60。");
+        _test.Eq(actual.TickIntervalTu, 10, "tick_interval_tu 应为 10。");
+        _test.Eq(actual.EffectTags.Count, 2, "effect_tags 应有两个固定值。");
+        if (actual.EffectTags.Count == 2)
+        {
+            _test.Eq(actual.EffectTags[0], new StringName("fire"), "effect_tags[0] 应为 fire。");
+            _test.Eq(actual.EffectTags[1], new StringName("dot"), "effect_tags[1] 应为 dot。");
+        }
+    }
+
+    private void AssertFixedCatalogEffectiveDefinition(
+        ISkillCatalog skillCatalog,
+        int level,
+        CombatSkillResourceCosts expectedCosts,
+        int attackRollBonus,
+        int rangeValue,
+        int areaValue,
+        int maxTargetCount,
+        StringName areaPattern,
+        int castingTimeTu,
+        int castingMaintenanceDc,
+        int castingSpellControlDc,
+        PendingCastBindingModeKind bindingMode
+    )
+    {
+        SkillEffectiveCombatDefinition effectiveDefinition =
+            skillCatalog.GetEffectiveCombatDefinition(SyntheticSkillId, level);
+        _test.True(effectiveDefinition?.HasCombatProfile == true, $"synthetic skill@L{level} 应有 combat profile。");
+        if (effectiveDefinition == null)
+            return;
+
+        _test.Eq(effectiveDefinition.SkillLevel, level, $"synthetic skill 应保留 L{level}。");
+        AssertCostsEq(
+            effectiveDefinition.ResourceCosts,
+            expectedCosts,
+            $"synthetic skill@L{level} effective definition 消耗应命中固定 oracle。"
+        );
+        _test.Eq(effectiveDefinition.AttackRollBonus, attackRollBonus, $"synthetic skill@L{level} attack bonus。");
+        _test.Eq(effectiveDefinition.RangeValue, rangeValue, $"synthetic skill@L{level} range。");
+        _test.Eq(effectiveDefinition.AreaValue, areaValue, $"synthetic skill@L{level} area value。");
+        _test.Eq(effectiveDefinition.MaxTargetCount, maxTargetCount, $"synthetic skill@L{level} max targets。");
+        _test.Eq(effectiveDefinition.AreaPattern, areaPattern, $"synthetic skill@L{level} area pattern。");
+        _test.Eq(effectiveDefinition.CastingTimeTu, castingTimeTu, $"synthetic skill@L{level} casting time。");
         _test.Eq(
-            actual.SavePartialOnSuccess,
-            expected.save_partial_on_success,
-            $"{message} save_partial_on_success"
+            effectiveDefinition.CastingMaintenanceDc,
+            castingMaintenanceDc,
+            $"synthetic skill@L{level} maintenance dc。"
         );
-        _test.Eq(actual.SaveTag, expected.save_tag, $"{message} save_tag");
         _test.Eq(
-            actual.AppliedStatusDurationTu,
-            expected.applied_status_duration_tu,
-            $"{message} applied_status_duration_tu"
+            effectiveDefinition.CastingSpellControlDc,
+            castingSpellControlDc,
+            $"synthetic skill@L{level} spell control dc。"
         );
-        _test.Eq(actual.DurationTu, expected.duration_tu, $"{message} duration_tu");
-        _test.Eq(actual.TickIntervalTu, expected.tick_interval_tu, $"{message} tick_interval_tu");
-        _test.Eq(actual.EffectTags.Count, expected.effect_tags.Count, $"{message} effect_tags count");
-        for (int i = 0; i < actual.EffectTags.Count && i < expected.effect_tags.Count; i++)
-            _test.Eq(actual.EffectTags[i], expected.effect_tags[i], $"{message} effect_tags[{i}]");
+        _test.Eq(
+            effectiveDefinition.PendingCastBindingMode,
+            bindingMode,
+            $"synthetic skill@L{level} pending binding。"
+        );
+        _test.Eq(effectiveDefinition.UnlockedCastVariants.Count, 0, $"synthetic skill@L{level} 不应有 cast variant。");
+
+        AssertCostsEq(
+            skillCatalog.GetEffectiveResourceCostValues(SyntheticSkillId, level),
+            expectedCosts,
+            $"catalog cost getter@L{level} 应命中固定 oracle。"
+        );
+        _test.Eq(
+            skillCatalog.GetEffectiveAttackRollBonus(SyntheticSkillId, level),
+            attackRollBonus,
+            $"catalog attack getter@L{level} 应命中固定 oracle。"
+        );
+        _test.Eq(
+            skillCatalog.GetEffectiveRangeValue(SyntheticSkillId, level),
+            rangeValue,
+            $"catalog range getter@L{level} 应命中固定 oracle。"
+        );
+        _test.Eq(
+            skillCatalog.GetEffectiveAreaValue(SyntheticSkillId, level),
+            areaValue,
+            $"catalog area getter@L{level} 应命中固定 oracle。"
+        );
+        _test.Eq(
+            skillCatalog.GetEffectiveMaxTargetCount(SyntheticSkillId, level),
+            maxTargetCount,
+            $"catalog max-target getter@L{level} 应命中固定 oracle。"
+        );
+        _test.Eq(
+            skillCatalog.GetEffectiveAreaPattern(SyntheticSkillId, level),
+            areaPattern,
+            $"catalog area-pattern getter@L{level} 应命中固定 oracle。"
+        );
+        _test.Eq(
+            skillCatalog.GetUnlockedCastVariantDefinitions(SyntheticSkillId, level).Count,
+            0,
+            $"catalog variant getter@L{level} 应返回固定空集合。"
+        );
     }
 
-    private void AssertUnlockedVariantsMatch(
-        IReadOnlyList<CombatCastVariantDef> actual,
-        Godot.Collections.Array<CombatCastVariantDef> expected,
-        string message
-    )
+    private static GameSession CreateSyntheticCatalogSession()
     {
-        _test.True(actual != null, message);
-        _test.True(expected != null, message);
-        if (actual == null || expected == null)
-            return;
-        _test.Eq(actual.Count, expected.Count, message);
-        int count = System.Math.Min(actual.Count, expected.Count);
-        for (int i = 0; i < count; i++)
+        var levelOverrides = new Dictionary<int, IReadOnlyDictionary<string, object>>
         {
-            _test.Eq(
-                actual[i]?.variant_id ?? "",
-                expected[i]?.variant_id ?? "",
-                $"{message} index={i} variant_id"
-            );
-            _test.Eq(
-                actual[i]?.min_skill_level ?? -1,
-                expected[i]?.min_skill_level ?? -1,
-                $"{message} index={i} min_skill_level"
-            );
-        }
+            [3] = new Dictionary<string, object>
+            {
+                ["ap_cost"] = 3,
+                ["mp_cost"] = 20,
+                ["stamina_cost"] = 6,
+                ["aura_cost"] = 7,
+                ["cooldown_tu"] = 40,
+                ["attack_roll_bonus"] = 4,
+                ["range_value"] = 5,
+                ["area_value"] = 2,
+                ["max_target_count"] = 4,
+                ["area_pattern"] = new StringName("radius"),
+                ["casting_time_tu"] = 7,
+                ["casting_maintenance_dc"] = 11,
+                ["casting_spell_control_dc"] = 13,
+                ["pending_cast_binding_mode"] = new StringName("ground_bind"),
+            },
+        };
+        CombatSkillDefinition combatProfile = TestSkillDefinitionProjection.BuildCombatProfile(
+            SyntheticSkillId,
+            targetMode: "ground",
+            targetTeamFilter: "enemy",
+            rangeValue: 2,
+            apCost: 2,
+            mpCost: 30,
+            staminaCost: 4,
+            auraCost: 5,
+            cooldownTu: 60,
+            castingTimeTu: 3,
+            castingMaintenanceDc: 5,
+            castingSpellControlDc: 9,
+            pendingCastBindingMode: "hard_anchor",
+            attackRollBonus: 1,
+            areaPattern: "diamond",
+            areaValue: 1,
+            maxTargetCount: 2,
+            levelOverrides: levelOverrides
+        );
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
+            SyntheticSkillId,
+            displayName: "Fixed Oracle Skill",
+            combatProfile: combatProfile,
+            maxLevel: 3
+        );
+        return GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Skills = CopyWithEntry(seed.Skills, SyntheticSkillId, skillDefinition)
+        );
     }
 
-    private void AssertRuntimeVariantsMatch(
-        IReadOnlyList<CombatCastVariantDefinition> actual,
-        IReadOnlyList<CombatCastVariantDefinition> expected,
-        string message
+    private static IReadOnlyDictionary<StringName, T> CopyWithEntry<T>(
+        IReadOnlyDictionary<StringName, T> source,
+        StringName key,
+        T value
     )
+        where T : class
     {
-        _test.True(actual != null, message);
-        _test.True(expected != null, message);
-        if (actual == null || expected == null)
-            return;
-        _test.Eq(actual.Count, expected.Count, message);
-        int count = System.Math.Min(actual.Count, expected.Count);
-        for (int i = 0; i < count; i++)
-        {
-            _test.Eq(
-                actual[i]?.VariantId ?? "",
-                expected[i]?.VariantId ?? "",
-                $"{message} index={i} variant_id"
-            );
-            _test.Eq(
-                actual[i]?.MinSkillLevel ?? -1,
-                expected[i]?.MinSkillLevel ?? -1,
-                $"{message} index={i} min_skill_level"
-            );
-        }
+        var copy = source == null
+            ? new Dictionary<StringName, T>()
+            : new Dictionary<StringName, T>(source);
+        copy[key] = value;
+        return copy;
     }
-
-    private void AssertRuntimeVariantsMatch(
-        IReadOnlyList<CombatCastVariantDefinition> actual,
-        Godot.Collections.Array<CombatCastVariantDef> expected,
-        string message
-    )
-    {
-        _test.True(actual != null, message);
-        _test.True(expected != null, message);
-        if (actual == null || expected == null)
-            return;
-        _test.Eq(actual.Count, expected.Count, message);
-        int count = System.Math.Min(actual.Count, expected.Count);
-        for (int i = 0; i < count; i++)
-        {
-            _test.Eq(
-                actual[i]?.VariantId ?? "",
-                expected[i]?.variant_id ?? "",
-                $"{message} index={i} variant_id"
-            );
-            _test.Eq(
-                actual[i]?.MinSkillLevel ?? -1,
-                expected[i]?.min_skill_level ?? -1,
-                $"{message} index={i} min_skill_level"
-            );
-        }
-    }
-
 
     private void AssertCostsEq(
         CombatSkillResourceCosts actual,

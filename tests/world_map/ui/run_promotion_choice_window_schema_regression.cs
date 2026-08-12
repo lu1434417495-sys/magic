@@ -12,11 +12,21 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
 
     public override async void _Initialize()
     {
-        await TestPromotionChoiceWindowAcceptsFormalStringPayload();
-        await TestPromotionChoiceWindowRendersBbcodeShapedContentLiterally();
-        await TestPromotionChoiceWindowSubmitPreservesMemberId();
-        await TestPromotionChoiceWindowRejectsStringNameStringFields();
-        RequestTestExit(_test.Finish("Promotion choice window schema regression"));
+        try
+        {
+            await TestPromotionChoiceWindowAcceptsFormalStringPayload();
+            await TestPromotionChoiceWindowRendersBbcodeShapedContentLiterally();
+            await TestPromotionChoiceWindowSubmitPreservesMemberId();
+            await TestPromotionChoiceWindowRejectsStringNameStringFields();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Promotion choice window schema regression"));
+        }
     }
 
     private async Task<PromotionChoiceWindow> CreateWindow()

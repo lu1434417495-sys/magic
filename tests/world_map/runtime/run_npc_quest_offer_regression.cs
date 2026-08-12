@@ -18,28 +18,37 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async void RunAsync()
     {
-        await TestNpcQuestOfferOpensForMatchingInteraction();
-        await TestNpcQuestOfferSkipsNonNpcProvider();
-        await TestNpcQuestOfferRequiresNpcOfferChannel();
-        await TestNpcQuestOfferRespectsAcceptRequirements();
-        await TestNpcQuestOfferAcceptsQuest();
-        await TestNpcQuestOfferSubmitsItemsAndClaimsReward();
-        await TestNpcQuestOfferConfirmationFlow();
-        await TestNpcQuestOfferRejectsLockedQuest();
-        await TestNpcQuestOfferRejectsSubmissionWithoutModal();
-        await TestNpcQuestOfferRejectsWrongSettlement();
-        await TestNpcQuestOfferRejectsWrongAction();
-        await TestNpcQuestOfferFallsBackWhenNoMatchingQuests();
-        await TestNpcQuestOfferMultipleQuests();
-        await TestNpcQuestOfferRejectsMissingQuestId();
-        await TestNpcQuestOfferRejectsWrongNpcQuest();
-        await TestNpcQuestOfferRejectsWrongListingChannel();
-        await TestNpcQuestOfferRejectsNonNpcProviderKind();
-        await TestNpcQuestOfferCloseModalLifecycle();
-        await TestNpcQuestOfferRefreshesEntriesAfterAccept();
-        await TestNpcQuestOfferRejectsConfirmBypass();
-
-        RequestTestExit(_test.Finish("NPC quest offer regression"));
+        try
+        {
+            await TestNpcQuestOfferOpensForMatchingInteraction();
+            await TestNpcQuestOfferSkipsNonNpcProvider();
+            await TestNpcQuestOfferRequiresNpcOfferChannel();
+            await TestNpcQuestOfferRespectsAcceptRequirements();
+            await TestNpcQuestOfferAcceptsQuest();
+            await TestNpcQuestOfferSubmitsItemsAndClaimsReward();
+            await TestNpcQuestOfferConfirmationFlow();
+            await TestNpcQuestOfferRejectsLockedQuest();
+            await TestNpcQuestOfferRejectsSubmissionWithoutModal();
+            await TestNpcQuestOfferRejectsWrongSettlement();
+            await TestNpcQuestOfferRejectsWrongAction();
+            await TestNpcQuestOfferFallsBackWhenNoMatchingQuests();
+            await TestNpcQuestOfferMultipleQuests();
+            await TestNpcQuestOfferRejectsMissingQuestId();
+            await TestNpcQuestOfferRejectsWrongNpcQuest();
+            await TestNpcQuestOfferRejectsWrongListingChannel();
+            await TestNpcQuestOfferRejectsNonNpcProviderKind();
+            await TestNpcQuestOfferCloseModalLifecycle();
+            await TestNpcQuestOfferRefreshesEntriesAfterAccept();
+            await TestNpcQuestOfferRejectsConfirmBypass();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("NPC quest offer regression"));
+        }
     }
 
     private async Task TestNpcQuestOfferOpensForMatchingInteraction()

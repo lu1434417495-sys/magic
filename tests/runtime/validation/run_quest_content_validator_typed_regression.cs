@@ -128,9 +128,34 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
             _snapshot.EnemyTemplates,
             registrationErrors
         );
+        string formattedErrors = FormatErrors(typedErrors);
         _test.True(
-            typedErrors.Count >= 4,
-            $"typed quest validator 应把缺失引用和 registration error 视为非法。 errors={FormatErrors(typedErrors)}"
+            typedErrors.Contains("typed registration error"),
+            $"typed quest validator 应保留 registration error。 errors={formattedErrors}"
+        );
+        _test.True(
+            typedErrors.Contains(
+                "Quest typed_missing_reference_quest submit_item objective deliver_missing_relic references missing item missing_relic."
+            ),
+            $"submit_item objective 应精确报告缺失 item id。 errors={formattedErrors}"
+        );
+        _test.True(
+            typedErrors.Contains(
+                "Quest typed_missing_reference_quest defeat_enemy objective defeat_missing_enemy references missing enemy missing_enemy_template."
+            ),
+            $"defeat_enemy objective 应精确报告缺失 enemy id。 errors={formattedErrors}"
+        );
+        _test.True(
+            typedErrors.Contains(
+                "Quest typed_missing_reference_quest defeat_enemy_in_single_battle objective defeat_missing_enemy_together references missing enemy missing_single_battle_enemy_template."
+            ),
+            $"单场击败 objective 应精确报告缺失 enemy id。 errors={formattedErrors}"
+        );
+        _test.True(
+            typedErrors.Contains(
+                "Quest typed_missing_reference_quest pending_character_reward references missing skill missing_skill_reward."
+            ),
+            $"pending character reward 应精确报告缺失 skill id。 errors={formattedErrors}"
         );
     }
 

@@ -54,7 +54,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
     private const string ENEMY_INVALID_SKILL_LEVEL_MAP_SEED_PATH =
         "res://tests/fixtures/enemy_content/invalid_skill_level_map/enemy_content_seed.tres";
     private const string BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT =
-        "user://resource_validation/battle_special_profiles";
+        "user://rv/bsp";
 
     private readonly TestHarness _test = new();
     private readonly List<string> _reports = new();
@@ -256,32 +256,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                     }
                 )
             );
-        ValidationDomainResult battleSpecialDuplicateOwnerResult =
-            ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
-                "battle_special_profile_duplicate_owner",
-                typedSkillDefinitions,
-                PrepareBattleSpecialProfileManifestDir(
-                    "duplicate_owner",
-                    new List<GDictionary>
-                    {
-                        new()
-                        {
-                            ["file_name"] = "a",
-                            ["profile_id"] = "meteor_swarm",
-                            ["owning_skill_ids"] = new GArray { "mage_meteor_swarm" },
-                            ["profile_resource"] = BuildValidMeteorSwarmProfile(),
-                        },
-                        new()
-                        {
-                            ["file_name"] = "b",
-                            ["profile_id"] = "other_profile",
-                            ["runtime_resolver_id"] = "other_profile",
-                            ["owning_skill_ids"] = new GArray { "mage_meteor_swarm" },
-                            ["profile_resource"] = new Resource(),
-                        },
-                    }
-                )
-            );
         ValidationDomainResult battleSpecialWrongResourceResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_wrong_resource_type",
@@ -314,28 +288,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                             ["profile_id"] = "meteor_swarm",
                             ["owning_skill_ids"] = new GArray { "missing_skill" },
                             ["profile_resource"] = BuildValidMeteorSwarmProfile(),
-                        },
-                    }
-                )
-            );
-        ValidationDomainResult battleSpecialMissingRequiredTestResult =
-            ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
-                "battle_special_profile_missing_required_test",
-                typedSkillDefinitions,
-                PrepareBattleSpecialProfileManifestDir(
-                    "missing_required_test",
-                    new List<GDictionary>
-                    {
-                        new()
-                        {
-                            ["file_name"] = "missing_required_test",
-                            ["profile_id"] = "meteor_swarm",
-                            ["owning_skill_ids"] = new GArray { "mage_meteor_swarm" },
-                            ["profile_resource"] = BuildValidMeteorSwarmProfile(),
-                            ["required_regression_tests"] = new GArray
-                            {
-                                "tests/missing/missing_profile_regression.cs",
-                            },
                         },
                     }
                 )
@@ -389,10 +341,8 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                 battleSpecialMissingManifestResult,
                 battleSpecialUnknownProfileResult,
                 battleSpecialDuplicateProfileResult,
-                battleSpecialDuplicateOwnerResult,
                 battleSpecialWrongResourceResult,
                 battleSpecialMissingOwnerResult,
-                battleSpecialMissingRequiredTestResult,
                 battleSpecialBadSchemaResult,
                 worldResult,
                 questResult,
@@ -400,28 +350,100 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         );
         _reports.Add(ContentValidationRunner.FormatReport(invalidFixtureReport));
 
-        AssertInvalid(skillResult, "非法技能 fixture 应保持非法。");
-        AssertContainsError(
+        AssertContainsErrors(
             skillResult,
+            "非法技能目录中的每个独立 fixture 规则都必须被命中。",
+            "Duplicate skill_id registered: duplicate_skill",
+            "missing_id_skill.tres is missing skill_id",
+            "illegal_reference_skill has an effect without effect_type",
+            "invalid_level_description_gap_skill level_description_configs must include level 1",
+            "invalid_level_description_level_less_overflow_skill level_description_configs[1] must be <= max_level 0",
             "skill.invalid_level_description_malformed_skill.level_description_configs",
-            "非法技能 fixture 应保留 strict projection 的精确路径错误。"
+            "invalid_level_description_missing_config_skill level_description_configs must be non-empty",
+            "invalid_level_description_missing_template_skill level_description_template must be non-empty",
+            "invalid_level_less_variant_skill cast option locked_option min_skill_level must be <= max_level 0",
+            "invalid_targeting_enums_skill combat_profile uses unsupported target_mode phantom",
+            "invalid_targeting_enums_skill combat_profile uses unsupported target_selection_mode spiral_selection",
+            "invalid_targeting_enums_skill combat_profile uses unsupported selection_order_mode chaotic",
+            "invalid_targeting_enums_skill combat_profile uses unsupported area_pattern blob",
+            "invalid_targeting_enums_skill combat_profile level override 1.area_pattern uses unsupported area_pattern spiral",
+            "invalid_targeting_enums_skill cast option self_option uses unsupported target_mode self",
+            "invalid_targeting_enums_skill cast option typo_option uses unsupported footprint_pattern hex",
+            "invalid_targeting_enums_skill cast option typo_option min_skill_level must be >= 0",
+            "invalid_targeting_enums_skill cast option overlevel_option min_skill_level must be <= max_level 1"
         );
         _test.True(validSkillResult.ErrorCount == 0, "合法技能 targeting fixture 不应产生 validation 错误。");
 
-        AssertInvalid(professionResult, "非法职业 fixture 应保持非法。");
-
-        AssertInvalid(identityResult, "非法身份 fixture 应保持非法。");
-        AssertContainsError(
-            identityResult,
-            "Trait missing_text_trait.display_name",
-            "非法身份 fixture 应包含 generic trait 内容 validation 错误。"
+        AssertContainsErrors(
+            professionResult,
+            "非法职业目录中的每个独立 fixture 规则都必须被命中。",
+            "Duplicate profession_id registered: duplicate_profession",
+            "invalid_bab_progression_profession.bab_progression",
+            "missing_id_profession.tres is missing profession_id",
+            "illegal_reference_profession references missing skill missing_skill",
+            "illegal_reference_profession references missing profession phantom_profession",
+            "illegal_reference_profession grants missing skill missing_skill"
         );
 
-        AssertInvalid(itemResult, "非法物品 fixture 应保持非法。");
+        AssertContainsErrors(
+            identityResult,
+            "非法身份目录中的每个独立 fixture 规则都必须被命中。",
+            "Duplicate race_id registered: duplicate_identity_race",
+            "invalid_damage_resistance_race.damage_resistances",
+            "missing_id_race.tres is missing race_id",
+            "parent_mismatch_race.default_subrace_id must be a non-empty StringName",
+            "invalid_charge_scope_trait.charge_scope",
+            "bad_attribute_modifier_trait.attribute_modifiers[0].attribute_id",
+            "bad_attribute_modifier_trait.attribute_modifiers[0].mode uses unsupported value bad_mode",
+            "fixed_source_roll_schema_trait.roll_value_schema requires an instance source",
+            "fixed_source_roll_schema_trait.roll_value_schema cannot be used by fixed sources",
+            "identity_attribute_trait.attribute_modifiers must be empty for identity traits",
+            "invalid_save_tags_trait.save_advantage_tags[1] duplicates save tag poison",
+            "invalid_save_tags_trait.save_disadvantage_tags[0] entry not_a_save_tag",
+            "invalid_save_tags_trait.save_immunity_tags[0] entry sleep_immunity uses removed suffix syntax",
+            "invalid_save_tags_trait.passive_status_effects[0].save_immunity_tags[1] duplicates save tag magic",
+            "missing_source_kind_trait.allowed_source_kinds must include at least one allowed_source_kind",
+            "Trait missing_text_trait.display_name",
+            "Trait missing_text_trait.description",
+            "unsupported_dispatch_trait.trigger_type on_crit has no dispatch coverage",
+            "invalid_target_axis_stage_advancement uses unsupported target_axis unlisted_axis",
+            "invalid_reference_race trait_ids references missing trait missing_trait",
+            "invalid_reference_race references missing age_profile missing_age_profile",
+            "invalid_reference_race references missing default_subrace missing_subrace",
+            "invalid_reference_race references missing subrace missing_subrace",
+            "parent_mismatch_race subrace parent_mismatch_subrace parent_race_id must be parent_mismatch_race",
+            "invalid_reference_subrace trait_ids references missing trait missing_trait",
+            "invalid_reference_subrace references missing parent_race missing_parent_race",
+            "parent_mismatch_subrace parent_race human must list this subrace in subrace_ids"
+        );
 
-        AssertInvalid(itemTemplateResult, "非法物品 template fixture 应保持非法。");
+        AssertContainsErrors(
+            itemResult,
+            "非法物品目录中的每个独立 fixture 规则都必须被命中。",
+            "Duplicate item_id registered: duplicate_item",
+            "invalid_slot_item declares invalid slot phantom_slot",
+            "legacy_weapon_fields_item must declare weapon_profile",
+            "missing_explicit_price_item must declare explicit buy_price",
+            "missing_id_item.tres is missing item_id",
+            "official_template_leak_item references missing template weapon_type_longsword_base"
+        );
 
-        AssertInvalid(recipeResult, "非法配方 fixture 应保持非法。");
+        AssertContainsErrors(
+            itemTemplateResult,
+            "非法 item template 目录中的每个独立 fixture 规则都必须被命中。",
+            "Duplicate item template id: duplicate_fixture_template",
+            "missing_id_template.tres is missing item_id",
+            "Item template inheritance cycle detected at fixture_cycle_template_a",
+            "Item template inheritance cycle detected at fixture_cycle_template_b"
+        );
+
+        AssertContainsErrors(
+            recipeResult,
+            "非法配方目录中的每个独立 fixture 规则都必须被命中。",
+            "Duplicate recipe_id registered: duplicate_recipe",
+            "invalid_reference_recipe references missing input item missing_item",
+            "missing_id_recipe.tres is missing recipe_id"
+        );
 
         AssertDomainIs(enemyMissingResult, "enemy", "缺失 template_id 的 enemy fixture 应稳定归入 enemy domain。");
         AssertDomainIs(enemyDuplicateResult, "enemy", "重复 template_id 的 enemy fixture 应稳定归入 enemy domain。");
@@ -429,26 +451,97 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         AssertDomainIs(enemyIncompleteSeedResult, "enemy", "遗漏 seed entry 的 enemy fixture 应稳定归入 enemy domain。");
         AssertDomainIs(enemyInvalidInitialStageResult, "enemy", "initial_stage 不匹配的 roster fixture 应稳定归入 enemy domain。");
         AssertDomainIs(enemyInvalidSkillLevelMapResult, "enemy", "skill_level_map 非法的 template fixture 应稳定归入 enemy domain。");
-        AssertInvalid(enemyMissingResult, "缺失 template_id 的 enemy fixture 应保持非法。");
-        AssertInvalid(enemyDuplicateResult, "重复 template_id 的 enemy fixture 应保持非法。");
-        AssertInvalid(enemyInvalidReferenceResult, "非法 roster 引用的 enemy fixture 应保持非法。");
-        AssertInvalid(enemyIncompleteSeedResult, "遗漏 seed entry 的 enemy fixture 应保持非法。");
-        AssertInvalid(enemyInvalidInitialStageResult, "initial_stage 不匹配的 roster fixture 应保持非法。");
-        AssertInvalid(enemyInvalidSkillLevelMapResult, "skill_level_map 非法的 template fixture 应保持非法。");
+        AssertContainsErrors(
+            enemyMissingResult,
+            "missing template id fixture 必须命中目标规则。",
+            "Enemy template is missing template_id."
+        );
+        AssertContainsErrors(
+            enemyDuplicateResult,
+            "duplicate template fixture 必须命中目标规则，而不是依赖其余 schema 噪声。",
+            "Duplicate enemy template_id registered: duplicate_enemy"
+        );
+        AssertContainsErrors(
+            enemyInvalidReferenceResult,
+            "invalid roster fixture 必须命中 missing template 规则。",
+            "Wild encounter roster invalid_roster stage 0 references missing template missing_template."
+        );
+        AssertContainsErrors(
+            enemyIncompleteSeedResult,
+            "incomplete seed fixture 的三类目录遗漏都必须被命中。",
+            "missing enemy_ai_brains entry for",
+            "missing enemy_templates entry for",
+            "missing wild_encounter_rosters entry for"
+        );
+        AssertContainsErrors(
+            enemyInvalidInitialStageResult,
+            "initial_stage fixture 必须命中 stage 规则，而不是依赖 missing-template 噪声。",
+            "invalid_initial_stage_roster initial_stage 3 does not match any declared stage"
+        );
+        AssertContainsErrors(
+            enemyInvalidSkillLevelMapResult,
+            "skill_level_map fixture 的每种非法 key/value 都必须被命中。",
+            "skill_level_map key 123 must be a StringName",
+            "skill_level_map key string_key_skill must be a StringName",
+            "skill_level_map key phantom_skill does not match any declared skill_id",
+            "skill_level_map[charge] must be an int",
+            "skill_level_map[warrior_heavy_strike] must be >= 1"
+        );
 
-        AssertInvalid(battleSpecialMissingManifestResult, "特殊技能 profile 缺失 manifest fixture 应保持非法。");
-        AssertInvalid(battleSpecialUnknownProfileResult, "特殊技能 profile 未知 profile fixture 应保持非法。");
-        AssertInvalid(battleSpecialDuplicateProfileResult, "特殊技能 profile 重复 profile_id fixture 应保持非法。");
-        AssertInvalid(battleSpecialDuplicateOwnerResult, "特殊技能 profile duplicate-owner fixture 应保持非法。");
-        AssertInvalid(battleSpecialWrongResourceResult, "特殊技能 profile 错误 resource fixture 应保持非法。");
-        AssertInvalid(battleSpecialMissingOwnerResult, "特殊技能 profile 缺失 owning skill fixture 应保持非法。");
-        AssertInvalid(battleSpecialMissingRequiredTestResult, "特殊技能 profile 缺失 required test fixture 应保持非法。");
-        AssertInvalid(battleSpecialBadSchemaResult, "特殊技能 profile schema typo fixture 应保持非法。");
+        AssertContainsErrors(
+            battleSpecialMissingManifestResult,
+            "特殊技能 missing-manifest fixture 必须命中目标规则。",
+            "Battle special profile meteor_swarm is missing manifest for skill mage_meteor_swarm."
+        );
+        AssertContainsErrors(
+            battleSpecialUnknownProfileResult,
+            "特殊技能 unknown-profile fixture 必须命中目标规则。",
+            "Battle special profile phantom_profile is missing manifest for skill phantom_special_skill."
+        );
+        AssertContainsErrors(
+            battleSpecialDuplicateProfileResult,
+            "特殊技能 duplicate-profile fixture 必须命中目标规则。",
+            "Duplicate battle special profile_id registered: meteor_swarm"
+        );
+        AssertContainsErrors(
+            battleSpecialWrongResourceResult,
+            "特殊技能 wrong-resource fixture 必须命中目标规则。",
+            "Battle special profile meteor_swarm profile_resource must be MeteorSwarmProfile."
+        );
+        AssertContainsErrors(
+            battleSpecialMissingOwnerResult,
+            "特殊技能 missing-owner fixture 的缺失引用和 owner 交叉表都必须被命中。",
+            "Battle special profile meteor_swarm references missing owning skill missing_skill.",
+            "Battle special profile meteor_swarm manifest does not own skill mage_meteor_swarm."
+        );
+        AssertContainsErrors(
+            battleSpecialBadSchemaResult,
+            "特殊技能 bad-schema fixture 必须命中拼写错误，而不是依赖不完整 profile 噪声。",
+            "MeteorSwarmProfile.terrain_profiles[0] uses misspelled accuracy_modifer_spec."
+        );
 
-        AssertInvalid(worldResult, "非法世界配置 fixture 应保持非法。");
+        AssertContainsErrors(
+            worldResult,
+            "非法世界 fixture 的三条独立边界都必须被命中。",
+            "invalid world_size_in_chunks (0, 0)",
+            "invalid chunk_size (0, 0)",
+            "starting_wild_spawn_min_distance greater than max distance"
+        );
 
         _test.True(questResult.Domain == "quest", "任务 validation runner 应稳定归入 quest domain。");
-        AssertInvalid(questResult, "非法任务 fixture 应保持非法。");
+        AssertContainsErrors(
+            questResult,
+            "非法任务 entry 集合中的每条独立规则都必须被命中。",
+            "fixture::missing_quest_id is missing quest_id",
+            "Duplicate quest_id registered: duplicate_quest",
+            "invalid_reference_quest has unsupported pending_character_reward entry_type skill_level",
+            "invalid_reference_quest references missing provider_interaction_id service_missing",
+            "provider_kind 'service_contract_board' 要求 provider_interaction_id 为 'service_contract_board'",
+            "submit_missing_item references missing item missing_item",
+            "defeat_missing_enemy references missing enemy missing_enemy",
+            "reward references missing item missing_item",
+            "pending_character_reward references missing skill missing_skill"
+        );
 
         foreach (string reportText in _reports)
             ConsoleProcessOutput.WriteStandard(reportText);
@@ -507,8 +600,16 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             new GArray { ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY },
             new GArray()
         );
+        GStringArray missingTemplateErrors = registry.Validate();
+        _test.Eq(
+            missingTemplateErrors.Count,
+            1,
+            $"清空 template 目录后应只报告 fixture template 缺失。errors={FormatErrors(ToStringList(missingTemplateErrors))}"
+        );
         _test.True(
-            registry.Validate().Count > 0,
+            missingTemplateErrors.Contains(
+                "Item fixture_inherited_item references missing template fixture_item_base."
+            ),
             "同一个 registry 重新构建时不得残留上一次的 fixture template cache。"
         );
     }
@@ -741,9 +842,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                 runtime_read_policy = ToStringName(
                     GetDictValueOrDefault(spec, "runtime_read_policy", "forbidden")
                 ),
-                required_regression_tests = ToStringArray(
-                    GetDictValueOrDefault(spec, "required_regression_tests", new GArray())
-                ),
             };
             string manifestPath = $"{manifestDir}/{fileName}.tres";
             Error manifestSaveError = ResourceSaver.Save(manifest, manifestPath);
@@ -758,6 +856,33 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         {
             coverage_shape_id = "square_7x7",
             radius = 3,
+            impact_components = new Godot.Collections.Array<MeteorSwarmImpactComponent>
+            {
+                new()
+                {
+                    component_id = "fixture_impact",
+                    role_label = "fixture",
+                    damage_tag = "fire",
+                    base_power = 1,
+                    ring_min = 0,
+                    ring_max = 3,
+                },
+            },
+            terrain_profiles = new GArray
+            {
+                new GDictionary
+                {
+                    ["terrain_profile_id"] = "fixture_terrain",
+                    ["ring_min"] = 0,
+                    ["ring_max"] = 3,
+                    ["move_cost_delta"] = 0,
+                    ["lifetime_policy"] = "battle",
+                    ["duration_tu"] = 0,
+                    ["tick_interval_tu"] = 0,
+                    ["tick_effect_type"] = "none",
+                    ["render_overlay_id"] = "fixture_overlay",
+                },
+            },
             friendly_fire_soft_expected_hp_percent = 10,
             friendly_fire_hard_expected_hp_percent = 25,
             friendly_fire_hard_worst_case_hp_percent = 50,
@@ -804,22 +929,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             else if (value.VariantType == Variant.Type.String)
                 result.Add(value.AsString());
         }
-        return result;
-    }
-
-    private static Godot.Collections.Array<string> ToStringArray(object valuesOption)
-    {
-        Godot.Collections.Array<string> result = new();
-        GArray values = valuesOption switch
-        {
-            GArray rawArray => rawArray,
-            Variant variant when variant.VariantType == Variant.Type.Array => variant.AsGodotArray(),
-            _ => null,
-        };
-        if (values == null)
-            return result;
-        foreach (Variant value in values)
-            result.Add(value.ToString());
         return result;
     }
 
@@ -1020,31 +1129,33 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         _test.True(domainResult?.Domain == expectedDomain, message);
     }
 
-    private void AssertInvalid(ValidationDomainResult domainResult, string message)
-    {
-        _test.True(domainResult?.ErrorCount > 0, message);
-    }
-
-    private void AssertContainsError(
+    private void AssertContainsErrors(
         ValidationDomainResult domainResult,
-        string expectedErrorPart,
-        string message
+        string message,
+        params string[] expectedErrorParts
     )
     {
         if (domainResult?.Errors == null)
         {
-            _test.True(false, message);
+            _test.Fail($"{message} validation result did not expose errors.");
             return;
         }
-        foreach (string error in domainResult.Errors)
+        foreach (string expectedErrorPart in expectedErrorParts)
         {
-            if ((error ?? "").Contains(expectedErrorPart))
+            bool found = false;
+            foreach (string error in domainResult.Errors)
             {
-                _test.True(true, message);
-                return;
+                if ((error ?? "").Contains(expectedErrorPart, StringComparison.Ordinal))
+                {
+                    found = true;
+                    break;
+                }
             }
+            _test.True(
+                found,
+                $"{message} missing='{expectedErrorPart}' errors={FormatErrors(domainResult.Errors)}"
+            );
         }
-        _test.True(false, $"{message} errors={FormatErrors(domainResult.Errors)}");
     }
 
     private void AssertIntArray(IReadOnlyList<int> actual, IReadOnlyList<int> expected, string message)

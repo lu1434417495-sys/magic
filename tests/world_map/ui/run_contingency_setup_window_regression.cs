@@ -15,13 +15,23 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
 
     public override async void _Initialize()
     {
-        await ProcessFrames(1);
-        await TestPartyManagementExposesContingencyEntrySignal();
-        await TestContingencyWindowRendersUnchargedSetup();
-        await TestUnchargedTemplateSelectionEmitsSelectedPayload();
-        await TestChargedSetupDisablesSaveAndShowsClearWarning();
-        await TestActionButtonsEmitSignalsWithoutMutatingMember();
-        RequestTestExit(_test.Finish("Contingency setup window regression"));
+        try
+        {
+            await ProcessFrames(1);
+            await TestPartyManagementExposesContingencyEntrySignal();
+            await TestContingencyWindowRendersUnchargedSetup();
+            await TestUnchargedTemplateSelectionEmitsSelectedPayload();
+            await TestChargedSetupDisablesSaveAndShowsClearWarning();
+            await TestActionButtonsEmitSignalsWithoutMutatingMember();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Contingency setup window regression"));
+        }
     }
 
     private async Task TestPartyManagementExposesContingencyEntrySignal()

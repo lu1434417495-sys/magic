@@ -35,6 +35,13 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
         int rootCount = host.CanonicalRootCount;
         long epoch = host.Epoch;
 
+        TestSyntheticSnapshotIsolationAndExclusiveRawHost(
+            host,
+            first,
+            epoch,
+            rootCount
+        );
+
         _test.True(host.IsSealed, "process content host should be sealed before tests run");
         _test.True(rootCount > 0, "process content host should retain canonical authored roots");
         _test.True(epoch > 0, "process content epoch should be positive");
@@ -129,6 +136,47 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
         _test.True(
             ReferenceEquals(first, coordinator.ContentHost.GetSnapshot()),
             "the coordinator-owned host should remain published until application shutdown"
+        );
+    }
+
+    private void TestSyntheticSnapshotIsolationAndExclusiveRawHost(
+        ProcessContentHost host,
+        ContentSnapshot processSnapshot,
+        long processEpoch,
+        int canonicalRootCount
+    )
+    {
+        SyntheticContentSnapshotSeed syntheticSeed =
+            SyntheticContentSnapshotFactory.CreateSeed(processSnapshot);
+        syntheticSeed.Epoch = processEpoch + 1000;
+        ContentSnapshot syntheticSnapshot =
+            SyntheticContentSnapshotFactory.Create(syntheticSeed);
+
+        using (
+            GameSession syntheticSession = GameSessionTestFactory.CreateSynthetic(
+                syntheticSnapshot
+            )
+        )
+        {
+            _test.Eq(
+                syntheticSession.GetContentSnapshotEpoch(),
+                syntheticSnapshot.Epoch,
+                "pure synthetic snapshots may use an isolated epoch in the same process"
+            );
+        }
+
+        _test.True(
+            ReferenceEquals(host.GetSnapshot(), processSnapshot),
+            "synthetic snapshot borrowing does not replace the published process snapshot"
+        );
+        _test.Eq(
+            host.CanonicalRootCount,
+            canonicalRootCount,
+            "synthetic snapshot construction does not add authored roots to the process host"
+        );
+        _test.True(
+            Throws<InvalidOperationException>(() => _ = new ProcessContentHost()),
+            "the process rejects a second raw content host"
         );
     }
 

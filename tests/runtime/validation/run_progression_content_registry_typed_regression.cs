@@ -170,7 +170,14 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
         IReadOnlyDictionary<StringName, RaceDefinition> firstSnapshot =
             registry.GetRaceDefsTyped();
         var mutableSource = (Dictionary<StringName, RaceDefinition>)sources.RaceDefinitions;
+        var mutableAchievementSource =
+            (Dictionary<StringName, AchievementDefinition>)sources.AchievementDefinitions;
+        var mutableStageAdvancementSource =
+            (Dictionary<StringName, StageAdvancementDefinition>)
+                sources.StageAdvancementDefinitions;
         mutableSource.Clear();
+        mutableAchievementSource.Clear();
+        mutableStageAdvancementSource.Clear();
 
         _test.True(
             registry.GetRaceDefsTyped().ContainsKey("human"),
@@ -180,15 +187,15 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             RejectsMutation(firstSnapshot),
             "typed getter 应返回拒绝写入的 defensive snapshot。"
         );
-        _test.True(
-            registry.GetAchievementDefsTyped()["broken_achievement"]
-                is AchievementDefinition,
-            "achievement typed getter 只能返回 AchievementDefinition。"
+        _test.Eq(
+            registry.GetAchievementDefsTyped()["broken_achievement"].AchievementId,
+            new StringName("broken_achievement"),
+            "替换入口必须复制 achievement definition index，不能保留调用方字典所有权。"
         );
-        _test.True(
-            registry.GetStageAdvancementDefsTyped()["broken_stage_cap"]
-                is StageAdvancementDefinition,
-            "stage advancement typed getter 只能返回 StageAdvancementDefinition。"
+        _test.Eq(
+            registry.GetStageAdvancementDefsTyped()["broken_stage_cap"].ModifierId,
+            new StringName("broken_stage_cap"),
+            "替换入口必须复制 stage advancement definition index，不能保留调用方字典所有权。"
         );
     }
 

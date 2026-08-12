@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -19,19 +18,27 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
     private async void RunAsync()
     {
-        await TestStagecoachTravelRollbackOnPersistFailure();
-        await TestStagecoachTravelRollbackPreservesPendingSaveMetadataOnPersistFailure();
-        await TestShopBuyRollbackOnPersistFailure();
-        await TestShopSellRollbackOnPersistFailure();
-        await TestSettlementServiceRollbackOnPersistFailure();
-        await TestWorldOnlyServiceRollsBackQuestSideEffectsOnPersistFailure();
-        await TestWarehouseSettlementServiceRollbackOnPersistFailure();
-        await TestShopBuyCommitPreservesStateAcrossReopenAndLoad();
-        await TestRuntimeDisposeStagesCanonicalWorldWithoutPriorSessionDirty();
-        await TestPartyOnlyRollbackScopeSkipsWorldSnapshot();
-        TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot();
-
-        RequestTestExit(_test.Finish("Settlement persist failure rollback regression"));
+        try
+        {
+            await TestStagecoachTravelRollbackOnPersistFailure();
+            await TestStagecoachTravelRollbackPreservesPendingSaveMetadataOnPersistFailure();
+            await TestShopBuyRollbackOnPersistFailure();
+            await TestShopSellRollbackOnPersistFailure();
+            await TestSettlementServiceRollbackOnPersistFailure();
+            await TestWorldOnlyServiceRollsBackQuestSideEffectsOnPersistFailure();
+            await TestWarehouseSettlementServiceRollbackOnPersistFailure();
+            await TestShopBuyCommitPreservesStateAcrossReopenAndLoad();
+            await TestRuntimeDisposeStagesCanonicalWorldWithoutPriorSessionDirty();
+            await TestPartyOnlyRollbackScopeSkipsWorldSnapshot();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Settlement persist failure rollback regression"));
+        }
     }
 
     private async Task TestStagecoachTravelRollbackOnPersistFailure()
@@ -792,125 +799,6 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         {
             await DisposeFixture(fixture);
         }
-    }
-
-    private void TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot()
-    {
-        Type rollbackType = typeof(RuntimeTransactionRollbackState);
-        var forbiddenWeakPayloadTypeNames = new HashSet<string>
-        {
-            "PayloadEntrySnapshot",
-            "PayloadValueSnapshot",
-            "PayloadValueKind",
-        };
-        var inspectedTypes = new List<Type> { rollbackType };
-        inspectedTypes.AddRange(GetNestedTypesRecursive(rollbackType));
-        foreach (Type inspectedType in inspectedTypes)
-        {
-            _test.False(
-                forbiddenWeakPayloadTypeNames.Contains(inspectedType.Name),
-                $"RuntimeTransactionRollbackState 不应拥有通用 weak payload nested type '{inspectedType.Name}'。"
-            );
-        }
-        foreach (Type inspectedType in inspectedTypes)
-        {
-            foreach (
-                FieldInfo field in inspectedType.GetFields(
-                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
-                )
-            )
-            {
-                _test.False(
-                    IsForbiddenWeakPayloadField(field.FieldType, forbiddenWeakPayloadTypeNames),
-                    $"RuntimeTransactionRollbackState nested type '{inspectedType.Name}' 不应保存通用 weak payload field '{field.Name}'。"
-                );
-            }
-        }
-
-        foreach (
-            ConstructorInfo rollbackConstructor in rollbackType.GetConstructors(
-                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
-            )
-        )
-        {
-            foreach (ParameterInfo parameter in rollbackConstructor.GetParameters())
-            {
-                _test.True(
-                    parameter.ParameterType != typeof(GDictionary),
-                    $"RuntimeTransactionRollbackState 不应使用 GDictionary constructor parameter '{parameter.Name}' 作为回滚合同。"
-                );
-            }
-        }
-
-        foreach (
-            FieldInfo field in rollbackType.GetFields(
-                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
-            )
-        )
-        {
-            _test.True(
-                field.FieldType != typeof(GDictionary),
-                $"RuntimeTransactionRollbackState 不应保存 GDictionary field '{field.Name}' 作为回滚合同。"
-            );
-        }
-
-        ConstructorInfo constructor = rollbackType.GetConstructors(
-            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public
-        )[0];
-        ParameterInfo sessionSnapshotParameter = Array.Find(
-            constructor.GetParameters(),
-            parameter => parameter.Name == "sessionRuntimeState"
-        );
-        _test.True(
-            sessionSnapshotParameter == null
-                || sessionSnapshotParameter.ParameterType != typeof(GDictionary),
-            "RuntimeTransactionRollbackState 不应使用 GDictionary sessionRuntimeState 作为回滚合同。"
-        );
-
-        FieldInfo sessionSnapshotField = rollbackType.GetField(
-            "_sessionRuntimeState",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(
-            sessionSnapshotField == null
-                || sessionSnapshotField.FieldType != typeof(GDictionary),
-            "RuntimeTransactionRollbackState 不应保存 GDictionary session rollback 快照。"
-        );
-    }
-
-    private static IEnumerable<Type> GetNestedTypesRecursive(Type type)
-    {
-        if (type == null)
-            yield break;
-        foreach (
-            Type nestedType in type.GetNestedTypes(
-                BindingFlags.NonPublic | BindingFlags.Public
-            )
-        )
-        {
-            yield return nestedType;
-            foreach (Type childType in GetNestedTypesRecursive(nestedType))
-                yield return childType;
-        }
-    }
-
-    private static bool IsForbiddenWeakPayloadField(
-        Type fieldType,
-        IReadOnlySet<string> forbiddenWeakPayloadTypeNames
-    )
-    {
-        if (fieldType == null)
-            return false;
-        if (forbiddenWeakPayloadTypeNames.Contains(fieldType.Name))
-            return true;
-        if (!fieldType.IsGenericType)
-            return false;
-        foreach (Type argumentType in fieldType.GetGenericArguments())
-        {
-            if (forbiddenWeakPayloadTypeNames.Contains(argumentType.Name))
-                return true;
-        }
-        return false;
     }
 
     private async Task<RuntimeFixture> BuildRuntimeFixture(

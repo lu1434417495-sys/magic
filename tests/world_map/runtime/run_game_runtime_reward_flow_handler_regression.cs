@@ -139,7 +139,17 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             RuntimeCommandResult rewardClose =
                 handler.CommandCloseActiveModalTyped();
             _test.False(rewardClose.Ok, "reward modal 不能被普通关闭命令跳过。");
+            _test.Eq(
+                rewardClose.Code,
+                RuntimeCommandCode.InvalidState,
+                "reward modal 普通关闭应返回 InvalidState。"
+            );
             _test.Eq(rewardClose.Message, "当前角色奖励必须确认后才能继续。", "reward modal 普通关闭应返回正式错误文案。");
+            _test.Eq(
+                runtime.GetActiveModalKind(),
+                RuntimeModalKind.Reward,
+                "reward modal 拒绝关闭后应继续保持打开。"
+            );
 
             runtime.SetActiveRewardState(BuildPendingReward());
             RuntimeCommandResult confirmActiveReward =

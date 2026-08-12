@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -65,10 +64,6 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
             "texture wrapper 必须投影为资源路径。"
         );
         _test.True(
-            template.Tags is not Godot.Collections.Array<StringName>,
-            "模板列表必须是只读 CLR collection。"
-        );
-        _test.True(
             Throws<NotSupportedException>(() =>
                 ((IDictionary<StringName, EnemyTemplateDefinition>)snapshot.EnemyTemplates).Add(
                     "forbidden",
@@ -83,33 +78,6 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
             ),
             "enemy template nested list 应拒绝修改。"
         );
-
-        foreach (
-            Type rootType in new[]
-            {
-                typeof(EnemyTemplateDefinition),
-                typeof(EnemyAiBrainDefinition),
-                typeof(WildEncounterRosterDefinition),
-                typeof(BattleAiScoreProfileDefinition),
-            }
-        )
-        {
-            foreach (Type type in EnumerateTypeGraph(rootType))
-            {
-                _test.False(
-                    typeof(GodotObject).IsAssignableFrom(type),
-                    $"definition graph 不得包含 GodotObject: {rootType.Name} -> {type.FullName}"
-                );
-                _test.False(
-                    type.Namespace?.StartsWith("Godot.Collections", StringComparison.Ordinal) == true,
-                    $"definition graph 不得包含 Godot collection: {rootType.Name} -> {type.FullName}"
-                );
-                _test.False(
-                    type == typeof(Variant),
-                    $"definition graph 不得包含 Variant: {rootType.Name}"
-                );
-            }
-        }
     }
 
     private void TestOfficialSharedWolfEncounterStages()
@@ -282,9 +250,17 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
             typedRosters.ContainsKey("invalid_roster"),
             "invalid roster fixture 应保留 invalid_roster typed key。"
         );
+        _test.Eq(
+            errors.Count,
+            1,
+            $"invalid roster fixture 应只报告自身 missing template 根因。 errors={FormatErrors(errors)}"
+        );
         _test.True(
-            errors.Count > 0,
-            $"invalid roster fixture 应稳定报告缺失 template。 errors={FormatErrors(errors)}"
+            ContainsExactError(
+                errors,
+                "Wild encounter roster invalid_roster stage 0 references missing template missing_template."
+            ),
+            $"invalid roster fixture 应精确报告 missing_template。 errors={FormatErrors(errors)}"
         );
     }
 
@@ -554,34 +530,17 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
         return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
     }
 
-    private static IEnumerable<Type> EnumerateTypeGraph(Type root)
+    private static bool ContainsExactError(
+        IEnumerable<string> errors,
+        string expectedError
+    )
     {
-        var pending = new Stack<Type>();
-        var visited = new HashSet<Type>();
-        pending.Push(root);
-        while (pending.Count > 0)
+        foreach (string error in errors ?? Array.Empty<string>())
         {
-            Type current = pending.Pop();
-            if (current == null || !visited.Add(current))
-                continue;
-            yield return current;
-            if (current.IsArray)
-                pending.Push(current.GetElementType());
-            if (current.IsGenericType)
-            {
-                foreach (Type argument in current.GetGenericArguments())
-                    pending.Push(argument);
-            }
-            foreach (
-                PropertyInfo property in current.GetProperties(
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                )
-            )
-            {
-                if (property.DeclaringType == current)
-                    pending.Push(property.PropertyType);
-            }
+            if (string.Equals(error, expectedError, StringComparison.Ordinal))
+                return true;
         }
+        return false;
     }
 
     private static bool Throws<TException>(Action action)

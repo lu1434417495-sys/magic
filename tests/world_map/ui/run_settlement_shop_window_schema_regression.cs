@@ -15,21 +15,31 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
 
     public override async void _Initialize()
     {
-        await TestSettlementWindowAcceptsFormalStringKeys();
-        await TestSettlementWindowRendersCountryIdWhenPresent();
-        await TestSettlementWindowRejectsMissingCountryId();
-        await TestSettlementWindowRejectsUnknownServiceFields();
-        await TestSettlementWindowRejectsStringNameTopLevelFields();
-        await TestSettlementWindowRejectsStringNameServiceFields();
-        await TestSettlementWindowRejectsStringNameMemberOptionFields();
-        await TestSettlementWindowRejectsUnknownPanelKind();
-        await TestShopWindowAcceptsFormalStringKeys();
-        await TestShopWindowRejectsStringNameTopLevelFields();
-        await TestShopWindowRejectsStringNameEntryFields();
-        await TestShopWindowRejectsStringNameMemberOptionFields();
-        await TestShopWindowConfirmationFlow();
-        await TestForgeWindowRaisesTypedCSharpEvent();
-        RequestTestExit(_test.Finish("Settlement/shop window schema regression"));
+        try
+        {
+            await TestSettlementWindowAcceptsFormalStringKeys();
+            await TestSettlementWindowRendersCountryIdWhenPresent();
+            await TestSettlementWindowRejectsMissingCountryId();
+            await TestSettlementWindowRejectsUnknownServiceFields();
+            await TestSettlementWindowRejectsStringNameTopLevelFields();
+            await TestSettlementWindowRejectsStringNameServiceFields();
+            await TestSettlementWindowRejectsStringNameMemberOptionFields();
+            await TestSettlementWindowRejectsUnknownPanelKind();
+            await TestShopWindowAcceptsFormalStringKeys();
+            await TestShopWindowRejectsStringNameTopLevelFields();
+            await TestShopWindowRejectsStringNameEntryFields();
+            await TestShopWindowRejectsStringNameMemberOptionFields();
+            await TestShopWindowConfirmationFlow();
+            await TestForgeWindowRaisesTypedCSharpEvent();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Settlement/shop window schema regression"));
+        }
     }
 
     private async Task<SettlementWindow> CreateSettlementWindow()

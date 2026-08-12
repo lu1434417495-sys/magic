@@ -14,9 +14,19 @@ public partial class run_game_session_close_lifecycle_regression : LifecycleTest
 
     private async void Run()
     {
-        await TestNormalCloseKeepsProcessContentAvailableForNextSession();
-        TestExitTreeCloseStillAllowsExplicitNativeDispose();
-        RequestTestExit(_test.Finish("GameSession normal-close lifecycle regression"));
+        try
+        {
+            await TestNormalCloseKeepsProcessContentAvailableForNextSession();
+            TestExitTreeCloseStillAllowsExplicitNativeDispose();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("GameSession normal-close lifecycle regression"));
+        }
     }
 
     private async System.Threading.Tasks.Task TestNormalCloseKeepsProcessContentAvailableForNextSession()

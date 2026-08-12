@@ -15,11 +15,27 @@ public partial class run_world_map_battle_start_confirm_regression : LifecycleTe
 
     public override async void _Initialize()
     {
-        await EnsureGameSession();
-        await ResetSession();
-        await TestBattleStartConfirmStaysNonCancellableOnWorldMapScene();
-        await Cleanup();
-        RequestTestExit(_test.Finish("World map battle start confirm regression"));
+        try
+        {
+            try
+            {
+                await EnsureGameSession();
+                await ResetSession();
+                await TestBattleStartConfirmStaysNonCancellableOnWorldMapScene();
+            }
+            finally
+            {
+                await Cleanup();
+            }
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("World map battle start confirm regression"));
+        }
     }
 
     private async Task TestBattleStartConfirmStaysNonCancellableOnWorldMapScene()

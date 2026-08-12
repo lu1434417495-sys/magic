@@ -12,14 +12,115 @@ public partial class run_party_management_window_regression : LifecycleTestScene
 
     private readonly TestHarness _test = new();
 
-    public override async void _Initialize()
+    public override void _Initialize()
     {
-        await TestWindowUsesHalfViewportWithMinimumSize();
-        await TestLeaderToReserveEmitsRosterBeforeLeader();
-        await TestMemberDetailsTolerateMissingSkillAndOccupiedSlots();
-        await TestMemberDetailsUseSkillDefinitionSnapshot();
-        await TestMemberDetailsUseInjectedCharacterManagementSnapshot();
-        RequestTestExit(_test.Finish("Party management window regression"));
+        RunAfterProcessStartup(Run);
+    }
+
+    private async void Run()
+    {
+        try
+        {
+            await TestWindowUsesHalfViewportWithMinimumSize();
+            await TestLeaderToReserveEmitsRosterBeforeLeader();
+            await TestMemberDetailsTolerateMissingSkillAndOccupiedSlots();
+            await TestMemberDetailsUseSkillDefinitionSnapshot();
+            await TestMemberDetailsUseInjectedCharacterManagementSnapshot();
+            await TestEquipmentTabRendersRealGearSetProgress();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Party management window regression"));
+        }
+    }
+
+    private async Task TestEquipmentTabRendersRealGearSetProgress()
+    {
+        PartyManagementWindow window = await CreateWindow();
+        var manager = new CharacterManagementModule();
+        try
+        {
+            ContentSnapshot content = GameSessionTestFactory.GetProcessSnapshot();
+            _test.True(
+                content.GearSets.TryGetValue(
+                    new StringName("phoenix_rebirth_set"),
+                    out GearSetDefinition phoenixSet
+                ),
+                "正式内容快照应包含凤凰重生套装。"
+            );
+            if (phoenixSet == null)
+                return;
+
+            PartyState partyState = BuildPartyState(new[] { new StringName("hero") });
+            PartyMemberState hero = partyState.GetMemberState("hero");
+            for (int index = 0; index < 5; index++)
+            {
+                StringName itemId = phoenixSet.MemberItemIds[index];
+                _test.True(
+                    content.Items.TryGetValue(itemId, out ItemDefinition itemDefinition),
+                    $"正式内容快照应包含凤凰成员 {itemId}。"
+                );
+                if (itemDefinition == null)
+                    continue;
+                List<StringName> allowedSlots = itemDefinition.GetEquipmentSlotIdsTyped();
+                _test.True(allowedSlots.Count > 0, $"凤凰成员 {itemId} 应声明装备槽位。");
+                if (allowedSlots.Count == 0)
+                    continue;
+                StringName entrySlotId = allowedSlots[0];
+                bool equipped = hero.equipment_state.SetEquippedEntry(
+                    entrySlotId,
+                    itemId,
+                    itemDefinition.GetFinalOccupiedSlotIdsTyped(entrySlotId),
+                    EquipmentInstanceState.CreateInstance(
+                        itemId,
+                        new StringName($"eq_party_window_phoenix_{index}")
+                    )
+                );
+                _test.True(equipped, $"测试应能把凤凰成员 {itemId} 装入 {entrySlotId}。");
+            }
+
+            manager.setup(
+                partyState,
+                content.Skills,
+                content.Professions,
+                content.Achievements,
+                content.Items,
+                content.Quests,
+                content.Traits,
+                () => new StringName("eq_party_window_unused"),
+                content.IdentityCatalog,
+                content.GearSets
+            );
+            window.SetItemDefs(content.Items);
+            window.SetTraitDefs(content.Traits);
+            window.SetCharacterManagement(manager);
+            window.ShowParty(partyState);
+            await ProcessFrames(1);
+            _test.True(window.SelectMember("hero"), "测试应能选中装备五件凤凰的成员。");
+            await ProcessFrames(1);
+
+            string equipmentText = window.equipment_label.Text;
+            _test.True(equipmentText.Contains("套装进度"), "战外装备页应展示套装进度区块。");
+            _test.True(equipmentText.Contains("凤凰重生"), "战外装备页应展示套装名称。");
+            _test.True(equipmentText.Contains("5/10件"), "战外装备页应展示当前五件与总十件。");
+            _test.True(
+                equipmentText.Contains("不灭心火") && equipmentText.Contains("已激活"),
+                "战外装备页应展示五件阈值已激活。"
+            );
+            _test.True(
+                equipmentText.Contains("余烬展翼") && equipmentText.Contains("未激活"),
+                "战外装备页应展示下一档七件阈值尚未激活。"
+            );
+        }
+        finally
+        {
+            await DisposeNode(window);
+            manager.Dispose();
+        }
     }
 
     private async Task TestWindowUsesHalfViewportWithMinimumSize()

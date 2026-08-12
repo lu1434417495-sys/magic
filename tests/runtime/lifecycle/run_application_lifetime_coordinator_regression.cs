@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 
 public partial class run_application_lifetime_coordinator_regression : LifecycleTestSceneTree
 {
+    private const string TestWorldMapConfigPath =
+        "res://data/configs/world_map/test_world_map_config.tres";
+
     private sealed class FakeParticipant : IApplicationShutdownParticipant
     {
         private readonly List<string> _calls;
@@ -138,36 +140,198 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
         _test.False(AutoAcceptQuit, "coordinator disables automatic quit acceptance");
 
         TestRealGameSessionRegistrationContract(coordinator, gameSession);
-        await TestRealRuntimeParticipantRegistrationContracts(coordinator);
+        await TestRealRuntimeParticipantRegistrationContracts(coordinator, gameSession);
         await TestOffMainThreadRequestFailsBeforeShutdown(coordinator);
         await TestApplicationCloseConvergesOnOneShotNormalClose();
         await TestParticipantContractsAndSkippedHistory(gameSession);
-        TestExactLifecycleAuditBaseline();
+        TestTestExitCoordinatorRequestMapping();
+        await TestTestExitCoordinatorAsyncFailureRecovery();
         TestIdempotentRequestAndSuccessfulHistory(coordinator, gameSession);
     }
 
-    private void TestExactLifecycleAuditBaseline()
+    private void TestTestExitCoordinatorRequestMapping()
     {
-        LifecycleAuditSnapshot audit = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        AssertTestExitCoordinatorRequestMapping(
+            new TestResult(
+                "passing test result",
+                true,
+                0,
+                Array.Empty<string>()
+            ),
+            expectedExitCode: 0,
+            expectedPassed: true
+        );
+        AssertTestExitCoordinatorRequestMapping(
+            new TestResult(
+                "failing test result",
+                false,
+                1,
+                new[] { "expected failure detail" }
+            ),
+            expectedExitCode: 1,
+            expectedPassed: false
+        );
+    }
+
+    private void AssertTestExitCoordinatorRequestMapping(
+        TestResult result,
+        int expectedExitCode,
+        bool expectedPassed
+    )
+    {
+        ShutdownRequest request = TestExitCoordinator.BuildShutdownRequest(result);
         _test.Eq(
-            audit.NormalPhaseSuppressCount,
-            0L,
-            "normal session close does not suppress process content"
+            request.RequestedExitCode,
+            expectedExitCode,
+            $"{result.Label}: TestExitCoordinator preserves the requested exit code"
         );
         _test.Eq(
-            audit.LegacyDebt.Count,
+            request.Reason,
+            ShutdownReason.TestComplete,
+            $"{result.Label}: TestExitCoordinator uses the TestComplete reason"
+        );
+        _test.Eq(
+            request.CallerResult?.Label,
+            result.Label,
+            $"{result.Label}: TestExitCoordinator preserves the caller label"
+        );
+        _test.Eq(
+            request.CallerResult?.Passed,
+            expectedPassed,
+            $"{result.Label}: TestExitCoordinator preserves the caller result"
+        );
+    }
+
+    private async Task TestTestExitCoordinatorAsyncFailureRecovery()
+    {
+        var sourceResult = new TestResult(
+            "test exit async failure probe",
+            true,
             0,
-            "coordinator starts with no lifecycle legacy debt"
+            Array.Empty<string>()
+        );
+
+        TestResult frameFailureSubmission = null;
+        var frameDiagnostics = new List<string>();
+        await TestExitCoordinator.CompleteAsync(
+            this,
+            sourceResult,
+            _ => Task.FromException(
+                new InvalidOperationException("injected process-frame wait failure")
+            ),
+            (_, submittedResult) =>
+            {
+                frameFailureSubmission = submittedResult;
+                return new ValueTask<ShutdownReport>(
+                    new ShutdownReport(
+                        TestExitCoordinator.BuildShutdownRequest(submittedResult)
+                    )
+                );
+            },
+            frameDiagnostics.Add
+        );
+
+        _test.True(
+            frameFailureSubmission != null,
+            "a process-frame await failure still submits a terminal result"
+        );
+        _test.False(
+            frameFailureSubmission?.Passed ?? true,
+            "a process-frame await failure becomes a failed terminal result"
         );
         _test.Eq(
-            audit.QuarantineCount,
-            0L,
-            "coordinator starts with no quarantined wrappers"
+            frameFailureSubmission?.ExitCode ?? 0,
+            1,
+            "a process-frame await failure requests a deterministic nonzero exit"
+        );
+        _test.True(
+            frameFailureSubmission?.Failures.LastOrDefault()?.Contains(
+                "stage=wait-for-process-frame",
+                StringComparison.Ordinal
+            ) == true,
+            "a process-frame await failure retains its failing async stage"
+        );
+        _test.Eq(
+            frameDiagnostics.Count,
+            0,
+            "successful failure-result submission needs no recovery diagnostic"
+        );
+
+        int submitAttempts = 0;
+        TestResult recoveredSubmission = null;
+        var submitDiagnostics = new List<string>();
+        await TestExitCoordinator.CompleteAsync(
+            this,
+            sourceResult,
+            _ => Task.CompletedTask,
+            async (_, submittedResult) =>
+            {
+                submitAttempts++;
+                if (submitAttempts == 1)
+                {
+                    await Task.Yield();
+                    throw new InvalidOperationException(
+                        "injected async shutdown submission failure"
+                    );
+                }
+
+                recoveredSubmission = submittedResult;
+                return new ShutdownReport(
+                    TestExitCoordinator.BuildShutdownRequest(submittedResult)
+                );
+            },
+            submitDiagnostics.Add
+        );
+
+        _test.Eq(
+            submitAttempts,
+            2,
+            "an asynchronous shutdown submission failure is retried once"
+        );
+        _test.False(
+            recoveredSubmission?.Passed ?? true,
+            "the retry submits a failed terminal result"
+        );
+        _test.Eq(
+            recoveredSubmission?.ExitCode ?? 0,
+            1,
+            "the retry preserves a deterministic nonzero exit"
+        );
+        _test.True(
+            recoveredSubmission?.Failures.LastOrDefault()?.Contains(
+                "stage=submit-shutdown",
+                StringComparison.Ordinal
+            ) == true,
+            "the retry result identifies the shutdown submission stage"
+        );
+        _test.Eq(
+            submitDiagnostics.Count,
+            1,
+            "the first shutdown submission failure emits one observable diagnostic"
+        );
+        _test.True(
+            submitDiagnostics[0].Contains(
+                "injected async shutdown submission failure",
+                StringComparison.Ordinal
+            ),
+            "the recovery diagnostic retains the asynchronous failure reason"
+        );
+        ShutdownRequest recoveredRequest =
+            TestExitCoordinator.BuildShutdownRequest(recoveredSubmission);
+        _test.Eq(
+            recoveredRequest.RequestedExitCode,
+            1,
+            "the recovered shutdown request carries the nonzero exit code"
+        );
+        _test.False(
+            recoveredRequest.CallerResult?.Passed ?? true,
+            "the recovered shutdown request carries the failed caller result"
         );
     }
 
     private async Task TestRealRuntimeParticipantRegistrationContracts(
-        ApplicationLifetimeCoordinator coordinator
+        ApplicationLifetimeCoordinator coordinator,
+        GameSession gameSession
     )
     {
         var report = new ShutdownReport(
@@ -229,49 +393,111 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             "HeadlessGameTestSession close releases its participant registration"
         );
 
-        Type worldMapParticipantType = typeof(WorldMapSystem);
-        _test.True(
-            typeof(IApplicationShutdownParticipant).IsAssignableFrom(worldMapParticipantType),
-            "WorldMapSystem implements the shutdown participant contract"
-        );
-        _test.Eq(
-            ReadPrivateConstant<string>(
-                worldMapParticipantType,
-                "ApplicationShutdownParticipantId"
-            ),
-            "world-map-system",
-            "WorldMapSystem participant ID is stable"
-        );
-        _test.Eq(
-            ReadPrivateConstant<ApplicationShutdownParticipantStage>(
-                worldMapParticipantType,
-                "ApplicationShutdownStage"
-            ),
-            ApplicationShutdownParticipantStage.Runtime,
-            "WorldMapSystem participates at the Runtime stage"
-        );
-        _test.Eq(
-            ReadPrivateConstant<int>(
-                worldMapParticipantType,
-                "ApplicationShutdownOrder"
-            ),
-            0,
-            "WorldMapSystem participant order is stable"
-        );
-        _test.True(
-            worldMapParticipantType
-                .GetInterfaceMap(typeof(IApplicationShutdownParticipant))
-                .TargetMethods.Any(method =>
-                    method.Name.Contains("CloseForApplicationShutdownAsync", StringComparison.Ordinal)
-                ),
-            "WorldMapSystem exposes the application-shutdown close path"
-        );
+        gameSession.ClearPersistedGame();
+        await ProcessFrames(1);
+        WorldMapSystem worldMap = null;
+        try
+        {
+            Error createError = (Error)gameSession.StartNewGame(TestWorldMapConfigPath);
+            _test.Eq(
+                createError,
+                Error.Ok,
+                "WorldMapSystem registration regression creates an active test world"
+            );
+            if (createError != Error.Ok)
+                return;
+
+            PackedScene worldMapScene = GD.Load<PackedScene>(
+                "res://scenes/main/world_map.tscn"
+            );
+            _test.True(
+                worldMapScene != null,
+                "WorldMapSystem registration regression loads the real world map scene"
+            );
+            if (worldMapScene == null)
+                return;
+
+            worldMap = worldMapScene.Instantiate<WorldMapSystem>();
+            Root.AddChild(worldMap);
+            await ProcessFrames(2);
+
+            IApplicationShutdownParticipant worldMapParticipant = worldMap;
+            _test.Eq(
+                worldMapParticipant.ShutdownParticipantId,
+                "world-map-system",
+                "WorldMapSystem exposes the stable participant ID"
+            );
+            _test.Eq(
+                worldMapParticipant.ShutdownStage,
+                ApplicationShutdownParticipantStage.Runtime,
+                "WorldMapSystem participates at the Runtime stage"
+            );
+            _test.Eq(
+                worldMapParticipant.ShutdownOrder,
+                0,
+                "WorldMapSystem exposes the stable participant order"
+            );
+            _test.True(
+                worldMap._runtime != null && worldMap._runtime_proxy != null,
+                "the real WorldMapSystem scene completes runtime setup before registration checks"
+            );
+            AssertRealParticipantRegistered(
+                coordinator,
+                worldMapParticipant,
+                "WorldMapSystem registers with the application coordinator from _Ready"
+            );
+
+            await worldMapParticipant.CloseForApplicationShutdownAsync(report);
+            await worldMapParticipant.CloseForApplicationShutdownAsync(report);
+            _test.True(
+                worldMap._runtime == null
+                    && worldMap._runtime_proxy == null
+                    && worldMap._game_session == null,
+                "WorldMapSystem application close releases its runtime owners idempotently"
+            );
+
+            bool worldMapRegistrationReleased = true;
+            var releasedWorldMapProbe = new FakeParticipant(
+                "world-map-system",
+                ApplicationShutdownParticipantStage.Runtime,
+                0,
+                new List<string>()
+            );
+            try
+            {
+                coordinator.RegisterParticipant(releasedWorldMapProbe);
+                coordinator.UnregisterParticipant(releasedWorldMapProbe);
+            }
+            catch (Exception)
+            {
+                worldMapRegistrationReleased = false;
+            }
+            _test.True(
+                worldMapRegistrationReleased,
+                "WorldMapSystem close releases its participant ID for re-registration"
+            );
+        }
+        finally
+        {
+            if (worldMap != null && GodotObject.IsInstanceValid(worldMap))
+            {
+                worldMap.QueueFree();
+                await ProcessFrames(2);
+                _test.False(
+                    GodotObject.IsInstanceValid(worldMap),
+                    "WorldMapSystem scene finishes queued deletion after application close"
+                );
+            }
+            gameSession.ClearPersistedGame();
+            await ProcessFrames(1);
+        }
     }
 
-    private static T ReadPrivateConstant<T>(Type ownerType, string fieldName) =>
-        (T)ownerType
-            .GetField(fieldName, BindingFlags.Static | BindingFlags.NonPublic)
-            .GetRawConstantValue();
+    private async Task ProcessFrames(int count)
+    {
+        for (int index = 0; index < count; index++)
+            await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+    }
 
     private void AssertRealParticipantRegistered(
         ApplicationLifetimeCoordinator coordinator,
@@ -709,6 +935,23 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             coordinator,
             synchronousReentrant.ObservedReport != null,
             "synchronous reentrant shutdown observes the first request report"
+        );
+        ShutdownRequest firstRequest = synchronousReentrant.ObservedReport?.FirstRequest;
+        EscalateTerminalFailure(
+            coordinator,
+            firstRequest?.Reason == ShutdownReason.TestComplete,
+            "TestExitCoordinator submits a TestComplete shutdown request"
+        );
+        EscalateTerminalFailure(
+            coordinator,
+            firstRequest?.RequestedExitCode == finalResult.ExitCode,
+            "TestExitCoordinator preserves the test result exit code"
+        );
+        EscalateTerminalFailure(
+            coordinator,
+            firstRequest?.CallerResult?.Label == finalResult.Label
+                && firstRequest.CallerResult.Passed == finalResult.Passed,
+            "TestExitCoordinator preserves the test result caller facts"
         );
         EscalateTerminalFailure(
             coordinator,

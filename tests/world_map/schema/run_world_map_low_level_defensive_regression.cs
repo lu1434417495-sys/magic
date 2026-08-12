@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -16,8 +15,7 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
 
     private TestResult Run()
     {
-        TestRuntimeCommandHandlersNoLongerRequireGodotRegistration();
-        TestWorldPresetHelpersNoLongerRequireGodotRegistration();
+        TestWorldPresetRegistryListsAndFindsTypedPresets();
         TestGridFootprintStateUsesPublicBehavior();
         TestVisibilityRebuildIgnoresForeignFactionSources();
         TestFogPersistentRevisionOnlyTracksPersistentChanges();
@@ -26,11 +24,7 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
         return _test.Finish("World map low-level defensive regression");
     }
 
-    private void TestRuntimeCommandHandlersNoLongerRequireGodotRegistration()
-    {
-    }
-
-    private void TestWorldPresetHelpersNoLongerRequireGodotRegistration()
+    private void TestWorldPresetRegistryListsAndFindsTypedPresets()
     {
         IReadOnlyList<WorldPresetRegistry.WorldPresetInfo> presets =
             WorldPresetRegistry.ListPresetsTyped();
@@ -74,19 +68,43 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
             gridSystem.CanPlaceFootprint(new Vector2I(2, 2), Vector2I.One),
             "已有 footprint 的格子不应允许再次占用。"
         );
+        _test.True(
+            gridSystem.RegisterFootprint("camp", new Vector2I(4, 4), new Vector2I(2, 2)),
+            "同一 entity 成功重注册时应移动 footprint。"
+        );
+        _test.Eq(
+            gridSystem.GetOccupantRoot(new Vector2I(1, 1)),
+            "",
+            "成功重注册后旧 origin 应清空。"
+        );
+        _test.Eq(
+            gridSystem.GetOccupantRoot(new Vector2I(2, 2)),
+            "",
+            "成功重注册后旧 footprint 覆盖格应清空。"
+        );
+        _test.Eq(
+            gridSystem.GetOccupantRoot(new Vector2I(4, 4)),
+            "camp",
+            "成功重注册后新 origin 应暴露占位根。"
+        );
+        _test.Eq(
+            gridSystem.GetOccupantRoot(new Vector2I(5, 5)),
+            "camp",
+            "成功重注册后新 footprint 覆盖格应暴露占位根。"
+        );
         _test.False(
             gridSystem.RegisterFootprint("camp", new Vector2I(7, 7), new Vector2I(2, 2)),
             "同一 entity 移动到越界 footprint 应失败。"
         );
         _test.Eq(
-            gridSystem.GetOccupantRoot(new Vector2I(1, 1)),
+            gridSystem.GetOccupantRoot(new Vector2I(4, 4)),
             "camp",
             "同一 entity 移动失败后应恢复原 footprint。"
         );
 
         gridSystem.ClearFootprint("camp");
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(1, 1)), "", "清理 footprint 后 origin 不应继续占格。");
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(2, 2)), "", "清理 footprint 后覆盖格不应继续占格。");
+        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(4, 4)), "", "清理 footprint 后 origin 不应继续占格。");
+        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(5, 5)), "", "清理 footprint 后覆盖格不应继续占格。");
     }
 
     private void TestVisibilityRebuildIgnoresForeignFactionSources()

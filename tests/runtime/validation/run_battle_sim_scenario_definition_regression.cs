@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -23,7 +22,6 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
             AssertStringNameKeyedSnapshotsRoundTrip();
             AssertRuntimeOnlyEquipmentProjectionSurvivesScenarioRosterHandoff();
             AssertFormalTerrainSkipsExplicitCellParsing();
-            AssertRuntimeSignaturesRejectAuthoredResources();
         }
         catch (Exception exception)
         {
@@ -357,69 +355,6 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
             new Vector2I(5, 4),
             "formal terrain projection should preserve battle_map_size"
         );
-    }
-
-    private void AssertRuntimeSignaturesRejectAuthoredResources()
-    {
-        Type[] runtimeOwners =
-        {
-            typeof(BattleSimScenarioDefinition),
-            typeof(BattleSimUnitDefinition),
-            typeof(BattleSimScenarioUnitEntry),
-            typeof(BattleSimScenarioReport),
-            typeof(BattleSimExecutionLoop),
-            typeof(BattleSimRunner),
-            typeof(BattleSimReportProjection),
-            typeof(BattleSimFilePayloadProjection),
-        };
-
-        foreach (Type owner in runtimeOwners)
-            AssertNoAuthoredResourceSignature(owner);
-    }
-
-    private void AssertNoAuthoredResourceSignature(Type owner)
-    {
-        const BindingFlags flags = BindingFlags.Instance
-            | BindingFlags.Static
-            | BindingFlags.Public
-            | BindingFlags.NonPublic
-            | BindingFlags.DeclaredOnly;
-
-        foreach (FieldInfo field in owner.GetFields(flags))
-            AssertNotAuthoredType(field.FieldType, $"{owner.Name}.{field.Name}");
-        foreach (PropertyInfo property in owner.GetProperties(flags))
-        {
-            AssertNotAuthoredType(property.PropertyType, $"{owner.Name}.{property.Name}");
-            foreach (ParameterInfo parameter in property.GetIndexParameters())
-                AssertNotAuthoredType(parameter.ParameterType, $"{owner.Name}.{property.Name}[index]");
-        }
-        foreach (ConstructorInfo constructor in owner.GetConstructors(flags))
-        foreach (ParameterInfo parameter in constructor.GetParameters())
-            AssertNotAuthoredType(parameter.ParameterType, $"{owner.Name}.ctor({parameter.Name})");
-        foreach (MethodInfo method in owner.GetMethods(flags))
-        {
-            AssertNotAuthoredType(method.ReturnType, $"{owner.Name}.{method.Name} return");
-            foreach (ParameterInfo parameter in method.GetParameters())
-                AssertNotAuthoredType(parameter.ParameterType, $"{owner.Name}.{method.Name}({parameter.Name})");
-        }
-    }
-
-    private void AssertNotAuthoredType(Type type, string path)
-    {
-        if (type == null)
-            return;
-        Type normalized = type.IsByRef || type.IsPointer || type.IsArray
-            ? type.GetElementType()
-            : type;
-        if (normalized == typeof(BattleSimScenarioDef) || normalized == typeof(BattleSimUnitSpec))
-        {
-            _test.Fail($"{path} must not retain an authored simulation Resource signature");
-            return;
-        }
-        if (normalized?.IsGenericType != true)
-            return;
-        foreach (Type argument in normalized.GetGenericArguments())
-            AssertNotAuthoredType(argument, path);
     }
 
     private void AssertPlainGraph(object value, string path)

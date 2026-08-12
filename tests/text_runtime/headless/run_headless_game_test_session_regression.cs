@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -18,14 +17,23 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
 
     private async void RunAsync()
     {
-        await TestCoordinatorlessHostUsesExplicitNoncanonicalOwnedGameSession();
-        await TestDisposeClearsBattleSaveLockOnSharedGameSession();
-        await TestOwnedGameSessionDisposeRemovesLogSink();
-        await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
-        TestSyntheticEnemyDefinitionsUseTypedKeys();
-        await TestFacadeBattleSetupUsesSyntheticEnemyDefinitions();
-
-        RequestTestExit(_test.Finish("Headless game test session regression"));
+        try
+        {
+            await TestCoordinatorlessHostUsesExplicitNoncanonicalOwnedGameSession();
+            await TestDisposeClearsBattleSaveLockOnSharedGameSession();
+            await TestOwnedGameSessionDisposeRemovesLogSink();
+            await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
+            TestSyntheticEnemyDefinitionsUseTypedKeys();
+            await TestFacadeBattleSetupUsesSyntheticEnemyDefinitions();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Headless game test session regression"));
+        }
     }
 
     private async Task TestCoordinatorlessHostUsesExplicitNoncanonicalOwnedGameSession()
@@ -308,8 +316,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         );
 
         HeadlessGameTestSession session = new();
-        SetPrivateField(session, "_gameSession", ownedGameSession);
-        SetPrivateField(session, "_ownsGameSession", true);
+        session.BindOwnedGameSessionForTests(ownedGameSession);
 
         try
         {
@@ -672,12 +679,4 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         return GameLog.SinkCount;
     }
 
-    private static void SetPrivateField<T>(T target, string fieldName, object value)
-    {
-        FieldInfo field = typeof(T).GetField(
-            fieldName,
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        field?.SetValue(target, value);
-    }
 }

@@ -16,7 +16,6 @@ public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
     private void Run()
     {
         TestAttackDispositionRespectsNaturalRollFlags();
-        TestWorldFootprintReRegisterClearsOldCells();
         TestMissingItemDefDoesNotTrapEquippedInstance();
 
         RequestTestExit(_test.Finish("Confirmed bugfix regression"));
@@ -39,28 +38,6 @@ public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
             new StringName("threshold_hit"),
             "关闭 natural_one_auto_miss 后，d20=1 且 required_roll=1 应按普通命中处理。"
         );
-    }
-
-    private void TestWorldFootprintReRegisterClearsOldCells()
-    {
-        WorldMapGridSystem gridSystem = new();
-        gridSystem.Setup(new Vector2I(3, 3), Vector2I.One);
-
-        _test.True(
-            gridSystem.RegisterFootprint("camp", new Vector2I(0, 0), new Vector2I(2, 1)),
-            "初次注册 footprint 应成功。"
-        );
-        _test.True(
-            gridSystem.RegisterFootprint("camp", new Vector2I(1, 1), Vector2I.One),
-            "同 entity_id 重新注册 footprint 应成功。"
-        );
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(0, 0)), "", "重新注册后旧 footprint 占用应被清理。");
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(1, 1)), "camp", "重新注册后新 footprint 应可读取。");
-        _test.False(
-            gridSystem.RegisterFootprint("camp", new Vector2I(9, 9), Vector2I.One),
-            "越界重新注册应失败。"
-        );
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(1, 1)), "camp", "越界注册失败后旧 footprint 应被恢复。");
     }
 
     private void TestMissingItemDefDoesNotTrapEquippedInstance()

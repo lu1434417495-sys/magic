@@ -328,6 +328,9 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
 
     private void AssertCommandOk(GameTextCommandResult result, string message)
     {
-        _test.True(result != null && result.ok, $"{message} message={result?.message}");
+        _test.True(
+            result != null && !result.skipped && result.ok,
+            $"{message} skipped={result?.skipped} message={result?.message}"
+        );
     }
 }

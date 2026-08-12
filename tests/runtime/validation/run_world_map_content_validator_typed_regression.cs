@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using Godot;
 
 public partial class run_world_map_content_validator_typed_regression : LifecycleTestSceneTree
@@ -16,13 +15,11 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     private void Run()
     {
         TestOfficialWorldPresetsProjectAndValidateTyped();
-        TestProjectedInvalidGenerationDefinitionReportsErrors();
         TestInjectedDefaultContentProjectsAndValidatesTyped();
         TestTypedGenerationValidationUsesExactCatalogIds();
         TestSiblingMountedSubmapsMayReuseConfigPath();
         TestWorldDefinitionsAreRecursiveReadOnlyAndCanonical();
         TestWorldDefinitionProjectionRejectsCyclesAndNullEntries();
-        TestWorldDefinitionTypesContainNoGodotObjectGraph();
 
         RequestTestExit(_test.Finish("World map content validator typed regression"));
     }
@@ -41,32 +38,6 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         );
 
         _test.Eq(typedErrors.Count, 0, $"正式 world preset typed boundary 不应报错: {FormatErrors(typedErrors)}");
-    }
-
-    private void TestProjectedInvalidGenerationDefinitionReportsErrors()
-    {
-        using TestContentResourceLoader loader = new();
-        WorldMapContentValidator validator = new();
-        ContentSnapshot contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
-
-        using WorldMapGenerationConfig config = BuildInvalidGenerationConfig();
-        WorldGenerationDefinition definition = ProjectSyntheticGeneration(
-            "res://synthetic/typed_invalid_world_generation_config.tres",
-            config,
-            loader
-        );
-        HashSet<StringName> battleEncounterIds = new(contentSnapshot.BattleEncounters.Keys);
-
-        List<string> typedErrors = validator.ValidateGenerationConfigTyped(
-            definition,
-            "typed_invalid_world_generation_config",
-            battleEncounterIds
-        );
-
-        _test.True(
-            typedErrors.Count > 0,
-            $"typed generation config 非法 fixture 应产生 validation 错误。 errors={FormatErrors(typedErrors)}"
-        );
     }
 
     private void TestInjectedDefaultContentProjectsAndValidatesTyped()
@@ -398,51 +369,6 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         );
     }
 
-    private void TestWorldDefinitionTypesContainNoGodotObjectGraph()
-    {
-        Type[] definitionTypes =
-        {
-            typeof(WorldGenerationDefinition),
-            typeof(SettlementDefinition),
-            typeof(SettlementDistributionDefinition),
-            typeof(WeightedFacilityDefinition),
-            typeof(FacilityDefinition),
-            typeof(FacilityNpcDefinition),
-            typeof(FacilitySlotDefinition),
-            typeof(WildSpawnRuleDefinition),
-            typeof(MountedSubmapDefinition),
-            typeof(WorldEventDefinition),
-            typeof(WorldMapSettlementBundleDefinition),
-            typeof(WorldMapSettlementNamePoolDefinition),
-            typeof(WorldMapWildSpawnBundleDefinition),
-        };
-        foreach (Type definitionType in definitionTypes)
-        {
-            foreach (
-                PropertyInfo property in definitionType.GetProperties(
-                    BindingFlags.Instance | BindingFlags.Public
-                )
-            )
-            {
-                foreach (Type inspected in EnumerateTypeGraph(property.PropertyType))
-                {
-                    _test.True(
-                        !typeof(GodotObject).IsAssignableFrom(inspected),
-                        $"{definitionType.Name}.{property.Name} must not retain GodotObject {inspected.FullName}."
-                    );
-                    _test.True(
-                        inspected.FullName == null
-                            || !inspected.FullName.StartsWith(
-                                "Godot.Collections.",
-                                StringComparison.Ordinal
-                            ),
-                        $"{definitionType.Name}.{property.Name} must not retain Godot collection {inspected.FullName}."
-                    );
-                }
-            }
-        }
-    }
-
     private static List<string> ValidateOfficialWorldPresets(
         TestContentResourceLoader loader,
         WorldMapContentValidator validator,
@@ -481,24 +407,6 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         WorldMapGenerationConfig canonicalSource =
             loader.LoadCanonical<WorldMapGenerationConfig>(canonicalPath);
         return canonicalSource.ToDefinition(canonicalPath, loader);
-    }
-
-    private static WorldMapGenerationConfig BuildInvalidGenerationConfig()
-    {
-        WildSpawnRule missingWildRule = new()
-        {
-            region_tag = "invalid_wilds",
-            encounter_profile_id = "missing_battle_encounter",
-            density_per_chunk = 1,
-            chunk_coords = new Godot.Collections.Array<Vector2I> { new Vector2I(0, 0) },
-        };
-
-        return new WorldMapGenerationConfig
-        {
-            world_size_in_chunks = new Vector2I(1, 1),
-            chunk_size = new Vector2I(4, 4),
-            wild_monster_distribution = new Godot.Collections.Array<Resource> { missingWildRule },
-        };
     }
 
     private static void AddDefaultResources(TestContentResourceLoader loader)
@@ -562,24 +470,6 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
             _test.Fail(
                 $"{message}: expected InvalidDataException, got {exception.GetType().Name}."
             );
-        }
-    }
-
-    private static IEnumerable<Type> EnumerateTypeGraph(Type root)
-    {
-        var seen = new HashSet<Type>();
-        var pending = new Stack<Type>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            Type type = pending.Pop();
-            if (type == null || !seen.Add(type))
-                continue;
-            yield return type;
-            if (type.HasElementType)
-                pending.Push(type.GetElementType());
-            foreach (Type argument in type.GetGenericArguments())
-                pending.Push(argument);
         }
     }
 

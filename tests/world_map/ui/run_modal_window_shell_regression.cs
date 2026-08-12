@@ -18,10 +18,20 @@ public partial class run_modal_window_shell_regression : LifecycleTestSceneTree
 
     public override async void _Initialize()
     {
-        await TestEscapeClosesCharacterInfoWindow();
-        await TestEscapeDoesNotCloseMasteryRewardWindow();
-        await TestSubmapEntryEscapeHonorsDismissFlag();
-        RequestTestExit(_test.Finish("Modal window shell regression"));
+        try
+        {
+            await TestEscapeClosesCharacterInfoWindow();
+            await TestEscapeDoesNotCloseMasteryRewardWindow();
+            await TestSubmapEntryEscapeHonorsDismissFlag();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Modal window shell regression"));
+        }
     }
 
     private async Task TestEscapeClosesCharacterInfoWindow()

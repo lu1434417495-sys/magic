@@ -13,9 +13,19 @@ public partial class run_character_info_payload_schema_regression : LifecycleTes
 
     public override async void _Initialize()
     {
-        await TestRuntimeCharacterInfoPayloadAllowsRuntimeIdentityKeys();
-        await TestEquipmentTooltipEntryRendersAsHoverTooltip();
-        RequestTestExit(_test.Finish("Character info payload schema regression"));
+        try
+        {
+            await TestRuntimeCharacterInfoPayloadAllowsRuntimeIdentityKeys();
+            await TestEquipmentTooltipEntryRendersAsHoverTooltip();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Character info payload schema regression"));
+        }
     }
 
     private async Task TestRuntimeCharacterInfoPayloadAllowsRuntimeIdentityKeys()

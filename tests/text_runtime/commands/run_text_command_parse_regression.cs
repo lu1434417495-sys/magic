@@ -62,18 +62,15 @@ public partial class run_text_command_parse_regression : LifecycleTestSceneTree
     private void RunCommand(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
-        if (result.skipped)
-            return;
         ConsoleProcessOutput.WriteStandard(result.Render());
-        _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
+        _test.True(!result.skipped && result.ok, $"命令未实际执行或失败：{commandText} | {result.message}");
     }
 
     private GameTextCommandResult RunCommandExpectFail(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
-        if (result.skipped)
-            return result;
         ConsoleProcessOutput.WriteStandard(result.Render());
+        _test.True(!result.skipped, $"命令被跳过，无法验证失败：{commandText}");
         _test.False(result.ok, $"命令本应失败：{commandText}");
         return result;
     }

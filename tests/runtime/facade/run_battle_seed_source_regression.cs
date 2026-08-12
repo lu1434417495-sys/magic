@@ -3,6 +3,8 @@ using Godot;
 public partial class run_battle_seed_source_regression : LifecycleTestSceneTree
 {
     private const int LifecycleSoakSeed = 0x5A17_2026;
+    private const string TestWorldConfig =
+        "res://data/configs/world_map/test_world_map_config.tres";
 
     private readonly TestHarness _test = new();
 
@@ -13,48 +15,57 @@ public partial class run_battle_seed_source_regression : LifecycleTestSceneTree
 
     private void Run()
     {
-        TestFacadeDelegatesToInjectedSource();
-        TestFixedSourceReturnsConfiguredSeed();
+        TestStartBattleCarriesInjectedSeedIntoPendingRequest();
 
         RequestTestExit(_test.Finish("Battle seed source regression"));
     }
 
-    private void TestFacadeDelegatesToInjectedSource()
+    private void TestStartBattleCarriesInjectedSeedIntoPendingRequest()
     {
         EncounterAnchorData encounterAnchor = BuildEncounterAnchor();
-        RecordingBattleSeedSource seedSource = new(1729);
-        using GameRuntimeFacade facade = new(seedSource);
-
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        using GameRuntimeFacade facade = new(new FixedBattleSeedSource(LifecycleSoakSeed));
         _test.Eq(
-            facade._build_battle_seed(encounterAnchor),
-            1729,
-            "GameRuntimeFacade 应返回注入 source 生成的战斗 seed。"
+            (Error)gameSession.StartNewGame(TestWorldConfig),
+            Error.Ok,
+            "battle seed 回归应先创建真实活动世界。"
         );
-        _test.Eq(seedSource.CallCount, 1, "每次构建战斗 seed 应只调用 source 一次。");
+        facade.Setup(gameSession);
+        facade.GetBattleRuntime()._terrain_generator = new PendingBattleTerrainGenerator();
+        facade.SetBattleEncounterDefinitionForTests(
+            new BattleEncounterDefinition(
+                "wolf_wilds",
+                "Battle Seed Source Test",
+                "battle_seed_source_roster",
+                BattleEliminationObjectiveDefinition.Instance,
+                new BattleEncounterWorldResolutionDefinition(
+                    BattleWorldResolutionMode.Clear,
+                    BattleWorldResolutionMode.Preserve,
+                    BattleWorldResolutionMode.Preserve,
+                    0
+                )
+            )
+        );
+
+        facade.StartBattle(encounterAnchor);
+
         _test.True(
-            ReferenceEquals(seedSource.LastEncounterAnchor, encounterAnchor),
-            "战斗 seed source 应收到原始 encounter anchor。"
+            facade.HasPendingBattleGenerationRequest(),
+            "StartBattle 应把尚未完成的地形生成保留为 pending request。"
         );
-
+        GameRuntimePendingBattleGenerationRequest request =
+            facade.GetPendingBattleGenerationRequestState();
         _test.Eq(
-            facade._build_battle_seed(null),
-            0,
-            "空 encounter anchor 应保持原有的零 seed 行为。"
-        );
-        _test.Eq(seedSource.CallCount, 1, "空 encounter anchor 不应调用 seed source。");
-    }
-
-    private void TestFixedSourceReturnsConfiguredSeed()
-    {
-        EncounterAnchorData encounterAnchor = BuildEncounterAnchor();
-        FixedBattleSeedSource seedSource = new(LifecycleSoakSeed);
-        using GameRuntimeFacade facade = new(seedSource);
-
-        _test.Eq(
-            facade._build_battle_seed(encounterAnchor),
+            request.Seed,
             LifecycleSoakSeed,
-            "FixedBattleSeedSource 应保留 lifecycle soak 配置的 seed。"
+            "注入的 fixed seed 必须经真实 StartBattle -> BeginBattleStart 进入 pending request。"
         );
+        _test.True(
+            ReferenceEquals(request.EncounterAnchor, encounterAnchor),
+            "pending request 应保留 StartBattle 收到的 typed encounter anchor。"
+        );
+        gameSession.UnloadActiveWorld();
+        gameSession.ClearPersistedGame();
     }
 
     private static EncounterAnchorData BuildEncounterAnchor() =>
@@ -67,24 +78,4 @@ public partial class run_battle_seed_source_regression : LifecycleTestSceneTree
             encounter_profile_id = "wolf_wilds",
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
         };
-
-    private sealed class RecordingBattleSeedSource : IBattleSeedSource
-    {
-        private readonly int _seed;
-
-        internal RecordingBattleSeedSource(int seed)
-        {
-            _seed = seed;
-        }
-
-        internal int CallCount { get; private set; }
-        internal EncounterAnchorData LastEncounterAnchor { get; private set; }
-
-        public int NextSeed(EncounterAnchorData encounterAnchor)
-        {
-            CallCount++;
-            LastEncounterAnchor = encounterAnchor;
-            return _seed;
-        }
-    }
 }
