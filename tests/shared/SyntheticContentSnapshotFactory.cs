@@ -22,6 +22,7 @@ internal sealed class SyntheticContentSnapshotSeed
     internal IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfiles { get; set; }
     internal IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> ContingencyTemplates { get; set; }
     internal IReadOnlyDictionary<StringName, ItemDefinition> Items { get; set; }
+    internal IReadOnlyDictionary<StringName, GearSetDefinition> GearSets { get; set; }
     internal IReadOnlyDictionary<StringName, RecipeDefinition> Recipes { get; set; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> EquipmentAbilityPacks { get; set; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; set; }
@@ -61,6 +62,7 @@ internal static class SyntheticContentSnapshotFactory
             OrEmpty(seed.BarrierProfiles),
             OrEmpty(seed.ContingencyTemplates),
             OrEmpty(seed.Items),
+            OrEmpty(seed.GearSets),
             OrEmpty(seed.Recipes),
             OrEmpty(seed.EquipmentAbilityPacks),
             OrEmpty(seed.EquipmentAbilityBindings),
@@ -97,6 +99,7 @@ internal static class SyntheticContentSnapshotFactory
             BarrierProfiles = source.BarrierProfiles,
             ContingencyTemplates = source.ContingencyTemplates,
             Items = source.Items,
+            GearSets = source.GearSets,
             Recipes = source.Recipes,
             EquipmentAbilityPacks = source.EquipmentAbilityPacks,
             EquipmentAbilityBindings = source.EquipmentAbilityBindings,

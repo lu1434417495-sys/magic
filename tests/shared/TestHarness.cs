@@ -68,8 +68,9 @@ internal sealed class TestHarness
                 return _result;
 
             IReadOnlyList<string> failures = new List<string>(Failures).AsReadOnly();
-            bool passed = failures.Count == 0 && exitCode == 0;
-            _result = new TestResult(label, passed, passed ? 0 : 1, failures);
+            int resolvedExitCode = failures.Count > 0 ? 1 : exitCode;
+            bool passed = resolvedExitCode == 0;
+            _result = new TestResult(label, passed, resolvedExitCode, failures);
             return _result;
         }
     }

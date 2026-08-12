@@ -144,7 +144,9 @@ internal static class TestSkillDefinitionProjection
         IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides = null,
         StringName masteryTriggerMode = default,
         StringName masteryAmountMode = default,
-        StringName projectileKind = default
+        StringName projectileKind = default,
+        StringName attackDefenseMode = default,
+        bool randomChainContinueOnMiss = false
     )
     {
         return new CombatSkillDefinition(
@@ -191,6 +193,7 @@ internal static class TestSkillDefinitionProjection
             maxTargetCount: maxTargetCount,
             allowRepeatTarget: allowRepeatTarget,
             maxHitsPerTarget: maxHitsPerTarget,
+            randomChainContinueOnMiss: randomChainContinueOnMiss,
             selectionOrderMode: default,
             effectDefinitions: effects ?? System.Array.Empty<CombatEffectDefinition>(),
             passiveEffectDefinitions: System.Array.Empty<CombatEffectDefinition>(),
@@ -201,7 +204,8 @@ internal static class TestSkillDefinitionProjection
             requiresEquippedShield: false,
             masteryLowHpBonusMultiplier: 0,
             masteryLowHpThresholdPercent: 0,
-            projectileKind: DefaultName(projectileKind, "none")
+            projectileKind: DefaultName(projectileKind, "none"),
+            attackDefenseMode: DefaultName(attackDefenseMode, "normal")
         );
     }
 
