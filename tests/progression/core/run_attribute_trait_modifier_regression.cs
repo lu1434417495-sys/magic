@@ -11,17 +11,8 @@ public partial class run_attribute_trait_modifier_regression : LifecycleTestScen
 
     private void Run()
     {
-        TestRuntimeModifierContractsArePlain();
         TestTraitAttributeModifiersApplyAndPreserveSource();
         RequestTestExit(_test.Finish("Attribute trait modifier regression"));
-    }
-
-    private void TestRuntimeModifierContractsArePlain()
-    {
-        _test.False(
-            typeof(GodotObject).IsAssignableFrom(typeof(AttributeModifierDefinition)),
-            "Runtime attribute modifier definitions must remain plain CLR values."
-        );
     }
 
     private void TestTraitAttributeModifiersApplyAndPreserveSource()

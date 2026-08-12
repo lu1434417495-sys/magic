@@ -5,14 +5,6 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
 {
     private const string ProfilePath = "res://data/configs/barriers/prismatic_sphere.tres";
 
-    private static readonly string[] RequiredScriptPaths =
-    {
-        "res://scripts/player/progression/BarrierProfileDef.cs",
-        "res://scripts/player/progression/BarrierLayerDef.cs",
-        "res://scripts/player/progression/BarrierOutcomeDef.cs",
-        "res://scripts/player/progression/BarrierContentRegistry.cs",
-    };
-
     private static readonly StringName[] ExpectedLayerIds =
     {
         "red",
@@ -72,7 +64,6 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
 
     private void Run()
     {
-        TestBarrierProfileScriptsExist();
         TestPrismaticSphereProfileIsDataOwned();
         TestPrismaticSphereProfileDeclares2eContract();
         TestSingleLayerProfilesReuseCanonicalLayers();
@@ -136,14 +127,6 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
                 layerId,
                 $"{profile.profile_id} must expose only the {layerId} layer."
             );
-        }
-    }
-
-    private void TestBarrierProfileScriptsExist()
-    {
-        foreach (string scriptPath in RequiredScriptPaths)
-        {
-            AssertResourceScript(scriptPath);
         }
     }
 
@@ -279,21 +262,6 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
             _test.Fail("Prismatic sphere barrier profile must load as a Resource.");
         }
         return profile;
-    }
-
-    private void AssertResourceScript(string path)
-    {
-        if (!FileAccess.FileExists(path))
-        {
-            _test.Fail($"Required barrier content script is missing: {path}.");
-            return;
-        }
-
-        Script script = GD.Load<Script>(path);
-        if (script == null)
-        {
-            _test.Fail($"Required barrier content script must load: {path}.");
-        }
     }
 
     private void AssertHasProperty(GodotObject instance, string propertyName, string message)

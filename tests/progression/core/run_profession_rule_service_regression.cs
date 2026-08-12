@@ -13,17 +13,11 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
 
     private void Run()
     {
-        TestServiceNoLongerRequiresGodotRegistration();
         TestEmptyGateCheckModeProjectsAndInheritsDependencyVisibility();
         TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments();
         TestRefreshAllProfessionStatesUsesTypedDefIndex();
 
         RequestTestExit(_test.Finish("Profession rule service regression"));
-    }
-
-    private void TestServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(ProfessionRuleService);
     }
 
     private void TestEmptyGateCheckModeProjectsAndInheritsDependencyVisibility()

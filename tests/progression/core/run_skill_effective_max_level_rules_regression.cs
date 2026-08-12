@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -14,17 +13,10 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
 
     private void Run()
     {
-        TestRulesNoLongerRequireGodotRegistration();
-        TestProgressionServiceNoLongerRequiresGlobalClassRegistration();
         TestAuraSlashMaxLevelUsesTransformationCount();
         TestDynamicMaxLevelUsesProfessionRankIntegerDivisor();
 
         RequestTestExit(_test.Finish("Skill effective max level rules regression"));
-    }
-
-    private void TestRulesNoLongerRequireGodotRegistration()
-    {
-        Type rulesType = typeof(SkillEffectiveMaxLevelRules);
     }
 
     private void TestAuraSlashMaxLevelUsesTransformationCount()
@@ -120,10 +112,6 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
             9,
             "奥术飞弹锁定后才应使用法师 rank/2 的动态核心上限。"
         );
-    }
-
-    private void TestProgressionServiceNoLongerRequiresGlobalClassRegistration()
-    {
     }
 
     private static SkillDefinition BuildSkillDefinition(

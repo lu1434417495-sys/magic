@@ -10,7 +10,8 @@ public partial class run_luck_getter_regression : LifecycleTestSceneTree
     {
         TestUnitBaseAttributesLuckGettersCoverBoundaries();
         TestPartyMemberStateLuckGettersDelegateAndStayNullSafe();
-        TestFromDictMissingProgressionResourceSchemaIsRejected();
+        TestFromDictionaryMissingLuckStatsDefaultsToZero();
+        TestPartyMemberPayloadMissingUnlockedCombatResourcesIsRejected();
         RequestTestExit(_test.Finish("Luck getter regression"));
     }
 
@@ -34,7 +35,7 @@ public partial class run_luck_getter_regression : LifecycleTestSceneTree
         AssertMemberLuckCase("PartyMemberState 缺少 progression 时回退默认值", memberState, 0, 0, 0, 0, 0);
     }
 
-    private void TestFromDictMissingProgressionResourceSchemaIsRejected()
+    private void TestFromDictionaryMissingLuckStatsDefaultsToZero()
     {
         UnitBaseAttributes attributes = UnitBaseAttributes.FromDictionary(
             new GDictionary
@@ -49,7 +50,10 @@ public partial class run_luck_getter_regression : LifecycleTestSceneTree
             }
         );
         AssertLuckCase("UnitBaseAttributes.from_dict custom_stats 缺少 luck 键", attributes, 0, 0, 0, 0, 0);
+    }
 
+    private void TestPartyMemberPayloadMissingUnlockedCombatResourcesIsRejected()
+    {
         PartyMemberState memberState = PartyMemberState.FromDictionary(
             BuildMemberPayloadWithoutUnlockedCombatResourceIds()
         );
@@ -170,4 +174,3 @@ public partial class run_luck_getter_regression : LifecycleTestSceneTree
             ["astral_memory_years"] = 0,
         };
 }
-

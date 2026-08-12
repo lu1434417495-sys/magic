@@ -299,5 +299,8 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
             _items.TryGetValue(itemId, out ItemDefinition itemDefinition)
                 ? itemDefinition
                 : null;
+
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsForTraitAggregation() =>
+            _items;
     }
 }

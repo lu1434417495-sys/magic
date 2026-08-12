@@ -21,7 +21,6 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
 
     private void Run()
     {
-        TestValidatorNoLongerRequiresGodotRegistration();
         TestValidIdentityPasses();
         TestRejectsMissingRace();
         TestRejectsMissingSubrace();
@@ -37,15 +36,6 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
         TestBodySizeCacheMismatchIsNotIdentityError();
 
         RequestTestExit(_test.Finish("Identity payload validator regression"));
-    }
-
-    private void TestValidatorNoLongerRequiresGodotRegistration()
-    {
-        Type validatorType = typeof(IdentityPayloadValidator);
-        _test.True(
-            validatorType.IsAbstract && validatorType.IsSealed,
-            "IdentityPayloadValidator 应是 static helper。"
-        );
     }
 
     private void TestValidIdentityPasses()
@@ -72,7 +62,11 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog()
         );
-        AssertHasAnyError(errors, "missing race should be rejected");
+        AssertOnlyError(
+            errors,
+            "member hero references missing race missing_race",
+            "missing race should be rejected by the missing-race rule only"
+        );
     }
 
     private void TestRejectsMissingSubrace()
@@ -84,7 +78,11 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog()
         );
-        AssertHasAnyError(errors, "missing subrace should be rejected");
+        AssertOnlyError(
+            errors,
+            "member hero references missing subrace missing_subrace",
+            "missing subrace should be rejected by the missing-subrace rule only"
+        );
     }
 
     private void TestRejectsSubraceParentMismatch()
@@ -98,7 +96,11 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog(bundle)
         );
-        AssertHasAnyError(errors, "subrace parent mismatch should be rejected");
+        AssertOnlyError(
+            errors,
+            "member hero subrace high_human parent_race_id must be human, got elf",
+            "subrace parent mismatch should be rejected by the parent rule only"
+        );
     }
 
     private void TestRejectsRaceThatDoesNotListSubrace()
@@ -112,7 +114,11 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog(bundle)
         );
-        AssertHasAnyError(errors, "race missing selected subrace should be rejected");
+        AssertOnlyError(
+            errors,
+            "member hero race human must list subrace high_human in subrace_ids",
+            "race missing selected subrace should be rejected by the race membership rule only"
+        );
     }
 
     private void TestRejectsHalfSetBloodlinePair()
@@ -125,7 +131,11 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog()
         );
-        AssertHasAnyError(errors, "half-set bloodline pair should be rejected");
+        AssertOnlyError(
+            errors,
+            "member hero bloodline_id and bloodline_stage_id must both be empty or both be set",
+            "half-set bloodline pair should be rejected by the pair-completeness rule only"
+        );
     }
 
     private void TestRejectsBloodlineStageThatDoesNotBelong()
@@ -138,7 +148,11 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog()
         );
-        AssertHasAnyError(errors, "bloodline stage from another bloodline should be rejected");
+        AssertOnlyError(
+            errors,
+            "member hero bloodline_stage_id dragon_awakened does not belong to bloodline titan",
+            "bloodline stage from another bloodline should be rejected by the ownership rule only"
+        );
     }
 
     private void TestRejectsHalfSetAscensionPair()
@@ -151,7 +165,11 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog()
         );
-        AssertHasAnyError(errors, "half-set ascension pair should be rejected");
+        AssertOnlyError(
+            errors,
+            "member hero ascension_id and ascension_stage_id must both be empty or both be set",
+            "half-set ascension pair should be rejected by the pair-completeness rule only"
+        );
     }
 
     private void TestRejectsAscensionStageThatDoesNotBelong()
@@ -164,22 +182,34 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog()
         );
-        AssertHasAnyError(errors, "ascension stage from another ascension should be rejected");
+        AssertOnlyError(
+            errors,
+            "member hero ascension_stage_id elf_awakened does not belong to ascension dragon_ascension",
+            "ascension stage from another ascension should be rejected by the ownership rule only"
+        );
     }
 
     private void TestRejectsAscensionDisallowedRace()
     {
         PartyMemberState member = MakeMember();
-        member.race_id = "elf";
-        member.subrace_id = "moon_elf";
         member.ascension_id = "dragon_ascension";
         member.ascension_stage_id = "dragon_awakened";
+        GDictionary bundle = MakeIdentityBundle();
+        ReadObject<AscensionDef>(
+            ReadDictionary(bundle, "ascension_defs"),
+            "dragon_ascension"
+        ).allowed_race_ids = MakeStringNames(new[] { new StringName("elf") });
 
         IReadOnlyList<string> errors = IdentityPayloadValidator.ValidateMemberIdentityTyped(
             member,
-            MakeIdentityCatalog()
+            MakeIdentityCatalog(bundle)
         );
-        AssertHasAnyError(errors, "ascension allowed race gate should be enforced");
+        _test.True(
+            errors.Count == 1
+                && errors[0]
+                    == "member hero ascension dragon_ascension does not allow race human",
+            $"ascension race gate fixture should produce only its exact diagnostic: {string.Join(" | ", errors)}"
+        );
     }
 
     private void TestRejectsAscensionDisallowedSubrace()
@@ -193,12 +223,18 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog()
         );
-        AssertHasAnyError(errors, "ascension allowed subrace gate should be enforced");
+        AssertOnlyError(
+            errors,
+            "member hero ascension dragon_ascension does not allow subrace low_human",
+            "ascension allowed-subrace gate should produce only its own diagnostic"
+        );
     }
 
     private void TestRejectsAscensionDisallowedBloodline()
     {
         PartyMemberState member = MakeMember();
+        member.bloodline_id = "dragon";
+        member.bloodline_stage_id = "dragon_awakened";
         member.ascension_id = "bloodline_locked_ascension";
         member.ascension_stage_id = "bloodline_locked_awakened";
 
@@ -206,7 +242,11 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             member,
             MakeIdentityCatalog()
         );
-        AssertHasAnyError(errors, "ascension allowed bloodline gate should be enforced");
+        AssertOnlyError(
+            errors,
+            "member hero ascension bloodline_locked_ascension does not allow bloodline dragon",
+            "ascension allowed-bloodline gate should produce only its own diagnostic"
+        );
     }
 
     private void TestBodySizeCacheMismatchIsNotIdentityError()
@@ -521,8 +561,21 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
         return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as T : null;
     }
 
-    private void AssertHasAnyError(IReadOnlyList<string> errors, string message)
+    private void AssertOnlyError(
+        IReadOnlyList<string> errors,
+        string expectedError,
+        string message
+    )
     {
-        _test.True(errors != null && errors.Count > 0, message);
+        _test.True(errors != null, $"{message}: validator must return an error collection");
+        if (errors == null)
+            return;
+        _test.Eq(
+            errors.Count,
+            1,
+            $"{message}: fixture must not be masked by unrelated diagnostics. errors={string.Join(" | ", errors)}"
+        );
+        if (errors.Count == 1)
+            _test.Eq(errors[0], expectedError, message);
     }
 }

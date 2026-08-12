@@ -12,14 +12,24 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
 
     public override async void _Initialize()
     {
-        await TestPartyWarehouseWindowRendersFormalWindowPayload();
-        await TestPartyWarehouseWindowUsesInstanceOnlyDiscardForEquipment();
-        await TestPartyWarehouseWindowKeepsDetailsPlainText();
-        await TestPartyWarehouseWindowToleratesInvalidIconPath();
-        await TestPartyWarehouseWindowRejectsStringNameTopLevelFields();
-        await TestPartyWarehouseWindowRejectsStringNameEntryFields();
-        await TestPartyWarehouseWindowRejectsStringNameTargetMemberFields();
-        RequestTestExit(_test.Finish("Party warehouse window schema regression"));
+        try
+        {
+            await TestPartyWarehouseWindowRendersFormalWindowPayload();
+            await TestPartyWarehouseWindowUsesInstanceOnlyDiscardForEquipment();
+            await TestPartyWarehouseWindowKeepsDetailsPlainText();
+            await TestPartyWarehouseWindowToleratesInvalidIconPath();
+            await TestPartyWarehouseWindowRejectsStringNameTopLevelFields();
+            await TestPartyWarehouseWindowRejectsStringNameEntryFields();
+            await TestPartyWarehouseWindowRejectsStringNameTargetMemberFields();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Party warehouse window schema regression"));
+        }
     }
 
     private async Task<PartyWarehouseWindow> CreateWindow()

@@ -161,60 +161,148 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
     private void TestSkillSchemaRejectsInvalidSaveFields()
     {
         using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
-        using CombatEffectDef invalidEffect = new()
+
+        using CombatEffectDef validStatusBaseline = BuildValidStatusSaveEffect();
+        AssertExactErrors(
+            ValidateEffect(registry, "valid_status_baseline", validStatusBaseline),
+            "valid status-save baseline"
+        );
+
+        using CombatEffectDef invalidAbilityEffect = BuildValidStatusSaveEffect();
+        invalidAbilityEffect.save_ability = "fortune";
+        AssertExactErrors(
+            ValidateEffect(registry, "invalid_save_ability", invalidAbilityEffect),
+            "unsupported save ability",
+            "Skill invalid_save_ability effect test_effect uses unsupported save_ability fortune."
+        );
+
+        using CombatEffectDef invalidTagEffect = BuildValidStatusSaveEffect();
+        invalidTagEffect.save_tag = "cold";
+        AssertExactErrors(
+            ValidateEffect(registry, "invalid_save_tag", invalidTagEffect),
+            "unsupported save tag",
+            "Skill invalid_save_tag effect test_effect uses unsupported save_tag cold."
+        );
+
+        using CombatEffectDef invalidPartialEffect = BuildValidStatusSaveEffect();
+        invalidPartialEffect.save_partial_on_success = true;
+        AssertExactErrors(
+            ValidateEffect(registry, "invalid_save_partial", invalidPartialEffect),
+            "status save partial-on-success",
+            "Skill invalid_save_partial effect test_effect save_partial_on_success is only supported on damage effects."
+        );
+
+        using CombatEffectDef noSaveBaseline = BuildPlainDamageEffect();
+        AssertExactErrors(
+            ValidateEffect(registry, "no_save_baseline", noSaveBaseline),
+            "damage effect without save fields baseline"
+        );
+
+        using CombatEffectDef tagWithoutDcEffect = BuildPlainDamageEffect();
+        tagWithoutDcEffect.save_tag = BattleSaveContentRules.ToStringName(
+            BattleSaveTagKind.Poison
+        );
+        AssertExactErrors(
+            ValidateEffect(registry, "save_tag_without_dc", tagWithoutDcEffect),
+            "save tag without save DC",
+            "Skill save_tag_without_dc effect test_effect save_tag requires save_dc >= 1 or caster_spell save_dc_mode."
+        );
+
+        using CombatEffectDef validDynamicBaseline = BuildValidDynamicSaveEffect();
+        AssertExactErrors(
+            ValidateEffect(registry, "valid_dynamic_baseline", validDynamicBaseline),
+            "caster-spell save baseline"
+        );
+
+        using CombatEffectDef dynamicStaticDcEffect = BuildValidDynamicSaveEffect();
+        dynamicStaticDcEffect.save_dc = 12;
+        AssertExactErrors(
+            ValidateEffect(registry, "dynamic_static_dc", dynamicStaticDcEffect),
+            "caster-spell save with static DC",
+            "Skill dynamic_static_dc effect test_effect caster_spell save_dc_mode must leave static save_dc at 0."
+        );
+
+        using CombatEffectDef dynamicInvalidSourceEffect = BuildValidDynamicSaveEffect();
+        dynamicInvalidSourceEffect.save_dc_source_ability = "fortune";
+        AssertExactErrors(
+            ValidateEffect(registry, "dynamic_invalid_source", dynamicInvalidSourceEffect),
+            "caster-spell save with invalid source ability",
+            "Skill dynamic_invalid_source effect test_effect uses unsupported save_dc_source_ability fortune."
+        );
+    }
+
+    private static CombatEffectDef BuildValidStatusSaveEffect()
+    {
+        return new CombatEffectDef
         {
             effect_type = "status",
-            status_id = "bad_status",
+            status_id = "test_status",
             save_dc = 10,
-            save_ability = "fortune",
-            save_tag = "cold",
-            save_partial_on_success = true,
-        };
-        GStringArray invalidErrors = new();
-        registry.AppendEffectValidationErrors(
-            invalidErrors,
-            "invalid_save_status",
-            invalidEffect,
-            "test_effect"
-        );
-        _test.True(
-            invalidErrors.Count >= 3,
-            "invalid save fields should be rejected."
-        );
-
-        using CombatEffectDef noopEffect = new()
-        {
-            effect_type = "damage",
-            power = 4,
-            damage_tag = "fire",
+            save_ability = "constitution",
             save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Poison),
         };
-        GStringArray noopErrors = new();
-        registry.AppendEffectValidationErrors(noopErrors, "noop_save", noopEffect, "test_effect");
-        _test.True(noopErrors.Count > 0, "save_tag without save_dc should be rejected.");
+    }
 
-        using CombatEffectDef badDynamicEffect = new()
+    private static CombatEffectDef BuildPlainDamageEffect()
+    {
+        return new CombatEffectDef
         {
             effect_type = "damage",
             power = 4,
             damage_tag = "fire",
-            save_dc = 12,
+        };
+    }
+
+    private static CombatEffectDef BuildValidDynamicSaveEffect()
+    {
+        return new CombatEffectDef
+        {
+            effect_type = "damage",
+            power = 4,
+            damage_tag = "fire",
             save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
-            save_dc_source_ability = "fortune",
+            save_dc_source_ability = "intelligence",
             save_ability = "agility",
             save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
         };
-        GStringArray badDynamicErrors = new();
+    }
+
+    private static GStringArray ValidateEffect(
+        SkillContentRegistry registry,
+        StringName skillId,
+        CombatEffectDef effect
+    )
+    {
+        GStringArray errors = new();
         registry.AppendEffectValidationErrors(
-            badDynamicErrors,
-            "bad_dynamic_save",
-            badDynamicEffect,
+            errors,
+            skillId,
+            effect,
             "test_effect"
         );
-        _test.True(
-            badDynamicErrors.Count >= 2,
-            "caster_spell save_dc_mode should reject static save_dc and invalid source ability."
+        return errors;
+    }
+
+    private void AssertExactErrors(
+        GStringArray actualErrors,
+        string label,
+        params string[] expectedErrors
+    )
+    {
+        _test.Eq(
+            actualErrors.Count,
+            expectedErrors.Length,
+            $"{label} should produce only its target diagnostics. errors={string.Join(" | ", actualErrors)}"
         );
+        int comparableCount = System.Math.Min(actualErrors.Count, expectedErrors.Length);
+        for (int index = 0; index < comparableCount; index++)
+        {
+            _test.Eq(
+                actualErrors[index],
+                expectedErrors[index],
+                $"{label} diagnostic {index} should match exactly."
+            );
+        }
     }
 
     private void TestSkillSchemaRejectsInvalidSaveTagLists()

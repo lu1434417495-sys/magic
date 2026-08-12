@@ -22,7 +22,6 @@ public partial class run_base_attack_bonus_regression : LifecycleTestSceneTree
         TestAttributeServiceWritesBaseAttackBonusForFullWarrior();
         TestAttributeServiceExcludesInactiveAndHiddenProfessions();
         TestAttributeServiceMultiClassMatchesStaticCalculation();
-        TestAttributeServiceProtectedCustomStatSourceMapping();
 
         RequestTestExit(_test.Finish("Base attack bonus regression"));
     }
@@ -203,52 +202,6 @@ public partial class run_base_attack_bonus_regression : LifecycleTestSceneTree
             3,
             "战士 3 + 法师 3 + 牧师 3 在 service 应得 BAB 3，与静态算法一致。"
         );
-    }
-
-    private void TestAttributeServiceProtectedCustomStatSourceMapping()
-    {
-        UnitProgress progress = MakeProgress("hidden_luck_source_mapping");
-        AttributeService service = new();
-        service.Setup(progress);
-        StringName hiddenLuck = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth);
-
-        _test.True(
-            !service.ApplyPermanentAttributeChange(
-                hiddenLuck,
-                1,
-                AttributePermanentChangeSource.None
-            ),
-            "protected custom stat 不应接受 Unknown source。"
-        );
-        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 0, "Unknown source 不应改写 hidden luck。");
-
-        _test.True(
-            !service.ApplyPermanentAttributeChange(
-                hiddenLuck,
-                1,
-                new AttributePermanentChangeSource(
-                    AttributePermanentChangeSourceKind.StoryScript,
-                    "story_event",
-                    false
-                )
-            ),
-            "protected custom stat 不应接受未授权的 story_script source。"
-        );
-        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 0, "未授权 story_script 不应改写 hidden luck。");
-
-        _test.True(
-            service.ApplyPermanentAttributeChange(
-                hiddenLuck,
-                1,
-                new AttributePermanentChangeSource(
-                    AttributePermanentChangeSourceKind.StoryScript,
-                    "story_event",
-                    true
-                )
-            ),
-            "story_script + 明确授权应允许改写 protected custom stat。"
-        );
-        _test.Eq(progress.unit_base_attributes.GetAttributeValue(hiddenLuck), 1, "显式授权应改写 hidden luck。");
     }
 
     private static List<AttributeSnapshot.BaseAttackProgressionPair> Pairs(

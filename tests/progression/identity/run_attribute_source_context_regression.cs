@@ -16,7 +16,6 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
 
     private void Run()
     {
-        TestAttributeSourceContextNoLongerRequiresGodotRegistration();
         TestDerivedAttributeRuleUsesPlainCoefficientMaps();
         TestAttributeSnapshotExposesBaseAttributeModifiers();
         TestAttributeModifierOverlayCanTargetDerivedAbilityModifier();
@@ -27,31 +26,6 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         TestCharacterManagementBuildsAttributeSourceContext();
 
         RequestTestExit(_test.Finish("Attribute source context regression"));
-    }
-
-    private void TestAttributeSourceContextNoLongerRequiresGodotRegistration()
-    {
-        Type contextType = typeof(AttributeSourceContext);
-        _test.False(
-            typeof(GodotObject).IsAssignableFrom(contextType),
-            "AttributeSourceContext should remain a plain CLR boundary object."
-        );
-        foreach (
-            string fieldName in new[]
-            {
-                "trait_attribute_modifiers",
-                "equipment_state",
-                "passive_state",
-                "temporary_effects",
-            }
-        )
-        {
-            _test.Eq(
-                contextType.GetField(fieldName)?.FieldType,
-                typeof(IReadOnlyList<AttributeModifierDefinition>),
-                $"AttributeSourceContext.{fieldName} should contain plain definitions."
-            );
-        }
     }
 
     private void TestAttributeSnapshotExposesBaseAttributeModifiers()

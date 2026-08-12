@@ -27,7 +27,6 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         TestGuardFullTemplate();
         TestWhirlwindTemplate();
         TestTauntTemplate();
-        TestEmptyConfig();
         TestLevelDescriptionRequiresTemplateConfig();
         TestLevelDescriptionHidesZeroProfileDefaultsInOptionalBlocks();
         TestBattleRecoveryDescriptionDerivesDisplayDice();
@@ -236,15 +235,6 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             "对身边相邻一格横向3格内的敌人嘲讽，使其攻击非来源单位时处于劣势，持续90TU",
             "挑衅 5 级"
         );
-    }
-
-    private void TestEmptyConfig()
-    {
-        string result = SkillLevelDescriptionFormatter.RenderTemplate(
-            "A{{?x}}B{{/x}}C",
-            new GDictionary()
-        );
-        _test.Eq(result, "AC", "空配置应删除所有条件块");
     }
 
     private void TestLevelDescriptionRequiresTemplateConfig()

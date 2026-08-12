@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_promotion_selection_typed_regression : LifecycleTestSceneTree
 {
@@ -16,8 +15,6 @@ public partial class run_promotion_selection_typed_regression : LifecycleTestSce
     {
         TestSelectionDataNormalizesEquivalentValues();
         TestSelectionDataRoundTripsPlainPayload();
-        TestSelectionDataDoesNotExposeLegacyPayloadProjection();
-        TestProgressionServiceDoesNotExposeDictionarySelectionOverload();
         TestProfessionPromotionConsumesTypedSelection();
 
         RequestTestExit(_test.Finish("Promotion selection typed regression"));
@@ -77,15 +74,6 @@ public partial class run_promotion_selection_typed_regression : LifecycleTestSce
         );
     }
 
-    private void TestSelectionDataDoesNotExposeLegacyPayloadProjection()
-    {
-        _test.True(
-            typeof(PromotionSelectionData).GetMethod("ToPayloadProjection", Type.EmptyTypes)
-                == null,
-            "PromotionSelectionData 不应继续暴露无 lease 所有权的 Godot payload projection。"
-        );
-    }
-
     private void TestSelectionDataNormalizesEquivalentValues()
     {
         PromotionSelectionData selection = new(
@@ -133,18 +121,6 @@ public partial class run_promotion_selection_typed_regression : LifecycleTestSce
             selection.TriggerSkillIds.Count,
             1,
             "PromotionSelectionData 应去重 trigger skill id。"
-        );
-    }
-
-    private void TestProgressionServiceDoesNotExposeDictionarySelectionOverload()
-    {
-        var weakOverload = typeof(ProgressionService).GetMethod(
-            nameof(ProgressionService.PromoteProfession),
-            new[] { typeof(StringName), typeof(GDictionary) }
-        );
-        _test.True(
-            weakOverload == null,
-            "ProgressionService.PromoteProfession 不应再暴露 GDictionary selection 正式入口。"
         );
     }
 

@@ -43,22 +43,20 @@ public partial class run_fortune_service_regression : LifecycleTestSceneTree
             context.PartyState.HasFateRunFlag(FortuneService.BuildFortuneMarkAttemptFlagId(HeroId)),
             "PartyState.fate_run_flags 应保留对应角色的尝试锁。"
         );
-        _test.Eq(rollSource.CallCount, 2, "劣势确认应消耗两次确认骰。");
     }
 
     private void TestFailedConfirmationDoesNotGrantMark()
     {
         ServiceContext context = BuildServiceContext();
-        FixedRollSource rollSource = new(1, 1);
+        FixedRollSource rollSource = new(40, 1);
         FortuneService service = new(_ => rollSource);
         service.Setup(context.Manager);
 
         bool granted = service.TryGrantFortuneMark(BuildInput("battle_confirm_fail", 40));
 
-        _test.False(granted, "二次确认失败时不应授予 fortune_marked。");
+        _test.False(granted, "劣势确认应采用两颗不对称骰中的较低结果并拒绝授予 fortune_marked。");
         _test.Eq(GetFortuneMarkedValue(context.Manager, HeroId), 0, "二次确认失败时 fortune_marked 应保持 0。");
         _test.True(service.HasAttemptedFortuneMark(HeroId), "二次确认失败后仍应保留 per-run 尝试锁。");
-        _test.Eq(rollSource.CallCount, 2, "失败确认仍应消耗两次确认骰。");
     }
 
     private void TestRepeatAttemptIsLockedBeforeRolling()

@@ -15,7 +15,6 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
     private void Run()
     {
         TestLevelDescriptionSchemaValidationUsesTypedEntries();
-        TestLevelDescriptionFormatterUsesTypedConfigs();
         TestLevelDescriptionFormatterUsesTypedEffectParameters();
 
         RequestTestExit(_test.Finish("Skill level description typed regression"));
@@ -143,8 +142,10 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
                 invalidIntKeySkill
             );
         _test.True(
-            invalidIntKeyErrors.Count > 0,
-            "level_description_configs int key 应被 typed schema entry 拒绝。"
+            invalidIntKeyErrors.Contains(
+                "Skill invalid_level_description_int_key_skill level_description_configs key 0 must be a non-negative integer string."
+            ),
+            $"level_description_configs int key 应命中严格字符串 key 诊断。实际错误：{string.Join(" | ", invalidIntKeyErrors)}"
         );
 
         SkillDef invalidShapeSkill = new()
@@ -162,37 +163,24 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
             invalidShapeSkill.skill_id,
             invalidShapeSkill
         );
+        string formattedInvalidErrors = string.Join(" | ", invalidErrors);
         _test.True(
-            invalidErrors.Count >= 3,
-            "非法 level_description_configs shape 应保持非法。"
+            invalidErrors.Contains(
+                "Skill invalid_level_description_shape_skill level_description_configs[2] must be a Dictionary."
+            ),
+            $"level_description_configs 非字典 value 应命中 shape 诊断。实际错误：{formattedInvalidErrors}"
         );
-    }
-
-    private void TestLevelDescriptionFormatterUsesTypedConfigs()
-    {
-        SkillDefinition skill = BuildSkillDefinition(
-            "typed_level_description_formatter_skill",
-            "模板{value}{{?bonus}}+{bonus}{{/bonus}}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
-            {
-                [0] = new Dictionary<string, object> { ["value"] = "零级" },
-                [1] = new Dictionary<string, object>
-                {
-                    ["value"] = "一级",
-                    ["bonus"] = 2,
-                },
-            }
+        _test.True(
+            invalidErrors.Contains(
+                "Skill invalid_level_description_shape_skill level_description_configs[2] must be <= max_level 1."
+            ),
+            $"超出 max_level 的 config key 应被精确拒绝。实际错误：{formattedInvalidErrors}"
         );
-
-        _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skill, 0, new GDictionary()),
-            "模板零级",
-            "formatter 应从 typed level description config 读取 0 级描述。"
-        );
-        _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skill, 1, new GDictionary()),
-            "模板一级+2",
-            "formatter 应从 typed level description config 读取 1 级描述。"
+        _test.True(
+            invalidErrors.Contains(
+                "Skill invalid_level_description_shape_skill level_description_configs must include level 1."
+            ),
+            $"level_description_configs 的缺失 level 应被精确报告。实际错误：{formattedInvalidErrors}"
         );
     }
 

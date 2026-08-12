@@ -43,6 +43,11 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
         );
 
         _test.True(preview.Success, "Two-handed weapon preview should succeed.");
+        _test.Eq(
+            preview.EntrySlotId,
+            new StringName("main_hand"),
+            "Two-handed preview should identify main_hand as its entry slot."
+        );
         AssertStringListEq(
             preview.OccupiedSlotIds.ConvertAll(slot => slot.ToString()),
             new List<string> { "main_hand", "off_hand" },

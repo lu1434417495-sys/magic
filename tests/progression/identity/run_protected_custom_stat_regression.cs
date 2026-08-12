@@ -1,6 +1,4 @@
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_protected_custom_stat_regression : LifecycleTestSceneTree
 {
@@ -8,37 +6,11 @@ public partial class run_protected_custom_stat_regression : LifecycleTestSceneTr
 
     public override void _Initialize()
     {
-        TestAttributeServiceUsesTypedPermanentChangeSource();
         TestNonWhitelistedSourcesCannotWriteHiddenLuckAtBirth();
         TestPendingRewardFlowRejectsProtectedHiddenLuckWrites();
         TestCharacterCreationAndExplicitStoryScriptsCanWriteHiddenLuckAtBirth();
         TestUnprotectedCustomStatsRemainWritable();
         RequestTestExit(_test.Finish("Protected custom stat regression"));
-    }
-
-    private void TestAttributeServiceUsesTypedPermanentChangeSource()
-    {
-        var weakOverload = typeof(AttributeService).GetMethod(
-            nameof(AttributeService.ApplyPermanentAttributeChange),
-            new[] { typeof(StringName), typeof(int), typeof(GDictionary) }
-        );
-        _test.True(
-            weakOverload == null,
-            "AttributeService.ApplyPermanentAttributeChange 不应再暴露 GDictionary source_context 正式入口。"
-        );
-
-        AttributeService service = BuildAttributeService(1);
-        bool applied = service.ApplyPermanentAttributeChange(
-            "hidden_luck_at_birth",
-            2,
-            new AttributePermanentChangeSource(
-                AttributePermanentChangeSourceKind.CharacterCreation,
-                "character_creation",
-                true
-            )
-        );
-        _test.True(applied, "typed character creation source 应允许写入受保护 custom stat。");
-        _test.Eq(service.GetBaseValue("hidden_luck_at_birth"), 3, "typed source 应真正累计 hidden_luck_at_birth。");
     }
 
     private void TestNonWhitelistedSourcesCannotWriteHiddenLuckAtBirth()

@@ -132,6 +132,42 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
             _test.True(pendingReward != null, $"Fortuna rank {targetRank} 成功后应排入 pending reward。");
             if (pendingReward == null)
                 return;
+            if (targetRank == 1)
+            {
+                _test.Eq(
+                    pendingReward.source_type,
+                    FaithService.SourceTypeFaithRankReward,
+                    "Fortuna rank 1 pending reward 应保留 faith rank typed source。"
+                );
+                _test.Eq(
+                    pendingReward.entries.Count,
+                    1,
+                    "Fortuna rank 1 pending reward 应包含一条 typed reward entry。"
+                );
+                if (pendingReward.entries.Count > 0)
+                {
+                    PendingCharacterRewardEntry rewardEntry = pendingReward.entries[0];
+                    _test.True(rewardEntry != null, "Fortuna rank 1 reward entry 不应为空。");
+                    if (rewardEntry != null)
+                    {
+                        _test.Eq(
+                            rewardEntry.entry_type,
+                            new StringName("attribute_delta"),
+                            "Fortuna rank 1 reward entry 应使用 attribute_delta 类型。"
+                        );
+                        _test.Eq(
+                            rewardEntry.target_id,
+                            FaithLuckBonusStatId,
+                            "Fortuna rank 1 reward entry 应指向 faith_luck_bonus。"
+                        );
+                        _test.Eq(
+                            rewardEntry.amount,
+                            1,
+                            "Fortuna rank 1 reward entry 应增加 1 点 faith_luck_bonus。"
+                        );
+                    }
+                }
+            }
 
             CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(pendingReward);
             _test.Eq(
@@ -357,7 +393,20 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
                 },
             },
         };
-        _test.True(invalidRank.Validate().Count > 0, "FaithRankDef.validate 应拒绝 unsupported reward entry_type。");
+        Godot.Collections.Array<string> invalidErrors = invalidRank.Validate();
+        _test.Eq(
+            invalidErrors.Count,
+            1,
+            $"unsupported reward fixture 应只产生目标规则错误。errors={string.Join(" | ", invalidErrors)}"
+        );
+        if (invalidErrors.Count == 1)
+        {
+            _test.Eq(
+                invalidErrors[0],
+                "Faith rank 1 contains unsupported reward entry_type skill_level.",
+                "FaithRankDef.validate 应精确拒绝 unsupported reward entry_type。"
+            );
+        }
     }
 
     private static PartyState BuildPartyState()

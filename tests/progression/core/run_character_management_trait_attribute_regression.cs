@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -14,22 +13,13 @@ public partial class run_character_management_trait_attribute_regression : Lifec
 
     private void Run()
     {
-        TestCharacterManagementUsesClrLifecycle();
+        TestCharacterManagementDisposeIsIdempotent();
         TestCharacterManagementInjectsTraitAttributeModifiers();
         RequestTestExit(_test.Finish("Character management trait attribute regression"));
     }
 
-    private void TestCharacterManagementUsesClrLifecycle()
+    private void TestCharacterManagementDisposeIsIdempotent()
     {
-        _test.True(
-            typeof(IDisposable).IsAssignableFrom(typeof(CharacterManagementModule)),
-            "CharacterManagementModule should remain an explicit CLR disposable service."
-        );
-        _test.False(
-            typeof(GodotObject).IsAssignableFrom(typeof(CharacterManagementModule)),
-            "CharacterManagementModule is a C# runtime gateway and must not own a native Godot wrapper."
-        );
-
         CharacterManagementModule manager = new();
         manager.Dispose();
         manager.Dispose();

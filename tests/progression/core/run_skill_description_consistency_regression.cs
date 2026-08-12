@@ -62,6 +62,21 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
         _test.Eq(combat.ApCost, 1, "链式闪击描述输入应保留 AP 消耗。");
         _test.Eq(combat.MpCost, 120, "链式闪击描述输入应保留 MP 消耗。");
         _test.Eq(combat.CooldownTu, 60, "链式闪击描述输入应保留冷却。");
+        _test.Eq(
+            combat.TargetSelectionMode,
+            new StringName("single_unit"),
+            "链式闪击必须由玩家锁定一个首目标，不能继续走全场随机攻击链。"
+        );
+        _test.Eq(
+            combat.TargetTeamFilter,
+            new StringName("enemy"),
+            "链式闪击的首目标必须是敌人。"
+        );
+        _test.True(
+            level0Description.Contains("1格内所有单位")
+                && level0Description.Contains("扩大至2格"),
+            "链式闪击等级描述应明确首目标中心范围、无差别连锁与湿地扩张。"
+        );
 
         CombatEffectDefinition level0Damage = FindEffect(combat, "damage", 0);
         CombatEffectDefinition level7Damage = FindEffect(combat, "damage", 7);
@@ -94,6 +109,12 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
         _test.True(chain != null, "链式闪击应存在 chain_damage effect。");
         if (chain != null)
         {
+            _test.Eq(
+                chain.EffectTargetTeamFilter,
+                new StringName("any"),
+                "链式闪击的后续连锁应同时影响敌人与友军。"
+            );
+            _test.True(chain.PreventRepeatTarget, "链式闪击范围内每个单位最多结算一次。");
             _test.Eq(chain.GetStringNameParamTyped("bonus_terrain_effect_id"), new StringName("wet"), "链式闪击连锁地形加成应来自 typed params。");
             _test.Eq(chain.GetIntParamTyped("base_chain_radius"), 1, "链式闪击基础连锁范围应来自 typed params。");
             _test.Eq(chain.GetIntParamTyped("wet_chain_radius"), 2, "链式闪击湿地连锁范围应来自 typed params。");

@@ -24,68 +24,57 @@ public partial class run_party_state_fate_regression : LifecycleTestSceneTree
     private void TestPartyStateFateFieldsRoundTrip()
     {
         PartyState partyState = BuildPartyState();
-        PartyState restored = null;
-        try
-        {
-            partyState.SetFateRunFlag("fortuna_guidance_blessed", true);
-            partyState.SetFateRunFlag("doom_gate_opened", false);
+        partyState.SetFateRunFlag("fortuna_guidance_blessed", true);
+        partyState.SetFateRunFlag("doom_gate_opened", false);
 
-            _test.True(
-                partyState.HasFateRunFlag("fortuna_guidance_blessed"),
-                "写接口应保留 true 的命运周目标记。"
-            );
-            _test.True(
-                !partyState.GetFateRunFlag("doom_gate_opened", true),
-                "写接口应保留 false 的命运周目标记。"
-            );
+        _test.True(
+            partyState.HasFateRunFlag("fortuna_guidance_blessed"),
+            "写接口应保留 true 的命运周目标记。"
+        );
+        _test.True(
+            !partyState.GetFateRunFlag("doom_gate_opened", true),
+            "写接口应保留 false 的命运周目标记。"
+        );
 
-            using GodotProjectionLease<GDictionary> payloadLease =
-                partyState.ToDictionaryLease("PartyStateFate.RoundTrip");
-            GDictionary payload = payloadLease.Value;
-            _test.True(
-                !payload.ContainsKey("party_drop_luck_source_member_id"),
-                "掉落承担者字段已废弃，不应继续写入 PartyState 存档。"
-            );
-            GDictionary payloadFlags = payload["fate_run_flags"].AsGodotDictionary();
-            _test.True(payloadFlags.Count > 0, "序列化结果应暴露 fate_run_flags 字典。");
-            _test.True(
-                payloadFlags.ContainsKey("fortuna_guidance_blessed"),
-                "fate_run_flags 应使用稳定字符串键写入存档。"
-            );
-            _test.True(
-                payloadFlags.ContainsKey("doom_gate_opened"),
-                "false 的命运周目标记也应稳定写入存档。"
-            );
-            _test.True(
-                payloadFlags["fortuna_guidance_blessed"].AsBool(),
-                "true 的命运周目标记不应在序列化时丢失。"
-            );
-            _test.True(
-                !payloadFlags["doom_gate_opened"].AsBool(),
-                "false 的命运周目标记不应在序列化时漂移。"
-            );
+        using GodotProjectionLease<GDictionary> payloadLease =
+            partyState.ToDictionaryLease("PartyStateFate.RoundTrip");
+        GDictionary payload = payloadLease.Value;
+        _test.True(
+            !payload.ContainsKey("party_drop_luck_source_member_id"),
+            "掉落承担者字段已废弃，不应继续写入 PartyState 存档。"
+        );
+        GDictionary payloadFlags = payload["fate_run_flags"].AsGodotDictionary();
+        _test.True(payloadFlags.Count > 0, "序列化结果应暴露 fate_run_flags 字典。");
+        _test.True(
+            payloadFlags.ContainsKey("fortuna_guidance_blessed"),
+            "fate_run_flags 应使用稳定字符串键写入存档。"
+        );
+        _test.True(
+            payloadFlags.ContainsKey("doom_gate_opened"),
+            "false 的命运周目标记也应稳定写入存档。"
+        );
+        _test.True(
+            payloadFlags["fortuna_guidance_blessed"].AsBool(),
+            "true 的命运周目标记不应在序列化时丢失。"
+        );
+        _test.True(
+            !payloadFlags["doom_gate_opened"].AsBool(),
+            "false 的命运周目标记不应在序列化时漂移。"
+        );
 
-            restored = PartyState.FromDictionary(payload);
-            _test.True(restored != null, "带 fate 字段的 PartyState 应能完成 round-trip。");
-            if (restored == null)
-            {
-                return;
-            }
+        PartyState restored = PartyState.FromDictionary(payload);
+        _test.True(restored != null, "带 fate 字段的 PartyState 应能完成 round-trip。");
+        if (restored == null)
+            return;
 
-            _test.True(
-                restored.HasFateRunFlag("fortuna_guidance_blessed"),
-                "round-trip 后应保留 true 的命运周目标记。"
-            );
-            _test.True(
-                !restored.GetFateRunFlag("doom_gate_opened", true),
-                "round-trip 后应保留 false 的命运周目标记。"
-            );
-        }
-        finally
-        {
-            DisposePartyState(restored);
-            DisposePartyState(partyState);
-        }
+        _test.True(
+            restored.HasFateRunFlag("fortuna_guidance_blessed"),
+            "round-trip 后应保留 true 的命运周目标记。"
+        );
+        _test.True(
+            !restored.GetFateRunFlag("doom_gate_opened", true),
+            "round-trip 后应保留 false 的命运周目标记。"
+        );
     }
 
     private void TestPartyStateFromDictMissingFateFieldsIsRejected()
@@ -168,14 +157,7 @@ public partial class run_party_state_fate_regression : LifecycleTestSceneTree
     private static GodotProjectionLease<GDictionary> BuildPartyPayloadLease(string ownerId)
     {
         PartyState partyState = BuildPartyState();
-        try
-        {
-            return partyState.ToDictionaryLease(ownerId);
-        }
-        finally
-        {
-            DisposePartyState(partyState);
-        }
+        return partyState.ToDictionaryLease(ownerId);
     }
 
     private static PartyState BuildPartyState()
@@ -200,15 +182,6 @@ public partial class run_party_state_fate_regression : LifecycleTestSceneTree
         memberState.progression.unit_id = memberId;
         memberState.progression.display_name = displayName;
         return memberState;
-    }
-
-    private static void DisposePartyState(PartyState partyState)
-    {
-        if (partyState == null)
-        {
-            return;
-        }
-
     }
 
 }

@@ -16,7 +16,6 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
 
     private void Run()
     {
-        TestApplyServicesNoLongerRequireGodotRegistration();
         TestApplyServicesValidateBeforeMutation();
         TestCharacterManagementRejectsInvalidIdentityApplyWithoutMutation();
         TestCharacterManagementAppliesIdentityAndRefreshesGrants();
@@ -24,16 +23,6 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
         TestIdentitySummaryIncludesIdentityProjection();
 
         RequestTestExit(_test.Finish("Bloodline ascension regression"));
-    }
-
-    private void TestApplyServicesNoLongerRequireGodotRegistration()
-    {
-        AssertPlainService(typeof(BloodlineApplyService), nameof(BloodlineApplyService));
-        AssertPlainService(typeof(AscensionApplyService), nameof(AscensionApplyService));
-        AssertPlainService(
-            typeof(StageAdvancementApplyService),
-            nameof(StageAdvancementApplyService)
-        );
     }
 
     private void TestApplyServicesValidateBeforeMutation()
@@ -236,6 +225,11 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
             new StringName("ascension"),
             "升华接管年龄阶段时应记录来源类型。"
         );
+        _test.Eq(
+            member.effective_age_stage_source_id,
+            new StringName("dragon_awakened"),
+            "升华接管年龄阶段时应记录具体 ascension stage 来源 id。"
+        );
         _test.Eq(member.body_size_category, new StringName("large"), "升华阶段体型 override 应刷新 body_size_category。");
         _test.Eq(member.body_size, 3, "升华阶段体型 override 应通过 BodySizeContentRules 刷新 body_size。");
 
@@ -287,6 +281,14 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
             member.effective_age_stage_source_id,
             new StringName("growth_boon"),
             "阶段提升应记录 effective stage 来源 id。"
+        );
+        _test.Eq(
+            ReadString(
+                manager.GetIdentitySummaryForMember("hero"),
+                "effective_age_stage_label"
+            ),
+            "old",
+            "阶段提升后身份摘要应从 typed age profile 显示刷新后的阶段标签。"
         );
 
         _test.True(
@@ -796,10 +798,6 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
             expectedSourceId,
             $"{skillId} 身份技能来源 id 应匹配。"
         );
-    }
-
-    private void AssertPlainService(Type serviceType, string typeName)
-    {
     }
 
     private void AssertIdsEq(

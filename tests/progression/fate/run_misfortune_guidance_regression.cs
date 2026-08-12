@@ -41,7 +41,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
     private TestResult Run()
     {
         TestMisfortuneGuidanceUnlockChainFeedsRank2To5();
-        TestForgeResultRejectsStringKeyOnlyDarkEquipmentDef();
+        TestForgeResultRejectsMissingTypedDarkEquipmentDef();
 
         return _test.Finish("Misfortune guidance regression");
     }
@@ -207,16 +207,15 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         _test.Eq(GetCustomStat(partyState, DoomAuthorityStatId), 5, "完整 guidance 链结算后 doom_authority 应到 rank 5。");
     }
 
-    private void TestForgeResultRejectsStringKeyOnlyDarkEquipmentDef()
+    private void TestForgeResultRejectsMissingTypedDarkEquipmentDef()
     {
         using TestContext context = BuildContext();
         PartyState partyState = context.PartyState;
         MisfortuneGuidanceService guidance = context.Guidance;
         BattleRuntimeModule battleRuntime = context.BattleRuntime;
-        GDictionary itemDefs = context.ItemDefs;
         if (partyState == null || guidance == null || battleRuntime == null)
         {
-            _test.True(false, "Misfortune String-key-only item_defs regression 前置构建失败。");
+            _test.True(false, "Misfortune missing typed item definition regression 前置构建失败。");
             return;
         }
 
@@ -228,28 +227,28 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
                 includeCalamityConversionShard: true
             )
         );
-        ItemDef darkWeapon = itemDefs[ShadowHalberdId].As<ItemDef>();
-        if (darkWeapon == null)
-        {
-            _test.True(false, "Misfortune String-key-only item_defs regression 前置：应存在正式 shadow_halberd。");
-            return;
-        }
-
-        GDictionary stringKeyOnlyDefs = new()
-        {
-            [darkWeapon.item_id.ToString()] = darkWeapon,
-        };
+        var missingOutputDefinitionIndex = new Dictionary<StringName, ItemDefinition>(
+            context.ItemDefIndex
+        );
+        _test.True(
+            missingOutputDefinitionIndex.Remove(ShadowHalberdId),
+            "测试前置：正式 typed definition 索引应包含 shadow_halberd。"
+        );
+        _test.False(
+            missingOutputDefinitionIndex.ContainsKey(ShadowHalberdId),
+            "测试前置：传给 guidance 的 typed definition 索引应明确缺少 forge 输出。"
+        );
         List<StringName> unlocks = battleRuntime
             .GetFateRuntime()
             .HandleMisfortuneForgeResult(
                 HeroId,
                 BuildForgeServiceResult(ShadowHalberdId),
-                BuildItemDefIndex(stringKeyOnlyDefs)
+                missingOutputDefinitionIndex
             );
-        _test.True(unlocks.Count == 0, "forge result 只有 String key 的 dark equipment def 时不应解锁 guidance_exalted。");
+        _test.True(unlocks.Count == 0, "forge result 缺少输出物品的 typed definition 时不应解锁 guidance_exalted。");
         _test.True(
             !IsAchievementUnlocked(partyState, GuidanceExaltedId),
-            "forge result 缺正式 StringName key 时不应写入 guidance_exalted。"
+            "forge result 缺少输出物品的 typed definition 时不应写入 guidance_exalted。"
         );
     }
 

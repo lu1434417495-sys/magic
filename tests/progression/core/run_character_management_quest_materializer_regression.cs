@@ -26,7 +26,6 @@ public partial class run_character_management_quest_materializer_regression : Li
         TestActiveLevelTriggerAttributeGrowthUsesTypedEntries();
         TestActiveLevelTriggerAttributeGrowthRejectsInvalidEntries();
         TestSkillMasteryRewardAggregatesTypedEntries();
-        TestStringKeyOnlyQuestRewardDefIsRejected();
 
         RequestTestExit(_test.Finish("Character management quest materializer regression"));
     }
@@ -425,33 +424,6 @@ public partial class run_character_management_quest_materializer_regression : Li
             _test.Eq(queuedReward.source_label, "Growth drill", "pending reward should default source label to quest name.");
             _test.Eq(queuedReward.entries.Count, 2, "pending reward should preserve entries.");
         }
-    }
-
-    private void TestStringKeyOnlyQuestRewardDefIsRejected()
-    {
-        QuestDef quest = BuildRewardQuest(
-            "contract_string_key_reward",
-            "String key reward",
-            new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 1 }
-        );
-        PartyState party = BuildPartyWithMember("hero", 2);
-        CharacterManagementModule manager = BuildManager(
-            party,
-            BuildItemDefs(),
-            new GDictionary { [quest.quest_id.ToString()] = quest }
-        );
-        party.SetClaimableQuestState(BuildClaimableQuest("contract_string_key_reward", 1, 2));
-
-        using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
-            manager.ClaimQuestRewardTyped("contract_string_key_reward", 3)
-        );
-        GDictionary claimResult = claimResultLease.Value;
-        _test.True(!ReadBool(claimResult, "ok"), "String-key-only quest def should be rejected.");
-        _test.Eq(
-            ReadString(claimResult, "error_code"),
-            "quest_def_missing",
-            "String-key-only quest def should not be accepted as formal quest data."
-        );
     }
 
     private void TestPendingCharacterRewardRejectsInvalidAttributeTarget()

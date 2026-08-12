@@ -15,8 +15,6 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
 
     private void Run()
     {
-        TestServiceNoLongerRegistersGlobalClass();
-        TestIdentityOptionServiceNoLongerRequiresGodotRegistration();
         TestIdentityOptionServiceCollectsOnlyLegalRaceSubracePairs();
         TestIdentityOptionServiceChoosesStableDefaults();
         TestRerollMappingCoversAllBandBoundaries();
@@ -33,15 +31,6 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
         TestCreationPayloadRejectsNonIntegerRerollLuckWhenOptedIn();
 
         RequestTestExit(_test.Finish("CharacterCreationService regression"));
-    }
-
-    private void TestServiceNoLongerRegistersGlobalClass()
-    {
-    }
-
-    private void TestIdentityOptionServiceNoLongerRequiresGodotRegistration()
-    {
-        Type serviceType = typeof(CharacterCreationIdentityOptionService);
     }
 
     private void TestIdentityOptionServiceCollectsOnlyLegalRaceSubracePairs()

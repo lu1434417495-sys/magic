@@ -27,7 +27,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         TestMinSkillLevelGreaterThanSourceSkillLevelIsRejected();
         TestSourceSkillLevelAboveKnownLevelIsRejected();
         TestStoredCastLevelAboveKnownLevelIsRejected();
-        TestForbiddenTagIntersectionRejectsBeforeAllowlistSuccess();
+        TestForbiddenTagRejectsBeforeLaterAutomationRules();
         TestTargetResolverOutsideAllowlistIsRejected();
         TestUnsupportedParameterBindingKeyIsRejected();
         TestLoadSaveFailsWhenPersistedSetupReferencesInvalidStoredSkill();
@@ -271,7 +271,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         );
     }
 
-    private void TestForbiddenTagIntersectionRejectsBeforeAllowlistSuccess()
+    private void TestForbiddenTagRejectsBeforeLaterAutomationRules()
     {
         GDictionary setup = BuildSetupPayload(storedSkillId: "forbidden_tag_skill");
         PartyState partyState = BuildPartyStateWithSetup(
@@ -286,7 +286,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
                 SyntheticSkill(
                     "forbidden_tag_skill",
                     BuildAutomation(
-                        canBeStored: true,
+                        canBeStored: false,
                         minLevel: 1,
                         allowedResolver: "self",
                         tags: new[] { "contingency_forbidden", "defensive_self_buff" }
@@ -295,14 +295,20 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
             )
         );
 
-        _test.True(errors.Count > 0, "Forbidden tag setup should produce validation errors.");
-        if (errors.Count > 0)
-        {
-            _test.True(
-                errors[0].Contains("forbidden_tag"),
-                "Forbidden tag intersection should be reported before allowlist success."
+        const string expectedError =
+            "party_state.member_states.hero_001.contingency_matrix_setups[0]"
+            + ".stored_spells[0].stored_skill_id: forbidden_tag:contingency_forbidden";
+        _test.Eq(
+            errors.Count,
+            1,
+            $"forbidden tag should short-circuit later not_storable validation. errors={string.Join(" | ", errors)}"
+        );
+        if (errors.Count == 1)
+            _test.Eq(
+                errors[0],
+                expectedError,
+                "forbidden tag should be the exact first-priority automation diagnostic."
             );
-        }
     }
 
     private void TestTargetResolverOutsideAllowlistIsRejected()

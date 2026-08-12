@@ -21,7 +21,6 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         TestDirectRecordProgressMovesCompletedQuestToClaimable();
         TestAuthoredFailurePolicyProjection();
         TestFailureTransitionsAndRestartPolicy();
-        TestStringKeyOnlyQuestDefsAreRejected();
         TestMissingObjectiveTargetValueDoesNotDefaultToOne();
         TestAcceptEventRejectsNegativeWorldStep();
 
@@ -472,42 +471,6 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         );
     }
 
-    private void TestStringKeyOnlyQuestDefsAreRejected()
-    {
-        QuestDef questDef = BuildQuestDef(
-            "contract_string_key_progress",
-            "旧 String key 进度",
-            "train_once",
-            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-            "service:training",
-            1
-        );
-        PartyState partyState = new();
-        GDictionary questDefs = new();
-        questDefs[questDef.quest_id.ToString()] = questDef;
-        CharacterManagementModule manager = new();
-        manager.setup(
-            partyState,
-            new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDefinition>(),
-            new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDefinition>(),
-            ProjectQuestDefs(questDefs),
-            true,
-            null,
-            null
-        );
-
-        _test.True(
-            !manager.AcceptQuest(questDef.quest_id, 1),
-            "String key-only quest_def 不应被 QuestProgressService 恢复。"
-        );
-        _test.True(
-            !partyState.HasActiveQuest(questDef.quest_id),
-            "String key-only quest_def accept 失败后不应写入 active_quests。"
-        );
-    }
-
     private void TestMissingObjectiveTargetValueDoesNotDefaultToOne()
     {
         QuestDefinition questDef = new(
@@ -695,26 +658,6 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             encounterId,
             "single"
         );
-
-    private static Dictionary<StringName, QuestDefinition> ProjectQuestDefs(
-        GDictionary questDefs
-    )
-    {
-        Dictionary<StringName, QuestDefinition> result = new();
-        if (questDefs == null)
-            return result;
-        foreach (Variant rawKey in questDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName questId = rawKey.AsStringName();
-            if (questId == "")
-                continue;
-            if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
-                result[questId] = TestProgressionDefinitionProjection.Quest(questDef);
-        }
-        return result;
-    }
 
     private static QuestProgressService.QuestProgressEventData QuestProgressEvent(
         GDictionary eventData

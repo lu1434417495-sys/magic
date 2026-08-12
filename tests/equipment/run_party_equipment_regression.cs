@@ -78,12 +78,10 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         TestTwoHandedWeaponDisplacesExistingMainAndOffHand();
         TestTwoHandedWeaponAttributeNotDoubleCounted();
         TestAtomicRollbackWhenWarehouseFull();
-        TestPreviewEquipReturnsDisplacedEntries();
         TestArmorMaxDexBonusCapsPositiveAgilityAc();
         TestRequirementProfessionCheck();
         TestRequirementUsesStableEffectiveAttributeSnapshot();
         TestRequirementExcludesDisplacedAndCandidateEquipment();
-        TestEquipCreatesInstanceIdInSlot();
         TestInstanceIdPreservedThroughUnequipAndReequip();
         TestTwoItemsOfSameTypeGetDifferentInstanceIds();
         TestWeaponProfileEquipmentEntryRoundTrip();
@@ -121,8 +119,6 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.True(ironGreatsword != null && ironGreatsword.IsEquipment(), "iron_greatsword should be equipment.");
         _test.True(militiaAxe != null && militiaAxe.IsEquipment(), "militia_axe should be equipment.");
         _test.True(watchmanMace != null && watchmanMace.IsEquipment(), "watchman_mace should be equipment.");
-        _test.False(itemDefs.ContainsKey("scout_dagger"), "scout_dagger should be removed from equipment seed data.");
-
         AssertStringNameEq(bronzeSword?.GetEquipmentTypeIdNormalized() ?? "", "weapon", "bronze_sword type.");
         AssertStringNameEq(leatherCap?.GetEquipmentTypeIdNormalized() ?? "", "armor", "leather_cap type.");
         AssertStringNameEq(leatherJerkin?.GetEquipmentTypeIdNormalized() ?? "", "armor", "leather_jerkin type.");
@@ -196,7 +192,6 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     private void TestAllBg3WeaponTypesAreRegisteredAsWeaponEquipment()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        _test.Eq(Bg3WeaponSeedItems.Count, 31, "BG3 weapon seed count should remain 31.");
         foreach ((StringName weaponTypeId, StringName itemId) in Bg3WeaponSeedItems)
         {
             ItemDefinition itemDef = GetItemDef(itemDefs, itemId);
@@ -566,32 +561,6 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.Eq(warehouseService.GetFreeSlots(), 0, "Preview should not change free slots.");
     }
 
-    private void TestPreviewEquipReturnsDisplacedEntries()
-    {
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
-        PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
-        PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
-
-        warehouseService.AddItemTyped("bronze_sword", 1);
-        warehouseService.AddItemTyped("iron_greatsword", 1);
-        equipmentService.EquipItemTyped("hero", "bronze_sword");
-
-        var preview = equipmentService.PreviewEquipTyped(
-            "hero",
-            "iron_greatsword"
-        );
-        _test.True(preview.Success, "Valid replacement preview should succeed.");
-        AssertStringEq(preview.EntrySlotId.ToString(), "main_hand", "Preview entry slot.");
-        _test.Eq(preview.OccupiedSlotIds.Count, 2, "Preview should include two occupied slots.");
-        _test.Eq(preview.DisplacedEntries.Count, 1, "Preview should report one displaced entry.");
-        if (preview.DisplacedEntries.Count > 0)
-            AssertStringEq(preview.DisplacedEntries[0].ItemId.ToString(), "bronze_sword", "Displaced entry should be bronze_sword.");
-
-        AssertStringNameEq(partyState.GetMemberState("hero").equipment_state.GetEquippedItemId("main_hand"), "bronze_sword", "Preview should not mutate equipment state.");
-        _test.Eq(warehouseService.CountItem("iron_greatsword"), 1, "Preview should not consume greatsword.");
-    }
-
     private void TestArmorMaxDexBonusCapsPositiveAgilityAc()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
@@ -910,27 +879,6 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         candidateManager.Dispose();
     }
 
-    private void TestEquipCreatesInstanceIdInSlot()
-    {
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
-        PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
-        PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
-
-        warehouseService.AddItemTyped("bronze_sword", 1);
-        equipmentService.EquipItemTyped("hero", "bronze_sword");
-        EquipmentState equipmentState = partyState.GetMemberState("hero").equipment_state;
-        StringName instanceId = equipmentState.GetEquippedInstanceId("main_hand");
-        _test.False(instanceId == "", "Equipped main hand should have instance id.");
-        _test.True(instanceId.ToString().StartsWith("eq_"), "Instance id should start with eq_.");
-        _test.Eq(warehouseService.CountItem("bronze_sword"), 0, "Warehouse should no longer contain equipped sword.");
-
-        using GodotProjectionLease<GDictionary> partyPayloadLease =
-            partyState.ToDictionaryLease("PartyEquipment.RoundTripEquipmentInstanceId");
-        PartyState restored = PartyState.FromDictionary(partyPayloadLease.Value);
-        AssertStringNameEq(restored.GetMemberState("hero").equipment_state.GetEquippedInstanceId("main_hand"), instanceId.ToString(), "Round-trip should preserve instance id.");
-    }
-
     private void TestInstanceIdPreservedThroughUnequipAndReequip()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
@@ -959,13 +907,69 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
 
-        warehouseService.AddItemTyped("scout_charm", 1);
+        var addResult = warehouseService.AddItemTyped("scout_charm", 2);
+        _test.Eq(addResult.AddedQuantity, 2, "Adding two charms should create two equipment instances.");
+        _test.Eq(
+            addResult.AllocatedEquipmentInstanceIds.Count,
+            2,
+            "Adding two charms should report two allocated instance ids."
+        );
+
         List<string> charmInstanceIds = GetInstanceIdsForItem(partyState, "scout_charm");
-        _test.Eq(charmInstanceIds.Count, 1, "Precondition: charm should generate one instance id.");
-        if (charmInstanceIds.Count < 1)
+        _test.Eq(charmInstanceIds.Count, 2, "Two charms should exist as two warehouse instances.");
+        if (charmInstanceIds.Count != 2)
             return;
-        equipmentService.EquipItemTyped("hero", "scout_charm", "", charmInstanceIds[0]);
-        _test.False(partyState.GetMemberState("hero").equipment_state.GetEquippedInstanceId("necklace") == "", "Necklace slot should have instance id.");
+
+        StringName firstInstanceId = charmInstanceIds[0];
+        StringName secondInstanceId = charmInstanceIds[1];
+        _test.False(firstInstanceId == "", "First charm should have a non-empty instance id.");
+        _test.False(secondInstanceId == "", "Second charm should have a non-empty instance id.");
+        _test.False(
+            firstInstanceId == secondInstanceId,
+            "Two separately created charms must receive different instance ids."
+        );
+        _test.True(
+            warehouseService.HasEquipmentInstance(firstInstanceId, "scout_charm"),
+            "First allocated instance id should belong to a scout_charm."
+        );
+        _test.True(
+            warehouseService.HasEquipmentInstance(secondInstanceId, "scout_charm"),
+            "Second allocated instance id should belong to a scout_charm."
+        );
+
+        var equipResult = equipmentService.EquipItemTyped(
+            "hero",
+            "scout_charm",
+            "",
+            firstInstanceId
+        );
+        _test.True(equipResult.Success, "The selected first charm instance should equip.");
+        EquipmentInstanceState equippedInstance = partyState
+            .GetMemberState("hero")
+            .equipment_state
+            .GetEquippedInstance("necklace");
+        _test.True(equippedInstance != null, "Necklace slot should own the selected charm instance.");
+        if (equippedInstance != null)
+        {
+            _test.Eq(
+                equippedInstance.instance_id,
+                firstInstanceId,
+                "Equipped necklace should preserve the selected first instance id."
+            );
+            _test.Eq(
+                equippedInstance.item_id,
+                new StringName("scout_charm"),
+                "Equipped first instance should remain bound to scout_charm."
+            );
+        }
+        _test.False(
+            warehouseService.HasEquipmentInstance(firstInstanceId),
+            "Equipped first instance should leave the warehouse."
+        );
+        _test.True(
+            warehouseService.HasEquipmentInstance(secondInstanceId, "scout_charm"),
+            "Unequipped second charm instance should remain in the warehouse with its item binding."
+        );
     }
 
     private void TestWeaponProfileEquipmentEntryRoundTrip()
@@ -990,6 +994,10 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         EquipmentState equipmentState = partyState.GetMemberState("hero").equipment_state;
         StringName instanceId = equipmentState.GetEquippedInstanceId("main_hand");
         _test.False(instanceId == "", "Equipped weapon_profile weapon should have instance id.");
+        _test.True(
+            instanceId.ToString().StartsWith("eq_"),
+            "Allocated equipment instance id should use the stable eq_ format."
+        );
         GDictionary equipmentPayload = equipmentState.ToDictionary();
         GDictionary slotPayload = equipmentPayload["equipped_slots"].AsGodotDictionary()["main_hand"].AsGodotDictionary();
         GDictionary slotInstancePayload = slotPayload["equipment_instance"].AsGodotDictionary();

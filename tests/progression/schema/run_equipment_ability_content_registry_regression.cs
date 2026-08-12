@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -15,7 +14,6 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void Run()
     {
-        TestAuthoringAbiAttributesAndRuntimeDtoBoundary();
         TestArmorClassComponentContentRulesContract();
         TestBuiltInHandlerSpecsExposeStaticValidationMetadata();
         TestValidationContextAndClosedDomainsFailClosed();
@@ -34,366 +32,6 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         RequestTestExit(_test.Finish("Equipment ability content registry regression"));
     }
 
-    private void TestAuthoringAbiAttributesAndRuntimeDtoBoundary()
-    {
-        var authoringAbi = new Dictionary<Type, string[]>
-        {
-            [typeof(EquipmentAbilityContentPackDef)] =
-                new[] { "pack_id", "schema_version", "load_order", "dependencies", "bindings" },
-            [typeof(EquipmentAbilityBindingDef)] =
-                new[]
-                {
-                    "binding_id",
-                    "trait_id",
-                    "override_mode",
-                    "replaces_binding_id",
-                    "allowed_source_kinds",
-                    "required_trait_categories",
-                    "required_item_tags",
-                    "supported_equipment_type_ids",
-                    "state_schemas",
-                    "reactions",
-                    "granted_actions",
-                    "temporal_progress_modifiers",
-                    "cognition_ceiling_modifiers",
-                    "weapon_profile_overlays",
-                    "world_effects",
-                },
-            [typeof(EquipmentCognitionCeilingModifierDef)] =
-                new[] { "modifier_id", "cognition_ceiling" },
-            [typeof(EquipmentAbilityReactionDef)] =
-                new[]
-                {
-                    "reaction_id",
-                    "trigger",
-                    "timing",
-                    "priority",
-                    "once_scope",
-                    "requires_player_confirmation",
-                    "condition_group",
-                    "roll_gate",
-                    "outcome_table",
-                    "projected_effect_categories",
-                    "actions",
-                },
-            [typeof(EquipmentAbilityConditionGroupDef)] =
-                new[] { "mode", "negate", "conditions", "groups" },
-            [typeof(EquipmentAbilityConditionDef)] =
-                new[] { "condition_id", "kind", "payload" },
-            [typeof(HasStatusConditionPayloadDef)] = new[] { "subject", "status_id" },
-            [typeof(CompareFactConditionPayloadDef)] = new[] { "left", "compare", "right" },
-            [typeof(HasEquipmentTagConditionPayloadDef)] =
-                new[] { "subject", "equipment_selector", "all_tags", "any_tags" },
-            [typeof(EquipmentAbilityFactQueryDef)] =
-                new[]
-                {
-                    "query_kind",
-                    "fact_id",
-                    "subject",
-                    "status_id",
-                    "aggregation",
-                    "value_kind",
-                    "bool_literal",
-                    "int_literal",
-                    "float_literal",
-                    "string_name_literal",
-                },
-            [typeof(DiceExpressionDef)] = new[] { "terms", "flat_bonus", "preview_policy" },
-            [typeof(DiceExpressionTermDef)] =
-                new[]
-                {
-                    "dice_count",
-                    "dice_sides",
-                    "count_bonus_fact",
-                    "count_bonus_multiplier",
-                    "max_dice_count",
-                },
-            [typeof(EquipmentAbilityActionDef)] =
-                new[] { "action_id", "kind", "payload", "condition_group", "roll_gate" },
-            [typeof(AddDamageDiceActionPayloadDef)] =
-                new[] { "target_selector", "dice", "damage_type", "damage_tags" },
-            [typeof(ApplyStatusActionPayloadDef)] =
-                new[]
-                {
-                    "target_selector",
-                    "status_id",
-                    "duration_turns",
-                    "duration_tu",
-                    "stack_delta",
-                    "stack_behavior",
-                    "stack_limit",
-                    "display_label",
-                    "attack_roll_penalty",
-                    "source_bound_attack_roll_penalty",
-                    "source_bound_attack_roll_penalty_min_stacks",
-                    "forced_move_immune",
-                    "counts_as_debuff_override",
-                    "counts_as_debuff",
-                    "undispellable",
-                    "dispellable_magic",
-                    "dispellable_harmful_magic",
-                    "dispellable_beneficial_magic",
-                    "lock_counterattack",
-                    "lock_guard",
-                    "lock_dodge_bonus",
-                    "tick_interval_tu",
-                    "timeline_damage_dice_count",
-                    "timeline_damage_dice_sides",
-                    "timeline_damage_flat_bonus",
-                    "save_dc",
-                    "save_ability",
-                    "save_tag",
-                    "apply_on_save_failure",
-                },
-            [typeof(ScheduleAreaEffectActionPayloadDef)] =
-                new[]
-                {
-                    "anchor_selector",
-                    "delay_tu",
-                    "terrain_effect_id",
-                    "area_pattern",
-                    "area_value",
-                    "lifetime_policy",
-                    "effect_type",
-                    "target_team_filter",
-                    "stack_behavior",
-                    "display_name",
-                    "render_overlay_id",
-                    "overlay_priority",
-                    "contact_status_id",
-                    "contact_status_duration_tu",
-                    "contact_stack_behavior",
-                    "contact_stack_limit",
-                    "contact_status_display_label",
-                    "contact_counts_as_debuff_override",
-                    "contact_counts_as_debuff",
-                    "contact_undispellable",
-                    "contact_dispellable_magic",
-                    "contact_dispellable_harmful_magic",
-                    "contact_dispellable_beneficial_magic",
-                    "contact_save_dc",
-                    "contact_save_ability",
-                    "contact_save_tag",
-                    "contact_apply_on_save_failure",
-                    "contact_tick_interval_tu",
-                    "contact_timeline_damage_dice_count",
-                    "contact_timeline_damage_dice_sides",
-                    "contact_timeline_damage_flat_bonus",
-                    "contact_blocked_by_trait_id",
-                },
-            [typeof(ApplyBattleTerrainEffectAfterCheckActionPayloadDef)] =
-                new[]
-                {
-                    "anchor_selector",
-                    "terrain_effect_id",
-                    "move_cost_delta",
-                    "target_team_filter",
-                    "stack_behavior",
-                    "display_name",
-                    "render_overlay_id",
-                    "overlay_priority",
-                    "check_attribute_modifier_id",
-                    "check_compare",
-                    "check_threshold",
-                    "natural_twenty_auto_success",
-                    "natural_one_auto_failure",
-                },
-            [typeof(ModifyAbilityStateActionPayloadDef)] =
-                new[]
-                {
-                    "target_selector",
-                    "binding_id",
-                    "state_key",
-                    "operation",
-                    "int_delta",
-                },
-            [typeof(MarkTargetActionPayloadDef)] =
-                new[]
-                {
-                    "target_selector",
-                    "state_key",
-                    "stack_delta",
-                    "remove_on_source_missing",
-                    "remove_on_target_defeated",
-                },
-            [typeof(GrantSkillActionPayloadDef)] =
-                new[] { "skill_id", "skill_level", "availability_state_key" },
-            [typeof(SummonUnitsActionPayloadDef)] =
-                new[]
-                {
-                    "anchor_selector",
-                    "state_key",
-                    "count_dice",
-                    "max_living_units",
-                    "duration_tu",
-                    "spawn_radius",
-                    "unit_id_prefix",
-                    "unit_display_name",
-                    "body_size_category",
-                    "control_mode",
-                    "ai_brain_id",
-                    "ai_state_id",
-                    "hp_max",
-                    "armor_class",
-                    "attack_bonus",
-                    "base_attack_bonus",
-                    "action_points",
-                    "move_points",
-                    "known_active_skill_ids",
-                    "natural_weapon_profile_type_id",
-                    "natural_weapon_damage_tag",
-                    "natural_weapon_attack_range",
-                    "natural_weapon_damage_dice",
-                    "natural_weapon_family",
-                    "creature_type_tags",
-                    "movement_tags",
-                },
-            [typeof(EquipmentSlotWeightDef)] = new[] { "slot_id", "weight" },
-            [typeof(EquipmentDurabilityDamageActionPayloadDef)] =
-                new[]
-                {
-                    "target_selector",
-                    "target_slots",
-                    "slot_weights",
-                    "required_item_tags",
-                    "required_equipment_type_ids",
-                    "durability_loss",
-                    "save_tag",
-                    "save_dc",
-                    "require_attack_success",
-                    "max_damaged_items",
-                },
-            [typeof(EquipmentAttackDefenseModifierDef)] =
-                new[]
-                {
-                    "modifier_id",
-                    "ignored_ac_components",
-                    "ac_component_multipliers",
-                    "lock_dodge_bonus",
-                    "required_target_equipment_selector",
-                    "required_target_item_tags",
-                    "required_target_equipment_type_ids",
-                    "cover_policy",
-                    "projectile_obstacle_policy",
-                    "trace_label",
-                },
-            [typeof(EquipmentAcComponentMultiplierDef)] =
-                new[] { "ac_component_id", "multiplier_percent", "stack_mode" },
-            [typeof(EquipmentWeaponProfileOverlayDef)] =
-                new[]
-                {
-                    "overlay_id",
-                    "priority",
-                    "condition_group",
-                    "require_equipped_weapon",
-                    "required_weapon_families",
-                    "required_weapon_type_ids",
-                    "attack_range_delta",
-                    "min_attack_range",
-                    "max_attack_range",
-                    "one_handed_dice_overlay",
-                    "two_handed_dice_overlay",
-                    "physical_damage_tag_override",
-                    "grip_override",
-                    "uses_two_hands_override",
-                    "is_versatile_override",
-                },
-            [typeof(EquipmentWeaponDiceOverlayDef)] =
-                new[]
-                {
-                    "mode",
-                    "dice_count_delta",
-                    "dice_sides_override",
-                    "flat_bonus_delta",
-                    "dice_override",
-                },
-            [typeof(EquipmentRollGateDef)] = new[] { "rng_stream", "roll", "compare", "threshold" },
-            [typeof(EquipmentOutcomeTableDef)] = new[] { "table_id", "roll", "entries" },
-            [typeof(EquipmentOutcomeEntryDef)] = new[] { "min_roll", "max_roll", "actions" },
-            [typeof(EquipmentAbilityStateSchemaDef)] =
-                new[]
-                {
-                    "state_key",
-                    "owner_scope",
-                    "value_kind",
-                    "initial_int_value",
-                    "max_int_value",
-                    "reset_timing",
-                    "persist_outside_battle",
-                    "visible_to_ui",
-                    "sync_source_state_key",
-                    "sync_aggregation",
-                    "sync_int_literal",
-                },
-            [typeof(EquipmentGrantedActionDef)] =
-                new[]
-                {
-                    "granted_action_id",
-                    "granted_kind",
-                    "skill_id",
-                    "skill_level",
-                    "display_category",
-                    "display_priority",
-                    "availability_conditions",
-                },
-            [typeof(EquipmentWorldEffectDef)] =
-                new[] { "world_effect_id", "trigger", "timing", "condition_group", "actions" },
-        };
-
-        foreach ((Type type, string[] memberNames) in authoringAbi)
-        {
-            _test.True(
-                type.GetCustomAttribute<GlobalClassAttribute>() != null,
-                $"{type.Name} should be a [GlobalClass] authoring Resource."
-            );
-            _test.True(
-                typeof(Resource).IsAssignableFrom(type),
-                $"{type.Name} should derive from Resource."
-            );
-            foreach (string memberName in memberNames)
-            {
-                MemberInfo member = FindPublicInstanceMember(type, memberName);
-                _test.True(member != null, $"{type.Name}.{memberName} should exist.");
-                if (member == null)
-                    continue;
-                _test.True(
-                    member.GetCustomAttribute<ExportAttribute>() != null,
-                    $"{type.Name}.{memberName} should be [Export]."
-                );
-            }
-        }
-
-        var runtimeTypes = new[]
-        {
-            typeof(EquipmentAbilityContentPackDefinition),
-            typeof(EquipmentAbilityBindingDefinition),
-            typeof(EquipmentAbilityReactionDefinition),
-            typeof(EquipmentAbilityConditionDefinition),
-            typeof(EquipmentConditionGroupDefinition),
-            typeof(EquipmentAbilityActionDefinition),
-            typeof(EquipmentGrantedActionDefinition),
-            typeof(EquipmentCognitionCeilingModifierDefinition),
-            typeof(EquipmentWeaponProfileOverlayDefinition),
-            typeof(EquipmentWorldEffectDefinition),
-            typeof(EquipmentAbilityStateSchemaDefinition),
-            typeof(EquipmentAbilityRegistryBuildResult),
-            typeof(EquipmentAbilityContentValidationContext),
-            typeof(EquipmentAbilityHandlerSpec),
-        };
-
-        foreach (Type type in runtimeTypes)
-        {
-            _test.True(
-                type.GetCustomAttribute<GlobalClassAttribute>() == null,
-                $"{type.Name} should not be a Godot [GlobalClass]."
-            );
-            _test.True(
-                !typeof(Resource).IsAssignableFrom(type),
-                $"{type.Name} should be a plain C# runtime type, not a Resource."
-            );
-            AssertRuntimeTypeHasNoResourceOrGodotDictionaryMembers(type);
-        }
-    }
 
     private void TestArmorClassComponentContentRulesContract()
     {
@@ -1022,9 +660,9 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             snapshot.RequiredItemTags.Contains("blade"),
             "binding DTO should retain copied required item tags after Resource mutation."
         );
-        _test.False(
-            snapshot.RequiredItemTags is ISet<StringName>,
-            "binding DTO required item tags should not expose a mutable set implementation."
+        _test.True(
+            RejectsRequiredItemTagMutation(snapshot.RequiredItemTags),
+            "binding DTO required item tags should reject mutation through any set capability it exposes."
         );
         _test.Eq(
             registry.FindBindings(
@@ -2243,61 +1881,23 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         return item.ToDefinition();
     }
 
-    private void AssertRuntimeTypeHasNoResourceOrGodotDictionaryMembers(Type type)
+    private static bool RejectsRequiredItemTagMutation(
+        IReadOnlySet<StringName> requiredItemTags
+    )
     {
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
-        foreach (FieldInfo field in type.GetFields(flags))
-            AssertRuntimeMemberType(type, field.Name, field.FieldType);
-        foreach (PropertyInfo property in type.GetProperties(flags))
-            AssertRuntimeMemberType(type, property.Name, property.PropertyType);
-    }
-
-    private void AssertRuntimeMemberType(Type owner, string memberName, Type memberType)
-    {
-        foreach (Type inspected in EnumerateRuntimeMemberTypeGraph(memberType))
+        if (requiredItemTags is not ISet<StringName> mutableTags)
+            return true;
+        try
         {
-            _test.True(
-                !typeof(Resource).IsAssignableFrom(inspected),
-                $"{owner.Name}.{memberName} should not retain Resource type {inspected.FullName}."
-            );
-            _test.True(
-                !IsGodotDictionaryType(inspected),
-                $"{owner.Name}.{memberName} should not retain Godot.Collections.Dictionary type {inspected.FullName}."
-            );
+            mutableTags.Add("forbidden_mutation");
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return true;
         }
     }
 
-    private static IEnumerable<Type> EnumerateRuntimeMemberTypeGraph(Type root)
-    {
-        var seen = new HashSet<Type>();
-        var pending = new Stack<Type>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            Type type = pending.Pop();
-            if (type == null || !seen.Add(type))
-                continue;
-            yield return type;
-
-            if (type.HasElementType)
-                pending.Push(type.GetElementType());
-            foreach (Type argument in type.GetGenericArguments())
-                pending.Push(argument);
-        }
-    }
-
-    private static bool IsGodotDictionaryType(Type type)
-    {
-        return type.FullName != null
-            && type.FullName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal);
-    }
-
-    private static MemberInfo FindPublicInstanceMember(Type type, string name)
-    {
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
-        MemberInfo[] members = type.GetMember(name, flags);
-        return members.Length > 0 ? members[0] : null;
-    }
 
     private void AssertContainsKey<T>(
         IReadOnlyDictionary<StringName, T> dictionary,

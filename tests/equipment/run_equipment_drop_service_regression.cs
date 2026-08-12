@@ -14,9 +14,7 @@ public partial class run_equipment_drop_service_regression : LifecycleTestSceneT
     {
         TestRollDropRarityHitsAllThresholdTiers();
         TestRollDropRarityAcceptsCallerClampedExtremes();
-        TestRollDropsKeepsEmptyMainPathStable();
-        TestRollItemInstancesReturnsTypedList();
-        TestEquipmentDropServiceIsPlainService();
+        TestRollItemInstancesApplyRarityDurabilityAndDeferTraits();
 
         RequestTestExit(_test.Finish("Equipment drop service regression"));
     }
@@ -71,48 +69,60 @@ public partial class run_equipment_drop_service_regression : LifecycleTestSceneT
         );
     }
 
-    private void TestRollDropsKeepsEmptyMainPathStable()
+    private void TestRollItemInstancesApplyRarityDurabilityAndDeferTraits()
     {
         EquipmentDropService service = new();
-        FixedRollRng rng = new(new[] { 6, 6, 6 });
-        service.SetRollRangeForTesting(rng.RollRange);
-
-        List<object> drops = service.RollDrops("starter_equipment", 0);
-
-        _test.True(drops != null, "RollDrops 当前应返回稳定的 typed list。");
-        _test.Eq(drops?.Count ?? -1, 0, "正式掉落表尚未接入前，RollDrops 应返回空列表。");
-    }
-
-    private void TestRollItemInstancesReturnsTypedList()
-    {
-        EquipmentDropService service = new();
-        FixedRollRng rng = new(new[] { 6, 6, 6 });
+        FixedRollRng rng = new(new[] { 6, 6, 6, 1, 1, 1 });
         service.SetRollRangeForTesting(rng.RollRange);
 
         List<EquipmentInstanceState> instances = service.RollItemInstances("iron_sword", 2, 0);
 
         _test.Eq(instances.Count, 2, "RollItemInstances 应返回 typed 装备实例列表。");
+        if (instances.Count != 2)
+            return;
+
+        EquipmentInstanceState legendary = instances[0];
+        EquipmentInstanceState common = instances[1];
+        _test.Eq(legendary.item_id, new StringName("iron_sword"), "第一件实例应保留 item_id。");
+        _test.Eq(common.item_id, new StringName("iron_sword"), "第二件实例应保留 item_id。");
         _test.Eq(
-            instances[0].rarity,
+            legendary.rarity,
             (int)EquipmentInstanceState.RarityTier.LEGENDARY,
-            "装备实例稀有度应由 typed 掷骰结果写入。"
+            "第一组 6/6/6 应生成传奇实例。"
         );
         _test.Eq(
-            instances[0].current_durability,
+            common.rarity,
+            (int)EquipmentInstanceState.RarityTier.COMMON,
+            "第二组 1/1/1 应生成普通实例。"
+        );
+        _test.Eq(
+            legendary.current_durability,
             EquipmentDurabilityRules.GetDefaultCurrentDurability(
                 (int)EquipmentInstanceState.RarityTier.LEGENDARY
             ),
-            "装备实例耐久应由 typed durability 规则写入。"
+            "传奇实例应写入对应的默认耐久。"
         );
         _test.Eq(
-            instances[0].trait_instances.Count,
-            0,
-            "EquipmentDropService should leave transient trait rolling to stable warehouse id assignment."
+            common.current_durability,
+            EquipmentDurabilityRules.GetDefaultCurrentDurability(
+                (int)EquipmentInstanceState.RarityTier.COMMON
+            ),
+            "普通实例应写入对应的默认耐久。"
         );
-    }
-
-    private void TestEquipmentDropServiceIsPlainService()
-    {
+        _test.Eq(
+            legendary.trait_instances.Count,
+            0,
+            "传奇 transient 实例应把 trait rolling 留给稳定仓库 id 分配。"
+        );
+        _test.Eq(
+            common.trait_instances.Count,
+            0,
+            "普通 transient 实例应把 trait rolling 留给稳定仓库 id 分配。"
+        );
+        _test.False(
+            object.ReferenceEquals(legendary, common),
+            "两次掉落实例必须是不同对象，不能复用同一 mutable state。"
+        );
     }
 
     private void AssertRarityRoll(
@@ -129,9 +139,6 @@ public partial class run_equipment_drop_service_regression : LifecycleTestSceneT
         int actualRarity = service.RollDropRarity(dropLuck);
         _test.Eq(actualRarity, expectedRarity, $"{label}。");
     }
-
-
-
     private sealed class FixedRollRng
     {
         private readonly List<int> _rolls;

@@ -85,14 +85,24 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
             "eq_000001"
         );
         service.MintWithRolls(instance, BuildItem());
+        int rangeCallsBeforeDuplicateAndValidation = rolls.RangeCalls;
+        int unitCallsBeforeDuplicateAndValidation = rolls.UnitCalls;
         EquipmentInstanceState copy = instance.DuplicateState();
 
         _test.True(
             service.ValidateRehydrated(copy),
             "rehydrated copy should validate existing equipment_roll trait instances."
         );
-        _test.Eq(rolls.RangeCalls, 1, "ValidateRehydrated should not consume range RNG.");
-        _test.Eq(rolls.UnitCalls, 1, "ValidateRehydrated should not consume unit RNG.");
+        _test.Eq(
+            rolls.RangeCalls - rangeCallsBeforeDuplicateAndValidation,
+            0,
+            "DuplicateState and ValidateRehydrated should not consume range RNG."
+        );
+        _test.Eq(
+            rolls.UnitCalls - unitCallsBeforeDuplicateAndValidation,
+            0,
+            "DuplicateState and ValidateRehydrated should not consume unit RNG."
+        );
         _test.Eq(
             copy.trait_instances[0].GetIntRoll("amount", -1),
             4,

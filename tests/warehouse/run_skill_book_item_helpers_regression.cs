@@ -39,8 +39,8 @@ public partial class run_skill_book_item_helpers_regression : LifecycleTestScene
             SkillBookItemFactory.BuildGeneratedItemDefinitions(skillDefs, existingItemDefs);
 
         _test.True(
-            generated is not Dictionary<StringName, ItemDefinition>,
-            "generated skill-book index should not expose a mutable dictionary."
+            RejectsMutation(generated),
+            "generated skill-book index should reject mutation through any dictionary capability it exposes."
         );
 
         StringName aimedShotItemId = SkillBookItemFactory.BuildItemIdForSkill("archer_aimed_shot");
@@ -94,7 +94,27 @@ public partial class run_skill_book_item_helpers_regression : LifecycleTestScene
 
         List<string> errors = SkillBookItemContentValidator.Validate(itemDefs, skillDefs);
 
-        _test.True(errors.Count >= 4, "非法技能书 fixture 应保持非法。");
+        _test.Eq(errors.Count, 4, $"非法技能书 fixture 应只触发四项目标规则: {string.Join(" | ", errors)}");
+        AssertHasError(
+            errors,
+            "Skill book item manual_missing references missing skill missing_skill.",
+            "缺失技能引用应命中 manual_missing 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "Skill book item manual_teacher granted_skill_id teacher_skill learn_source must be book, got teacher.",
+            "非 book learn_source 应命中 manual_teacher 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "Item skill_book_collision_skill occupies generated skill book id for skill collision_skill but item_category must be skill_book.",
+            "canonical category collision 应命中 collision_skill 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "Skill book item skill_book_wrong_grant_skill occupies generated skill book id for skill wrong_grant_skill but grants book_skill.",
+            "错误 granted skill 应命中 wrong_grant_skill 的精确诊断。"
+        );
     }
 
     private static SkillDefinition BuildSkill(
@@ -126,6 +146,33 @@ public partial class run_skill_book_item_helpers_regression : LifecycleTestScene
             granted_skill_id = new StringName(grantedSkillId),
         };
         return raw.ToDefinition();
+    }
+
+    private void AssertHasError(IReadOnlyList<string> errors, string fragment, string message)
+    {
+        foreach (string error in errors ?? new List<string>())
+        {
+            if ((error ?? "").Contains(fragment))
+                return;
+        }
+        _test.Fail($"{message} expected={fragment} errors={string.Join(" | ", errors ?? new List<string>())}");
+    }
+
+    private static bool RejectsMutation(
+        IReadOnlyDictionary<StringName, ItemDefinition> snapshot
+    )
+    {
+        if (snapshot is not IDictionary<StringName, ItemDefinition> mutableSnapshot)
+            return true;
+        try
+        {
+            mutableSnapshot.Clear();
+            return false;
+        }
+        catch (System.NotSupportedException)
+        {
+            return true;
+        }
     }
 
 

@@ -34,21 +34,75 @@ public partial class run_identity_sub_registry_schema_regression : LifecycleTest
         ProgressionIdentityCatalogData catalog = registry.GetIdentityCatalogTyped();
 
         _test.True(
-            catalog.RaceDefs.Count > 0,
-            "identity catalog 应从正式配置加载 race definitions。"
+            catalog.RaceDefs.TryGetValue("human", out RaceDefinition humanRace),
+            "identity catalog 应从正式配置加载 human race definition。"
         );
+        if (humanRace != null)
+        {
+            _test.Eq(
+                humanRace.DefaultSubraceId,
+                new StringName("common_human"),
+                "human definition 应保留 canonical default subrace 关系。"
+            );
+            _test.Eq(
+                humanRace.AgeProfileId,
+                new StringName("human_age_profile"),
+                "human definition 应保留 canonical age profile 关系。"
+            );
+        }
+
         _test.True(
-            catalog.SubraceDefs.Count > 0,
-            "identity catalog 应从正式配置加载 subrace definitions。"
+            catalog.SubraceDefs.TryGetValue(
+                "common_human",
+                out SubraceDefinition commonHuman
+            ),
+            "identity catalog 应从正式配置加载 common_human subrace definition。"
         );
+        if (commonHuman != null)
+        {
+            _test.Eq(
+                commonHuman.ParentRaceId,
+                new StringName("human"),
+                "common_human definition 应保留 canonical parent race 关系。"
+            );
+        }
+
         _test.True(
-            catalog.AgeProfileDefs.Count > 0,
-            "identity catalog 应从正式配置加载 age profile definitions。"
+            catalog.AgeProfileDefs.TryGetValue(
+                "human_age_profile",
+                out AgeProfileDefinition humanAgeProfile
+            ),
+            "identity catalog 应从正式配置加载 human_age_profile definition。"
         );
+        if (humanAgeProfile != null)
+        {
+            _test.Eq(
+                humanAgeProfile.RaceId,
+                new StringName("human"),
+                "human_age_profile definition 应保留 canonical race 关系。"
+            );
+        }
+
         _test.True(
-            catalog.StageAdvancementDefs.Count > 0,
-            "identity catalog 应从正式配置加载 stage advancement definitions。"
+            catalog.StageAdvancementDefs.TryGetValue(
+                "empty_stage_advancement",
+                out StageAdvancementDefinition emptyStageAdvancement
+            ),
+            "identity catalog 应从正式配置加载 empty_stage_advancement sentinel。"
         );
+        if (emptyStageAdvancement != null)
+        {
+            _test.Eq(
+                emptyStageAdvancement.ModifierId,
+                new StringName("empty_stage_advancement"),
+                "stage advancement sentinel 应保留 canonical modifier id。"
+            );
+            _test.Eq(
+                emptyStageAdvancement.TargetAxis,
+                new StringName("full"),
+                "stage advancement sentinel 应保留 typed target axis。"
+            );
+        }
     }
 
     private void TestRaceAndSubraceRegistriesRejectInvalidSaveTagLists()
