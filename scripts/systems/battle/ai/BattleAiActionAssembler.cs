@@ -11,7 +11,12 @@ internal sealed class BattleAiActionAssembler
     public BattleAiRuntimeActionPlan BuildUnitActionPlan(
         BattleUnitState unitState,
         EnemyAiBrainDefinition brain,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        ISkillCatalog skillCatalog = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
+        BattleState battleState = null,
+        int worldStep = -1
     )
     {
         var plan = new BattleAiRuntimeActionPlan();
@@ -22,11 +27,25 @@ internal sealed class BattleAiActionAssembler
 
             using BattleAiTraceSpan trace = new("build_unit_action_plan");
             skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
-            plan.SetSource(unitState, brain);
+            plan.SetSource(
+                unitState,
+                brain,
+                skillCatalog,
+                skillDefinitions,
+                equipmentAbilityBindings,
+                itemDefinitions,
+                battleState,
+                worldStep
+            );
 
             List<BattleAiSkillAffordanceRecord> skillRecords = ClassifyKnownActiveSkills(
                 unitState,
-                skillDefinitions
+                skillDefinitions,
+                skillCatalog,
+                equipmentAbilityBindings,
+                itemDefinitions,
+                battleState,
+                worldStep
             );
             foreach (BattleAiSkillAffordanceRecord record in skillRecords)
                 plan.SetSkillAffordanceRecordTyped(record);
@@ -53,7 +72,8 @@ internal sealed class BattleAiActionAssembler
                         StringName skillId = record.skill_id;
                         SkillDefinition skillDefinition = GetSkillDefinition(
                             skillDefinitions,
-                            skillId
+                            skillId,
+                            skillCatalog
                         );
                         if (skillDefinition == null)
                             continue;
@@ -129,33 +149,45 @@ internal sealed class BattleAiActionAssembler
 
     private List<BattleAiSkillAffordanceRecord> ClassifyKnownActiveSkills(
         BattleUnitState unitState,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        ISkillCatalog skillCatalog,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        BattleState battleState,
+        int worldStep
     )
     {
         var records = new List<BattleAiSkillAffordanceRecord>();
         BattleSkillAvailabilityView availabilityView = new BattleSkillAvailabilityService(
-            skillDefinitions
+            skillCatalog,
+            skillDefinitions,
+            equipmentAbilityBindings,
+            itemDefinitions
         ).BuildView(
             new BattleSkillAvailabilityQuery
             {
                 User = unitState,
                 Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
                 IncludeKnownSkills = true,
-                IncludeEquipmentSkills = false,
+                IncludeEquipmentSkills = true,
                 IncludeScopedAutoCast = false,
+                WorldStep = worldStep,
+                BattleState = battleState,
             }
         );
         foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
         {
             StringName skillId = entry.EntryRef.SkillId;
             SkillDefinition definition =
-                entry.SkillDefinition ?? GetSkillDefinition(skillDefinitions, skillId);
+                entry.SkillDefinition
+                ?? GetSkillDefinition(skillDefinitions, skillId, skillCatalog);
             if (skillId == "" || definition == null)
                 continue;
 
             BattleAiSkillAffordanceRecord record = _classifier.ClassifySkill(
                 definition,
-                entry.SkillLevel
+                entry.SkillLevel,
+                skillCatalog
             );
             if (record.skill_id == "")
                 record.skill_id = skillId;
@@ -1076,14 +1108,23 @@ internal sealed class BattleAiActionAssembler
 
     private static SkillDefinition GetSkillDefinition(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        StringName skillId
+        StringName skillId,
+        ISkillCatalog skillCatalog = null
     )
     {
-        if (skillDefinitions == null || skillId == "")
+        if (skillId == "")
             return null;
-        return skillDefinitions.TryGetValue(skillId, out SkillDefinition definition)
-            ? definition
-            : null;
+        if (
+            skillCatalog != null
+            && skillCatalog.TryGetSkillDefinition(skillId, out SkillDefinition catalogDefinition)
+        )
+        {
+            return catalogDefinition;
+        }
+        return skillDefinitions != null
+            && skillDefinitions.TryGetValue(skillId, out SkillDefinition definition)
+                ? definition
+                : null;
     }
 
     private readonly record struct DistanceStyle(

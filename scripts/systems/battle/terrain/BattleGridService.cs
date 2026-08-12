@@ -2379,6 +2379,32 @@ public sealed class BattleGridService : IDisposable
         return actualRange >= 1 && CanPlaceUnit(state, unit_state, target_coord, true);
     }
 
+    internal bool CanGrappleAscent(
+        BattleState state,
+        BattleUnitState unitState,
+        Vector2I targetCoord,
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        if (
+            state == null
+            || unitState == null
+            || effectDefinition == null
+            || !CanPlaceUnit(state, unitState, targetCoord, true)
+        )
+        {
+            return false;
+        }
+        return CanGrappleAscentCore(
+            state,
+            unitState.GetAnchorCoord(),
+            unitState.GetOccupiedCoordsReadViewTyped(),
+            GetUnitTargetCoords(unitState, targetCoord),
+            targetCoord,
+            effectDefinition.GrappleMaxHeightGain
+        );
+    }
+
     internal bool CanBlinkToCoord(
         BattleState state,
         BattleUnitReadView unitView,
@@ -2401,6 +2427,82 @@ public sealed class BattleGridService : IDisposable
             return false;
         }
         return actualRange >= 1 && CanPlaceUnit(state, unitView, target_coord, true);
+    }
+
+    internal bool CanGrappleAscent(
+        BattleState state,
+        BattleUnitReadView unitView,
+        Vector2I targetCoord,
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        if (
+            state == null
+            || !unitView.IsValid
+            || effectDefinition == null
+            || !CanPlaceUnit(state, unitView, targetCoord, true)
+        )
+        {
+            return false;
+        }
+        return CanGrappleAscentCore(
+            state,
+            unitView.Coord,
+            unitView.GetOccupiedCoords(),
+            unitView.GetTargetCoords(targetCoord),
+            targetCoord,
+            effectDefinition.GrappleMaxHeightGain
+        );
+    }
+
+    private bool CanGrappleAscentCore(
+        BattleState state,
+        Vector2I sourceAnchor,
+        IEnumerable<Vector2I> sourceCoords,
+        IEnumerable<Vector2I> targetCoords,
+        Vector2I targetAnchor,
+        int maxHeightGain
+    )
+    {
+        Vector2I delta = targetAnchor - sourceAnchor;
+        if (GetDistance(Vector2I.Zero, delta) != 1 || maxHeightGain < 2)
+        {
+            return false;
+        }
+
+        int sourceMaxHeight = int.MinValue;
+        foreach (Vector2I sourceCoord in sourceCoords ?? Array.Empty<Vector2I>())
+        {
+            BattleCellState sourceCell = GetCell(state, sourceCoord);
+            BattleEdgeFaceState crossedEdge = GetEdgeFace(state, sourceCoord, sourceCoord + delta);
+            if (
+                sourceCell == null
+                || crossedEdge == null
+                || crossedEdge.BlocksMove()
+                || crossedEdge.BlocksOccupancy()
+            )
+            {
+                return false;
+            }
+            sourceMaxHeight = Math.Max(sourceMaxHeight, sourceCell.current_height);
+        }
+
+        int targetMinHeight = int.MaxValue;
+        foreach (Vector2I targetCoord in targetCoords ?? Array.Empty<Vector2I>())
+        {
+            BattleCellState targetCell = GetCell(state, targetCoord);
+            if (targetCell == null)
+            {
+                return false;
+            }
+            targetMinHeight = Math.Min(targetMinHeight, targetCell.current_height);
+        }
+        if (sourceMaxHeight == int.MinValue || targetMinHeight == int.MaxValue)
+        {
+            return false;
+        }
+        int heightGain = targetMinHeight - sourceMaxHeight;
+        return heightGain >= 2 && heightGain <= maxHeightGain;
     }
 
     private List<Vector2I> SupercoverJumpPath(Vector2I from_coord, Vector2I to_coord)

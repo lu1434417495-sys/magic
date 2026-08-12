@@ -114,6 +114,13 @@ internal enum BattleEffectKind
     EdgeClear,
 }
 
+internal enum CombatEffectTargetOrder
+{
+    Unknown = 0,
+    None,
+    LowestHpPercentThenUnitId,
+}
+
 internal enum BattleDamageBonusConditionKind
 {
     Unknown = 0,
@@ -135,6 +142,7 @@ internal enum BattleForcedMoveMode
     Retreat,
     Knockback,
     Reposition,
+    GrappleAscent,
 }
 
 internal enum BattleTerrainEffectRuntimeKind
@@ -303,6 +311,7 @@ internal static class BattleTypedNames
     internal static readonly StringName ForcedMoveRetreat = "retreat";
     internal static readonly StringName ForcedMoveKnockback = "knockback";
     internal static readonly StringName ForcedMoveReposition = "reposition";
+    internal static readonly StringName ForcedMoveGrappleAscent = "grapple_ascent";
     internal static readonly StringName TerrainEffectRuntimeMovementCost = "movement_cost";
     internal static readonly StringName TerrainEffectRuntimeNone = "none";
     internal static readonly StringName PositionCastDistance = "cast_distance";
@@ -729,6 +738,8 @@ internal static class BattleTypedNames
             return BattleForcedMoveMode.Knockback;
         if (value == ForcedMoveReposition)
             return BattleForcedMoveMode.Reposition;
+        if (value == ForcedMoveGrappleAscent)
+            return BattleForcedMoveMode.GrappleAscent;
         return BattleForcedMoveMode.Unknown;
     }
 
@@ -743,6 +754,7 @@ internal static class BattleTypedNames
             BattleForcedMoveMode.Retreat => ForcedMoveRetreat,
             BattleForcedMoveMode.Knockback => ForcedMoveKnockback,
             BattleForcedMoveMode.Reposition => ForcedMoveReposition,
+            BattleForcedMoveMode.GrappleAscent => ForcedMoveGrappleAscent,
             _ => Empty,
         };
     }

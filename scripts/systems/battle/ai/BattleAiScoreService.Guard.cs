@@ -91,6 +91,7 @@ public partial class BattleAiScoreService
     }
 
     private void PopulateGuardAwareWeaponThreat(
+        IBattleAiScoreContext context,
         ThreatProfile profile,
         BattleUnitState threatUnit,
         BattleUnitState actor,
@@ -129,7 +130,8 @@ public partial class BattleAiScoreService
         DamageEstimateResult unguardedEstimate = EstimateDamageForTargetResult(
             threatUnit,
             new[] { weaponEffect },
-            unguardedActor
+            unguardedActor,
+            battleState: ContextState(context)
         );
         profile.UnguardedWeaponDamage = unguardedEstimate.IncomingBudgetDamage;
         profile.UnguardedWeaponPhysicalDamageByInstance.AddRange(
@@ -206,6 +208,7 @@ public partial class BattleAiScoreService
             }
             ThreatProfile profile = GetUnitThreatProfile(context, threatUnit);
             PopulateGuardAwareWeaponThreat(
+                context,
                 profile,
                 threatUnit,
                 actor,

@@ -6,6 +6,7 @@ internal enum CombatEffectTriggerEvent
 {
     Unknown = 0,
     None,
+    AttackHit,
     CriticalHit,
     OrdinaryHit,
     SecondaryHit,
@@ -61,6 +62,12 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int power { get; set; }
+
+    [Export]
+    public int heal_to_hp_percent_floor { get; set; }
+
+    [Export]
+    public int heal_missing_hp_percent { get; set; }
 
     [Export]
     public int move_cost_delta { get; set; }
@@ -327,6 +334,20 @@ public partial class CombatEffectDef : Resource
     public StringName effect_target_team_filter { get; set; } = "";
 
     [Export]
+    public int max_affected_targets { get; set; }
+
+    [Export]
+    public bool exclude_source { get; set; }
+
+    [Export]
+    public StringName target_order { get; set; } = "";
+    internal CombatEffectTargetOrder TargetOrderKind
+    {
+        get => CombatEffectContentRules.ToTargetOrder(target_order);
+        set => target_order = CombatEffectContentRules.ToStringName(value);
+    }
+
+    [Export]
     public StringName required_target_creature_type_tag { get; set; } = "";
 
     [Export]
@@ -383,6 +404,9 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int forced_move_distance { get; set; }
+
+    [Export]
+    public int grapple_max_height_gain { get; set; }
 
     [Export]
     public int source_retreat_distance { get; set; }

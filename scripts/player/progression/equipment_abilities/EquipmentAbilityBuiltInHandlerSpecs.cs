@@ -240,6 +240,13 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                         new[] { EquipmentAbilityTimingKind.AfterDamage }
                     ),
                 },
+                [EquipmentAbilityTriggerKind.OnDamageTakenFinalized] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnDamageTakenFinalized,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterDamage }
+                    ),
+                },
                 [EquipmentAbilityTriggerKind.OnHitReceived] = new()
                 {
                     Trigger = EquipmentAbilityTriggerKind.OnHitReceived,

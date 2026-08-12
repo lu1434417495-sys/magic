@@ -278,16 +278,36 @@ internal sealed class BattleSkillPreviewService
                 Runtime?._layered_barrier_service;
             if (hasDeterministicTargets)
             {
+                IReadOnlyDictionary<
+                    CombatEffectDefinition,
+                    IReadOnlyList<BattleUnitReadView>
+                > targetPlan = _owner.BuildUnitEffectTargetPlan(
+                    active_unit,
+                    skillDefinition,
+                    previewEffectDefinitions,
+                    validation.TargetUnits
+                );
+                IReadOnlyList<BattleUnitReadView> plannedTargets =
+                    BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+                        previewEffectDefinitions,
+                        targetPlan
+                    );
                 BattleBarrierPreviewSession barrierPreviewSession =
                     layeredBarrierService?.BeginSkillBarrierPreviewSession();
-                foreach (BattleUnitReadView targetUnit in validation.TargetUnits)
+                foreach (BattleUnitReadView targetUnit in plannedTargets)
                 {
+                    IReadOnlyList<CombatEffectDefinition> targetEffects =
+                        BattleSkillExecutionOrchestrator.CollectPlannedEffectsForTarget(
+                            previewEffectDefinitions,
+                            targetPlan,
+                            targetUnit.UnitId
+                        );
                     BattleBarrierInteractionResult barrierResult =
                         layeredBarrierService?.PreviewSkillBarrierInteractionResult(
                             active_unit,
                             targetUnit,
                             skillDefinition,
-                            previewEffectDefinitions,
+                            targetEffects,
                             barrierPreviewSession,
                             castVariantDefinition
                         ) ?? new BattleBarrierInteractionResult(false, false);
@@ -410,13 +430,13 @@ internal sealed class BattleSkillPreviewService
         }
         if (
             preview.allowed
-            && validation.TargetUnits.Count == 1
+            && previewTargetUnits.Count == 1
         )
         {
             AppendSourceRetreatPreview(
                 preview,
                 active_unit,
-                validation.TargetUnits[0],
+                previewTargetUnits[0],
                 command,
                 skillDefinition,
                 castVariantDefinition
@@ -630,6 +650,18 @@ internal sealed class BattleSkillPreviewService
                 active_unit,
                 command != null ? command.skill_variant_id : new StringName("")
             );
+        if (
+            _owner.TryPreviewDirectionalPiercingSkill(
+                active_unit,
+                command,
+                skillDefinition,
+                castVariantDefinition,
+                preview
+            )
+        )
+        {
+            return;
+        }
         string blockReason = _owner._get_skill_command_block_reason(
             active_unit,
             skillDefinition,

@@ -33,6 +33,8 @@ internal sealed class BattleEquipmentAbilityGrantedSkillUsedContext
     public StringName SkillEntryId { get; init; } = "";
     public BattleEquipmentSkillUseOutcome SkillOutcome { get; init; } =
         BattleEquipmentSkillUseOutcome.Empty;
+    public bool IsPreview { get; init; }
+    public Action<BattleEquipmentAbilityActionPreviewResult> PreviewActionSink { get; init; }
 }
 
 internal sealed class BattleEquipmentSkillUseOutcome
@@ -58,7 +60,12 @@ internal readonly struct EquipmentAbilityFactContext
     internal readonly bool CriticalHit;
     internal readonly int CurrentTu;
     internal readonly BattleState BattleState;
+    internal readonly int RawDamage;
     internal readonly int HpDamage;
+    internal readonly int HpBefore;
+    internal readonly StringName DamageTag;
+    internal readonly bool IsEquipmentGenerated;
+    internal readonly bool IsSelfDamage;
     internal readonly int SkillDamagedTargetCount;
     internal readonly int SkillKilledTargetCount;
     internal readonly int SkillHpDamageDealt;
@@ -71,7 +78,12 @@ internal readonly struct EquipmentAbilityFactContext
         bool criticalHit,
         int currentTu,
         BattleState battleState,
+        int rawDamage = 0,
         int hpDamage = 0,
+        int hpBefore = 0,
+        StringName damageTag = default,
+        bool isEquipmentGenerated = false,
+        bool isSelfDamage = false,
         int skillDamagedTargetCount = 0,
         int skillKilledTargetCount = 0,
         int skillHpDamageDealt = 0,
@@ -84,7 +96,12 @@ internal readonly struct EquipmentAbilityFactContext
         CriticalHit = criticalHit;
         CurrentTu = currentTu;
         BattleState = battleState;
+        RawDamage = Math.Max(rawDamage, 0);
         HpDamage = Math.Max(hpDamage, 0);
+        HpBefore = Math.Max(hpBefore, 0);
+        DamageTag = ProgressionDataUtils.to_string_name(damageTag);
+        IsEquipmentGenerated = isEquipmentGenerated;
+        IsSelfDamage = isSelfDamage;
         SkillDamagedTargetCount = Math.Max(skillDamagedTargetCount, 0);
         SkillKilledTargetCount = Math.Max(skillKilledTargetCount, 0);
         SkillHpDamageDealt = Math.Max(skillHpDamageDealt, 0);
@@ -129,7 +146,7 @@ internal readonly struct EquipmentAbilityFactContext
         context?.CriticalHit == true,
         Math.Max(context?.BattleState?.timeline?.current_tu ?? -1, -1),
         context?.BattleState,
-        context?.WeaponHpDamage ?? 0
+        hpDamage: context?.WeaponHpDamage ?? 0
     );
 
     internal static EquipmentAbilityFactContext FromAttackCheck(
@@ -146,7 +163,12 @@ internal readonly struct EquipmentAbilityFactContext
         false,
         Math.Max(context?.BattleState?.timeline?.current_tu ?? -1, -1),
         context?.BattleState,
-        context?.HpDamage ?? 0
+        rawDamage: context?.RawDamage ?? 0,
+        hpDamage: context?.HpDamage ?? 0,
+        hpBefore: context?.HpBefore ?? 0,
+        damageTag: context?.DamageTag ?? new StringName(""),
+        isEquipmentGenerated: context?.IsEquipmentGenerated == true,
+        isSelfDamage: context?.IsSelfDamage == true
     );
 
     internal static EquipmentAbilityFactContext FromGrantedSkillUsed(
@@ -270,7 +292,9 @@ internal sealed class BattleEquipmentAbilityImmediateWeaponAttackResult
     public int Damage { get; init; }
 }
 
-internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCombatReactionSink
+internal sealed class BattleEquipmentAbilityRuntimeService :
+    IBattleEquipmentCombatReactionSink,
+    IBattleFatalInterceptArbiter
 {
     internal static readonly StringName ActionKindAddDamageDice = "add_damage_dice";
     private static readonly StringName ActionKindImmediateWeaponAttack =
@@ -323,6 +347,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
     private readonly BattleEquipmentAbilityStateResolver _abilityStateResolver = new();
     private readonly BattleEquipmentAttackModifierResolver _attackModifierResolver = new();
     private readonly Queue<int> _forcedRollGateValuesForTests = new();
+    private readonly Queue<int> _forcedFatalRecoveryValuesForTests = new();
     private readonly Queue<int> _forcedAbilityCheckRollValuesForTests = new();
 
     internal void Setup(BattleRuntimeModule runtime, BattleDamageResolver damageResolver)
@@ -445,19 +470,146 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
         _summonResolver.DisposeRuntime();
         _abilityStateResolver.DisposeRuntime();
         _damageResolver?.SetEquipmentAbilityPorts(null, null);
+        _damageResolver?.SetFatalInterceptArbiter(null);
         _damageResolver = null;
         _runtime = null;
         _forcedRollGateValuesForTests.Clear();
+        _forcedFatalRecoveryValuesForTests.Clear();
         _forcedAbilityCheckRollValuesForTests.Clear();
     }
 
     internal BattleState GetBattleState() => _runtime?.GetState();
+
+    internal int ApplyMovementTrails(
+        BattleUnitState sourceUnit,
+        IReadOnlyList<Vector2I> executedPath,
+        StringName skillId,
+        BattleEventBatch batch
+    )
+    {
+        BattleTerrainEffectSystem terrainEffectSystem = _runtime?._terrain_effect_system;
+        if (
+            sourceUnit?.IsAlive() != true
+            || executedPath == null
+            || executedPath.Count < 2
+            || terrainEffectSystem == null
+        )
+        {
+            return 0;
+        }
+
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+        var ungrouped = new List<ActiveMovementTrailCandidate>();
+        var grouped = new Dictionary<StringName, ActiveMovementTrailCandidate>();
+        foreach (ActiveEquipmentAbilityBinding activeBinding in CollectActiveBindings(sourceUnit))
+        {
+            IReadOnlyList<EquipmentMovementTrailDefinition> trails =
+                activeBinding.Binding?.MovementTrails
+                ?? Array.Empty<EquipmentMovementTrailDefinition>();
+            foreach (EquipmentMovementTrailDefinition trail in trails)
+            {
+                if (
+                    trail == null
+                    || trail.TrailId == ""
+                    || trail.DurationTu <= 0
+                    || trail.DamageDice?.Terms?.Count != 1
+                    || (
+                        trail.RequiredSkillId != ""
+                        && trail.RequiredSkillId != normalizedSkillId
+                    )
+                )
+                {
+                    continue;
+                }
+
+                var candidate = new ActiveMovementTrailCandidate(
+                    activeBinding.Source,
+                    activeBinding.Binding,
+                    trail
+                );
+                if (trail.ReplacementGroupId == "")
+                {
+                    ungrouped.Add(candidate);
+                    continue;
+                }
+                if (
+                    !grouped.TryGetValue(trail.ReplacementGroupId, out ActiveMovementTrailCandidate current)
+                    || CompareMovementTrailCandidate(candidate, current) < 0
+                )
+                {
+                    grouped[trail.ReplacementGroupId] = candidate;
+                }
+            }
+        }
+
+        var selected = new List<ActiveMovementTrailCandidate>(ungrouped);
+        selected.AddRange(grouped.Values);
+        selected.Sort(CompareMovementTrailCandidate);
+        if (selected.Count == 0)
+            return 0;
+
+        var trailCoords = new List<Vector2I>();
+        var seenCoords = new HashSet<Vector2I>();
+        for (int index = 0; index < executedPath.Count - 1; index++)
+        {
+            Vector2I coord = executedPath[index];
+            if (seenCoords.Add(coord))
+                trailCoords.Add(coord);
+        }
+        if (trailCoords.Count == 0)
+            return 0;
+
+        int appliedCount = 0;
+        foreach (ActiveMovementTrailCandidate candidate in selected)
+        {
+            EquipmentMovementTrailDefinition trail = candidate.Trail;
+            DiceExpressionTermDefinition term = trail.DamageDice.Terms[0];
+            CombatEffectDefinition effectDefinition =
+                BattleRuntimeEffectDefinitions.TimedTerrainContactDamage(
+                    trail.TrailId,
+                    trail.DurationTu,
+                    trail.TargetTeamFilter,
+                    term.DiceCount,
+                    term.DiceSides,
+                    trail.DamageDice.FlatBonus,
+                    trail.DamageTag,
+                    trail.DisplayName
+                );
+            int nonce = _runtime.IncrementTerrainEffectNonce();
+            StringName fieldInstanceId = new(
+                $"equipment_movement_trail:{sourceUnit.unit_id}:{nonce}:{candidate.Binding.BindingId}:{trail.TrailId}"
+            );
+            SkillDefinition skillDefinition = normalizedSkillId != ""
+                ? _runtime.GetSkillDefinitionTyped(normalizedSkillId)
+                : null;
+            foreach (Vector2I coord in trailCoords)
+            {
+                if (
+                    !terrainEffectSystem.UpsertTimedTerrainEffectFromDefinition(
+                        coord,
+                        sourceUnit,
+                        skillDefinition,
+                        effectDefinition,
+                        fieldInstanceId
+                    )
+                )
+                {
+                    continue;
+                }
+                appliedCount += 1;
+                batch?.AddChangedCoord(coord);
+            }
+        }
+        return appliedCount;
+    }
 
     internal IBattleEquipmentAttackCheckQuery AttackCheckQuery => _attackModifierResolver;
 
     internal IBattleEquipmentDamageQuery DamageQuery => _attackModifierResolver;
 
     internal IBattleEquipmentCombatReactionSink ReactionSink => this;
+
+    internal IBattleFatalInterceptArbiter FatalInterceptArbiter => this;
 
     bool IBattleEquipmentCombatReactionSink.ResolveAttackCheck(
         BattleEquipmentAbilityAttackCheckContext context
@@ -481,6 +633,18 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
         BattleEquipmentAbilityDamageAppliedContext context
     ) => ResolveDamageApplied(context);
 
+    bool IBattleEquipmentCombatReactionSink.ResolveDamageTakenFinalized(
+        BattleEquipmentAbilityDamageAppliedContext context
+    ) => ResolveDamageTakenFinalized(context);
+
+    BattleFatalInterceptResult IBattleFatalInterceptArbiter.Resolve(
+        BattleFatalInterceptContext context
+    ) => ResolveFatalIntercept(context);
+
+    BattleFatalInterceptPreviewResult IBattleFatalInterceptArbiter.Preview(
+        BattleFatalInterceptContext context
+    ) => PreviewFatalIntercept(context);
+
     internal BattleDamageResolver DamageResolver => _damageResolver;
 
     internal Queue<int> ForcedAbilityCheckRollValuesForTests =>
@@ -502,6 +666,15 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
             return;
         foreach (int value in values)
             _forcedAbilityCheckRollValuesForTests.Enqueue(Math.Clamp(value, 1, 20));
+    }
+
+    internal void ConfigureFatalRecoveryValuesForTests(IEnumerable<int> values)
+    {
+        _forcedFatalRecoveryValuesForTests.Clear();
+        if (values == null)
+            return;
+        foreach (int value in values)
+            _forcedFatalRecoveryValuesForTests.Enqueue(Math.Max(value, 0));
     }
 
     internal BattleEquipmentAbilityAfterHitResult ResolveAfterHit(
@@ -624,7 +797,6 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                     {
                         continue;
                     }
-
                     if (
                         action.Kind == ActionKindModifyAbilityState
                         && action.PayloadDefinition is ModifyAbilityStateActionPayloadDefinition statePayload
@@ -811,13 +983,38 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
         return changed;
     }
 
-    internal bool ResolveDamageApplied(BattleEquipmentAbilityDamageAppliedContext context)
+    internal bool ResolveDamageApplied(BattleEquipmentAbilityDamageAppliedContext context) =>
+        ResolveFinalizedDamageReaction(
+            context,
+            EquipmentAbilityTriggerKind.OnDamageApplied,
+            requireSourceAlive: false,
+            requireTarget: true
+        );
+
+    internal bool ResolveDamageTakenFinalized(
+        BattleEquipmentAbilityDamageAppliedContext context
+    ) => ResolveFinalizedDamageReaction(
+        context,
+        EquipmentAbilityTriggerKind.OnDamageTakenFinalized,
+        requireSourceAlive: true,
+        requireTarget: false
+    );
+
+    private bool ResolveFinalizedDamageReaction(
+        BattleEquipmentAbilityDamageAppliedContext context,
+        EquipmentAbilityTriggerKind trigger,
+        bool requireSourceAlive,
+        bool requireTarget
+    )
     {
         if (
             context == null
             || context.SourceUnit == null
-            || context.TargetUnit == null
-            || context.HpDamage <= 0
+            || (requireTarget && context.TargetUnit == null)
+            || (requireSourceAlive && !context.SourceUnit.IsAlive())
+            || (context.HpDamage <= 0
+                && (trigger != EquipmentAbilityTriggerKind.OnDamageTakenFinalized
+                    || context.RawDamage <= 0))
         )
         {
             return false;
@@ -833,10 +1030,25 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                 continue;
             foreach (EquipmentAbilityReactionDefinition reaction in binding.Reactions)
             {
+                bool rawOnlyEvent = context.HpDamage <= 0 && context.RawDamage > 0;
+                int reactionPreviewProbabilityBasisPoints = context.IsPreview
+                    ? EstimateRollGateSuccessBasisPoints(reaction?.RollGate)
+                    : 10000;
+                bool reactionReferencesRawDamage =
+                    BattleEquipmentAbilityConditionEvaluator.ConditionGroupReferencesFact(
+                        reaction?.ConditionGroup,
+                        BattleEquipmentAbilityConditionEvaluator.FactRawDamage
+                    );
                 if (
                     reaction == null
-                    || reaction.Trigger != EquipmentAbilityTriggerKind.OnDamageApplied
+                    || reaction.Trigger != trigger
                     || reaction.Timing != EquipmentAbilityTimingKind.AfterDamage
+                    || (rawOnlyEvent
+                        && !reactionReferencesRawDamage
+                        && !ReactionActionsReferenceFact(
+                            reaction,
+                            BattleEquipmentAbilityConditionEvaluator.FactRawDamage
+                        ))
                     || !_conditionEvaluator.ConditionGroupPasses(
                         reaction.ConditionGroup,
                         context.SourceUnit,
@@ -844,14 +1056,16 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                         factContext,
                         activeBinding
                     )
-                    || !RollGatePasses(
-                        reaction.RollGate,
-                        binding.BindingId,
-                        reaction.ReactionId,
-                        "",
-                        forcedRollValue: 0,
-                        result: null
-                    )
+                    || (context.IsPreview
+                        ? reactionPreviewProbabilityBasisPoints <= 0
+                        : !RollGatePasses(
+                            reaction.RollGate,
+                            binding.BindingId,
+                            reaction.ReactionId,
+                            "",
+                            forcedRollValue: 0,
+                            result: null
+                        ))
                 )
                 {
                     continue;
@@ -859,8 +1073,24 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
 
                 foreach (EquipmentAbilityActionDefinition action in reaction.Actions ?? Array.Empty<EquipmentAbilityActionDefinition>())
                 {
+                    int actionPreviewProbabilityBasisPoints = context.IsPreview
+                        ? (int)Math.Clamp(
+                            (long)reactionPreviewProbabilityBasisPoints
+                                * EstimateRollGateSuccessBasisPoints(action?.RollGate)
+                                / 10000L,
+                            0L,
+                            10000L
+                        )
+                        : 10000;
                     if (
                         action == null
+                        || (rawOnlyEvent
+                            && !reactionReferencesRawDamage
+                            && !BattleEquipmentAbilityConditionEvaluator
+                                .ConditionGroupReferencesFact(
+                                    action.ConditionGroup,
+                                    BattleEquipmentAbilityConditionEvaluator.FactRawDamage
+                                ))
                         || !_conditionEvaluator.ConditionGroupPasses(
                             action.ConditionGroup,
                             context.SourceUnit,
@@ -868,24 +1098,97 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                             factContext,
                             activeBinding
                         )
-                        || !RollGatePasses(
-                            action.RollGate,
-                            binding.BindingId,
-                            reaction.ReactionId,
-                            action.ActionId,
-                            forcedRollValue: 0,
-                            result: null
-                        )
+                        || (context.IsPreview
+                            ? actionPreviewProbabilityBasisPoints <= 0
+                            : !RollGatePasses(
+                                action.RollGate,
+                                binding.BindingId,
+                                reaction.ReactionId,
+                                action.ActionId,
+                                forcedRollValue: 0,
+                                result: null
+                            ))
                     )
                     {
                         continue;
                     }
 
+                    if (context.IsPreview && actionPreviewProbabilityBasisPoints < 10000)
+                    {
+                        if (
+                            action.Kind == ActionKindTriggerSkill
+                            && action.PayloadDefinition
+                                is TriggerSkillActionPayloadDefinition conditionalSkillPayload
+                        )
+                        {
+                            context.PreviewActionSink?.Invoke(
+                                _skillTriggerActionResolver.PreviewTriggerSkillAction(
+                                    activeBinding,
+                                    binding,
+                                    action,
+                                    conditionalSkillPayload,
+                                    context.SourceUnit,
+                                    context.TargetUnit,
+                                    context.BattleState,
+                                    actionPreviewProbabilityBasisPoints
+                                )
+                            );
+                        }
+                        else
+                        {
+                            bool supportedConditionalAction =
+                                action.Kind == ActionKindApplyStatus
+                                || action.Kind == ActionKindHealFromFact
+                                || action.Kind == ActionKindHeal
+                                || action.Kind == ActionKindConsumeStatusStacks;
+                            context.PreviewActionSink?.Invoke(
+                                new BattleEquipmentAbilityActionPreviewResult
+                                {
+                                    BindingId = binding.BindingId,
+                                    ActionId = action.ActionId,
+                                    ActionKind = action.Kind,
+                                    TriggerProbabilityBasisPoints =
+                                        actionPreviewProbabilityBasisPoints,
+                                    Guaranteed = false,
+                                    Applied = false,
+                                    Conditional = true,
+                                    Supported = supportedConditionalAction,
+                                    UnsupportedReason = supportedConditionalAction
+                                        ? ""
+                                        : action.Kind == ActionKindModifyAbilityState
+                                            ? "finalized_modify_ability_state_preview_not_projected"
+                                            : "finalized_action_kind_preview_not_supported",
+                                }
+                            );
+                        }
+                        continue;
+                    }
+
+                    bool actionApplied = false;
                     if (
                         action.Kind == ActionKindModifyAbilityState
                         && action.PayloadDefinition is ModifyAbilityStateActionPayloadDefinition statePayload
                     )
                     {
+                        if (context.IsPreview && !context.IsBranchLocalProjection)
+                        {
+                            context.PreviewActionSink?.Invoke(
+                                new BattleEquipmentAbilityActionPreviewResult
+                                {
+                                    BindingId = binding.BindingId,
+                                    ActionId = action.ActionId,
+                                    ActionKind = action.Kind,
+                                    TriggerProbabilityBasisPoints =
+                                        actionPreviewProbabilityBasisPoints,
+                                    Guaranteed = actionPreviewProbabilityBasisPoints >= 10000,
+                                    Applied = false,
+                                    Supported = false,
+                                    UnsupportedReason =
+                                        "finalized_modify_ability_state_preview_not_projected",
+                                }
+                            );
+                            continue;
+                        }
                         _abilityStateResolver.ResolveModifyAbilityStateAction(
                             activeBinding,
                             binding,
@@ -894,6 +1197,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                             context.TargetUnit
                         );
                         changed = true;
+                        actionApplied = true;
                     }
                     else if (
                         action.Kind == ActionKindApplyStatus
@@ -918,8 +1222,45 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                                 context.SaveContext,
                                 null
                             );
+                            actionApplied = true;
                         }
-                        changed = true;
+                        changed = actionApplied || changed;
+                    }
+                    else if (
+                        action.Kind == ActionKindTriggerSkill
+                        && action.PayloadDefinition
+                            is TriggerSkillActionPayloadDefinition triggerSkillPayload
+                    )
+                    {
+                        if (context.IsPreview)
+                        {
+                            context.PreviewActionSink?.Invoke(
+                                _skillTriggerActionResolver.PreviewTriggerSkillAction(
+                                    activeBinding,
+                                    binding,
+                                    action,
+                                    triggerSkillPayload,
+                                    context.SourceUnit,
+                                    context.TargetUnit,
+                                    context.BattleState,
+                                    actionPreviewProbabilityBasisPoints
+                                )
+                            );
+                            continue;
+                        }
+                        actionApplied = _skillTriggerActionResolver.ResolveTriggerSkillAction(
+                            activeBinding,
+                            binding,
+                            action,
+                            triggerSkillPayload,
+                            context.SourceUnit,
+                            context.TargetUnit,
+                            context.BattleState,
+                            context.Batch,
+                            context.SaveContext,
+                            addResult: null
+                        );
+                        changed = actionApplied || changed;
                     }
                     else if (
                         action.Kind == ActionKindHealFromFact
@@ -935,22 +1276,33 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                             context.BattleState,
                             factContext
                         );
-                        changed = changedUnit != null || changed;
+                        actionApplied = changedUnit != null;
+                        changed = actionApplied || changed;
                     }
                     else if (
                         action.Kind == ActionKindHeal
                         && action.PayloadDefinition is HealActionPayloadDefinition healPayload
                     )
                     {
-                        BattleUnitState changedUnit = _directEffectActionResolver.ResolveHealAction(
-                            activeBinding,
-                            binding,
-                            healPayload,
-                            context.SourceUnit,
-                            context.TargetUnit,
-                            context.BattleState
-                        );
-                        changed = changedUnit != null || changed;
+                        BattleUnitState changedUnit = context.IsPreview
+                            ? _directEffectActionResolver.ResolveExpectedHealAction(
+                                activeBinding,
+                                binding,
+                                healPayload,
+                                context.SourceUnit,
+                                context.TargetUnit,
+                                context.BattleState
+                            )
+                            : _directEffectActionResolver.ResolveHealAction(
+                                activeBinding,
+                                binding,
+                                healPayload,
+                                context.SourceUnit,
+                                context.TargetUnit,
+                                context.BattleState
+                            );
+                        actionApplied = changedUnit != null;
+                        changed = actionApplied || changed;
                     }
                     else if (
                         action.Kind == ActionKindConsumeStatusStacks
@@ -963,12 +1315,52 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                             context.TargetUnit,
                             context.BattleState
                         );
-                        changed = (consumedUnitIds != null && consumedUnitIds.Count > 0) || changed;
+                        actionApplied = consumedUnitIds != null && consumedUnitIds.Count > 0;
+                        changed = actionApplied || changed;
+                    }
+                    if (context.IsPreview)
+                    {
+                        context.PreviewActionSink?.Invoke(
+                            new BattleEquipmentAbilityActionPreviewResult
+                            {
+                                BindingId = binding.BindingId,
+                                ActionId = action.ActionId,
+                                ActionKind = action.Kind,
+                                TriggerProbabilityBasisPoints =
+                                    actionPreviewProbabilityBasisPoints,
+                                Guaranteed = actionPreviewProbabilityBasisPoints >= 10000,
+                                Applied = actionApplied,
+                                Supported = true,
+                            }
+                        );
                     }
                 }
             }
         }
         return changed;
+    }
+
+    private static bool ReactionActionsReferenceFact(
+        EquipmentAbilityReactionDefinition reaction,
+        StringName factId
+    )
+    {
+        foreach (
+            EquipmentAbilityActionDefinition action
+            in reaction?.Actions ?? Array.Empty<EquipmentAbilityActionDefinition>()
+        )
+        {
+            if (
+                BattleEquipmentAbilityConditionEvaluator.ConditionGroupReferencesFact(
+                    action?.ConditionGroup,
+                    factId
+                )
+            )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     internal bool ResolveGrantedSkillUsed(BattleEquipmentAbilityGrantedSkillUsedContext context)
@@ -1028,6 +1420,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                     {
                         continue;
                     }
+                    bool actionApplied = false;
                     if (
                         action.Kind == ActionKindModifyAbilityState
                         && action.PayloadDefinition is ModifyAbilityStateActionPayloadDefinition statePayload
@@ -1041,56 +1434,72 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                             context.TargetUnit
                         );
                         changed = true;
+                        actionApplied = true;
                     }
                     else if (
                         action.Kind == ActionKindMarkTarget
                         && action.PayloadDefinition is MarkTargetActionPayloadDefinition markPayload
                     )
                     {
-                        changed =
-                            _targetMarkResolver.ResolveMarkTargetAction(
+                        actionApplied = _targetMarkResolver.ResolveMarkTargetAction(
                                 activeBinding,
                                 binding,
                                 action,
                                 markPayload,
                                 context
-                            )
-                            || changed;
+                            );
+                        changed = actionApplied || changed;
                     }
                     else if (
                         action.Kind == ActionKindSummonUnits
                         && action.PayloadDefinition is SummonUnitsActionPayloadDefinition summonPayload
                     )
                     {
-                        changed =
-                            _summonResolver.ResolveSummonUnitsAction(
+                        actionApplied = _summonResolver.ResolveSummonUnitsAction(
                                 activeBinding,
                                 binding,
                                 action,
                                 summonPayload,
                                 context
-                            )
-                            || changed;
+                            );
+                        changed = actionApplied || changed;
                     }
                     else if (
                         action.Kind == ActionKindConsumeSummonedUnits
                         && action.PayloadDefinition is ConsumeSummonedUnitsActionPayloadDefinition consumePayload
                     )
                     {
-                        changed =
-                            _summonResolver.ResolveConsumeSummonedUnitsAction(
+                        actionApplied = _summonResolver.ResolveConsumeSummonedUnitsAction(
                                 activeBinding,
                                 binding,
                                 consumePayload,
                                 context
-                            )
-                            || changed;
+                            );
+                        changed = actionApplied || changed;
                     }
                     else if (
                         action.Kind == ActionKindDealDamage
                         && action.PayloadDefinition is DealDamageActionPayloadDefinition dealDamagePayload
                     )
                     {
+                        if (context.IsPreview)
+                        {
+                            context.PreviewActionSink?.Invoke(
+                                new BattleEquipmentAbilityActionPreviewResult
+                                {
+                                    BindingId = binding.BindingId,
+                                    ActionId = action.ActionId,
+                                    ActionKind = action.Kind,
+                                    TriggerProbabilityBasisPoints = 10000,
+                                    Guaranteed = true,
+                                    Applied = false,
+                                    Supported = false,
+                                    UnsupportedReason =
+                                        "granted_skill_deal_damage_requires_effect_preview",
+                                }
+                            );
+                            continue;
+                        }
                         BattleUnitState changedUnit = _directEffectActionResolver.ResolveDealDamageAction(
                             activeBinding,
                             binding,
@@ -1103,6 +1512,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                         {
                             context.Batch?.AddChangedUnitId(changedUnit.unit_id);
                             changed = true;
+                            actionApplied = true;
                         }
                     }
                     else if (
@@ -1110,18 +1520,28 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                         && action.PayloadDefinition is HealActionPayloadDefinition healPayload
                     )
                     {
-                        BattleUnitState changedUnit = _directEffectActionResolver.ResolveHealAction(
-                            activeBinding,
-                            binding,
-                            healPayload,
-                            context.SourceUnit,
-                            context.TargetUnit,
-                            battleState
-                        );
+                        BattleUnitState changedUnit = context.IsPreview
+                            ? _directEffectActionResolver.ResolveExpectedHealAction(
+                                activeBinding,
+                                binding,
+                                healPayload,
+                                context.SourceUnit,
+                                context.TargetUnit,
+                                battleState
+                            )
+                            : _directEffectActionResolver.ResolveHealAction(
+                                activeBinding,
+                                binding,
+                                healPayload,
+                                context.SourceUnit,
+                                context.TargetUnit,
+                                battleState
+                            );
                         if (changedUnit != null)
                         {
                             context.Batch?.AddChangedUnitId(changedUnit.unit_id);
                             changed = true;
+                            actionApplied = true;
                         }
                     }
                     else if (
@@ -1141,6 +1561,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                         {
                             context.Batch?.AddChangedUnitId(changedUnit.unit_id);
                             changed = true;
+                            actionApplied = true;
                         }
                     }
                     else if (
@@ -1170,6 +1591,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                         {
                             context.Batch?.AddChangedUnitId(changedUnit?.unit_id ?? "");
                             changed = true;
+                            actionApplied = true;
                         }
                     }
                     else if (
@@ -1196,8 +1618,9 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                                 null
                             );
                             context.Batch?.AddChangedUnitId(actionTarget?.unit_id ?? "");
+                            actionApplied = true;
                         }
-                        changed = true;
+                        changed = actionApplied || changed;
                     }
                     else if (
                         action.Kind == ActionKindConsumeStatusStacks
@@ -1215,7 +1638,23 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
                             foreach (StringName consumedUnitId in consumedUnitIds)
                                 context.Batch?.AddChangedUnitId(consumedUnitId);
                             changed = true;
+                            actionApplied = true;
                         }
+                    }
+                    if (context.IsPreview)
+                    {
+                        context.PreviewActionSink?.Invoke(
+                            new BattleEquipmentAbilityActionPreviewResult
+                            {
+                                BindingId = binding.BindingId,
+                                ActionId = action.ActionId,
+                                ActionKind = action.Kind,
+                                TriggerProbabilityBasisPoints = 10000,
+                                Guaranteed = true,
+                                Applied = actionApplied,
+                                Supported = true,
+                            }
+                        );
                     }
                 }
             }
@@ -1973,6 +2412,879 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
             && target.Rarity <= maxTargetRarity;
     }
 
+    internal BattleFatalInterceptResult ResolveFatalIntercept(
+        BattleFatalInterceptContext context
+    )
+    {
+        if (context?.TargetUnit == null)
+            return BattleFatalInterceptResult.None;
+
+        var attempts = new List<BattleFatalInterceptAttemptResult>();
+        foreach (ActiveFatalInterceptCandidate candidate in CollectFatalInterceptCandidates(
+            context.TargetUnit
+        ))
+        {
+            EquipmentFatalInterceptDefinition intercept = candidate.Intercept;
+            if (
+                !BattleDeathResolutionRules.CanDeathPreventionBlock(
+                    context.DeathContext,
+                    intercept.ProtectionPriority
+                )
+            )
+            {
+                attempts.Add(
+                    BuildFatalInterceptAttempt(
+                        candidate,
+                        BattleFatalInterceptAttemptOutcomeKind.BlockedByPriority
+                    )
+                );
+                continue;
+            }
+
+            if (
+                !EquipmentAbilityUsageRuntime.IsFatalInterceptAttemptAvailable(
+                    context.TargetUnit,
+                    candidate.Source,
+                    candidate.Binding,
+                    intercept,
+                    context.WorldStep
+                )
+            )
+            {
+                attempts.Add(
+                    BuildFatalInterceptAttempt(
+                        candidate,
+                        BattleFatalInterceptAttemptOutcomeKind.Unavailable
+                    )
+                );
+                continue;
+            }
+
+            bool usageConsumed = false;
+            if (intercept.ConsumeOnAttempt)
+            {
+                usageConsumed = EquipmentAbilityUsageRuntime.TryCommitFatalInterceptAttempt(
+                    context.TargetUnit,
+                    candidate.Source,
+                    candidate.Binding,
+                    intercept,
+                    context.WorldStep
+                );
+                if (!usageConsumed)
+                {
+                    attempts.Add(
+                        BuildFatalInterceptAttempt(
+                            candidate,
+                            BattleFatalInterceptAttemptOutcomeKind.Unavailable
+                        )
+                    );
+                    continue;
+                }
+            }
+
+            int rolledValue = 0;
+            bool rollPassed = true;
+            if (intercept.RollGate != null)
+            {
+                rolledValue = ResolveRollGateValue(0, intercept.RollGate.Roll);
+                rollPassed = CompareInt(
+                    rolledValue,
+                    intercept.RollGate.Compare,
+                    intercept.RollGate.Threshold
+                );
+            }
+            if (!rollPassed)
+            {
+                attempts.Add(
+                    BuildFatalInterceptAttempt(
+                        candidate,
+                        BattleFatalInterceptAttemptOutcomeKind.RollFailed,
+                        usageConsumed,
+                        rolledValue
+                    )
+                );
+                continue;
+            }
+
+            if (!intercept.ConsumeOnAttempt)
+            {
+                usageConsumed = EquipmentAbilityUsageRuntime.TryCommitFatalInterceptAttempt(
+                    context.TargetUnit,
+                    candidate.Source,
+                    candidate.Binding,
+                    intercept,
+                    context.WorldStep
+                );
+                if (!usageConsumed)
+                {
+                    attempts.Add(
+                        BuildFatalInterceptAttempt(
+                            candidate,
+                            BattleFatalInterceptAttemptOutcomeKind.Unavailable,
+                            false,
+                            rolledValue
+                        )
+                    );
+                    continue;
+                }
+            }
+
+            int recoveredHp = ResolveFatalRecoveryHp(context.TargetUnit, intercept);
+            if (recoveredHp <= 0)
+            {
+                attempts.Add(
+                    BuildFatalInterceptAttempt(
+                        candidate,
+                        BattleFatalInterceptAttemptOutcomeKind.RecoveryFailed,
+                        usageConsumed,
+                        rolledValue
+                    )
+                );
+                continue;
+            }
+
+            context.TargetUnit.SetCurrentHp(recoveredHp);
+            if (!context.TargetUnit.IsAlive())
+            {
+                attempts.Add(
+                    BuildFatalInterceptAttempt(
+                        candidate,
+                        BattleFatalInterceptAttemptOutcomeKind.RecoveryFailed,
+                        usageConsumed,
+                        rolledValue
+                    )
+                );
+                continue;
+            }
+
+            ResolveFatalInterceptSuccessActions(candidate, context);
+
+            attempts.Add(
+                BuildFatalInterceptAttempt(
+                    candidate,
+                    BattleFatalInterceptAttemptOutcomeKind.Intercepted,
+                    usageConsumed,
+                    rolledValue,
+                    context.TargetUnit.GetCurrentHp()
+                )
+            );
+            return new BattleFatalInterceptResult
+            {
+                Intercepted = true,
+                WinningBindingId = candidate.Binding.BindingId,
+                WinningInterceptId = intercept.InterceptId,
+                RecoveredHp = context.TargetUnit.GetCurrentHp(),
+                Attempts = attempts.AsReadOnly(),
+            };
+        }
+
+        return attempts.Count == 0
+            ? BattleFatalInterceptResult.None
+            : new BattleFatalInterceptResult { Attempts = attempts.AsReadOnly() };
+    }
+
+    private void ResolveFatalInterceptSuccessActions(
+        ActiveFatalInterceptCandidate candidate,
+        BattleFatalInterceptContext context
+    )
+    {
+        if (context?.TargetUnit == null || candidate.Binding == null)
+            return;
+        var activeBinding = new ActiveEquipmentAbilityBinding(
+            candidate.Source,
+            candidate.Binding
+        );
+        foreach (
+            EquipmentAbilityActionDefinition action
+            in candidate.Intercept?.SuccessActions
+                ?? Array.Empty<EquipmentAbilityActionDefinition>()
+        )
+        {
+            if (
+                action?.Kind == ActionKindApplyStatus
+                && action.PayloadDefinition is ApplyStatusActionPayloadDefinition statusPayload
+            )
+            {
+                foreach (
+                    BattleUnitState targetUnit
+                    in ResolveApplyStatusTargets(
+                        statusPayload.TargetSelector,
+                        context.TargetUnit,
+                        context.SourceUnit,
+                        context.BattleState
+                    )
+                )
+                {
+                    _statusActionResolver.ResolveApplyStatusAction(
+                        candidate.Binding,
+                        action,
+                        statusPayload,
+                        context.TargetUnit,
+                        targetUnit,
+                        context.SaveContext,
+                        addResult: null
+                    );
+                    context.Batch?.AddChangedUnitId(targetUnit.unit_id);
+                }
+            }
+            else if (
+                action?.Kind == ActionKindTriggerSkill
+                && action.PayloadDefinition is TriggerSkillActionPayloadDefinition skillPayload
+            )
+            {
+                _skillTriggerActionResolver.ResolveTriggerSkillAction(
+                    activeBinding,
+                    candidate.Binding,
+                    action,
+                    skillPayload,
+                    context.TargetUnit,
+                    context.SourceUnit,
+                    context.BattleState,
+                    context.Batch,
+                    context.SaveContext,
+                    addResult: null
+                );
+            }
+        }
+    }
+
+    internal BattleFatalInterceptPreviewResult PreviewFatalIntercept(
+        BattleFatalInterceptContext context
+    )
+    {
+        if (context?.TargetUnit == null)
+            return BattleFatalInterceptPreviewResult.None;
+
+        var previews = new List<BattleFatalInterceptCandidatePreview>();
+        var successActionPreviews = new List<BattleEquipmentAbilityActionPreviewResult>();
+        var candidates = new List<ActiveFatalInterceptCandidate>(
+            CollectFatalInterceptCandidates(context.TargetUnit)
+        );
+        long remainingFailureBasisPoints = 10000;
+        long weightedRecoveryBasisPoints = 0;
+        foreach (ActiveFatalInterceptCandidate candidate in candidates)
+        {
+            EquipmentFatalInterceptDefinition intercept = candidate.Intercept;
+            bool blocks = BattleDeathResolutionRules.CanDeathPreventionBlock(
+                context.DeathContext,
+                intercept.ProtectionPriority
+            );
+            bool available = blocks
+                && EquipmentAbilityUsageRuntime.IsFatalInterceptAttemptAvailable(
+                    context.TargetUnit,
+                    candidate.Source,
+                    candidate.Binding,
+                    intercept,
+                    context.WorldStep
+                );
+            int successBasisPoints = available
+                ? EstimateRollGateSuccessBasisPoints(intercept.RollGate)
+                : 0;
+            int expectedRecoveryHp = EstimateFatalRecoveryHp(
+                context.TargetUnit,
+                intercept
+            );
+            if (expectedRecoveryHp <= 0)
+                successBasisPoints = 0;
+            int reachProbabilityBasisPoints = (int)Math.Clamp(
+                remainingFailureBasisPoints,
+                0L,
+                10000L
+            );
+            int contributionProbabilityBasisPoints = available
+                ? (int)Math.Clamp(
+                    remainingFailureBasisPoints * successBasisPoints / 10000,
+                    0L,
+                    10000L
+                )
+                : 0;
+            IReadOnlyList<BattleEquipmentAbilityActionPreviewResult> candidateActions =
+                PreviewFatalInterceptSuccessActions(
+                    candidate,
+                    context,
+                    contributionProbabilityBasisPoints,
+                    expectedRecoveryHp
+                );
+            successActionPreviews.AddRange(candidateActions);
+            previews.Add(
+                new BattleFatalInterceptCandidatePreview
+                {
+                    SourceEquipmentInstanceId = candidate.Source.SourceEquipmentInstanceId,
+                    BindingId = candidate.Binding.BindingId,
+                    InterceptId = intercept.InterceptId,
+                    ResolutionOrder = intercept.ResolutionOrder,
+                    ProtectionPriority = intercept.ProtectionPriority,
+                    Available = available,
+                    BlocksDeathSource = blocks,
+                    ReachProbabilityBasisPoints = reachProbabilityBasisPoints,
+                    SuccessProbabilityBasisPoints = successBasisPoints,
+                    ContributionProbabilityBasisPoints =
+                        contributionProbabilityBasisPoints,
+                    ExpectedRecoveryHp = expectedRecoveryHp,
+                    SuccessActionPreviews = candidateActions,
+                }
+            );
+            if (!available || successBasisPoints <= 0)
+                continue;
+
+            long successPathBasisPoints =
+                remainingFailureBasisPoints * successBasisPoints / 10000;
+            weightedRecoveryBasisPoints += successPathBasisPoints * expectedRecoveryHp;
+            remainingFailureBasisPoints =
+                remainingFailureBasisPoints * (10000 - successBasisPoints) / 10000;
+        }
+
+        int interceptProbabilityBasisPoints = (int)Math.Clamp(
+            10000 - remainingFailureBasisPoints,
+            0L,
+            10000L
+        );
+        return previews.Count == 0
+            ? BattleFatalInterceptPreviewResult.None
+            : new BattleFatalInterceptPreviewResult
+            {
+                InterceptProbabilityBasisPoints = interceptProbabilityBasisPoints,
+                GuaranteedIntercept = interceptProbabilityBasisPoints >= 10000,
+                ExpectedRecoveryHp = (int)Math.Max(
+                    Math.Round(weightedRecoveryBasisPoints / 10000.0),
+                    0.0
+                ),
+                ExpectedSurvivalHp = (int)Math.Max(
+                    Math.Round(weightedRecoveryBasisPoints / 10000.0),
+                    0.0
+                ),
+                SuccessActionPreviews = successActionPreviews.AsReadOnly(),
+                Candidates = previews.AsReadOnly(),
+                ContinuationBranches = context.IsDetachedPreview
+                    ? BuildFatalInterceptPreviewBranches(context, candidates)
+                    : Array.Empty<BattleFatalInterceptPreviewBranch>(),
+            };
+    }
+
+    private IReadOnlyList<BattleFatalInterceptPreviewBranch>
+        BuildFatalInterceptPreviewBranches(
+            BattleFatalInterceptContext context,
+            IReadOnlyList<ActiveFatalInterceptCandidate> candidates
+        )
+    {
+        BattleFatalInterceptPreviewBranch initial = CloneFatalPreviewBranch(
+            context?.BattleState,
+            context?.SourceUnit,
+            context?.TargetUnit,
+            probabilityBasisPoints: 10000
+        );
+        if (initial == null)
+            return Array.Empty<BattleFatalInterceptPreviewBranch>();
+
+        var activeFailureBranches = new List<BattleFatalInterceptPreviewBranch>
+        {
+            initial,
+        };
+        var terminalBranches = new List<BattleFatalInterceptPreviewBranch>();
+        foreach (
+            ActiveFatalInterceptCandidate candidate
+            in candidates ?? Array.Empty<ActiveFatalInterceptCandidate>()
+        )
+        {
+            var nextFailureBranches = new List<BattleFatalInterceptPreviewBranch>();
+            foreach (BattleFatalInterceptPreviewBranch active in activeFailureBranches)
+            {
+                BattleUnitState branchTarget = active.TargetUnit;
+                EquipmentFatalInterceptDefinition intercept = candidate.Intercept;
+                bool blocks = BattleDeathResolutionRules.CanDeathPreventionBlock(
+                    context.DeathContext,
+                    intercept.ProtectionPriority
+                );
+                bool available = blocks
+                    && EquipmentAbilityUsageRuntime.IsFatalInterceptAttemptAvailable(
+                        branchTarget,
+                        candidate.Source,
+                        candidate.Binding,
+                        intercept,
+                        context.WorldStep
+                    );
+                if (!available)
+                {
+                    nextFailureBranches.Add(active);
+                    continue;
+                }
+
+                int successProbability = EstimateRollGateSuccessBasisPoints(
+                    intercept.RollGate
+                );
+                int expectedRecoveryHp = EstimateFatalRecoveryHp(
+                    branchTarget,
+                    intercept
+                );
+                if (expectedRecoveryHp <= 0)
+                    successProbability = 0;
+                successProbability = Math.Clamp(successProbability, 0, 10000);
+                int successPathProbability = (int)Math.Clamp(
+                    Math.Round(
+                        active.ProbabilityBasisPoints
+                            * successProbability
+                            / 10000.0
+                    ),
+                    0.0,
+                    active.ProbabilityBasisPoints
+                );
+                int failurePathProbability = Math.Max(
+                    active.ProbabilityBasisPoints - successPathProbability,
+                    0
+                );
+
+                if (failurePathProbability > 0)
+                {
+                    BattleFatalInterceptPreviewBranch failure = CloneFatalPreviewBranch(
+                        active.BattleState,
+                        active.SourceUnit,
+                        active.TargetUnit,
+                        failurePathProbability
+                    );
+                    if (
+                        failure != null
+                        && (
+                            !intercept.ConsumeOnAttempt
+                            || TryCommitFatalPreviewAttempt(
+                                failure.TargetUnit,
+                                candidate,
+                                context.WorldStep
+                            )
+                        )
+                    )
+                    {
+                        nextFailureBranches.Add(failure);
+                    }
+                    else
+                    {
+                        nextFailureBranches.Add(active);
+                    }
+                }
+
+                if (successPathProbability <= 0)
+                    continue;
+                BattleFatalInterceptPreviewBranch success = CloneFatalPreviewBranch(
+                    active.BattleState,
+                    active.SourceUnit,
+                    active.TargetUnit,
+                    successPathProbability
+                );
+                if (
+                    success == null
+                    || !TryCommitFatalPreviewAttempt(
+                        success.TargetUnit,
+                        candidate,
+                        context.WorldStep
+                    )
+                )
+                {
+                    BattleFatalInterceptPreviewBranch unavailable = CloneFatalPreviewBranch(
+                        active.BattleState,
+                        active.SourceUnit,
+                        active.TargetUnit,
+                        successPathProbability
+                    );
+                    if (unavailable != null)
+                        nextFailureBranches.Add(unavailable);
+                    continue;
+                }
+
+                success.TargetUnit.SetCurrentHp(expectedRecoveryHp);
+                var successContext = new BattleFatalInterceptContext
+                {
+                    SourceUnit = success.SourceUnit,
+                    TargetUnit = success.TargetUnit,
+                    BattleState = success.BattleState,
+                    DeathContext = context.DeathContext,
+                    HpBefore = context.HpBefore,
+                    HpDamage = context.HpDamage,
+                    ProjectedHp = context.ProjectedHp,
+                    WorldStep = context.WorldStep,
+                    Batch = null,
+                    SaveContext = context.SaveContext,
+                    IsDetachedPreview = true,
+                    DetachedPreviewDepth = context.DetachedPreviewDepth,
+                };
+                PreviewFatalInterceptSuccessActions(
+                    candidate,
+                    successContext,
+                    triggerProbabilityBasisPoints: 10000,
+                    expectedRecoveryHp
+                );
+                terminalBranches.Add(
+                    new BattleFatalInterceptPreviewBranch
+                    {
+                        ProbabilityBasisPoints = success.ProbabilityBasisPoints,
+                        BattleState = success.BattleState,
+                        SourceUnit = success.SourceUnit,
+                        TargetUnit = success.TargetUnit,
+                        Intercepted = true,
+                        WinningBindingId = candidate.Binding.BindingId,
+                        WinningInterceptId = intercept.InterceptId,
+                    }
+                );
+            }
+            activeFailureBranches = nextFailureBranches;
+        }
+
+        foreach (BattleFatalInterceptPreviewBranch failure in activeFailureBranches)
+        {
+            failure.TargetUnit.MarkDead();
+            terminalBranches.Add(failure);
+        }
+        return terminalBranches.AsReadOnly();
+    }
+
+    private static BattleFatalInterceptPreviewBranch CloneFatalPreviewBranch(
+        BattleState state,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        int probabilityBasisPoints
+    )
+    {
+        if (targetUnit == null || probabilityBasisPoints <= 0)
+            return null;
+        BattleDetachedPreviewState detached = BattleDetachedPreviewState.Create(
+            state,
+            sourceUnit,
+            targetUnit
+        );
+        BattleUnitState targetClone = detached.GetUnit(targetUnit.unit_id);
+        if (targetClone == null)
+            return null;
+        BattleUnitState sourceClone = sourceUnit != null
+            ? detached.GetUnit(sourceUnit.unit_id)
+            : null;
+        return new BattleFatalInterceptPreviewBranch
+        {
+            ProbabilityBasisPoints = Math.Clamp(probabilityBasisPoints, 0, 10000),
+            BattleState = detached.State,
+            SourceUnit = sourceClone,
+            TargetUnit = targetClone,
+        };
+    }
+
+    private static bool TryCommitFatalPreviewAttempt(
+        BattleUnitState targetUnit,
+        ActiveFatalInterceptCandidate candidate,
+        int worldStep
+    ) =>
+        EquipmentAbilityUsageRuntime.TryCommitFatalInterceptAttempt(
+            targetUnit,
+            candidate.Source,
+            candidate.Binding,
+            candidate.Intercept,
+            worldStep
+        );
+
+    private IReadOnlyList<BattleEquipmentAbilityActionPreviewResult>
+        PreviewFatalInterceptSuccessActions(
+            ActiveFatalInterceptCandidate candidate,
+            BattleFatalInterceptContext context,
+            int triggerProbabilityBasisPoints,
+            int expectedRecoveryHp
+        )
+    {
+        var results = new List<BattleEquipmentAbilityActionPreviewResult>();
+        int probability = Math.Clamp(triggerProbabilityBasisPoints, 0, 10000);
+        bool canApply =
+            context?.IsDetachedPreview == true
+            && probability >= 10000
+            && expectedRecoveryHp > 0;
+        if (canApply)
+            context.TargetUnit.SetCurrentHp(expectedRecoveryHp);
+
+        var activeBinding = new ActiveEquipmentAbilityBinding(
+            candidate.Source,
+            candidate.Binding
+        );
+        foreach (
+            EquipmentAbilityActionDefinition action
+            in candidate.Intercept?.SuccessActions
+                ?? Array.Empty<EquipmentAbilityActionDefinition>()
+        )
+        {
+            if (
+                action?.Kind == ActionKindApplyStatus
+                && action.PayloadDefinition is ApplyStatusActionPayloadDefinition statusPayload
+            )
+            {
+                bool applied = false;
+                if (canApply)
+                {
+                    foreach (
+                        BattleUnitState targetUnit
+                        in ResolveApplyStatusTargets(
+                            statusPayload.TargetSelector,
+                            context.TargetUnit,
+                            context.SourceUnit,
+                            context.BattleState
+                        )
+                    )
+                    {
+                        _statusActionResolver.ResolveApplyStatusAction(
+                            candidate.Binding,
+                            action,
+                            statusPayload,
+                            context.TargetUnit,
+                            targetUnit,
+                            context.SaveContext,
+                            addResult: null
+                        );
+                        applied = true;
+                    }
+                }
+                results.Add(
+                    new BattleEquipmentAbilityActionPreviewResult
+                    {
+                        BindingId = candidate.Binding.BindingId,
+                        ActionId = action.ActionId,
+                        ActionKind = action.Kind,
+                        TriggerProbabilityBasisPoints = probability,
+                        Guaranteed = probability >= 10000,
+                        Applied = applied,
+                        Conditional = probability > 0 && probability < 10000,
+                        Supported = true,
+                    }
+                );
+            }
+            else if (
+                action?.Kind == ActionKindTriggerSkill
+                && action.PayloadDefinition is TriggerSkillActionPayloadDefinition skillPayload
+            )
+            {
+                results.Add(
+                    _skillTriggerActionResolver.PreviewTriggerSkillAction(
+                        activeBinding,
+                        candidate.Binding,
+                        action,
+                        skillPayload,
+                        context.TargetUnit,
+                        context.SourceUnit,
+                        context.BattleState,
+                        probability,
+                        context.DetachedPreviewDepth
+                    )
+                );
+            }
+            else if (action != null)
+            {
+                results.Add(
+                    new BattleEquipmentAbilityActionPreviewResult
+                    {
+                        BindingId = candidate.Binding.BindingId,
+                        ActionId = action.ActionId,
+                        ActionKind = action.Kind,
+                        TriggerProbabilityBasisPoints = probability,
+                        Guaranteed = probability >= 10000,
+                        Conditional = probability > 0 && probability < 10000,
+                        Supported = false,
+                        UnsupportedReason = "fatal_success_action_kind_not_supported",
+                    }
+                );
+            }
+        }
+        return results.AsReadOnly();
+    }
+
+    private int ResolveFatalRecoveryHp(
+        BattleUnitState targetUnit,
+        EquipmentFatalInterceptDefinition intercept
+    )
+    {
+        if (targetUnit == null || intercept == null)
+            return 0;
+        if (intercept.RecoveryKind == EquipmentFatalInterceptRecoveryKind.MaxHpPercent)
+            return ResolveMaxHpPercentRecovery(targetUnit, intercept.RecoveryPercentBasisPoints);
+        if (_forcedFatalRecoveryValuesForTests.Count > 0)
+            return _forcedFatalRecoveryValuesForTests.Dequeue();
+        return RollDiceExpression(intercept.RecoveryDice);
+    }
+
+    private static int EstimateFatalRecoveryHp(
+        BattleUnitState targetUnit,
+        EquipmentFatalInterceptDefinition intercept
+    )
+    {
+        if (targetUnit == null || intercept == null)
+            return 0;
+        if (intercept.RecoveryKind == EquipmentFatalInterceptRecoveryKind.MaxHpPercent)
+            return ResolveMaxHpPercentRecovery(targetUnit, intercept.RecoveryPercentBasisPoints);
+        if (intercept.RecoveryDice == null)
+            return 0;
+        double total = Math.Max(intercept.RecoveryDice.FlatBonus, 0);
+        foreach (
+            DiceExpressionTermDefinition term
+            in intercept.RecoveryDice.Terms ?? Array.Empty<DiceExpressionTermDefinition>()
+        )
+        {
+            if (term == null || term.DiceCount <= 0 || term.DiceSides <= 0)
+                continue;
+            total += term.DiceCount * (term.DiceSides + 1) / 2.0;
+        }
+        return Math.Max((int)Math.Round(total), 0);
+    }
+
+    private static int ResolveMaxHpPercentRecovery(
+        BattleUnitState targetUnit,
+        int recoveryPercentBasisPoints
+    )
+    {
+        int maxHp = Math.Max(
+            targetUnit?.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 0,
+            1
+        );
+        int basisPoints = Math.Clamp(recoveryPercentBasisPoints, 0, 10000);
+        long recovered = ((long)maxHp * basisPoints + 9999L) / 10000L;
+        return (int)Math.Clamp(recovered, 0L, maxHp);
+    }
+
+    private static int EstimateRollGateSuccessBasisPoints(
+        EquipmentRollGateDefinition rollGate
+    )
+    {
+        if (rollGate == null)
+            return 10000;
+        DiceExpressionDefinition dice = rollGate.Roll;
+        if (dice == null)
+            return 0;
+
+        int totalDice = 0;
+        int maximum = Math.Max(dice.FlatBonus, 0);
+        foreach (
+            DiceExpressionTermDefinition term
+            in dice.Terms ?? Array.Empty<DiceExpressionTermDefinition>()
+        )
+        {
+            long proposedMaximum =
+                (long)maximum + (long)(term?.DiceCount ?? 0) * (term?.DiceSides ?? 0);
+            if (
+                term == null
+                || term.DiceCount <= 0
+                || term.DiceSides <= 0
+                || (long)totalDice + term.DiceCount > 64L
+                || proposedMaximum > 10000L
+            )
+            {
+                return 0;
+            }
+            totalDice += term.DiceCount;
+            maximum = (int)proposedMaximum;
+        }
+        if (totalDice <= 0)
+            return 0;
+
+        double[] distribution = new double[maximum + 1];
+        int baseValue = Math.Max(dice.FlatBonus, 0);
+        distribution[baseValue] = 1.0;
+        int currentMaximum = baseValue;
+        foreach (
+            DiceExpressionTermDefinition term
+            in dice.Terms ?? Array.Empty<DiceExpressionTermDefinition>()
+        )
+        {
+            for (int dieIndex = 0; dieIndex < term.DiceCount; dieIndex++)
+            {
+                var next = new double[maximum + 1];
+                for (int value = 0; value <= currentMaximum; value++)
+                {
+                    double probability = distribution[value];
+                    if (probability <= 0.0)
+                        continue;
+                    for (int face = 1; face <= term.DiceSides; face++)
+                        next[value + face] += probability / term.DiceSides;
+                }
+                currentMaximum += term.DiceSides;
+                distribution = next;
+            }
+        }
+
+        double successProbability = 0.0;
+        for (int value = 0; value <= currentMaximum; value++)
+        {
+            if (CompareInt(value, rollGate.Compare, rollGate.Threshold))
+                successProbability += distribution[value];
+        }
+        return Math.Clamp((int)Math.Round(successProbability * 10000.0), 0, 10000);
+    }
+
+    private IEnumerable<ActiveFatalInterceptCandidate> CollectFatalInterceptCandidates(
+        BattleUnitState targetUnit
+    )
+    {
+        var result = new List<ActiveFatalInterceptCandidate>();
+        foreach (ActiveEquipmentAbilityBinding activeBinding in CollectActiveBindings(targetUnit))
+        {
+            foreach (
+                EquipmentFatalInterceptDefinition intercept
+                in activeBinding.Binding?.FatalIntercepts
+                    ?? Array.Empty<EquipmentFatalInterceptDefinition>()
+            )
+            {
+                if (intercept != null)
+                {
+                    result.Add(
+                        new ActiveFatalInterceptCandidate(
+                            activeBinding.Source,
+                            activeBinding.Binding,
+                            intercept
+                        )
+                    );
+                }
+            }
+        }
+        result.Sort(CompareFatalInterceptCandidates);
+        return result;
+    }
+
+    private static int CompareFatalInterceptCandidates(
+        ActiveFatalInterceptCandidate left,
+        ActiveFatalInterceptCandidate right
+    )
+    {
+        int orderCompare = left.Intercept.ResolutionOrder.CompareTo(
+            right.Intercept.ResolutionOrder
+        );
+        if (orderCompare != 0)
+            return orderCompare;
+        int bindingCompare = string.CompareOrdinal(
+            left.Binding.BindingId.ToString(),
+            right.Binding.BindingId.ToString()
+        );
+        if (bindingCompare != 0)
+            return bindingCompare;
+        int sourceCompare = string.CompareOrdinal(
+            left.Source.EffectiveInstanceKey.ToString(),
+            right.Source.EffectiveInstanceKey.ToString()
+        );
+        if (sourceCompare != 0)
+            return sourceCompare;
+        return string.CompareOrdinal(
+            left.Intercept.InterceptId.ToString(),
+            right.Intercept.InterceptId.ToString()
+        );
+    }
+
+    private static BattleFatalInterceptAttemptResult BuildFatalInterceptAttempt(
+        ActiveFatalInterceptCandidate candidate,
+        BattleFatalInterceptAttemptOutcomeKind outcome,
+        bool usageConsumed = false,
+        int rolledValue = 0,
+        int recoveredHp = 0
+    ) =>
+        new()
+        {
+            SourceEquipmentInstanceId = candidate.Source.SourceEquipmentInstanceId,
+            BindingId = candidate.Binding.BindingId,
+            InterceptId = candidate.Intercept.InterceptId,
+            ResolutionOrder = candidate.Intercept.ResolutionOrder,
+            ProtectionPriority = candidate.Intercept.ProtectionPriority,
+            Outcome = outcome,
+            UsageConsumed = usageConsumed,
+            RolledValue = rolledValue,
+            RecoveredHp = Math.Max(recoveredHp, 0),
+        };
+
     internal bool RollGatePasses(
         EquipmentRollGateDefinition rollGate,
         StringName bindingId,
@@ -2120,36 +3432,65 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
             ?? new BattleEquipmentAbilitySourceListReadView(
                 null
             );
-        if (
-            !sources.IsPresent
-            || bindingIndex == null
-            || bindingIndex.Count == 0
-        )
+        if (sourceUnit == null || bindingIndex == null || bindingIndex.Count == 0)
         {
             yield break;
         }
         var result = new List<ActiveEquipmentAbilityBinding>();
-        foreach (
-            BattleEquipmentAbilitySourceReadView source in sources
-        )
+        if (sources.IsPresent)
         {
-            if (source?.AbilityIds == null)
-                continue;
-            foreach (StringName abilityId in source.AbilityIds)
+            foreach (BattleEquipmentAbilitySourceReadView source in sources)
             {
-                StringName normalizedAbilityId = ProgressionDataUtils.to_string_name(abilityId);
-                if (
-                    normalizedAbilityId != ""
-                    && bindingIndex.TryGetValue(
-                        normalizedAbilityId,
-                        out EquipmentAbilityBindingDefinition binding
-                    )
-                    && binding != null
-                )
+                if (source?.AbilityIds == null)
+                    continue;
+                foreach (StringName abilityId in source.AbilityIds)
                 {
-                    result.Add(new ActiveEquipmentAbilityBinding(source, binding));
+                    StringName normalizedAbilityId = ProgressionDataUtils.to_string_name(abilityId);
+                    if (
+                        normalizedAbilityId != ""
+                        && bindingIndex.TryGetValue(
+                            normalizedAbilityId,
+                            out EquipmentAbilityBindingDefinition binding
+                        )
+                        && binding != null
+                        && binding.ActivationStatusId == ""
+                    )
+                    {
+                        result.Add(new ActiveEquipmentAbilityBinding(source, binding));
+                    }
                 }
             }
+        }
+
+        foreach (EquipmentAbilityBindingDefinition binding in bindingIndex.Values)
+        {
+            if (
+                binding == null
+                || binding.BindingId == ""
+                || binding.ActivationStatusId == ""
+                || !sourceUnit.HasStatusEffect(binding.ActivationStatusId)
+            )
+            {
+                continue;
+            }
+            var statusSource = new BattleEquipmentAbilitySourceState
+            {
+                EffectiveInstanceKey = new StringName(
+                    $"battle_status:{sourceUnit.unit_id}:{binding.BindingId}"
+                ),
+                EquipmentDefId = new StringName(
+                    $"battle_status:{binding.ActivationStatusId}"
+                ),
+                SourceEquipmentInstanceId = "",
+                SourceKind = EquipmentAbilitySourceKind.BattleStatusDerived,
+                AbilityIds = new List<StringName> { binding.BindingId },
+            };
+            result.Add(
+                new ActiveEquipmentAbilityBinding(
+                    new BattleEquipmentAbilitySourceReadView(statusSource),
+                    binding
+                )
+            );
         }
         result.Sort(CompareActiveBindings);
         foreach (ActiveEquipmentAbilityBinding activeBinding in result)
@@ -2228,5 +3569,43 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
     internal readonly record struct ActiveEquipmentAbilityBinding(
         BattleEquipmentAbilitySourceReadView Source,
         EquipmentAbilityBindingDefinition Binding
+    );
+
+    private readonly record struct ActiveMovementTrailCandidate(
+        BattleEquipmentAbilitySourceReadView Source,
+        EquipmentAbilityBindingDefinition Binding,
+        EquipmentMovementTrailDefinition Trail
+    );
+
+    private static int CompareMovementTrailCandidate(
+        ActiveMovementTrailCandidate left,
+        ActiveMovementTrailCandidate right
+    )
+    {
+        int priorityOrder = right.Trail.Priority.CompareTo(left.Trail.Priority);
+        if (priorityOrder != 0)
+            return priorityOrder;
+        int bindingOrder = string.CompareOrdinal(
+            left.Binding.BindingId.ToString(),
+            right.Binding.BindingId.ToString()
+        );
+        if (bindingOrder != 0)
+            return bindingOrder;
+        int trailOrder = string.CompareOrdinal(
+            left.Trail.TrailId.ToString(),
+            right.Trail.TrailId.ToString()
+        );
+        if (trailOrder != 0)
+            return trailOrder;
+        return string.CompareOrdinal(
+            left.Source?.EffectiveInstanceKey.ToString() ?? "",
+            right.Source?.EffectiveInstanceKey.ToString() ?? ""
+        );
+    }
+
+    private readonly record struct ActiveFatalInterceptCandidate(
+        BattleEquipmentAbilitySourceReadView Source,
+        EquipmentAbilityBindingDefinition Binding,
+        EquipmentFatalInterceptDefinition Intercept
     );
 }

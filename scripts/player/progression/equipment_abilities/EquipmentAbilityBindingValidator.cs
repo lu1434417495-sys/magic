@@ -99,13 +99,67 @@ internal sealed class EquipmentAbilityBindingValidator
         }
 
         ValidateSourceKinds(binding, errors);
+        ValidateRequiredEffectiveTraits(binding, context, errors);
+        ValidateActivationSource(binding, context, errors);
         HashSet<StringName> declaredStateKeys = ValidateStateSchemas(binding, errors);
         ValidateReactions(binding, context, declaredStateKeys, errors);
+        ValidateFatalIntercepts(binding, context, declaredStateKeys, errors);
+        ValidateMitigationAuras(binding, errors);
+        ValidateMovementTrails(binding, context, errors);
         ValidateGrantedActions(binding, context, errors);
         ValidateTemporalProgressModifiers(binding, errors);
         ValidateCognitionCeilingModifiers(binding, errors);
         ValidateWeaponProfileOverlays(binding, context, errors);
         ValidateWorldEffects(binding, context, declaredStateKeys, errors);
+    }
+
+    private static void ValidateRequiredEffectiveTraits(
+        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityContentValidationContext context,
+        List<string> errors
+    )
+    {
+        if (binding?.required_effective_trait_ids == null)
+            return;
+
+        string path = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seen = new HashSet<StringName>();
+        for (int index = 0; index < binding.required_effective_trait_ids.Count; index++)
+        {
+            StringName traitId = ProgressionDataUtils.to_string_name(
+                binding.required_effective_trait_ids[index]
+            );
+            string traitPath = $"{path}.required_effective_trait_ids[{index}]";
+            if (traitId == "")
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_REQUIRED_EFFECTIVE_TRAIT_EMPTY",
+                    traitPath,
+                    "required effective trait id must not be empty"
+                );
+                continue;
+            }
+            if (!seen.Add(traitId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_REQUIRED_EFFECTIVE_TRAIT_DUPLICATE",
+                    traitPath,
+                    $"required effective trait {traitId} must not be duplicated"
+                );
+                continue;
+            }
+            if (!EquipmentAbilityContentRegistry.ContainsValue(context.KnownTraitIds, traitId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_REFERENCE_MISSING_REQUIRED_EFFECTIVE_TRAIT",
+                    traitPath,
+                    $"required effective trait {traitId} is not known"
+                );
+            }
+        }
     }
 
     private static void ValidateSourceKinds(
@@ -117,7 +171,11 @@ internal sealed class EquipmentAbilityBindingValidator
         foreach (StringName sourceKind in binding.allowed_source_kinds)
         {
             TraitSourceKind parsed = TraitContentRules.ToSourceKind(sourceKind);
-            if (parsed != TraitSourceKind.EquipmentFixed && parsed != TraitSourceKind.EquipmentRoll)
+            if (
+                parsed != TraitSourceKind.EquipmentFixed
+                && parsed != TraitSourceKind.EquipmentRoll
+                && parsed != TraitSourceKind.GearSetThreshold
+            )
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
@@ -126,6 +184,40 @@ internal sealed class EquipmentAbilityBindingValidator
                     $"allowed_source_kind {sourceKind} is not supported for equipment abilities"
                 );
             }
+        }
+    }
+
+    private static void ValidateActivationSource(
+        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityContentValidationContext context,
+        List<string> errors
+    )
+    {
+        if (binding == null || binding.activation_status_id == "")
+            return;
+        ValidateStatusReference(
+            binding.activation_status_id,
+            context,
+            $"{EquipmentAbilityContentRegistry.BindingPath(binding)}.activation_status_id",
+            errors
+        );
+        if (binding.granted_actions?.Count > 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_ACTIVATION_GRANTED_ACTION_UNSUPPORTED",
+                $"{EquipmentAbilityContentRegistry.BindingPath(binding)}.granted_actions",
+                "status-activated bindings cannot grant command actions"
+            );
+        }
+        if (binding.world_effects?.Count > 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_ACTIVATION_WORLD_EFFECT_UNSUPPORTED",
+                $"{EquipmentAbilityContentRegistry.BindingPath(binding)}.world_effects",
+                "status-activated bindings cannot project persistent world effects"
+            );
         }
     }
 
@@ -859,6 +951,464 @@ internal sealed class EquipmentAbilityBindingValidator
             if (stateKey == "" && !string.IsNullOrWhiteSpace(contract.StateKeyPayloadMemberName))
                 stateKey = EquipmentAbilityPayloadValidators.ReadStringNamePayloadMember(payload, contract.StateKeyPayloadMemberName);
             EquipmentAbilityPayloadValidators.ValidateDeclaredStateKey(stateKey, declaredStateKeys, path, errors);
+        }
+    }
+
+    private void ValidateFatalIntercepts(
+        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityContentValidationContext context,
+        HashSet<StringName> declaredStateKeys,
+        List<string> errors
+    )
+    {
+        string bindingPath = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seenIds = new HashSet<StringName>();
+        var seenOrders = new HashSet<int>();
+        foreach (
+            EquipmentFatalInterceptDef intercept
+            in binding.fatal_intercepts ?? new Godot.Collections.Array<EquipmentFatalInterceptDef>()
+        )
+        {
+            if (intercept == null)
+                continue;
+            StringName interceptId = ProgressionDataUtils.to_string_name(intercept.intercept_id);
+            string path = $"{bindingPath}.fatal_intercepts[{interceptId}]";
+            if (interceptId == "")
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_ID_MISSING",
+                    path,
+                    "fatal intercept requires intercept_id"
+                );
+            }
+            else if (!seenIds.Add(interceptId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_ID_DUPLICATE",
+                    path,
+                    $"fatal intercept {interceptId} is duplicated"
+                );
+            }
+
+            if (intercept.resolution_order < 0 || !seenOrders.Add(intercept.resolution_order))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_ORDER_INVALID",
+                    $"{path}.resolution_order",
+                    "resolution_order must be non-negative and unique within the binding"
+                );
+            }
+            if (intercept.protection_priority <= 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_PRIORITY_INVALID",
+                    $"{path}.protection_priority",
+                    "protection_priority must be positive"
+                );
+            }
+
+            bool usageParsed = EquipmentAbilityUsagePeriodKinds.TryParse(
+                intercept.usage_period_kind,
+                out EquipmentAbilityUsagePeriodKind usagePeriodKind
+            );
+            if (
+                !usageParsed
+                || (
+                    usagePeriodKind != EquipmentAbilityUsagePeriodKind.PerBattle
+                    && !EquipmentAbilityUsagePeriodKinds.IsPersistentWorldPeriod(
+                        usagePeriodKind
+                    )
+                )
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_USAGE_PERIOD_UNSUPPORTED",
+                    $"{path}.usage_period_kind",
+                    "fatal intercept usage_period_kind must be per_battle, per_world_day, or per_world_month"
+                );
+            }
+            else if (
+                binding.activation_status_id != ""
+                && EquipmentAbilityUsagePeriodKinds.IsPersistentWorldPeriod(usagePeriodKind)
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_STATUS_FATAL_PERSISTENT_USAGE_UNSUPPORTED",
+                    $"{path}.usage_period_kind",
+                    "status-activated fatal intercepts require per_battle usage"
+                );
+            }
+            if (intercept.max_attempts_per_period <= 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_USAGE_LIMIT_INVALID",
+                    $"{path}.max_attempts_per_period",
+                    "max_attempts_per_period must be positive"
+                );
+            }
+
+            ValidateFatalInterceptRollGate(intercept.roll_gate, $"{path}.roll_gate", errors);
+            bool recoveryParsed = EquipmentAbilityDefinitionProjection.TryParseFatalInterceptRecoveryKind(
+                intercept.recovery_kind,
+                out EquipmentFatalInterceptRecoveryKind recoveryKind
+            );
+            if (!recoveryParsed)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_RECOVERY_KIND_UNSUPPORTED",
+                    $"{path}.recovery_kind",
+                    "recovery_kind must be hp_dice or max_hp_percent"
+                );
+                continue;
+            }
+
+            if (recoveryKind == EquipmentFatalInterceptRecoveryKind.HpDice)
+            {
+                ValidateFatalInterceptDice(
+                    intercept.recovery_dice,
+                    $"{path}.recovery_dice",
+                    errors
+                );
+                if (intercept.recovery_percent_basis_points != 0)
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_FATAL_INTERCEPT_RECOVERY_SHAPE_INVALID",
+                        path,
+                        "hp_dice recovery must not declare recovery_percent_basis_points"
+                    );
+                }
+            }
+            else
+            {
+                if (intercept.recovery_dice != null)
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_FATAL_INTERCEPT_RECOVERY_SHAPE_INVALID",
+                        path,
+                        "max_hp_percent recovery must not declare recovery_dice"
+                    );
+                }
+                if (
+                    intercept.recovery_percent_basis_points <= 0
+                    || intercept.recovery_percent_basis_points > 10000
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_FATAL_INTERCEPT_RECOVERY_PERCENT_INVALID",
+                        $"{path}.recovery_percent_basis_points",
+                        "recovery_percent_basis_points must be within 1..10000"
+                    );
+                }
+            }
+
+            int actionIndex = 0;
+            foreach (
+                EquipmentAbilityActionDef action
+                in intercept.success_actions
+                    ?? new Godot.Collections.Array<EquipmentAbilityActionDef>()
+            )
+            {
+                string actionPath = $"{path}.success_actions[{actionIndex}]";
+                if (
+                    action != null
+                    && action.kind != "apply_status"
+                    && action.kind != "trigger_skill"
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_FATAL_INTERCEPT_SUCCESS_ACTION_UNSUPPORTED",
+                        actionPath,
+                        "fatal intercept success actions support apply_status or trigger_skill"
+                    );
+                }
+                ValidateAction(
+                    action,
+                    $"{path}.success_actions",
+                    context,
+                    declaredStateKeys,
+                    EquipmentAbilityTriggerKind.OnDamageTakenFinalized,
+                    errors
+                );
+                actionIndex++;
+            }
+        }
+    }
+
+    private static void ValidateMitigationAuras(
+        EquipmentAbilityBindingDef binding,
+        List<string> errors
+    )
+    {
+        string bindingPath = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seenIds = new HashSet<StringName>();
+        foreach (
+            EquipmentMitigationAuraDef aura
+            in binding.mitigation_auras
+                ?? new Godot.Collections.Array<EquipmentMitigationAuraDef>()
+        )
+        {
+            if (aura == null)
+                continue;
+            StringName auraId = ProgressionDataUtils.to_string_name(aura.aura_id);
+            string path = $"{bindingPath}.mitigation_auras[{auraId}]";
+            if (auraId == "" || !seenIds.Add(auraId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_ID_INVALID",
+                    $"{path}.aura_id",
+                    "mitigation aura requires a unique non-empty aura_id"
+                );
+            }
+            if (aura.radius < 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_RADIUS_INVALID",
+                    $"{path}.radius",
+                    "mitigation aura radius must be non-negative"
+                );
+            }
+            if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(aura.target_team_filter))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_TARGET_FILTER_INVALID",
+                    $"{path}.target_team_filter",
+                    $"mitigation aura target_team_filter must be one of {CombatTargetTeamContentRules.ValidSkillTargetTeamFilterLabel()}"
+                );
+            }
+            if (DamageTagContentRules.ToDamageTagKind(aura.damage_tag) == DamageTagKind.Unknown)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_DAMAGE_TAG_INVALID",
+                    $"{path}.damage_tag",
+                    $"mitigation aura damage_tag must be one of {DamageTagContentRules.ValidDamageTagLabel()}"
+                );
+            }
+            DamageMitigationTierKind tier = DamageTagContentRules.ToMitigationTierKind(
+                aura.mitigation_tier
+            );
+            if (
+                tier == DamageMitigationTierKind.Unknown
+                || tier == DamageMitigationTierKind.Normal
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_TIER_INVALID",
+                    $"{path}.mitigation_tier",
+                    "mitigation aura tier must be half, double, or immune"
+                );
+            }
+        }
+    }
+
+    private static void ValidateMovementTrails(
+        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityContentValidationContext context,
+        List<string> errors
+    )
+    {
+        string bindingPath = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seenIds = new HashSet<StringName>();
+        foreach (
+            EquipmentMovementTrailDef trail
+            in binding.movement_trails
+                ?? new Godot.Collections.Array<EquipmentMovementTrailDef>()
+        )
+        {
+            if (trail == null)
+                continue;
+            StringName trailId = ProgressionDataUtils.to_string_name(trail.trail_id);
+            string path = $"{bindingPath}.movement_trails[{trailId}]";
+            if (trailId == "" || !seenIds.Add(trailId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_ID_INVALID",
+                    $"{path}.trail_id",
+                    "movement trail requires a unique non-empty trail_id"
+                );
+            }
+            if (trail.priority < 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_PRIORITY_INVALID",
+                    $"{path}.priority",
+                    "movement trail priority must be non-negative"
+                );
+            }
+            if (trail.duration_tu <= 0 || trail.duration_tu % 5 != 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_DURATION_INVALID",
+                    $"{path}.duration_tu",
+                    "movement trail duration_tu must be positive and aligned to 5 TU"
+                );
+            }
+            if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(trail.target_team_filter))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_TARGET_FILTER_INVALID",
+                    $"{path}.target_team_filter",
+                    $"movement trail target_team_filter must be one of {CombatTargetTeamContentRules.ValidSkillTargetTeamFilterLabel()}"
+                );
+            }
+            ValidateFatalInterceptDice(trail.damage_dice, $"{path}.damage_dice", errors);
+            if (trail.damage_dice?.terms?.Count != 1)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_DICE_INVALID",
+                    $"{path}.damage_dice",
+                    "movement trail damage requires exactly one fixed dice term"
+                );
+            }
+            if (DamageTagContentRules.ToDamageTagKind(trail.damage_tag) == DamageTagKind.Unknown)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_DAMAGE_TAG_INVALID",
+                    $"{path}.damage_tag",
+                    $"movement trail damage_tag must be one of {DamageTagContentRules.ValidDamageTagLabel()}"
+                );
+            }
+            foreach (
+                StringName damageTag
+                in trail.damage_tags ?? new Godot.Collections.Array<StringName>()
+            )
+            {
+                if (DamageTagContentRules.ToDamageTagKind(damageTag) != DamageTagKind.Unknown)
+                    continue;
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_DAMAGE_TAG_INVALID",
+                    $"{path}.damage_tags[{damageTag}]",
+                    $"movement trail damage tag {damageTag} is not known"
+                );
+            }
+            if (trail.required_skill_id != "")
+            {
+                ValidateSkillReference(
+                    trail.required_skill_id,
+                    context,
+                    $"{path}.required_skill_id",
+                    errors
+                );
+            }
+        }
+    }
+
+    private static void ValidateFatalInterceptRollGate(
+        EquipmentRollGateDef rollGate,
+        string path,
+        List<string> errors
+    )
+    {
+        if (rollGate == null)
+            return;
+        if (ProgressionDataUtils.to_string_name(rollGate.rng_stream) == "")
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_ROLL_GATE_INVALID",
+                $"{path}.rng_stream",
+                "fatal intercept roll_gate requires rng_stream"
+            );
+        }
+        ValidateFatalInterceptDice(rollGate.roll, $"{path}.roll", errors);
+        StringName compare = ProgressionDataUtils.to_string_name(rollGate.compare);
+        if (
+            compare != "lte"
+            && compare != "lt"
+            && compare != "gte"
+            && compare != "gt"
+            && compare != "eq"
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_ROLL_GATE_INVALID",
+                $"{path}.compare",
+                "fatal intercept roll_gate compare must be lte, lt, gte, gt, or eq"
+            );
+        }
+    }
+
+    private static void ValidateFatalInterceptDice(
+        DiceExpressionDef dice,
+        string path,
+        List<string> errors
+    )
+    {
+        if (dice == null || dice.terms == null || dice.terms.Count == 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_DICE_INVALID",
+                path,
+                "fatal intercept dice requires at least one term"
+            );
+            return;
+        }
+        if (dice.flat_bonus < 0 || ProgressionDataUtils.to_string_name(dice.preview_policy) != "")
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_DICE_INVALID",
+                path,
+                "fatal intercept dice requires non-negative flat_bonus and no preview_policy"
+            );
+        }
+        long totalDice = 0;
+        long maximum = Math.Max(dice.flat_bonus, 0);
+        foreach (DiceExpressionTermDef term in dice.terms)
+        {
+            if (
+                term == null
+                || term.dice_count <= 0
+                || term.dice_sides <= 0
+                || term.count_bonus_fact != null
+                || term.count_bonus_multiplier != 0.0f
+                || term.max_dice_count != 0
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_DICE_INVALID",
+                    path,
+                    "fatal intercept dice terms require fixed positive count/sides without fact scaling"
+                );
+                continue;
+            }
+            totalDice += term.dice_count;
+            maximum += (long)term.dice_count * term.dice_sides;
+        }
+        if (totalDice > 64L || maximum > 10000L)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_DICE_INVALID",
+                path,
+                "fatal intercept dice must not exceed 64 dice or a maximum total of 10000"
+            );
         }
     }
 

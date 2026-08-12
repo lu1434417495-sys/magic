@@ -170,6 +170,21 @@ internal static class BattleDamagePreviewProjection
         );
         target["stable_lethal"] = preview.StableLethal;
         target["lethal_probability_basis_points"] = preview.LethalProbabilityBasisPoints;
+        target["fatal_intercept_probability_basis_points"] =
+            preview.FatalInterceptProbabilityBasisPoints;
+        target["expected_survival_hp"] = preview.ExpectedSurvivalHp;
+        target["fatal_intercept_preview"] =
+            BattleEquipmentAbilityPreviewProjection.WriteFatalIntercept(
+                lease,
+                preview.FatalInterceptPreview,
+                "BattleDamagePreviewProjection.fatal_intercept_preview"
+            );
+        target["equipment_action_previews"] =
+            BattleEquipmentAbilityPreviewProjection.WriteActions(
+                lease,
+                preview.EquipmentActionPreviews,
+                "BattleDamagePreviewProjection.equipment_action_previews"
+            );
 
         if (preview.RollMode != default)
             target["roll_mode"] = preview.RollMode.ToString();

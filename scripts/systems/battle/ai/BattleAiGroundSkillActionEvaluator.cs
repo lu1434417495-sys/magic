@@ -221,7 +221,10 @@ internal sealed class BattleAiGroundSkillActionEvaluator
                 AiTraceRecorder.Enter("ground_skill:enumerate_targets");
                 try
                 {
-                    targetCoordSets = EnumerateGroundTargetCoordSets(context, castVariant);
+                    targetCoordSets =
+                        combatProfile.DirectionalPiercing != null
+                            ? EnumerateDirectionalPiercingTargetCoordSets(context)
+                            : EnumerateGroundTargetCoordSets(context, castVariant);
                 }
                 finally
                 {
@@ -347,7 +350,19 @@ internal sealed class BattleAiGroundSkillActionEvaluator
                             command,
                             preview,
                             effectDefs.Effects,
-                            positionMetadata
+                            positionMetadata,
+                            combatProfile.DirectionalPiercing != null
+                                ? new BattleAiSkillCandidateScoreFacts(
+                                    BattleDirectionalPiercingRules.CalculateStaminaCost(
+                                        combatProfile.DirectionalPiercing,
+                                        effectiveSkillRange,
+                                        unitState.attribute_snapshot?.GetValue(
+                                            new StringName("strength_modifier")
+                                        ) ?? 0
+                                    ),
+                                    0
+                                )
+                                : null
                         );
                     }
                     finally
@@ -514,6 +529,15 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         )
         {
             return result;
+        }
+        if (combatProfile.DirectionalPiercing != null)
+        {
+            return BuildDirectionalPiercingPrefilter(
+                context,
+                skillDefinition,
+                targetCoords,
+                allyUnits
+            );
         }
 
         List<Vector2I> effectCoords = _build_prefilter_effect_coords(
@@ -1094,6 +1118,103 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         return result;
     }
 
+    private static List<GroundTargetCoordSet> EnumerateDirectionalPiercingTargetCoordSets(
+        BattleAiContext context
+    )
+    {
+        var result = new List<GroundTargetCoordSet>();
+        if (context?.state == null || context?.grid_service == null || context.unit_state == null)
+            return result;
+        Vector2I sourceCoord = context.unit_state.GetAnchorCoord();
+        foreach (
+            Vector2I direction in new[]
+            {
+                Vector2I.Up,
+                Vector2I.Right,
+                Vector2I.Down,
+                Vector2I.Left,
+            }
+        )
+        {
+            Vector2I selectedCoord = sourceCoord + direction;
+            if (context.grid_service.IsInside(context.state, selectedCoord))
+                result.Add(new GroundTargetCoordSet(new[] { selectedCoord }));
+        }
+        return result;
+    }
+
+    private GroundCandidatePrefilter BuildDirectionalPiercingPrefilter(
+        BattleAiContext context,
+        SkillDefinition skillDefinition,
+        GroundTargetCoordSet targetCoords,
+        IReadOnlyList<BattleUnitState> allyUnits
+    )
+    {
+        var result = new GroundCandidatePrefilter();
+        if (
+            context?.unit_state == null
+            || targetCoords == null
+            || targetCoords.IsEmpty
+        )
+        {
+            return result;
+        }
+        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
+            context.unit_state,
+            skillDefinition,
+            context.skill_catalog
+        );
+        BattleDirectionalPiercingPlan plan = BattleDirectionalPiercingRules.BuildPlan(
+            context.state,
+            context.grid_service,
+            context.unit_state,
+            skillDefinition,
+            targetCoords.FirstOrDefault(),
+            effectiveRange
+        );
+        result.EffectCoords = new List<Vector2I>(plan.PathCoords);
+        if (!plan.Allowed)
+        {
+            result.ShouldEvaluate = false;
+            result.RejectReason = "directional_piercing_no_targets";
+            return result;
+        }
+        var targetIdParts = new List<string>();
+        foreach (BattleUnitState targetUnit in plan.Targets)
+        {
+            result.HitUnitIds.Add(targetUnit.unit_id);
+            targetIdParts.Add(targetUnit.unit_id.ToString());
+            if (
+                minimum_ally_threat_hit_count > 0
+                && targetUnit.faction_id != context.unit_state.faction_id
+                && _is_target_threatening_any_ally(context, targetUnit, allyUnits)
+            )
+            {
+                result.AllyThreatHitCount++;
+            }
+        }
+        result.RawHitCount = plan.Targets.Count;
+        if (result.RawHitCount < minimum_hit_count && !allow_empty_ground_control)
+        {
+            result.ShouldEvaluate = false;
+            result.RejectReason = "prefilter_minimum_hit_count";
+            return result;
+        }
+        if (
+            minimum_ally_threat_hit_count > 0
+            && result.AllyThreatHitCount < minimum_ally_threat_hit_count
+        )
+        {
+            result.ShouldEvaluate = false;
+            result.RejectReason = "prefilter_minimum_ally_threat_hit_count";
+            return result;
+        }
+        result.ShouldEvaluate = true;
+        result.DedupeKey =
+            $"{skillDefinition.SkillId}|directional_piercing|{plan.Direction.X},{plan.Direction.Y}|{string.Join(",", targetIdParts)}";
+        return result;
+    }
+
     private static void AppendEffects(
         GroundSkillEffectSet target,
         IEnumerable<CombatEffectDefinition> effects
@@ -1213,7 +1334,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         BattleCommand command,
         BattlePreview preview,
         IEnumerable<CombatEffectDefinition> effectDefinitions = null,
-        IReadOnlyDictionary<string, object> metadata = null
+        IReadOnlyDictionary<string, object> metadata = null,
+        BattleAiSkillCandidateScoreFacts? candidateScoreFacts = null
     )
     {
         if (context == null || skillDefinition == null)
@@ -1247,7 +1369,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             command,
             preview,
             effectDefinitions,
-            scoreMetadata
+            scoreMetadata,
+            candidateScoreFacts
         );
     }
 

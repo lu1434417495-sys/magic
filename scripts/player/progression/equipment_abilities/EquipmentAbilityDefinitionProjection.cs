@@ -35,10 +35,15 @@ internal static class EquipmentAbilityDefinitionProjection
             ReplacesBindingId = source.replaces_binding_id,
             AllowedSourceKinds = ProjectSourceKinds(source.allowed_source_kinds),
             RequiredTraitCategories = CopyStringNameSet(source.required_trait_categories),
+            RequiredEffectiveTraitIds = CopyStringNameSet(source.required_effective_trait_ids),
             RequiredItemTags = CopyStringNameSet(source.required_item_tags),
             SupportedEquipmentTypeIds = CopyStringNameSet(source.supported_equipment_type_ids),
+            ActivationStatusId = source.activation_status_id,
             StateSchemas = ProjectStateSchemas(source.state_schemas),
             Reactions = ProjectReactions(source.reactions),
+            FatalIntercepts = ProjectFatalIntercepts(source.fatal_intercepts),
+            MitigationAuras = ProjectMitigationAuras(source.mitigation_auras),
+            MovementTrails = ProjectMovementTrails(source.movement_trails),
             GrantedActions = ProjectGrantedActions(source.granted_actions),
             TemporalProgressModifiers = ProjectTemporalProgressModifiers(
                 source.binding_id,
@@ -53,6 +58,109 @@ internal static class EquipmentAbilityDefinitionProjection
             WorldEffects = ProjectWorldEffects(source.world_effects),
             ResourcePath = source.ResourcePath ?? "",
         };
+    }
+
+    private static IReadOnlyList<EquipmentFatalInterceptDefinition> ProjectFatalIntercepts(
+        Godot.Collections.Array<EquipmentFatalInterceptDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return Array.Empty<EquipmentFatalInterceptDefinition>();
+
+        var result = new List<EquipmentFatalInterceptDefinition>();
+        foreach (EquipmentFatalInterceptDef value in values)
+        {
+            if (value == null)
+                continue;
+            EquipmentAbilityUsagePeriodKinds.TryParse(
+                value.usage_period_kind,
+                out EquipmentAbilityUsagePeriodKind usagePeriodKind
+            );
+            result.Add(
+                new EquipmentFatalInterceptDefinition
+                {
+                    InterceptId = value.intercept_id,
+                    ResolutionOrder = value.resolution_order,
+                    ProtectionPriority = value.protection_priority,
+                    UsagePeriodKind = usagePeriodKind,
+                    MaxAttemptsPerPeriod = value.max_attempts_per_period,
+                    ConsumeOnAttempt = value.consume_on_attempt,
+                    RollGate = ProjectRollGate(value.roll_gate),
+                    RecoveryKind = TryParseFatalInterceptRecoveryKind(
+                        value.recovery_kind,
+                        out EquipmentFatalInterceptRecoveryKind recoveryKind
+                    )
+                        ? recoveryKind
+                        : EquipmentFatalInterceptRecoveryKind.HpDice,
+                    RecoveryDice = ProjectDice(value.recovery_dice),
+                    RecoveryPercentBasisPoints = value.recovery_percent_basis_points,
+                    SuccessActions = ProjectActions(value.success_actions),
+                }
+            );
+        }
+        return result.Count > 0
+            ? new ReadOnlyCollection<EquipmentFatalInterceptDefinition>(result)
+            : Array.Empty<EquipmentFatalInterceptDefinition>();
+    }
+
+    private static IReadOnlyList<EquipmentMitigationAuraDefinition> ProjectMitigationAuras(
+        Godot.Collections.Array<EquipmentMitigationAuraDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return Array.Empty<EquipmentMitigationAuraDefinition>();
+        var result = new List<EquipmentMitigationAuraDefinition>();
+        foreach (EquipmentMitigationAuraDef value in values)
+        {
+            if (value == null)
+                continue;
+            result.Add(
+                new EquipmentMitigationAuraDefinition
+                {
+                    AuraId = value.aura_id,
+                    Radius = Math.Max(value.radius, 0),
+                    TargetTeamFilter = value.target_team_filter,
+                    DamageTag = value.damage_tag,
+                    MitigationTier = value.mitigation_tier,
+                    Label = value.label ?? "",
+                }
+            );
+        }
+        return result.Count == 0
+            ? Array.Empty<EquipmentMitigationAuraDefinition>()
+            : new ReadOnlyCollection<EquipmentMitigationAuraDefinition>(result);
+    }
+
+    private static IReadOnlyList<EquipmentMovementTrailDefinition> ProjectMovementTrails(
+        Godot.Collections.Array<EquipmentMovementTrailDef> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return Array.Empty<EquipmentMovementTrailDefinition>();
+        var result = new List<EquipmentMovementTrailDefinition>();
+        foreach (EquipmentMovementTrailDef value in values)
+        {
+            if (value == null)
+                continue;
+            result.Add(
+                new EquipmentMovementTrailDefinition
+                {
+                    TrailId = value.trail_id,
+                    ReplacementGroupId = value.replacement_group_id,
+                    Priority = value.priority,
+                    RequiredSkillId = value.required_skill_id,
+                    DurationTu = value.duration_tu,
+                    TargetTeamFilter = value.target_team_filter,
+                    DamageDice = ProjectDice(value.damage_dice),
+                    DamageTag = value.damage_tag,
+                    DamageTags = CopyStringNames(value.damage_tags),
+                    DisplayName = value.display_name ?? "",
+                }
+            );
+        }
+        return result.Count == 0
+            ? Array.Empty<EquipmentMovementTrailDefinition>()
+            : new ReadOnlyCollection<EquipmentMovementTrailDefinition>(result);
     }
 
     private static IReadOnlyList<EquipmentTemporalProgressModifierDefinition> ProjectTemporalProgressModifiers(
@@ -137,7 +245,11 @@ internal static class EquipmentAbilityDefinitionProjection
         foreach (StringName value in values)
         {
             TraitSourceKind kind = TraitContentRules.ToSourceKind(value);
-            if (kind == TraitSourceKind.EquipmentFixed || kind == TraitSourceKind.EquipmentRoll)
+            if (
+                kind == TraitSourceKind.EquipmentFixed
+                || kind == TraitSourceKind.EquipmentRoll
+                || kind == TraitSourceKind.GearSetThreshold
+            )
                 result.Add(TraitContentRules.ToStringName(kind));
         }
         return EquipmentAbilityReadOnlySet<StringName>.From(result);
@@ -308,7 +420,10 @@ internal static class EquipmentAbilityDefinitionProjection
                 TargetSelector = damage.target_selector,
                 Dice = ProjectDice(damage.dice),
                 DamageType = damage.damage_type,
+                RequireWeaponDamage = damage.require_weapon_damage,
                 Subtract = damage.subtract,
+                ReplacementGroupId = damage.replacement_group_id,
+                ReplacementPriority = damage.replacement_priority,
                 DamageTags = CopyStringNames(damage.damage_tags),
                 MitigationBypassDamageTags = CopyStringNames(
                     damage.mitigation_bypass_damage_tags
@@ -418,6 +533,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 StackLimit = status.stack_limit,
                 DisplayLabel = status.display_label ?? "",
                 AttackRollPenalty = status.attack_roll_penalty,
+                ArmorClassBonusPerStack = status.armor_class_bonus_per_stack,
                 SourceBoundAttackRollPenalty = status.source_bound_attack_roll_penalty,
                 SourceBoundAttackRollPenaltyMinStacks =
                     status.source_bound_attack_roll_penalty_min_stacks,
@@ -429,6 +545,9 @@ internal static class EquipmentAbilityDefinitionProjection
                 HealMultiplierPercent = status.heal_multiplier_percent,
                 MovePointCapacityDelta = status.move_point_capacity_delta,
                 ForcedMoveImmune = status.forced_move_immune,
+                DamageTag = status.damage_tag,
+                DamageTags = CopyStringNames(status.damage_tags),
+                MitigationTier = status.mitigation_tier,
                 CountsAsDebuffOverride = status.counts_as_debuff_override,
                 CountsAsDebuff = status.counts_as_debuff,
                 Undispellable = status.undispellable,
@@ -998,6 +1117,11 @@ internal static class EquipmentAbilityDefinitionProjection
             trigger = EquipmentAbilityTriggerKind.OnDamageApplied;
             return true;
         }
+        if (value == "on_damage_taken_finalized")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnDamageTakenFinalized;
+            return true;
+        }
         if (value == "on_hit_received")
         {
             trigger = EquipmentAbilityTriggerKind.OnHitReceived;
@@ -1089,6 +1213,26 @@ internal static class EquipmentAbilityDefinitionProjection
             return true;
         }
         grantedKind = EquipmentGrantedActionKind.Skill;
+        return false;
+    }
+
+    internal static bool TryParseFatalInterceptRecoveryKind(
+        StringName value,
+        out EquipmentFatalInterceptRecoveryKind recoveryKind
+    )
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(value);
+        if (normalized == "hp_dice")
+        {
+            recoveryKind = EquipmentFatalInterceptRecoveryKind.HpDice;
+            return true;
+        }
+        if (normalized == "max_hp_percent")
+        {
+            recoveryKind = EquipmentFatalInterceptRecoveryKind.MaxHpPercent;
+            return true;
+        }
+        recoveryKind = EquipmentFatalInterceptRecoveryKind.HpDice;
         return false;
     }
 }

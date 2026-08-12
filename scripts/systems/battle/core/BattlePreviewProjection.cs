@@ -111,6 +111,11 @@ internal static class BattlePreviewProjection
             preview.SaveBranchPreviewTyped,
             "BattlePreviewProjection.save_branch_preview"
         );
+        target["equipment_ability_preview"] = WriteEquipmentAbilityPreview(
+            lease,
+            preview.EquipmentAbilityPreviewTyped,
+            "BattlePreviewProjection.equipment_ability_preview"
+        );
         target["terrain_contact_preview"] = WriteTerrainContactPreview(
             lease,
             preview.TerrainContactPreviewTyped,
@@ -125,6 +130,20 @@ internal static class BattlePreviewProjection
             lease,
             preview.special_profile_preview_facts,
             "BattlePreviewProjection.special_profile_preview_facts"
+        );
+    }
+
+    private static GDictionary WriteEquipmentAbilityPreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleEquipmentAbilityCommandPreviewResult preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        return BattleEquipmentAbilityPreviewProjection.WriteCommand(
+            lease,
+            preview,
+            reason
         );
     }
 

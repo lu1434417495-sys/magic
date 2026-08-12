@@ -43,7 +43,8 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             payload,
             context?.SourceUnit,
             context?.TargetUnit,
-            context?.BattleState
+            context?.BattleState,
+            context?.Batch
         );
     }
 
@@ -53,7 +54,8 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
         DealDamageActionPayloadDefinition payload,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        BattleState battleState
+        BattleState battleState,
+        BattleEventBatch batch = null
     )
     {
         if (_owner.DamageResolver == null || payload?.Dice == null || sourceUnit == null)
@@ -77,7 +79,13 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             sourceUnit,
             resolvedTarget,
             effects,
-            DamageResolutionContext.Empty().WithBattleState(battleState)
+            DamageResolutionContext
+                .Empty()
+                .WithBattleState(battleState)
+                .WithDamageApplicationHookContext(
+                    batch,
+                    BattleEffectOrigin.EquipmentAbility()
+                )
         );
         return resolvedTarget;
     }
@@ -119,6 +127,60 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
         if (resolvedTarget.GetCurrentHp() == previousHp && resolvedTarget.IsAlive() == previousAlive)
             return null;
         return resolvedTarget;
+    }
+
+    internal BattleUnitState ResolveExpectedHealAction(
+        BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding,
+        EquipmentAbilityBindingDefinition binding,
+        HealActionPayloadDefinition payload,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        BattleState battleState
+    )
+    {
+        if (payload?.Dice == null || sourceUnit == null)
+            return null;
+        BattleUnitState resolvedTarget = _owner.ResolveEquipmentActionTarget(
+            payload.TargetSelector,
+            sourceUnit,
+            targetUnit,
+            activeBinding,
+            binding,
+            "",
+            "",
+            battleState
+        );
+        if (resolvedTarget?.IsAlive() != true)
+            return null;
+
+        int expectedHeal = ExpectedDiceValue(payload.Dice);
+        int maxHp = Math.Max(
+            resolvedTarget.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 1,
+            1
+        );
+        int previousHp = resolvedTarget.GetCurrentHp();
+        int nextHp = Math.Min(previousHp + expectedHeal, maxHp);
+        if (expectedHeal <= 0 || nextHp <= previousHp)
+            return null;
+        resolvedTarget.SetCurrentHp(nextHp);
+        return resolvedTarget;
+    }
+
+    private static int ExpectedDiceValue(DiceExpressionDefinition dice)
+    {
+        if (dice == null)
+            return 0;
+        long doubledTotal = Math.Max(dice.FlatBonus, 0) * 2L;
+        foreach (
+            DiceExpressionTermDefinition term
+            in dice.Terms ?? Array.Empty<DiceExpressionTermDefinition>()
+        )
+        {
+            if (term == null || term.DiceCount <= 0 || term.DiceSides <= 0)
+                continue;
+            doubledTotal += (long)term.DiceCount * (term.DiceSides + 1L);
+        }
+        return (int)Math.Min((doubledTotal + 1L) / 2L, int.MaxValue);
     }
 
     internal BattleUnitState ResolveHealFromFactAction(
@@ -344,6 +406,7 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
                 action == null
                 || action.Kind != BattleEquipmentAbilityRuntimeService.ActionKindAddDamageDice
                 || action.PayloadDefinition is not AddDamageDiceActionPayloadDefinition dicePayload
+                || (dicePayload.RequireWeaponDamage && !context.IncludesWeaponDamage)
                 || !_conditionEvaluator.ConditionGroupPasses(
                     action.ConditionGroup,
                     context.SourceUnit,
@@ -540,18 +603,18 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
     {
         if (result == null)
             return;
-        foreach (BattleEquipmentAbilityBonusDamageDiceResult dice in BuildBonusDamageDiceResults(
-            activeBinding,
-            binding,
-            action,
-            payload,
-            sourceUnit,
-            targetUnit,
-            factContext
-        ))
-        {
-            result.AddBonusDamageDice(dice);
-        }
+        var candidateBundle = new List<BattleEquipmentAbilityBonusDamageDiceResult>(
+            BuildBonusDamageDiceResults(
+                activeBinding,
+                binding,
+                action,
+                payload,
+                sourceUnit,
+                targetUnit,
+                factContext
+            )
+        );
+        result.AddBonusDamageDiceBundle(candidateBundle);
     }
 
     private void AppendBonusDamageDiceResult(
@@ -567,15 +630,18 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
     {
         if (result == null)
             return;
-        result.AddRange(
-            BuildBonusDamageDiceResults(
-                activeBinding,
-                binding,
-                action,
-                payload,
-                sourceUnit,
-                targetUnit,
-                factContext
+        BattleEquipmentAbilityBonusDamageReplacementRules.AddCandidateBundle(
+            result,
+            new List<BattleEquipmentAbilityBonusDamageDiceResult>(
+                BuildBonusDamageDiceResults(
+                    activeBinding,
+                    binding,
+                    action,
+                    payload,
+                    sourceUnit,
+                    targetUnit,
+                    factContext
+                )
             )
         );
     }
@@ -623,6 +689,8 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             {
                 BindingId = binding.BindingId,
                 ActionId = action.ActionId,
+                ReplacementGroupId = payload.ReplacementGroupId,
+                ReplacementPriority = payload.ReplacementPriority,
                 DiceCount = diceCount,
                 DiceSides = term.DiceSides,
                 FlatBonus = Math.Max(payload.Dice.FlatBonus, 0),
@@ -639,6 +707,8 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             {
                 BindingId = binding.BindingId,
                 ActionId = action.ActionId,
+                ReplacementGroupId = payload.ReplacementGroupId,
+                ReplacementPriority = payload.ReplacementPriority,
                 DiceCount = 0,
                 DiceSides = 0,
                 FlatBonus = payload.Dice.FlatBonus,

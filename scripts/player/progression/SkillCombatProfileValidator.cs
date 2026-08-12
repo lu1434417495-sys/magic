@@ -90,6 +90,11 @@ internal sealed class SkillCombatProfileValidator
             { "main_skill_lock_other_debuff_count", "main_skill_lock_other_debuff_count" },
             { "ap_gain", "ap_gain" },
             { "free_move_points_gain", "free_move_points_gain" },
+            { "heal_to_hp_percent_floor", "heal_to_hp_percent_floor" },
+            { "heal_missing_hp_percent", "heal_missing_hp_percent" },
+            { "max_affected_targets", "max_affected_targets" },
+            { "exclude_source", "exclude_source" },
+            { "target_order", "target_order" },
             {
                 "charge_trap_immunity_min_skill_level",
                 "charge_trap_immunity_min_skill_level"
@@ -230,6 +235,10 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} combat_profile uses unsupported attack_resolution_mode {combatProfile.attack_resolution_mode}."
             );
+        if (combatProfile.AttackDefenseModeKind == CombatSkillAttackDefenseMode.Unknown)
+            errors.Add(
+                $"Skill {skillId} combat_profile uses unsupported attack_defense_mode {combatProfile.attack_defense_mode}."
+            );
         if (
             combatProfile.attack_roll_bonus_status_id == ""
             && combatProfile.attack_roll_bonus_status_stack_divisor != 0
@@ -333,6 +342,8 @@ internal sealed class SkillCombatProfileValidator
                     $"Skill {skillId} combat_profile.windup_profile base weapon dice multipliers must be > 0."
                 );
         }
+        AppendDirectionalPiercingValidationErrors(errors, skillId, combatProfile, skillDef);
+        AppendSpellReactionValidationErrors(errors, skillId, combatProfile, skillDef);
         _executeEffectValidator.AppendTemporalReleaseSkillValidationErrors(errors, skillId, combatProfile);
 
         AppendSpellFateValidationErrors(errors, skillId, combatProfile);
@@ -509,6 +520,20 @@ internal sealed class SkillCombatProfileValidator
                 )
                     errors.Add(
                         $"Skill {skillId} combat_profile level override {overrideLevelKey}.attack_resolution_mode uses unsupported value {overrideAttackResolutionMode}."
+                    );
+            }
+            if (overrideDict.ContainsKey("attack_defense_mode"))
+            {
+                var overrideAttackDefenseMode = ProgressionDataUtils.to_string_name(
+                    overrideDict["attack_defense_mode"]
+                );
+                if (
+                    CombatSkillContentRules.ToAttackDefenseMode(
+                        overrideAttackDefenseMode
+                    ) == CombatSkillAttackDefenseMode.Unknown
+                )
+                    errors.Add(
+                        $"Skill {skillId} combat_profile level override {overrideLevelKey}.attack_defense_mode uses unsupported value {overrideAttackDefenseMode}."
                     );
             }
             if (
@@ -727,6 +752,214 @@ internal sealed class SkillCombatProfileValidator
         );
     }
 
+    private static void AppendDirectionalPiercingValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatSkillDef combatProfile,
+        SkillDef skillDef
+    )
+    {
+        CombatDirectionalPiercingDef profile = combatProfile.directional_piercing_profile;
+        if (profile == null)
+            return;
+
+        if (
+            combatProfile.TargetModeKind != BattleTargetMode.Ground
+            || combatProfile.target_selection_mode != new StringName("single_unit")
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile requires ground targeting with one direction coord."
+            );
+        }
+        if (combatProfile.target_team_filter != new StringName("any"))
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile requires target_team_filter any for friendly fire."
+            );
+        if (
+            combatProfile.cast_variants.Count > 0
+            || combatProfile.casting_time_tu != 0
+            || combatProfile.windup_profile != null
+            || combatProfile.random_chain_attack_count > 0
+            || combatProfile.special_resolution_profile_id != ""
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile cannot combine with cast variants, delayed casting, windup, random chain, or special profiles."
+            );
+        }
+        if (
+            skillDef?.contingency_automation_profile?.can_be_stored_in_contingency
+            == true
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile cannot be stored in contingency."
+            );
+        }
+        if (
+            combatProfile.required_weapon_families.Count != 1
+            || combatProfile.required_weapon_families[0] != new StringName("bow")
+            || combatProfile.allows_natural_weapon
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile requires exactly the bow weapon family and cannot allow natural weapons."
+            );
+        }
+        if (
+            combatProfile.ProjectileKindTyped != CombatProjectileKind.CurrentWeapon
+            || !combatProfile.requires_los
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile requires current_weapon projectile delivery and LOS."
+            );
+        }
+        int requiredCurveLength = Math.Max(skillDef?.max_level ?? 0, 0) + 1;
+        if (
+            profile.base_damage_percent_curve == null
+            || profile.base_damage_percent_curve.Length < requiredCurveLength
+            || System.Array.Exists(profile.base_damage_percent_curve, value => value <= 0)
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile base_damage_percent_curve must cover levels 0 through max_level with positive values."
+            );
+        }
+        if (profile.successful_hit_decay_percent <= 0 || profile.successful_hit_decay_percent > 100)
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile successful_hit_decay_percent must be within 1..100."
+            );
+        if (profile.minimum_damage_percent <= 0 || profile.minimum_damage_percent > 100)
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile minimum_damage_percent must be within 1..100."
+            );
+        if (
+            profile.stamina_flat_base < 0
+            || profile.stamina_range_square_coefficient < 0
+            || profile.stamina_strength_square_scale <= 0
+            || profile.minimum_stamina_cost <= 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile stamina parameters must be non-negative with positive scale and minimum cost."
+            );
+        }
+        if (profile.maximum_height_delta < 0)
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile maximum_height_delta must be >= 0."
+            );
+        if (combatProfile.effect_defs.Count != 1)
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile requires exactly one standard weapon damage effect."
+            );
+            return;
+        }
+        CombatEffectDef damage = combatProfile.effect_defs[0];
+        if (
+            damage == null
+            || damage.EffectKind != BattleEffectKind.Damage
+            || !damage.add_weapon_dice
+            || !damage.requires_weapon
+            || !damage.use_weapon_physical_damage_tag
+            || !damage.resolve_as_weapon_attack
+            || damage.power != 0
+            || damage.dice_count != 0
+            || damage.dice_sides != 0
+            || damage.dice_bonus != 0
+            || damage.bonus_damage_dice_count != 0
+            || damage.bonus_damage_dice_sides != 0
+            || damage.bonus_damage_dice_bonus != 0
+            || damage.dr_bypass_tag != ""
+            || damage.mitigation_bypass_damage_tags.Count != 0
+            || damage.mitigation_bypass_tiers.Count != 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.directional_piercing_profile damage must be one ordinary current-weapon attack without fixed damage or mitigation bypass."
+            );
+        }
+    }
+
+    private static void AppendSpellReactionValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatSkillDef combatProfile,
+        SkillDef skillDef
+    )
+    {
+        CombatSpellReactionDef reaction = combatProfile?.spell_reaction_profile;
+        if (reaction == null)
+            return;
+        if (reaction.trigger_delivery_category == "")
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile requires trigger_delivery_category."
+            );
+        if (reaction.reaction_skill_id == "")
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile requires reaction_skill_id."
+            );
+        if (reaction.readiness_status_id == "")
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile requires readiness_status_id."
+            );
+        else if (!HasStatusEffect(combatProfile.effect_defs, reaction.readiness_status_id))
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile readiness_status_id must match a status effect in combat_profile.effect_defs."
+            );
+        if (reaction.required_weapon_family == "")
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile requires required_weapon_family."
+            );
+        else if (!combatProfile.required_weapon_families.Contains(reaction.required_weapon_family))
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile required_weapon_family must also be present in combat_profile.required_weapon_families."
+            );
+        if (!BattleSaveContentRules.IsValidSaveAbility(reaction.save_ability))
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile uses unsupported save_ability {reaction.save_ability}."
+            );
+        if (reaction.save_tag == "")
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile requires save_tag."
+            );
+        if (reaction.base_save_dc <= 0 || reaction.hp_damage_divisor <= 0)
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile base_save_dc and hp_damage_divisor must be > 0."
+            );
+        int requiredCurveLength = Math.Max(skillDef?.max_level ?? 0, 0) + 1;
+        if (
+            reaction.attack_roll_bonus_by_skill_level == null
+            || reaction.attack_roll_bonus_by_skill_level.Length < requiredCurveLength
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile attack roll curve must cover levels 0 through max_level."
+            );
+        if (
+            reaction.save_dc_bonus_by_skill_level == null
+            || reaction.save_dc_bonus_by_skill_level.Length < requiredCurveLength
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile save DC curve must cover levels 0 through max_level."
+            );
+        if (
+            reaction.attack_roll_bonus_by_skill_level != null
+            && System.Array.Exists(reaction.attack_roll_bonus_by_skill_level, value => value < 0)
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile attack roll bonuses must be >= 0."
+            );
+        if (
+            reaction.save_dc_bonus_by_skill_level != null
+            && System.Array.Exists(reaction.save_dc_bonus_by_skill_level, value => value < 0)
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile save DC bonuses must be >= 0."
+            );
+    }
+
     private static void AppendSourceRetreatProfileValidationErrors(
         Array<string> errors,
         StringName skillId,
@@ -813,6 +1046,31 @@ internal sealed class SkillCombatProfileValidator
                 count++;
         }
         return count;
+    }
+
+    private static bool HasStatusEffect(
+        Godot.Collections.Array<CombatEffectDef> effects,
+        StringName statusId
+    )
+    {
+        foreach (
+            CombatEffectDef effect
+            in effects ?? new Godot.Collections.Array<CombatEffectDef>()
+        )
+        {
+            if (
+                effect != null
+                && (
+                    effect.EffectKind == BattleEffectKind.Status
+                    || effect.EffectKind == BattleEffectKind.ApplyStatus
+                )
+                && effect.status_id == statusId
+            )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void AppendSpellFateValidationErrors(
@@ -935,6 +1193,74 @@ internal sealed class SkillCombatProfileValidator
         )
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported effect_target_team_filter {effectDef.effect_target_team_filter}; expected one of {CombatTargetTeamContentRules.ValidEffectTargetTeamFilterLabel()}."
+            );
+        if (effectDef.max_affected_targets < 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} max_affected_targets must be >= 0."
+            );
+        if (effectDef.TargetOrderKind == CombatEffectTargetOrder.Unknown)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} target_order must be empty or lowest_hp_percent_then_unit_id."
+            );
+        if (
+            effectDef.max_affected_targets > 0
+            && effectDef.TargetOrderKind
+                != CombatEffectTargetOrder.LowestHpPercentThenUnitId
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} max_affected_targets requires target_order lowest_hp_percent_then_unit_id."
+            );
+        if (effectDef.target_order != "" && effectDef.max_affected_targets <= 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} target_order requires max_affected_targets >= 1."
+            );
+        bool hasTargetLimiter =
+            effectDef.max_affected_targets != 0
+            || effectDef.exclude_source
+            || effectDef.target_order != "";
+        if (hasTargetLimiter && !BattleTypedNames.IsUnitPayloadEffect(effectKind))
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} target limiting is only supported for unit payload effects."
+            );
+        if (
+            hasTargetLimiter
+            && (
+                effectKind == BattleEffectKind.ChainDamage
+                || effectKind == BattleEffectKind.SourceRetreat
+            )
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} target limiting is not supported by specialized chain_damage or source_retreat resolution."
+            );
+        if (
+            hasTargetLimiter
+            && skillDef?.combat_profile?.TargetSelectionModeKind
+                == BattleTargetSelectionMode.RandomChain
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} target limiting is not supported by random_chain target selection."
+            );
+        if (effectDef.heal_to_hp_percent_floor < 0 || effectDef.heal_to_hp_percent_floor > 100)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} heal_to_hp_percent_floor must be between 0 and 100."
+            );
+        if (
+            effectDef.heal_to_hp_percent_floor != 0
+            && effectKind != BattleEffectKind.Heal
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} heal_to_hp_percent_floor is only supported on heal effects."
+            );
+        if (effectDef.heal_missing_hp_percent < 0 || effectDef.heal_missing_hp_percent > 100)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} heal_missing_hp_percent must be between 0 and 100."
+            );
+        if (
+            effectDef.heal_missing_hp_percent != 0
+            && effectKind != BattleEffectKind.Heal
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} heal_missing_hp_percent is only supported on heal effects."
             );
         if (
             effectDef.required_target_creature_type_tag != ""
@@ -1223,6 +1549,12 @@ internal sealed class SkillCombatProfileValidator
         )
         {
             bool hasFixedDiceKeys = _has_fixed_dice_fields(effectDef);
+            bool hasHpPercentFloor =
+                effectKind == BattleEffectKind.Heal
+                && effectDef.heal_to_hp_percent_floor > 0;
+            bool hasMissingHpPercent =
+                effectKind == BattleEffectKind.Heal
+                && effectDef.heal_missing_hp_percent > 0;
             if (hasFixedDiceKeys && !_has_valid_fixed_dice_config(effectDef))
                 errors.Add(
                     $"Skill {skillId} {effectDef.effect_type} effect in {contextLabel} must set dice_count and dice_sides >= 1 together."
@@ -1235,6 +1567,21 @@ internal sealed class SkillCombatProfileValidator
             )
                 errors.Add(
                     $"Skill {skillId} stamina_restore effect in {contextLabel} must have power >= 1, a valid dice_count/dice_sides config, or a valid attribute-scaled dice config."
+                );
+            if (
+                (hasHpPercentFloor || hasMissingHpPercent)
+                && (
+                    effectDef.power != 0
+                    || hasFixedDiceKeys
+                    || _has_attribute_scaled_dice_fields(effectDef)
+                )
+            )
+                errors.Add(
+                    $"Skill {skillId} heal effect in {contextLabel} percentage-based healing cannot be combined with power or dice healing."
+                );
+            if (hasHpPercentFloor && hasMissingHpPercent)
+                errors.Add(
+                    $"Skill {skillId} heal effect in {contextLabel} heal_to_hp_percent_floor and heal_missing_hp_percent are mutually exclusive."
                 );
         }
         else if (effectKind == BattleEffectKind.TerrainEffect)
@@ -1415,6 +1762,17 @@ internal sealed class SkillCombatProfileValidator
                 );
             else if (effectDef.ForcedMoveModeKind == BattleForcedMoveMode.Jump)
                 _damageEffectValidator.AppendJumpEffectValidationErrors(errors, skillId, effectDef, contextLabel);
+            else if (effectDef.ForcedMoveModeKind == BattleForcedMoveMode.GrappleAscent)
+            {
+                if (effectDef.forced_move_distance != 1)
+                    errors.Add(
+                        $"Skill {skillId} grapple_ascent effect in {contextLabel} must have forced_move_distance = 1."
+                    );
+                if (effectDef.grapple_max_height_gain < 2)
+                    errors.Add(
+                        $"Skill {skillId} grapple_ascent effect in {contextLabel} must have grapple_max_height_gain >= 2."
+                    );
+            }
             else if (effectDef.forced_move_distance <= 0)
                 errors.Add(
                     $"Skill {skillId} forced_move effect in {contextLabel} must have forced_move_distance >= 1."
@@ -1845,6 +2203,7 @@ internal sealed class SkillCombatProfileValidator
                 && (
                     effectDef.ForcedMoveModeKind == BattleForcedMoveMode.Jump
                     || effectDef.ForcedMoveModeKind == BattleForcedMoveMode.Blink
+                    || effectDef.ForcedMoveModeKind == BattleForcedMoveMode.GrappleAscent
                 )
                 && effectDef.effect_target_team_filter == "self"
             )

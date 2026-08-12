@@ -26,7 +26,8 @@ internal sealed class BattleAiTypedActionHelper
     internal BattlePreview ResolveBarrierAwareUnitSkillPreview(
         BattleAiContext context,
         BattleCommand command,
-        BattlePreview fastPreview
+        BattlePreview fastPreview,
+        BattleAvailableSkillEntry skillEntry = null
     )
     {
         if (
@@ -34,7 +35,7 @@ internal sealed class BattleAiTypedActionHelper
             || context?.state == null
             || (
                 context.state.LayeredBarrierFieldCount <= 0
-                && !RequiresCanonicalUnitSkillPreview(context, command)
+                && !RequiresCanonicalUnitSkillPreview(context, command, skillEntry)
             )
         )
         {
@@ -45,9 +46,12 @@ internal sealed class BattleAiTypedActionHelper
 
     private static bool RequiresCanonicalUnitSkillPreview(
         BattleAiContext context,
-        BattleCommand command
+        BattleCommand command,
+        BattleAvailableSkillEntry skillEntry
     )
     {
+        if (skillEntry?.EntryRef.SourceKind == BattleSkillEntrySourceKind.EquipmentSkill)
+            return true;
         SkillDefinition skillDefinition = context?.GetSkillDefinitionTyped(
             command?.skill_id ?? new StringName("")
         );
@@ -108,7 +112,9 @@ internal sealed class BattleAiTypedActionHelper
 
         BattleSkillAvailabilityService availabilityService = new(
             context?.skill_catalog,
-            context?.GetSkillDefinitionIndexTyped()
+            context?.GetSkillDefinitionIndexTyped(),
+            context?.GetEquipmentAbilityBindingIndexTyped(),
+            context?.GetItemDefinitionIndexTyped()
         );
         BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
             new BattleSkillAvailabilityQuery
@@ -116,15 +122,21 @@ internal sealed class BattleAiTypedActionHelper
                 User = unitState,
                 Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
                 IncludeKnownSkills = true,
-                IncludeEquipmentSkills = false,
+                IncludeEquipmentSkills = true,
                 IncludeScopedAutoCast = false,
+                WorldStep = context?.state?.GetEnvironmentSnapshot()?.WorldStep ?? -1,
+                BattleState = context?.state,
             }
         );
 
         List<StringName> preferred = CopyStringNameList(preferredSkillIds);
         if (preferred.Count == 0)
         {
-            results.AddRange(availabilityView.SkillEntries);
+            foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+            {
+                if (entry?.IsSelectable == true)
+                    results.Add(entry);
+            }
             return results;
         }
 
@@ -137,7 +149,7 @@ internal sealed class BattleAiTypedActionHelper
             seen.Add(skillId);
             foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
             {
-                if (entry?.EntryRef.SkillId == skillId)
+                if (entry?.IsSelectable == true && entry.EntryRef.SkillId == skillId)
                 {
                     results.Add(entry);
                     break;

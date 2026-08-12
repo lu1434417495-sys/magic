@@ -598,6 +598,12 @@ internal class BattleMovementService
             }
             AppendChangedCoords(batch, previousCoords);
             AppendChangedUnitCoords(batch, active_unit);
+            _runtime?._equipment_ability_runtime_service?.ApplyMovementTrails(
+                active_unit,
+                executionResult.ExecutedPath,
+                new StringName(""),
+                batch
+            );
 
             targetCell = GetCell(active_unit.GetAnchorCoord());
             string terrainName = targetCell != null

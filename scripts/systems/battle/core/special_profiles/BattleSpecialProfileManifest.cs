@@ -26,9 +26,6 @@ public partial class BattleSpecialProfileManifest : Resource
     public Dictionary presentation_metadata = new();
 
     [Export]
-    public Array<string> required_regression_tests = new();
-
-    [Export]
     public Array<Dictionary> deferred_capabilities = new();
 
     [Export]

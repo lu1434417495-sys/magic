@@ -14,6 +14,9 @@ public partial class BattleAiScoreService
         public bool ShieldBroken;
         public bool StableLethal;
         public int LethalProbabilityBasisPoints;
+        public int FatalInterceptProbabilityBasisPoints;
+        public int ExpectedSurvivalHp;
+        public bool HasTypedLethalPreview;
         public List<DamageSaveEstimate> SaveEstimates = new();
         public List<DamageEstimateBreakdown> DamageEstimates = new();
 
@@ -29,6 +32,10 @@ public partial class BattleAiScoreService
                 ShieldBroken = ShieldBroken,
                 StableLethal = StableLethal,
                 LethalProbabilityBasisPoints = LethalProbabilityBasisPoints,
+                FatalInterceptProbabilityBasisPoints =
+                    FatalInterceptProbabilityBasisPoints,
+                ExpectedSurvivalHp = ExpectedSurvivalHp,
+                HasTypedLethalPreview = HasTypedLethalPreview,
                 SaveEstimates = CloneSaveEstimates(SaveEstimates),
                 DamageEstimates = CloneDamageEstimates(DamageEstimates),
             };
@@ -384,7 +391,8 @@ public partial class BattleAiScoreService
                 actor,
                 RepeatEffectDefinitions(new[] { damageEffect }, hitCount),
                 targetUnit,
-                ResolveSkillId(skillDefinition)
+                ResolveSkillId(skillDefinition),
+                state
             );
             int estimatedDamage = estimateResult.Damage;
             int estimatedShieldAbsorbed = estimateResult.ShieldAbsorbed;
@@ -410,10 +418,18 @@ public partial class BattleAiScoreService
             );
             rawTargetPriority += targetPriorityBonus;
             rawPayoff += targetPriorityBonus;
-            int lethalBonus =
-                estimateResult.StableLethal || estimatedDamage >= Math.Max(targetUnit.GetCurrentHp(), 1)
-                ? ResolveLethalTargetBonus(scoreInput, context, targetUnit, estimatedDamage)
-                : 0;
+            int lethalProbabilityBasisPoints = estimateResult.HasTypedLethalPreview
+                ? estimateResult.LethalProbabilityBasisPoints
+                : estimateResult.StableLethal
+                    || estimatedDamage >= Math.Max(targetUnit.GetCurrentHp(), 1)
+                    ? 10000
+                    : 0;
+            int lethalBonus = ResolveExecuteLethalBonusFromBasisPoints(
+                scoreInput,
+                context,
+                targetUnit,
+                lethalProbabilityBasisPoints
+            );
             rawTargetPriority += lethalBonus;
             rawPayoff += lethalBonus;
             if (
@@ -608,7 +624,8 @@ public partial class BattleAiScoreService
         BattleUnitState sourceUnit,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         BattleUnitState targetUnit,
-        StringName skillId = default
+        StringName skillId = default,
+        BattleState battleState = null
     )
     {
         if (_damageResolver != null)
@@ -617,7 +634,8 @@ public partial class BattleAiScoreService
                 sourceUnit,
                 effectDefinitions,
                 targetUnit,
-                skillId
+                skillId,
+                battleState
             );
         }
 
@@ -693,7 +711,8 @@ public partial class BattleAiScoreService
         BattleUnitState sourceUnit,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         BattleUnitState targetUnit,
-        StringName skillId
+        StringName skillId,
+        BattleState battleState
     )
     {
         int totalHpDamage = 0;
@@ -703,14 +722,19 @@ public partial class BattleAiScoreService
         bool shieldBroken = false;
         bool stableLethal = false;
         int lethalProbabilityBasisPoints = 0;
+        int fatalInterceptProbabilityBasisPoints = 0;
+        int expectedSurvivalHp = 0;
+        bool hasTypedLethalPreview = false;
         var saveEstimates = new List<DamageSaveEstimate>();
         var damageEstimates = new List<DamageEstimateBreakdown>();
         // Performance contract: all damage effects in this target sequence share one
         // detached pair. Reintroducing PreviewDamageEffectTyped here restores 2 clones/hit.
         BattleDamagePreviewWorkingSet previewWorkingSet =
-            BattleDamagePreviewWorkingSet.CreateDetached(sourceUnit, targetUnit);
+            BattleDamagePreviewWorkingSet.CreateDetached(sourceUnit, targetUnit, battleState);
         BattleUnitState workingTarget = previewWorkingSet?.TargetPreview;
-        DamageResolutionContext damageContext = DamageResolutionContext.ForSkill(skillId);
+        DamageResolutionContext damageContext = DamageResolutionContext
+            .ForSkill(skillId)
+            .WithBattleState(previewWorkingSet?.BattleState);
 
         foreach (
             CombatEffectDefinition effectDefinition in effectDefinitions
@@ -760,6 +784,12 @@ public partial class BattleAiScoreService
                 lethalProbabilityBasisPoints,
                 normalized.LethalProbabilityBasisPoints
             );
+            fatalInterceptProbabilityBasisPoints = Math.Max(
+                fatalInterceptProbabilityBasisPoints,
+                normalized.FatalInterceptProbabilityBasisPoints
+            );
+            expectedSurvivalHp = Math.Max(expectedSurvivalHp, normalized.ExpectedSurvivalHp);
+            hasTypedLethalPreview = hasTypedLethalPreview || normalized.HasTypedLethalPreview;
             // Performance contract: normalized is a per-effect temporary whose entries
             // are transferred once into the aggregate. Re-cloning here adds no isolation.
             saveEstimates.AddRange(normalized.SaveEstimates);
@@ -776,6 +806,9 @@ public partial class BattleAiScoreService
             ShieldBroken = shieldBroken,
             StableLethal = stableLethal,
             LethalProbabilityBasisPoints = lethalProbabilityBasisPoints,
+            FatalInterceptProbabilityBasisPoints = fatalInterceptProbabilityBasisPoints,
+            ExpectedSurvivalHp = expectedSurvivalHp,
+            HasTypedLethalPreview = hasTypedLethalPreview,
             SaveEstimates = saveEstimates,
             DamageEstimates = damageEstimates,
         };
@@ -864,6 +897,12 @@ public partial class BattleAiScoreService
             IncomingBudgetDamage = preview.IncomingBudgetDamage,
             ShieldAbsorbed = preview.ShieldAbsorbed,
             ShieldBroken = preview.ShieldBroken,
+            StableLethal = preview.StableLethal,
+            LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
+            FatalInterceptProbabilityBasisPoints =
+                preview.FatalInterceptProbabilityBasisPoints,
+            ExpectedSurvivalHp = preview.ExpectedSurvivalHp,
+            HasTypedLethalPreview = true,
             SaveEstimates = saveEstimates,
             DamageEstimates = new List<DamageEstimateBreakdown> { damageEstimate },
         };
@@ -878,9 +917,12 @@ public partial class BattleAiScoreService
     {
         if (saveEstimate == null)
         {
-            bool stableLethal = normalized.HpDamage >= targetHpBefore;
-            normalized.StableLethal = stableLethal;
-            normalized.LethalProbabilityBasisPoints = stableLethal ? 10000 : 0;
+            if (!normalized.HasTypedLethalPreview)
+            {
+                bool stableLethal = normalized.HpDamage >= targetHpBefore;
+                normalized.StableLethal = stableLethal;
+                normalized.LethalProbabilityBasisPoints = stableLethal ? 10000 : 0;
+            }
             ApplyLethalEstimateToFirstBreakdown(normalized);
             return;
         }
@@ -895,10 +937,13 @@ public partial class BattleAiScoreService
         int failureBasisPoints = saveEstimate.SaveFailureProbabilityBasisPoints;
         bool failureKills = damageOnFailure >= targetHpBefore;
         bool successKills = damageOnSuccess >= targetHpBefore;
-        normalized.StableLethal = failureKills && successKills;
-        normalized.LethalProbabilityBasisPoints = failureKills
-            ? (successKills ? 10000 : Math.Max(failureBasisPoints, 0))
-            : 0;
+        if (!normalized.HasTypedLethalPreview)
+        {
+            normalized.StableLethal = failureKills && successKills;
+            normalized.LethalProbabilityBasisPoints = failureKills
+                ? (successKills ? 10000 : Math.Max(failureBasisPoints, 0))
+                : 0;
+        }
         if (failureKills && !successKills && normalized.Damage >= targetHpBefore)
         {
             normalized.Damage = Math.Max(damageOnSuccess, 0);

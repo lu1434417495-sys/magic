@@ -412,8 +412,10 @@ internal class BattleGroundEffectService
         IReadOnlyList<CombatEffectDefinition> windPushEffects,
         IReadOnlyList<Vector2I> effectCoords,
         IReadOnlyList<Vector2I> targetCoords,
-        BattleEventBatch batch
-    ) => _relocationService._apply_ground_wind_push_effects_result(sourceUnit, skillDefinition, windPushEffects, effectCoords, targetCoords, batch);
+        BattleEventBatch batch,
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+            effectTargetPlan = null
+    ) => _relocationService._apply_ground_wind_push_effects_result(sourceUnit, skillDefinition, windPushEffects, effectCoords, targetCoords, batch, effectTargetPlan);
 
     internal string GetGroundSpecialEffectValidationMessage(
         BattleUnitState activeUnit,
@@ -610,14 +612,28 @@ internal class BattleGroundEffectService
         IReadOnlyList<CombatEffectDefinition> windPushEffects =
             BattleGroundRelocationService.CollectWindPushEffectDefinitions(effectDefinitionList);
         HashSet<int> windPushEffectIds = BattleGroundEffectCoordService.BuildEffectInstanceIdSet(windPushEffects);
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+            effectTargetPlan = _coordService.BuildGroundEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitionList,
+                normalizedEffectCoords
+            );
+        IReadOnlyList<BattleUnitState> plannedTargets =
+            BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+                effectDefinitionList,
+                effectTargetPlan
+            );
         StringName sourceEventId =
             Runtime?.AllocateContingencySourceEventId("ground_spell") ?? Empty;
-        IReadOnlyList<StringName> spellAffectedUnitIds = CollectGroundPreviewUnitIds(
-            sourceUnit,
-            skillDefinition,
-            effectDefinitionList,
-            normalizedEffectCoords
-        );
+        var spellAffectedUnitIds = new List<StringName>(plannedTargets.Count);
+        foreach (BattleUnitState plannedTarget in plannedTargets)
+        {
+            if (plannedTarget != null)
+            {
+                spellAffectedUnitIds.Add(plannedTarget.unit_id);
+            }
+        }
         if (spellAffectedUnitIds.Count > 0 || normalizedContingencyEffectCoords.Count > 0)
         {
             Runtime?.EmitContingencySpellAffected(
@@ -629,35 +645,28 @@ internal class BattleGroundEffectService
             );
         }
 
-        foreach (BattleUnitState targetUnit in _coordService.CollectUnitsInCoords(normalizedEffectCoords))
+        foreach (BattleUnitState targetUnit in plannedTargets)
         {
             if (targetUnit == null || !targetUnit.IsAlive())
             {
                 continue;
             }
-            var applicableEffects = new List<CombatEffectDefinition>();
-            foreach (CombatEffectDefinition effectDefinition in effectDefinitionList)
+            var applicableEffects = new List<CombatEffectDefinition>(
+                BattleSkillExecutionOrchestrator.CollectPlannedEffectsForTarget(
+                    effectDefinitionList,
+                    effectTargetPlan,
+                    targetUnit.unit_id
+                )
+            );
+            for (int index = applicableEffects.Count - 1; index >= 0; index--)
             {
+                CombatEffectDefinition effectDefinition = applicableEffects[index];
                 if (
                     effectDefinition == null
                     || windPushEffectIds.Contains(RuntimeHelpers.GetHashCode(effectDefinition))
                 )
                 {
-                    continue;
-                }
-                if (
-                    _is_unit_valid_for_effect(
-                        sourceUnit,
-                        targetUnit,
-                        ResolveEffectTargetFilter(skillDefinition, effectDefinition)
-                    )
-                    && BattleEffectTargetRequirementRules.IsSatisfied(
-                        effectDefinition,
-                        targetUnit
-                    )
-                )
-                {
-                    applicableEffects.Add(effectDefinition);
+                    applicableEffects.RemoveAt(index);
                 }
             }
             if (applicableEffects.Count == 0)
@@ -804,7 +813,7 @@ internal class BattleGroundEffectService
                     sourceUnit,
                     targetUnit,
                     skillDefinition,
-                    effectDefinitionList,
+                    applicableEffects,
                     batch
                 );
                 Runtime.HandleUnitDefeatedByRuntimeEffect(
@@ -849,7 +858,8 @@ internal class BattleGroundEffectService
             windPushEffects,
             normalizedEffectCoords,
             targetCoords,
-            batch
+            batch,
+            effectTargetPlan
         );
         if (windPushResult.Applied)
         {

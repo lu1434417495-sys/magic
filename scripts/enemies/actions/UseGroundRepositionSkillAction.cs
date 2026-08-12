@@ -3,11 +3,20 @@ using Godot;
 [GlobalClass]
 public partial class UseGroundRepositionSkillAction : EnemyAiAction
 {
+    private static readonly StringName ModeEscape = "escape";
+    private static readonly StringName ModeHighGround = "high_ground";
+
     [Export]
     public Godot.Collections.Array<StringName> skill_ids { get; set; } = new();
 
     [Export]
     public StringName target_selector { get; set; } = "nearest_enemy";
+
+    [Export]
+    public StringName positioning_mode { get; set; } = ModeEscape;
+
+    [Export]
+    public int high_ground_weight { get; set; } = 100;
 
     [Export]
     public int minimum_safe_distance { get; set; } = 3;
@@ -41,6 +50,18 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
             "UseGroundRepositionSkillAction",
             target_selector
         );
+        if (positioning_mode != ModeEscape && positioning_mode != ModeHighGround)
+        {
+            errors.Add(
+                $"UseGroundRepositionSkillAction {action_id} positioning_mode must be escape or high_ground."
+            );
+        }
+        if (high_ground_weight < 0)
+        {
+            errors.Add(
+                $"UseGroundRepositionSkillAction {action_id} high_ground_weight must be >= 0."
+            );
+        }
         if (minimum_safe_distance <= 0)
         {
             errors.Add(

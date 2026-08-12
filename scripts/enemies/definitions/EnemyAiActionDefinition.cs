@@ -171,7 +171,9 @@ internal abstract class EnemyAiActionDefinition
                     action.safe_distance_margin,
                     action.desired_max_distance_bonus,
                     action.action_base_score,
-                    action.min_survival_margin_gain_to_escape
+                    action.min_survival_margin_gain_to_escape,
+                    action.positioning_mode,
+                    action.high_ground_weight
                 ),
             RetreatAction action => new RetreatActionDefinition(
                 action.action_id,

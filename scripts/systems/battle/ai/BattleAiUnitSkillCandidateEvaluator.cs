@@ -163,7 +163,8 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                             BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
                                 context,
                                 command,
-                                fastPreview
+                                fastPreview,
+                                skillEntry
                             );
                             if (preview == null || !preview.allowed)
                             {

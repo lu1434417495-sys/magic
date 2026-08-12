@@ -228,32 +228,24 @@ internal class BattleGroundEffectCoordService
         IReadOnlyList<Vector2I> effectCoords
     )
     {
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> plan =
+            BuildGroundEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitions,
+                effectCoords
+            );
         var targetUnitIds = new List<StringName>();
-        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
-        {
-            foreach (
-                CombatEffectDefinition effectDefinition in effectDefinitions
-                    ?? Array.Empty<CombatEffectDefinition>()
+        foreach (
+            BattleUnitState targetUnit in BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+                effectDefinitions,
+                plan
             )
+        )
+        {
+            if (targetUnit != null)
             {
-                if (
-                    _owner._is_unit_valid_for_effect(
-                        sourceUnit,
-                        targetUnit,
-                        _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition)
-                    )
-                    && BattleEffectTargetRequirementRules.IsSatisfied(
-                        effectDefinition,
-                        targetUnit
-                    )
-                )
-                {
-                    if (targetUnit != null)
-                    {
-                        targetUnitIds.Add(targetUnit.unit_id);
-                    }
-                    break;
-                }
+                targetUnitIds.Add(targetUnit.unit_id);
             }
         }
         return targetUnitIds;
@@ -266,36 +258,67 @@ internal class BattleGroundEffectCoordService
         IReadOnlyList<Vector2I> effectCoords
     )
     {
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>> plan =
+            BuildGroundEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitions,
+                effectCoords
+            );
         var targetUnitIds = new List<StringName>();
-        foreach (BattleUnitState targetUnitState in CollectUnitsInCoords(effectCoords))
-        {
-            BattleUnitReadView targetUnit = new(targetUnitState);
-            foreach (
-                CombatEffectDefinition effectDefinition in effectDefinitions
-                    ?? Array.Empty<CombatEffectDefinition>()
+        foreach (
+            BattleUnitReadView targetUnit in BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+                effectDefinitions,
+                plan
             )
+        )
+        {
+            if (targetUnit.IsValid)
             {
-                if (
-                    _owner._is_unit_valid_for_effect(
-                        sourceUnit,
-                        targetUnit,
-                        _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition)
-                    )
-                    && BattleEffectTargetRequirementRules.IsSatisfied(
-                        effectDefinition,
-                        targetUnit
-                    )
-                )
-                {
-                    if (targetUnit.IsValid)
-                    {
-                        targetUnitIds.Add(targetUnit.UnitId);
-                    }
-                    break;
-                }
+                targetUnitIds.Add(targetUnit.UnitId);
             }
         }
         return targetUnitIds;
+    }
+
+    internal IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+        BuildGroundEffectTargetPlan(
+            BattleUnitState sourceUnit,
+            SkillDefinition skillDefinition,
+            IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+            IReadOnlyList<Vector2I> effectCoords
+        )
+    {
+        IReadOnlyList<BattleUnitState> candidateUnits = CollectUnitsInCoords(effectCoords);
+        return Runtime?._skill_orchestrator.BuildUnitEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitions,
+                candidateUnits
+            )
+            ?? new Dictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>();
+    }
+
+    internal IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>>
+        BuildGroundEffectTargetPlan(
+            BattleUnitReadView sourceUnit,
+            SkillDefinition skillDefinition,
+            IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+            IReadOnlyList<Vector2I> effectCoords
+        )
+    {
+        var candidateUnits = new List<BattleUnitReadView>();
+        foreach (BattleUnitState candidateUnit in CollectUnitsInCoords(effectCoords))
+        {
+            candidateUnits.Add(new BattleUnitReadView(candidateUnit));
+        }
+        return Runtime?._skill_orchestrator.BuildUnitEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitions,
+                candidateUnits
+            )
+            ?? new Dictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>>();
     }
 
     internal List<BattleUnitState> CollectUnitsInCoords(IReadOnlyList<Vector2I> effectCoords)

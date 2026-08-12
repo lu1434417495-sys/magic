@@ -118,12 +118,13 @@ internal sealed class BattleAiSkillAffordanceClassifier
     )
     {
         BattleTargetMode targetMode = combatProfile.TargetModeKind;
-        StringName teamIntent = ProgressionDataUtils.to_string_name(record.team_intent);
-        bool hasDamage = false;
-        bool hasHeal = false;
-        bool hasControl = false;
+        bool hasHostileDamage = false;
+        bool hasSupportHeal = false;
+        bool hasHostileControl = false;
+        bool hasSupportControl = false;
         bool hasGroundControl = false;
-        bool hasReposition = false;
+        bool hasHostileReposition = false;
+        bool hasSupportReposition = false;
 
         foreach (CombatEffectDefinition effectDef in CollectEffectDefs(combatProfile, skillLevel))
         {
@@ -132,19 +133,26 @@ internal sealed class BattleAiSkillAffordanceClassifier
                 continue;
             }
             BattleEffectKind effectKind = effectDef.EffectKind;
+            StringName effectTargetFilter = BattleTargetTeamRules.ResolveEffectTargetFilter(
+                skillDef,
+                effectDef
+            );
+            bool canTargetHostile = CanTargetHostile(effectTargetFilter);
+            bool canTargetSupport = CanTargetSupport(effectTargetFilter);
             if (IsDamageEffect(effectDef))
             {
-                hasDamage = true;
+                hasHostileDamage |= canTargetHostile;
                 record.AddEffectRole(new StringName("damage"));
             }
             if (IsHealEffect(effectDef))
             {
-                hasHeal = true;
+                hasSupportHeal |= canTargetSupport;
                 record.AddEffectRole(new StringName("heal"));
             }
             if (IsControlEffect(effectDef))
             {
-                hasControl = true;
+                hasHostileControl |= canTargetHostile;
+                hasSupportControl |= canTargetSupport;
                 record.AddEffectRole(new StringName("control"));
             }
             if (IsExecuteEffect(effectDef))
@@ -158,18 +166,27 @@ internal sealed class BattleAiSkillAffordanceClassifier
             }
             if (effectKind == BattleEffectKind.ForcedMove)
             {
-                hasReposition = true;
+                hasHostileReposition |= canTargetHostile;
+                hasSupportReposition |= canTargetSupport;
                 record.AddEffectRole(new StringName("forced_move"));
             }
         }
 
         if (targetMode == BattleTargetMode.Ground)
         {
-            if (hasDamage && teamIntent != "support")
+            if (hasHostileDamage)
             {
                 record.AddAffordance(new StringName("ground_hostile.aoe"));
             }
-            if (hasGroundControl || hasControl)
+            if (hasSupportHeal)
+            {
+                record.AddAffordance(new StringName("ally_heal"));
+            }
+            if (hasSupportControl || hasSupportReposition)
+            {
+                record.AddAffordance(new StringName("self_or_ally_buff"));
+            }
+            if (hasGroundControl || hasHostileControl || hasSupportControl)
             {
                 record.AddAffordance(new StringName("ground_control"));
                 record.AddAffordance(new StringName("terrain_control"));
@@ -183,25 +200,22 @@ internal sealed class BattleAiSkillAffordanceClassifier
 
         if (targetMode == BattleTargetMode.Unit)
         {
-            if (teamIntent == "support")
+            if (hasSupportHeal)
             {
-                if (hasHeal)
-                {
-                    record.AddAffordance(new StringName("ally_heal"));
-                }
-                else if (hasControl || hasReposition)
-                {
-                    record.AddAffordance(new StringName("self_or_ally_buff"));
-                }
+                record.AddAffordance(new StringName("ally_heal"));
             }
-            else if (hasDamage)
+            if (hasSupportControl || hasSupportReposition)
+            {
+                record.AddAffordance(new StringName("self_or_ally_buff"));
+            }
+            if (hasHostileDamage)
             {
                 record.AddAffordance(new StringName("unit_hostile.damage"));
             }
-            else if (hasControl || hasReposition)
+            if (hasHostileControl || hasHostileReposition)
             {
                 record.AddAffordance(new StringName("unit_hostile.control"));
-                if (hasReposition)
+                if (hasHostileReposition)
                 {
                     record.AddAffordance(new StringName("displacement_control"));
                 }
@@ -233,32 +247,55 @@ internal sealed class BattleAiSkillAffordanceClassifier
         {
             return "";
         }
-        StringName filter = Normalize(combatProfile.TargetTeamFilter);
-        if (BattleTargetTeamRules.IsBeneficialFilter(filter))
-        {
-            return "support";
-        }
-        if (BattleTargetTeamRules.IsEnemyFilter(filter))
-        {
-            return "hostile";
-        }
+        bool hasHostileTarget = false;
+        bool hasSupportTarget = false;
+        bool sawEffect = false;
         foreach (CombatEffectDefinition effectDef in CollectEffectDefs(combatProfile, skillLevel))
         {
             if (effectDef == null)
             {
                 continue;
             }
-            StringName effectFilter = Normalize(effectDef.EffectTargetTeamFilter);
-            if (BattleTargetTeamRules.IsEnemyFilter(effectFilter))
-            {
-                return "hostile";
-            }
-            if (BattleTargetTeamRules.IsBeneficialFilter(effectFilter))
-            {
-                return "support";
-            }
+            sawEffect = true;
+            StringName effectFilter = BattleTargetTeamRules.ResolveEffectTargetFilter(
+                skillDef,
+                effectDef
+            );
+            hasHostileTarget |= CanTargetHostile(effectFilter);
+            hasSupportTarget |= CanTargetSupport(effectFilter);
+        }
+        if (!sawEffect)
+        {
+            hasHostileTarget = CanTargetHostile(combatProfile.TargetTeamFilter);
+            hasSupportTarget = CanTargetSupport(combatProfile.TargetTeamFilter);
+        }
+        if (hasHostileTarget && hasSupportTarget)
+        {
+            return "mixed";
+        }
+        if (hasHostileTarget)
+        {
+            return "hostile";
+        }
+        if (hasSupportTarget)
+        {
+            return "support";
         }
         return "neutral";
+    }
+
+    private static bool CanTargetHostile(StringName targetFilter)
+    {
+        BattleTargetFilter filter = BattleTypedNames.ToTargetFilter(Normalize(targetFilter));
+        return filter is BattleTargetFilter.Enemy or BattleTargetFilter.Any;
+    }
+
+    private static bool CanTargetSupport(StringName targetFilter)
+    {
+        BattleTargetFilter filter = BattleTypedNames.ToTargetFilter(Normalize(targetFilter));
+        return filter is BattleTargetFilter.Self
+            or BattleTargetFilter.Ally
+            or BattleTargetFilter.Any;
     }
 
     private static List<CombatEffectDefinition> CollectEffectDefs(

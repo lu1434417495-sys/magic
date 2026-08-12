@@ -146,6 +146,241 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         );
     }
 
+    internal IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+        BuildUnitEffectTargetPlan(
+            BattleUnitState sourceUnit,
+            SkillDefinition skillDefinition,
+            IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+            IReadOnlyList<BattleUnitState> candidateUnits
+        )
+    {
+        var plan = new Dictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (effectDefinition == null || plan.ContainsKey(effectDefinition))
+            {
+                continue;
+            }
+            StringName targetFilter = ResolveEffectTargetFilter(
+                skillDefinition,
+                effectDefinition
+            );
+            var eligibleUnits = new List<BattleUnitState>();
+            foreach (BattleUnitState candidateUnit in candidateUnits ?? Array.Empty<BattleUnitState>())
+            {
+                if (
+                    candidateUnit != null
+                    && _is_unit_valid_for_effect(
+                        sourceUnit,
+                        candidateUnit,
+                        targetFilter
+                    )
+                    && BattleEffectTargetRequirementRules.IsSatisfied(
+                        effectDefinition,
+                        candidateUnit
+                    )
+                )
+                {
+                    eligibleUnits.Add(candidateUnit);
+                }
+            }
+            plan[effectDefinition] = BattleCombatEffectTargetRules.SelectTargets(
+                effectDefinition,
+                sourceUnit,
+                eligibleUnits
+            );
+        }
+        return plan;
+    }
+
+    internal IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>>
+        BuildUnitEffectTargetPlan(
+            BattleUnitReadView sourceUnit,
+            SkillDefinition skillDefinition,
+            IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+            IReadOnlyList<BattleUnitReadView> candidateUnits
+        )
+    {
+        var plan = new Dictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (effectDefinition == null || plan.ContainsKey(effectDefinition))
+            {
+                continue;
+            }
+            StringName targetFilter = ResolveEffectTargetFilter(
+                skillDefinition,
+                effectDefinition
+            );
+            var eligibleUnits = new List<BattleUnitReadView>();
+            foreach (
+                BattleUnitReadView candidateUnit in candidateUnits
+                    ?? Array.Empty<BattleUnitReadView>()
+            )
+            {
+                if (
+                    candidateUnit.IsValid
+                    && _is_unit_valid_for_effect(
+                        sourceUnit,
+                        candidateUnit,
+                        targetFilter
+                    )
+                    && BattleEffectTargetRequirementRules.IsSatisfied(
+                        effectDefinition,
+                        candidateUnit
+                    )
+                )
+                {
+                    eligibleUnits.Add(candidateUnit);
+                }
+            }
+            plan[effectDefinition] = BattleCombatEffectTargetRules.SelectTargets(
+                effectDefinition,
+                sourceUnit,
+                eligibleUnits
+            );
+        }
+        return plan;
+    }
+
+    internal static IReadOnlyList<BattleUnitState> CollectPlannedTargets(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> plan
+    )
+    {
+        var result = new List<BattleUnitState>();
+        var seenIds = new HashSet<StringName>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition == null
+                || plan == null
+                || !plan.TryGetValue(effectDefinition, out IReadOnlyList<BattleUnitState> targets)
+            )
+            {
+                continue;
+            }
+            foreach (BattleUnitState target in targets ?? Array.Empty<BattleUnitState>())
+            {
+                if (target != null && seenIds.Add(target.unit_id))
+                {
+                    result.Add(target);
+                }
+            }
+        }
+        return result;
+    }
+
+    internal static IReadOnlyList<BattleUnitReadView> CollectPlannedTargets(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>> plan
+    )
+    {
+        var result = new List<BattleUnitReadView>();
+        var seenIds = new HashSet<StringName>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition == null
+                || plan == null
+                || !plan.TryGetValue(effectDefinition, out IReadOnlyList<BattleUnitReadView> targets)
+            )
+            {
+                continue;
+            }
+            foreach (
+                BattleUnitReadView target in targets
+                    ?? Array.Empty<BattleUnitReadView>()
+            )
+            {
+                if (target.IsValid && seenIds.Add(target.UnitId))
+                {
+                    result.Add(target);
+                }
+            }
+        }
+        return result;
+    }
+
+    internal static IReadOnlyList<CombatEffectDefinition> CollectPlannedEffectsForTarget(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> plan,
+        StringName targetUnitId
+    )
+    {
+        var result = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition == null
+                || plan == null
+                || !plan.TryGetValue(effectDefinition, out IReadOnlyList<BattleUnitState> targets)
+            )
+            {
+                continue;
+            }
+            foreach (BattleUnitState target in targets ?? Array.Empty<BattleUnitState>())
+            {
+                if (target?.unit_id == targetUnitId)
+                {
+                    result.Add(effectDefinition);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    internal static IReadOnlyList<CombatEffectDefinition> CollectPlannedEffectsForTarget(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>> plan,
+        StringName targetUnitId
+    )
+    {
+        var result = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition == null
+                || plan == null
+                || !plan.TryGetValue(effectDefinition, out IReadOnlyList<BattleUnitReadView> targets)
+            )
+            {
+                continue;
+            }
+            foreach (
+                BattleUnitReadView target in targets
+                    ?? Array.Empty<BattleUnitReadView>()
+            )
+            {
+                if (target.IsValid && target.UnitId == targetUnitId)
+                {
+                    result.Add(effectDefinition);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
     private static BattleTargetMode ResolveGroundCastTargetMode(
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariantDefinition

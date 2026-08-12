@@ -77,6 +77,27 @@ internal static class EquipmentAbilityPayloadValidators
             path,
             errors
         );
+        StringName replacementGroupId = ProgressionDataUtils.to_string_name(
+            payload.replacement_group_id
+        );
+        if (replacementGroupId == "" && payload.replacement_priority != 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_DAMAGE_REPLACEMENT_GROUP_REQUIRED",
+                $"{path}.payload.replacement_group_id",
+                "add_damage_dice replacement_priority requires replacement_group_id"
+            );
+        }
+        if (payload.replacement_priority < 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_DAMAGE_REPLACEMENT_PRIORITY_INVALID",
+                $"{path}.payload.replacement_priority",
+                "add_damage_dice replacement_priority must be zero or positive"
+            );
+        }
         if (payload.dice != null)
         {
             foreach (DiceExpressionTermDef term in payload.dice.terms)
@@ -623,6 +644,55 @@ internal static class EquipmentAbilityPayloadValidators
             );
         }
         EquipmentAbilityBindingValidator.ValidateStatusReference(payload.status_id, context, $"{path}.payload.status_id", errors);
+        StringName mitigationDamageTag = ProgressionDataUtils.to_string_name(payload.damage_tag);
+        if (
+            mitigationDamageTag != ""
+            && DamageTagContentRules.ToDamageTagKind(mitigationDamageTag)
+                == DamageTagKind.Unknown
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
+                $"{path}.payload.damage_tag",
+                $"damage tag {mitigationDamageTag} is not known"
+            );
+        }
+        ValidateDamageTagArray(
+            payload.damage_tags,
+            context,
+            $"{path}.payload.damage_tags",
+            errors
+        );
+        StringName mitigationTier = ProgressionDataUtils.to_string_name(
+            payload.mitigation_tier
+        );
+        if (
+            mitigationTier != ""
+            && DamageTagContentRules.ToMitigationTierKind(mitigationTier)
+                == DamageMitigationTierKind.Unknown
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_MITIGATION_TIER_INVALID",
+                $"{path}.payload.mitigation_tier",
+                $"mitigation tier {mitigationTier} is not supported"
+            );
+        }
+        if (
+            mitigationTier != ""
+            && mitigationDamageTag == ""
+            && (payload.damage_tags?.Count ?? 0) == 0
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_MITIGATION_DAMAGE_TAG_REQUIRED",
+                $"{path}.payload.mitigation_tier",
+                "apply_status mitigation_tier requires damage_tag or damage_tags"
+            );
+        }
         ValidateStatusSemanticPayload(
             payload.stack_behavior,
             payload.stack_limit,
@@ -662,6 +732,15 @@ internal static class EquipmentAbilityPayloadValidators
                 "EQA_STATUS_HEAL_MULTIPLIER_INVALID",
                 $"{path}.payload.heal_multiplier_percent",
                 "apply_status heal_multiplier_percent must be between 0 and 100"
+            );
+        }
+        if (payload.armor_class_bonus_per_stack < 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_ARMOR_CLASS_BONUS_INVALID",
+                $"{path}.payload.armor_class_bonus_per_stack",
+                "apply_status armor_class_bonus_per_stack must be >= 0"
             );
         }
         if (payload.save_dc > 0 && (payload.save_ability == "" || payload.save_tag == ""))

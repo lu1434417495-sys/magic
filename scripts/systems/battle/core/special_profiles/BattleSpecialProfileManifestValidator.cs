@@ -161,26 +161,6 @@ internal sealed class BattleSpecialProfileManifestValidator
             _append_special_skill_effect_surface_errors(errors, skId, skillDefinition);
         }
 
-        foreach (var tp in manifestDef.required_regression_tests)
-        {
-            string tps = tp;
-            if (tps.StripEdges().Length == 0)
-            {
-                errors.Add(
-                    $"Battle special profile {pid} declares an empty required_regression_tests path."
-                );
-                continue;
-            }
-            if (!_resource_file_exists(tps))
-                errors.Add(
-                    $"Battle special profile {pid} required regression test path does not exist: {tps}."
-                );
-            if (!_is_default_regression_suite_member(tps))
-                errors.Add(
-                    $"Battle special profile {pid} required regression test must be a default regression suite member: {tps}."
-                );
-        }
-
         return errors;
     }
 
@@ -551,34 +531,6 @@ internal sealed class BattleSpecialProfileManifestValidator
             value = rawValue as Godot.Collections.Dictionary;
             return value != null;
         }
-    }
-
-    private static bool _resource_file_exists(string path)
-    {
-        if (path.StartsWith("res://") || path.StartsWith("user://"))
-            return FileAccess.FileExists(path);
-        return FileAccess.FileExists($"res://{path}");
-    }
-
-    private static bool _is_default_regression_suite_member(string path)
-    {
-        var n = path.Replace("\\", "/").StripEdges();
-        var lower = n.ToLower();
-        if (!lower.StartsWith("tests/"))
-            return false;
-        if (
-            lower.Contains("/tools/")
-            || lower.Contains("/simulation/")
-            || lower.Contains("/benchmarks/")
-        )
-            return false;
-        if (
-            lower.EndsWith("benchmark.cs")
-            || lower.EndsWith("analysis.cs")
-        )
-            return false;
-        string fileName = lower.Contains("/") ? lower.Substring(lower.LastIndexOf('/') + 1) : lower;
-        return fileName.StartsWith("run_") && lower.EndsWith(".cs");
     }
 
 }

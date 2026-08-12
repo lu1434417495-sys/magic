@@ -19,12 +19,30 @@ internal sealed class BattleAiRuntimeActionPlan : IDisposable
     internal bool HasRuntimeBorrowers =>
         _entriesByState.Count != 0 || _skillAffordanceRecordsBySkillId.Count != 0;
 
-    public void SetSource(BattleUnitState unitState, EnemyAiBrainDefinition brain)
+    public void SetSource(
+        BattleUnitState unitState,
+        EnemyAiBrainDefinition brain,
+        ISkillCatalog skillCatalog = null,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
+        BattleState battleState = null,
+        int worldStep = -1
+    )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         unit_id = unitState?.unit_id ?? new StringName("");
         brain_id = brain?.BrainId ?? new StringName("");
-        fingerprint = BuildFingerprint(unitState, brain);
+        fingerprint = BuildFingerprint(
+            unitState,
+            brain,
+            skillCatalog,
+            skillDefinitions,
+            equipmentAbilityBindings,
+            itemDefinitions,
+            battleState,
+            worldStep
+        );
     }
 
     internal void AddStateActions(
@@ -274,19 +292,44 @@ internal sealed class BattleAiRuntimeActionPlan : IDisposable
         return validationErrors;
     }
 
-    public bool IsStaleFor(BattleUnitState unitState, EnemyAiBrainDefinition brain) =>
-        fingerprint != BuildFingerprint(unitState, brain);
+    public bool IsStaleFor(
+        BattleUnitState unitState,
+        EnemyAiBrainDefinition brain,
+        ISkillCatalog skillCatalog = null,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
+        BattleState battleState = null,
+        int worldStep = -1
+    ) =>
+        fingerprint
+        != BuildFingerprint(
+            unitState,
+            brain,
+            skillCatalog,
+            skillDefinitions,
+            equipmentAbilityBindings,
+            itemDefinitions,
+            battleState,
+            worldStep
+        );
 
     public static string BuildFingerprint(
         BattleUnitState unitState,
-        EnemyAiBrainDefinition brain
+        EnemyAiBrainDefinition brain,
+        ISkillCatalog skillCatalog = null,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
+        BattleState battleState = null,
+        int worldStep = -1
     )
     {
         var parts = new List<string>
         {
             $"unit={unitState?.unit_id.ToString() ?? ""}",
             $"brain={brain?.BrainId.ToString() ?? ""}",
-            $"skills={BuildSkillSignature(unitState)}",
+            $"skills={BuildSkillSignature(unitState, skillCatalog, skillDefinitions, equipmentAbilityBindings, itemDefinitions, battleState, worldStep)}",
             $"brain_shape={BuildBrainShapeSignature(brain)}",
         };
         return string.Join("|", parts);
@@ -313,22 +356,35 @@ internal sealed class BattleAiRuntimeActionPlan : IDisposable
         return entries;
     }
 
-    private static string BuildSkillSignature(BattleUnitState unitState)
+    private static string BuildSkillSignature(
+        BattleUnitState unitState,
+        ISkillCatalog skillCatalog,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        BattleState battleState,
+        int worldStep
+    )
     {
         if (unitState == null)
             return "";
 
         var entries = new List<string>();
         BattleSkillAvailabilityView availabilityView = new BattleSkillAvailabilityService(
-            (IReadOnlyDictionary<StringName, SkillDefinition>)null
+            skillCatalog,
+            skillDefinitions,
+            equipmentAbilityBindings,
+            itemDefinitions
         ).BuildView(
             new BattleSkillAvailabilityQuery
             {
                 User = unitState,
                 Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
                 IncludeKnownSkills = true,
-                IncludeEquipmentSkills = false,
+                IncludeEquipmentSkills = true,
                 IncludeScopedAutoCast = false,
+                WorldStep = worldStep,
+                BattleState = battleState,
             }
         );
         foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)

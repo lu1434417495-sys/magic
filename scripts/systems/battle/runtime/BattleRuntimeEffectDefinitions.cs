@@ -126,6 +126,39 @@ internal static class BattleRuntimeEffectDefinitions
         );
     }
 
+    internal static CombatEffectDefinition TimedTerrainContactDamage(
+        StringName terrainEffectId,
+        int durationTu,
+        StringName targetTeamFilter,
+        int diceCount,
+        int diceSides,
+        int diceBonus,
+        StringName damageTag,
+        string displayName
+    )
+    {
+        return Create(
+            effectType: "terrain_effect",
+            effectTargetTeamFilter: Normalize(targetTeamFilter),
+            terrainEffectId: Normalize(terrainEffectId),
+            durationTu: Math.Max(durationTu, 0),
+            tickIntervalTu: 5,
+            parameters: new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["contact_damage_dice_count"] = Math.Max(diceCount, 0),
+                ["contact_damage_dice_sides"] = Math.Max(diceSides, 0),
+                ["contact_damage_flat_bonus"] = Math.Max(diceBonus, 0),
+                ["contact_damage_tag"] = Normalize(damageTag),
+            },
+            tickEffectType: "none",
+            lifetimePolicy: "timed",
+            renderOverlayId: Normalize(terrainEffectId),
+            overlayPriority: 100,
+            displayName: displayName ?? "",
+            stackBehavior: "refresh"
+        );
+    }
+
     internal static CombatEffectDefinition Heal(
         int diceCount,
         int diceSides,

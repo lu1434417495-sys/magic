@@ -33,6 +33,7 @@ internal sealed class BattleEquipmentAbilityBonusDamageDiceContext
     public BattleState BattleState { get; init; }
     public bool AttackSucceeded { get; init; }
     public bool CriticalHit { get; init; }
+    public bool IncludesWeaponDamage { get; init; } = true;
 }
 
 internal sealed class BattleEquipmentAbilityDamageRollModeContext
@@ -55,12 +56,28 @@ internal sealed class BattleEquipmentAbilityDamageReductionContext
     public bool CriticalHit { get; init; }
 }
 
+internal sealed class BattleEquipmentAbilityMitigationAuraContext
+{
+    public BattleUnitState TargetUnit { get; init; }
+    public BattleState BattleState { get; init; }
+    public StringName DamageTag { get; init; } = "";
+}
+
 internal sealed class BattleEquipmentAbilityDamageAppliedContext
 {
     public BattleUnitState SourceUnit { get; init; }
     public BattleUnitState TargetUnit { get; init; }
     public BattleState BattleState { get; init; }
+    public BattleEventBatch Batch { get; init; }
+    public int RawDamage { get; init; }
     public int HpDamage { get; init; }
+    public int HpBefore { get; init; }
+    public StringName DamageTag { get; init; } = "";
+    public bool IsEquipmentGenerated { get; init; }
+    public bool IsSelfDamage { get; init; }
+    public bool IsPreview { get; init; }
+    internal bool IsBranchLocalProjection { get; init; }
+    public Action<BattleEquipmentAbilityActionPreviewResult> PreviewActionSink { get; init; }
     public BattleSaveContext SaveContext { get; init; } = BattleSaveContext.Empty;
 }
 
@@ -86,6 +103,8 @@ internal sealed class BattleEquipmentAbilityBonusDamageDiceResult
 {
     public StringName BindingId { get; init; } = "";
     public StringName ActionId { get; init; } = "";
+    public StringName ReplacementGroupId { get; init; } = "";
+    public int ReplacementPriority { get; init; }
     public int DiceCount { get; init; }
     public int DiceSides { get; init; }
     public int FlatBonus { get; init; }
@@ -113,6 +132,15 @@ internal sealed class BattleEquipmentAbilityDamageReductionResult
     public StringName BindingId { get; init; } = "";
     public StringName ActionId { get; init; } = "";
     public int Amount { get; init; }
+    public string Label { get; init; } = "";
+}
+
+internal sealed class BattleEquipmentAbilityMitigationAuraResult
+{
+    public StringName BindingId { get; init; } = "";
+    public StringName AuraId { get; init; } = "";
+    public StringName SourceUnitId { get; init; } = "";
+    public StringName MitigationTier { get; init; } = "";
     public string Label { get; init; } = "";
 }
 
@@ -165,8 +193,22 @@ internal sealed class BattleEquipmentAbilityAfterHitResult
 
     internal void AddBonusDamageDice(BattleEquipmentAbilityBonusDamageDiceResult result)
     {
-        if (result != null)
-            _bonusDamageDice.Add(result);
+        BattleEquipmentAbilityBonusDamageReplacementRules.AddCandidateBundle(
+            _bonusDamageDice,
+            result == null
+                ? Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>()
+                : new[] { result }
+        );
+    }
+
+    internal void AddBonusDamageDiceBundle(
+        IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> results
+    )
+    {
+        BattleEquipmentAbilityBonusDamageReplacementRules.AddCandidateBundle(
+            _bonusDamageDice,
+            results
+        );
     }
 
     internal void AddStatusResult(BattleEquipmentAbilityStatusActionResult result)

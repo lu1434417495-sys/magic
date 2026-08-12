@@ -745,12 +745,17 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         BattleEventBatch batch
     )
     {
+        bool hasContactStatus = effectState?.contact_status_id != "";
+        bool hasContactDamage =
+            effectState?.contact_damage_dice_count > 0
+            && effectState.contact_damage_dice_sides > 0
+            && effectState.contact_damage_tag != "";
         if (
             runtime == null
             || state == null
             || targetUnit == null
             || effectState == null
-            || effectState.contact_status_id == ""
+            || (!hasContactStatus && !hasContactDamage)
             || processedContactKeys == null
         )
         {
@@ -779,8 +784,11 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             return;
         }
 
+        string contactKindKey = hasContactStatus
+            ? effectState.contact_status_id.ToString()
+            : $"damage:{effectState.contact_damage_tag}";
         string contactKey =
-            $"{effectState.field_instance_id}|{targetUnit.unit_id}|{effectState.contact_status_id}";
+            $"{effectState.field_instance_id}|{targetUnit.unit_id}|{contactKindKey}";
         if (processedContactKeys.Contains(contactKey))
             return;
         processedContactKeys.Add(contactKey);
@@ -801,6 +809,74 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             if (effectState.contact_apply_on_save_failure && saveResult.Success)
                 return;
         }
+
+        if (hasContactDamage)
+        {
+            BattleDamageResolver damageResolver = runtime.GetDamageResolver();
+            if (damageResolver == null)
+                return;
+            CombatEffectDefinition damageEffect = BattleRuntimeEffectDefinitions.Damage(
+                effectState.contact_damage_tag,
+                effectState.contact_damage_dice_count,
+                effectState.contact_damage_dice_sides,
+                effectState.contact_damage_flat_bonus,
+                new[] { effectState.contact_damage_tag }
+            );
+            AttackEffectResolutionResult damageResult = damageResolver.ResolveEffects(
+                sourceUnit,
+                targetUnit,
+                new[] { damageEffect },
+                DamageResolutionContext
+                    .ForSkill(effectState.source_skill_id)
+                    .WithBattleState(state)
+                    .WithDamageApplicationHookContext(
+                        batch,
+                        BattleEffectOrigin.EquipmentAbility()
+                    )
+            );
+            if (damageResult.Applied)
+            {
+                runtime.AppendResultSourceStatusEffects(batch, sourceUnit, damageResult);
+                runtime.AppendChangedUnitId(batch, targetUnit.unit_id);
+                runtime.AppendChangedUnitCoords(batch, targetUnit);
+                if (damageResult.Damage > 0)
+                {
+                    runtime.AppendBatchLog(
+                        batch,
+                        $"{targetUnit.display_name} 踩入 {_GetTimedTerrainEffectDisplayName(effectState)}，受到 {damageResult.Damage} 点伤害。"
+                    );
+                }
+                else if (damageResult.AnyImmune)
+                {
+                    runtime.AppendBatchLog(
+                        batch,
+                        $"{targetUnit.display_name} 免疫 {_GetTimedTerrainEffectDisplayName(effectState)} 的伤害。"
+                    );
+                }
+                bool causedDefeat = !targetUnit.IsAlive();
+                if (causedDefeat)
+                {
+                    runtime.ClearDefeatedUnit(targetUnit, batch);
+                    runtime.AppendBatchLog(batch, $"{targetUnit.display_name} 被击倒。");
+                    runtime.RecordEnemyDefeatedAchievement(sourceUnit, targetUnit);
+                }
+                if (sourceUnit != null)
+                {
+                    runtime.RecordBattleContributionResult(
+                        sourceUnit,
+                        targetUnit,
+                        damageResult.Damage,
+                        damageResult.Healing,
+                        causedDefeat,
+                        new StringName("terrain"),
+                        effectState.source_skill_id
+                    );
+                }
+            }
+        }
+
+        if (!hasContactStatus || !targetUnit.IsAlive())
+            return;
 
         int durationTu = Math.Max(effectState.contact_status_duration_tu, 0);
         CombatEffectDefinition statusEffect = BattleRuntimeEffectDefinitions.Status(
@@ -1074,6 +1150,21 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         );
         effectState.power = effectDefinition.Power;
         effectState.damage_tag = effectDefinition.DamageTag;
+        effectState.contact_damage_dice_count = Math.Max(
+            effectDefinition.GetIntParamTyped("contact_damage_dice_count"),
+            0
+        );
+        effectState.contact_damage_dice_sides = Math.Max(
+            effectDefinition.GetIntParamTyped("contact_damage_dice_sides"),
+            0
+        );
+        effectState.contact_damage_flat_bonus = Math.Max(
+            effectDefinition.GetIntParamTyped("contact_damage_flat_bonus"),
+            0
+        );
+        effectState.contact_damage_tag = effectDefinition.GetStringNameParamTyped(
+            "contact_damage_tag"
+        );
         effectState.terrain_contact_mode =
             effectDefinition.TerrainContactMode ?? new StringName("");
         effectState.terrain_remaining_effective_triggers =

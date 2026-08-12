@@ -368,6 +368,7 @@ public sealed partial class BattleAiScoreService : IDisposable
                 skillDefinition
             );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
+        PopulateSpellReactionThreatMetrics(scoreInput, context, skillDefinition);
         PopulateTauntAllyDamageRelief(
             scoreInput,
             context,
@@ -1207,10 +1208,63 @@ public sealed partial class BattleAiScoreService : IDisposable
         {
             return;
         }
+        var candidateUnits = new List<BattleUnitState>();
         foreach (StringName targetUnitId in scoreInput.target_unit_ids)
         {
-            BattleUnitState targetUnit = GetUnit(state, targetUnitId);
-            if (targetUnit == null)
+            BattleUnitState candidateUnit = GetUnit(state, targetUnitId);
+            if (candidateUnit != null)
+            {
+                candidateUnits.Add(candidateUnit);
+            }
+        }
+        CombatDirectionalPiercingDefinition directionalPiercing =
+            skillDefinition?.CombatProfile?.DirectionalPiercing;
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+            effectTargetPlan =
+                directionalPiercing == null
+                    ? BuildAiEffectTargetPlan(
+                        actor,
+                        skillDefinition,
+                        effectDefinitions,
+                        candidateUnits
+                    )
+                    : null;
+        IReadOnlyList<BattleUnitState> plannedTargets =
+            directionalPiercing == null
+                ? CollectAiPlannedTargets(effectDefinitions, effectTargetPlan)
+                : candidateUnits;
+        scoreInput.target_unit_ids.Clear();
+        foreach (BattleUnitState plannedTarget in plannedTargets)
+        {
+            scoreInput.target_unit_ids.Add(plannedTarget.unit_id);
+        }
+        scoreInput.target_count = plannedTargets.Count;
+        int directionalTargetIndex = 0;
+        int directionalBaseDamagePercent =
+            directionalPiercing != null
+                ? directionalPiercing.GetBaseDamagePercent(
+                    GetContextSkillLevel(context, skillDefinition.SkillId)
+                )
+                : 100;
+        foreach (BattleUnitState targetUnit in plannedTargets)
+        {
+            IReadOnlyList<CombatEffectDefinition> targetEffects =
+                directionalPiercing == null
+                    ? CollectAiEffectsForTarget(
+                        effectDefinitions,
+                        effectTargetPlan,
+                        targetUnit.unit_id
+                    )
+                    : BattleSkillExecutionOrchestrator.BuildDirectionalPiercingEffects(
+                        effectDefinitions,
+                        directionalBaseDamagePercent / 100.0
+                            * BattleDirectionalPiercingRules.GetExpectedDecayMultiplier(
+                                directionalPiercing,
+                                directionalTargetIndex,
+                                scoreInput.estimated_hit_rate_percent
+                            )
+                    );
+            if (targetEffects.Count == 0)
             {
                 continue;
             }
@@ -1218,9 +1272,10 @@ public sealed partial class BattleAiScoreService : IDisposable
                 scoreInput,
                 context,
                 targetUnit,
-                effectDefinitions,
+                targetEffects,
                 skillDefinition: skillDefinition
             );
+            directionalTargetIndex++;
         }
         PopulateChainDamageMetrics(scoreInput, context, skillDefinition, effectDefinitions);
         int healingPayoff =

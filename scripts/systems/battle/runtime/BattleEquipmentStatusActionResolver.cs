@@ -323,9 +323,16 @@ internal sealed class BattleEquipmentStatusActionResolver
             statusEntry.heal_multiplier_percent = Math.Clamp(payload.HealMultiplierPercent, 0, 100);
         else
             statusEntry.heal_multiplier_percent = null;
+        statusEntry.armor_class_bonus_per_stack =
+            Math.Max(payload.ArmorClassBonusPerStack, 0);
         if (payload.MovePointCapacityDelta != 0)
             statusEntry.move_point_capacity_delta = payload.MovePointCapacityDelta;
         statusEntry.forced_move_immune = payload.ForcedMoveImmune;
+        statusEntry.damage_tag = payload.DamageTag;
+        statusEntry.damage_tags = new List<StringName>(
+            payload.DamageTags ?? Array.Empty<StringName>()
+        );
+        statusEntry.mitigation_tier = payload.MitigationTier;
         targetUnit.SetStatusEffect(statusEntry);
         if (payload.MovePointCapacityDelta != 0)
             targetUnit.ClampCurrentMovePointsToCapacity();

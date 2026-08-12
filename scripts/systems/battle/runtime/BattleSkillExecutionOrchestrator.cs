@@ -764,13 +764,22 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         command
                     )
                     : BattleSkillUseOutcomeSnapshot.Empty;
-            bool definitionApplied = _handle_ground_skill_command(
-                active_unit,
-                command,
-                skillDefinition,
-                policy.GroundCastVariantDefinition,
-                batch
-            );
+            bool definitionApplied =
+                BattleDirectionalPiercingRules.IsDirectionalPiercingSkill(skillDefinition)
+                    ? _handle_directional_piercing_skill_command(
+                        active_unit,
+                        command,
+                        skillDefinition,
+                        policy.GroundCastVariantDefinition,
+                        batch
+                    )
+                    : _handle_ground_skill_command(
+                        active_unit,
+                        command,
+                        skillDefinition,
+                        policy.GroundCastVariantDefinition,
+                        batch
+                    );
             if (definitionApplied || IsEquipmentSkillCommand(command))
             {
                 CommitEquipmentSkillUsageIfNeeded(
@@ -1292,15 +1301,43 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             return false;
         }
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
-        CombatEffectDefinition repeatAttackEffect =
-            repeatAttackResolver?.get_repeat_attack_effect_def(effectDefinitions);
-        bool applied = false;
+        var candidateUnits = new List<BattleUnitState>();
         foreach (StringName targetUnitId in pendingCast.TargetUnitIds)
         {
-            if (!state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit) || !targetUnit.IsAlive())
+            if (
+                state.TryGetUnitTyped(targetUnitId, out BattleUnitState candidateUnit)
+                && candidateUnit.IsAlive()
+            )
+            {
+                candidateUnits.Add(candidateUnit);
+            }
+        }
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> targetPlan =
+            BuildUnitEffectTargetPlan(
+                activeUnit,
+                skillDefinition,
+                effectDefinitions,
+                candidateUnits
+            );
+        IReadOnlyList<BattleUnitState> plannedTargets = CollectPlannedTargets(
+            effectDefinitions,
+            targetPlan
+        );
+        bool applied = false;
+        foreach (BattleUnitState targetUnit in plannedTargets)
+        {
+            if (targetUnit == null || !targetUnit.IsAlive())
             {
                 continue;
             }
+            IReadOnlyList<CombatEffectDefinition> targetEffects =
+                CollectPlannedEffectsForTarget(
+                    effectDefinitions,
+                    targetPlan,
+                    targetUnit.unit_id
+                );
+            CombatEffectDefinition repeatAttackEffect =
+                repeatAttackResolver?.get_repeat_attack_effect_def(targetEffects);
             if (repeatAttackEffect != null)
             {
                 if (
@@ -1309,7 +1346,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         activeUnit,
                         targetUnit,
                         skillDefinition,
-                        effectDefinitions,
+                        targetEffects,
                         repeatAttackEffect,
                         batch,
                         castVariantDefinition
@@ -1326,7 +1363,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     targetUnit,
                     skillDefinition,
                     castVariantDefinition,
-                    effectDefinitions,
+                    targetEffects,
                     batch,
                     spellControlContext
                 )
@@ -1453,6 +1490,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         );
         _append_changed_unit_id(batch, active_unit?.unit_id ?? new StringName(""));
 
+        if (ResolveSpellReactionsAfterCost(active_unit, skillDefinition, batch).Interrupted)
+            return false;
+
         BattleSpellControlResult spellControlContext = _resolve_ground_spell_control_after_cost_result(
             active_unit,
             skillDefinition,
@@ -1564,9 +1604,27 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             return false;
         }
 
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> targetPlan =
+            isRandomChain
+                ? null
+                : BuildUnitEffectTargetPlan(
+                    active_unit,
+                    skillDefinition,
+                    resolvedEffectDefinitions,
+                    validation.TargetUnits
+                );
+        IReadOnlyList<BattleUnitState> plannedTargets =
+            isRandomChain
+                ? validation.TargetUnits
+                : CollectPlannedTargets(resolvedEffectDefinitions, targetPlan);
+        if (!isRandomChain && plannedTargets.Count == 0)
+        {
+            return false;
+        }
+
         Vector2I sourceRetreatTargetCoord =
-            sourceRetreatEffect != null && validation.TargetUnits.Count == 1
-                ? validation.TargetUnits[0].GetAnchorCoord()
+            sourceRetreatEffect != null && plannedTargets.Count == 1
+                ? plannedTargets[0].GetAnchorCoord()
                 : new Vector2I(-1, -1);
 
         if (!_consume_skill_costs(active_unit, skillDefinition, castVariantDefinition, batch))
@@ -1583,6 +1641,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             costs.ApCost
         );
         _append_changed_unit_id(batch, active_unit.unit_id);
+
+        if (ResolveSpellReactionsAfterCost(active_unit, skillDefinition, batch).Interrupted)
+            return false;
 
         BattleSpellControlResult spellControlContext = _resolve_unit_spell_control_after_cost_result(
             active_unit,
@@ -1610,13 +1671,21 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
         }
         bool applied = false;
-        foreach (BattleUnitState targetUnit in validation.TargetUnits)
+        foreach (BattleUnitState targetUnit in plannedTargets)
         {
             if (targetUnit == null)
             {
                 continue;
             }
-            if (repeatAttackEffect != null)
+            IReadOnlyList<CombatEffectDefinition> targetEffects =
+                CollectPlannedEffectsForTarget(
+                    resolvedEffectDefinitions,
+                    targetPlan,
+                    targetUnit.unit_id
+                );
+            CombatEffectDefinition targetRepeatAttackEffect =
+                repeatAttackResolver?.get_repeat_attack_effect_def(targetEffects);
+            if (targetRepeatAttackEffect != null)
             {
                 if (
                     repeatAttackResolver != null
@@ -1624,8 +1693,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         active_unit,
                         targetUnit,
                         skillDefinition,
-                        resolvedEffectDefinitions,
-                        repeatAttackEffect,
+                        targetEffects,
+                        targetRepeatAttackEffect,
                         batch,
                         castVariantDefinition
                     )
@@ -1641,7 +1710,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     targetUnit,
                     skillDefinition,
                     castVariantDefinition,
-                    resolvedEffectDefinitions,
+                    targetEffects,
                     batch,
                     spellControlContext
                 )
@@ -1714,6 +1783,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             costs.ApCost
         );
         _append_changed_unit_id(batch, active_unit?.unit_id ?? new StringName(""));
+        if (ResolveSpellReactionsAfterCost(active_unit, skillDefinition, batch).Interrupted)
+            return false;
         BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
         if (chargeResolver != null && chargeResolver.IsChargeOption(castVariantDefinition))
         {
@@ -1833,7 +1904,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch = null,
-        bool forceHitAllowCrit = false
+        bool forceHitAllowCrit = false,
+        int flatAttackBonus = 0,
+        bool forceWeaponAttackResolution = false
     )
     {
         BattleSkillResolutionRules skillResolutionRules = Runtime?._skill_resolution_rules;
@@ -1850,12 +1923,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 ? new List<CombatEffectDefinition>(effectDefinitions)
                 : Array.Empty<CombatEffectDefinition>());
         if (
-            skillResolutionRules?.ShouldResolveUnitSkillAsFateAttack(
-                active_unit,
-                target_unit,
-                skillDefinition,
-                effectDefinitions
-            ) == true
+            forceWeaponAttackResolution
+            || skillResolutionRules?.ShouldResolveUnitSkillAsFateAttack(
+                    active_unit,
+                    target_unit,
+                    skillDefinition,
+                    effectDefinitions
+                ) == true
         )
         {
             bool forceHitNoCrit =
@@ -1873,7 +1947,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 );
             AttackCheckInput attackCheck =
                 attackPolicy != null
-                    ? attackPolicy.BuildAttackCheck(policyContext, 0, 0)
+                    ? attackPolicy.BuildAttackCheck(policyContext, flatAttackBonus, 0)
                     : new AttackCheckInput(invalid: true);
             if (forceHitNoCrit)
             {
@@ -1987,7 +2061,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch,
         BattleSpellControlResult spell_control_context = default,
-        bool force_hit_allow_crit = false
+        bool force_hit_allow_crit = false,
+        int flat_attack_bonus = 0,
+        Action<AttackEffectResolutionResult> resolution_sink = null,
+        bool force_weapon_attack_resolution = false
     )
     {
         effectDefinitions ??= Array.Empty<CombatEffectDefinition>();
@@ -2022,9 +2099,12 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             castVariantDefinition,
             effectDefinitions,
             batch,
-            force_hit_allow_crit
+            force_hit_allow_crit,
+            flat_attack_bonus,
+            force_weapon_attack_resolution
         );
         AttackEffectResolutionResult damageResult = effectResolution.Result;
+        resolution_sink?.Invoke(damageResult);
         BattleSkillMasteryService skillMasteryService = Runtime?._skill_mastery_service;
         Runtime?._apply_source_bound_weapon_bonus_mastery_grants(
             active_unit,

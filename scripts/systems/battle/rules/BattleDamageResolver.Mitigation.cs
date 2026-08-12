@@ -19,7 +19,8 @@ public partial class BattleDamageResolver
         BattleUnitState targetUnit,
         StringName damageTag,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
-        IReadOnlyList<StringName> mitigationBypassTiers = null
+        IReadOnlyList<StringName> mitigationBypassTiers = null,
+        BattleState battleState = null
     )
     {
         if (targetUnit == null)
@@ -73,6 +74,16 @@ public partial class BattleDamageResolver
                 );
             }
         }
+        AppendEquipmentAbilityMitigationAuraSources(
+            targetUnit,
+            damageTag,
+            battleState,
+            halfSources,
+            doubleSources,
+            immuneSources,
+            mitigationBypassDamageTags,
+            mitigationBypassTiers
+        );
         AppendDamageResistanceSources(
             targetUnit,
             damageTag,
@@ -101,6 +112,85 @@ public partial class BattleDamageResolver
             MitigationTierNormal,
             Array.Empty<MitigationSourceResult>()
         );
+    }
+
+    private void AppendEquipmentAbilityMitigationAuraSources(
+        BattleUnitState targetUnit,
+        StringName damageTag,
+        BattleState battleState,
+        List<MitigationSourceResult> halfSources,
+        List<MitigationSourceResult> doubleSources,
+        List<MitigationSourceResult> immuneSources,
+        IReadOnlyList<StringName> mitigationBypassDamageTags,
+        IReadOnlyList<StringName> mitigationBypassTiers
+    )
+    {
+        IBattleEquipmentDamageQuery equipmentAbilityDamageQuery =
+            _equipment_ability_damage_query;
+        if (
+            equipmentAbilityDamageQuery == null
+            || targetUnit == null
+            || battleState == null
+            || damageTag == ""
+        )
+        {
+            return;
+        }
+
+        IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> auraResults =
+            equipmentAbilityDamageQuery.CollectMitigationAuras(
+                new BattleEquipmentAbilityMitigationAuraContext
+                {
+                    TargetUnit = targetUnit,
+                    BattleState = battleState,
+                    DamageTag = damageTag,
+                }
+            );
+        foreach (
+            BattleEquipmentAbilityMitigationAuraResult auraResult
+                in auraResults ?? Array.Empty<BattleEquipmentAbilityMitigationAuraResult>()
+        )
+        {
+            StringName mitigationTier = ProgressionDataUtils.to_string_name(
+                auraResult?.MitigationTier ?? new StringName("")
+            );
+            if (
+                auraResult == null
+                || ShouldBypassMitigationTier(
+                    damageTag,
+                    mitigationTier,
+                    mitigationBypassDamageTags,
+                    mitigationBypassTiers
+                )
+            )
+            {
+                continue;
+            }
+
+            MitigationSourceResult source = BuildMitigationSource(
+                ResolveEquipmentAbilityAuraSourceId(auraResult),
+                "equipment_ability_aura",
+                0,
+                mitigationTier
+            );
+            if (mitigationTier == MitigationTierImmune)
+                immuneSources.Add(source);
+            else if (mitigationTier == MitigationTierHalf)
+                halfSources.Add(source);
+            else if (mitigationTier == MitigationTierDouble)
+                doubleSources.Add(source);
+        }
+    }
+
+    private static StringName ResolveEquipmentAbilityAuraSourceId(
+        BattleEquipmentAbilityMitigationAuraResult auraResult
+    )
+    {
+        if (!string.IsNullOrWhiteSpace(auraResult?.Label))
+            return new StringName(auraResult.Label);
+        if (auraResult != null && auraResult.AuraId != "")
+            return auraResult.AuraId;
+        return auraResult?.BindingId ?? new StringName("");
     }
 
     private static void AppendDamageResistanceSources(

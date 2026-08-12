@@ -4,6 +4,7 @@ using Godot;
 
 internal sealed class BattleAiGroundRepositionActionEvaluator
 {
+    private static readonly StringName ModeHighGround = "high_ground";
     private readonly BattleAiTypedActionHelper _helper = new();
     private readonly BattleAiGroundSkillActionEvaluator _ground = new();
 
@@ -43,6 +44,8 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                     ["safe_distance_margin"] = action.SafeDistanceMargin,
                     ["desired_max_distance_bonus"] = action.DesiredMaxDistanceBonus,
                     ["action_base_score"] = action.ActionBaseScore,
+                    ["positioning_mode"] = action.PositioningMode.ToString(),
+                    ["high_ground_weight"] = action.HighGroundWeight,
                 }
             )
             : null;
@@ -64,6 +67,7 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
             return Fail(context, trace, "no_valid_targets");
 
         BattleUnitState actor = context.unit_state;
+        bool seeksHighGround = action.PositioningMode == ModeHighGround;
         int resolvedSafeDistance = Mathf.Max(
             action.MinimumSafeDistance + action.SafeDistanceMargin,
             1
@@ -84,7 +88,7 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                 trace.Metadata["current_distance"] = currentDistance;
                 trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
             }
-            if (currentDistance >= resolvedSafeDistance)
+            if (!seeksHighGround && currentDistance >= resolvedSafeDistance)
             {
                 EnemyAiActionHelper.TraceAddBlockReason(trace, "already_safe");
                 continue;
@@ -147,21 +151,38 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                     {
                         continue;
                     }
-                    if (!HasRepositionEffect(castVariant.EffectDefinitions))
+                    CombatEffectDefinition relocationEffect = ResolveRepositionEffect(
+                        castVariant.EffectDefinitions
+                    );
+                    if (relocationEffect == null)
                     {
                         EnemyAiActionHelper.TraceAddBlockReason(trace, "missing_reposition_effect");
                         continue;
                     }
                     foreach (
-                        List<Vector2I> targetCoords in _ground.EnumerateGroundTargetCoordSetsTyped(
+                        List<Vector2I> targetCoords in EnumerateLandingCoordSets(
                             context,
-                            castVariant
+                            castVariant,
+                            relocationEffect
                         )
                     )
                     {
                         if (targetCoords.Count != 1)
                             continue;
                         Vector2I landingCoord = targetCoords[0];
+                        if (
+                            relocationEffect.ForcedMoveModeKind
+                                == BattleForcedMoveMode.GrappleAscent
+                            && !context.grid_service.CanGrappleAscent(
+                                context.state,
+                                actor,
+                                landingCoord,
+                                relocationEffect
+                            )
+                        )
+                        {
+                            continue;
+                        }
                         int castDistance = context.grid_service.GetDistanceFromUnitToCoord(
                             actor,
                             landingCoord
@@ -174,7 +195,7 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                             landingCoord,
                             focusTarget
                         );
-                        if (landingDistance <= currentDistance)
+                        if (!seeksHighGround && landingDistance <= currentDistance)
                         {
                             EnemyAiActionHelper.TraceAddBlockReason(
                                 trace,
@@ -191,7 +212,8 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                                 new[] { landingCoord }
                             );
                         BattlePreview preview =
-                            BattleAiGroundSkillActionEvaluator.BuildFastGroundSkillPreview(
+                            context.PreviewCommand(command)
+                            ?? BattleAiGroundSkillActionEvaluator.BuildFastGroundSkillPreview(
                                 context,
                                 command,
                                 new[] { landingCoord },
@@ -229,8 +251,24 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                                     ["position_objective_kind"] = "distance_band_progress",
                                 }
                             );
+                        int currentHeight = context.grid_service.GetCellState(
+                            context.state,
+                            actor.GetAnchorCoord()
+                        )?.current_height ?? 0;
+                        int landingHeight = context.grid_service.GetCellState(
+                            context.state,
+                            landingCoord
+                        )?.current_height ?? currentHeight;
+                        int heightGain = Math.Max(landingHeight - currentHeight, 0);
+                        if (seeksHighGround)
+                        {
+                            int highGroundScore = heightGain * Math.Max(action.HighGroundWeight, 0);
+                            scoreInput.position_objective_score += highGroundScore;
+                            scoreInput.total_score += highGroundScore;
+                        }
                         if (
-                            BattleAiActionEvaluatorUtilities.IsUnthreatenedReposition(
+                            !seeksHighGround
+                            && BattleAiActionEvaluatorUtilities.IsUnthreatenedReposition(
                                 scoreInput,
                                 action.MinSurvivalMarginGainToEscape
                             )
@@ -252,6 +290,7 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                                         ["skill_id"] = skillId.ToString(),
                                         ["landing_distance"] = landingDistance,
                                         ["resolved_safe_distance"] = resolvedSafeDistance,
+                                        ["height_gain"] = heightGain,
                                     }
                                 )
                             );
@@ -264,7 +303,9 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                             action.ScoreBucketId,
                             command,
                             scoreInput,
-                            $"{actor.display_name} 准备用 {skill.DisplayName} 拉开到 {landingDistance} 格（评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
+                            seeksHighGround
+                                ? $"{actor.display_name} 准备用 {skill.DisplayName} 攀上高处（高差 {heightGain}，评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
+                                : $"{actor.display_name} 准备用 {skill.DisplayName} 拉开到 {landingDistance} 格（评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
                         );
                     }
                 }
@@ -280,7 +321,7 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
         return null;
     }
 
-    private static bool HasRepositionEffect(
+    private static CombatEffectDefinition ResolveRepositionEffect(
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
@@ -291,16 +332,39 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
         {
             if (
                 effect?.EffectKind == BattleEffectKind.ForcedMove
-                && (
-                    effect.ForcedMoveModeKind == BattleForcedMoveMode.Blink
-                    || effect.ForcedMoveModeKind == BattleForcedMoveMode.Jump
-                )
+                && effect.ForcedMoveModeKind
+                    is BattleForcedMoveMode.Blink
+                        or BattleForcedMoveMode.Jump
+                        or BattleForcedMoveMode.GrappleAscent
             )
             {
-                return true;
+                return effect;
             }
         }
-        return false;
+        return null;
+    }
+
+    private IEnumerable<List<Vector2I>> EnumerateLandingCoordSets(
+        BattleAiContext context,
+        CombatCastVariantDefinition castVariant,
+        CombatEffectDefinition relocationEffect
+    )
+    {
+        if (
+            relocationEffect?.ForcedMoveModeKind
+            != BattleForcedMoveMode.GrappleAscent
+        )
+        {
+            return _ground.EnumerateGroundTargetCoordSetsTyped(context, castVariant);
+        }
+        Vector2I anchor = context.unit_state.GetAnchorCoord();
+        return new List<List<Vector2I>>
+        {
+            new() { anchor + Vector2I.Up },
+            new() { anchor + Vector2I.Right },
+            new() { anchor + Vector2I.Down },
+            new() { anchor + Vector2I.Left },
+        };
     }
 
     private static BattleAiDecision Fail(

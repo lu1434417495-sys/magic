@@ -73,6 +73,9 @@ internal static class BattleEquipmentAbilityProjectionService
         }
 
         EquipmentState equipmentView = unit.GetEquipmentView();
+        HashSet<StringName> effectiveTraitIds = CollectEffectiveTraitIds(
+            effectiveTraits.TraitIds
+        );
         foreach (
             BattleEffectiveTraitInstanceReadView traitInstance
             in effectiveTraits.Instances
@@ -86,6 +89,7 @@ internal static class BattleEquipmentAbilityProjectionService
             if (
                 traitSourceKind != TraitSourceKind.EquipmentFixed
                 && traitSourceKind != TraitSourceKind.EquipmentRoll
+                && traitSourceKind != TraitSourceKind.GearSetThreshold
             )
             {
                 continue;
@@ -103,12 +107,15 @@ internal static class BattleEquipmentAbilityProjectionService
                 itemDefinitions
             );
             IReadOnlyList<EquipmentAbilityBindingDefinition> matchedBindings =
-                EquipmentAbilityBindingMatcher.FindBindings(
-                    bindings.Values,
-                    traitInstance.TraitId,
-                    traitSourceKind,
-                    GetTraitCategories(traitInstance.TraitId, traitDefs),
-                    sourceItem
+                FilterByRequiredEffectiveTraits(
+                    EquipmentAbilityBindingMatcher.FindBindings(
+                        bindings.Values,
+                        traitInstance.TraitId,
+                        traitSourceKind,
+                        GetTraitCategories(traitInstance.TraitId, traitDefs),
+                        sourceItem
+                    ),
+                    effectiveTraitIds
                 );
             if (matchedBindings.Count == 0)
                 continue;
@@ -119,7 +126,9 @@ internal static class BattleEquipmentAbilityProjectionService
                     EffectiveInstanceKey = traitInstance.EffectiveInstanceKey,
                     EquipmentDefId = equipmentEntry.item_id,
                     SourceEquipmentInstanceId = equipmentEntry.instance_id,
-                    SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                    SourceKind = traitSourceKind == TraitSourceKind.GearSetThreshold
+                        ? EquipmentAbilitySourceKind.PlayerPersistentGearSetThreshold
+                        : EquipmentAbilitySourceKind.PlayerPersistentEquipment,
                     AbilityIds = SortedBindingIds(matchedBindings),
                 }
             );
@@ -191,18 +200,29 @@ internal static class BattleEquipmentAbilityProjectionService
             );
         }
 
+        var effectiveTraitIds = new HashSet<StringName>();
+        foreach (StringName traitId in sourceItem.GetTraitIdsTyped())
+        {
+            StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
+            if (normalizedTraitId != "")
+                effectiveTraitIds.Add(normalizedTraitId);
+        }
+
         foreach (StringName traitId in sourceItem.GetTraitIdsTyped())
         {
             StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
             if (normalizedTraitId == "")
                 continue;
             IReadOnlyList<EquipmentAbilityBindingDefinition> matchedBindings =
-                EquipmentAbilityBindingMatcher.FindBindings(
-                    bindings.Values,
-                    normalizedTraitId,
-                    TraitSourceKind.EquipmentFixed,
-                    GetTraitCategories(normalizedTraitId, traitDefs),
-                    sourceItem
+                FilterByRequiredEffectiveTraits(
+                    EquipmentAbilityBindingMatcher.FindBindings(
+                        bindings.Values,
+                        normalizedTraitId,
+                        TraitSourceKind.EquipmentFixed,
+                        GetTraitCategories(normalizedTraitId, traitDefs),
+                        sourceItem
+                    ),
+                    effectiveTraitIds
                 );
             if (matchedBindings.Count == 0)
                 continue;
@@ -251,6 +271,51 @@ internal static class BattleEquipmentAbilityProjectionService
                 result.Add(normalized);
         }
         return result;
+    }
+
+    private static HashSet<StringName> CollectEffectiveTraitIds(
+        BattleEffectiveTraitIdReadView traitIds
+    )
+    {
+        var result = new HashSet<StringName>();
+        foreach (StringName traitId in traitIds)
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(traitId);
+            if (normalized != "")
+                result.Add(normalized);
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<EquipmentAbilityBindingDefinition>
+        FilterByRequiredEffectiveTraits(
+            IReadOnlyList<EquipmentAbilityBindingDefinition> bindings,
+            IReadOnlySet<StringName> effectiveTraitIds
+        )
+    {
+        if (bindings == null || bindings.Count == 0)
+            return Array.Empty<EquipmentAbilityBindingDefinition>();
+
+        var result = new List<EquipmentAbilityBindingDefinition>(bindings.Count);
+        foreach (EquipmentAbilityBindingDefinition binding in bindings)
+        {
+            if (binding == null)
+                continue;
+            bool requirementsMet = true;
+            foreach (StringName requiredTraitId in binding.RequiredEffectiveTraitIds)
+            {
+                if (effectiveTraitIds == null || !effectiveTraitIds.Contains(requiredTraitId))
+                {
+                    requirementsMet = false;
+                    break;
+                }
+            }
+            if (requirementsMet)
+                result.Add(binding);
+        }
+        return result.Count > 0
+            ? result
+            : Array.Empty<EquipmentAbilityBindingDefinition>();
     }
 
     internal static bool UnitHasCreatureTypeTag(BattleUnitState unit, StringName tag)

@@ -2148,7 +2148,26 @@ public sealed class BattleHudAdapter : IDisposable
         if (skillDefinition?.CombatProfile == null)
             return CombatSkillResourceCosts.Zero;
         int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
-        return GetEffectiveCombatDefinition(skillDefinition, skillLevel).ResourceCosts;
+        CombatSkillResourceCosts costs =
+            GetEffectiveCombatDefinition(skillDefinition, skillLevel).ResourceCosts;
+        CombatDirectionalPiercingDefinition piercing =
+            skillDefinition.CombatProfile.DirectionalPiercing;
+        if (activeUnit == null || piercing == null)
+            return costs;
+        return costs with
+        {
+            StaminaCost = BattleDirectionalPiercingRules.CalculateStaminaCost(
+                piercing,
+                BattleRangeService.GetEffectiveSkillRange(
+                    activeUnit,
+                    skillDefinition,
+                    GetSkillCatalog()
+                ),
+                activeUnit.attribute_snapshot?.GetValue(
+                    new StringName("strength_modifier")
+                ) ?? 0
+            ),
+        };
     }
 
     private ISkillCatalog GetSkillCatalog()

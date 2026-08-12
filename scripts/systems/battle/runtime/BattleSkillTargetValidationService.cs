@@ -567,6 +567,18 @@ internal sealed class BattleSkillTargetValidationService
             return false;
         }
         if (
+            AllRelevantUnitEffectsExcludeSource(
+                active_unit,
+                target_unit,
+                skillDefinition,
+                cast_variant,
+                allowDeadTargets
+            )
+        )
+        {
+            return false;
+        }
+        if (
             !string.IsNullOrEmpty(
                 _get_unit_skill_target_validation_message(
                     active_unit,
@@ -622,6 +634,18 @@ internal sealed class BattleSkillTargetValidationService
             return false;
         }
         if (
+            AllRelevantUnitEffectsExcludeSource(
+                active_unit,
+                target_unit,
+                skillDefinition,
+                cast_variant,
+                allowDeadTargets
+            )
+        )
+        {
+            return false;
+        }
+        if (
             !string.IsNullOrEmpty(
                 _get_unit_skill_target_validation_message(
                     active_unit,
@@ -665,7 +689,103 @@ internal sealed class BattleSkillTargetValidationService
     }
 
     private static bool IsRevivingHealEffect(CombatEffectDefinition effect) =>
-        effect?.EffectKind is BattleEffectKind.Heal or BattleEffectKind.HealFatal;
+        effect?.EffectKind == BattleEffectKind.HealFatal;
+
+    private bool AllRelevantUnitEffectsExcludeSource(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        bool allowDeadTargets
+    )
+    {
+        if (
+            activeUnit == null
+            || targetUnit == null
+            || activeUnit.unit_id == ""
+            || activeUnit.unit_id != targetUnit.unit_id
+        )
+        {
+            return false;
+        }
+
+        bool sawRelevantEffect = false;
+        foreach (
+            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (
+                effectDefinition == null
+                || !_owner._is_unit_valid_for_effect(
+                    activeUnit,
+                    targetUnit,
+                    _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    allowDeadTargets
+                )
+            )
+            {
+                continue;
+            }
+            sawRelevantEffect = true;
+            if (!effectDefinition.ExcludeSource)
+            {
+                return false;
+            }
+        }
+        return sawRelevantEffect;
+    }
+
+    private bool AllRelevantUnitEffectsExcludeSource(
+        BattleUnitReadView activeUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        bool allowDeadTargets
+    )
+    {
+        if (
+            !activeUnit.IsValid
+            || !targetUnit.IsValid
+            || activeUnit.UnitId == ""
+            || activeUnit.UnitId != targetUnit.UnitId
+        )
+        {
+            return false;
+        }
+
+        bool sawRelevantEffect = false;
+        foreach (
+            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (
+                effectDefinition == null
+                || !_owner._is_unit_valid_for_effect(
+                    activeUnit,
+                    targetUnit,
+                    _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    allowDeadTargets
+                )
+            )
+            {
+                continue;
+            }
+            sawRelevantEffect = true;
+            if (!effectDefinition.ExcludeSource)
+            {
+                return false;
+            }
+        }
+        return sawRelevantEffect;
+    }
 
     internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
         BattleUnitState activeUnit,

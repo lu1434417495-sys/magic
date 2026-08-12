@@ -36,6 +36,10 @@ public class BattleTerrainEffectState
         "contact_timeline_damage_dice_count",
         "contact_timeline_damage_dice_sides",
         "contact_timeline_damage_flat_bonus",
+        "contact_damage_dice_count",
+        "contact_damage_dice_sides",
+        "contact_damage_flat_bonus",
+        "contact_damage_tag",
         "contact_blocked_by_trait_id",
         "terrain_contact_mode",
         "terrain_remaining_effective_triggers",
@@ -138,6 +142,10 @@ public class BattleTerrainEffectState
     public int contact_timeline_damage_dice_count { get; set; }
     public int contact_timeline_damage_dice_sides { get; set; }
     public int contact_timeline_damage_flat_bonus { get; set; }
+    public int contact_damage_dice_count { get; set; }
+    public int contact_damage_dice_sides { get; set; }
+    public int contact_damage_flat_bonus { get; set; }
+    public StringName contact_damage_tag { get; set; } = "";
     public StringName contact_blocked_by_trait_id { get; set; } = "";
     public StringName terrain_contact_mode { get; set; } = "";
     internal CombatTerrainContactMode TerrainContactModeKind =>
@@ -317,6 +325,10 @@ public class BattleTerrainEffectState
             contact_timeline_damage_dice_count = GetInt(parameters, "contact_timeline_damage_dice_count"),
             contact_timeline_damage_dice_sides = GetInt(parameters, "contact_timeline_damage_dice_sides"),
             contact_timeline_damage_flat_bonus = GetInt(parameters, "contact_timeline_damage_flat_bonus"),
+            contact_damage_dice_count = GetInt(parameters, "contact_damage_dice_count"),
+            contact_damage_dice_sides = GetInt(parameters, "contact_damage_dice_sides"),
+            contact_damage_flat_bonus = GetInt(parameters, "contact_damage_flat_bonus"),
+            contact_damage_tag = GetStringName(parameters, "contact_damage_tag"),
             contact_blocked_by_trait_id = GetStringName(parameters, "contact_blocked_by_trait_id"),
             terrain_contact_mode = GetStringName(parameters, "terrain_contact_mode"),
             terrain_remaining_effective_triggers = GetInt(
@@ -431,6 +443,10 @@ public class BattleTerrainEffectState
             contact_timeline_damage_dice_count = contact_timeline_damage_dice_count,
             contact_timeline_damage_dice_sides = contact_timeline_damage_dice_sides,
             contact_timeline_damage_flat_bonus = contact_timeline_damage_flat_bonus,
+            contact_damage_dice_count = contact_damage_dice_count,
+            contact_damage_dice_sides = contact_damage_dice_sides,
+            contact_damage_flat_bonus = contact_damage_flat_bonus,
+            contact_damage_tag = contact_damage_tag,
             contact_blocked_by_trait_id = contact_blocked_by_trait_id,
             terrain_contact_mode = terrain_contact_mode,
             terrain_remaining_effective_triggers = terrain_remaining_effective_triggers,
@@ -610,6 +626,22 @@ public class BattleTerrainEffectState
         {
             projected["contact_timeline_damage_flat_bonus"] =
                 contact_timeline_damage_flat_bonus;
+        }
+        if (contact_damage_dice_count > 0)
+        {
+            projected["contact_damage_dice_count"] = contact_damage_dice_count;
+        }
+        if (contact_damage_dice_sides > 0)
+        {
+            projected["contact_damage_dice_sides"] = contact_damage_dice_sides;
+        }
+        if (contact_damage_flat_bonus > 0)
+        {
+            projected["contact_damage_flat_bonus"] = contact_damage_flat_bonus;
+        }
+        if (contact_damage_tag != null && contact_damage_tag != "")
+        {
+            projected["contact_damage_tag"] = contact_damage_tag.ToString();
         }
         if (contact_blocked_by_trait_id != "")
         {

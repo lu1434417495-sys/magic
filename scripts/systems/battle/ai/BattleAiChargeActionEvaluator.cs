@@ -158,7 +158,11 @@ internal sealed class BattleAiChargeActionEvaluator
                     context,
                     actor,
                     castVariant,
-                    skillDefinition.CombatProfile.GetEffectiveRangeValue(skillEntry.SkillLevel)
+                    BattleRangeService.ResolveConfiguredSkillRange(
+                        actor,
+                        skillDefinition,
+                        skillEntry.SkillLevel
+                    )
                 ))
                 {
                     TraceCountIncrement(actionTrace, "evaluation_count", 1);

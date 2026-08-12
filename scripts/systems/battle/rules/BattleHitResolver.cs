@@ -340,7 +340,6 @@ public class BattleHitResolver : IDisposable
                 errorMessage
             );
         }
-        int targetArmorClass = _get_target_armor_class(target_unit, defense_adjustment);
         int skillLevel = 0;
         StringName skillId = skill_definition?.SkillId ?? new StringName("");
         if (active_unit.IsValid && !IsEmpty(skillId))
@@ -354,6 +353,12 @@ public class BattleHitResolver : IDisposable
                 skillLevel = 1;
             }
         }
+        defense_adjustment = _apply_skill_attack_defense_mode(
+            defense_adjustment,
+            skill_definition,
+            skillLevel
+        );
+        int targetArmorClass = _get_target_armor_class(target_unit, defense_adjustment);
         int skillAttackBonus =
             SkillEffectiveCombatDefinition.BuildUncached(skill_definition, skillLevel).AttackRollBonus;
         int lockedSkillHitBonus = _get_skill_lock_hit_bonus(active_unit, skillId);
@@ -426,6 +431,14 @@ public class BattleHitResolver : IDisposable
             target_unit,
             defense_adjustment
         );
+        targetArmorClass = (int)Math.Min(
+            (long)targetArmorClass + _get_target_status_armor_class_bonus(target_unit),
+            int.MaxValue
+        );
+        if (defense_adjustment?.LockAgilityBonus == true)
+        {
+            targetArmorClass -= _get_target_positive_agility_ac_bonus(target_unit);
+        }
         if (
             _is_target_dodge_bonus_locked(target_unit)
             || defense_adjustment?.LockDodgeBonus == true
@@ -442,6 +455,87 @@ public class BattleHitResolver : IDisposable
             targetArmorClass += _get_target_status_dodge_bonus(target_unit);
         }
         return Math.Max(targetArmorClass, 1);
+    }
+
+    private static int _get_target_status_armor_class_bonus(
+        BattleUnitReadView targetUnit
+    )
+    {
+        long total = 0;
+        foreach (BattleStatusReadView status in targetUnit.StatusEffects())
+        {
+            if (
+                !status.IsValid
+                || status.Stacks <= 0
+                || status.ArmorClassBonusPerStack <= 0
+            )
+            {
+                continue;
+            }
+            total += (long)status.ArmorClassBonusPerStack * status.Stacks;
+            if (total >= int.MaxValue)
+                return int.MaxValue;
+        }
+        return (int)total;
+    }
+
+    private static EquipmentAttackDefenseAdjustment _apply_skill_attack_defense_mode(
+        EquipmentAttackDefenseAdjustment defenseAdjustment,
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        CombatSkillAttackDefenseMode mode =
+            skillDefinition?.CombatProfile?.GetEffectiveAttackDefenseMode(skillLevel)
+            ?? CombatSkillAttackDefenseMode.Normal;
+        if (mode == CombatSkillAttackDefenseMode.Normal)
+            return defenseAdjustment;
+        defenseAdjustment ??= new EquipmentAttackDefenseAdjustment();
+        switch (mode)
+        {
+            case CombatSkillAttackDefenseMode.Touch:
+                defenseAdjustment.AddIgnoredAcComponent(
+                    AttributeContentRules.ArmorAcBonus
+                );
+                defenseAdjustment.AddIgnoredAcComponent(
+                    AttributeContentRules.ShieldAcBonus
+                );
+                defenseAdjustment.AddIgnoredAcComponent(
+                    AttributeContentRules.NaturalArmorAcBonus
+                );
+                break;
+            case CombatSkillAttackDefenseMode.FlatFooted:
+                defenseAdjustment.AddLockAgilityBonus();
+                defenseAdjustment.AddLockDodgeBonus();
+                break;
+        }
+        return defenseAdjustment;
+    }
+
+    private int _get_target_positive_agility_ac_bonus(BattleUnitReadView targetUnit)
+    {
+        int agilityModifier = _get_unit_attribute_value(
+            targetUnit,
+            AttributeSnapshot.ToStringName(AttributeSnapshotIdKind.AgilityModifier),
+            AttributeSnapshot.CalculateScoreModifier(
+                _get_unit_attribute_value(
+                    targetUnit,
+                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+                    10
+                )
+            )
+        );
+        StringName armorMaxDexBonusId =
+            AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus);
+        if (targetUnit.HasAttributeValue(armorMaxDexBonusId))
+        {
+            int armorMaxDexBonus = targetUnit.GetAttributeValue(armorMaxDexBonusId);
+            if (armorMaxDexBonus >= 0)
+            {
+                agilityModifier = Math.Min(agilityModifier, armorMaxDexBonus);
+            }
+        }
+        return Math.Max(agilityModifier, 0);
     }
 
     private int _apply_attack_defense_adjustment(

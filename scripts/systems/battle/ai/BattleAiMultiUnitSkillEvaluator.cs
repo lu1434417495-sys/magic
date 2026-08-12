@@ -127,7 +127,8 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                     BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
                         context,
                         command,
-                        fastPreview
+                        fastPreview,
+                        skillEntry
                     );
                     if (preview?.allowed != true)
                     {
@@ -380,7 +381,8 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                 BattlePreview barrierAwarePreview = _helper.ResolveBarrierAwareUnitSkillPreview(
                     context,
                     singleCommand,
-                    singlePreview
+                    singlePreview,
+                    skillEntry
                 );
                 if (
                     barrierAwarePreview?.allowed != true

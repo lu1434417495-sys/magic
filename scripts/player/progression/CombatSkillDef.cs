@@ -91,6 +91,9 @@ public partial class CombatSkillDef : Resource
     public int range_value { get; set; } = 1;
 
     [Export]
+    public int range_move_point_capacity_multiplier { get; set; }
+
+    [Export]
     public StringName weapon_range_policy { get; set; } = "";
 
     [Export]
@@ -137,6 +140,12 @@ public partial class CombatSkillDef : Resource
     public CombatWindupDef windup_profile { get; set; }
 
     [Export]
+    public CombatDirectionalPiercingDef directional_piercing_profile { get; set; }
+
+    [Export]
+    public CombatSpellReactionDef spell_reaction_profile { get; set; }
+
+    [Export]
     public StringName pending_cast_binding_mode { get; set; } = "soft_anchor";
 
     internal PendingCastBindingModeKind PendingCastBindingModeKind
@@ -154,6 +163,14 @@ public partial class CombatSkillDef : Resource
     {
         get => ToAttackResolutionMode(attack_resolution_mode);
         set => attack_resolution_mode = ToStringName(value);
+    }
+
+    [Export]
+    public StringName attack_defense_mode { get; set; } = "normal";
+    internal CombatSkillAttackDefenseMode AttackDefenseModeKind
+    {
+        get => CombatSkillContentRules.ToAttackDefenseMode(attack_defense_mode);
+        set => attack_defense_mode = CombatSkillContentRules.ToStringName(value);
     }
 
     [Export]
@@ -512,6 +529,16 @@ public partial class CombatSkillDef : Resource
                 ProgressionDataUtils.to_string_name(o["attack_resolution_mode"])
             )
             : AttackResolutionModeKind;
+    }
+
+    internal CombatSkillAttackDefenseMode GetEffectiveAttackDefenseMode(int sl)
+    {
+        var o = GetCachedLevelOverride(sl);
+        return o.ContainsKey("attack_defense_mode")
+            ? CombatSkillContentRules.ToAttackDefenseMode(
+                ProgressionDataUtils.to_string_name(o["attack_defense_mode"])
+            )
+            : AttackDefenseModeKind;
     }
 
     public int GetEffectiveCastingTimeTu(int sl)

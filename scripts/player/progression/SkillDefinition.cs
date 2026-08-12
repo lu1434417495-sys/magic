@@ -567,6 +567,101 @@ public sealed class CombatWindupDefinition
     }
 }
 
+public sealed class CombatSpellReactionDefinition
+{
+    public CombatSpellReactionDefinition(
+        StringName triggerDeliveryCategory,
+        StringName reactionSkillId,
+        StringName readinessStatusId,
+        StringName requiredWeaponFamily,
+        StringName saveAbility,
+        StringName saveTag,
+        int baseSaveDc,
+        int hpDamageDivisor,
+        IReadOnlyList<int> attackRollBonusBySkillLevel,
+        IReadOnlyList<int> saveDcBonusBySkillLevel,
+        bool requireHpDamage,
+        bool consumeOnTrigger,
+        bool expireOnOwnerTurnStart
+    )
+    {
+        TriggerDeliveryCategory = ProgressionDataUtils.to_string_name(triggerDeliveryCategory);
+        ReactionSkillId = ProgressionDataUtils.to_string_name(reactionSkillId);
+        ReadinessStatusId = ProgressionDataUtils.to_string_name(readinessStatusId);
+        RequiredWeaponFamily = ProgressionDataUtils.to_string_name(requiredWeaponFamily);
+        SaveAbility = ProgressionDataUtils.to_string_name(saveAbility);
+        SaveTag = ProgressionDataUtils.to_string_name(saveTag);
+        BaseSaveDc = Mathf.Max(baseSaveDc, 1);
+        HpDamageDivisor = Mathf.Max(hpDamageDivisor, 1);
+        AttackRollBonusBySkillLevel = SkillDefinitionCollectionFreeze.List(
+            attackRollBonusBySkillLevel
+        );
+        SaveDcBonusBySkillLevel = SkillDefinitionCollectionFreeze.List(
+            saveDcBonusBySkillLevel
+        );
+        RequireHpDamage = requireHpDamage;
+        ConsumeOnTrigger = consumeOnTrigger;
+        ExpireOnOwnerTurnStart = expireOnOwnerTurnStart;
+    }
+
+    public StringName TriggerDeliveryCategory { get; }
+    public StringName ReactionSkillId { get; }
+    public StringName ReadinessStatusId { get; }
+    public StringName RequiredWeaponFamily { get; }
+    public StringName SaveAbility { get; }
+    public StringName SaveTag { get; }
+    public int BaseSaveDc { get; }
+    public int HpDamageDivisor { get; }
+    public IReadOnlyList<int> AttackRollBonusBySkillLevel { get; }
+    public IReadOnlyList<int> SaveDcBonusBySkillLevel { get; }
+    public bool RequireHpDamage { get; }
+    public bool ConsumeOnTrigger { get; }
+    public bool ExpireOnOwnerTurnStart { get; }
+
+    public int GetAttackRollBonus(int skillLevel) =>
+        ReadCurveValue(AttackRollBonusBySkillLevel, skillLevel);
+
+    public int GetSaveDcBonus(int skillLevel) =>
+        ReadCurveValue(SaveDcBonusBySkillLevel, skillLevel);
+
+    internal static CombatSpellReactionDefinition FromResource(CombatSpellReactionDef source)
+    {
+        if (source == null)
+            return null;
+        return new CombatSpellReactionDefinition(
+            source.trigger_delivery_category,
+            source.reaction_skill_id,
+            source.readiness_status_id,
+            source.required_weapon_family,
+            source.save_ability,
+            source.save_tag,
+            source.base_save_dc,
+            source.hp_damage_divisor,
+            CopyIntArray(source.attack_roll_bonus_by_skill_level),
+            CopyIntArray(source.save_dc_bonus_by_skill_level),
+            source.require_hp_damage,
+            source.consume_on_trigger,
+            source.expire_on_owner_turn_start
+        );
+    }
+
+    private static int ReadCurveValue(IReadOnlyList<int> values, int skillLevel)
+    {
+        if (values == null || values.Count == 0)
+            return 0;
+        return values[Mathf.Clamp(skillLevel, 0, values.Count - 1)];
+    }
+
+    private static IReadOnlyList<int> CopyIntArray(int[] values)
+    {
+        if (values == null || values.Length == 0)
+            return System.Array.Empty<int>();
+        int[] result = new int[values.Length];
+        System.Array.Copy(values, result, values.Length);
+        return result;
+    }
+}
+
 public sealed class CombatSkillDefinition
 {
     private static readonly IReadOnlyList<StringName> EmptyStringNames =
@@ -641,6 +736,10 @@ public sealed class CombatSkillDefinition
         bool allowsNaturalWeapon = false,
         CombatWindupDefinition windup = null,
         bool requiresHeavyWeapon = false,
+        StringName attackDefenseMode = default,
+        CombatSpellReactionDefinition spellReaction = null,
+        int rangeMovePointCapacityMultiplier = 0,
+        CombatDirectionalPiercingDefinition directionalPiercing = null,
         bool groundEffectRequireFullArea = false,
         bool groundEffectRequireEmpty = false,
         bool groundEffectRequireTraversable = false
@@ -720,6 +819,10 @@ public sealed class CombatSkillDefinition
         RandomChainContinueOnMiss = randomChainContinueOnMiss;
         Windup = windup;
         RequiresHeavyWeapon = requiresHeavyWeapon;
+        AttackDefenseMode = attackDefenseMode;
+        SpellReaction = spellReaction;
+        RangeMovePointCapacityMultiplier = rangeMovePointCapacityMultiplier;
+        DirectionalPiercing = directionalPiercing;
         GroundEffectRequireFullArea = groundEffectRequireFullArea;
         GroundEffectRequireEmpty = groundEffectRequireEmpty;
         GroundEffectRequireTraversable = groundEffectRequireTraversable;
@@ -730,10 +833,14 @@ public sealed class CombatSkillDefinition
     public StringName TargetTeamFilter { get; }
     public StringName RangePattern { get; }
     public int RangeValue { get; }
+    public int RangeMovePointCapacityMultiplier { get; }
     public StringName WeaponRangePolicy { get; }
     public StringName AreaPattern { get; }
     public int AreaValue { get; }
     public bool RequiresLos { get; }
+    public bool GroundEffectRequireFullArea { get; }
+    public bool GroundEffectRequireEmpty { get; }
+    public bool GroundEffectRequireTraversable { get; }
     public int ApCost { get; }
     public int MpCost { get; }
     public int StaminaCost { get; }
@@ -744,6 +851,9 @@ public sealed class CombatSkillDefinition
     public StringName PendingCastBindingMode { get; }
     public int AttackRollBonus { get; }
     public StringName AttackResolutionMode { get; }
+    public StringName AttackDefenseMode { get; }
+    public CombatSpellReactionDefinition SpellReaction { get; }
+    public CombatDirectionalPiercingDefinition DirectionalPiercing { get; }
     public int AuraCost { get; }
     public IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> LevelOverrides { get; }
     public StringName MasteryTriggerMode { get; }
@@ -779,9 +889,6 @@ public sealed class CombatSkillDefinition
     public bool AllowsNaturalWeapon { get; }
     public CombatWindupDefinition Windup { get; }
     public bool RequiresHeavyWeapon { get; }
-    public bool GroundEffectRequireFullArea { get; }
-    public bool GroundEffectRequireEmpty { get; }
-    public bool GroundEffectRequireTraversable { get; }
     public IReadOnlyList<StringName> RequiredWeaponTypeIds { get; }
     public IReadOnlyList<StringName> ExcludedWeaponFamilies { get; }
     public IReadOnlyList<StringName> ExcludedWeaponTypeIds { get; }
@@ -812,6 +919,17 @@ public sealed class CombatSkillDefinition
             && TryReadStringName(rawValue, out StringName value)
             ? CombatSkillContentRules.ToAttackResolutionMode(value)
             : AttackResolutionModeKind;
+    }
+    internal CombatSkillAttackDefenseMode AttackDefenseModeKind =>
+        CombatSkillContentRules.ToAttackDefenseMode(AttackDefenseMode);
+    internal CombatSkillAttackDefenseMode GetEffectiveAttackDefenseMode(int skillLevel)
+    {
+        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
+        return overrides != null
+            && overrides.TryGetValue("attack_defense_mode", out object rawValue)
+            && TryReadStringName(rawValue, out StringName value)
+            ? CombatSkillContentRules.ToAttackDefenseMode(value)
+            : AttackDefenseModeKind;
     }
     internal CombatProjectileKind ProjectileKindTyped =>
         CombatProjectileContentRules.ToProjectileKind(ProjectileKind);
@@ -892,6 +1010,15 @@ public sealed class CombatSkillDefinition
     public int GetEffectiveRangeValue(int skillLevel) =>
         ReadIntOverride(BuildLevelOverride(skillLevel), "range_value", RangeValue);
 
+    public int GetEffectiveRangeValue(int skillLevel, int movePointCapacity)
+    {
+        if (RangeMovePointCapacityMultiplier <= 0)
+            return GetEffectiveRangeValue(skillLevel);
+        long dynamicRange =
+            (long)System.Math.Max(movePointCapacity, 0) * RangeMovePointCapacityMultiplier;
+        return dynamicRange >= int.MaxValue ? int.MaxValue : (int)dynamicRange;
+    }
+
     public int GetEffectiveMaxTargetCount(int skillLevel) =>
         ReadIntOverride(BuildLevelOverride(skillLevel), "max_target_count", MaxTargetCount);
 
@@ -968,6 +1095,10 @@ public sealed class CombatSkillDefinition
             AllowsNaturalWeapon,
             Windup,
             RequiresHeavyWeapon,
+            AttackDefenseMode,
+            SpellReaction,
+            RangeMovePointCapacityMultiplier,
+            DirectionalPiercing,
             GroundEffectRequireFullArea,
             GroundEffectRequireEmpty,
             GroundEffectRequireTraversable
@@ -1035,6 +1166,10 @@ public sealed class CombatSkillDefinition
             AllowsNaturalWeapon,
             Windup,
             RequiresHeavyWeapon,
+            AttackDefenseMode,
+            SpellReaction,
+            RangeMovePointCapacityMultiplier,
+            DirectionalPiercing,
             GroundEffectRequireFullArea,
             GroundEffectRequireEmpty,
             GroundEffectRequireTraversable
@@ -1138,9 +1273,31 @@ public sealed class CombatSkillDefinition
             source.allows_natural_weapon,
             CombatWindupDefinition.FromResource(source.windup_profile),
             source.requires_heavy_weapon,
+            source.attack_defense_mode,
+            CombatSpellReactionDefinition.FromResource(source.spell_reaction_profile),
+            source.range_move_point_capacity_multiplier,
+            ProjectDirectionalPiercingDefinition(source.directional_piercing_profile),
             source.ground_effect_require_full_area,
             source.ground_effect_require_empty,
             source.ground_effect_require_traversable
+        );
+    }
+
+    private static CombatDirectionalPiercingDefinition ProjectDirectionalPiercingDefinition(
+        CombatDirectionalPiercingDef source
+    )
+    {
+        if (source == null)
+            return null;
+        return new CombatDirectionalPiercingDefinition(
+            CopyIntArray(source.base_damage_percent_curve),
+            source.successful_hit_decay_percent,
+            source.minimum_damage_percent,
+            source.stamina_flat_base,
+            source.stamina_range_square_coefficient,
+            source.stamina_strength_square_scale,
+            source.minimum_stamina_cost,
+            source.maximum_height_delta
         );
     }
 
@@ -1483,7 +1640,8 @@ public sealed class CombatDamageSegmentDefinition
         double preResistanceDamageMultiplier,
         IReadOnlyList<StringName> damageTags = null,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
-        IReadOnlyList<StringName> mitigationBypassTiers = null
+        IReadOnlyList<StringName> mitigationBypassTiers = null,
+        bool doubleDiceOnCritical = false
     )
     {
         DamageTag = damageTag;
@@ -1499,6 +1657,7 @@ public sealed class CombatDamageSegmentDefinition
         MitigationBypassTiers = SkillDefinitionCollectionFreeze.List(
             mitigationBypassTiers
         );
+        DoubleDiceOnCritical = doubleDiceOnCritical;
     }
 
     public StringName DamageTag { get; }
@@ -1510,6 +1669,7 @@ public sealed class CombatDamageSegmentDefinition
     public IReadOnlyList<StringName> DamageTags { get; }
     public IReadOnlyList<StringName> MitigationBypassDamageTags { get; }
     public IReadOnlyList<StringName> MitigationBypassTiers { get; }
+    public bool DoubleDiceOnCritical { get; }
 
     internal static IReadOnlyList<CombatDamageSegmentDefinition> ProjectArray(
         Godot.Collections.Array<CombatDamageSegmentDef> values
@@ -1546,7 +1706,8 @@ public sealed class CombatDamageSegmentDefinition
                 source.pre_resistance_damage_multiplier,
                 CopyStringNameArray(source.damage_tags),
                 CopyStringNameArray(source.mitigation_bypass_damage_tags),
-                CopyStringNameArray(source.mitigation_bypass_tiers)
+                CopyStringNameArray(source.mitigation_bypass_tiers),
+                source.double_dice_on_critical
             );
     }
 
@@ -1869,6 +2030,12 @@ public sealed class CombatEffectDefinition
         BattleCognitionKind requiredTargetMinCognition =
             BattleCognitionKind.Unknown,
         int sourceRetreatDistance = 0,
+        int grappleMaxHeightGain = 0,
+        int healToHpPercentFloor = 0,
+        int healMissingHpPercent = 0,
+        int maxAffectedTargets = 0,
+        bool excludeSource = false,
+        StringName targetOrder = default,
         StringName terrainContactMode = default,
         int terrainEffectiveTriggerCount = 0,
         bool terrainRequiresGroundContact = false,
@@ -1960,8 +2127,14 @@ public sealed class CombatEffectDefinition
         EffectTags = SkillDefinitionCollectionFreeze.List(effectTags);
         TriggerCondition = triggerCondition;
         Power = power;
+        HealToHpPercentFloor = System.Math.Clamp(healToHpPercentFloor, 0, 100);
+        HealMissingHpPercent = System.Math.Clamp(healMissingHpPercent, 0, 100);
+        MaxAffectedTargets = System.Math.Max(maxAffectedTargets, 0);
+        ExcludeSource = excludeSource;
+        TargetOrder = ProgressionDataUtils.to_string_name(targetOrder);
         RangeBonus = rangeBonus;
         ForcedMoveDistance = forcedMoveDistance;
+        GrappleMaxHeightGain = System.Math.Max(grappleMaxHeightGain, 0);
         SourceRetreatDistance = System.Math.Max(sourceRetreatDistance, 0);
         JumpBaseBudget = jumpBaseBudget;
         JumpStrScale = jumpStrScale;
@@ -2153,8 +2326,14 @@ public sealed class CombatEffectDefinition
     public IReadOnlyList<StringName> EffectTags { get; }
     public StringName TriggerCondition { get; }
     public int Power { get; }
+    public int HealToHpPercentFloor { get; }
+    public int HealMissingHpPercent { get; }
+    public int MaxAffectedTargets { get; }
+    public bool ExcludeSource { get; }
+    public StringName TargetOrder { get; }
     public int RangeBonus { get; }
     public int ForcedMoveDistance { get; }
+    public int GrappleMaxHeightGain { get; }
     public int SourceRetreatDistance { get; }
     public int JumpBaseBudget { get; }
     public double JumpStrScale { get; }
@@ -2258,6 +2437,8 @@ public sealed class CombatEffectDefinition
         CombatEffectContentRules.ToTriggerCondition(TriggerCondition);
     internal CombatEffectTriggerEvent TriggerEventKind =>
         CombatEffectContentRules.ToTriggerEvent(TriggerEvent);
+    internal CombatEffectTargetOrder TargetOrderKind =>
+        CombatEffectContentRules.ToTargetOrder(TargetOrder);
     internal BattleForcedMoveMode ForcedMoveModeKind =>
         BattleTypedNames.ToForcedMoveMode(ForcedMoveMode);
     internal bool IsUnlockedAtSkillLevel(int skillLevel)
@@ -2563,6 +2744,12 @@ public sealed class CombatEffectDefinition
             requiredTargetMinCognition:
                 RequiredTargetMinCognition,
             sourceRetreatDistance: SourceRetreatDistance,
+            grappleMaxHeightGain: GrappleMaxHeightGain,
+            healToHpPercentFloor: HealToHpPercentFloor,
+            healMissingHpPercent: HealMissingHpPercent,
+            maxAffectedTargets: MaxAffectedTargets,
+            excludeSource: ExcludeSource,
+            targetOrder: TargetOrder,
             terrainContactMode: TerrainContactMode,
             terrainEffectiveTriggerCount: TerrainEffectiveTriggerCount,
             terrainRequiresGroundContact: TerrainRequiresGroundContact,
@@ -2749,6 +2936,12 @@ public sealed class CombatEffectDefinition
             requiredTargetMinCognition:
                 RequiredTargetMinCognition,
             sourceRetreatDistance: SourceRetreatDistance,
+            grappleMaxHeightGain: GrappleMaxHeightGain,
+            healToHpPercentFloor: HealToHpPercentFloor,
+            healMissingHpPercent: HealMissingHpPercent,
+            maxAffectedTargets: MaxAffectedTargets,
+            excludeSource: ExcludeSource,
+            targetOrder: TargetOrder,
             terrainContactMode: TerrainContactMode,
             terrainEffectiveTriggerCount: TerrainEffectiveTriggerCount,
             terrainRequiresGroundContact: TerrainRequiresGroundContact,
@@ -2943,6 +3136,12 @@ public sealed class CombatEffectDefinition
                         source.required_target_min_cognition
                     ),
                 sourceRetreatDistance: source.source_retreat_distance,
+                grappleMaxHeightGain: source.grapple_max_height_gain,
+                healToHpPercentFloor: source.heal_to_hp_percent_floor,
+                healMissingHpPercent: source.heal_missing_hp_percent,
+                maxAffectedTargets: source.max_affected_targets,
+                excludeSource: source.exclude_source,
+                targetOrder: source.target_order,
                 terrainContactMode: source.terrain_contact_mode,
                 terrainEffectiveTriggerCount: source.terrain_effective_trigger_count,
                 terrainRequiresGroundContact: source.terrain_requires_ground_contact,

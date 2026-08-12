@@ -1,24 +1,35 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using Godot;
 
 internal sealed class BattleDamagePreviewWorkingSet
 {
+    private readonly List<BattleFatalInterceptPreviewBranch> _continuationBranches = new();
+
     private BattleDamagePreviewWorkingSet(
         BattleUnitState sourcePreview,
-        BattleUnitState targetPreview
+        BattleUnitState targetPreview,
+        BattleState battleState
     )
     {
         SourcePreview = sourcePreview;
         TargetPreview = targetPreview;
+        BattleState = battleState;
     }
 
-    internal BattleUnitState SourcePreview { get; }
-    internal BattleUnitState TargetPreview { get; }
+    internal BattleUnitState SourcePreview { get; private set; }
+    internal BattleUnitState TargetPreview { get; private set; }
+    internal BattleState BattleState { get; private set; }
+    internal IReadOnlyList<BattleFatalInterceptPreviewBranch> ContinuationBranches =>
+        _continuationBranches;
+    internal bool HasContinuationState => _continuationBranches.Count > 0;
 
     internal static BattleDamagePreviewWorkingSet CreateDetached(
         BattleUnitState source,
-        BattleUnitState target
+        BattleUnitState target,
+        BattleState battleState = null
     )
     {
         if (source == null || target == null)
@@ -28,12 +39,240 @@ internal sealed class BattleDamagePreviewWorkingSet
 
         // Performance contract: clone each unit once for the whole multi-effect preview
         // sequence. Callers must reuse this detached working set instead of cloning per hit.
-        BattleUnitState sourcePreview = source.DuplicateForPreview();
-        BattleUnitState targetPreview = target.DuplicateForPreview();
+        // A detached state is also required so equipment reactions cannot reach canonical
+        // neighbours through a target selector while previewing nested actions.
+        BattleDetachedPreviewState detached =
+            BattleDetachedPreviewState.Create(battleState, source, target);
+        BattleUnitState sourcePreview = detached.GetUnit(source.unit_id);
+        BattleUnitState targetPreview = detached.GetUnit(target.unit_id);
         return sourcePreview != null && targetPreview != null
-            ? new BattleDamagePreviewWorkingSet(sourcePreview, targetPreview)
+            ? new BattleDamagePreviewWorkingSet(sourcePreview, targetPreview, detached.State)
             : null;
     }
+
+    internal static BattleDamagePreviewWorkingSet FromDetachedState(
+        BattleUnitState sourcePreview,
+        BattleUnitState targetPreview,
+        BattleState battleState
+    ) =>
+        sourcePreview != null && targetPreview != null && battleState != null
+            ? new BattleDamagePreviewWorkingSet(sourcePreview, targetPreview, battleState)
+            : null;
+
+    internal void ReplaceContinuationBranches(
+        IEnumerable<BattleFatalInterceptPreviewBranch> branches
+    )
+    {
+        _continuationBranches.Clear();
+        var indexBySignature = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (
+            BattleFatalInterceptPreviewBranch branch
+            in branches ?? Array.Empty<BattleFatalInterceptPreviewBranch>()
+        )
+        {
+            int probability = Math.Clamp(branch?.ProbabilityBasisPoints ?? 0, 0, 10000);
+            if (probability <= 0 || branch?.TargetUnit == null || branch.BattleState == null)
+                continue;
+            string signature = BattleDamagePreviewBranchSignature.Build(branch);
+            if (indexBySignature.TryGetValue(signature, out int existingIndex))
+            {
+                BattleFatalInterceptPreviewBranch existing =
+                    _continuationBranches[existingIndex];
+                _continuationBranches[existingIndex] = CopyBranchWithProbability(
+                    existing,
+                    Math.Clamp(
+                        existing.ProbabilityBasisPoints + probability,
+                        0,
+                        10000
+                    )
+                );
+                continue;
+            }
+
+            indexBySignature[signature] = _continuationBranches.Count;
+            _continuationBranches.Add(CopyBranchWithProbability(branch, probability));
+        }
+
+        int totalProbability = 0;
+        foreach (BattleFatalInterceptPreviewBranch branch in _continuationBranches)
+        {
+            totalProbability = Math.Clamp(
+                totalProbability + branch.ProbabilityBasisPoints,
+                0,
+                10000
+            );
+        }
+        if (totalProbability < 10000)
+        {
+            int remainder = 10000 - totalProbability;
+            if (_continuationBranches.Count > 0)
+            {
+                BattleFatalInterceptPreviewBranch first = _continuationBranches[0];
+                _continuationBranches[0] = CopyBranchWithProbability(
+                    first,
+                    Math.Clamp(first.ProbabilityBasisPoints + remainder, 0, 10000)
+                );
+            }
+        }
+
+        if (
+            _continuationBranches.Count == 1
+            && _continuationBranches[0].ProbabilityBasisPoints >= 10000
+        )
+        {
+            BattleFatalInterceptPreviewBranch deterministic = _continuationBranches[0];
+            BattleState = deterministic.BattleState;
+            SourcePreview = deterministic.SourceUnit ?? SourcePreview;
+            TargetPreview = deterministic.TargetUnit;
+        }
+    }
+
+    private static BattleFatalInterceptPreviewBranch CopyBranchWithProbability(
+        BattleFatalInterceptPreviewBranch branch,
+        int probabilityBasisPoints
+    ) =>
+        new()
+        {
+            ProbabilityBasisPoints = Math.Clamp(probabilityBasisPoints, 0, 10000),
+            BattleState = branch.BattleState,
+            SourceUnit = branch.SourceUnit,
+            TargetUnit = branch.TargetUnit,
+            Intercepted = branch.Intercepted,
+            WinningBindingId = branch.WinningBindingId,
+            WinningInterceptId = branch.WinningInterceptId,
+        };
+}
+
+internal static class BattleDamagePreviewBranchSignature
+{
+    internal static string Build(BattleFatalInterceptPreviewBranch branch)
+    {
+        var builder = new StringBuilder(512);
+        BattleState state = branch?.BattleState;
+        if (state == null)
+            return "state:null";
+        BattleEnvironmentSnapshot environment = state.GetEnvironmentSnapshot();
+        AppendText(builder, state.battle_id.ToString());
+        AppendInt(builder, environment?.WorldStep ?? -1);
+        var units = new List<BattleUnitState>();
+        foreach (BattleUnitState unit in state.GetUnitsTyped())
+        {
+            if (unit != null)
+                units.Add(unit);
+        }
+        units.Sort(
+            (left, right) => string.CompareOrdinal(
+                left.unit_id.ToString(),
+                right.unit_id.ToString()
+            )
+        );
+        foreach (BattleUnitState unit in units)
+        {
+            AppendText(builder, unit.unit_id.ToString());
+            AppendValue(builder, unit.BuildPlainSnapshotDetached());
+            var charges = new List<KeyValuePair<StringName, int>>(
+                unit.GetPerBattleChargesTyped()
+            );
+            charges.Sort(
+                (left, right) => string.CompareOrdinal(
+                    left.Key.ToString(),
+                    right.Key.ToString()
+                )
+            );
+            builder.Append("charges[");
+            foreach (KeyValuePair<StringName, int> charge in charges)
+            {
+                AppendText(builder, charge.Key.ToString());
+                AppendInt(builder, charge.Value);
+            }
+            builder.Append(']');
+        }
+        return builder.ToString();
+    }
+
+    private static void AppendValue(StringBuilder builder, object value)
+    {
+        switch (value)
+        {
+            case null:
+                builder.Append("null;");
+                return;
+            case bool flag:
+                builder.Append(flag ? "b1;" : "b0;");
+                return;
+            case byte or sbyte or short or ushort or int or uint or long or ulong:
+                builder.Append('i').Append(value).Append(';');
+                return;
+            case float or double or decimal:
+                builder.Append('f').Append(value).Append(';');
+                return;
+            case StringName name:
+                AppendText(builder, name.ToString());
+                return;
+            case string text:
+                AppendText(builder, text);
+                return;
+            case Vector2I coord:
+                builder.Append('v').Append(coord.X).Append(',').Append(coord.Y).Append(';');
+                return;
+            case IReadOnlyDictionary<string, object> typed:
+                AppendTypedDictionary(builder, typed);
+                return;
+            case IDictionary dictionary:
+                AppendDictionary(builder, dictionary);
+                return;
+            case IEnumerable sequence:
+                builder.Append("array[");
+                foreach (object entry in sequence)
+                    AppendValue(builder, entry);
+                builder.Append(']');
+                return;
+            default:
+                AppendText(builder, value.ToString());
+                return;
+        }
+    }
+
+    private static void AppendTypedDictionary(
+        StringBuilder builder,
+        IReadOnlyDictionary<string, object> values
+    )
+    {
+        var keys = new List<string>(values?.Keys ?? Array.Empty<string>());
+        keys.Sort(StringComparer.Ordinal);
+        builder.Append("map{");
+        foreach (string key in keys)
+        {
+            AppendText(builder, key);
+            values.TryGetValue(key, out object value);
+            AppendValue(builder, value);
+        }
+        builder.Append('}');
+    }
+
+    private static void AppendDictionary(StringBuilder builder, IDictionary values)
+    {
+        var entries = new List<(string Key, object Value)>();
+        foreach (DictionaryEntry entry in values ?? new System.Collections.Hashtable())
+            entries.Add((entry.Key?.ToString() ?? "", entry.Value));
+        entries.Sort((left, right) => string.CompareOrdinal(left.Key, right.Key));
+        builder.Append("map{");
+        foreach ((string key, object value) in entries)
+        {
+            AppendText(builder, key);
+            AppendValue(builder, value);
+        }
+        builder.Append('}');
+    }
+
+    private static void AppendText(StringBuilder builder, string value)
+    {
+        string text = value ?? "";
+        builder.Append('s').Append(text.Length).Append(':').Append(text).Append(';');
+    }
+
+    private static void AppendInt(StringBuilder builder, int value) =>
+        builder.Append('i').Append(value).Append(';');
 }
 
 internal sealed class BattleDamagePreviewScoreResult
@@ -50,6 +289,10 @@ internal sealed class BattleDamagePreviewScoreResult
     internal bool ShieldBroken { get; private set; }
     internal int ShieldHpBefore { get; private set; }
     internal int ShieldHpAfter { get; private set; }
+    internal bool StableLethal { get; private set; }
+    internal int LethalProbabilityBasisPoints { get; private set; }
+    internal int FatalInterceptProbabilityBasisPoints { get; private set; }
+    internal int ExpectedSurvivalHp { get; private set; }
     internal string ErrorCode { get; private set; } = "";
     internal BattleDamagePreviewSaveEstimate SaveEstimate { get; private set; } =
         BattleDamagePreviewSaveEstimate.None(0);
@@ -70,6 +313,10 @@ internal sealed class BattleDamagePreviewScoreResult
         bool shieldBroken = false,
         int shieldHpBefore = 0,
         int shieldHpAfter = 0,
+        bool stableLethal = false,
+        int lethalProbabilityBasisPoints = 0,
+        int fatalInterceptProbabilityBasisPoints = 0,
+        int expectedSurvivalHp = 0,
         string errorCode = "",
         BattleDamagePreviewSaveEstimate saveEstimate = null,
         IReadOnlyList<object> diagnostics = null
@@ -89,6 +336,18 @@ internal sealed class BattleDamagePreviewScoreResult
             ShieldBroken = shieldBroken,
             ShieldHpBefore = Math.Max(shieldHpBefore, 0),
             ShieldHpAfter = Math.Max(shieldHpAfter, 0),
+            StableLethal = stableLethal,
+            LethalProbabilityBasisPoints = Math.Clamp(
+                lethalProbabilityBasisPoints,
+                0,
+                10000
+            ),
+            FatalInterceptProbabilityBasisPoints = Math.Clamp(
+                fatalInterceptProbabilityBasisPoints,
+                0,
+                10000
+            ),
+            ExpectedSurvivalHp = Math.Max(expectedSurvivalHp, 0),
             ErrorCode = errorCode ?? "",
             SaveEstimate = saveEstimate ?? BattleDamagePreviewSaveEstimate.None(preSaveDamage),
             Diagnostics = diagnostics ?? Array.Empty<object>(),
@@ -258,6 +517,8 @@ public sealed class BattleDamagePreviewResult
     public int ShieldHpAfter { get; private set; }
     public bool StableLethal { get; private set; }
     public int LethalProbabilityBasisPoints { get; private set; }
+    public int FatalInterceptProbabilityBasisPoints { get; private set; }
+    public int ExpectedSurvivalHp { get; private set; }
     public string ErrorCode { get; private set; } = "";
     public IReadOnlyDictionary<string, object> DamageOutcome { get; private set; } =
         new Dictionary<string, object>(StringComparer.Ordinal);
@@ -271,6 +532,12 @@ public sealed class BattleDamagePreviewResult
     public IReadOnlyList<object> Diagnostics { get; private set; } = Array.Empty<object>();
     public BattleUnitState SourcePreviewAfter { get; private set; }
     public BattleUnitState TargetPreviewAfter { get; private set; }
+    internal BattleFatalInterceptPreviewResult FatalInterceptPreview { get; private set; }
+    internal IReadOnlyList<BattleEquipmentAbilityActionPreviewResult> EquipmentActionPreviews
+    {
+        get;
+        private set;
+    } = Array.Empty<BattleEquipmentAbilityActionPreviewResult>();
 
     public static BattleDamagePreviewResult Empty() => Create();
 
@@ -289,6 +556,8 @@ public sealed class BattleDamagePreviewResult
         int shieldHpAfter = 0,
         bool stableLethal = false,
         int lethalProbabilityBasisPoints = 0,
+        int fatalInterceptProbabilityBasisPoints = 0,
+        int expectedSurvivalHp = 0,
         string errorCode = "",
         IReadOnlyDictionary<string, object> damageOutcome = null,
         IReadOnlyDictionary<string, object> damageResult = null,
@@ -297,7 +566,9 @@ public sealed class BattleDamagePreviewResult
         IReadOnlyList<object> damageEvents = null,
         IReadOnlyList<object> diagnostics = null,
         BattleUnitState sourcePreviewAfter = null,
-        BattleUnitState targetPreviewAfter = null
+        BattleUnitState targetPreviewAfter = null,
+        BattleFatalInterceptPreviewResult fatalInterceptPreview = null,
+        IReadOnlyList<BattleEquipmentAbilityActionPreviewResult> equipmentActionPreviews = null
     )
     {
         return new BattleDamagePreviewResult
@@ -315,7 +586,17 @@ public sealed class BattleDamagePreviewResult
             ShieldHpBefore = Math.Max(shieldHpBefore, 0),
             ShieldHpAfter = Math.Max(shieldHpAfter, 0),
             StableLethal = stableLethal,
-            LethalProbabilityBasisPoints = Math.Max(lethalProbabilityBasisPoints, 0),
+            LethalProbabilityBasisPoints = Math.Clamp(
+                lethalProbabilityBasisPoints,
+                0,
+                10000
+            ),
+            FatalInterceptProbabilityBasisPoints = Math.Clamp(
+                fatalInterceptProbabilityBasisPoints,
+                0,
+                10000
+            ),
+            ExpectedSurvivalHp = Math.Max(expectedSurvivalHp, 0),
             ErrorCode = errorCode ?? "",
             DamageOutcome = CloneTraceDictionary(damageOutcome),
             DamageResult = CloneTraceDictionary(damageResult),
@@ -325,6 +606,9 @@ public sealed class BattleDamagePreviewResult
             Diagnostics = CloneTraceObjectList(diagnostics),
             SourcePreviewAfter = sourcePreviewAfter,
             TargetPreviewAfter = targetPreviewAfter,
+            FatalInterceptPreview = fatalInterceptPreview,
+            EquipmentActionPreviews = equipmentActionPreviews
+                ?? Array.Empty<BattleEquipmentAbilityActionPreviewResult>(),
         };
     }
 

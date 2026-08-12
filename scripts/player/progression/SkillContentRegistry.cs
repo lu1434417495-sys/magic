@@ -291,7 +291,55 @@ public class SkillContentRegistry : System.IDisposable
         _combatProfileValidator.AppendPhantasmalKillCombatProfileValidationErrors(errors, skillId, skillDef);
 
         if (skillDef.combat_profile != null)
+        {
             _combatProfileValidator.AppendCombatProfileValidationErrors(errors, skillId, skillDef.combat_profile, skillDef);
+            AppendSpellReactionReferenceValidationErrors(errors, skillId, skillDef.combat_profile);
+        }
+    }
+
+    private void AppendSpellReactionReferenceValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatSkillDef combatProfile
+    )
+    {
+        StringName reactionSkillId = ProgressionDataUtils.to_string_name(
+            combatProfile?.spell_reaction_profile?.reaction_skill_id ?? new StringName("")
+        );
+        if (reactionSkillId == "")
+            return;
+        SkillDef reactionSkill = GetTyped<SkillDef>(_skill_defs, reactionSkillId);
+        if (reactionSkill == null)
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile references missing reaction skill {reactionSkillId}."
+            );
+            return;
+        }
+        bool hasWeaponDamage = false;
+        foreach (
+            CombatEffectDef effect
+            in reactionSkill.combat_profile?.effect_defs
+                ?? new Godot.Collections.Array<CombatEffectDef>()
+        )
+        {
+            if (effect?.EffectKind == BattleEffectKind.Damage && effect.add_weapon_dice)
+            {
+                hasWeaponDamage = true;
+                break;
+            }
+        }
+        if (
+            reactionSkill.SkillTypeKind != SkillTypeKind.Active
+            || reactionSkill.combat_profile == null
+            || reactionSkill.combat_profile.TargetModeKind != BattleTargetMode.Unit
+            || !hasWeaponDamage
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.spell_reaction_profile reaction skill {reactionSkillId} must be an active unit skill with weapon-dice damage."
+            );
+        }
     }
 
     private void AppendPracticeSkillValidationErrors(

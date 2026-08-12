@@ -306,7 +306,7 @@ internal static class EnemyAiActionSkillCompatibilityRules
             ? EnemyAiActionSkillCompatibilityResult.Compatible()
             : MissingOption(
                 FormatLevelSpecificReason(
-                    "expected a non-charge single-coordinate ground cast option containing a blink or jump forced_move effect",
+                    "expected a non-charge single-coordinate ground cast option containing a supported ground relocation forced_move effect",
                     skillLevel
                 )
             );
@@ -605,7 +605,7 @@ internal static class EnemyAiActionSkillCompatibilityRules
         {
             return combatProfile.TargetModeKind == BattleTargetMode.Ground
                 && !HasEffect(combatProfile.EffectDefinitions, BattleEffectKind.Charge)
-                && HasBlinkOrJumpEffect(combatProfile.EffectDefinitions);
+                && HasGroundRelocationEffect(combatProfile.EffectDefinitions, skillLevel);
         }
         foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
@@ -619,7 +619,7 @@ internal static class EnemyAiActionSkillCompatibilityRules
                     == BattleTargetMode.Ground
                 && SupportsSingleCoordinateCommand(castVariant)
                 && !HasEffect(castVariant.EffectDefinitions, BattleEffectKind.Charge)
-                && HasBlinkOrJumpEffect(castVariant.EffectDefinitions)
+                && HasGroundRelocationEffect(castVariant.EffectDefinitions, skillLevel)
             )
             {
                 return true;
@@ -666,8 +666,9 @@ internal static class EnemyAiActionSkillCompatibilityRules
         return false;
     }
 
-    private static bool HasBlinkOrJumpEffect(
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+    private static bool HasGroundRelocationEffect(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        int? skillLevel
     )
     {
         foreach (
@@ -677,8 +678,14 @@ internal static class EnemyAiActionSkillCompatibilityRules
         {
             if (
                 effectDefinition?.EffectKind == BattleEffectKind.ForcedMove
+                && (
+                    !skillLevel.HasValue
+                    || effectDefinition.IsUnlockedAtSkillLevel(skillLevel.Value)
+                )
                 && effectDefinition.ForcedMoveModeKind
-                    is BattleForcedMoveMode.Blink or BattleForcedMoveMode.Jump
+                    is BattleForcedMoveMode.Blink
+                        or BattleForcedMoveMode.Jump
+                        or BattleForcedMoveMode.GrappleAscent
             )
             {
                 return true;

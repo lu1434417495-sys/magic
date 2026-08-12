@@ -47,6 +47,7 @@ public static class BattleStatusSemanticTable
         STATUS_ATTACK_ROLL_BONUS_UP = "attack_roll_bonus_up",
         STATUS_BURNING = "burning",
         STATUS_BLIND = "blind",
+        STATUS_FLASH_WHISTLE_DAZZLED = "flash_whistle_dazzled",
         STATUS_DEATH_WARD = "death_ward",
         STATUS_DAMAGE_REDUCTION_UP = "damage_reduction_up",
         STATUS_DODGE_BONUS_UP = "dodge_bonus_up",
@@ -139,6 +140,14 @@ public static class BattleStatusSemanticTable
         [STATUS_CROWN_BREAK_BROKEN_HAND] = new() { Semantic = RefreshSemantic(), Harmful = true },
         [STATUS_CROWN_BREAK_BLINDED_EYE] = new() { Semantic = RefreshSemantic(), Harmful = true },
         [STATUS_BLIND] = new() { Semantic = RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_FLASH_WHISTLE_DAZZLED] = new()
+        {
+            Semantic = RefreshSemantic(
+                attackRollPenalty: 2,
+                displayLabel: "炫目"
+            ),
+            Harmful = true,
+        },
         [STATUS_FROZEN] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
         [STATUS_MARKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
         [STATUS_PARALYZED] = new() { Semantic = RefreshSemantic(displayLabel: "麻痹"), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },

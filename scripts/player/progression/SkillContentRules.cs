@@ -125,6 +125,9 @@ internal static class CombatSkillContentRules
     private static readonly StringName AttackResolutionModeDirectEffect = "direct_effect";
     private static readonly StringName AttackResolutionModeFateAttack = "fate_attack";
     private static readonly StringName AttackResolutionModeForceHitNoCrit = "force_hit_no_crit";
+    private static readonly StringName AttackDefenseModeNormal = "normal";
+    private static readonly StringName AttackDefenseModeTouch = "touch";
+    private static readonly StringName AttackDefenseModeFlatFooted = "flat_footed";
     private static readonly StringName AreaOriginTarget = "target";
     private static readonly StringName AreaOriginCaster = "caster";
     private static readonly StringName AreaOriginAnchorCoord = "anchor_coord";
@@ -162,6 +165,28 @@ internal static class CombatSkillContentRules
         if (value == AttackResolutionModeForceHitNoCrit)
             return CombatSkillAttackResolutionMode.ForceHitNoCrit;
         return CombatSkillAttackResolutionMode.Unknown;
+    }
+
+    internal static CombatSkillAttackDefenseMode ToAttackDefenseMode(StringName value)
+    {
+        if (value == "" || value == AttackDefenseModeNormal)
+            return CombatSkillAttackDefenseMode.Normal;
+        if (value == AttackDefenseModeTouch)
+            return CombatSkillAttackDefenseMode.Touch;
+        if (value == AttackDefenseModeFlatFooted)
+            return CombatSkillAttackDefenseMode.FlatFooted;
+        return CombatSkillAttackDefenseMode.Unknown;
+    }
+
+    internal static StringName ToStringName(CombatSkillAttackDefenseMode mode)
+    {
+        return mode switch
+        {
+            CombatSkillAttackDefenseMode.Normal => AttackDefenseModeNormal,
+            CombatSkillAttackDefenseMode.Touch => AttackDefenseModeTouch,
+            CombatSkillAttackDefenseMode.FlatFooted => AttackDefenseModeFlatFooted,
+            _ => "",
+        };
     }
 
     internal static CombatAreaOriginMode ToAreaOriginMode(StringName value)

@@ -19,4 +19,6 @@ internal interface IBattleEquipmentCombatReactionSink
     );
 
     bool ResolveDamageApplied(BattleEquipmentAbilityDamageAppliedContext context);
+
+    bool ResolveDamageTakenFinalized(BattleEquipmentAbilityDamageAppliedContext context) => false;
 }

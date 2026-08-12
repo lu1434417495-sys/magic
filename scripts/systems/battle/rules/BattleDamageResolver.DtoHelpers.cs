@@ -893,9 +893,24 @@ public partial class BattleDamageResolver
 
     private int ResolveHealAmount(
         BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition
     )
     {
+        if (effectDefinition?.HealToHpPercentFloor > 0)
+        {
+            return BattleCombatEffectTargetRules.ResolveHealToHpPercentFloorAmount(
+                targetUnit,
+                effectDefinition.HealToHpPercentFloor
+            );
+        }
+        if (effectDefinition?.HealMissingHpPercent > 0)
+        {
+            return BattleCombatEffectTargetRules.ResolveHealMissingHpPercentAmount(
+                targetUnit,
+                effectDefinition.HealMissingHpPercent
+            );
+        }
         int healAmount = Math.Max(effectDefinition?.Power ?? 0, 0);
         DicePoolRollResult healDiceRoll = RollEffectDice(sourceUnit, effectDefinition);
         if (healDiceRoll.HasDice)

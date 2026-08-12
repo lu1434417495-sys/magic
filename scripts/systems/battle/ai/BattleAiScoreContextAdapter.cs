@@ -6,6 +6,11 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 {
     private static readonly IReadOnlyDictionary<StringName, SkillDefinition> EmptySkillDefinitions =
         new Dictionary<StringName, SkillDefinition>();
+    private static readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        EmptyEquipmentAbilityBindings =
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+    private static readonly IReadOnlyDictionary<StringName, ItemDefinition> EmptyItemDefinitions =
+        new Dictionary<StringName, ItemDefinition>();
 
     private BattleState _state;
     private BattleUnitState _unitState;
@@ -13,6 +18,9 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
     private BattleAiScoreService _scoreService;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions =
         EmptySkillDefinitions;
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        _equipmentAbilityBindings = EmptyEquipmentAbilityBindings;
+    private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions = EmptyItemDefinitions;
     private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions =
         new Dictionary<StringName, BarrierProfileDefinition>();
     private ISkillCatalog _skillCatalog;
@@ -30,6 +38,12 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 
     IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
         _skillDefinitions;
+
+    IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        IBattleAiScoreContext.equipment_ability_bindings => _equipmentAbilityBindings;
+
+    IReadOnlyDictionary<StringName, ItemDefinition> IBattleAiScoreContext.item_definitions =>
+        _itemDefinitions;
 
     IReadOnlyDictionary<StringName, BarrierProfileDefinition> IBattleAiScoreContext.barrier_profile_definitions =>
         _barrierProfileDefinitions;
@@ -55,7 +69,9 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             BattleUnitState,
             SkillDefinition,
             BattleSkillCastBlockReasonKind
-        > skillCastBlockReasonCallback = null
+        > skillCastBlockReasonCallback = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         ClearRuntimeBindings();
@@ -99,6 +115,9 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             ?? skillCatalog?.GetSkillDefinitionsTyped()
             ?? EmptySkillDefinitions;
         _skillCatalog = skillCatalog;
+        _equipmentAbilityBindings =
+            equipmentAbilityBindings ?? EmptyEquipmentAbilityBindings;
+        _itemDefinitions = itemDefinitions ?? EmptyItemDefinitions;
         _barrierProfileDefinitions =
             barrierProfileDefinitions
             ?? new Dictionary<StringName, BarrierProfileDefinition>();
@@ -113,6 +132,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _unitState = null;
         _gridService = null;
         _skillDefinitions = EmptySkillDefinitions;
+        _equipmentAbilityBindings = EmptyEquipmentAbilityBindings;
+        _itemDefinitions = EmptyItemDefinitions;
         _barrierProfileDefinitions = new Dictionary<StringName, BarrierProfileDefinition>();
         _skillCatalog = null;
         _skillCastBlockReasonCallback = null;

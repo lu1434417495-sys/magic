@@ -19,10 +19,15 @@ public sealed partial class EquipmentAbilityBindingDef : Resource
     [Export] public StringName replaces_binding_id { get; set; } = "";
     [Export] public Godot.Collections.Array<StringName> allowed_source_kinds { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> required_trait_categories { get; set; } = new();
+    [Export] public Godot.Collections.Array<StringName> required_effective_trait_ids { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> required_item_tags { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> supported_equipment_type_ids { get; set; } = new();
+    [Export] public StringName activation_status_id { get; set; } = "";
     [Export] public Godot.Collections.Array<EquipmentAbilityStateSchemaDef> state_schemas { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentAbilityReactionDef> reactions { get; set; } = new();
+    [Export] public Godot.Collections.Array<EquipmentFatalInterceptDef> fatal_intercepts { get; set; } = new();
+    [Export] public Godot.Collections.Array<EquipmentMitigationAuraDef> mitigation_auras { get; set; } = new();
+    [Export] public Godot.Collections.Array<EquipmentMovementTrailDef> movement_trails { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentGrantedActionDef> granted_actions { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentTemporalProgressModifierDef> temporal_progress_modifiers { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentCognitionCeilingModifierDef> cognition_ceiling_modifiers { get; set; } = new();
@@ -143,7 +148,10 @@ public sealed partial class AddDamageDiceActionPayloadDef : Resource
     [Export] public StringName target_selector { get; set; } = "";
     [Export] public DiceExpressionDef dice { get; set; }
     [Export] public StringName damage_type { get; set; } = "";
+    [Export] public bool require_weapon_damage { get; set; } = true;
     [Export] public bool subtract { get; set; }
+    [Export] public StringName replacement_group_id { get; set; } = "";
+    [Export] public int replacement_priority { get; set; }
     [Export] public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
     [Export] public Godot.Collections.Array<StringName> mitigation_bypass_damage_tags { get; set; } =
         new();
@@ -258,6 +266,7 @@ public sealed partial class ApplyStatusActionPayloadDef : Resource
     [Export] public int stack_limit { get; set; }
     [Export] public string display_label { get; set; } = "";
     [Export] public int attack_roll_penalty { get; set; } = -1;
+    [Export] public int armor_class_bonus_per_stack { get; set; }
     [Export] public int source_bound_attack_roll_penalty { get; set; }
     [Export] public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
     [Export] public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
@@ -266,6 +275,9 @@ public sealed partial class ApplyStatusActionPayloadDef : Resource
     [Export] public int heal_multiplier_percent { get; set; } = 100;
     [Export] public int move_point_capacity_delta { get; set; }
     [Export] public bool forced_move_immune { get; set; }
+    [Export] public StringName damage_tag { get; set; } = "";
+    [Export] public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
+    [Export] public StringName mitigation_tier { get; set; } = "";
     [Export] public bool counts_as_debuff_override { get; set; }
     [Export] public bool counts_as_debuff { get; set; }
     [Export] public bool undispellable { get; set; }
@@ -524,6 +536,48 @@ public sealed partial class EquipmentRollGateDef : Resource
     [Export] public DiceExpressionDef roll { get; set; }
     [Export] public StringName compare { get; set; } = "";
     [Export] public int threshold { get; set; }
+}
+
+[GlobalClass]
+public sealed partial class EquipmentFatalInterceptDef : Resource
+{
+    [Export] public StringName intercept_id { get; set; } = "";
+    [Export] public int resolution_order { get; set; }
+    [Export] public int protection_priority { get; set; }
+    [Export] public StringName usage_period_kind { get; set; } = "per_battle";
+    [Export] public int max_attempts_per_period { get; set; } = 1;
+    [Export] public bool consume_on_attempt { get; set; } = true;
+    [Export] public EquipmentRollGateDef roll_gate { get; set; }
+    [Export] public StringName recovery_kind { get; set; } = "hp_dice";
+    [Export] public DiceExpressionDef recovery_dice { get; set; }
+    [Export] public int recovery_percent_basis_points { get; set; }
+    [Export] public Godot.Collections.Array<EquipmentAbilityActionDef> success_actions { get; set; } = new();
+}
+
+[GlobalClass]
+public sealed partial class EquipmentMitigationAuraDef : Resource
+{
+    [Export] public StringName aura_id { get; set; } = "";
+    [Export] public int radius { get; set; }
+    [Export] public StringName target_team_filter { get; set; } = "ally";
+    [Export] public StringName damage_tag { get; set; } = "";
+    [Export] public StringName mitigation_tier { get; set; } = "half";
+    [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
+public sealed partial class EquipmentMovementTrailDef : Resource
+{
+    [Export] public StringName trail_id { get; set; } = "";
+    [Export] public StringName replacement_group_id { get; set; } = "";
+    [Export] public int priority { get; set; }
+    [Export] public StringName required_skill_id { get; set; } = "";
+    [Export] public int duration_tu { get; set; }
+    [Export] public StringName target_team_filter { get; set; } = "any";
+    [Export] public DiceExpressionDef damage_dice { get; set; }
+    [Export] public StringName damage_tag { get; set; } = "";
+    [Export] public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
+    [Export] public string display_name { get; set; } = "";
 }
 
 [GlobalClass]

@@ -1323,20 +1323,59 @@ internal sealed class BattleRuntimeSkillTurnResolver
     internal CombatSkillResourceCosts GetEffectiveSkillResourceCosts(
         BattleUnitState active_unit,
         SkillDefinition skillDefinition
-    ) =>
-        GetEffectiveSkillResourceCosts(
+    )
+    {
+        CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(
             skillDefinition,
             ResolveSkillRuleLevel(active_unit, skillDefinition)
         );
+        CombatDirectionalPiercingDefinition piercing =
+            skillDefinition?.CombatProfile?.DirectionalPiercing;
+        if (active_unit == null || piercing == null)
+            return costs;
+        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
+            active_unit,
+            skillDefinition
+        );
+        int strengthModifier = active_unit.attribute_snapshot?.GetValue(
+            new StringName("strength_modifier")
+        ) ?? 0;
+        return costs with
+        {
+            StaminaCost = BattleDirectionalPiercingRules.CalculateStaminaCost(
+                piercing,
+                effectiveRange,
+                strengthModifier
+            ),
+        };
+    }
 
     internal CombatSkillResourceCosts GetEffectiveSkillResourceCosts(
         BattleUnitReadView active_unit,
         SkillDefinition skillDefinition
-    ) =>
-        GetEffectiveSkillResourceCosts(
+    )
+    {
+        CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(
             skillDefinition,
             ResolveSkillRuleLevel(active_unit, skillDefinition)
         );
+        CombatDirectionalPiercingDefinition piercing =
+            skillDefinition?.CombatProfile?.DirectionalPiercing;
+        if (!active_unit.IsValid || piercing == null)
+            return costs;
+        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
+            active_unit,
+            skillDefinition
+        );
+        return costs with
+        {
+            StaminaCost = BattleDirectionalPiercingRules.CalculateStaminaCost(
+                piercing,
+                effectiveRange,
+                active_unit.GetAttributeValue(new StringName("strength_modifier"))
+            ),
+        };
+    }
 
     private static CombatSkillResourceCosts GetEffectiveSkillResourceCosts(
         SkillDefinition skillDefinition,
@@ -1728,7 +1767,12 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return BattleStatusTickResult.Empty();
         }
-        bool changed = TerminateHardControlMaintainedStatuses(unit_state, batch);
+        bool changed =
+            _runtime?._skill_orchestrator.ExpireSpellReactionStatusesAtTurnStart(
+                unit_state,
+                batch
+            ) == true;
+        changed |= TerminateHardControlMaintainedStatuses(unit_state, batch);
         var penaltyByGroup = new Dictionary<StringName, int>();
         var labelByGroup = new Dictionary<StringName, string>();
         var consumeStatusIds = new List<StringName>();

@@ -4,6 +4,7 @@ using Godot;
 
 internal sealed class BattleEquipmentSkillTriggerActionResolver
 {
+    private const int MaxDetachedFatalTriggerSkillPreviewDepth = 1;
     private BattleRuntimeModule _runtime;
     private BattleEquipmentAbilityRuntimeService _owner;
 
@@ -19,7 +20,7 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
         _owner = null;
     }
 
-    internal void ResolveTriggerSkillAction(
+    internal bool ResolveTriggerSkillAction(
         BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding,
         EquipmentAbilityBindingDefinition binding,
         EquipmentAbilityActionDefinition action,
@@ -34,13 +35,13 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
     {
         BattleState state = battleState ?? _runtime?.GetState();
         if (_owner.DamageResolver == null || state == null || sourceUnit == null || payload == null)
-            return;
+            return false;
         SkillDefinition skillDefinition = _runtime?.GetSkillDefinitionTyped(payload.SkillId);
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile?.Windup != null)
         {
             batch?.AddLogLine("蓄力技能不能通过装备 trigger_skill 自动触发。");
-            return;
+            return false;
         }
         BattleUnitState anchorUnit = _owner.ResolveEquipmentActionTarget(
             payload.TargetSelector,
@@ -53,7 +54,7 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
             state
         );
         if (combatProfile == null || anchorUnit == null)
-            return;
+            return false;
 
         IReadOnlyList<BattleUnitState> targets = CollectTriggeredSkillTargets(
             state,
@@ -63,10 +64,11 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
             payload.SkillLevel
         );
         if (targets.Count == 0)
-            return;
+            return false;
         if (!string.IsNullOrWhiteSpace(payload.ActivationLog))
             batch?.AddLogLine(payload.ActivationLog);
 
+        bool resolvedAny = false;
         foreach (BattleUnitState targetUnit in targets)
         {
             IReadOnlyList<CombatEffectDefinition> effects = FilterTriggeredSkillEffects(
@@ -93,10 +95,10 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
                     .WithBattleState(state)
                     .WithDamageApplicationHookContext(
                         batch,
-                        _runtime?.CurrentEffectOriginForContingency
-                            ?? BattleEffectOrigin.PlayerCommand()
+                        BattleEffectOrigin.EquipmentAbility()
                     )
             );
+            resolvedAny = true;
             addResult?.Invoke(
                 new BattleEquipmentAbilityTriggeredSkillResult
                 {
@@ -127,6 +129,185 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
                 );
             }
         }
+        return resolvedAny;
+    }
+
+    internal BattleEquipmentAbilityActionPreviewResult PreviewTriggerSkillAction(
+        BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding,
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentAbilityActionDefinition action,
+        TriggerSkillActionPayloadDefinition payload,
+        BattleUnitState sourceUnit,
+        BattleUnitState contextTarget,
+        BattleState battleState,
+        int triggerProbabilityBasisPoints,
+        int detachedPreviewDepth = 0
+    )
+    {
+        int probability = Math.Clamp(triggerProbabilityBasisPoints, 0, 10000);
+        SkillDefinition skillDefinition = _runtime?.GetSkillDefinitionTyped(payload?.SkillId ?? "");
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        var resultBase = new
+        {
+            BindingId = binding?.BindingId ?? new StringName(""),
+            ActionId = action?.ActionId ?? new StringName(""),
+            ActionKind = action?.Kind ?? new StringName(""),
+            SkillId = payload?.SkillId ?? new StringName(""),
+        };
+        if (detachedPreviewDepth >= MaxDetachedFatalTriggerSkillPreviewDepth)
+        {
+            return new BattleEquipmentAbilityActionPreviewResult
+            {
+                BindingId = resultBase.BindingId,
+                ActionId = resultBase.ActionId,
+                ActionKind = resultBase.ActionKind,
+                TriggerSkillId = resultBase.SkillId,
+                TriggerProbabilityBasisPoints = probability,
+                Guaranteed = probability >= 10000,
+                Conditional = probability > 0 && probability < 10000,
+                Supported = false,
+                UnsupportedReason = "trigger_skill_detached_preview_depth_limit",
+            };
+        }
+        if (combatProfile == null)
+        {
+            return new BattleEquipmentAbilityActionPreviewResult
+            {
+                BindingId = resultBase.BindingId,
+                ActionId = resultBase.ActionId,
+                ActionKind = resultBase.ActionKind,
+                TriggerSkillId = resultBase.SkillId,
+                TriggerProbabilityBasisPoints = probability,
+                Guaranteed = probability >= 10000,
+                Conditional = probability > 0 && probability < 10000,
+                Supported = false,
+                UnsupportedReason = "trigger_skill_definition_unavailable",
+            };
+        }
+        if (combatProfile.TargetModeKind == BattleTargetMode.Ground)
+        {
+            return new BattleEquipmentAbilityActionPreviewResult
+            {
+                BindingId = resultBase.BindingId,
+                ActionId = resultBase.ActionId,
+                ActionKind = resultBase.ActionKind,
+                TriggerSkillId = resultBase.SkillId,
+                TriggerProbabilityBasisPoints = probability,
+                Guaranteed = probability >= 10000,
+                Conditional = probability > 0 && probability < 10000,
+                Supported = false,
+                UnsupportedReason = "ground_trigger_skill_requires_full_battle_preview",
+            };
+        }
+
+        BattleUnitState anchorUnit = _owner.ResolveEquipmentActionTarget(
+            payload.TargetSelector,
+            sourceUnit,
+            contextTarget,
+            activeBinding,
+            binding,
+            "",
+            "",
+            battleState
+        );
+        if (anchorUnit == null)
+        {
+            return new BattleEquipmentAbilityActionPreviewResult
+            {
+                BindingId = resultBase.BindingId,
+                ActionId = resultBase.ActionId,
+                ActionKind = resultBase.ActionKind,
+                TriggerSkillId = resultBase.SkillId,
+                TriggerProbabilityBasisPoints = probability,
+                Guaranteed = probability >= 10000,
+                Conditional = probability > 0 && probability < 10000,
+                Supported = true,
+                Applied = false,
+            };
+        }
+
+        var damageEffects = new List<CombatEffectDefinition>();
+        bool hasUnsupportedEffect = false;
+        foreach (
+            CombatEffectDefinition effect
+            in FilterTriggeredSkillEffects(
+                skillDefinition,
+                sourceUnit,
+                anchorUnit,
+                payload.SkillLevel
+            )
+        )
+        {
+            if (effect == null)
+                continue;
+            if (effect.EffectKind == BattleEffectKind.Damage)
+                damageEffects.Add(effect);
+            else
+                hasUnsupportedEffect = true;
+        }
+        if (hasUnsupportedEffect || damageEffects.Count == 0)
+        {
+            return new BattleEquipmentAbilityActionPreviewResult
+            {
+                BindingId = resultBase.BindingId,
+                ActionId = resultBase.ActionId,
+                ActionKind = resultBase.ActionKind,
+                TriggerSkillId = resultBase.SkillId,
+                TriggerProbabilityBasisPoints = probability,
+                Guaranteed = probability >= 10000,
+                Conditional = probability > 0 && probability < 10000,
+                Supported = false,
+                UnsupportedReason = "trigger_skill_effect_kind_not_supported",
+            };
+        }
+        if (probability < 10000)
+        {
+            return new BattleEquipmentAbilityActionPreviewResult
+            {
+                BindingId = resultBase.BindingId,
+                ActionId = resultBase.ActionId,
+                ActionKind = resultBase.ActionKind,
+                TriggerSkillId = resultBase.SkillId,
+                TriggerProbabilityBasisPoints = probability,
+                Guaranteed = false,
+                Conditional = probability > 0,
+                Supported = true,
+                Applied = false,
+            };
+        }
+
+        BattleDamagePreviewWorkingSet workingSet =
+            BattleDamagePreviewWorkingSet.CreateDetached(sourceUnit, anchorUnit, battleState);
+        var previews = new List<BattleDamagePreviewResult>();
+        foreach (CombatEffectDefinition effect in damageEffects)
+        {
+            BattleDamagePreviewResult damagePreview = _owner.DamageResolver
+                ?.PreviewDamageEffectOnWorkingSetTyped(
+                    workingSet,
+                    effect,
+                    DamageResolutionContext
+                        .ForSkill(skillDefinition.SkillId)
+                        .WithSourceSkillLevel(Math.Max(payload.SkillLevel, 1))
+                        .WithBattleState(workingSet?.BattleState)
+                        .WithDetachedPreviewDepth(detachedPreviewDepth + 1),
+                    BattleDamagePreviewRollMode.Average,
+                    BattleDamagePreviewSaveMode.Expected
+                );
+            if (damagePreview != null)
+                previews.Add(damagePreview);
+        }
+        return new BattleEquipmentAbilityActionPreviewResult
+        {
+            BindingId = resultBase.BindingId,
+            ActionId = resultBase.ActionId,
+            ActionKind = resultBase.ActionKind,
+            TriggerSkillId = resultBase.SkillId,
+            TriggerProbabilityBasisPoints = probability,
+            Guaranteed = true,
+            Applied = previews.Count > 0,
+            Supported = true,
+            DamagePreviews = previews.AsReadOnly(),
+        };
     }
 
     private IReadOnlyList<BattleUnitState> CollectTriggeredSkillTargets(

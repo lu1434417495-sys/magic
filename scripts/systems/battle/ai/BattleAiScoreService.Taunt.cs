@@ -218,7 +218,8 @@ public partial class BattleAiScoreService
                     threatUnit,
                     damageEffects,
                     protectedAlly,
-                    normalizedSkillId
+                    normalizedSkillId,
+                    ContextState(context)
                 );
             int damage = Math.Max(
                 damageEstimate?.IncomingBudgetDamage ?? 0,
@@ -272,7 +273,8 @@ public partial class BattleAiScoreService
                 EstimateDamageForTargetResult(
                     threatUnit,
                     new[] { weaponEffect },
-                    protectedAlly
+                    protectedAlly,
+                    battleState: ContextState(context)
                 );
             SkillDefinition basicAttack = GetSkillDefinition(
                 skillDefinitions,

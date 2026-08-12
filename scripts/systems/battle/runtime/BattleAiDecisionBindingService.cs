@@ -43,7 +43,12 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
                 BattleAiRuntimeActionPlan actionPlan = _runtime._ai_action_assembler.BuildUnitActionPlan(
                     unitState,
                     brain,
-                    _runtime.GetSkillDefinitionIndexTyped()
+                    _runtime.GetSkillDefinitionIndexTyped(),
+                    _runtime._skillCatalog,
+                    _runtime.GetEquipmentAbilityBindingIndexTyped(),
+                    _runtime.GetItemDefIndexTyped(),
+                    _runtime._state,
+                    _runtime.GetBattleWorldStep()
                 );
                 if (actionPlan != null)
                     _actionPlansByUnitId[unitState.unit_id] = actionPlan;
@@ -88,20 +93,53 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
     {
         if (unit_state == null || _runtime._ai_action_assembler == null)
             return;
-        if (_actionPlansByUnitId.ContainsKey(unit_state.unit_id))
-            return;
         if (unit_state.ControlModeKind == BattleUnitControlMode.Manual || BattleRuntimeModule.IsEmpty(unit_state.ai_brain_id))
             return;
         EnemyAiBrainDefinition brain = _runtime.GetEnemyAiBrainTyped(unit_state.ai_brain_id);
         if (brain == null)
             return;
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            _runtime.GetSkillDefinitionIndexTyped();
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+            equipmentAbilityBindings = _runtime.GetEquipmentAbilityBindingIndexTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            _runtime.GetItemDefIndexTyped();
+        _actionPlansByUnitId.TryGetValue(
+            unit_state.unit_id,
+            out BattleAiRuntimeActionPlan previousPlan
+        );
+        if (
+            previousPlan != null
+            && !previousPlan.IsStaleFor(
+                unit_state,
+                brain,
+                _runtime._skillCatalog,
+                skillDefinitions,
+                equipmentAbilityBindings,
+                itemDefinitions,
+                _runtime._state,
+                _runtime.GetBattleWorldStep()
+            )
+        )
+        {
+            return;
+        }
         BattleAiRuntimeActionPlan actionPlan = _runtime._ai_action_assembler.BuildUnitActionPlan(
             unit_state,
             brain,
-            _runtime.GetSkillDefinitionIndexTyped()
+            skillDefinitions,
+            _runtime._skillCatalog,
+            equipmentAbilityBindings,
+            itemDefinitions,
+            _runtime._state,
+            _runtime.GetBattleWorldStep()
         );
         if (actionPlan != null)
+        {
             _actionPlansByUnitId[unit_state.unit_id] = actionPlan;
+            if (!ReferenceEquals(previousPlan, actionPlan))
+                previousPlan?.Dispose();
+        }
     }
 
     internal void _bind_ai_helper_services_for_decision(
@@ -118,6 +156,8 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
                 unit_state,
                 _runtime.GetSkillDefinitionIndexTyped(),
                 _runtime.GetBarrierProfileIndexTyped(),
+                _runtime.GetEquipmentAbilityBindingIndexTyped(),
+                _runtime.GetItemDefIndexTyped(),
                 _runtime._skillCatalog,
                 _runtime._ai_service.GetScoreService(),
                 _runtime._ai_move_query_cost_callback,
@@ -147,6 +187,8 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
                 actionPlan,
                 _runtime.GetSkillDefinitionIndexTyped(),
                 _runtime.GetBarrierProfileIndexTyped(),
+                _runtime.GetEquipmentAbilityBindingIndexTyped(),
+                _runtime.GetItemDefIndexTyped(),
                 _runtime._ai_trace_enabled,
                 _runtime._skillCatalog,
                 _runtime._ai_move_cost_callback,

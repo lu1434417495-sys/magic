@@ -13,7 +13,9 @@ internal sealed class UseGroundRepositionSkillActionDefinition : EnemyAiActionDe
         int safeDistanceMargin,
         int desiredMaxDistanceBonus,
         int actionBaseScore,
-        int minSurvivalMarginGainToEscape
+        int minSurvivalMarginGainToEscape,
+        StringName positioningMode = default,
+        int highGroundWeight = 100
     )
         : base(
             actionId,
@@ -30,6 +32,8 @@ internal sealed class UseGroundRepositionSkillActionDefinition : EnemyAiActionDe
         DesiredMaxDistanceBonus = desiredMaxDistanceBonus;
         ActionBaseScore = actionBaseScore;
         MinSurvivalMarginGainToEscape = minSurvivalMarginGainToEscape;
+        PositioningMode = positioningMode == "" ? (StringName)"escape" : positioningMode;
+        HighGroundWeight = highGroundWeight;
     }
 
     internal IReadOnlyList<StringName> SkillIds { get; }
@@ -39,4 +43,6 @@ internal sealed class UseGroundRepositionSkillActionDefinition : EnemyAiActionDe
     internal int DesiredMaxDistanceBonus { get; }
     internal int ActionBaseScore { get; }
     internal int MinSurvivalMarginGainToEscape { get; }
+    internal StringName PositioningMode { get; }
+    internal int HighGroundWeight { get; }
 }

@@ -11,6 +11,9 @@ internal readonly struct BattleAiDecisionContextSetup
     internal readonly BattleAiRuntimeActionPlan ActionPlan;
     internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     internal readonly IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfileDefinitions;
+    internal readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        EquipmentAbilityBindings;
+    internal readonly IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions;
     internal readonly bool TraceEnabled;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly Func<BattleUnitState, Vector2I, int> MoveCostCallback;
@@ -45,6 +48,8 @@ internal readonly struct BattleAiDecisionContextSetup
         BattleAiRuntimeActionPlan actionPlan,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         bool traceEnabled,
         ISkillCatalog skillCatalog,
         Func<BattleUnitState, Vector2I, int> moveCostCallback,
@@ -79,6 +84,8 @@ internal readonly struct BattleAiDecisionContextSetup
         ActionPlan = actionPlan;
         SkillDefinitions = skillDefinitions;
         BarrierProfileDefinitions = barrierProfileDefinitions;
+        EquipmentAbilityBindings = equipmentAbilityBindings;
+        ItemDefinitions = itemDefinitions;
         TraceEnabled = traceEnabled;
         SkillCatalog = skillCatalog;
         MoveCostCallback = moveCostCallback;
@@ -96,6 +103,9 @@ internal readonly struct BattleAiHelperBindingContext
     internal readonly BattleUnitState UnitState;
     internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     internal readonly IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfileDefinitions;
+    internal readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        EquipmentAbilityBindings;
+    internal readonly IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly BattleAiScoreService ScoreService;
     internal readonly Func<StringName, Vector2I, Vector2I, int> MoveQueryCostCallback;
@@ -141,6 +151,8 @@ internal readonly struct BattleAiHelperBindingContext
         BattleUnitState unitState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         ISkillCatalog skillCatalog,
         BattleAiScoreService scoreService,
         Func<StringName, Vector2I, Vector2I, int> moveQueryCostCallback,
@@ -186,6 +198,8 @@ internal readonly struct BattleAiHelperBindingContext
         UnitState = unitState;
         SkillDefinitions = skillDefinitions;
         BarrierProfileDefinitions = barrierProfileDefinitions;
+        EquipmentAbilityBindings = equipmentAbilityBindings;
+        ItemDefinitions = itemDefinitions;
         SkillCatalog = skillCatalog;
         ScoreService = scoreService;
         MoveQueryCostCallback = moveQueryCostCallback;
@@ -267,7 +281,9 @@ internal sealed class BattleRuntimeServices : IDisposable
             context.SkillDefinitions,
             context.TraceEnabled,
             context.SkillCatalog,
-            context.BarrierProfileDefinitions
+            context.BarrierProfileDefinitions,
+            context.EquipmentAbilityBindings,
+            context.ItemDefinitions
         );
         BindContextCallbacks(AiDecisionContext, context);
         return AiDecisionContext;
@@ -317,7 +333,9 @@ internal sealed class BattleRuntimeServices : IDisposable
                 context.SkillCatalog,
                 context.SkillDefinitions,
                 context.BarrierProfileDefinitions,
-                context.SkillCastBlockReasonCallback
+                context.SkillCastBlockReasonCallback,
+                context.EquipmentAbilityBindings,
+                context.ItemDefinitions
             );
         }
 
@@ -331,7 +349,9 @@ internal sealed class BattleRuntimeServices : IDisposable
                 context.QueryActionScoreInputCallback,
                 AiMovementQuery,
                 context.MovementBlockedCallback,
-                context.SkillCatalog
+                context.SkillCatalog,
+                context.EquipmentAbilityBindings,
+                context.ItemDefinitions
             );
         }
 

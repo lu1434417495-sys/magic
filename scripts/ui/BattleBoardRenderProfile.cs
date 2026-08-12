@@ -57,6 +57,10 @@ public class BattleBoardRenderProfile
     private static readonly StringName SourceMeteorCrater = "meteor_crater_core";
     private static readonly StringName SourceMeteorRubble = "meteor_rubble";
     private static readonly StringName SourceMeteorDust = "meteor_dust_cloud";
+    private static readonly StringName SourcePhoenixFireStep =
+        "phoenix_rebirth_fire_step";
+    private static readonly StringName SourcePhoenixFlameChargeTrail =
+        "phoenix_rebirth_flame_charge_trail";
     private static readonly StringName SourceTripwireLine = "tripwire_line";
     private static readonly StringName SourceSelected = "selected";
     private static readonly StringName SourceActiveSelected = "active_selected";
@@ -378,6 +382,18 @@ public class BattleBoardRenderProfile
             BuildSourceSpec(
                 SourceMeteorDust,
                 new[] { "overlay_scrub_03.png" },
+                LayerRoleOverlay,
+                profile
+            ),
+            BuildSourceSpec(
+                SourcePhoenixFireStep,
+                Array.Empty<string>(),
+                LayerRoleOverlay,
+                profile
+            ),
+            BuildSourceSpec(
+                SourcePhoenixFlameChargeTrail,
+                Array.Empty<string>(),
                 LayerRoleOverlay,
                 profile
             ),

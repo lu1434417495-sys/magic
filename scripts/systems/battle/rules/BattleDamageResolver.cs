@@ -112,7 +112,9 @@ public partial class BattleDamageResolver : IDisposable
         int ShieldAbsorbed,
         bool ShieldBroken,
         bool LowLuckBlackStarWedgeTriggered,
-        DamageDiceEventSnapshot DamageDiceEvent
+        DamageDiceEventSnapshot DamageDiceEvent,
+        BattleFatalInterceptPreviewResult FatalInterceptPreview = null,
+        IReadOnlyList<BattleEquipmentAbilityActionPreviewResult> EquipmentActionPreviews = null
     )
     {
         public bool HasAppliedDamage => Damage > 0 || ShieldAbsorbed > 0;
@@ -131,7 +133,43 @@ public partial class BattleDamageResolver : IDisposable
                 ShieldAbsorbed,
                 ShieldBroken,
                 LowLuckBlackStarWedgeTriggered,
-                DamageDiceEvent
+                DamageDiceEvent,
+                FatalInterceptPreview,
+                EquipmentActionPreviews
+            );
+        }
+
+        public AppliedDamageResult WithFatalInterceptPreview(
+            BattleFatalInterceptPreviewResult preview
+        )
+        {
+            return new AppliedDamageResult(
+                Event,
+                Damage,
+                HpDamage,
+                ShieldAbsorbed,
+                ShieldBroken,
+                LowLuckBlackStarWedgeTriggered,
+                DamageDiceEvent,
+                preview,
+                EquipmentActionPreviews
+            );
+        }
+
+        public AppliedDamageResult WithEquipmentActionPreviews(
+            IReadOnlyList<BattleEquipmentAbilityActionPreviewResult> previews
+        )
+        {
+            return new AppliedDamageResult(
+                Event,
+                Damage,
+                HpDamage,
+                ShieldAbsorbed,
+                ShieldBroken,
+                LowLuckBlackStarWedgeTriggered,
+                DamageDiceEvent,
+                FatalInterceptPreview,
+                previews
             );
         }
     }
@@ -330,6 +368,7 @@ public partial class BattleDamageResolver : IDisposable
     private IBattleDamageApplicationHook _damage_application_hook;
     private IBattleEquipmentDamageQuery _equipment_ability_damage_query;
     private IBattleEquipmentCombatReactionSink _equipment_ability_reaction_sink;
+    private IBattleFatalInterceptArbiter _fatal_intercept_arbiter;
     private readonly BattleEquipmentDurabilityResolver _equipmentDurabilityResolver = new();
 
     internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
@@ -415,6 +454,11 @@ public partial class BattleDamageResolver : IDisposable
     {
         _equipment_ability_damage_query = damageQuery;
         _equipment_ability_reaction_sink = reactionSink;
+    }
+
+    internal void SetFatalInterceptArbiter(IBattleFatalInterceptArbiter arbiter)
+    {
+        _fatal_intercept_arbiter = arbiter;
     }
 
     internal static DamageApplicationProjection ProjectDamageApplication(
@@ -1032,7 +1076,11 @@ public partial class BattleDamageResolver : IDisposable
         // Compatibility/isolation boundary: one-shot callers still receive defensive copies.
         // Hot multi-effect paths opt into PreviewDamageEffectOnWorkingSetTyped explicitly.
         BattleDamagePreviewWorkingSet workingSet =
-            BattleDamagePreviewWorkingSet.CreateDetached(source_unit, target_unit);
+            BattleDamagePreviewWorkingSet.CreateDetached(
+                source_unit,
+                target_unit,
+                damage_context?.BattleState
+            );
         return PreviewDamageEffectOnWorkingSetTyped(
             workingSet,
             effect_definition,
@@ -1103,11 +1151,18 @@ public partial class BattleDamageResolver : IDisposable
             shieldBroken: core.DamageResult.ShieldBroken,
             shieldHpBefore: core.ShieldHpBefore,
             shieldHpAfter: core.ShieldHpAfter,
+            stableLethal: core.StableLethal,
+            lethalProbabilityBasisPoints: core.LethalProbabilityBasisPoints,
+            fatalInterceptProbabilityBasisPoints:
+                core.FatalInterceptProbabilityBasisPoints,
+            expectedSurvivalHp: core.ExpectedSurvivalHp,
             damageOutcome: ProjectDamageOutcomePayload(core.DamageOutcome),
             damageResult: ProjectAppliedDamagePayload(core.DamageResult),
             saveEstimate: core.SaveEstimate.ToPreviewSaveEstimate(),
             sourcePreviewAfter: core.SourcePreview,
-            targetPreviewAfter: core.TargetPreview
+            targetPreviewAfter: core.TargetPreview,
+            fatalInterceptPreview: core.DamageResult.FatalInterceptPreview,
+            equipmentActionPreviews: core.DamageResult.EquipmentActionPreviews
         );
     }
 
@@ -1170,6 +1225,11 @@ public partial class BattleDamageResolver : IDisposable
             shieldBroken: core.DamageResult.ShieldBroken,
             shieldHpBefore: core.ShieldHpBefore,
             shieldHpAfter: core.ShieldHpAfter,
+            stableLethal: core.StableLethal,
+            lethalProbabilityBasisPoints: core.LethalProbabilityBasisPoints,
+            fatalInterceptProbabilityBasisPoints:
+                core.FatalInterceptProbabilityBasisPoints,
+            expectedSurvivalHp: core.ExpectedSurvivalHp,
             saveEstimate: core.SaveEstimate.ToPreviewSaveEstimate()
         );
     }
@@ -1499,7 +1559,11 @@ public partial class BattleDamageResolver : IDisposable
             }
             else if (effectKind == BattleEffectKind.Heal)
             {
-                int healAmount = ResolveHealAmount(source_unit, effectDefinition);
+                int healAmount = ResolveHealAmount(
+                    source_unit,
+                    target_unit,
+                    effectDefinition
+                );
                 healAmount = BattleStatusModifierRules.ApplyHealMultiplier(target_unit, healAmount);
                 if (healAmount > 0)
                 {
@@ -1804,6 +1868,8 @@ public partial class BattleDamageResolver : IDisposable
             MitigationSources = Array.Empty<MitigationSourceResult>(),
             BaseDamage = normalizedDamage,
             OffenseMultiplier = 1.0,
+            RolledDamage = normalizedDamage,
+            TierAdjustedDamage = normalizedDamage,
             BypassShield = false,
             ShieldAbsorptionPercent = 100.0,
             MinHpAfterDamage = 0,
@@ -1857,7 +1923,8 @@ public partial class BattleDamageResolver : IDisposable
 
         MitigationTierResolution mitigation = ResolveMitigationTierResult(
             targetUnit,
-            normalizedDamageTag
+            normalizedDamageTag,
+            battleState: battleState
         );
         int resolvedDamage = normalizedDamage;
         if (mitigation.Tier == MitigationTierImmune)
@@ -1933,6 +2000,7 @@ public partial class BattleDamageResolver : IDisposable
         return effectDefinition.TriggerEventKind switch
         {
             CombatEffectTriggerEvent.None => true,
+            CombatEffectTriggerEvent.AttackHit => context.AttackSuccess,
             CombatEffectTriggerEvent.CriticalHit => context.CriticalHit,
             CombatEffectTriggerEvent.OrdinaryHit => context.AttackSuccess && !context.CriticalHit,
             CombatEffectTriggerEvent.SecondaryHit => context.SecondaryHitSuccess,
@@ -2151,7 +2219,7 @@ public partial class BattleDamageResolver : IDisposable
     {
         DamageEventResult applicationEvent = damageInput.Event;
         int normalizedDamage = damageInput.ResolvedDamage;
-        if (targetUnit == null || normalizedDamage <= 0)
+        if (targetUnit == null)
         {
             return BuildAppliedDamageResult(
                 damageInput with { Event = applicationEvent },
@@ -2159,6 +2227,33 @@ public partial class BattleDamageResolver : IDisposable
                 0,
                 false
             );
+        }
+        int rawDamage = Math.Max(applicationEvent.RolledDamage, 0);
+        List<BattleEquipmentAbilityActionPreviewResult> equipmentActionPreviews =
+            damageContext?.IsPreview == true
+                ? new List<BattleEquipmentAbilityActionPreviewResult>()
+                : null;
+        Action<BattleEquipmentAbilityActionPreviewResult> previewActionSink =
+            equipmentActionPreviews != null ? equipmentActionPreviews.Add : null;
+        if (normalizedDamage <= 0)
+        {
+            ResolveFinalizedEquipmentDamageReactions(
+                targetUnit,
+                sourceUnit,
+                damageContext,
+                applicationEvent,
+                rawDamage,
+                Math.Max(targetUnit.GetCurrentHp(), 0),
+                actualHpDamage: 0,
+                previewActionSink
+            );
+            return BuildAppliedDamageResult(
+                    damageInput with { Event = applicationEvent },
+                    0,
+                    0,
+                    false
+                )
+                .WithEquipmentActionPreviews(equipmentActionPreviews?.AsReadOnly());
         }
 
         DamageApplicationProjection projection = ProjectDamageApplication(targetUnit, damageInput);
@@ -2221,6 +2316,8 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         int hpDamage = projection.HpDamage;
+        BattleFatalInterceptPreviewResult fatalInterceptPreview = null;
+        bool finalizedResolvedFromPreviewBranches = false;
         if (hpDamage > 0)
         {
             int maxHp = GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.HpMax));
@@ -2244,13 +2341,21 @@ public partial class BattleDamageResolver : IDisposable
                 }
                 else
                 {
+                    DeathResolutionContext deathContext = ResolveDeathContext(
+                        applicationEvent
+                    );
                     TraitTriggerResultSnapshot fatalTraitResult =
-                        ResolveFatalDamageTraitResult(
-                            targetUnit,
-                            sourceUnit,
-                            hpDamage,
-                            projectedHp
-                        );
+                        BattleDeathResolutionRules.CanDeathPreventionBlock(
+                            deathContext,
+                            BattleDeathResolutionRules.NormalFatalPriority
+                        )
+                            ? ResolveFatalDamageTraitResult(
+                                targetUnit,
+                                sourceUnit,
+                                hpDamage,
+                                projectedHp
+                            )
+                            : default;
                     if (
                         fatalTraitResult.Triggered
                         && fatalTraitResult.ClampToHp > 0
@@ -2262,23 +2367,89 @@ public partial class BattleDamageResolver : IDisposable
                         ));
                         AppendTraitTriggerResult(ref applicationEvent, fatalTraitResult);
                     }
-                    else if (TryGetBlockingDeathWard(targetUnit, applicationEvent, out _))
+                    else
                     {
-                        targetUnit.MarkDead();
-                        if (
-                            !TriggerLastStand(
+                        bool lastStandRecovered = false;
+                        if (TryGetBlockingDeathWard(targetUnit, applicationEvent, out _))
+                        {
+                            targetUnit.MarkDead();
+                            lastStandRecovered = TriggerLastStand(
                                 targetUnit,
                                 sourceUnit,
                                 damageContext?.BattleState
-                            )
-                        )
-                        {
-                            targetUnit.MarkDead();
+                            );
                         }
-                    }
-                    else
-                    {
-                        targetUnit.MarkDead();
+
+                        if (!lastStandRecovered)
+                        {
+                            var fatalContext = new BattleFatalInterceptContext
+                            {
+                                SourceUnit = sourceUnit,
+                                TargetUnit = targetUnit,
+                                BattleState = damageContext?.BattleState,
+                                DeathContext = deathContext,
+                                HpBefore = hpBeforeDamage,
+                                HpDamage = hpDamage,
+                                ProjectedHp = projectedHp,
+                                WorldStep =
+                                    damageContext
+                                        ?.BattleState
+                                        ?.GetEnvironmentSnapshot()
+                                        ?.WorldStep
+                                    ?? -1,
+                                Batch = damageContext?.DamageApplicationHookBatch,
+                                SaveContext = damageContext?.ToBattleSaveContext() ?? default,
+                                IsDetachedPreview = damageContext?.IsDetachedPreview == true,
+                                DetachedPreviewDepth = Math.Max(
+                                    damageContext?.DetachedPreviewDepth ?? 0,
+                                    0
+                                ),
+                            };
+                            bool intercepted = false;
+                            if (damageContext?.IsPreview == true)
+                            {
+                                BattleFatalInterceptPreviewResult preview =
+                                    _fatal_intercept_arbiter?.Preview(fatalContext)
+                                    ?? BattleFatalInterceptPreviewResult.None;
+                                fatalInterceptPreview = preview;
+                                if ((preview.ContinuationBranches?.Count ?? 0) > 0)
+                                {
+                                    IReadOnlyList<BattleEquipmentAbilityActionPreviewResult>
+                                        branchActions =
+                                            ResolveFinalizedPreviewBranches(
+                                                preview.ContinuationBranches,
+                                                damageContext,
+                                                applicationEvent,
+                                                rawDamage,
+                                                hpBeforeDamage
+                                            );
+                                    if (branchActions.Count > 0)
+                                        equipmentActionPreviews?.AddRange(branchActions);
+                                    finalizedResolvedFromPreviewBranches =
+                                        HasInterceptedPreviewBranch(
+                                            preview.ContinuationBranches
+                                        );
+                                }
+                                if (
+                                    preview.GuaranteedIntercept
+                                    && preview.ExpectedRecoveryHp > 0
+                                )
+                                {
+                                    targetUnit.SetCurrentHp(preview.ExpectedRecoveryHp);
+                                    intercepted = targetUnit.IsAlive();
+                                }
+                            }
+                            else
+                            {
+                                BattleFatalInterceptResult interceptResult =
+                                    _fatal_intercept_arbiter?.Resolve(fatalContext)
+                                    ?? BattleFatalInterceptResult.None;
+                                intercepted = interceptResult.Intercepted;
+                            }
+
+                            if (!intercepted && targetUnit.IsAlive())
+                                targetUnit.MarkDead();
+                        }
                     }
                 }
             }
@@ -2289,25 +2460,175 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         int actualHpDamage = Math.Max(hpBeforeDamage - Math.Max(targetUnit.GetCurrentHp(), 0), 0);
-        IBattleEquipmentCombatReactionSink equipmentAbilityReactions =
-            _equipment_ability_reaction_sink;
-        if (actualHpDamage > 0 && sourceUnit != null && equipmentAbilityReactions != null)
+        if (!finalizedResolvedFromPreviewBranches)
         {
-            equipmentAbilityReactions.ResolveDamageApplied(
-                new BattleEquipmentAbilityDamageAppliedContext
-                {
-                    SourceUnit = sourceUnit,
-                    TargetUnit = targetUnit,
-                    BattleState = damageContext?.BattleState,
-                    HpDamage = actualHpDamage,
-                }
+            ResolveFinalizedEquipmentDamageReactions(
+                targetUnit,
+                sourceUnit,
+                damageContext,
+                applicationEvent,
+                rawDamage,
+                hpBeforeDamage,
+                actualHpDamage,
+                previewActionSink
             );
         }
         return BuildAppliedDamageResult(
-            damageInput with { Event = applicationEvent },
-            actualHpDamage,
-            shieldAbsorbed,
-            shieldBroken
+                damageInput with { Event = applicationEvent },
+                actualHpDamage,
+                shieldAbsorbed,
+                shieldBroken
+            )
+            .WithFatalInterceptPreview(fatalInterceptPreview)
+            .WithEquipmentActionPreviews(equipmentActionPreviews?.AsReadOnly());
+    }
+
+    private IReadOnlyList<BattleEquipmentAbilityActionPreviewResult>
+        ResolveFinalizedPreviewBranches(
+            IReadOnlyList<BattleFatalInterceptPreviewBranch> branches,
+            DamageResolutionContext damageContext,
+            DamageEventResult damageEvent,
+            int rawDamage,
+            int hpBefore
+        )
+    {
+        var weightedActions = new List<WeightedEquipmentActionPreview>();
+        foreach (
+            BattleFatalInterceptPreviewBranch branch
+            in branches ?? Array.Empty<BattleFatalInterceptPreviewBranch>()
+        )
+        {
+            if (
+                branch == null
+                || !branch.Intercepted
+                || branch.TargetUnit?.IsAlive() != true
+                || branch.BattleState == null
+                || branch.ProbabilityBasisPoints <= 0
+            )
+            {
+                continue;
+            }
+            var localActions = new List<BattleEquipmentAbilityActionPreviewResult>();
+            DamageResolutionContext branchContext =
+                (damageContext ?? DamageResolutionContext.Empty())
+                    .WithBattleState(branch.BattleState)
+                    .WithDetachedPreviewMode();
+            ResolveFinalizedEquipmentDamageReactions(
+                branch.TargetUnit,
+                branch.SourceUnit,
+                branchContext,
+                damageEvent,
+                rawDamage,
+                hpBefore,
+                Math.Max(hpBefore - Math.Max(branch.TargetUnit.GetCurrentHp(), 0), 0),
+                localActions.Add,
+                branchLocalProjection: true
+            );
+            AppendWeightedActions(
+                weightedActions,
+                localActions,
+                branch.ProbabilityBasisPoints
+            );
+        }
+        return MergeWeightedActions(weightedActions);
+    }
+
+    private static bool HasInterceptedPreviewBranch(
+        IReadOnlyList<BattleFatalInterceptPreviewBranch> branches
+    )
+    {
+        foreach (
+            BattleFatalInterceptPreviewBranch branch
+            in branches ?? Array.Empty<BattleFatalInterceptPreviewBranch>()
+        )
+        {
+            if (branch?.Intercepted == true)
+                return true;
+        }
+        return false;
+    }
+
+    private void ResolveFinalizedEquipmentDamageReactions(
+        BattleUnitState targetUnit,
+        BattleUnitState sourceUnit,
+        DamageResolutionContext damageContext,
+        DamageEventResult damageEvent,
+        int rawDamage,
+        int hpBefore,
+        int actualHpDamage,
+        Action<BattleEquipmentAbilityActionPreviewResult> previewActionSink = null,
+        bool branchLocalProjection = false
+    )
+    {
+        IBattleEquipmentCombatReactionSink equipmentAbilityReactions =
+            _equipment_ability_reaction_sink;
+        if (targetUnit == null || equipmentAbilityReactions == null)
+            return;
+
+        bool isSelfDamage =
+            sourceUnit != null
+            && sourceUnit.unit_id != ""
+            && sourceUnit.unit_id == targetUnit.unit_id;
+        bool isEquipmentGenerated =
+            damageContext?.DamageApplicationHookOrigin?.IsEquipmentGenerated == true;
+        var common = new BattleEquipmentAbilityDamageAppliedContext
+        {
+            BattleState = damageContext?.BattleState,
+            Batch = damageContext?.DamageApplicationHookBatch,
+            RawDamage = Math.Max(rawDamage, 0),
+            HpDamage = Math.Max(actualHpDamage, 0),
+            HpBefore = Math.Max(hpBefore, 0),
+            DamageTag = ProgressionDataUtils.to_string_name(damageEvent.DamageTag),
+            IsEquipmentGenerated = isEquipmentGenerated,
+            IsSelfDamage = isSelfDamage,
+            IsPreview = damageContext?.IsPreview == true,
+            IsBranchLocalProjection = branchLocalProjection,
+            PreviewActionSink = previewActionSink,
+            SaveContext = damageContext?.ToBattleSaveContext()
+                ?? BattleSaveContext.Empty,
+        };
+        if (targetUnit.IsAlive() && (actualHpDamage > 0 || rawDamage > 0))
+        {
+            equipmentAbilityReactions.ResolveDamageTakenFinalized(
+                new BattleEquipmentAbilityDamageAppliedContext
+                {
+                    SourceUnit = targetUnit,
+                    TargetUnit = sourceUnit,
+                    BattleState = common.BattleState,
+                    Batch = common.Batch,
+                    RawDamage = common.RawDamage,
+                    HpDamage = common.HpDamage,
+                    HpBefore = common.HpBefore,
+                    DamageTag = common.DamageTag,
+                    IsEquipmentGenerated = common.IsEquipmentGenerated,
+                    IsSelfDamage = common.IsSelfDamage,
+                    IsPreview = common.IsPreview,
+                    IsBranchLocalProjection = common.IsBranchLocalProjection,
+                    PreviewActionSink = common.PreviewActionSink,
+                    SaveContext = common.SaveContext,
+                }
+            );
+        }
+        if (actualHpDamage <= 0 || sourceUnit == null)
+            return;
+        equipmentAbilityReactions.ResolveDamageApplied(
+            new BattleEquipmentAbilityDamageAppliedContext
+            {
+                SourceUnit = sourceUnit,
+                TargetUnit = targetUnit,
+                BattleState = common.BattleState,
+                Batch = common.Batch,
+                RawDamage = common.RawDamage,
+                HpDamage = common.HpDamage,
+                HpBefore = common.HpBefore,
+                DamageTag = common.DamageTag,
+                IsEquipmentGenerated = common.IsEquipmentGenerated,
+                IsSelfDamage = common.IsSelfDamage,
+                IsPreview = common.IsPreview,
+                IsBranchLocalProjection = common.IsBranchLocalProjection,
+                PreviewActionSink = common.PreviewActionSink,
+                SaveContext = common.SaveContext,
+            }
         );
     }
 

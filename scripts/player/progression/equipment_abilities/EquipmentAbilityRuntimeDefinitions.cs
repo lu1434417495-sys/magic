@@ -19,6 +19,7 @@ public enum EquipmentAbilityTriggerKind
     OnTurnEnd,
     OnDamageRoll,
     OnDamageApplied,
+    OnDamageTakenFinalized,
     OnHitReceived,
     OnAttackCheck,
     OnTargetMarkExpired,
@@ -52,6 +53,12 @@ public enum EquipmentAbilityUsagePeriodKind
     PerWorldMonth,
 }
 
+public enum EquipmentFatalInterceptRecoveryKind
+{
+    HpDice,
+    MaxHpPercent,
+}
+
 internal static class EquipmentAbilityUsagePeriodKinds
 {
     internal static readonly StringName PerBattle = "per_battle";
@@ -60,6 +67,10 @@ internal static class EquipmentAbilityUsagePeriodKinds
 
     internal static bool IsLimited(EquipmentAbilityUsagePeriodKind kind) =>
         kind != EquipmentAbilityUsagePeriodKind.None;
+
+    internal static bool IsPersistentWorldPeriod(EquipmentAbilityUsagePeriodKind kind) =>
+        kind == EquipmentAbilityUsagePeriodKind.PerWorldDay
+        || kind == EquipmentAbilityUsagePeriodKind.PerWorldMonth;
 
     internal static StringName ToStringName(EquipmentAbilityUsagePeriodKind kind) =>
         kind switch
@@ -187,14 +198,23 @@ public sealed class EquipmentAbilityBindingDefinition
         EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> RequiredTraitCategories { get; init; } =
         EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public IReadOnlySet<StringName> RequiredEffectiveTraitIds { get; init; } =
+        EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> RequiredItemTags { get; init; } =
         EquipmentAbilityReadOnlySet<StringName>.Empty;
     public IReadOnlySet<StringName> SupportedEquipmentTypeIds { get; init; } =
         EquipmentAbilityReadOnlySet<StringName>.Empty;
+    public StringName ActivationStatusId { get; init; } = "";
     public IReadOnlyList<EquipmentAbilityStateSchemaDefinition> StateSchemas { get; init; } =
         Array.Empty<EquipmentAbilityStateSchemaDefinition>();
     public IReadOnlyList<EquipmentAbilityReactionDefinition> Reactions { get; init; } =
         Array.Empty<EquipmentAbilityReactionDefinition>();
+    public IReadOnlyList<EquipmentFatalInterceptDefinition> FatalIntercepts { get; init; } =
+        Array.Empty<EquipmentFatalInterceptDefinition>();
+    public IReadOnlyList<EquipmentMitigationAuraDefinition> MitigationAuras { get; init; } =
+        Array.Empty<EquipmentMitigationAuraDefinition>();
+    public IReadOnlyList<EquipmentMovementTrailDefinition> MovementTrails { get; init; } =
+        Array.Empty<EquipmentMovementTrailDefinition>();
     public IReadOnlyList<EquipmentGrantedActionDefinition> GrantedActions { get; init; } =
         Array.Empty<EquipmentGrantedActionDefinition>();
     public IReadOnlyList<EquipmentTemporalProgressModifierDefinition> TemporalProgressModifiers { get; init; } =
@@ -223,6 +243,48 @@ public sealed class EquipmentAbilityReactionDefinition
         Array.Empty<StringName>();
     public IReadOnlyList<EquipmentAbilityActionDefinition> Actions { get; init; } =
         Array.Empty<EquipmentAbilityActionDefinition>();
+}
+
+public sealed class EquipmentFatalInterceptDefinition
+{
+    public StringName InterceptId { get; init; } = "";
+    public int ResolutionOrder { get; init; }
+    public int ProtectionPriority { get; init; }
+    public EquipmentAbilityUsagePeriodKind UsagePeriodKind { get; init; } =
+        EquipmentAbilityUsagePeriodKind.PerBattle;
+    public int MaxAttemptsPerPeriod { get; init; } = 1;
+    public bool ConsumeOnAttempt { get; init; } = true;
+    public EquipmentRollGateDefinition RollGate { get; init; }
+    public EquipmentFatalInterceptRecoveryKind RecoveryKind { get; init; } =
+        EquipmentFatalInterceptRecoveryKind.HpDice;
+    public DiceExpressionDefinition RecoveryDice { get; init; }
+    public int RecoveryPercentBasisPoints { get; init; }
+    public IReadOnlyList<EquipmentAbilityActionDefinition> SuccessActions { get; init; } =
+        Array.Empty<EquipmentAbilityActionDefinition>();
+}
+
+public sealed class EquipmentMitigationAuraDefinition
+{
+    public StringName AuraId { get; init; } = "";
+    public int Radius { get; init; }
+    public StringName TargetTeamFilter { get; init; } = "";
+    public StringName DamageTag { get; init; } = "";
+    public StringName MitigationTier { get; init; } = "";
+    public string Label { get; init; } = "";
+}
+
+public sealed class EquipmentMovementTrailDefinition
+{
+    public StringName TrailId { get; init; } = "";
+    public StringName ReplacementGroupId { get; init; } = "";
+    public int Priority { get; init; }
+    public StringName RequiredSkillId { get; init; } = "";
+    public int DurationTu { get; init; }
+    public StringName TargetTeamFilter { get; init; } = "";
+    public DiceExpressionDefinition DamageDice { get; init; }
+    public StringName DamageTag { get; init; } = "";
+    public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
+    public string DisplayName { get; init; } = "";
 }
 
 public sealed class EquipmentConditionGroupDefinition
@@ -303,7 +365,10 @@ public sealed class AddDamageDiceActionPayloadDefinition
     public StringName TargetSelector { get; init; } = "";
     public DiceExpressionDefinition Dice { get; init; }
     public StringName DamageType { get; init; } = "";
+    public bool RequireWeaponDamage { get; init; } = true;
     public bool Subtract { get; init; }
+    public StringName ReplacementGroupId { get; init; } = "";
+    public int ReplacementPriority { get; init; }
     public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
     public IReadOnlyList<StringName> MitigationBypassDamageTags { get; init; } =
         Array.Empty<StringName>();
@@ -442,6 +507,7 @@ public sealed class ApplyStatusActionPayloadDefinition
     public int StackLimit { get; init; }
     public string DisplayLabel { get; init; } = "";
     public int AttackRollPenalty { get; init; } = -1;
+    public int ArmorClassBonusPerStack { get; init; }
     public int SourceBoundAttackRollPenalty { get; init; }
     public int SourceBoundAttackRollPenaltyMinStacks { get; init; } = 1;
     public int SourceBoundIncomingAttackRollBonusPerStack { get; init; }
@@ -450,6 +516,9 @@ public sealed class ApplyStatusActionPayloadDefinition
     public int HealMultiplierPercent { get; init; } = 100;
     public int MovePointCapacityDelta { get; init; }
     public bool ForcedMoveImmune { get; init; }
+    public StringName DamageTag { get; init; } = "";
+    public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
+    public StringName MitigationTier { get; init; } = "";
     public bool CountsAsDebuffOverride { get; init; }
     public bool CountsAsDebuff { get; init; }
     public bool Undispellable { get; init; }

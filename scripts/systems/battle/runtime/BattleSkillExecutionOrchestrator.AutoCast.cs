@@ -345,12 +345,35 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 BattleSpellControlResult.None()
             );
         }
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> targetPlan =
+            BuildUnitEffectTargetPlan(
+                caster,
+                skillDefinition,
+                resolvedEffectDefinitions,
+                validation.TargetUnits
+            );
+        IReadOnlyList<BattleUnitState> plannedTargets = CollectPlannedTargets(
+            resolvedEffectDefinitions,
+            targetPlan
+        );
+        if (plannedTargets.Count == 0)
+        {
+            return false;
+        }
         bool applied = false;
-        foreach (BattleUnitState targetUnit in validation.TargetUnits)
+        foreach (BattleUnitState targetUnit in plannedTargets)
         {
             if (targetUnit == null)
                 continue;
-            if (repeatAttackEffect != null)
+            IReadOnlyList<CombatEffectDefinition> targetEffects =
+                CollectPlannedEffectsForTarget(
+                    resolvedEffectDefinitions,
+                    targetPlan,
+                    targetUnit.unit_id
+                );
+            CombatEffectDefinition targetRepeatAttackEffect =
+                repeatAttackResolver?.get_repeat_attack_effect_def(targetEffects);
+            if (targetRepeatAttackEffect != null)
             {
                 if (
                     repeatAttackResolver != null
@@ -358,8 +381,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         caster,
                         targetUnit,
                         skillDefinition,
-                            resolvedEffectDefinitions,
-                            repeatAttackEffect,
+                            targetEffects,
+                            targetRepeatAttackEffect,
                             batch,
                             castVariantDefinition
                         )
@@ -375,7 +398,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     targetUnit,
                     skillDefinition,
                     castVariantDefinition,
-                    resolvedEffectDefinitions,
+                    targetEffects,
                     batch,
                     BattleSpellControlResult.None()
                 )

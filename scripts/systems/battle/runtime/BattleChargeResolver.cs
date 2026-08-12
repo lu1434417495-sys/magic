@@ -83,6 +83,7 @@ internal sealed class BattleChargeResolver
         int pathStepHitCount = 0;
         var pathStepSeenUnitIds = new HashSet<StringName>();
         var totalUnitHitCounts = new Dictionary<StringName, int>();
+        var executedPath = new List<Vector2I> { active_unit.GetAnchorCoord() };
         var processedTerrainContactKeys = new HashSet<string>();
         string stopReason = "";
 
@@ -154,6 +155,7 @@ internal sealed class BattleChargeResolver
             }
 
             movedSteps += 1;
+            executedPath.Add(active_unit.GetAnchorCoord());
             AppendChangedUnitId(chargeBatch, active_unit.unit_id);
             AppendChangedCoords(chargeBatch, previousCoords);
             AppendChangedUnitCoords(chargeBatch, active_unit);
@@ -233,6 +235,12 @@ internal sealed class BattleChargeResolver
             }
         }
 
+        Runtime._equipment_ability_runtime_service?.ApplyMovementTrails(
+            active_unit,
+            executedPath,
+            skillDefinition.SkillId,
+            chargeBatch
+        );
         MergeBatch(batch, chargeBatch);
         if (movedSteps > 0)
         {
@@ -2078,7 +2086,11 @@ internal sealed class BattleChargeResolver
             return 0;
         }
         int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
-        return Math.Max(skillDefinition.CombatProfile.GetEffectiveRangeValue(skillLevel), 0);
+        return BattleRangeService.ResolveConfiguredSkillRange(
+            activeUnit,
+            skillDefinition,
+            skillLevel
+        );
     }
 
     private int GetChargeMaxDistance(
@@ -2091,7 +2103,11 @@ internal sealed class BattleChargeResolver
             return 0;
         }
         int skillLevel = activeUnit.GetKnownSkillLevel(skillDefinition.SkillId);
-        return Math.Max(skillDefinition.CombatProfile.GetEffectiveRangeValue(skillLevel), 0);
+        return BattleRangeService.ResolveConfiguredSkillRange(
+            activeUnit,
+            skillDefinition,
+            skillLevel
+        );
     }
 
     private bool HasRuntime()

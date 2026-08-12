@@ -25,6 +25,11 @@ public class BattleAiContext : IBattleAiScoreContext
 
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitionsSource;
     private Dictionary<StringName, SkillDefinition> _skillDefinitionsById = new();
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        _equipmentAbilityBindings =
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+    private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions =
+        new Dictionary<StringName, ItemDefinition>();
     private Dictionary<StringName, BarrierProfileDefinition>
         _barrierProfileDefinitionsById = new();
 
@@ -35,6 +40,10 @@ public class BattleAiContext : IBattleAiScoreContext
     internal ISkillCatalog skill_catalog { get; private set; }
     IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
         BuildReadOnlySkillDefinitionView();
+    IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        IBattleAiScoreContext.equipment_ability_bindings => _equipmentAbilityBindings;
+    IReadOnlyDictionary<StringName, ItemDefinition> IBattleAiScoreContext.item_definitions =>
+        _itemDefinitions;
     IReadOnlyDictionary<StringName, BarrierProfileDefinition> IBattleAiScoreContext.barrier_profile_definitions =>
         BuildReadOnlyBarrierProfileDefinitionView();
     ISkillCatalog IBattleAiScoreContext.skill_catalog => skill_catalog;
@@ -451,7 +460,9 @@ public class BattleAiContext : IBattleAiScoreContext
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         bool traceEnabled,
         ISkillCatalog skillCatalog = null,
-        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         state = battleState;
@@ -470,6 +481,9 @@ public class BattleAiContext : IBattleAiScoreContext
                 ?? new Dictionary<StringName, SkillDefinition>()
         );
         SetBarrierProfileDefinitions(barrierProfileDefinitions);
+        _equipmentAbilityBindings = equipmentAbilityBindings
+            ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+        _itemDefinitions = itemDefinitions ?? new Dictionary<StringName, ItemDefinition>();
     }
 
     internal void ClearRuntimeBindings()
@@ -490,6 +504,9 @@ public class BattleAiContext : IBattleAiScoreContext
         ClearDecisionState();
         _skillDefinitionsSource = null;
         skill_catalog = null;
+        _equipmentAbilityBindings =
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+        _itemDefinitions = new Dictionary<StringName, ItemDefinition>();
         _skillDefinitionsById.Clear();
         _barrierProfileDefinitionsById.Clear();
     }
@@ -510,6 +527,8 @@ public class BattleAiContext : IBattleAiScoreContext
         || skill_cast_block_reason_callback != null
         || _skillDefinitionsSource != null
         || _skillDefinitionsById.Count != 0
+        || _equipmentAbilityBindings.Count != 0
+        || _itemDefinitions.Count != 0
         || _barrierProfileDefinitionsById.Count != 0;
 
     private void ClearDecisionState()
@@ -707,7 +726,16 @@ public class BattleAiContext : IBattleAiScoreContext
     internal bool IsRuntimeActionPlanStale(EnemyAiBrainDefinition brain)
     {
         return runtime_action_plan != null
-            && runtime_action_plan.IsStaleFor(unit_state, brain);
+            && runtime_action_plan.IsStaleFor(
+                unit_state,
+                brain,
+                skill_catalog,
+                _skillDefinitionsById,
+                _equipmentAbilityBindings,
+                _itemDefinitions,
+                state,
+                state?.GetEnvironmentSnapshot()?.WorldStep ?? -1
+            );
     }
 
     internal BattleAiRuntimeActionPlan.RuntimeActionMetadata GetRuntimeActionMetadataTyped(
@@ -882,7 +910,9 @@ public class BattleAiContext : IBattleAiScoreContext
 
         BattleSkillAvailabilityService availabilityService = new(
             skill_catalog,
-            _skillDefinitionsById
+            _skillDefinitionsById,
+            _equipmentAbilityBindings,
+            _itemDefinitions
         );
         BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
             new BattleSkillAvailabilityQuery
@@ -890,8 +920,10 @@ public class BattleAiContext : IBattleAiScoreContext
                 User = unit_state,
                 Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
                 IncludeKnownSkills = true,
-                IncludeEquipmentSkills = false,
+                IncludeEquipmentSkills = true,
                 IncludeScopedAutoCast = false,
+                WorldStep = state?.GetEnvironmentSnapshot()?.WorldStep ?? -1,
+                BattleState = state,
             }
         );
 
@@ -906,7 +938,11 @@ public class BattleAiContext : IBattleAiScoreContext
         }
         if (preferred.Count == 0)
         {
-            results.AddRange(availabilityView.SkillEntries);
+            foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+            {
+                if (entry?.IsSelectable == true)
+                    results.Add(entry);
+            }
             return results;
         }
 
@@ -919,7 +955,7 @@ public class BattleAiContext : IBattleAiScoreContext
             }
             foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
             {
-                if (entry?.EntryRef.SkillId == skillId)
+                if (entry?.IsSelectable == true && entry.EntryRef.SkillId == skillId)
                 {
                     results.Add(entry);
                     break;
@@ -939,6 +975,12 @@ public class BattleAiContext : IBattleAiScoreContext
 
     internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionIndexTyped() =>
         BuildReadOnlySkillDefinitionView();
+
+    internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        GetEquipmentAbilityBindingIndexTyped() => _equipmentAbilityBindings;
+
+    internal IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefinitionIndexTyped() =>
+        _itemDefinitions;
 
     private IReadOnlyDictionary<StringName, SkillDefinition>
         BuildReadOnlySkillDefinitionView() =>

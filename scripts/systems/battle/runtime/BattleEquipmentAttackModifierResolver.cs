@@ -61,6 +61,11 @@ internal sealed class BattleEquipmentAttackModifierResolver
             BattleEquipmentAbilityDamageReductionContext context
         ) => CollectDamageReductions(context);
 
+    IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult>
+        IBattleEquipmentDamageQuery.CollectMitigationAuras(
+            BattleEquipmentAbilityMitigationAuraContext context
+        ) => CollectMitigationAuras(context);
+
     internal List<BattleAttackRollModifierSpec> CollectAttackRollModifierCandidates(
         BattleAttackCheckPolicyContext context
     )
@@ -840,6 +845,125 @@ internal sealed class BattleEquipmentAttackModifierResolver
             }
         }
         return result;
+    }
+
+    internal IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> CollectMitigationAuras(
+        BattleEquipmentAbilityMitigationAuraContext context
+    )
+    {
+        var result = new List<BattleEquipmentAbilityMitigationAuraResult>();
+        BattleState state = context?.BattleState;
+        BattleUnitState targetUnit = context?.TargetUnit;
+        StringName damageTag = ProgressionDataUtils.to_string_name(
+            context?.DamageTag ?? new StringName("")
+        );
+        if (
+            _owner == null
+            || state == null
+            || targetUnit == null
+            || !targetUnit.IsAlive()
+            || DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown
+        )
+        {
+            return result;
+        }
+
+        var seen = new HashSet<(StringName SourceUnitId, StringName BindingId, StringName AuraId)>();
+        foreach (StringName sourceUnitId in state.GetUnitIdsTyped(sorted: true))
+        {
+            if (
+                !state.TryGetUnitTyped(sourceUnitId, out BattleUnitState sourceUnit)
+                || sourceUnit == null
+                || !sourceUnit.IsAlive()
+            )
+            {
+                continue;
+            }
+
+            foreach (
+                BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding
+                    in _owner.CollectActiveBindings(sourceUnit)
+            )
+            {
+                EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
+                foreach (
+                    EquipmentMitigationAuraDefinition aura
+                        in binding?.MitigationAuras
+                            ?? Array.Empty<EquipmentMitigationAuraDefinition>()
+                )
+                {
+                    StringName auraDamageTag = ProgressionDataUtils.to_string_name(
+                        aura?.DamageTag ?? new StringName("")
+                    );
+                    StringName mitigationTier = ProgressionDataUtils.to_string_name(
+                        aura?.MitigationTier ?? new StringName("")
+                    );
+                    DamageMitigationTierKind mitigationTierKind =
+                        DamageTagContentRules.ToMitigationTierKind(mitigationTier);
+                    if (
+                        aura == null
+                        || aura.AuraId == ""
+                        || aura.Radius < 0
+                        || auraDamageTag != damageTag
+                        || mitigationTierKind
+                            is DamageMitigationTierKind.Unknown
+                                or DamageMitigationTierKind.Normal
+                        || !BattleTargetTeamRules.IsUnitValidForFilter(
+                            sourceUnit,
+                            targetUnit,
+                            aura.TargetTeamFilter
+                        )
+                        || BattleGridDistanceService.GetDistanceBetweenUnits(
+                            sourceUnit,
+                            targetUnit
+                        ) > aura.Radius
+                        || !seen.Add((sourceUnit.unit_id, binding.BindingId, aura.AuraId))
+                    )
+                    {
+                        continue;
+                    }
+
+                    result.Add(
+                        new BattleEquipmentAbilityMitigationAuraResult
+                        {
+                            BindingId = binding.BindingId,
+                            AuraId = aura.AuraId,
+                            SourceUnitId = sourceUnit.unit_id,
+                            MitigationTier = mitigationTier,
+                            Label = string.IsNullOrWhiteSpace(aura.Label)
+                                ? aura.AuraId.ToString()
+                                : aura.Label,
+                        }
+                    );
+                }
+            }
+        }
+
+        result.Sort(CompareMitigationAuraResults);
+        return result;
+    }
+
+    private static int CompareMitigationAuraResults(
+        BattleEquipmentAbilityMitigationAuraResult left,
+        BattleEquipmentAbilityMitigationAuraResult right
+    )
+    {
+        int compare = string.CompareOrdinal(
+            left?.SourceUnitId.ToString() ?? "",
+            right?.SourceUnitId.ToString() ?? ""
+        );
+        if (compare != 0)
+            return compare;
+        compare = string.CompareOrdinal(
+            left?.BindingId.ToString() ?? "",
+            right?.BindingId.ToString() ?? ""
+        );
+        if (compare != 0)
+            return compare;
+        return string.CompareOrdinal(
+            left?.AuraId.ToString() ?? "",
+            right?.AuraId.ToString() ?? ""
+        );
     }
 
     private static bool DamageReductionPayloadSelectorMatches(StringName targetSelector)

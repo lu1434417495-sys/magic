@@ -1687,6 +1687,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     public void ConfigureDamageResolverForTests(BattleDamageResolver damage_resolver)
     {
         _damage_resolver?.SetEquipmentAbilityPorts(null, null);
+        _damage_resolver?.SetFatalInterceptArbiter(null);
         _damage_resolver = damage_resolver ?? new BattleDamageResolver();
         BindDamageResolver();
         if (_ai_service != null)
@@ -2919,12 +2920,16 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _equipment_ability_runtime_service.DamageQuery,
             _equipment_ability_runtime_service.ReactionSink
         );
+        _damage_resolver.SetFatalInterceptArbiter(
+            _equipment_ability_runtime_service.FatalInterceptArbiter
+        );
     }
 
     private void UnbindEquipmentRulePorts()
     {
         _attack_check_policy_service?.UnbindEquipmentAttackCheckQuery();
         _damage_resolver?.SetEquipmentAbilityPorts(null, null);
+        _damage_resolver?.SetFatalInterceptArbiter(null);
     }
 
     internal static bool IsEmpty(StringName value) => value == default || value == (StringName)"";

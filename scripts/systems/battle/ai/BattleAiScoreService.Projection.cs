@@ -96,7 +96,9 @@ public partial class BattleAiScoreService
     {
         BattleSkillAvailabilityService availabilityService = new(
             context?.skill_catalog,
-            ContextSkillDefinitions(context)
+            ContextSkillDefinitions(context),
+            context?.equipment_ability_bindings,
+            context?.item_definitions
         );
         BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
             new BattleSkillAvailabilityQuery
@@ -104,11 +106,19 @@ public partial class BattleAiScoreService
                 User = actor,
                 Consumer = BattleSkillAvailabilityConsumer.AiScoring,
                 IncludeKnownSkills = true,
-                IncludeEquipmentSkills = false,
+                IncludeEquipmentSkills = true,
                 IncludeScopedAutoCast = false,
+                WorldStep = ContextState(context)?.GetEnvironmentSnapshot()?.WorldStep ?? -1,
+                BattleState = ContextState(context),
             }
         );
-        return availabilityView.SkillEntries;
+        var selectableEntries = new List<BattleAvailableSkillEntry>();
+        foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+        {
+            if (entry?.IsSelectable == true)
+                selectableEntries.Add(entry);
+        }
+        return selectableEntries;
     }
 
     private ThreatProjection GetCurrentActorThreatProjection(IBattleAiScoreContext context)
@@ -472,7 +482,8 @@ public partial class BattleAiScoreService
                 threatUnit,
                 effectDefinitions,
                 actor,
-                normalizedSkillId
+                normalizedSkillId,
+                ContextState(context)
             );
             DamageEstimateResult unguardedDamageEstimate =
                 ReferenceEquals(unguardedActor, actor)
@@ -481,7 +492,8 @@ public partial class BattleAiScoreService
                         threatUnit,
                         effectDefinitions,
                         unguardedActor,
-                        normalizedSkillId
+                        normalizedSkillId,
+                        ContextState(context)
                     );
             var threatEntry = new ThreatSkillEntry
             {

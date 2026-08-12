@@ -143,6 +143,88 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
             return;
         }
         _runtime._preview_skill_command(activeUnit, command, preview);
+        if (preview.allowed)
+            ProjectEquipmentGrantedSkillReaction(command, accessResult.Entry, preview);
+    }
+
+    private void ProjectEquipmentGrantedSkillReaction(
+        BattleCommand command,
+        BattleAvailableSkillEntry entry,
+        BattlePreview preview
+    )
+    {
+        if (
+            command == null
+            || entry?.EntryRef == null
+            || entry.EquipmentBindingId == ""
+            || entry.EquipmentGrantedActionId == ""
+            || _runtime?._state == null
+        )
+        {
+            return;
+        }
+        if (
+            !_runtime._state.TryGetUnitTyped(command.unit_id, out BattleUnitState canonicalSource)
+            || canonicalSource == null
+        )
+        {
+            return;
+        }
+
+        BattleDetachedPreviewState detached =
+            BattleDetachedPreviewState.Create(_runtime._state, canonicalSource);
+        BattleUnitState sourcePreview = detached.GetUnit(canonicalSource.unit_id);
+        BattleUnitState targetPreview = ResolvePreviewPrimaryTarget(
+            detached.State,
+            command
+        );
+        if (sourcePreview == null)
+            return;
+
+        var actions = new List<BattleEquipmentAbilityActionPreviewResult>();
+        bool triggered = _runtime._equipment_ability_runtime_service?.ResolveGrantedSkillUsed(
+            new BattleEquipmentAbilityGrantedSkillUsedContext
+            {
+                SourceUnit = sourcePreview,
+                TargetUnit = targetPreview,
+                BattleState = detached.State,
+                Batch = null,
+                BindingId = entry.EquipmentBindingId,
+                GrantedActionId = entry.EquipmentGrantedActionId,
+                SkillId = entry.EntryRef.SkillId,
+                SkillEntryId = entry.EntryRef.SkillEntryId,
+                SkillOutcome = BattleEquipmentSkillUseOutcome.Empty,
+                IsPreview = true,
+                PreviewActionSink = actions.Add,
+            }
+        ) == true;
+        preview.SetEquipmentAbilityPreview(
+            new BattleEquipmentAbilityCommandPreviewResult
+            {
+                Triggered = triggered,
+                SourceUnitId = sourcePreview.unit_id,
+                SourceUnitAfter = sourcePreview,
+                Actions = actions.AsReadOnly(),
+            }
+        );
+    }
+
+    private static BattleUnitState ResolvePreviewPrimaryTarget(
+        BattleState state,
+        BattleCommand command
+    )
+    {
+        if (state == null || command == null)
+            return null;
+        StringName targetUnitId = ProgressionDataUtils.to_string_name(command.target_unit_id);
+        if (targetUnitId != "" && state.TryGetUnitTyped(targetUnitId, out BattleUnitState target))
+            return target;
+        foreach (StringName candidateId in command.TargetUnitIdsTyped ?? Array.Empty<StringName>())
+        {
+            if (state.TryGetUnitTyped(candidateId, out target))
+                return target;
+        }
+        return null;
     }
 
     private BattleSkillAccessResult ValidateSkillCommandEntryAccess(

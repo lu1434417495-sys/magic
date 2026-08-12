@@ -110,6 +110,14 @@ internal static class EquipmentAbilityStatusDeclarationCatalog
                 }
                 foreach (EquipmentWorldEffectDef worldEffect in binding.world_effects)
                     CollectActionStatusDeclarations(result, worldEffect?.actions);
+                foreach (
+                    EquipmentFatalInterceptDef fatalIntercept
+                    in binding.fatal_intercepts
+                        ?? new Godot.Collections.Array<EquipmentFatalInterceptDef>()
+                )
+                {
+                    CollectActionStatusDeclarations(result, fatalIntercept?.success_actions);
+                }
             }
         }
     }

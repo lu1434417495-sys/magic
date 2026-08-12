@@ -65,9 +65,11 @@ internal class BattleGroundRelocationService
         BattleEventBatch batch
     )
     {
+        int skillLevel = ResolveSkillLevel(activeUnit, skillDefinition);
         return _get_ground_relocation_effect_definition(
                 skillDefinition,
-                castVariantDefinition
+                castVariantDefinition,
+                skillLevel
             ) == null
             || ApplyGroundRelocation(
                 activeUnit,
@@ -91,7 +93,11 @@ internal class BattleGroundRelocationService
             return false;
         }
         CombatEffectDefinition effectDefinition =
-            _get_ground_relocation_effect_definition(skillDefinition, castVariantDefinition);
+            _get_ground_relocation_effect_definition(
+                skillDefinition,
+                castVariantDefinition,
+                ResolveSkillLevel(activeUnit, skillDefinition)
+            );
         return effectDefinition != null
             && ApplyGroundRelocationWithMode(
                 activeUnit,
@@ -158,7 +164,12 @@ internal class BattleGroundRelocationService
         _owner.AppendChangedCoords(batch, previousCoords);
         _owner._append_changed_unit_coords(batch, active_unit);
         _owner._append_changed_unit_id(batch, active_unit.unit_id);
-        string moveLabel = move_mode == BattleForcedMoveMode.Blink ? "闪现至" : "跳至";
+        string moveLabel = move_mode switch
+        {
+            BattleForcedMoveMode.Blink => "闪现至",
+            BattleForcedMoveMode.GrappleAscent => "攀登至",
+            _ => "跳至",
+        };
         BattleGroundEffectService.AppendLog(
             batch,
             $"{BattleGroundEffectService.DisplayName(active_unit)} 从 ({previousAnchor.X}, {previousAnchor.Y}) {moveLabel} ({landingCoord.X}, {landingCoord.Y})。"
@@ -182,7 +193,8 @@ internal class BattleGroundRelocationService
 
     internal CombatEffectDefinition _get_ground_relocation_effect_definition(
         SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition
+        CombatCastVariantDefinition castVariantDefinition,
+        int skillLevel = -1
     )
     {
         if (castVariantDefinition != null)
@@ -192,7 +204,10 @@ internal class BattleGroundRelocationService
                     ?? Array.Empty<CombatEffectDefinition>()
             )
             {
-                if (_is_ground_relocation_effect(effectDefinition))
+                if (
+                    _is_ground_relocation_effect(effectDefinition)
+                    && (skillLevel < 0 || effectDefinition.IsUnlockedAtSkillLevel(skillLevel))
+                )
                 {
                     return effectDefinition;
                 }
@@ -206,7 +221,10 @@ internal class BattleGroundRelocationService
                     ?? Array.Empty<CombatEffectDefinition>()
             )
             {
-                if (_is_ground_relocation_effect(effectDefinition))
+                if (
+                    _is_ground_relocation_effect(effectDefinition)
+                    && (skillLevel < 0 || effectDefinition.IsUnlockedAtSkillLevel(skillLevel))
+                )
                 {
                     return effectDefinition;
                 }
@@ -224,7 +242,9 @@ internal class BattleGroundRelocationService
 
     internal bool _is_ground_relocation_mode(BattleForcedMoveMode mode)
     {
-        return mode == BattleForcedMoveMode.Jump || mode == BattleForcedMoveMode.Blink;
+        return mode is BattleForcedMoveMode.Jump
+            or BattleForcedMoveMode.Blink
+            or BattleForcedMoveMode.GrappleAscent;
     }
 
     internal bool _can_use_ground_relocation(
@@ -250,6 +270,15 @@ internal class BattleGroundRelocationService
         if (mode == BattleForcedMoveMode.Blink)
         {
             return GridService.CanBlinkToCoord(
+                State,
+                active_unit,
+                landing_coord,
+                effectDefinition
+            );
+        }
+        if (mode == BattleForcedMoveMode.GrappleAscent)
+        {
+            return GridService.CanGrappleAscent(
                 State,
                 active_unit,
                 landing_coord,
@@ -288,7 +317,49 @@ internal class BattleGroundRelocationService
                 effectDefinition
             );
         }
+        if (mode == BattleForcedMoveMode.GrappleAscent)
+        {
+            return GridService.CanGrappleAscent(
+                State,
+                active_unit,
+                landing_coord,
+                effectDefinition
+            );
+        }
         return false;
+    }
+
+    internal int ResolveSkillLevel(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (activeUnit == null || skillDefinition == null)
+        {
+            return 0;
+        }
+        int runtimeLevel = Runtime?._get_unit_skill_level(
+            activeUnit,
+            skillDefinition.SkillId
+        ) ?? 0;
+        return runtimeLevel > 0
+            ? runtimeLevel
+            : Math.Max(activeUnit.GetKnownSkillLevelTyped(skillDefinition.SkillId), 1);
+    }
+
+    internal int ResolveSkillLevel(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (!activeUnit.IsValid || skillDefinition == null)
+        {
+            return 0;
+        }
+        BattleUnitState mutableUnit = State?.GetUnit(activeUnit.UnitId);
+        return mutableUnit != null
+            ? ResolveSkillLevel(mutableUnit, skillDefinition)
+            : 1;
     }
 
     internal static BattleForcedMoveContext BuildGroundForcedMoveContext(
@@ -578,7 +649,9 @@ internal class BattleGroundRelocationService
         IReadOnlyList<CombatEffectDefinition> windPushEffects,
         IReadOnlyList<Vector2I> effectCoords,
         IReadOnlyList<Vector2I> targetCoords,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+            effectTargetPlan = null
     )
     {
         bool applied = false;
@@ -602,12 +675,19 @@ internal class BattleGroundRelocationService
             {
                 continue;
             }
-            List<BattleUnitState> targetUnits = CollectWindPushTargetUnits(
-                sourceUnit,
-                skillDefinition,
-                effectDefinition,
-                effectCoords
-            );
+            List<BattleUnitState> targetUnits =
+                effectTargetPlan != null
+                && effectTargetPlan.TryGetValue(
+                    effectDefinition,
+                    out IReadOnlyList<BattleUnitState> plannedTargets
+                )
+                    ? new List<BattleUnitState>(plannedTargets)
+                    : CollectWindPushTargetUnits(
+                        sourceUnit,
+                        skillDefinition,
+                        effectDefinition,
+                        effectCoords
+                    );
             if (targetUnits.Count == 0)
             {
                 continue;

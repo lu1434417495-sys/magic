@@ -10,14 +10,20 @@ public enum EquipmentAbilitySourceKind
     Unknown = 0,
     PlayerPersistentEquipment,
     EnemyBattleOnlyEquipment,
+    PlayerPersistentGearSetThreshold,
+    BattleStatusDerived,
 }
 
 public sealed class BattleEquipmentAbilitySourceState
 {
     private static readonly StringName SourceKindPlayerPersistentEquipment =
         "player_persistent_equipment";
+    private static readonly StringName SourceKindPlayerPersistentGearSetThreshold =
+        "player_persistent_gear_set_threshold";
     private static readonly StringName SourceKindEnemyBattleOnlyEquipment =
         "enemy_battle_only_equipment";
+    private static readonly StringName SourceKindBattleStatusDerived =
+        "battle_status_derived";
 
     private static readonly string[] RequiredFields =
     {
@@ -80,8 +86,12 @@ public sealed class BattleEquipmentAbilitySourceState
         {
             EquipmentAbilitySourceKind.PlayerPersistentEquipment =>
                 SourceKindPlayerPersistentEquipment,
+            EquipmentAbilitySourceKind.PlayerPersistentGearSetThreshold =>
+                SourceKindPlayerPersistentGearSetThreshold,
             EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment =>
                 SourceKindEnemyBattleOnlyEquipment,
+            EquipmentAbilitySourceKind.BattleStatusDerived =>
+                SourceKindBattleStatusDerived,
             _ => "",
         };
     }
@@ -90,8 +100,12 @@ public sealed class BattleEquipmentAbilitySourceState
     {
         if (value == SourceKindPlayerPersistentEquipment)
             return EquipmentAbilitySourceKind.PlayerPersistentEquipment;
+        if (value == SourceKindPlayerPersistentGearSetThreshold)
+            return EquipmentAbilitySourceKind.PlayerPersistentGearSetThreshold;
         if (value == SourceKindEnemyBattleOnlyEquipment)
             return EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment;
+        if (value == SourceKindBattleStatusDerived)
+            return EquipmentAbilitySourceKind.BattleStatusDerived;
         return EquipmentAbilitySourceKind.Unknown;
     }
 
@@ -140,12 +154,16 @@ public sealed class BattleEquipmentAbilitySourceState
         if (abilityIds == null || abilityIds.Count == 0)
             return false;
         if (
-            sourceKind == EquipmentAbilitySourceKind.PlayerPersistentEquipment
+            sourceKind
+                is EquipmentAbilitySourceKind.PlayerPersistentEquipment
+                    or EquipmentAbilitySourceKind.PlayerPersistentGearSetThreshold
             && sourceEquipmentInstanceId == ""
         )
             return false;
         if (
-            sourceKind == EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment
+            sourceKind
+                is EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment
+                    or EquipmentAbilitySourceKind.BattleStatusDerived
             && sourceEquipmentInstanceId != ""
         )
             return false;

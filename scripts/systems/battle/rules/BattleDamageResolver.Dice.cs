@@ -93,7 +93,6 @@ public partial class BattleDamageResolver
             || sourceUnit == null
             || targetUnit == null
             || damageContext?.AttackSuccess != true
-            || !resultIncludesWeaponDamage
         )
         {
             return Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
@@ -108,6 +107,7 @@ public partial class BattleDamageResolver
                     BattleState = damageContext?.BattleState,
                     AttackSucceeded = true,
                     CriticalHit = damageContext.CriticalHit,
+                    IncludesWeaponDamage = resultIncludesWeaponDamage,
                 }
             );
         var aggregateByTag = new List<EquipmentAbilityTaggedBonusDamageRoll>();

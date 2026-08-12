@@ -317,6 +317,13 @@ public class BattleSpecialSkillResolver
             {
                 continue;
             }
+            if (
+                effectDefinition.TriggerEventKind == CombatEffectTriggerEvent.AttackHit
+                && !attackSucceeded
+            )
+            {
+                continue;
+            }
             long forcedMoveInstanceId = RuntimeHelpers.GetHashCode(effectDefinition);
             if (!seenForcedMoveEffects.Add(forcedMoveInstanceId))
             {

@@ -66,6 +66,7 @@ internal enum TraitSourceKind
     Character,
     EquipmentFixed,
     EquipmentRoll,
+    GearSetThreshold,
 }
 
 internal enum TraitRollValueType
@@ -152,10 +153,13 @@ public static class TraitContentRules
     private static readonly StringName SourceCharacter = "character";
     private static readonly StringName SourceEquipmentFixed = "equipment_fixed";
     private static readonly StringName SourceEquipmentRoll = "equipment_roll";
+    private static readonly StringName SourceGearSetThreshold = "gear_set_threshold";
     private static readonly StringName AttributeSourceTraitIdentity = "trait_identity";
     private static readonly StringName AttributeSourceTraitCharacter = "trait_character";
     private static readonly StringName AttributeSourceTraitEquipmentFixed = "trait_equipment_fixed";
     private static readonly StringName AttributeSourceTraitEquipmentRoll = "trait_equipment_roll";
+    private static readonly StringName AttributeSourceTraitGearSetThreshold =
+        "trait_gear_set_threshold";
 
     private static readonly StringName RollValueInt = "int";
     private static readonly StringName RollValueStringName = "string_name";
@@ -362,6 +366,8 @@ public static class TraitContentRules
             return TraitSourceKind.EquipmentFixed;
         if (value == SourceEquipmentRoll)
             return TraitSourceKind.EquipmentRoll;
+        if (value == SourceGearSetThreshold)
+            return TraitSourceKind.GearSetThreshold;
         return TraitSourceKind.Unknown;
     }
 
@@ -373,6 +379,7 @@ public static class TraitContentRules
             TraitSourceKind.Character => SourceCharacter,
             TraitSourceKind.EquipmentFixed => SourceEquipmentFixed,
             TraitSourceKind.EquipmentRoll => SourceEquipmentRoll,
+            TraitSourceKind.GearSetThreshold => SourceGearSetThreshold,
             _ => "",
         };
     }
@@ -398,6 +405,7 @@ public static class TraitContentRules
             TraitSourceKind.Character => AttributeSourceTraitCharacter,
             TraitSourceKind.EquipmentFixed => AttributeSourceTraitEquipmentFixed,
             TraitSourceKind.EquipmentRoll => AttributeSourceTraitEquipmentRoll,
+            TraitSourceKind.GearSetThreshold => AttributeSourceTraitGearSetThreshold,
             _ => "",
         };
     }

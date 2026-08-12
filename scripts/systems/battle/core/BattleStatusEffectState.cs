@@ -50,6 +50,7 @@ public class BattleStatusEffectState
         "heal_multiplier_percent",
         "shield_gain_multiplier_percent",
         "attack_roll_penalty",
+        "armor_class_bonus_per_stack",
         "source_bound_attack_roll_penalty",
         "source_bound_attack_roll_penalty_min_stacks",
         "source_bound_incoming_attack_roll_bonus_per_stack",
@@ -126,6 +127,7 @@ public class BattleStatusEffectState
     public int? heal_multiplier_percent { get; set; }
     public int? shield_gain_multiplier_percent { get; set; }
     public int attack_roll_penalty { get; set; } = -1;
+    public int armor_class_bonus_per_stack { get; set; }
     public int source_bound_attack_roll_penalty { get; set; }
     public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
     public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
@@ -268,6 +270,7 @@ public class BattleStatusEffectState
             heal_multiplier_percent = heal_multiplier_percent,
             shield_gain_multiplier_percent = shield_gain_multiplier_percent,
             attack_roll_penalty = attack_roll_penalty,
+            armor_class_bonus_per_stack = armor_class_bonus_per_stack,
             source_bound_attack_roll_penalty = source_bound_attack_roll_penalty,
             source_bound_attack_roll_penalty_min_stacks =
                 source_bound_attack_roll_penalty_min_stacks,
@@ -685,6 +688,8 @@ public class BattleStatusEffectState
                 "shield_gain_multiplier_percent"
             ),
             attack_roll_penalty = ReadOptionalIntParam(parameters, "attack_roll_penalty") ?? -1,
+            armor_class_bonus_per_stack =
+                ReadOptionalIntParam(parameters, "armor_class_bonus_per_stack") ?? 0,
             source_bound_attack_roll_penalty =
                 ReadOptionalIntParam(parameters, "source_bound_attack_roll_penalty") ?? 0,
             source_bound_attack_roll_penalty_min_stacks =
@@ -829,6 +834,10 @@ public class BattleStatusEffectState
         if (attack_roll_penalty >= 0)
         {
             projected["attack_roll_penalty"] = attack_roll_penalty;
+        }
+        if (armor_class_bonus_per_stack > 0)
+        {
+            projected["armor_class_bonus_per_stack"] = armor_class_bonus_per_stack;
         }
         if (source_bound_attack_roll_penalty > 0)
         {
@@ -1024,6 +1033,8 @@ public class BattleStatusEffectState
             projected["shield_gain_multiplier_percent"] = shield_gain_multiplier_percent.Value;
         if (attack_roll_penalty >= 0)
             projected["attack_roll_penalty"] = attack_roll_penalty;
+        if (armor_class_bonus_per_stack > 0)
+            projected["armor_class_bonus_per_stack"] = armor_class_bonus_per_stack;
         if (source_bound_attack_roll_penalty > 0)
         {
             projected["source_bound_attack_roll_penalty"] = source_bound_attack_roll_penalty;

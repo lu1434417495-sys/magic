@@ -459,7 +459,8 @@ public partial class BattleDamageResolver
         int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
         MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
             targetUnit,
-            resolvedDamageTag
+            resolvedDamageTag,
+            battleState: damageContext?.BattleState
         );
         StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;

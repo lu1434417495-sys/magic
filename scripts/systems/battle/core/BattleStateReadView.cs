@@ -114,6 +114,7 @@ internal readonly struct BattleUnitReadView
     internal int CurrentAura => CombatResources.Aura;
     internal int CurrentAp => CombatResources.Ap;
     internal int CurrentMovePoints => CombatResources.MovePoints;
+    internal int MovePointCapacity => _unit?.GetMovePointCapacity() ?? 0;
     internal bool HasTakenActionThisTurn =>
         _unit?.HasTakenActionThisTurnTyped() ?? false;
     internal bool HasMovedThisTurn =>
@@ -412,6 +413,8 @@ internal readonly struct BattleStatusReadView
     internal int Power => _status?.power ?? 0;
     internal int RangeBonus => _status?.range_bonus ?? 0;
     internal int AttackRollBonus => _status?.attack_roll_bonus ?? 0;
+    internal int ArmorClassBonusPerStack =>
+        _status?.armor_class_bonus_per_stack ?? 0;
     internal StringName ComboAttackBonusStatusId =>
         _status?.combo_attack_bonus_status_id ?? "";
     internal int ComboAttackBonusStackDivisor =>
