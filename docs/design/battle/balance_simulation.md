@@ -61,6 +61,7 @@
 - Trace 精简报表：`res://scripts/systems/battle/sim/BattleSimTraceSummaryBuilder.cs`
 - 批量执行器：`res://scripts/systems/battle/sim/BattleSimRunner.cs`
 - 基础执行循环：`res://scripts/systems/battle/sim/BattleSimExecutionLoop.cs`
+- 专项分析产物写入与退出裁决：`res://scripts/systems/battle/sim/BattleSimAnalysisOutput.cs`
 - CLI 入口：`res://tests/battle_runtime/simulation/run_battle_balance_simulation.cs`
 - LLM 分析包导出：`tools/build_battle_sim_analysis_packet.py`
 - Repo 内分析 skill：`.codex/skills/battle-sim-analysis`
@@ -160,6 +161,8 @@ user://simulation_reports/<scenario_id>/
 ```
 
 每次 `RunScenario()` 使用 `<unix_seconds>_<guid>` 作为独立批次标识，因此同一秒、同一场景及并发进程不会复用输出文件名。`BattleSimReportFileWriter` 先写 trace 与可选 trace summary，最后写主 report 作为本批次成功标志；`FileAccess.Open`、`StoreString` / `StoreLine` 或 flush 任一失败都会向上传播，并清理本批次已生成的残缺文件。只有完整产物集确认存在后，runner 才发布 `OutputFiles` 并打印 `report-written`。
+
+`RunMixed6v12MirrorAnalysis`、`run_mixed_2s1a_mirror_analysis` 与 `run_longsword_3v3_mastery_analysis` 的专项产物不冒充上述正式 report batch，但文件 IO 统一委托 `BattleSimAnalysisArtifactFileWriter`，复用同一个 checked `GodotBattleSimOutputFileSink`。目录创建、打开、`StoreString`、flush/`GetError` 或最终文件存在性任一失败都会形成 failed artifact。退出裁决只消费 plain typed completion status：完整批次且所有必需 main/trace/profile 产物成功返回 `0`；任一必需产物失败优先返回 `1`；产物完整但批次含未完成 run 返回 `2`。这组合同由常规快速回归通过 synthetic completion 与逐产物故障注入验证，不依赖耗时 6v12 数值模拟。
 
 ## LLM 分析包导出
 

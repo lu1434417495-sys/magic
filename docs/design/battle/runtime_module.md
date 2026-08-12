@@ -203,7 +203,7 @@ BattleRuntimeModule 重建时建议拆分以下 sidecar：
 - `BattleMetricsReportService`：指标、报告与 effect-origin scope；不拥有回合推进编排。
 - `BattleAiDecisionBindingService`：私有持有 per-unit AI action-plan index，并拥有 plan build/ensure/query/clear、decision context/helper、评分输入与移动查询接线；module 不暴露其可变集合。
 - `BattleContingencyBridgeService`：contingency hook、auto-cast、release queue、overlay 与 consumed 写回桥接，并实现 `IBattleContingencyRuntimePort`。
-- `BattleCommandPreviewService`：只读 command preview、skill entry 校验与 issue blocking；不提交装备技能 usage 或 reaction。
+- `BattleCommandPreviewService`：只读 command preview、skill entry 校验与 issue blocking；基础预览允许后可在新的 `BattleDetachedPreviewState` 上复用装备技能 post-use reaction core，并返回 reaction action summaries / `source_preview_after`，但不提交正式装备 usage、RNG 或真实 reaction state。该来源快照不与基础技能自身的 HP/status preview 合并。
 
 这些 helper 优先保持 plain C# typed surface；Godot payload 只在最外层 UI/headless adapter 投影。由 module 持有且需要反向访问 module 的 service 使用弱 borrower；七个直属 split service 只登记在 owner-local `BattleRuntimeModuleBorrowerSet`，由同一拓扑负责初次绑定、重复 setup 与逆序 teardown。`BattleContingencySystem` 的端口绑定同样是弱引用，module teardown 先清除 system 的 capability，再断开 bridge 的 module borrower。AI callback consumer 先退出，随后断开该 set，最后释放它们依赖的 runtime sidecar。`BattleSkillExecutionOrchestrator` 与 `BattleGroundEffectService` 各自管理直属 child，并在 parent teardown 时清空 runtime、owner 与 sibling borrower。
 
@@ -267,7 +267,7 @@ TargetCollectionService 应支持：
 AI 决策必须使用 snapshot/value object：
 
 - ScoreInput 不持有 live BattleState/UnitState。
-- command preview 不应 mutate state；`FullSnapshotDiagnostic` mutation guard 以同一组 typed snapshot 执行 capture、stable projection 与 restore，发现差异后先恢复再上报。
+- command preview 不应 mutate state；装备/致死预览的当前 detached 子集包含 units、cells、environment、world step，required source/target clone 必须覆盖同 ID 通用副本；objective、barrier、target mark、temporary edge 与 backpack/report 等尚未纳入该 clone 合同。`FullSnapshotDiagnostic` mutation guard 以同一组 typed snapshot 执行 capture、stable projection 与 restore，发现差异后先恢复再上报。
 - guard 的单位权威面包含装备视图初始化标记、contingency 消耗、装备能力来源、时间进度修正、creature tags 与完整武器投影；effective trait/roll、pending cast、equipment entry/instance 等嵌套 owner 使用 mutation 专用 exact 深拷贝，不经过业务层的规范化 `DuplicateState`。状态效果 fingerprint 读取全部公共属性，强制位移免疫、debuff 判定和各类 lock 均在其中。
 - 战斗级 objective runtime/final decision、target marks、temporary-edge state、cast allocator 和 temporary-edge allocator 都进入快照；objective runtime 按具体 subtype 显式投影，未知 subtype 失败关闭。最终裁决完整覆盖 objective mode、outcome、end reason 与 decision TU，派生 winner 不作为独立可写状态。原始集合按原顺序比较和恢复，重复项、非法哨兵、`null`、空集合及集合中的 `null` 元素不视为等价，也不在 rollback 时调用 gameplay cleanup。
 - cell/column、terrain effect、attack-roll modifier 与 layered barrier 也属于 guard 的权威面。容器 canonical key 和对象内 id/coord 分开保存；blackboard 的 raw 数值与 presence flag 分开保存；rollback 调用 owner 的 mutation-exact seam，不通过会过滤无效值、夹断资源、规范化 body 或重算 attribute modifier 的 gameplay API。
