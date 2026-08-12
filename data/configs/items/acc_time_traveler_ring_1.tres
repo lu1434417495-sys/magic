@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_attack_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = &"attack_bonus"
+mode = &"flat"
+value = 1
+source_type = &"equipment"
+source_id = &"acc_time_traveler_ring_1"
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"acc_time_traveler_ring_1"
+display_name = "时间旅者加速之戒"
+description = "一枚由加速石与时间金铸造的戒指，戒指表面刻有微型加速图案。当佩戴者集中精神时，戒指会释放出一股加速之力，使佩戴者的时间流速加快。在这种加速状态下，佩戴者可以在一瞬间完成多个动作。但加速是有代价的——每次使用，佩戴者会老化。\n\n这枚戒指是时间旅者在「加速深渊」中，从自己的加速之力中取下的碎片铸造的。他说：\"这枚戒指让我能够借用加速的力量。加速不是作弊——它只是利用了时间的缝隙。\""
+icon = ""
+is_stackable = false
+base_price = 8000
+buy_price = 8000
+sell_price = 4000
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"accessory", &"ring_1", &"time_traveler_set"])
+trait_ids = Array[StringName]([])
+equipment_slot_ids = Array[String](["ring_1"])
+equipment_type_id = &"accessory"
+attribute_modifiers = Array[Resource]([SubResource("Resource_attack_bonus")])

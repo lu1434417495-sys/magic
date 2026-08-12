@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_armor_ac_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = &"armor_ac_bonus"
+mode = &"flat"
+value = 1
+source_type = &"equipment"
+source_id = &"armor_time_traveler_hands"
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"armor_time_traveler_hands"
+display_name = "时间旅者手套"
+description = "一对由时间结晶与轮回丝编织而成的奇异手套，手套表面不断有钟表指针在旋转。手套的指尖有「时间针」——可以编织和剪断时间的丝线。手套的掌心有「时间印」——可以改变一个物体的时间状态。\n\n克罗诺斯在编织这对手套时，将自己的「时间之手」能力封入了轮回丝。他说：\"这对手套不只是手套，它们是'时间的织针'——让我可以用手编织时间。\"\n\n克罗诺斯说：\"时间旅者的手不是只能编织，它也可以改变——改变时间的流速，改变物体的年龄。\""
+icon = ""
+is_stackable = false
+base_price = 20000
+buy_price = 20000
+sell_price = 10000
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"armor", &"hands", &"cloth", &"light_armor", &"time_traveler_set"])
+trait_ids = Array[StringName]([])
+equipment_slot_ids = Array[String](["hands"])
+equipment_type_id = &"armor"
+attribute_modifiers = Array[Resource]([SubResource("Resource_armor_ac_bonus")])

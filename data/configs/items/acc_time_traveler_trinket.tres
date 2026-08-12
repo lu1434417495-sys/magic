@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_mp_max"]
+script = ExtResource("2_modifier")
+attribute_id = &"mp_max"
+mode = &"flat"
+value = 20
+source_type = &"equipment"
+source_id = &"acc_time_traveler_trinket"
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"acc_time_traveler_trinket"
+display_name = "时间旅者时间沙漏"
+description = "一个由时间之力凝结的微型沙漏，沙漏中的沙子不是普通的沙子——它们是时间的碎片。当佩戴者翻转沙漏时，可以短暂地操控时间：加速、减速、甚至倒流。但沙漏中的沙子是有限的——每次使用，沙子会减少。当沙子耗尽时，沙漏会停止，时间也会停止。\n\n这个沙漏是时间旅者在「时间之源」中，从自己的时间之力中取下的核心制成的。他说：\"这个沙漏承载了我的时间之力。它让我能够操控时间，也让我能够理解时间的宝贵。\""
+icon = ""
+is_stackable = false
+base_price = 10000
+buy_price = 10000
+sell_price = 5000
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"accessory", &"special_trinket", &"time_traveler_set"])
+trait_ids = Array[StringName]([])
+equipment_slot_ids = Array[String](["special_trinket"])
+equipment_type_id = &"accessory"
+attribute_modifiers = Array[Resource]([SubResource("Resource_mp_max")])

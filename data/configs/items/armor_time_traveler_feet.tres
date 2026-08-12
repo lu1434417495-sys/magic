@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_armor_ac_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = &"armor_ac_bonus"
+mode = &"flat"
+value = 1
+source_type = &"equipment"
+source_id = &"armor_time_traveler_feet"
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"armor_time_traveler_feet"
+display_name = "时间旅者便鞋"
+description = "一对由时间结晶与轮回丝编织而成的奇异便鞋，便鞋没有与地面接触——它们行走在时间的丝线上，而不是空间的地面上。行走时，便鞋会在时间中留下短暂的痕迹——不是弱点，是标记，也是通道。\n\n克罗诺斯在编织这对便鞋时，将自己的「时间之步」能力封入了轮回丝。他说：\"这对便鞋不只是鞋子，它们是'时间的脚步'——让我每一步都走在时间上。\"\n\n克罗诺斯说：\"时间旅者不需要路，他只需要时间——时间在哪里，他就走向哪里。\""
+icon = ""
+is_stackable = false
+base_price = 20000
+buy_price = 20000
+sell_price = 10000
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"armor", &"feet", &"cloth", &"light_armor", &"time_traveler_set"])
+trait_ids = Array[StringName]([])
+equipment_slot_ids = Array[String](["feet"])
+equipment_type_id = &"armor"
+attribute_modifiers = Array[Resource]([SubResource("Resource_armor_ac_bonus")])
