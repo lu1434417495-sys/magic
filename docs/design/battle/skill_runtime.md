@@ -38,6 +38,8 @@ SkillDef Resource
 ## 实现约束
 
 - Authoring Resource 只在内容构建边界存在；battle runtime、AI 和 UI 消费 `SkillDefinition` 与 battle-local state。
+- 地面机关的合法布置由 `CombatSkillDef.ground_effect_require_full_area/empty/traversable` 与 `requires_los` 显式声明；`BattleGroundSkillValidationService` 对 preview 和 commit 共用同一面积、占用、footprint、layered barrier 与阻挡 LOS 边校验。`area_direction_mode = target_vector_perpendicular` 只旋转通用 line area 的方向，不按技能 id 推断。
+- `terrain_contact_mode = interrupt_movement_on_failed_save` 是通用 typed 地形接触合同。`BattleTerrainEffectState` 保存来源、目标过滤、豁免、剩余有效触发数、接地/格内重判和同源实例策略；同一 field 在一次移动命令内最多判定一次，豁免成功不消耗次数，失败才原子递减整组 field 并拦停。普通移动在失败时支付命令最初选定路径的全部成本并锁定；技能步进和冲锋停止剩余路径，强制位移停止剩余位移；飞行只在效果显式要求接地时忽略，blink/jump/传送/交换/生成/复活不进入该接触入口。新移动命令从 field 内起步是否重判由 typed 字段决定，同一目标可在后续命令再次消耗同一 field；来源倒下不清除 timed field，同源替换在新 field 写入前按来源和 effect id 原子移除旧实例。熟练度只在失败实际拦停后提交，数量继续服从技能的 typed mastery amount mode（如 `per_target_rank`），成功豁免不入账。
 - `BattleAttackRollModifierSpec` 归 `scripts/systems/content/skills/`，只提供字段、typed 枚举映射、克隆和字典编解码；筛选、叠加与最终生效仍归 battle rules/runtime，不回灌进内容契约。
 - `skill_entry_id` 标识本次技能来源，`skill_id` 标识技能定义。旧 entry 失效时必须拒绝或清空，不能按同名 `skill_id` 静默切换到另一来源。
 - HUD、手动选择、文本命令、preview、execution 和 AI 必须通过 `BattleSkillAvailabilityService` 看到同一组技能入口。

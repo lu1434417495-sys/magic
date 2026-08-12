@@ -1,71 +1,231 @@
-[gd_resource type="Resource" script_class="SkillDef" format=3]
+[gd_resource type="Resource" script_class="SkillDef" load_steps=10 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_ieked"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_3yraf"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_gvhgx"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_t3ldi"]
-[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_1o11f"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_wfubx"]
-script = ExtResource("3_gvhgx")
-effect_type = &"damage"
-power = 6
-damage_tag = &"physical_blunt"
+[sub_resource type="Resource" id="Effect_tripwire_l0_l1"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+effect_target_team_filter = &"enemy"
+max_skill_level = 1
+terrain_effect_id = &"tripwire_line"
+terrain_contact_mode = &"interrupt_movement_on_failed_save"
+terrain_effective_trigger_count = 1
+terrain_requires_ground_contact = true
+terrain_recheck_from_inside = true
+terrain_max_active_instances_per_source = 1
+terrain_replace_existing_from_source = true
+tick_effect_type = &"none"
+lifetime_policy = &"timed"
+render_overlay_id = &"tripwire_line"
+overlay_priority = 40
+display_name = "绊索"
+save_dc = 12
+save_ability = &"agility"
+save_tag = &"agility"
+duration_tu = 60
+tick_interval_tu = 5
+stack_behavior = &"stack"
 
-[sub_resource type="Resource" id="Resource_q32yk"]
-script = ExtResource("4_t3ldi")
+[sub_resource type="Resource" id="Effect_tripwire_l2"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+effect_target_team_filter = &"enemy"
+min_skill_level = 2
+max_skill_level = 2
+terrain_effect_id = &"tripwire_line"
+terrain_contact_mode = &"interrupt_movement_on_failed_save"
+terrain_effective_trigger_count = 1
+terrain_requires_ground_contact = true
+terrain_recheck_from_inside = true
+terrain_max_active_instances_per_source = 1
+terrain_replace_existing_from_source = true
+tick_effect_type = &"none"
+lifetime_policy = &"timed"
+render_overlay_id = &"tripwire_line"
+overlay_priority = 40
+display_name = "绊索"
+save_dc = 12
+save_ability = &"agility"
+save_tag = &"agility"
+duration_tu = 60
+tick_interval_tu = 5
+stack_behavior = &"stack"
+
+[sub_resource type="Resource" id="Effect_tripwire_l3"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+effect_target_team_filter = &"enemy"
+min_skill_level = 3
+max_skill_level = 3
+terrain_effect_id = &"tripwire_line"
+terrain_contact_mode = &"interrupt_movement_on_failed_save"
+terrain_effective_trigger_count = 1
+terrain_requires_ground_contact = true
+terrain_recheck_from_inside = true
+terrain_max_active_instances_per_source = 1
+terrain_replace_existing_from_source = true
+tick_effect_type = &"none"
+lifetime_policy = &"timed"
+render_overlay_id = &"tripwire_line"
+overlay_priority = 40
+display_name = "绊索"
+save_dc = 13
+save_ability = &"agility"
+save_tag = &"agility"
+duration_tu = 70
+tick_interval_tu = 5
+stack_behavior = &"stack"
+
+[sub_resource type="Resource" id="Effect_tripwire_l4"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+effect_target_team_filter = &"enemy"
+min_skill_level = 4
+max_skill_level = 4
+terrain_effect_id = &"tripwire_line"
+terrain_contact_mode = &"interrupt_movement_on_failed_save"
+terrain_effective_trigger_count = 1
+terrain_requires_ground_contact = true
+terrain_recheck_from_inside = true
+terrain_max_active_instances_per_source = 1
+terrain_replace_existing_from_source = true
+tick_effect_type = &"none"
+lifetime_policy = &"timed"
+render_overlay_id = &"tripwire_line"
+overlay_priority = 40
+display_name = "绊索"
+save_dc = 13
+save_ability = &"agility"
+save_tag = &"agility"
+duration_tu = 70
+tick_interval_tu = 5
+stack_behavior = &"stack"
+
+[sub_resource type="Resource" id="Effect_tripwire_l5"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_effect"
+effect_target_team_filter = &"enemy"
+min_skill_level = 5
+max_skill_level = 5
+terrain_effect_id = &"tripwire_line"
+terrain_contact_mode = &"interrupt_movement_on_failed_save"
+terrain_effective_trigger_count = 2
+terrain_requires_ground_contact = true
+terrain_recheck_from_inside = true
+terrain_max_active_instances_per_source = 1
+terrain_replace_existing_from_source = true
+tick_effect_type = &"none"
+lifetime_policy = &"timed"
+render_overlay_id = &"tripwire_line"
+overlay_priority = 40
+display_name = "绊索"
+save_dc = 13
+save_ability = &"agility"
+save_tag = &"agility"
+duration_tu = 80
+tick_interval_tu = 5
+stack_behavior = &"stack"
+
+[sub_resource type="Resource" id="Combat_tripwire"]
+script = ExtResource("2_combat")
 skill_id = &"archer_tripwire_arrow"
-projectile_kind = &"current_weapon"
+projectile_kind = &"nonmagical"
 target_mode = &"ground"
-range_value = 4
+target_team_filter = &"enemy"
+target_selection_mode = &"single_coord"
+range_value = 0
+weapon_range_policy = &"current_weapon"
 area_pattern = &"line"
 area_value = 1
-stamina_cost = 1
-cooldown_tu = 10
-effect_defs = Array[ExtResource("3_gvhgx")]([SubResource("Resource_wfubx")])
+area_direction_mode = &"target_vector_perpendicular"
+requires_los = true
+ground_effect_require_full_area = true
+ground_effect_require_empty = true
+ground_effect_require_traversable = true
+ap_cost = 1
+stamina_cost = 20
+cooldown_tu = 80
+level_overrides = {
+2: {
+"stamina_cost": 18
+},
+4: {
+"cooldown_tu": 70
+}
+}
+mastery_trigger_mode = &"terrain_effective_trigger"
+mastery_amount_mode = &"per_target_rank"
+required_weapon_families = Array[StringName]([&"bow"])
+allows_natural_weapon = false
+ai_tags = Array[StringName]([&"ground_control", &"route_denial"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_tripwire_l0_l1"), SubResource("Effect_tripwire_l2"), SubResource("Effect_tripwire_l3"), SubResource("Effect_tripwire_l4"), SubResource("Effect_tripwire_l5")])
 
 [resource]
-script = ExtResource("5_1o11f")
+script = ExtResource("3_skill")
 skill_id = &"archer_tripwire_arrow"
 display_name = "绊索箭"
 icon_id = &"archer_tripwire_arrow"
-description = "在直线 3 格上布置绊索带；首个穿过的敌人立即停止移动并获得 压制。"
-level_description_template = "造成{dmg}伤害，射程{range}，直线范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+description = "需要装备弓。选择弓射程内一处空旷、可通行且视线可达的地格，在那里布置一条垂直于射击方向的3格绊索。只有地面移动的敌人会触发：敌人进入绊索，或在新一次移动指令开始时已经站在绊索上，进行一次敏捷豁免；成功则本次移动继续且不消耗绊索次数，同一移动指令不再对这条绊索判定；失败则立即停在当前格并消耗1次有效阻挡。普通移动失败仍支付原选定路径的全部移动力；冲锋与技能步进会中止后续路径，冲锋不会发动终点攻击；强制位移会停止剩余位移。飞行、传送、交换、生成与复活不触发。每名使用者同时只能保留一条绊索，再次施放会替换旧绊索。绊索不会因使用者倒下而消失。"
+level_description_template = "布置3格绊索，敏捷豁免DC{dc}，失败拦停并消耗1次阻挡；可阻挡{triggers}次，持续{duration}TU，射程随当前弓，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
 level_description_configs = {
 	"0": {
-		"dmg": "6",
-		"range": "4",
-		"area_pattern": "line",
+		"dc": "12",
+		"triggers": "1",
+		"duration": "60",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "20",
+		"cooldown": "80"
 	},
 	"1": {
-		"dmg": "6",
-		"range": "4",
-		"area_pattern": "line",
+		"dc": "12",
+		"triggers": "1",
+		"duration": "60",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "20",
+		"cooldown": "80"
 	},
 	"2": {
-		"dmg": "6",
-		"range": "4",
-		"area_pattern": "line",
+		"dc": "12",
+		"triggers": "1",
+		"duration": "60",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "18",
+		"cooldown": "80"
 	},
 	"3": {
-		"dmg": "6",
-		"range": "4",
-		"area_pattern": "line",
+		"dc": "13",
+		"triggers": "1",
+		"duration": "70",
 		"ap": "1",
-		"stamina": "1",
-		"cooldown": "10"
+		"stamina": "18",
+		"cooldown": "80"
 	},
+	"4": {
+		"dc": "13",
+		"triggers": "1",
+		"duration": "70",
+		"ap": "1",
+		"stamina": "18",
+		"cooldown": "70"
+	},
+	"5": {
+		"dc": "13",
+		"triggers": "2",
+		"duration": "80",
+		"ap": "1",
+		"stamina": "18",
+		"cooldown": "70"
+	}
 }
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])
-combat_profile = SubResource("Resource_q32yk")
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_growth_progress = {
+	"perception": 40,
+	"agility": 20
+}
+tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control", &"ground_control"])
+combat_profile = SubResource("Combat_tripwire")

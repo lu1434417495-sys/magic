@@ -159,7 +159,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             );
             AssertOrder(
                 lease.Value,
-                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,fate_preview,save_branch_preview,special_profile_gate_result,special_profile_preview_facts",
+                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,fate_preview,save_branch_preview,terrain_contact_preview,special_profile_gate_result,special_profile_preview_facts",
                 "preview"
             );
             using GDictionary saveBranch =

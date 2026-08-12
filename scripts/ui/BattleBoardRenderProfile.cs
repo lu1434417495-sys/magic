@@ -57,6 +57,7 @@ public class BattleBoardRenderProfile
     private static readonly StringName SourceMeteorCrater = "meteor_crater_core";
     private static readonly StringName SourceMeteorRubble = "meteor_rubble";
     private static readonly StringName SourceMeteorDust = "meteor_dust_cloud";
+    private static readonly StringName SourceTripwireLine = "tripwire_line";
     private static readonly StringName SourceSelected = "selected";
     private static readonly StringName SourceActiveSelected = "active_selected";
     private static readonly StringName SourceMoveReachable = "move_reachable";
@@ -377,6 +378,12 @@ public class BattleBoardRenderProfile
             BuildSourceSpec(
                 SourceMeteorDust,
                 new[] { "overlay_scrub_03.png" },
+                LayerRoleOverlay,
+                profile
+            ),
+            BuildSourceSpec(
+                SourceTripwireLine,
+                Array.Empty<string>(),
                 LayerRoleOverlay,
                 profile
             ),
