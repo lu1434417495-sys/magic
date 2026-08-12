@@ -159,7 +159,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             );
             AssertOrder(
                 lease.Value,
-                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,fate_preview,save_branch_preview,terrain_contact_preview,special_profile_gate_result,special_profile_preview_facts",
+                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,fate_preview,save_branch_preview,equipment_ability_preview,terrain_contact_preview,special_profile_gate_result,special_profile_preview_facts",
                 "preview"
             );
             using GDictionary saveBranch =
@@ -172,7 +172,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             AssertPreviewNestedSchema(lease.Value);
             AssertGolden(
                 lease.Value,
-                "1872:fd2e026030ad7929c5a112cda28efd18e826a4174a02ea0df237b807d8bc5f7a",
+                "1982:0f0f3e09e14fb7032c9285575930f28ab1504472ce591d79d07ae41ee0430fc7",
                 "preview fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);
@@ -271,7 +271,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             );
             AssertOrder(
                 lease.Value,
-                "applied,pre_save_damage,post_save_damage,damage,hp_damage,healing,incoming_budget_damage,shield_absorbed,shield_broken,shield_hp_before,shield_hp_after,damage_events,equipment_durability_events,dispel_events,damage_dice_high_total_roll,skill_damage_dice_is_max,weapon_damage_dice_is_max,status_effect_ids,removed_status_effect_ids,source_status_effect_ids,terrain_effect_ids,height_delta,diagnostics,save_estimates,stable_lethal,lethal_probability_basis_points,roll_mode,save_mode,save_estimate,source_preview_after,target_preview_after",
+                "applied,pre_save_damage,post_save_damage,damage,hp_damage,healing,incoming_budget_damage,shield_absorbed,shield_broken,shield_hp_before,shield_hp_after,damage_events,equipment_durability_events,dispel_events,damage_dice_high_total_roll,skill_damage_dice_is_max,weapon_damage_dice_is_max,status_effect_ids,removed_status_effect_ids,source_status_effect_ids,terrain_effect_ids,height_delta,diagnostics,save_estimates,stable_lethal,lethal_probability_basis_points,fatal_intercept_probability_basis_points,expected_survival_hp,fatal_intercept_preview,equipment_action_previews,roll_mode,save_mode,save_estimate,source_preview_after,target_preview_after",
                 "damage result"
             );
             using GDictionary sourceAfter =
@@ -284,7 +284,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             AssertDamageNestedSchema(lease.Value);
             AssertGolden(
                 lease.Value,
-                "5419:eb06bea90f9f169f2befa5498d578bb9429015cbee371d5e39d4ea6609310e19",
+                "5549:31db4b4c68c656999e7fc9ce1a6e0ae664b9f1f88c56635bcfde6c61f9334e6d",
                 "damage result fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);

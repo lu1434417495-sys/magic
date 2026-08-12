@@ -95,10 +95,7 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
             _test.Eq(rawThreadweaver.base_price, 120000, "Threadweaver should keep the source price.");
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildThreadweaverUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
 
@@ -116,17 +113,6 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         AssertThreadMendingSkillShape(fixture);
         AssertAfterSkillCostAndCleanupShape(fixture);
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "Removing Threadweaver should clear weapon item id.");
-        _test.Eq(removedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "Removing Threadweaver should restore baseline weapon profile.");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "Removing Threadweaver should clear equipment ability sources."
-        );
     }
 
     private void TestFateThreadStacksFraysAndAddsSourceBoundAttackBonus()

@@ -31,10 +31,20 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
 
     private async void RunAsync()
     {
-        _TestForceHitSkillRuntimePreviewIsGuaranteed();
-        _TestMyriadBladesLevelTenPreviewIsGuaranteed();
-        await _TestSingleHitSkillHudSurfacesRuntimePreview();
-        RequestTestExit(_test.Finish("Battle hit preview contract regression"));
+        try
+        {
+            _TestForceHitSkillRuntimePreviewIsGuaranteed();
+            _TestMyriadBladesLevelTenPreviewIsGuaranteed();
+            await _TestSingleHitSkillHudSurfacesRuntimePreview();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Battle hit preview contract regression"));
+        }
     }
 
     private void _TestForceHitSkillRuntimePreviewIsGuaranteed()

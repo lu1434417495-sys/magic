@@ -189,7 +189,7 @@ public partial class run_contingency_target_resolver_regression : LifecycleTestS
             fixture.State,
             "owner",
             Resolver("nearest_enemy_to_owner"),
-            Facts(triggerCell: new Vector2I(0, 0))
+            Facts(triggerCell: new Vector2I(5, 2))
         );
 
         _test.True(result.Ok, "nearest_enemy_to_owner should find a hostile target.");
@@ -203,7 +203,7 @@ public partial class run_contingency_target_resolver_regression : LifecycleTestS
     private void TestNearestEnemyToTriggerCellUsesFrozenTriggerCellAndUnitIdTieBreak()
     {
         using ResolverFixture fixture = BuildFixture(
-            new[] { Unit("owner", "player", new Vector2I(0, 0)) },
+            new[] { Unit("owner", "player", new Vector2I(5, 1)) },
             new[]
             {
                 Unit("enemy_b", "enemy", new Vector2I(2, 1)),

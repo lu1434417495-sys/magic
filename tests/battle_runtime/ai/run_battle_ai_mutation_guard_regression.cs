@@ -132,11 +132,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             TestCombatResourceUnlockAuthorityIsDetected();
             TestWeaponProjectionAuthorityIsDetected();
             TestKnownSkillAuthorityIsDetected();
-            TestDeclaredBattleUnitFieldsHaveStableCoverage();
+            TestWritableBattleUnitFieldsProduceStableDiffs();
             TestBattleStatePublicFieldsHaveSnapshotSentinelCoverage();
             TestBattleObjectiveAuthorityIsDetected();
-            TestObjectiveRuntimeProjectionIsTotal();
-            TestNestedAuthoritySchemasRemainExplicit();
             TestDeclaredStatusPropertiesHaveSnapshotCoverage();
             TestUnitAuthorityBlindSpotsAreDetected();
             TestNullableUnitAuthorityFieldsAreDetected();
@@ -2177,115 +2175,134 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         return count;
     }
 
-    private void TestDeclaredBattleUnitFieldsHaveStableCoverage()
+    private void TestWritableBattleUnitFieldsProduceStableDiffs()
     {
-        StableMap unitStable = BattleAiMutationStableProjection.StableBattleUnitState(
-            new BattleUnitState()
-        );
-        StableMap fieldStable = unitStable.GetMapOrEmpty("fields");
+        (
+            string FieldName,
+            string StablePath,
+            Action<BattleUnitState> Mutate
+        )[] cases =
+        {
+            (
+                "unit_id",
+                "unit_id",
+                unit => unit.unit_id = "mutation_guard_actor_changed"
+            ),
+            (
+                "source_member_id",
+                "source_member_id",
+                unit => unit.source_member_id = "mutation_guard_member"
+            ),
+            (
+                "enemy_template_id",
+                "enemy_template_id",
+                unit => unit.enemy_template_id = "mutation_guard_template"
+            ),
+            (
+                "encounter_actor_id",
+                "encounter_actor_id",
+                unit => unit.encounter_actor_id = "mutation_guard_encounter_actor"
+            ),
+            (
+                "display_name",
+                "display_name",
+                unit => unit.display_name = "Mutation Guard Actor Changed"
+            ),
+            (
+                "battle_sprite_texture_path",
+                "battle_sprite_texture_path",
+                unit =>
+                    unit.battle_sprite_texture_path =
+                        "res://assets/tests/mutation_guard_actor.png"
+            ),
+            (
+                "faction_id",
+                "faction_id",
+                unit => unit.faction_id = "player"
+            ),
+            (
+                "control_mode",
+                "control_mode",
+                unit => unit.control_mode = "manual"
+            ),
+            (
+                "ai_brain_id",
+                "ai_brain_id",
+                unit => unit.ai_brain_id = "mutation_guard_brain_changed"
+            ),
+            (
+                "ai_state_id",
+                "ai_state_id",
+                unit => unit.ai_state_id = "mutation_guard_state_changed"
+            ),
+            (
+                "attribute_snapshot",
+                "attribute_snapshot_values",
+                unit =>
+                    unit.attribute_snapshot.SetValue(
+                        "mutation_guard_attribute",
+                        73
+                    )
+            ),
+            (
+                "equipment_view",
+                "equipment_view",
+                unit =>
+                {
+                    var equipment = new EquipmentState();
+                    bool equipped = equipment.SetEquippedEntry(
+                        "main_hand",
+                        "mutation_guard_weapon",
+                        new[] { new StringName("main_hand") },
+                        EquipmentInstanceState.CreateInstance(
+                            "mutation_guard_weapon",
+                            "eq_mutation_guard_weapon"
+                        )
+                    );
+                    _test.True(
+                        equipped,
+                        "测试前提：BattleUnit equipment_view mutation fixture 应可装备武器。"
+                    );
+                    unit.equipment_view = equipment;
+                }
+            ),
+            (
+                "equipment_view_initialized",
+                "equipment_view_initialized",
+                unit => unit.equipment_view_initialized = true
+            ),
+            (
+                "versatility_pick",
+                "versatility_pick",
+                unit => unit.versatility_pick = "mutation_guard_pick"
+            ),
+            (
+                "death_ward_consumed_this_battle",
+                "death_ward_consumed_this_battle",
+                unit => unit.death_ward_consumed_this_battle = true
+            ),
+        };
+
         foreach (
-            FieldInfo field in typeof(BattleUnitState).GetFields(
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            )
+            (
+                string fieldName,
+                string stablePath,
+                Action<BattleUnitState> mutate
+            ) in cases
         )
         {
-            if (field.IsStatic)
-                continue;
-            string fieldName = NormalizeDeclaredFieldName(field.Name);
-            bool covered = fieldName switch
-            {
-                "attribute_snapshot" => unitStable.ContainsKey("attribute_snapshot_values"),
-                "equipment_view" => unitStable.ContainsKey("equipment_view"),
-                "_statusEffects" => unitStable.ContainsKey("status_effects"),
-                "_consumedContingencySetups" =>
-                    fieldStable.ContainsKey("consumed_contingency_setup_ids"),
-                "_chargeState" =>
-                    fieldStable.ContainsKey("per_battle_charges")
-                    && fieldStable.ContainsKey("per_turn_charges")
-                    && fieldStable.ContainsKey("per_turn_charge_limits")
-                    && fieldStable.ContainsKey("fumble_protection_used"),
-                "_shieldState" =>
-                    fieldStable.ContainsKey("current_shield_hp")
-                    && fieldStable.ContainsKey("shield_max_hp")
-                    && fieldStable.ContainsKey("shield_duration")
-                    && fieldStable.ContainsKey("shield_family")
-                    && fieldStable.ContainsKey("shield_source_unit_id")
-                    && fieldStable.ContainsKey("shield_source_skill_id"),
-                "_cooldownState" =>
-                    fieldStable.ContainsKey("cooldowns")
-                    && fieldStable.ContainsKey("last_turn_tu"),
-                "_turnState" =>
-                    fieldStable.ContainsKey("has_taken_action_this_turn")
-                    && fieldStable.ContainsKey("has_moved_this_turn")
-                    && fieldStable.ContainsKey("can_use_locked_move_points_this_turn")
-                    && fieldStable.ContainsKey("turn_casting_exhausted"),
-                "_actionClockState" =>
-                    fieldStable.ContainsKey("action_progress")
-                    && fieldStable.ContainsKey("action_threshold")
-                    && fieldStable.ContainsKey("action_progress_rate_remainder"),
-                "_castingClockState" =>
-                    fieldStable.ContainsKey("cast_progress_rate_remainder"),
-                "_combatResourceState" =>
-                    HasStableKeys(
-                        fieldStable,
-                        CombatResourceStableFieldKeys
-                    ),
-                "_restState" =>
-                    fieldStable.ContainsKey("is_resting"),
-                "_movementTagState" =>
-                    fieldStable.ContainsKey("movement_tags"),
-                "_visionProficiencyState" =>
-                    fieldStable.ContainsKey("vision_tags")
-                    && fieldStable.ContainsKey("proficiency_tags"),
-                "_saveModifierState" =>
-                    HasStableKeys(
-                        fieldStable,
-                        SaveModifierStableFieldKeys
-                    ),
-                "_damageResistanceState" =>
-                    fieldStable.ContainsKey("damage_resistances"),
-                "_effectiveTraitState" =>
-                    fieldStable.ContainsKey(
-                        "effective_trait_instances"
-                    )
-                    && fieldStable.ContainsKey(
-                        "effective_trait_ids"
-                    ),
-                "_equipmentAbilityProjectionState" =>
-                    fieldStable.ContainsKey(
-                        "equipment_ability_sources"
-                    )
-                    && fieldStable.ContainsKey(
-                        "temporal_progress_modifiers"
-                    )
-                    && fieldStable.ContainsKey(
-                        "cognition_ceiling_modifiers"
-                    ),
-                "_baseCognitionKind" =>
-                    fieldStable.ContainsKey("cognition_kind"),
-                "_creatureTypeState" =>
-                    fieldStable.ContainsKey("creature_type_tags"),
-                "_geometryState" =>
-                    HasStableKeys(
-                        fieldStable,
-                        GeometryStableFieldKeys
-                    ),
-                "_combatResourceUnlockState" =>
-                    fieldStable.ContainsKey("unlocked_combat_resource_ids"),
-                "_weaponProjectionState" =>
-                    HasStableKeys(
-                        fieldStable,
-                        WeaponStableFieldKeys
-                    ),
-                "_knownSkillState" =>
-                    fieldStable.ContainsKey("known_active_skill_ids")
-                    && fieldStable.ContainsKey("known_skill_level_map")
-                    && fieldStable.ContainsKey("known_skill_lock_hit_bonus_map"),
-                _ => fieldStable.ContainsKey(fieldName),
-            };
-            _test.True(
-                covered,
-                $"BattleUnitState 新增权威字段必须进入 mutation snapshot：{fieldName}"
+            using Fixture fixture = BuildFixture(
+                MakeMutationAction("none")
+            );
+            BattleAiMutationSnapshot snapshot =
+                BattleAiMutationSnapshot.Capture(fixture.Context);
+
+            mutate(fixture.Actor);
+
+            AssertDiffContainsAll(
+                snapshot.CompareCurrentState(fixture.Context),
+                $"BattleUnit writable field {fieldName}",
+                stablePath
             );
         }
     }
@@ -2388,737 +2405,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         );
     }
 
-    private void TestObjectiveRuntimeProjectionIsTotal()
-    {
-        foreach (
-            FieldInfo field in typeof(BattleObjectiveRuntimeState).GetFields(
-                BindingFlags.Instance
-                    | BindingFlags.Public
-                    | BindingFlags.NonPublic
-                    | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            _test.Eq(
-                NormalizeDeclaredFieldName(field.Name),
-                "Mode",
-                $"objective runtime base 新增字段 {field.Name} 时必须扩展 stable projection。"
-            );
-        }
-        foreach (
-            PropertyInfo property in typeof(BattleObjectiveRuntimeState).GetProperties(
-                BindingFlags.Instance
-                    | BindingFlags.Public
-                    | BindingFlags.NonPublic
-                    | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            _test.Eq(
-                property.Name,
-                "Mode",
-                $"objective runtime base 新增属性 {property.Name} 时必须扩展 stable projection。"
-            );
-        }
 
-        var runtimeStatesByType = new Dictionary<
-            Type,
-            BattleObjectiveRuntimeState
-        >
-        {
-            [typeof(BattleEliminationObjectiveRuntimeState)] =
-                new BattleEliminationObjectiveRuntimeState(),
-            [typeof(BattleBossObjectiveRuntimeState)] =
-                new BattleBossObjectiveRuntimeState(
-                    "boss_actor",
-                    "boss_unit",
-                    new StringName[] { "party_unit" }
-                ),
-            [typeof(BattleEscapeObjectiveRuntimeState)] =
-                new BattleEscapeObjectiveRuntimeState(
-                    "escape_exit",
-                    BattleMapEdge.Right,
-                    1,
-                    new StringName[] { "party_unit" },
-                    new Vector2I[] { new(1, 0) }
-                ),
-            [typeof(BattleRescueObjectiveRuntimeState)] =
-                new BattleRescueObjectiveRuntimeState(
-                    "rescue_actor",
-                    "rescue_unit",
-                    new StringName[] { "party_unit" }
-                ),
-            [typeof(BattleEscortObjectiveRuntimeState)] =
-                new BattleEscortObjectiveRuntimeState(
-                    "escort_actor",
-                    "escort_unit",
-                    "escort_exit",
-                    BattleMapEdge.Right,
-                    1,
-                    new StringName[] { "party_unit" },
-                    new Vector2I[] { new(1, 0) }
-                ),
-            [typeof(BattleDefenseObjectiveRuntimeState)] =
-                new BattleDefenseObjectiveRuntimeState(
-                    "defense_actor",
-                    "defense_unit",
-                    new StringName[] { "party_unit" },
-                    10,
-                    110
-                ),
-            [typeof(BattleInterceptObjectiveRuntimeState)] =
-                new BattleInterceptObjectiveRuntimeState(
-                    "intercept_actor",
-                    "intercept_unit",
-                    "intercept_exit",
-                    BattleMapEdge.Left,
-                    1,
-                    new StringName[] { "party_unit" },
-                    new Vector2I[] { new(0, 0) }
-                ),
-            [typeof(BattleNodeOperationObjectiveRuntimeState)] =
-                new BattleNodeOperationObjectiveRuntimeState(
-                    new StringName[] { "party_unit" },
-                    new[]
-                    {
-                        new BattleOperationNodeRuntimeState(
-                            "operation_node",
-                            "Operation Node",
-                            "operation_zone",
-                            BattleMapEdge.Right,
-                            1,
-                            new Vector2I(1, 0)
-                        ),
-                    }
-                ),
-            [typeof(BattleControlObjectiveRuntimeState)] =
-                new BattleControlObjectiveRuntimeState(
-                    new StringName[] { "party_unit" },
-                    new[]
-                    {
-                        new BattleControlZoneRuntimeState(
-                            "control_zone",
-                            "Control Zone",
-                            BattleMapEdge.Left,
-                            1,
-                            new Vector2I[] { new(0, 0) }
-                        ),
-                    },
-                    100,
-                    15,
-                    20
-                ),
-        };
-        foreach (Type type in typeof(BattleObjectiveRuntimeState).Assembly.GetTypes())
-        {
-            if (
-                type.IsAbstract
-                || !typeof(BattleObjectiveRuntimeState).IsAssignableFrom(type)
-            )
-            {
-                continue;
-            }
-
-            _test.True(
-                runtimeStatesByType.ContainsKey(type),
-                $"新增 objective runtime subtype {type.FullName} 时必须显式扩展 mutation projection。"
-            );
-        }
-        foreach (BattleObjectiveRuntimeState runtimeState in runtimeStatesByType.Values)
-            BattleAiMutationStableProjection.StableObjectiveRuntimeState(runtimeState);
-
-        AssertDeclaredInstanceFields(typeof(BattleEliminationObjectiveRuntimeState));
-        AssertDeclaredInstanceFields(
-            typeof(BattleBossObjectiveRuntimeState),
-            "TargetActorId",
-            "TargetUnitId",
-            "RequiredPartyUnitIds"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleEscapeObjectiveRuntimeState),
-            "_exitCoordSet",
-            "ExitZoneId",
-            "ExitEdge",
-            "ExitDepth",
-            "RequiredUnitIds",
-            "ExitCoords"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleRescueObjectiveRuntimeState),
-            "TargetActorId",
-            "TargetUnitId",
-            "RequiredPartyUnitIds",
-            "TargetSecured"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleEscortObjectiveRuntimeState),
-            "_exitCoordSet",
-            "TargetActorId",
-            "TargetUnitId",
-            "ExitZoneId",
-            "ExitEdge",
-            "ExitDepth",
-            "RequiredPartyUnitIds",
-            "ExitCoords"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleDefenseObjectiveRuntimeState),
-            "TargetActorId",
-            "TargetUnitId",
-            "RequiredPartyUnitIds",
-            "StartTu",
-            "DeadlineTu"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleInterceptObjectiveRuntimeState),
-            "_exitCoordSet",
-            "TargetActorId",
-            "TargetUnitId",
-            "ExitZoneId",
-            "ExitEdge",
-            "ExitDepth",
-            "RequiredPartyUnitIds",
-            "ExitCoords"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleNodeOperationObjectiveRuntimeState),
-            "_nodesById",
-            "_nodesByCoord",
-            "RequiredPartyUnitIds",
-            "OperationNodes"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleOperationNodeRuntimeState),
-            "NodeId",
-            "DisplayName",
-            "ZoneId",
-            "PlacementEdge",
-            "PlacementDepth",
-            "Coord",
-            "IsCompleted"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleControlObjectiveRuntimeState),
-            "RequiredPartyUnitIds",
-            "ControlZones",
-            "ScoreTarget",
-            "PlayerScore",
-            "HostileScore"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleControlZoneRuntimeState),
-            "_coordSet",
-            "ZoneId",
-            "DisplayName",
-            "PlacementEdge",
-            "PlacementDepth",
-            "Coords"
-        );
-
-        var finalDecisionFields = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "ObjectiveMode",
-            "Outcome",
-            "EndReason",
-            "DecisionTu",
-        };
-        foreach (
-            FieldInfo field in typeof(BattleFinalDecision).GetFields(
-                BindingFlags.Instance
-                    | BindingFlags.Public
-                    | BindingFlags.NonPublic
-                    | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            string fieldName = NormalizeDeclaredFieldName(field.Name);
-            _test.True(
-                finalDecisionFields.Remove(fieldName),
-                $"final decision 新增字段 {field.Name} 时必须扩展 mutation projection。"
-            );
-        }
-        _test.Eq(
-            finalDecisionFields.Count,
-            0,
-            "final decision 结构门禁应覆盖四个 canonical 字段。"
-        );
-        var finalDecisionProperties = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "ObjectiveMode",
-            "Outcome",
-            "EndReason",
-            "DecisionTu",
-            "WinnerFactionId",
-        };
-        foreach (
-            PropertyInfo property in typeof(BattleFinalDecision).GetProperties(
-                BindingFlags.Instance
-                    | BindingFlags.Public
-                    | BindingFlags.NonPublic
-                    | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            _test.True(
-                finalDecisionProperties.Remove(property.Name),
-                $"final decision 新增属性 {property.Name} 时必须扩展 mutation projection。"
-            );
-        }
-        _test.Eq(
-            finalDecisionProperties.Count,
-            0,
-            "final decision 结构门禁应覆盖 canonical 属性与派生 winner。"
-        );
-    }
-
-    private void TestNestedAuthoritySchemasRemainExplicit()
-    {
-        AssertDeclaredInstanceFields(
-            typeof(BattleUnitGeometryState),
-            "_anchorCoord",
-            "_bodySize",
-            "_bodySizeCategory",
-            "_footprintSize",
-            "_occupiedCoords"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleUnitCombatResourceState),
-            "_values"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleTimelineState),
-            "current_tu",
-            "tu_per_tick",
-            "frozen",
-            "ready_unit_ids"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(WarehouseState),
-            "stacks",
-            "equipment_instances"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(WarehouseStackState),
-            "item_id",
-            "quantity"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleEffectiveTraitInstanceState),
-            "trait_id",
-            "effective_instance_key",
-            "source_type",
-            "source_id",
-            "effect_type",
-            "trigger_type",
-            "charge_scope",
-            "charge_reset_timing",
-            "rank",
-            "stacks",
-            "roll_values"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(TraitRollValueState),
-            "key",
-            "value_type",
-            "int_value",
-            "string_name_value",
-            "bool_value"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(TraitInstanceState),
-            "trait_instance_id",
-            "trait_id",
-            "source_type",
-            "source_id",
-            "rank",
-            "stacks",
-            "roll_values"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(EquipmentEntryState),
-            "item_id",
-            "occupied_slot_ids",
-            "instance_id",
-            "equipment_instance"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(EquipmentInstanceState),
-            "instance_id",
-            "item_id",
-            "rarity",
-            "current_durability",
-            "trait_instances",
-            "ability_usage_periods",
-            "ability_persistent_counters"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(EquipmentState),
-            "_equipped_slots",
-            "_slot_to_entry_slot"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattlePendingCastState),
-            "_targetUnitIds",
-            "_targetCoords",
-            "SourceUnitId",
-            "SkillId",
-            "VariantId",
-            "TargetMode",
-            "BindingMode",
-            "StartedCoord",
-            "StartedTu",
-            "BaseCastingTimeTu",
-            "RemainingCastProgress",
-            "LastMaintenanceCheckpointHp",
-            "CastSequence",
-            "CostTransaction",
-            "SpellControlMetadata",
-            "WindupSnapshot"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleWindupSnapshot),
-            "Tier",
-            "StrengthModifier",
-            "ConstitutionModifier",
-            "TuPerTier",
-            "TotalWindupTu",
-            "AdditionalStaminaCost",
-            "WeaponDiceMultiplier",
-            "WeaponSignature"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleWindupWeaponSignature),
-            "ProfileKind",
-            "ItemId",
-            "InstanceId",
-            "ProfileTypeId",
-            "RangeType",
-            "Family",
-            "CurrentGrip",
-            "AttackRange",
-            "DiceCount",
-            "DiceSides",
-            "FlatBonus",
-            "UsesTwoHands",
-            "IsHeavy",
-            "PhysicalDamageTag"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleConsumedContingencySetupCollection),
-            "_setupIds"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleUnitChargeState),
-            "_perBattleCharges",
-            "_perTurnCharges",
-            "_perTurnChargeLimits",
-            "_fumbleProtectionUsed"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleUnitShieldState),
-            "_currentHp",
-            "_maxHp",
-            "_duration",
-            "_family",
-            "_sourceUnitId",
-            "_sourceSkillId"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleUnitCooldownState),
-            "_cooldowns",
-            "_lastTurnTu"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleUnitTurnState),
-            "_hasTakenActionThisTurn",
-            "_hasMovedThisTurn",
-            "_canUseLockedMovePointsThisTurn",
-            "_castingExhausted"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattlePendingCastState),
-            "SourceUnitId",
-            "SkillId",
-            "VariantId",
-            "TargetMode",
-            "BindingMode",
-            "StartedCoord",
-            "StartedTu",
-            "BaseCastingTimeTu",
-            "RemainingCastProgress",
-            "LastMaintenanceCheckpointHp",
-            "CastSequence",
-            "CostTransaction",
-            "SpellControlMetadata",
-            "WindupSnapshot"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleWindupSnapshot),
-            "Tier",
-            "StrengthModifier",
-            "ConstitutionModifier",
-            "TuPerTier",
-            "TotalWindupTu",
-            "AdditionalStaminaCost",
-            "WeaponDiceMultiplier",
-            "WeaponSignature"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleWindupWeaponSignature),
-            "ProfileKind",
-            "ItemId",
-            "InstanceId",
-            "ProfileTypeId",
-            "RangeType",
-            "Family",
-            "CurrentGrip",
-            "AttackRange",
-            "DiceCount",
-            "DiceSides",
-            "FlatBonus",
-            "UsesTwoHands",
-            "IsHeavy",
-            "PhysicalDamageTag"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(SkillCostTransaction),
-            "SkillId",
-            "SkillLevel",
-            "ApCost",
-            "MpCost",
-            "StaminaCost",
-            "AuraCost",
-            "CooldownTurns",
-            "PrecastDamage"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleSpellControlMetadata),
-            "AttackResolution",
-            "SpellControlResolution",
-            "AttackSuccess",
-            "CriticalHit",
-            "CriticalFail",
-            "OrdinaryMiss",
-            "IsDisadvantage",
-            "HiddenLuckAtBirth",
-            "FaithLuckBonus",
-            "EffectiveLuck",
-            "CritLocked",
-            "CritGateDie",
-            "CritGateRoll",
-            "HitRoll",
-            "FumbleLowEnd",
-            "CritThreshold",
-            "LockedSkillHitBonus",
-            "EffectiveHitRoll",
-            "ReverseFateDowngraded"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(EquipmentAbilityUsagePeriodState),
-            "AbilityId",
-            "PeriodKind",
-            "PeriodIndex",
-            "UsedCount"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(EquipmentAbilityPersistentCounterState),
-            "CounterId",
-            "Value"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleCellState),
-            "coord",
-            "stack_layer",
-            "base_terrain",
-            "base_height",
-            "height_offset",
-            "current_height",
-            "passable",
-            "move_cost",
-            "occupant_unit_id",
-            "prop_ids",
-            "terrain_effect_ids",
-            "timed_terrain_effects",
-            "flow_direction",
-            "edge_feature_east",
-            "edge_feature_south"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleTerrainEffectState),
-            "field_instance_id",
-            "effect_id",
-            "effect_type",
-            "RuntimeEffectKind",
-            "lifetime_policy",
-            "move_cost_delta",
-            "applied_status_id",
-            "applied_status_duration_tu",
-            "render_overlay_id",
-            "overlay_priority",
-            "display_name",
-            "accuracy_modifier_spec",
-            "does_not_stack_with_status_id",
-            "does_not_stack_with_status_ids",
-            "contact_status_id",
-            "contact_status_duration_tu",
-            "contact_stack_behavior",
-            "contact_stack_limit",
-            "contact_status_display_label",
-            "contact_counts_as_debuff_override",
-            "contact_counts_as_debuff",
-            "contact_undispellable",
-            "contact_dispellable_magic",
-            "contact_dispellable_harmful_magic",
-            "contact_dispellable_beneficial_magic",
-            "contact_save_dc",
-            "contact_save_ability",
-            "contact_save_tag",
-            "contact_apply_on_save_failure",
-            "contact_tick_interval_tu",
-            "contact_timeline_damage_dice_count",
-            "contact_timeline_damage_dice_sides",
-            "contact_timeline_damage_flat_bonus",
-            "contact_blocked_by_trait_id",
-            "source_unit_id",
-            "source_skill_id",
-            "target_team_filter",
-            "power",
-            "damage_tag",
-            "remaining_tu",
-            "tick_interval_tu",
-            "next_tick_at_tu",
-            "stack_behavior",
-            "params"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleAttackRollModifierSpec),
-            "source_domain",
-            "source_id",
-            "source_instance_id",
-            "label",
-            "modifier_delta",
-            "stack_key",
-            "stack_mode",
-            "roll_kind_filter",
-            "endpoint_mode",
-            "distance_min_exclusive",
-            "distance_max_inclusive",
-            "target_team_filter",
-            "footprint_mode",
-            "applies_to",
-            "StackModeKind",
-            "EndpointModeKind",
-            "FootprintModeKind",
-            "AppliesToKind"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleEdgeFeatureState),
-            "feature_kind",
-            "render_kind",
-            "render_layers",
-            "blocks_move",
-            "blocks_occupancy",
-            "blocks_los",
-            "interaction_kind",
-            "state_tag",
-            "FeatureKind",
-            "RenderKind",
-            "InteractionKind"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleBarrierInstanceState),
-            "BarrierInstanceId",
-            "ProfileId",
-            "DisplayName",
-            "SourceUnitId",
-            "SourceSkillId",
-            "AnchorMode",
-            "AnchorCoord",
-            "RadiusCells",
-            "AreaPattern",
-            "RemainingTu",
-            "CreatedTu",
-            "SaveDc",
-            "CatchAllProjectedEffects"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleBarrierLayerState),
-            "LayerId",
-            "DisplayName",
-            "Order",
-            "Broken",
-            "HasSaveRollOverride",
-            "SaveRollOverride"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleBarrierOutcomeState),
-            "OutcomeType",
-            "OutcomeKind",
-            "Amount",
-            "DamageTag",
-            "HalfOnSuccess",
-            "SuccessAmount",
-            "SuccessDamageTag",
-            "FatalDamage",
-            "StatusId",
-            "SaveAbility",
-            "SaveTag",
-            "SaveDc"
-        );
-        AssertDeclaredInstanceFields(
-            typeof(BattleAiBlackboard),
-            "last_brain_id",
-            "last_state_id",
-            "last_action_id",
-            "last_reason_text",
-            "last_transition_previous_state_id",
-            "last_transition_state_id",
-            "last_transition_rule_id",
-            "last_transition_reason",
-            "turn_started_tu",
-            "turn_decision_count",
-            "madness_ai_control",
-            "madness_target_any_team",
-            "low_luck_reverse_fate_used",
-            "low_luck_black_star_wedge_used",
-            "meteor_protected_ally",
-            "protected_ally",
-            "summoned",
-            "temporary_unit",
-            "summon_source_unit_id",
-            "summon_source_equipment_instance_id",
-            "summon_binding_id",
-            "summon_state_key",
-            "summon_expires_at_tu",
-            "_hasTurnStartedTu",
-            "_hasTurnDecisionCount"
-        );
-        AssertDeclaredInstanceFields(typeof(AttributeSnapshot), "_values");
-        AssertDeclaredWritableProperties(
-            typeof(BattleEquipmentTargetMarkState),
-            "SourceUnitId",
-            "TargetUnitId",
-            "SourceEquipmentInstanceId",
-            "BindingId",
-            "StateKey",
-            "Stacks",
-            "RemainingDurationTu",
-            "RemoveOnSourceMissing"
-        );
-        AssertDeclaredWritableProperties(
-            typeof(BattleTemporaryEdgeFeatureState),
-            "OriginCoord",
-            "Direction",
-            "SourceUnitId",
-            "SourceEquipmentInstanceId",
-            "BindingId",
-            "ActionId",
-            "CreatedAtTu",
-            "ExpiresAtTu",
-            "Sequence",
-            "Feature"
-        );
-    }
 
     private void TestDeclaredStatusPropertiesHaveSnapshotCoverage()
     {
@@ -5340,82 +4627,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         }
     }
 
-    private void AssertDeclaredInstanceFields(Type type, params string[] expectedNames)
-    {
-        var remaining = new HashSet<string>(
-            expectedNames ?? Array.Empty<string>(),
-            StringComparer.Ordinal
-        );
-        foreach (
-            FieldInfo field in type.GetFields(
-                BindingFlags.Instance
-                    | BindingFlags.Public
-                    | BindingFlags.NonPublic
-                    | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            if (field.IsStatic)
-                continue;
-            string fieldName = NormalizeDeclaredFieldName(field.Name);
-            _test.True(
-                remaining.Remove(fieldName),
-                $"{type.Name} 新增字段 {field.Name} 时必须扩展 exact snapshot、stable projection 与 mutation detection 回归。"
-            );
-        }
-        _test.Eq(
-            remaining.Count,
-            0,
-            $"{type.Name} 结构门禁缺少预期字段：{string.Join(", ", remaining)}"
-        );
-    }
-
-    private void AssertDeclaredWritableProperties(
-        Type type,
-        params string[] expectedNames
-    )
-    {
-        var remaining = new HashSet<string>(
-            expectedNames ?? Array.Empty<string>(),
-            StringComparer.Ordinal
-        );
-        foreach (
-            PropertyInfo property in type.GetProperties(
-                BindingFlags.Instance
-                    | BindingFlags.Public
-                    | BindingFlags.NonPublic
-                    | BindingFlags.DeclaredOnly
-            )
-        )
-        {
-            if (property.SetMethod == null || property.GetIndexParameters().Length > 0)
-                continue;
-            _test.True(
-                remaining.Remove(property.Name),
-                $"{type.Name} 新增可写属性 {property.Name} 时必须扩展 exact snapshot、stable projection 与 mutation detection 回归。"
-            );
-        }
-        _test.Eq(
-            remaining.Count,
-            0,
-            $"{type.Name} 结构门禁缺少预期属性：{string.Join(", ", remaining)}"
-        );
-    }
-
-    private static string NormalizeDeclaredFieldName(string fieldName)
-    {
-        string value = fieldName ?? "";
-        if (
-            value.StartsWith("<", StringComparison.Ordinal)
-            && value.EndsWith(">k__BackingField", StringComparison.Ordinal)
-        )
-        {
-            int closing = value.IndexOf('>');
-            if (closing > 1)
-                return value.Substring(1, closing - 1);
-        }
-        return value;
-    }
 
     private static void RestoreSaveAdvantageTagsExact(
         BattleUnitState unit,

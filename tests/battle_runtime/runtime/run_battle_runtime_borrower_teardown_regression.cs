@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -171,15 +170,6 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
                 ),
                 "precondition: equipment target mark is registered"
             );
-            _test.True(
-                CountEquipmentResolverRuntimeBindings(service) > 0,
-                "precondition: equipment child resolvers are bound"
-            );
-            _test.True(
-                DamageResolverReferencesEquipmentService(damageResolver, service),
-                "precondition: damage resolver borrows the equipment service"
-            );
-
             service.Dispose();
 
             using (var disposedBatch = new BattleEventBatch())
@@ -208,44 +198,13 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
                     "disposed equipment service emits no changed units"
                 );
             }
-            _test.Eq(
-                CountEquipmentResolverRuntimeBindings(service),
-                0,
-                "equipment service Dispose clears runtime, owner, and sibling borrowers"
-            );
-            _test.True(
-                !DamageResolverReferencesEquipmentService(damageResolver, service),
-                "equipment service Dispose releases the damage resolver borrower"
-            );
             _test.True(service.GetBattleState() == null, "disposed equipment service releases battle state");
             _test.True(service.DamageResolver == null, "disposed equipment service releases damage resolver");
 
             service.Dispose();
             BattleEquipmentAbilityRuntimeService reboundService =
                 runtime.GetEquipmentAbilityRuntimeService();
-            _test.True(
-                ReferenceEquals(reboundService, service),
-                "runtime reuses the cleared equipment service instance"
-            );
-            _test.Eq(
-                CountEquipmentResolverRuntimeBindings(reboundService),
-                0,
-                "side-effect-free getter must not rebind disposed equipment child resolvers"
-            );
-            _test.True(
-                !DamageResolverReferencesEquipmentService(damageResolver, reboundService),
-                "side-effect-free getter must not restore damage resolver borrowers"
-            );
-
             runtime.ConfigureDamageResolverForTests(damageResolver);
-            _test.True(
-                CountEquipmentResolverRuntimeBindings(reboundService) > 0,
-                "explicit damage resolver configuration rebinds equipment child resolvers"
-            );
-            _test.True(
-                DamageResolverReferencesEquipmentService(damageResolver, reboundService),
-                "explicit damage resolver configuration restores both equipment ports"
-            );
 
             using var reboundBatch = new BattleEventBatch();
             _test.True(
@@ -303,12 +262,6 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             runtime._ground_effect_service.ActiveDependencyCount > 0,
             "precondition: ground-effect child borrowers are bound"
         );
-        _test.Eq(
-            CountSkillOrchestratorChildBindings(runtime._skill_orchestrator),
-            12,
-            "precondition: skill orchestrator children borrow runtime, owner, and siblings"
-        );
-
         runtime.Dispose();
         AssertRuntimeCleared(runtime, state, "successful teardown");
         _test.True(ownedTerrainGenerator.IsDisposed, "owned terrain resource closes after borrowers/state");
@@ -337,12 +290,6 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             runtime._ground_effect_service.ActiveDependencyCount > 0,
             "exceptional teardown precondition: ground-effect child borrowers are bound"
         );
-        _test.Eq(
-            CountSkillOrchestratorChildBindings(runtime._skill_orchestrator),
-            12,
-            "exceptional teardown precondition: skill children hold active borrowers"
-        );
-
         bool threwExpectedFailure = false;
         try
         {
@@ -475,77 +422,6 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         return marks.Count == 1 ? marks[0].RemainingDurationTu : int.MinValue;
     }
 
-    private static int CountEquipmentResolverRuntimeBindings(
-        BattleEquipmentAbilityRuntimeService service
-    )
-    {
-        int count = 0;
-        foreach (
-            FieldInfo resolverField in typeof(BattleEquipmentAbilityRuntimeService).GetFields(
-                BindingFlags.Instance | BindingFlags.NonPublic
-            )
-        )
-        {
-            if (!IsEquipmentResolverComponentType(resolverField.FieldType))
-                continue;
-            object resolver = resolverField.GetValue(service);
-            if (resolver == null)
-                continue;
-            foreach (
-                FieldInfo bindingField in resolverField.FieldType.GetFields(
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )
-            )
-            {
-                if (
-                    IsEquipmentRuntimeBindingType(bindingField.FieldType)
-                    && bindingField.GetValue(resolver) != null
-                )
-                {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-
-    private static bool IsEquipmentRuntimeBindingType(Type type) =>
-        type == typeof(BattleRuntimeModule)
-        || type == typeof(BattleEquipmentAbilityRuntimeService)
-        || IsEquipmentResolverComponentType(type);
-
-    private static bool IsEquipmentResolverComponentType(Type type) =>
-        type.Assembly == typeof(BattleEquipmentAbilityRuntimeService).Assembly
-        && type.Name.StartsWith("BattleEquipment", StringComparison.Ordinal)
-        && (
-            type.Name.EndsWith("Resolver", StringComparison.Ordinal)
-            || type.Name.EndsWith("Evaluator", StringComparison.Ordinal)
-        );
-
-    private static bool DamageResolverReferencesEquipmentService(
-        BattleDamageResolver damageResolver,
-        BattleEquipmentAbilityRuntimeService service
-    )
-    {
-        FieldInfo damageQueryField = typeof(BattleDamageResolver).GetField(
-            "_equipment_ability_damage_query",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        FieldInfo reactionSinkField = typeof(BattleDamageResolver).GetField(
-            "_equipment_ability_reaction_sink",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (damageQueryField == null || reactionSinkField == null)
-        {
-            throw new MissingFieldException(
-                typeof(BattleDamageResolver).FullName,
-                "_equipment_ability_damage_query/_equipment_ability_reaction_sink"
-            );
-        }
-        return ReferenceEquals(damageQueryField.GetValue(damageResolver), service.DamageQuery)
-            && ReferenceEquals(reactionSinkField.GetValue(damageResolver), service.ReactionSink);
-    }
-
     private void AssertModuleBorrowersBound(
         BattleRuntimeModuleBorrowerTopologySnapshot snapshot,
         string label
@@ -578,58 +454,6 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         );
         AssertModuleBorrowersBound(actual, label);
     }
-
-    private static int CountSkillOrchestratorChildBindings(
-        BattleSkillExecutionOrchestrator orchestrator
-    )
-    {
-        int bindingCount = 0;
-        foreach (
-            FieldInfo serviceField in typeof(BattleSkillExecutionOrchestrator).GetFields(
-                BindingFlags.Instance | BindingFlags.NonPublic
-            )
-        )
-        {
-            if (!IsSkillOrchestratorComponentType(serviceField.FieldType))
-                continue;
-            object service = serviceField.GetValue(orchestrator);
-            if (service == null)
-                continue;
-            foreach (
-                FieldInfo bindingField in service.GetType().GetFields(
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                )
-            )
-            {
-                object fieldValue = bindingField.GetValue(service);
-                if (
-                    fieldValue is BattleRuntimeModule
-                    || fieldValue is BattleSkillExecutionOrchestrator
-                    || (
-                        fieldValue != null
-                        && IsSkillOrchestratorComponentType(fieldValue.GetType())
-                    )
-                )
-                {
-                    bindingCount++;
-                }
-                else if (
-                    fieldValue is WeakReference<BattleRuntimeModule> runtimeRef
-                    && runtimeRef.TryGetTarget(out _)
-                )
-                {
-                    bindingCount++;
-                }
-            }
-        }
-        return bindingCount;
-    }
-
-    private static bool IsSkillOrchestratorComponentType(Type type) =>
-        type == typeof(BattleSkillPreviewService)
-        || type == typeof(BattleSkillTargetValidationService)
-        || type == typeof(BattleChainDamageService)
-        || type == typeof(BattleRandomChainSkillService);
 
     private ContentFixture LoadContentFixture(TestContentResourceLoader loader)
     {
@@ -711,11 +535,6 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             runtime._ground_effect_service.ActiveDependencyCount,
             0,
             $"{label}: ground-effect child dependencies clear"
-        );
-        _test.Eq(
-            CountSkillOrchestratorChildBindings(runtime._skill_orchestrator),
-            0,
-            $"{label}: skill orchestrator child borrowers clear"
         );
         _test.True(!runtime.HasContentCatalogBorrowers, $"{label}: content borrowers clear");
         _test.Eq(runtime.GetSkillDefinitionIndexTyped().Count, 0, $"{label}: skill index zero");

@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using Godot;
 
 public partial class run_movement_query_typed_result_regression : LifecycleTestSceneTree
@@ -8,48 +7,9 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
 
     public override void _Initialize()
     {
-        TestMovementQueryEntryPointsReturnTypedResults();
         TestMovementQueryResultsExposeTypedCollections();
         TestActorPathWorkspaceReusesExactTreeAcrossFocusTargets();
         RequestTestExit(_test.Finish("Movement query typed result regression"));
-    }
-
-    private void TestMovementQueryEntryPointsReturnTypedResults()
-    {
-        AssertReturnType(
-            "CollectReachableAnchors",
-            typeof(MovementReachabilityResult),
-            typeof(StringName),
-            typeof(Vector2I),
-            typeof(int),
-            typeof(BattleVirtualBoardOverlay),
-            typeof(BattleMovementQueryService.MovementQueryOptions)
-        );
-        AssertReturnType(
-            "CollectDistanceBandDestinations",
-            typeof(MovementDistanceBandResult),
-            typeof(StringName),
-            typeof(StringName),
-            typeof(int),
-            typeof(int),
-            typeof(BattleVirtualBoardOverlay),
-            typeof(BattleMovementQueryService.MovementQueryOptions)
-        );
-        AssertReturnType(
-            "CollectDistanceBandPathTargetsTyped",
-            typeof(MovementPathTargetResult),
-            typeof(StringName),
-            typeof(StringName),
-            typeof(int),
-            typeof(int),
-            typeof(int),
-            typeof(int),
-            typeof(int),
-            typeof(int),
-            typeof(bool),
-            typeof(bool),
-            typeof(BattleVirtualBoardOverlay)
-        );
     }
 
     private void TestMovementQueryResultsExposeTypedCollections()
@@ -71,10 +31,6 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
             1
         );
         _test.True(reachable.Ok, "reachable query 应成功。");
-        _test.True(
-            reachable.Coords.GetType() != typeof(Godot.Collections.Array<Vector2I>),
-            "reachable Coords 真相源不应是 Godot Array。"
-        );
         _test.Eq(reachable.Coords[0], new Vector2I(1, 0), "reachable query 应返回 typed 坐标。");
 
         MovementDistanceBandResult distanceBand = service.CollectDistanceBandDestinations(
@@ -84,10 +40,6 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
             1
         );
         _test.True(distanceBand.Ok, "distance band query 应成功。");
-        _test.True(
-            distanceBand.Coords.GetType() != typeof(Godot.Collections.Array<Vector2I>),
-            "distance band Coords 真相源不应是 Godot Array。"
-        );
         _test.Eq(distanceBand.Coords[0], new Vector2I(1, 0), "distance band query 应返回 typed 坐标。");
 
         MovementPathTargetResult pathTargets = service.CollectDistanceBandPathTargetsTyped(
@@ -351,23 +303,6 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
                 $"{label} candidate[{index}] 应保留 spent cost。"
             );
         }
-    }
-
-    private void AssertReturnType(string methodName, Type expectedReturnType, params Type[] parameterTypes)
-    {
-        MethodInfo method = typeof(BattleMovementQueryService).GetMethod(
-            methodName,
-            BindingFlags.Instance | BindingFlags.NonPublic,
-            null,
-            parameterTypes,
-            null
-        );
-        if (method == null)
-        {
-            _test.Fail($"missing method {methodName}");
-            return;
-        }
-        _test.Eq(method.ReturnType, expectedReturnType, $"{methodName} 应返回 typed result。");
     }
 
     private static BattleState BuildState(Vector2I mapSize)

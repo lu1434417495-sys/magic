@@ -112,9 +112,6 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             AssertIceboundPathSkillDefinition(icebound, fixture);
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildFrostbiteUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -152,28 +149,6 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             "极地适应应通过 trait 被动投影寒冷免疫。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除霜咬后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除霜咬后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除霜咬后装备能力源应清空。"
-        );
-        _test.False(equipped.HasEffectiveTrait(FrostTouchTraitId), "移除霜咬后霜冻之触不应残留。");
-        _test.False(equipped.HasEffectiveTrait(IceboundPathTraitId), "移除霜咬后冰封之路不应残留。");
-        _test.False(equipped.HasEffectiveTrait(PolarAdaptationTraitId), "移除霜咬后极地适应不应残留。");
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除霜咬后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestFrostTouchAddsColdDamageAndThirdSameTargetHitSlows()

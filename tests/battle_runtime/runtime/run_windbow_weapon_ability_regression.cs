@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -504,10 +503,6 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
         StringName bindingId
     )
     {
-        PropertyInfo attributeModifierIdProperty =
-            typeof(AttackRollBonusActionPayloadDefinition).GetProperty("AttributeModifierId");
-        if (attributeModifierIdProperty == null)
-            return false;
         if (bindings == null || !bindings.TryGetValue(bindingId, out EquipmentAbilityBindingDefinition binding))
             return false;
         foreach (EquipmentAbilityReactionDefinition reaction in binding?.Reactions ?? Array.Empty<EquipmentAbilityReactionDefinition>())
@@ -519,10 +514,8 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
                 {
                     continue;
                 }
-                StringName attributeModifierId =
-                    (StringName)(attributeModifierIdProperty.GetValue(payload) ?? new StringName(""));
                 if (
-                    attributeModifierId == PerceptionModifier
+                    payload.AttributeModifierId == PerceptionModifier
                     && payload.RequireWeaponDamage
                     && payload.TargetSelector == "attack_target"
                 )

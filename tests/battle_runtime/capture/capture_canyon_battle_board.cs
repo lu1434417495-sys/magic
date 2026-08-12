@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -23,10 +24,28 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
     private readonly BattleGridService _gridService = new();
     private readonly TestHarness _test = new();
 
-    public override async void _Initialize()
+    public override void _Initialize()
     {
-        int exitCode = await Run();
-        RequestTestExit(_test.Finish("Canyon battle board capture", exitCode));
+        RunAfterProcessStartup(RunDeferred);
+    }
+
+    private async void RunDeferred()
+    {
+        int exitCode = 1;
+        try
+        {
+            exitCode = await Run();
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"Unexpected canyon battle board capture exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(
+                _test.Finish("Canyon battle board capture", exitCode)
+            );
+        }
     }
 
     private async Task<int> Run()
@@ -35,63 +54,117 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
         BattleState state = BuildState(layout);
         Root.Size = ViewportSize;
 
-        var background = new ColorRect
+        ColorRect background = null;
+        BattleBoard2D board = null;
+        try
         {
-            Color = new Color(0.12f, 0.08f, 0.06f),
-            Size = ViewportSize,
-        };
-        Root.AddChild(background);
-
-        BattleBoard2D board = BattleBoardScene.Instantiate<BattleBoard2D>();
-        Root.AddChild(board);
-        await ProcessFrames(1);
-
-        Vector2I selectedCoord = layout.PlayerCoord;
-        board.SetViewportSize(ViewportSize);
-        board.Configure(
-            new BattleBoardSnapshotBuilder().Build(state),
-            selectedCoord,
-            new GVector2IArray(),
-            new GVector2IArray(),
-            "single_unit",
-            1,
-            1,
-            new Dictionary<Vector2I, string>()
-        );
-        if (!await WaitForBoardRenderReady(board))
-        {
-            ConsoleProcessOutput.WriteFailure("Battle board capture did not reach render-ready state before screenshot.");
-            return 1;
-        }
-        if (!ValidateUnitPlacement(state, "ally_capture", layout.PlayerCoord, "ally_capture"))
-            return 1;
-        if (!ValidateUnitPlacement(state, "enemy_capture", layout.EnemyCoord, "enemy_capture"))
-            return 1;
-
-        if (DisplayServer.GetName() == "headless")
-        {
-            Error signatureError = SaveHeadlessBoardSignature(board);
-            if (signatureError != Error.Ok)
+            background = new ColorRect
             {
-                ConsoleProcessOutput.WriteFailure("Failed to save battle board headless signature.");
+                Color = new Color(0.12f, 0.08f, 0.06f),
+                Size = ViewportSize,
+            };
+            Root.AddChild(background);
+
+            board = BattleBoardScene.Instantiate<BattleBoard2D>();
+            Root.AddChild(board);
+            await ProcessFrames(1);
+
+            Vector2I selectedCoord = layout.PlayerCoord;
+            board.SetViewportSize(ViewportSize);
+            board.Configure(
+                new BattleBoardSnapshotBuilder().Build(state),
+                selectedCoord,
+                new GVector2IArray(),
+                new GVector2IArray(),
+                "single_unit",
+                1,
+                1,
+                new Dictionary<Vector2I, string>()
+            );
+            if (!await WaitForBoardRenderReady(board))
+            {
+                ConsoleProcessOutput.WriteFailure("Battle board capture did not reach render-ready state before screenshot.");
                 return 1;
             }
-            ConsoleProcessOutput.WriteStandard(
-                $"Saved battle board headless signature to {ProjectSettings.GlobalizePath(HeadlessSignatureOutputPath)}"
-            );
+            if (!ValidateUnitPlacement(state, "ally_capture", layout.PlayerCoord, "ally_capture"))
+                return 1;
+            if (!ValidateUnitPlacement(state, "enemy_capture", layout.EnemyCoord, "enemy_capture"))
+                return 1;
+
+            if (DisplayServer.GetName() == "headless")
+            {
+                Error signatureError = SaveHeadlessBoardSignature(board);
+                if (signatureError != Error.Ok)
+                {
+                    ConsoleProcessOutput.WriteFailure("Failed to save battle board headless signature.");
+                    return 1;
+                }
+                ConsoleProcessOutput.WriteStandard(
+                    $"Saved battle board headless signature to {ProjectSettings.GlobalizePath(HeadlessSignatureOutputPath)}"
+                );
+                return 0;
+            }
+
+            Image image = Root.GetTexture().GetImage();
+            string outputPath = ProjectSettings.GlobalizePath(OutputPath);
+            Error saveError = image.SavePng(outputPath);
+            if (saveError != Error.Ok)
+            {
+                ConsoleProcessOutput.WriteFailure($"Failed to save battle board capture: {outputPath}");
+                return 1;
+            }
+            ConsoleProcessOutput.WriteStandard($"Saved battle board capture to {outputPath}");
             return 0;
         }
-
-        Image image = Root.GetTexture().GetImage();
-        string outputPath = ProjectSettings.GlobalizePath(OutputPath);
-        Error saveError = image.SavePng(outputPath);
-        if (saveError != Error.Ok)
+        finally
         {
-            ConsoleProcessOutput.WriteFailure($"Failed to save battle board capture: {outputPath}");
-            return 1;
+            await CleanupNodes(board, background);
         }
-        ConsoleProcessOutput.WriteStandard($"Saved battle board capture to {outputPath}");
-        return 0;
+    }
+
+    private async Task CleanupNodes(params Node[] nodes)
+    {
+        bool queuedForDeletion = false;
+        foreach (Node node in nodes)
+        {
+            try
+            {
+                queuedForDeletion = ReleaseNode(node) || queuedForDeletion;
+            }
+            catch (Exception exception)
+            {
+                _test.Fail(
+                    $"Canyon battle board capture node cleanup failed: {exception}"
+                );
+            }
+        }
+
+        if (!queuedForDeletion)
+            return;
+        try
+        {
+            await ProcessFrames(1);
+        }
+        catch (Exception exception)
+        {
+            _test.Fail(
+                $"Canyon battle board capture cleanup frame failed: {exception}"
+            );
+        }
+    }
+
+    private static bool ReleaseNode(Node node)
+    {
+        if (node == null || !GodotObject.IsInstanceValid(node))
+            return false;
+        if (!node.IsInsideTree())
+        {
+            node.Free();
+            return false;
+        }
+        if (!node.IsQueuedForDeletion())
+            node.QueueFree();
+        return true;
     }
 
     private BattleTerrainLayout BuildCanyonLayout()

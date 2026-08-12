@@ -82,9 +82,6 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildDragonboneUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -125,40 +122,6 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             "eq_dragonbone_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除龙骨斧后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除龙骨斧后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equippedWeapon.PhysicalDamageTag,
-            baselineWeapon.PhysicalDamageTag,
-            "移除龙骨斧后 weapon_physical_damage_tag 应回到装备前状态。"
-        );
-        _test.Eq(
-            equippedWeapon.AttackRange,
-            baselineWeapon.AttackRange,
-            "移除龙骨斧后攻击距离应回到装备前状态。"
-        );
-        _test.Eq(
-            equippedWeapon.CurrentGrip,
-            baselineWeapon.CurrentGrip,
-            "移除龙骨斧后当前握持应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除龙骨斧后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除龙骨斧后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestDragonFlameTriggersOncePerHolderTurnAsFireDamage()

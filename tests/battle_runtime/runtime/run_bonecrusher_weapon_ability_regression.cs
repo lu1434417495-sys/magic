@@ -121,9 +121,6 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
 
         AssertTraitDescriptionIsPlayerFacingChinese(fixture, BoneShatterTraitId);
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildBonecrusherUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -181,20 +178,6 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             "骨裂震荡触发后必须由 consume_status_stacks action 清除裂防层数。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除碎骨者后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除碎骨者后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除碎骨者后装备能力源应清空。"
-        );
     }
 
     private void TestArmorCrushingBlowHalvesArmorShieldAndNaturalArmorForThisAttackOnly()

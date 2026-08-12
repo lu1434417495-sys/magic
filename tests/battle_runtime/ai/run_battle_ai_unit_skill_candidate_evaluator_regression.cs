@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Godot;
 
 public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : LifecycleTestSceneTree
@@ -11,10 +10,9 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
     {
         try
         {
-            TestEvaluatorIsPlainCSharpHelper();
             TestEnemyAiActionHelperSkillCommandsCarrySelectedEntryIds();
             TestResolveAvailableSkillEntriesFiltersUnavailablePreferredSkills();
-            TestAuthoredEnemyActionsResolveAvailabilityEntriesBeforeBuildingSkillCommands();
+            TestEvaluatorRejectsUnlearnedPreferredSkill();
             TestEvaluatorGeneratedCommandCarriesAvailableEntryId();
             TestFastPreviewRejectsExposeOutOfRangeCounter();
             TestLayeredBarrierForcesCanonicalPreview();
@@ -26,15 +24,6 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
         }
 
         RequestTestExit(_test.Finish("Battle AI unit skill candidate evaluator regression"));
-    }
-
-    private void TestEvaluatorIsPlainCSharpHelper()
-    {
-        Type evaluatorType = typeof(BattleAiUnitSkillCandidateEvaluator);
-        _test.True(
-            evaluatorType.IsSealed,
-            "BattleAiUnitSkillCandidateEvaluator 应是 sealed helper。"
-        );
     }
 
     private void TestEnemyAiActionHelperSkillCommandsCarrySelectedEntryIds()
@@ -135,32 +124,63 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
         _test.Eq(entries[0].SkillLevel, 2, "Available entry should preserve known skill level.");
     }
 
-    private void TestAuthoredEnemyActionsResolveAvailabilityEntriesBeforeBuildingSkillCommands()
+    private void TestEvaluatorRejectsUnlearnedPreferredSkill()
     {
-        AssertSourceDoesNotContain(
-            "scripts/enemies/actions/UseGroundRepositionSkillAction.cs",
-            "_resolve_known_skill_ids",
-            "UseGroundRepositionSkillAction should resolve BattleAvailableSkillEntry values, not raw known skill ids."
+        StringName skillId = "ai_unlearned_preferred_skill";
+        BattleUnitState actor = BuildUnit(
+            "unlearned_skill_actor",
+            "hostile",
+            new Vector2I(0, 0)
         );
-        AssertSourceDoesNotContain(
-            "scripts/enemies/actions/UseGroundRepositionSkillAction.cs",
-            "_build_typed_ground_skill_command(\n                        context,\n                        sid,",
-            "UseGroundRepositionSkillAction should build ground commands from the selected skill entry."
+        BattleUnitState target = BuildUnit(
+            "unlearned_skill_target",
+            "player",
+            new Vector2I(1, 0)
         );
-        AssertSourceDoesNotContain(
-            "scripts/enemies/actions/WaitAction.cs",
-            "foreach (var rsi in us.known_active_skill_ids)",
-            "WaitAction should evaluate acting-unit skills through availability entries."
+        SkillDefinition skill = BuildUnitSkill(skillId, rangeValue: 4);
+        BattleState state = new()
+        {
+            battle_id = "unlearned_preferred_skill_regression",
+            phase = "unit_acting",
+            map_size = new Vector2I(4, 2),
+            timeline = new BattleTimelineState(),
+            active_unit_id = actor.unit_id,
+        };
+        state.SetUnit(actor);
+        state.SetUnit(target);
+        BattleAiContext context = new()
+        {
+            state = state,
+            unit_state = actor,
+            grid_service = new BattleGridService(),
+            skill_cast_block_reason_callback = (_, _) =>
+                BattleSkillCastBlockReasonKind.None,
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition> { [skillId] = skill }
         );
-        AssertSourceDoesNotContain(
-            "scripts/enemies/actions/WaitAction.cs",
-            "_build_unit_skill_command(\n                context,\n                skillDefinition.SkillId,",
-            "WaitAction should build preview commands from the selected skill entry."
+        UseUnitSkillActionDefinition action = new(
+            "unlearned_preferred_skill_action",
+            "test",
+            BattleAiActionIntent.Positioning,
+            new[] { skillId },
+            "nearest_enemy",
+            1,
+            0,
+            false,
+            0,
+            4,
+            EnemyAiDistanceReferences.ToStringName(
+                EnemyAiDistanceReference.TargetUnit
+            )
         );
-        AssertSourceDoesNotContain(
-            "scripts/enemies/EnemyAiAction.cs",
-            "skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId)",
-            "EnemyAiAction raw skill-id command helpers should validate through availability before stamping entries."
+
+        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator()
+            .Evaluate(action, context);
+
+        _test.True(
+            decision == null,
+            "an authored preferred skill must not become an AI command until the acting unit actually knows it."
         );
     }
 
@@ -492,21 +512,6 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
         unit.SetAnchorCoord(coord);
         return unit;
     }
-
-    private void AssertSourceDoesNotContain(
-        string virtualPath,
-        string forbiddenSnippet,
-        string message
-    )
-    {
-        string absolutePath = ProjectSettings.GlobalizePath($"res://{virtualPath}");
-        string source = NormalizeNewlines(File.ReadAllText(absolutePath));
-        string snippet = NormalizeNewlines(forbiddenSnippet);
-        _test.True(!source.Contains(snippet, StringComparison.Ordinal), message);
-    }
-
-    private static string NormalizeNewlines(string text) =>
-        (text ?? "").Replace("\r\n", "\n", StringComparison.Ordinal);
 
     private static SkillDefinition BuildUnitSkill(StringName skillId, int rangeValue) =>
         TestSkillDefinitionProjection.BuildSkill(

@@ -10,7 +10,7 @@ public partial class run_battle_skill_resolution_rules_regression : LifecycleTes
     {
         try
         {
-            TestTypedPolicyRoutesUnitVariantAndProjectsOnlyAtBoundary();
+            TestPolicyRoutesUnitVariantAndProjectsResult();
             TestGroundSkillGetsImplicitGroundVariant();
             TestAmbiguousVariantBlocksWithoutCollectingEffects();
 
@@ -25,7 +25,7 @@ public partial class run_battle_skill_resolution_rules_regression : LifecycleTes
 
 
 
-    private void TestTypedPolicyRoutesUnitVariantAndProjectsOnlyAtBoundary()
+    private void TestPolicyRoutesUnitVariantAndProjectsResult()
     {
         var rules = new BattleSkillResolutionRules();
         SkillDefinition skill = BuildSkill(
@@ -56,15 +56,6 @@ public partial class run_battle_skill_resolution_rules_regression : LifecycleTes
         _test.Eq(policy.TargetUnitIds.Count == 1 ? policy.TargetUnitIds[0] : "", "enemy", "target unit ids 应去重并过滤空值。");
         _test.Eq(policy.EffectDefinitions.Count, 2, "policy 应聚合基础 effect 与 variant effect。");
         _test.True(policy.UsesFateAttack, "敌方无豁免 damage unit skill 应走 fate attack 预览。");
-        object targetUnitIds = policy.TargetUnitIds;
-        object effectDefs = policy.EffectDefinitions;
-        _test.False(targetUnitIds is Godot.Collections.Array, "typed policy 内部不应保存 Godot Array target ids。");
-        _test.False(effectDefs is Godot.Collections.Array, "typed policy 内部不应保存 Godot Array effect defs。");
-        _test.False(
-            typeof(GodotObject).IsAssignableFrom(policy.EffectDefinitions[0].GetType()),
-            "typed policy 内部 effect 不应是 Godot Resource wrapper。"
-        );
-
         Godot.Collections.Dictionary projection = BattleSkillResolutionPolicyProjection.Project(policy);
         _test.True(
             projection["target_unit_ids"].VariantType == Variant.Type.Array,
@@ -209,17 +200,5 @@ public partial class run_battle_skill_resolution_rules_regression : LifecycleTes
         }
         return unit;
     }
-
-    private static bool IsForbiddenPublicApiType(Type type)
-    {
-        if (type == typeof(Variant))
-        {
-            return true;
-        }
-        string typeName = type.FullName ?? "";
-        return typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal)
-            || typeName.StartsWith("Godot.Collections.Array", StringComparison.Ordinal);
-    }
-
 
 }

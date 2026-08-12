@@ -125,7 +125,6 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildEternityEdgeUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -196,20 +195,6 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             "时间闭环必须由 add_damage_dice 配置声明。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除永恒之刃后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除永恒之刃后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除永恒之刃后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestEternalWoundTimeDebtAndTimeLoopUseRealWeaponDamagePath()

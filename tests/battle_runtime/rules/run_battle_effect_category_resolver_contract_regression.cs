@@ -1,5 +1,5 @@
-using System;
 using System.Collections.Generic;
+using System;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -9,7 +9,6 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
 
     public override void _Initialize()
     {
-        TestResolverTypeIsPlainStaticCSharp();
         TestCategoryFieldsAreFormalSchema();
         TestResolverUsesExplicitDeliveryAndEffectCategories();
         TestTypedProjectileKindsDeriveInteractionCategories();
@@ -18,15 +17,6 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         TestResolverDoesNotGuessFromSkillIdOrTags();
 
         RequestTestExit(_test.Finish("Battle effect category resolver contract regression"));
-    }
-
-    private void TestResolverTypeIsPlainStaticCSharp()
-    {
-        Type resolverType = typeof(BattleEffectCategoryResolver);
-        _test.True(
-            resolverType.IsAbstract && resolverType.IsSealed,
-            "效果类别 resolver 应是 plain static C# class。"
-        );
     }
 
     private void TestCategoryFieldsAreFormalSchema()

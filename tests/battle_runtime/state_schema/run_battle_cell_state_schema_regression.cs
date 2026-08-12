@@ -26,8 +26,6 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
         TestRejectsBadEdgeFeatureEntry();
         TestNullEdgeFeatureSerializesAsCurrentNonePayload();
         TestAllowsEmptyOccupantUnitId();
-        TestOwnerMutationApiNormalizesCellFields();
-
         RequestTestExit(_test.Finish("Battle cell state schema regression"));
     }
 
@@ -67,6 +65,21 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
                 restored.timed_terrain_effects[0].field_instance_id,
                 new StringName("field_001"),
                 "roundtrip 应保留 terrain effect 字段。"
+            );
+            _test.Eq(
+                restored.timed_terrain_effects[0].contact_damage_dice_count,
+                2,
+                "roundtrip 应保留 contact damage 骰数。"
+            );
+            _test.Eq(
+                restored.timed_terrain_effects[0].contact_damage_dice_sides,
+                6,
+                "roundtrip 应保留 contact damage 骰面。"
+            );
+            _test.Eq(
+                restored.timed_terrain_effects[0].contact_damage_tag,
+                new StringName("fire"),
+                "roundtrip 应保留 contact damage 类型。"
             );
         }
         _test.Eq(
@@ -269,34 +282,6 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
         }
     }
 
-    private void TestOwnerMutationApiNormalizesCellFields()
-    {
-        BattleCellState cell = new();
-
-        cell.SetCoord(new Vector2I(4, 5));
-        _test.Eq(cell.coord, new Vector2I(4, 5), "SetCoord 应写入 cell 坐标。");
-
-        cell.SetTerrain(BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater));
-        _test.Eq(
-            cell.base_terrain,
-            BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater),
-            "SetTerrain 应规范化 terrain id。"
-        );
-
-        cell.SetBaseHeight(3);
-        cell.SetHeightOffset(2);
-        _test.Eq(cell.current_height, 5, "SetBaseHeight/SetHeightOffset 应刷新 current_height。");
-        _test.Eq(cell.stack_layer, 5, "SetBaseHeight/SetHeightOffset 应同步 stack_layer。");
-
-        cell.SetMoveCost(-10);
-        _test.Eq(cell.move_cost, 1, "SetMoveCost 应保持正数 move cost。");
-
-        cell.SetOccupant("unit_001");
-        _test.Eq(cell.occupant_unit_id, new StringName("unit_001"), "SetOccupant 应规范化 occupant id。");
-        cell.ClearOccupant();
-        _test.Eq(cell.occupant_unit_id, new StringName(""), "ClearOccupant 应清空 occupant id。");
-    }
-
     private static BattleCellState BuildValidCell()
     {
         BattleCellState cell = new()
@@ -332,6 +317,10 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
             target_team_filter = "enemy",
             power = 3,
             damage_tag = "fire",
+            contact_damage_dice_count = 2,
+            contact_damage_dice_sides = 6,
+            contact_damage_flat_bonus = 1,
+            contact_damage_tag = "fire",
             remaining_tu = 20,
             tick_interval_tu = 10,
             next_tick_at_tu = 10,

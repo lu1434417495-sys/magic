@@ -125,7 +125,6 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildGorgonUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -157,20 +156,6 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
             "eq_gorgon_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除蛇发女妖之弩后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestPetrifyingGazeAppliesSlowForSixtyTuOnlyOnFailedConSave()

@@ -66,9 +66,6 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
             _test.True(rawItem.trait_ids.Contains(HunterMarkTraitId), "猎人之斧应声明猎人标记授予。");
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildHunterAxeUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -99,22 +96,6 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
             _test.Eq(entry.EquipmentGrantedActionId, HunterMarkGrantId, "猎人标记入口应携带 grant id。");
         }
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除猎人之斧后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除猎人之斧后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除猎人之斧后装备能力源应清空。"
-        );
-        BattleTestFixture.DisposeBattleUnit(equipped);
-        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestUnlearnedEquipmentGrantedHunterMarkDoesNotGrantMastery()

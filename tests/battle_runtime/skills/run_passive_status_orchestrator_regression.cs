@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -22,22 +21,12 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
 
     private void Run()
     {
-        TestPassiveContextAndResolversNoLongerRequireGodotRegistration();
         TestFactoryProjectsIdentityPassivesFromCharacterGateway();
         TestOrchestratorProjectsRaceAndSubracePassives();
         TestOrchestratorSuppressesOriginalRacePassivesForAscension();
         TestOrchestratorProjectsShootingSpecializationBowOnlyRangeBonus();
 
         RequestTestExit(_test.Finish("Passive status orchestrator regression"));
-    }
-
-    private void TestPassiveContextAndResolversNoLongerRequireGodotRegistration()
-    {
-        AssertPlainType(typeof(PassiveSourceContext), nameof(PassiveSourceContext));
-        AssertPlainType(typeof(PassiveStatusOrchestrator), nameof(PassiveStatusOrchestrator));
-        AssertPlainType(typeof(RaceTraitResolver), nameof(RaceTraitResolver));
-        AssertPlainType(typeof(AscensionTraitResolver), nameof(AscensionTraitResolver));
-        AssertPlainType(typeof(SkillPassiveResolver), nameof(SkillPassiveResolver));
     }
 
     private void TestFactoryProjectsIdentityPassivesFromCharacterGateway()
@@ -413,10 +402,6 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
         if (source == null || !source.ContainsKey(key))
             return "";
         return ProgressionDataUtils.to_string_name(source[key]);
-    }
-
-    private void AssertPlainType(Type type, string typeName)
-    {
     }
 
 }

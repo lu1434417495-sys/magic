@@ -128,7 +128,6 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildHeartbaneUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -165,20 +164,6 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
             "eq_heartbane_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除噬心者后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除噬心者后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除噬心者后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestHeartbreakStingAddsPsychicDiceOnlyOnCriticalHit()

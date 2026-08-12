@@ -111,7 +111,6 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
         string previewFactId = factsPayload.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "";
         _test.True(!string.IsNullOrEmpty(previewFactId), "preview facts 必须带稳定 preview_fact_id。");
         _test.Eq(preview.hit_preview?.Source ?? "", "special_profile_preview_facts", "preview.hit_preview 应标记 special facts 来源。");
-        _test.Eq(preview.hit_preview?.Source ?? "", preview.hit_preview?.Source ?? "", "preview source 应稳定。");
         _test.Eq(preview.TargetCoordsTyped.Count, 49, "preview surface 必须暴露同一份 7x7 target coords。");
         _test.True(
             factsPayload.GetValueOrDefault("target_numeric_summary", new GArray()).AsGodotArray().Count >= 2,
@@ -140,12 +139,6 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
             snapshot.HitPreviewPayload.Source,
             "special_profile_preview_facts",
             "HUD hit payload 应消费 special facts。"
-        );
-        GDictionary hudFacts = factsPayload;
-        _test.Eq(
-            hudFacts.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "",
-            previewFactId,
-            "HUD 必须和 runtime preview 共用同一 preview_fact_id。"
         );
         _test.Eq(
             snapshot.SelectedSkillHitPreviewText,

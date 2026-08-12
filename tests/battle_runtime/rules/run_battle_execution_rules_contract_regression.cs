@@ -1,4 +1,3 @@
-using System;
 using Godot;
 
 public partial class run_battle_execution_rules_contract_regression : LifecycleTestSceneTree
@@ -154,18 +153,4 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
         return unit;
     }
 
-    private void AssertPlainType(Type type, string label)
-    {
-    }
-
-    private static bool IsGodotPayloadType(Type type)
-    {
-        if (type == typeof(Variant))
-        {
-            return true;
-        }
-        string typeName = type.FullName ?? "";
-        return typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal)
-            || typeName.StartsWith("Godot.Collections.Array", StringComparison.Ordinal);
-    }
 }

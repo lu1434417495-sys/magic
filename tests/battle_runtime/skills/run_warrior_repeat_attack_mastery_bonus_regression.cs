@@ -23,7 +23,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
 
     private TestResult Run()
     {
-        TestRepeatAttackResolverUsesTypedResourceCosts();
+        TestRepeatAttackConsumesSelectedAuraCostAndStopsWhenItCannotPay();
         TestRepeatAttackMasteryBonusStartsOnFifthStageEntry();
         TestWeaponAttackQualityReadsWeaponDiceMaxReasonFromResultPayload();
         TestGuardMasteryGrantReadsSkillDefFromTypedDictionaryKey();
@@ -33,9 +33,11 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         return _test.Finish("Warrior repeat attack mastery bonus regression");
     }
 
-    private void TestRepeatAttackResolverUsesTypedResourceCosts()
+    private void TestRepeatAttackConsumesSelectedAuraCostAndStopsWhenItCannotPay()
     {
-        using RepeatAttackFixture fixture = BuildRepeatAttackFixture(new[] { true });
+        using RepeatAttackFixture fixture = BuildRepeatAttackFixture(
+            new[] { true, true, true }
+        );
         SkillDefinition skillDefinition = BuildRepeatAttackSkillDefinition(
             "combo_mastery_stage_test",
             apCost: 2,
@@ -43,24 +45,35 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             staminaCost: 4,
             auraCost: 5
         );
+        CombatEffectDefinition repeatEffect =
+            skillDefinition.CombatProfile.EffectDefinitions[1];
+        fixture.ActiveUnit.SetCurrentAura(9);
+        int apBefore = fixture.ActiveUnit.GetCurrentAp();
+        int mpBefore = fixture.ActiveUnit.GetCurrentMp();
+        int staminaBefore = fixture.ActiveUnit.GetCurrentStamina();
 
-        CombatSkillResourceCosts costs = fixture.Resolver._resolve_effective_skill_costs(
+        using var batch = new BattleEventBatch();
+        bool executed = fixture.Resolver.ApplyRepeatAttackSkillResult(
             fixture.ActiveUnit,
-            skillDefinition
+            fixture.TargetUnit,
+            skillDefinition,
+            skillDefinition.CombatProfile.EffectDefinitions,
+            repeatEffect,
+            batch
         );
-        _test.Eq(costs.ApCost, 2, "repeat attack typed costs 应保留 AP。");
-        _test.Eq(costs.MpCost, 3, "repeat attack typed costs 应保留 MP。");
-        _test.Eq(costs.StaminaCost, 4, "repeat attack typed costs 应保留 Stamina。");
-        _test.Eq(costs.AuraCost, 5, "repeat attack typed costs 应保留 Aura。");
-
+        _test.True(executed, "连击应执行首段并进入可支付的第二段。");
         _test.Eq(
-            fixture.Resolver._get_repeat_attack_base_resource_cost(
-                fixture.ActiveUnit,
-                skillDefinition,
-                CombatResourceKind.Aura
-            ),
-            5,
-            "repeat attack base resource cost 应直接来自 typed Aura cost。"
+            fixture.DamageResolver.call_count,
+            2,
+            "9 点斗气只够支付一次 5 点追击成本，第三段应在攻击前停止。"
+        );
+        _test.Eq(fixture.ActiveUnit.GetCurrentAura(), 4, "追击应真实扣除技能的 5 点 Aura 成本。");
+        _test.Eq(fixture.ActiveUnit.GetCurrentAp(), apBefore, "追击阶段不得重复扣除 AP 基础成本。");
+        _test.Eq(fixture.ActiveUnit.GetCurrentMp(), mpBefore, "Aura 追击不得误扣 MP。");
+        _test.Eq(
+            fixture.ActiveUnit.GetCurrentStamina(),
+            staminaBefore,
+            "Aura 追击不得误扣 Stamina。"
         );
     }
 

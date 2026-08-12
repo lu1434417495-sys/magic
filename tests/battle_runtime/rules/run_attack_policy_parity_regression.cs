@@ -1,23 +1,15 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_attack_policy_parity_regression : LifecycleTestSceneTree
 {
     private sealed class ProbeAttackCheckQuery : IBattleEquipmentAttackCheckQuery
     {
-        internal int ModifierQueryCount { get; private set; }
-        internal int DefenseQueryCount { get; private set; }
-        internal int CriticalQueryCount { get; private set; }
-
         public IReadOnlyList<BattleAttackRollModifierSpec> CollectAttackRollModifierCandidates(
             BattleAttackCheckPolicyContext context
         )
         {
-            ModifierQueryCount++;
             return new List<BattleAttackRollModifierSpec>
             {
                 new()
@@ -41,7 +33,6 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
             BattleAttackCheckPolicyContext context
         )
         {
-            DefenseQueryCount++;
             var adjustment = new EquipmentAttackDefenseAdjustment();
             adjustment.AddLockDodgeBonus();
             return adjustment;
@@ -51,7 +42,6 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
             BattleAttackCheckPolicyContext context
         )
         {
-            CriticalQueryCount++;
             return new BattleEquipmentAbilityCriticalHitOverrideResult
             {
                 ForceCriticalOnHit = true,
@@ -82,6 +72,7 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
         };
         targetUnit.SetAnchorCoord(new Vector2I(3, 1));
         targetUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 12);
+        targetUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus), 4);
         SkillDefinition skillDefinition = BuildParitySkill();
         CombatEffectDefinition repeatEffectDefinition = BuildRepeatEffect();
         List<BattleRepeatAttackStageSpec> repeatStageSpecs =
@@ -89,7 +80,7 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
                 activeUnit,
                 skillDefinition,
                 repeatEffectDefinition,
-                -1,
+                3,
                 true
             );
         BattleAttackCheckPolicyContext repeatPreviewContext =
@@ -138,80 +129,13 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
             "hud_preview",
             false
         );
-        BattleAttackCheckPolicyContext dtoAttackContext = policy.BuildSkillDefinitionAttackContext(
-            battleState,
-            activeUnit,
-            targetUnit,
-            skillDefinition,
-            "skill_attack_check",
-            "execute",
-            false
+        AssertKnownSkillAttackCheck(policy.BuildAttackCheck(attackContext, 0, 0));
+        AssertKnownSkillAttackPreview(policy.BuildAttackPreview(previewContext));
+        AssertKnownRepeatAttackPreview(
+            policy.BuildRepeatAttackPreview(repeatPreviewContext, repeatStageSpecs)
         );
-        BattleAttackCheckPolicyContext dtoPreviewContext = policy.BuildSkillDefinitionAttackContext(
-            battleState,
-            activeUnit,
-            targetUnit,
-            skillDefinition,
-            "skill_attack_preview",
-            "hud_preview",
-            false
-        );
-
-        AssertAttackCheckEq(
-            policy.BuildAttackCheck(attackContext, 0, 0),
-            hitResolver.BuildSkillAttackCheck(activeUnit, targetUnit, skillDefinition, 0, 0),
-            "policy build_attack_check 应与 BattleHitResolver 零漂移。"
-        );
-        AssertPreviewEq(
-            policy.BuildAttackPreview(previewContext),
-            hitResolver.BuildSkillAttackPreview(
-                battleState,
-                activeUnit,
-                targetUnit,
-                skillDefinition,
-                false
-            ),
-            "policy build_attack_preview 应与 BattleHitResolver 零漂移。"
-        );
-        AssertAttackCheckEq(
-            policy.BuildAttackCheck(dtoAttackContext, 0, 0),
-            hitResolver.BuildSkillDefinitionAttackCheck(activeUnit, targetUnit, skillDefinition, 0, 0),
-            "DTO policy build_attack_check 应与 BattleHitResolver 零漂移。"
-        );
-        AssertPreviewEq(
-            policy.BuildAttackPreview(dtoPreviewContext),
-            hitResolver.BuildSkillDefinitionAttackPreview(
-                battleState,
-                activeUnit,
-                targetUnit,
-                skillDefinition,
-                false
-            ),
-            "DTO policy build_attack_preview 应与 BattleHitResolver 零漂移。"
-        );
-        AssertPreviewEq(
-            policy.BuildRepeatAttackPreview(repeatPreviewContext, repeatStageSpecs),
-            hitResolver.BuildRepeatAttackPreview(
-                battleState,
-                activeUnit,
-                targetUnit,
-                skillDefinition,
-                repeatEffectDefinition,
-                -1
-            ),
-            "policy build_repeat_attack_preview 应与 BattleHitResolver 零漂移。"
-        );
-        AssertAttackCheckEq(
-            policy.BuildFateAwareRepeatAttackStageHitCheck(stageContext),
-            hitResolver.BuildFateAwareRepeatAttackStageHitCheck(
-                battleState,
-                activeUnit,
-                targetUnit,
-                skillDefinition,
-                repeatEffectDefinition,
-                2
-            ),
-            "policy repeat stage fate-aware check 应与 BattleHitResolver 零漂移。"
+        AssertKnownThirdRepeatStageCheck(
+            policy.BuildFateAwareRepeatAttackStageHitCheck(stageContext)
         );
         AssertNarrowEquipmentQueryInjection(
             hitResolver,
@@ -229,6 +153,60 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
         );
 
         RequestTestExit(_test.Finish("Attack policy parity regression"));
+    }
+
+    private void AssertKnownSkillAttackCheck(AttackCheckInput result)
+    {
+        _test.False(result.Invalid, "已提供目标 AC 的技能命中检定应有效。");
+        _test.Eq(result.TargetArmorClass, 12, "目标 AC 应来自已知 fixture。");
+        _test.Eq(result.SkillAttackBonus, -2, "技能 -2 命中修正应进入正式检定。");
+        _test.Eq(result.RequiredRoll, 14, "AC 12 与技能 -2 修正应要求 d20=14。");
+        _test.Eq(result.SuccessRatePercent, 35, "required roll 14 应对应 35% 命中率。");
+    }
+
+    private void AssertKnownSkillAttackPreview(AttackPreviewData preview)
+    {
+        _test.Eq(preview?.StageCount ?? 0, 1, "普通技能预览应只有一个命中阶段。");
+        _test.Eq(preview?.SuccessRatePercent ?? -1, 35, "普通技能预览应公开 35% 命中率。");
+        _test.Eq(
+            preview?.Stages[0].RequiredRoll ?? -1,
+            14,
+            "普通技能预览阶段应公开 required roll 14。"
+        );
+    }
+
+    private void AssertKnownRepeatAttackPreview(AttackPreviewData preview)
+    {
+        _test.Eq(preview?.StageCount ?? 0, 3, "连击预览 fixture 应生成三个阶段。");
+        _test.Eq(preview?.BaseAttackBonus ?? -1, 1, "连击基础命中加值应为 +1。");
+        _test.Eq(preview?.FollowUpAttackPenalty ?? -1, 2, "后续阶段基础惩罚应为 2。");
+        _test.Eq(preview?.SuccessRatePercent ?? -1, 30, "40/30/20 三阶段平均命中率应为 30%。");
+        if (preview == null || preview.StageCount != 3)
+        {
+            return;
+        }
+        int[] expectedRequiredRolls = { 13, 15, 17 };
+        int[] expectedSuccessRates = { 40, 30, 20 };
+        for (int index = 0; index < expectedRequiredRolls.Length; index++)
+        {
+            _test.Eq(
+                preview.Stages[index].RequiredRoll,
+                expectedRequiredRolls[index],
+                $"连击阶段 {index} 应应用等级 3 的首段免罚与每段 +2 惩罚。"
+            );
+            _test.Eq(
+                preview.Stages[index].SuccessRatePercent,
+                expectedSuccessRates[index],
+                $"连击阶段 {index} 应公开对应的业务命中率。"
+            );
+        }
+    }
+
+    private void AssertKnownThirdRepeatStageCheck(AttackCheckInput result)
+    {
+        _test.False(result.Invalid, "第三段连击检定应有效。");
+        _test.Eq(result.RequiredRoll, 17, "第三段应应用 +1 基础加值和 4 点后续惩罚。");
+        _test.Eq(result.SuccessRatePercent, 20, "required roll 17 应对应 20% 命中率。");
     }
 
     private void AssertAttackContextQueryDoesNotRepairFootprint(
@@ -313,9 +291,7 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
         );
         AttackCheckInput result = policy.BuildAttackCheck(context, 0, 0);
 
-        _test.Eq(query.ModifierQueryCount, 1, "attack policy should query the injected modifier capability once.");
-        _test.Eq(query.DefenseQueryCount, 1, "attack policy should query the injected defense capability once.");
-        _test.Eq(query.CriticalQueryCount, 1, "attack policy should query the injected critical capability once.");
+        _test.Eq(result.TargetArmorClass, 8, "injected defense adjustment should remove the target's +4 dodge component.");
         _test.Eq(result.SituationalAttackBonus, 3, "injected equipment modifier should reach the canonical attack check.");
         _test.True(result.ForceCriticalOnHit, "injected equipment critical override should reach the canonical attack check.");
         _test.Eq(
@@ -369,118 +345,5 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
                 },
             }
         );
-    }
-
-    private void AssertAttackCheckEq(AttackCheckInput actual, AttackCheckInput expected, string message)
-    {
-        string actualText = AttackCheckText(actual);
-        string expectedText = AttackCheckText(expected);
-        if (!string.Equals(actualText, expectedText, StringComparison.Ordinal))
-        {
-            _test.Fail($"{message} actual={actualText} expected={expectedText}");
-        }
-    }
-
-    private void AssertPreviewEq(AttackPreviewData actual, AttackPreviewData expected, string message)
-    {
-        if (actual == null && expected == null) return;
-        if (actual == null || expected == null)
-        {
-            _test.Fail($"{message} | actual={actual} expected={expected}");
-            return;
-        }
-        if (actual.SummaryText != expected.SummaryText)
-            _test.Fail($"{message} SummaryText actual={actual.SummaryText} expected={expected.SummaryText}");
-        if (actual.HitRatePercent != expected.HitRatePercent)
-            _test.Fail($"{message} HitRatePercent actual={actual.HitRatePercent} expected={expected.HitRatePercent}");
-        if (actual.SuccessRatePercent != expected.SuccessRatePercent)
-            _test.Fail($"{message} SuccessRatePercent actual={actual.SuccessRatePercent} expected={expected.SuccessRatePercent}");
-        if (actual.BaseHitRatePercent != expected.BaseHitRatePercent)
-            _test.Fail($"{message} BaseHitRatePercent actual={actual.BaseHitRatePercent} expected={expected.BaseHitRatePercent}");
-        if (actual.StageCount != expected.StageCount)
-            _test.Fail($"{message} StageCount actual={actual.StageCount} expected={expected.StageCount}");
-        for (int i = 0; i < Math.Min(actual.StageCount, expected.StageCount); i++)
-        {
-            if (actual.Stages[i].SuccessRatePercent != expected.Stages[i].SuccessRatePercent)
-                _test.Fail($"{message} Stage[{i}] SuccessRatePercent actual={actual.Stages[i].SuccessRatePercent} expected={expected.Stages[i].SuccessRatePercent}");
-        }
-    }
-
-    private static string AttackCheckText(AttackCheckInput value) =>
-        string.Join(
-            "|",
-            value.AttackerBaseAttackBonus,
-            value.AttackerAttackBonus,
-            value.AttackerBab,
-            value.TargetArmorClass,
-            value.SkillAttackBonus,
-            value.LockedSkillHitBonus,
-            value.SituationalAttackBonus,
-            value.SituationalAttackPenalty,
-            value.RequiredRoll,
-            value.DisplayRequiredRoll,
-            value.HitRatePercent,
-            value.SuccessRatePercent,
-            value.BaseHitRatePercent,
-            value.NaturalOneAutoMiss,
-            value.NaturalTwentyAutoHit,
-            value.CritThreshold,
-            value.FumbleLowEnd,
-            value.CritLocked,
-            value.CritGateDie,
-            value.ForceHitNoCrit,
-            value.SkillId,
-            value.FollowUpAttackPenalty,
-            value.ExponentialPenalty,
-            value.IsDisadvantage,
-            value.Invalid,
-            value.ErrorId,
-            value.ErrorMessage,
-            value.PreviewText
-        );
-
-    private static string StableDictionary(GDictionary dictionary)
-    {
-        if (dictionary == null)
-        {
-            return "{}";
-        }
-        var parts = new List<string>();
-        foreach (Variant key in dictionary.Keys)
-        {
-            parts.Add($"{StableVariant(key)}:{StableVariant(dictionary[key])}");
-        }
-        parts.Sort(StringComparer.Ordinal);
-        return "{" + string.Join(",", parts) + "}";
-    }
-
-    private static string StableArray(GArray array)
-    {
-        if (array == null)
-        {
-            return "[]";
-        }
-        var parts = new List<string>();
-        foreach (Variant value in array)
-        {
-            parts.Add(StableVariant(value));
-        }
-        return "[" + string.Join(",", parts) + "]";
-    }
-
-    private static string StableVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => "nil",
-            Variant.Type.Bool => value.AsBool() ? "true" : "false",
-            Variant.Type.Int => value.AsInt64().ToString(),
-            Variant.Type.Float => value.AsDouble().ToString("R"),
-            Variant.Type.String => $"s:{value.AsString()}",
-            Variant.Type.StringName => $"sn:{value.AsStringName()}",
-            Variant.Type.Dictionary => StableDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => StableArray(value.AsGodotArray()),
-            _ => value.ToString(),
-        };
     }
 }

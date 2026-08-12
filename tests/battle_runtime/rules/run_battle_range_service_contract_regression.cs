@@ -348,33 +348,4 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
         return unit;
     }
 
-    private static bool IsForbiddenGodotBoundaryType(Type type) =>
-        type == typeof(Variant)
-        || IsGodotCollectionType(type);
-
-    private static bool IsGodotCollectionType(Type type)
-    {
-        if (type == null || type.IsGenericParameter)
-        {
-            return false;
-        }
-        if (type.Namespace == "Godot.Collections")
-        {
-            return type.Name.StartsWith("Dictionary", StringComparison.Ordinal)
-                || type.Name.StartsWith("Array", StringComparison.Ordinal);
-        }
-        if (!type.IsGenericType)
-        {
-            return false;
-        }
-        foreach (Type genericArgument in type.GetGenericArguments())
-        {
-            if (IsGodotCollectionType(genericArgument))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
 }

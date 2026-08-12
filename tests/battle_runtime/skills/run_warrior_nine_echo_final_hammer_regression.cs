@@ -514,5 +514,9 @@ public partial class run_warrior_nine_echo_final_hammer_regression : LifecycleTe
         public IReadOnlyList<BattleEquipmentAbilityDamageReductionResult> CollectDamageReductions(
             BattleEquipmentAbilityDamageReductionContext context
         ) => Array.Empty<BattleEquipmentAbilityDamageReductionResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> CollectMitigationAuras(
+            BattleEquipmentAbilityMitigationAuraContext context
+        ) => Array.Empty<BattleEquipmentAbilityMitigationAuraResult>();
     }
 }

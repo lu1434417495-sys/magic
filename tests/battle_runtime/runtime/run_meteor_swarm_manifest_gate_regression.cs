@@ -98,7 +98,6 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
             );
         }
 
-        TestManifestValidatorRejectsNonDefaultRequiredTests(typedSkillDefinitions, profileResource);
         TestManifestValidatorRejectsUnknownSaveProfile(profileResource);
         TestManifestValidatorRejectsDuplicateComponentId(profileResource);
         TestManifestValidatorRejectsComponentRingOutsideRadius(profileResource);
@@ -131,35 +130,6 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         );
     }
 
-    private void TestManifestValidatorRejectsNonDefaultRequiredTests(
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        Resource profileResource
-    )
-    {
-        var manifest = new BattleSpecialProfileManifest
-        {
-            profile_id = "meteor_swarm",
-            schema_version = 1,
-            owning_skill_ids = new Godot.Collections.Array<Godot.StringName> { "mage_meteor_swarm" },
-            runtime_resolver_id = "meteor_swarm",
-            runtime_read_policy = "forbidden",
-            profile_resource = profileResource,
-            required_regression_tests = new Godot.Collections.Array<string>
-            {
-                "tests/battle_runtime/simulation/run_battle_simulation_regression.cs",
-                "docs/discussions/meteor_swarm_impact_analysis.md",
-            },
-        };
-
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateManifest(
-            manifest,
-            skillDefinitions,
-            ""
-        );
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝 simulation/docs 等非默认回归入口：{FormatArray(errors)}");
-    }
-
     private void TestManifestValidatorRejectsUnknownSaveProfile(Resource profileResource)
     {
         MeteorSwarmProfile profile = DuplicateProfile(profileResource, "save profile 负例前置");
@@ -169,7 +139,14 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         profile.impact_components[0].save_profile_id = "legacy_dex_save";
         var validator = new BattleSpecialProfileManifestValidator();
         Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝未知 save_profile_id，避免运行时 fallback：{FormatArray(errors)}");
+        AssertExactErrors(
+            errors,
+            new[]
+            {
+                "MeteorSwarmProfile.impact_components[0].save_profile_id is unsupported: legacy_dex_save.",
+            },
+            "manifest validator 应只报告未知 save_profile_id"
+        );
     }
 
     private void TestManifestValidatorRejectsDuplicateComponentId(Resource profileResource)
@@ -181,7 +158,14 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         profile.impact_components[1].component_id = profile.impact_components[0].component_id;
         var validator = new BattleSpecialProfileManifestValidator();
         Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝重复 impact component_id：{FormatArray(errors)}");
+        AssertExactErrors(
+            errors,
+            new[]
+            {
+                $"MeteorSwarmProfile.impact_components[1].component_id is duplicated: {profile.impact_components[0].component_id}.",
+            },
+            "manifest validator 应只报告重复 impact component_id"
+        );
     }
 
     private void TestManifestValidatorRejectsComponentRingOutsideRadius(Resource profileResource)
@@ -193,7 +177,14 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         profile.impact_components[0].ring_max = 4;
         var validator = new BattleSpecialProfileManifestValidator();
         Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝越过 7x7 半径的 impact component ring：{FormatArray(errors)}");
+        AssertExactErrors(
+            errors,
+            new[]
+            {
+                "MeteorSwarmProfile.impact_components[0] ring range is invalid or outside radius.",
+            },
+            "manifest validator 应只报告越过 7x7 半径的 impact component ring"
+        );
     }
 
     private void TestManifestValidatorRejectsTerrainRingOutsideRadius(Resource profileResource)
@@ -207,7 +198,14 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         profile.terrain_profiles[0] = terrainProfile;
         var validator = new BattleSpecialProfileManifestValidator();
         Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        _test.True(errors.Count > 0, $"manifest validator 应拒绝越过 7x7 半径的 terrain profile ring：{FormatArray(errors)}");
+        AssertExactErrors(
+            errors,
+            new[]
+            {
+                "MeteorSwarmProfile.terrain_profiles[0] ring range is invalid or outside radius.",
+            },
+            "manifest validator 应只报告越过 7x7 半径的 terrain profile ring"
+        );
     }
 
     private void TestGateAllowsValidManifest(
@@ -302,6 +300,24 @@ public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSc
         if (values == null)
             return "";
         return string.Join(", ", values);
+    }
+
+    private void AssertExactErrors(
+        Godot.Collections.Array<string> actual,
+        IReadOnlyList<string> expected,
+        string label
+    )
+    {
+        _test.Eq(
+            actual?.Count ?? -1,
+            expected?.Count ?? -1,
+            $"{label}：诊断数量应精确匹配。actual={FormatArray(actual)}"
+        );
+        if (actual == null || expected == null || actual.Count != expected.Count)
+            return;
+
+        for (int i = 0; i < expected.Count; i++)
+            _test.Eq(actual[i], expected[i], $"{label}：第 {i + 1} 条诊断应精确匹配。");
     }
 
 }

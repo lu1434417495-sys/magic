@@ -818,10 +818,6 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
         }
     }
 
-    private void AssertNoGlobalClass(Type type, string label)
-    {
-    }
-
     private static void DisposeDecision(BattleAiDecision decision)
     {
         decision?.ClearOwnedRuntimeReferences();

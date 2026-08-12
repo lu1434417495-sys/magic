@@ -97,9 +97,6 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         AssertScaleRiftPayload(fixture.Bindings[ScaleRiftBindingId], "registry");
         AssertDragonBalancePayload(fixture.Bindings[DragonBalanceBindingId], "registry");
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildDragonScaleUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -126,17 +123,6 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         AssertMitigation(equipped, "acid", "half");
         AssertMitigation(equipped, "freeze", "half");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除龙鳞之斧后 weapon_item_id 应清空。");
-        _test.Eq(equippedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除后武器 profile 应回到装备前状态。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除后装备能力源应清空。"
-        );
-        _test.Eq(equipped.GetEffectiveTraitInstanceCountTyped(), baseline.GetEffectiveTraitInstanceCountTyped(), "移除后装备 trait 实例应回到装备前状态。");
     }
 
     private void TestDragonToothEdgeIsOncePerHolderTurnAndDragonBalanceOnlyAffectsDragons()

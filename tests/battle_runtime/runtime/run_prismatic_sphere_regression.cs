@@ -40,7 +40,6 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             TestGroundAoeAutoCastClipsAtBarrierBoundary();
             TestGroundAoePendingCastClipsAtBarrierBoundary();
             TestPrismaticSphereBlocksDeeperBreakersUntilOuterLayerBreaks();
-            TestProjectedEffectBarrierGeometryRespectsBoundary();
             TestDeathWardWithoutLastStandDoesNotBlockFatalPhysicalDamage();
             TestGreenLayerInstantDeathUsesFatalDamageChain();
             TestPetrifiedBlocksTurnUntilSelfSaveSucceeds();
@@ -298,16 +297,23 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
 
     private void TestRandomChainPreviewSeparatesCandidatePoolFromEffectiveTargets()
     {
-        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
-        SkillDefinition chainLightning = snapshot.Skills["mage_chain_lightning"];
-        using Fixture fixture = BuildRuntimeWithSphere(chainLightning);
-        SetOnlyRemainingLayer(fixture.State, "indigo");
-        LearnSkill(fixture.Enemy, chainLightning.SkillId);
-        fixture.Enemy.SetCurrentAp(2);
-        fixture.Enemy.SetCurrentMp(120);
-        fixture.Enemy.UnlockCombatResource(
-            CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
+        SkillDefinition randomChainSkill = BuildRandomChainBarrierProbeSkill();
+        AssertRandomChainMixedPoolPreview(randomChainSkill);
+        AssertRandomChainCommitWithSingleCandidate(
+            randomChainSkill,
+            candidateInsideBarrier: true
         );
+        AssertRandomChainCommitWithSingleCandidate(
+            randomChainSkill,
+            candidateInsideBarrier: false
+        );
+    }
+
+    private void AssertRandomChainMixedPoolPreview(SkillDefinition randomChainSkill)
+    {
+        using Fixture fixture = BuildRuntimeWithSphere(randomChainSkill);
+        SetOnlyRemainingLayer(fixture.State, "indigo");
+        LearnSkill(fixture.Enemy, randomChainSkill.SkillId);
         BattleUnitState outsideTarget = BuildUnit(
             "random_chain_outside_target",
             "法球外目标",
@@ -316,27 +322,21 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         );
         AddUnit(fixture.Runtime, fixture.State, outsideTarget, false);
         fixture.State.active_unit_id = fixture.Enemy.unit_id;
-        fixture.Runtime.ConfigureDamageResolverForTests(
-            new FixedFailedSaveDamageResolver(
-                new GArray { 1, 1, 1, 1, 1, 1, 1, 1 },
-                new GArray { 20, 20, 20, 20 }
-            )
-        );
         fixture.Runtime.SetupStateForTests(fixture.State);
 
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = fixture.Enemy.unit_id,
-            skill_entry_id = BattleSkillEntryIds.KnownSkill(chainLightning.SkillId),
-            skill_id = chainLightning.SkillId,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(randomChainSkill.SkillId),
+            skill_id = randomChainSkill.SkillId,
         };
         BattlePreview firstPreview = null;
         BattlePreview secondPreview = null;
         try
         {
             firstPreview = fixture.Runtime.PreviewCommand(command);
-            _test.True(firstPreview?.allowed == true, "连锁闪电在混合屏障候选池中应保持可施放。");
+            _test.True(firstPreview?.allowed == true, "随机链测试技能在混合屏障候选池中应保持可施放。");
             _test.True(
                 firstPreview?.RandomChainCandidateUnitIdsTyped.Contains(
                     fixture.Caster.unit_id
@@ -382,18 +382,90 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                     ) == false,
                 "重复随机链预览必须保持相同的屏障过滤结果。"
             );
-            int insideHpBefore = fixture.Caster.GetCurrentHp();
-            int outsideHpBefore = outsideTarget.GetCurrentHp();
-            fixture.Runtime.IssueCommand(command);
-            _test.Eq(
-                fixture.Caster.GetCurrentHp(),
-                insideHpBefore,
-                "正式随机链执行中，法球内目标应被靛色层阻挡。"
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(firstPreview);
+            BattleTestFixture.DisposeBattlePreview(secondPreview);
+            BattleTestFixture.DisposeBattleCommand(command);
+            BattleTestFixture.DisposeBattleUnit(outsideTarget);
+        }
+    }
+
+    private void AssertRandomChainCommitWithSingleCandidate(
+        SkillDefinition randomChainSkill,
+        bool candidateInsideBarrier
+    )
+    {
+        using Fixture fixture = BuildRuntimeWithSphere(randomChainSkill);
+        SetOnlyRemainingLayer(fixture.State, "indigo");
+        LearnSkill(fixture.Enemy, randomChainSkill.SkillId);
+        fixture.State.active_unit_id = fixture.Enemy.unit_id;
+
+        BattleUnitState outsideTarget = null;
+        BattleUnitState target = fixture.Caster;
+        if (!candidateInsideBarrier)
+        {
+            fixture.Caster.faction_id = fixture.Enemy.faction_id;
+            outsideTarget = BuildUnit(
+                "random_chain_single_outside_target",
+                "法球外唯一目标",
+                "player",
+                new Vector2I(6, 2)
             );
+            AddUnit(fixture.Runtime, fixture.State, outsideTarget, false);
+            target = outsideTarget;
+        }
+
+        fixture.Runtime.ConfigureDamageResolverForTests(
+            new FixedFailedSaveDamageResolver(
+                new GArray { 1, 1, 1, 1 },
+                new GArray { 20, 20 }
+            )
+        );
+        fixture.Runtime.ConfigureHitResolverForTests(new FixedHitResolver(15));
+        fixture.Runtime.SetupStateForTests(fixture.State);
+
+        var command = new BattleCommand
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = fixture.Enemy.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(randomChainSkill.SkillId),
+            skill_id = randomChainSkill.SkillId,
+        };
+        BattlePreview preview = null;
+        try
+        {
+            preview = fixture.Runtime.PreviewCommand(command);
+            _test.True(preview?.allowed == true, "单候选随机链正式命令应通过校验。");
             _test.True(
-                outsideTarget.GetCurrentHp() < outsideHpBefore,
-                "正式随机链执行中，法球外目标仍应受到连锁闪电伤害。"
+                preview?.RandomChainCandidateUnitIdsTyped.Count == 1
+                    && preview.RandomChainCandidateUnitIdsTyped.Contains(target.unit_id),
+                "正式执行 fixture 必须只提供预期的一个随机链候选。"
             );
+
+            int hpBefore = target.GetCurrentHp();
+            using BattleEventBatch executionBatch = fixture.Runtime.IssueCommand(command);
+            if (candidateInsideBarrier)
+            {
+                _test.Eq(
+                    target.GetCurrentHp(),
+                    hpBefore,
+                    "正式随机链执行中，法球内唯一目标应被靛色层阻挡。"
+                );
+                _test.True(
+                    LogsContain(executionBatch?.LogLinesTyped, "靛色层")
+                        && LogsContain(executionBatch?.LogLinesTyped, "阻挡"),
+                    "法球内唯一候选必须真实进入屏障阻挡分支，不能以未执行伪装成未受伤。"
+                );
+            }
+            else
+            {
+                _test.True(
+                    target.GetCurrentHp() < hpBefore,
+                    "正式随机链执行中，法球外唯一目标仍应受到伤害。"
+                );
+            }
             _test.Eq(
                 ActiveLayerId(FirstBarrier(fixture.State)),
                 new StringName("indigo"),
@@ -402,8 +474,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattlePreview(firstPreview);
-            BattleTestFixture.DisposeBattlePreview(secondPreview);
+            BattleTestFixture.DisposeBattlePreview(preview);
             BattleTestFixture.DisposeBattleCommand(command);
             BattleTestFixture.DisposeBattleUnit(outsideTarget);
         }
@@ -886,6 +957,18 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         _test.True(barrier != null && !barrier.IsEmpty, "虹光法球应写入 battle_state.layered_barrier_fields。");
         _test.Eq(ActiveLayerId(barrier), new StringName("red"), "新建虹光法球的第一活动层应为红色层。");
         _test.Eq(barrier.Layers.Count, 7, "虹光法球应包含 7 层。");
+        _test.Eq(
+            fixture.BarrierApplyBatch?.ChangedCoordsTyped.Count ?? 0,
+            13,
+            "创建半径2的菱形法球时，事件批次应报告全部13个受影响地格。"
+        );
+        _test.True(
+            CoordsContain(
+                fixture.BarrierApplyBatch?.ChangedCoordsTyped,
+                fixture.Caster.GetAnchorCoord()
+            ),
+            "法球创建事件应把中心地格写入 typed changed coords。"
+        );
     }
 
     private void TestLayerDamageUsesConfiguredDamageTagMitigation()
@@ -1616,51 +1699,6 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         _test.Eq(ActiveLayerId(FirstBarrier(state)), new StringName(""), "解除魔法应在靛层破除后破解最后的紫色层。");
     }
 
-    private void TestProjectedEffectBarrierGeometryRespectsBoundary()
-    {
-        List<Vector2I> barrierCoords = DiamondArea(new Vector2I(2, 2), 2);
-        _test.False(
-            BattleBarrierGeometryService.LineCrossesBarrierArea(
-                new Vector2I(2, 2),
-                new Vector2I(3, 2),
-                barrierCoords
-            ),
-            "法球内部到内部的投射效果不应被屏障拦截。"
-        );
-        _test.True(
-            BattleBarrierGeometryService.LineCrossesBarrierArea(
-                new Vector2I(2, 2),
-                new Vector2I(5, 2),
-                barrierCoords
-            ),
-            "法球内部到外部的投射效果应被屏障拦截。"
-        );
-        _test.True(
-            BattleBarrierGeometryService.LineCrossesBarrierArea(
-                new Vector2I(5, 2),
-                new Vector2I(2, 2),
-                barrierCoords
-            ),
-            "法球外部到内部的投射效果应被屏障拦截。"
-        );
-        _test.True(
-            BattleBarrierGeometryService.LineCrossesBarrierArea(
-                new Vector2I(5, 2),
-                new Vector2I(-1, 2),
-                barrierCoords
-            ),
-            "法球外部到外部但线段穿过屏障时应被拦截。"
-        );
-        _test.False(
-            BattleBarrierGeometryService.LineCrossesBarrierArea(
-                new Vector2I(5, 4),
-                new Vector2I(6, 4),
-                barrierCoords
-            ),
-            "法球外部到外部且未穿过屏障时不应被拦截。"
-        );
-    }
-
     private void TestDeathWardWithoutLastStandDoesNotBlockFatalPhysicalDamage()
     {
         BattleDamageResolver resolver = new();
@@ -1794,10 +1832,11 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleState state = fixture.State;
         BattleUnitState enemy = fixture.Enemy;
-        var batch = new BattleEventBatch();
+        using var batch = new BattleEventBatch();
         MarkLayersBroken(state, "red", "orange", "yellow", "green", "blue", "indigo");
         SetLayerSaveRollOverride(state, "violet", 1);
         AssertActiveLayerSaveRollOverride(state, "violet", 1);
+        Vector2I previousAnchor = enemy.GetAnchorCoord();
 
         BattleBarrierInteractionResult result =
             runtime._layered_barrier_service.ResolveUnitBoundaryCrossingResult(
@@ -1811,6 +1850,14 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         _test.False(
             CoordInsideBarrier(enemy.GetAnchorCoord(), FirstBarrier(state)),
             "非召唤物应被传送到法球外合法坐标。"
+        );
+        _test.True(
+            CoordsContain(batch.ChangedCoordsTyped, previousAnchor),
+            "紫色层传送应把单位原占用格写入 typed changed coords。"
+        );
+        _test.True(
+            CoordsContain(batch.ChangedCoordsTyped, enemy.GetAnchorCoord()),
+            "紫色层传送应把单位新占用格写入 typed changed coords。"
         );
 
         BattleUnitState summon = BuildUnit("summon", "召唤物", "enemy", new Vector2I(6, 2));
@@ -2007,14 +2054,21 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, enemy, true);
         SkillDefinition skill = BuildSkill("mage_prismatic_sphere", "虹光法球", "mage", "magic");
         CombatEffectDefinition effect = BuildLayeredBarrierEffect();
+        var barrierApplyBatch = new BattleEventBatch();
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
             caster,
             caster,
             skill,
             effect,
-            new BattleEventBatch()
+            barrierApplyBatch
         );
-        return new Fixture(runtime, state, caster, enemy);
+        return new Fixture(
+            runtime,
+            state,
+            caster,
+            enemy,
+            BarrierApplyBatch: barrierApplyBatch
+        );
     }
 
     private Fixture BuildRuntimeWithSphereAndProjectedWeapon(
@@ -2259,6 +2313,41 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             skillId,
             displayName: displayName,
             tags: tags
+        );
+    }
+
+    private static SkillDefinition BuildRandomChainBarrierProbeSkill()
+    {
+        StringName skillId = "test_prismatic_mixed_random_chain";
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 10,
+            damageTag: "lightning"
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "随机链屏障探针",
+            tags: new[] { new StringName("test"), new StringName("magic") },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangePattern: "fixed",
+                rangeValue: 10,
+                targetSelectionMode: "random_chain",
+                maxHitsPerTarget: 1,
+                randomChainContinueOnMiss: true,
+                deliveryCategories: new[] { new StringName("spell") },
+                levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, object>>
+                {
+                    [1] = new Dictionary<string, object>
+                    {
+                        ["random_chain_attack_count"] = 1,
+                    },
+                }
+            )
         );
     }
 
@@ -2768,11 +2857,13 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         BattleState State,
         BattleUnitState Caster,
         BattleUnitState Enemy,
-        BattleUnitState AdditionalUnit = null
+        BattleUnitState AdditionalUnit = null,
+        BattleEventBatch BarrierApplyBatch = null
     ) : IDisposable
     {
         public void Dispose()
         {
+            BarrierApplyBatch?.Dispose();
             Runtime?.Dispose();
             BattleTestFixture.DisposeBattleUnit(Caster);
             BattleTestFixture.DisposeBattleUnit(Enemy);

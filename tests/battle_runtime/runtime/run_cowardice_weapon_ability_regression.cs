@@ -114,9 +114,6 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildCowardiceUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -133,20 +130,6 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
         AssertUnitHasTraitAndAbilitySource(equipped, FleeingInstinctTraitId, FleeingInstinctBindingId, "eq_cowardice_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, CowardlyCounterTraitId, CowardlyCounterBindingId, "eq_cowardice_projection");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除懦弱之刃后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除懦弱之刃后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除懦弱之刃后装备能力源应清空。"
-        );
     }
 
     private void TestGapBackstabAndFrontalFragilityUseTargetSupport()

@@ -39,9 +39,8 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         TestRefreshTimelineStatusesKeepSingleStackAndMaxDuration();
         TestTauntedUsesTimelineDecayWithoutTurnEndDecay();
         TestStatusDurationIsNotBackfilledFromSemanticDefaults();
-        TestStatusParamsDurationIsNotUsedAsRuntimeDuration();
+        TestLegacyDurationParamsDoNotDriveRuntimeDuration();
         TestStatusDurationTuIgnoresLegacyParamsDuration();
-        TestStatusLegacyParamsDurationTuIsNotUsedAsRuntimeDuration();
         TestStatusLegacyParamsTickIntervalTuIsNotUsedAsRuntimeTickInterval();
         TestMergedStatusCarriesTypedStackMetadata();
         TestSoulFractureSemantic();
@@ -534,18 +533,34 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         _test.True(merged != null && !merged.HasDuration(), "缺少来源时长时，状态不应再从语义表回填默认 TU。");
     }
 
-    private void TestStatusParamsDurationIsNotUsedAsRuntimeDuration()
+    private void TestLegacyDurationParamsDoNotDriveRuntimeDuration()
     {
-        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
-            "status",
-            statusId: "pinned",
-            power: 1,
-            parameters: new Dictionary<string, object> { ["duration"] = 15 }
-        );
+        foreach ((string parameterName, int value) in new[]
+        {
+            ("duration", 15),
+            ("duration_tu", 20),
+        })
+        {
+            CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
+                "status",
+                statusId: "pinned",
+                power: 1,
+                parameters: new Dictionary<string, object> { [parameterName] = value }
+            );
 
-        BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
-        _test.True(merged != null, "旧 params.duration 不应阻止状态对象合并。");
-        _test.True(merged != null && !merged.HasDuration(), "旧 params.duration 不应再恢复为状态剩余 TU。");
+            BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(
+                effectDef,
+                "source_unit"
+            );
+            _test.True(
+                merged != null,
+                $"旧 params.{parameterName} 不应阻止状态对象合并。"
+            );
+            _test.True(
+                merged != null && !merged.HasDuration(),
+                $"旧 params.{parameterName} 不应继续驱动正式状态剩余 TU。"
+            );
+        }
     }
 
     private void TestStatusDurationTuIgnoresLegacyParamsDuration()
@@ -561,23 +576,6 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
         _test.True(merged != null, "正式 duration_tu 应继续生成状态对象。");
         _test.Eq(merged != null ? merged.duration : -1, 20, "正式 duration_tu 应生效，旧 params.duration 不应覆盖。");
-    }
-
-    private void TestStatusLegacyParamsDurationTuIsNotUsedAsRuntimeDuration()
-    {
-        CombatEffectDefinition effectDef = TestSkillDefinitionProjection.BuildEffect(
-            "status",
-            statusId: "pinned",
-            power: 1,
-            parameters: new Dictionary<string, object> { ["duration_tu"] = 20 }
-        );
-
-        BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(effectDef, "source_unit");
-        _test.True(merged != null, "旧 params.duration_tu 不应阻止状态对象合并。");
-        _test.True(
-            merged != null && !merged.HasDuration(),
-            "旧 params.duration_tu 不应继续驱动正式状态剩余 TU。"
-        );
     }
 
     private void TestStatusLegacyParamsTickIntervalTuIsNotUsedAsRuntimeTickInterval()

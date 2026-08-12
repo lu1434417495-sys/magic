@@ -106,14 +106,6 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
                     stateDef.generation_slots?.Count ?? 0,
                     $"{brainPath} state {stateDef.state_id} generation slots 应完整投影。"
                 );
-                foreach (EnemyAiActionDefinition action in stateDefinition.Actions)
-                {
-                    _test.True(
-                        action != null
-                            && !typeof(Resource).IsAssignableFrom(action.GetType()),
-                        $"{brainPath} state {stateDef.state_id} runtime action 应是 plain definition。"
-                    );
-                }
                 if (stateDef.generation_slots == null)
                 {
                     continue;

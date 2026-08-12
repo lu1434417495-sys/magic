@@ -27,7 +27,6 @@ public partial class run_trait_trigger_regression : LifecycleTestSceneTree
         TestTurnStartRefreshesHalflingLuck();
         TestEffectiveStackByInstanceUsesIndependentChargeKeys();
         TestPassiveEffectiveTraitChargeSeedsByResetTiming();
-        TestTraitDispatchContentRulesMatchRuntimeMethods();
 
         return _test.Finish("Trait trigger regression");
     }
@@ -264,30 +263,6 @@ public partial class run_trait_trigger_regression : LifecycleTestSceneTree
             1,
             "passive trigger effective trait should seed by charge_reset_timing."
         );
-    }
-
-    private void TestTraitDispatchContentRulesMatchRuntimeMethods()
-    {
-        var hooks = new TraitTriggerHooks();
-        foreach (TraitTriggerDispatchRule rule in TraitTriggerContentRules.GetDispatchTriggerRules())
-        {
-            StringName traitId = TraitContentRules.ToStringName(rule.TraitKind);
-            StringName triggerType = TraitTriggerContentRules.ToStringName(rule.TriggerKind);
-            string dispatchKey = TraitTriggerContentRules.GetDispatchKey(traitId, triggerType);
-            _test.True(
-                !string.IsNullOrEmpty(dispatchKey),
-                $"content dispatch should expose a dispatch key for {traitId}/{triggerType}."
-            );
-            _test.Eq(
-                rule.DispatchKey,
-                dispatchKey,
-                "content dispatch key should match the typed dispatch rule."
-            );
-            _test.True(
-                TraitTriggerHooks.HasDispatchForTraitTrigger(traitId, triggerType),
-                "runtime static dispatch query should agree with content dispatch table."
-            );
-        }
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, int hp)

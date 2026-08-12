@@ -242,26 +242,25 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             ].AsGodotDictionary();
             using GArray targetEstimates = estimates["target"].AsGodotArray();
             using GDictionary compact = targetEstimates[0].AsGodotDictionary();
-            Dictionary<string, object> legacy = estimate.ToTraceDictionary();
             _test.Eq(
                 compact["hit_count"].AsInt32(),
-                (int)legacy["hit_count"],
-                "Typed compact save hit_count must retain f25 clamp semantics."
+                1,
+                "Typed compact save hit_count must clamp the fixture's zero hit count to one."
             );
             _test.Eq(
                 compact["ability"].AsString(),
-                (string)legacy["ability"],
-                "Typed compact save ability null semantics."
+                "",
+                "Typed compact save ability should project null as an empty string."
             );
             _test.Eq(
                 compact["save_tag"].AsString(),
-                (string)legacy["save_tag"],
-                "Save tag null semantics."
+                "",
+                "Typed compact save tag should project null as an empty string."
             );
             _test.Eq(
                 compact["advantage_state"].AsString(),
-                (string)legacy["advantage_state"],
-                "Advantage-state null semantics."
+                "",
+                "Typed compact advantage state should project null as an empty string."
             );
         }
         AssertReturnedToBaseline(baseline, "compact save edge parity");

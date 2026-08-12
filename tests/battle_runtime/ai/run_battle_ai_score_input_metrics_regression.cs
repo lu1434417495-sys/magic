@@ -208,10 +208,28 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
 
         BattleUnitState mage = BuildUnit("friendly_chain_mage", "hostile", new Vector2I(1, 2));
         BattleUnitState target = BuildUnit("friendly_chain_target", "player", new Vector2I(5, 2));
+        BattleUnitState secondaryEnemy = BuildUnit(
+            "friendly_chain_secondary_enemy",
+            "player",
+            new Vector2I(4, 2)
+        );
         BattleUnitState ally = BuildUnit("friendly_chain_ally", "hostile", new Vector2I(5, 3));
+        BattleUnitState outsideEnemy = BuildUnit(
+            "friendly_chain_outside_enemy",
+            "player",
+            new Vector2I(7, 2)
+        );
+        BattleUnitState outsideAlly = BuildUnit(
+            "friendly_chain_outside_ally",
+            "hostile",
+            new Vector2I(5, 4)
+        );
         fixture.AddUnit(mage);
         fixture.AddUnit(target);
+        fixture.AddUnit(secondaryEnemy);
         fixture.AddUnit(ally);
+        fixture.AddUnit(outsideEnemy);
+        fixture.AddUnit(outsideAlly);
 
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(mage),
@@ -227,8 +245,16 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         {
             return;
         }
-        _test.True(score.estimated_chain_ally_target_count >= 1, "链闪评分应预估会弹射到友军。");
-        _test.True(score.estimated_friendly_fire_target_count >= 1, "链闪评分应把友军弹射计为友伤风险。");
+        _test.Eq(
+            score.effective_target_count,
+            2,
+            "链闪评分的有效目标数应包含首目标与范围内次要敌人，但不把友军算作收益。"
+        );
+        _test.Eq(score.estimated_chain_target_count, 2, "链闪评分应只枚举首目标一格内的两个连锁目标。");
+        _test.Eq(score.estimated_chain_enemy_target_count, 1, "链闪评分应计入范围内的全部次要敌人。");
+        _test.Eq(score.estimated_chain_ally_target_count, 1, "链闪评分应计入范围内的全部友军。");
+        _test.Eq(score.estimated_friendly_fire_target_count, 1, "链闪评分应把范围内友军计为友伤风险，但排除范围外友军。");
+        _test.True(score.friendly_fire_penalty_score > 0, "链闪波及友军时必须产生负面评分。");
     }
 
     private void TestDamageScoreUsesFormalResistanceAndShieldRules()

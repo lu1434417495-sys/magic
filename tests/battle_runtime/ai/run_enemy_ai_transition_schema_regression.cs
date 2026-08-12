@@ -70,7 +70,17 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
             brain.ValidateSchema(),
             "EnemyAiTransitionSchema.RejectsAmbiguous.errors"
         );
-        _test.True(errors.Count >= 2, $"应拒绝重复 rule_id/order: {FormatErrors(errors)}");
+        _test.Eq(errors.Count, 2, $"重复 fixture 应只触发 rule_id/order 两条规则: {FormatErrors(errors)}");
+        AssertHasError(
+            errors,
+            "Enemy brain custom_transition_brain declares duplicate transition rule_id duplicate.",
+            "重复 rule_id 应命中精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "Enemy brain custom_transition_brain declares duplicate transition order 10.",
+            "重复 transition order 应命中精确诊断。"
+        );
     }
 
     private void TestRejectsEmptyConditionsAndUnknownPredicates()
@@ -101,7 +111,27 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
             brain.ValidateSchema(),
             "EnemyAiTransitionSchema.RejectsInvalidConditions.errors"
         );
-        _test.True(errors.Count >= 4, $"应拒绝空 conditions、未知 predicate 和不存在的 state 引用: {FormatErrors(errors)}");
+        _test.Eq(errors.Count, 4, $"非法 transition fixture 应逐条触发四项目标规则: {FormatErrors(errors)}");
+        AssertHasError(
+            errors,
+            "transition rule empty_conditions must declare at least one condition.",
+            "空 conditions 应命中所属 rule 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "transition rule unknown_condition transition condition uses unsupported predicate scripted_expression.",
+            "未知 predicate 应命中所属 rule 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "transition rule bad_target target_state_id missing_state is not declared in states.",
+            "缺失 target state 应命中所属 rule 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "transition rule bad_from from_state_id missing_from_state is not declared in states.",
+            "缺失 from state 应命中所属 rule 的精确诊断。"
+        );
     }
 
     private void TestConditionTraceShapeIsTypedAndStable()
@@ -217,6 +247,16 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
     }
 
     private static string FormatErrors(IEnumerable<string> errors) => string.Join("; ", errors);
+
+    private void AssertHasError(IEnumerable<string> errors, string fragment, string message)
+    {
+        foreach (string error in errors ?? Array.Empty<string>())
+        {
+            if ((error ?? "").Contains(fragment))
+                return;
+        }
+        _test.Fail($"{message} expected={fragment} errors={FormatErrors(errors)}");
+    }
 
     private void AssertListHas(
         IEnumerable<StringName> values,

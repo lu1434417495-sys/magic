@@ -289,12 +289,20 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         int shawlMpMax = Math.Max(shawlSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), shawlMember.current_mp);
         int oldHp = shawlMember.current_hp;
         int oldMp = shawlMember.current_mp;
+        _test.True(
+            shawlHpMax > oldHp,
+            "血债披肩恢复夹具必须预留 HP 缺口，否则无法证明恢复惩罚生效。"
+        );
+        _test.True(
+            shawlMpMax > oldMp,
+            "血债披肩恢复夹具必须预留 MP 缺口，否则无法证明恢复惩罚生效。"
+        );
         int expectedHp = Math.Min(
-            oldHp + (int)Math.Ceiling(Math.Max(shawlHpMax - oldHp, 0) * LowLuckRelicRules.BloodDebtRecoveryMultiplier),
+            oldHp + (int)Math.Ceiling(Math.Max(shawlHpMax - oldHp, 0) * 0.5),
             shawlHpMax
         );
         int expectedMp = Math.Min(
-            oldMp + (int)Math.Ceiling(Math.Max(shawlMpMax - oldMp, 0) * LowLuckRelicRules.BloodDebtRecoveryMultiplier),
+            oldMp + (int)Math.Ceiling(Math.Max(shawlMpMax - oldMp, 0) * 0.5),
             shawlMpMax
         );
         GameRuntimeSettlementCommandHandler shawlHandler = new();
@@ -305,14 +313,6 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         _test.Eq(plainMember.current_mp, plainMpMax, "未装备血债披肩时 full restore 应恢复到 MP 上限。");
         _test.Eq(shawlMember.current_hp, expectedHp, "血债披肩代价应把 full restore 的 HP 恢复量减半。");
         _test.Eq(shawlMember.current_mp, expectedMp, "血债披肩代价应把 full restore 的 MP 恢复量减半。");
-        _test.True(
-            shawlMember.current_hp < shawlHpMax || oldHp >= shawlHpMax,
-            "血债披肩恢复后 HP 不应直接回满。"
-        );
-        _test.True(
-            shawlMember.current_mp < shawlMpMax || oldMp >= shawlMpMax,
-            "血债披肩恢复后 MP 不应直接回满。"
-        );
 
         plainRuntime.Dispose();
         shawlRuntime.Dispose();

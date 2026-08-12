@@ -213,12 +213,23 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
             $"同一 stage 不应声明重复 actor_id。 errors={FormatErrors(duplicateActorErrors)}"
         );
 
+        roster.stages[0].unit_entries.RemoveAt(
+            roster.stages[0].unit_entries.Count - 1
+        );
+
         GStringArray missingTemplateErrors = roster.ValidateSchemaTyped(
             new HashSet<StringName>()
         );
         _test.True(
-            missingTemplateErrors.Count > 0,
-            $"typed ValidateSchemaTyped() 应直接报告缺失 template。 errors={FormatErrors(missingTemplateErrors)}"
+            ContainsError(
+                missingTemplateErrors,
+                "Wild encounter roster schema_roster stage 0 references missing template wolf."
+            ),
+            $"typed ValidateSchemaTyped() 应精确报告缺失 template。 errors={FormatErrors(missingTemplateErrors)}"
+        );
+        _test.False(
+            ContainsError(missingTemplateErrors, "duplicate actor_id"),
+            $"缺失 template fixture 不应夹带重复 actor 诊断。 errors={FormatErrors(missingTemplateErrors)}"
         );
     }
 

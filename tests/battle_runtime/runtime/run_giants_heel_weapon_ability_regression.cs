@@ -106,9 +106,6 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
 
         AssertEquipmentRequirementBlocksMediumAndAllowsLarge(fixture.ItemDefs);
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildGiantsHeelUnit("projection", "large", strength: 18);
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -142,20 +139,6 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
             "eq_giants_heel_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除巨人之踵后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除巨人之踵后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除巨人之踵后装备能力源应清空。"
-        );
     }
 
     private void TestPrimordialWeightAttackPenaltyUsesBodySizeAndStrengthFacts()

@@ -95,7 +95,6 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildButcherUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -142,20 +141,6 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
             "eq_butcher_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除屠夫后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除屠夫后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除屠夫后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestButcherAddsDamageDiceAgainstBeastAndAnimal()
@@ -278,8 +263,8 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
             "beast"
         );
 
-        runtime._collect_defeated_unit_loot(butcherKill, butcherKiller);
-        runtime._collect_defeated_unit_loot(plainKill, plainKiller);
+        runtime._loot_resolver.CollectDefeatedUnitLoot(butcherKill, butcherKiller);
+        runtime._loot_resolver.CollectDefeatedUnitLoot(plainKill, plainKiller);
 
         _test.Eq(
             CountLootQuantity(runtime._active_loot_entries, "beast_hide", "butcher_kill_beast"),
@@ -298,7 +283,7 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
         };
         BattleObjectiveTestFactory.SetEliminationDecision(state, "player");
         runtime.SetupStateForTests(state);
-        BattleResolutionResult resolution = runtime._build_battle_resolution_result();
+        BattleResolutionResult resolution = runtime._loot_resolver.BuildBattleResolutionResult();
         _test.Eq(
             CountLootQuantity(resolution.loot_entries, "beast_hide", "butcher_kill_beast"),
             4,

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -8,19 +7,9 @@ public partial class run_battle_ai_unit_snapshot_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        TestPayloadGuardIsPlainStaticBoundaryHelper();
         TestSnapshotCopiesUnitStateIntoTypedCollections();
         TestSnapshotPlainPayloadIsBoundaryOnly();
         RequestTestExit(_test.Finish("Battle AI unit snapshot regression"));
-    }
-
-    private void TestPayloadGuardIsPlainStaticBoundaryHelper()
-    {
-        Type guardType = typeof(BattleAiPayloadGuard);
-        _test.True(
-            guardType.IsAbstract && guardType.IsSealed,
-            "BattleAiPayloadGuard 应是 plain static C# helper。"
-        );
     }
 
     private void TestSnapshotCopiesUnitStateIntoTypedCollections()

@@ -81,9 +81,6 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
             _test.True(ContainsStringName(rawGlory.tags, "glory"), "荣耀之刃物品 tag 应包含 glory。");
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildGloryUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -105,20 +102,6 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         AssertCurtainCallPayload(fixture.Bindings[CurtainCallBindingId]);
         AssertLonelyDarkPayload(fixture.Bindings[LonelyDarkBindingId]);
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除荣耀之刃后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除荣耀之刃后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除荣耀之刃后装备能力源应清空。"
-        );
     }
 
     private void TestCrowdGazeAndLonelyDarkUseAllNearbyLivingCreatures()

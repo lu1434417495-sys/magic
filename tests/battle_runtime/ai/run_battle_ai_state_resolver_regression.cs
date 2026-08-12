@@ -371,17 +371,6 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
             )
         );
 
-    private static bool IsGodotDynamicBoundaryType(Type type)
-    {
-        if (type == typeof(Variant))
-        {
-            return true;
-        }
-        string typeName = type.FullName ?? "";
-        return typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal)
-            || typeName.StartsWith("Godot.Collections.Array", StringComparison.Ordinal);
-    }
-
     private sealed class Fixture
     {
         public BattleState State;

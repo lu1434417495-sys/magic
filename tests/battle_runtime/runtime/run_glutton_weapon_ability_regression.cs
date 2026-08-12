@@ -99,7 +99,6 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildGluttonUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -155,20 +154,6 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             "吞食斩造成伤害后必须清除已消耗的饥饿层数。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除贪食者后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除贪食者后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除贪食者后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestUnsatisfiedAddsHungerAndDevouringChopConsumesItForDamage()

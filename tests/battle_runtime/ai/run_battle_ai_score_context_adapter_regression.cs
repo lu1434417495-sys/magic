@@ -292,25 +292,6 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
             )
         );
 
-    private static bool IsGodotDynamicBoundaryType(Type type) =>
-        type == typeof(Godot.Collections.Dictionary)
-        || type == typeof(Godot.Collections.Array)
-        || type == typeof(Variant)
-        || type.FullName == "Godot.Collections.Dictionary"
-        || type.FullName == "Godot.Collections.Array";
-
-    private static StringName DictStringName(Godot.Collections.Dictionary source, string key)
-    {
-        if (source == null)
-        {
-            return "";
-        }
-        StringName exactKey = new(key);
-        return source.ContainsKey(exactKey)
-            ? ProgressionDataUtils.to_string_name(source[exactKey])
-            : new StringName("");
-    }
-
     private sealed class Fixture
     {
         public BattleState State;

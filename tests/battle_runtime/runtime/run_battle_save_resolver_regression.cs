@@ -197,7 +197,11 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             effect,
             "test_effect"
         );
-        _test.True(errors.Count > 0, $"旧 params.control_save_bonus 应被 SkillContentRegistry 静态拒绝。 errors={FormatErrors(errors)}");
+        AssertValidationError(
+            errors,
+            "Skill legacy_control_save_bonus effect test_effect params.control_save_bonus is unsupported; use CombatEffectDef.control_save_bonus.",
+            "旧 params.control_save_bonus 应命中自身 typed-field 迁移诊断。"
+        );
     }
 
     private void TestPerTagSaveBonusCoexistsWithStatusSaveBonuses()
@@ -332,7 +336,31 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         };
         var errors = new Godot.Collections.Array<string>();
         registry.AppendEffectValidationErrors(errors, "legacy_save_tags", effect, "test_effect");
-        _test.True(errors.Count >= 4, $"旧 params save tags 应被 SkillContentRegistry 静态拒绝。 errors={FormatErrors(errors)}");
+        _test.Eq(
+            errors.Count,
+            4,
+            $"复合 save-tag fixture 应只报告四个旧 key。 errors={FormatErrors(errors)}"
+        );
+        AssertValidationError(
+            errors,
+            "Skill legacy_save_tags effect test_effect params.save_advantage_tags is unsupported; use CombatEffectDef.save_advantage_tags.",
+            "旧 save_advantage_tags 应命中自身迁移诊断。"
+        );
+        AssertValidationError(
+            errors,
+            "Skill legacy_save_tags effect test_effect params.save_disadvantage_tags is unsupported; use CombatEffectDef.save_disadvantage_tags.",
+            "旧 save_disadvantage_tags 应命中自身迁移诊断。"
+        );
+        AssertValidationError(
+            errors,
+            "Skill legacy_save_tags effect test_effect params.save_immunity_tags is unsupported; use CombatEffectDef.save_immunity_tags.",
+            "旧 save_immunity_tags 应命中自身迁移诊断。"
+        );
+        AssertValidationError(
+            errors,
+            "Skill legacy_save_tags effect test_effect params.save_tags is unsupported; use CombatEffectDef.save_advantage_tags/save_disadvantage_tags/save_immunity_tags.",
+            "旧聚合 save_tags 应命中三个 typed tag 字段的迁移诊断。"
+        );
     }
 
     private void TestSaveResolverEstimatesSuccessProbability()
@@ -707,43 +735,18 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         return string.Join(" || ", errors ?? Array.Empty<string>());
     }
 
-    private static bool IsGodotPayloadType(Type type)
+    private void AssertValidationError(
+        IEnumerable<string> errors,
+        string expectedError,
+        string message
+    )
     {
-        if (type.IsByRef || type.IsPointer || type.IsArray)
+        foreach (string error in errors ?? Array.Empty<string>())
         {
-            type = type.GetElementType() ?? type;
+            if (string.Equals(error, expectedError, StringComparison.Ordinal))
+                return;
         }
-        if (type == typeof(Variant))
-        {
-            return true;
-        }
-        string typeName = type.FullName ?? "";
-        if (
-            typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal)
-            || typeName.StartsWith("Godot.Collections.Array", StringComparison.Ordinal)
-        )
-        {
-            return true;
-        }
-        if (type.IsGenericType)
-        {
-            foreach (Type genericArgument in type.GetGenericArguments())
-            {
-                if (IsGodotPayloadType(genericArgument))
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private void RequireNull(object value, string message)
-    {
-        if (value != null)
-        {
-            _test.Fail(message);
-        }
+        _test.Fail($"{message} expected={expectedError} errors={FormatErrors(errors)}");
     }
 
     private void RequireDegree(

@@ -151,35 +151,6 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
         return unit;
     }
 
-    private static bool IsForbiddenGodotBoundaryType(Type type) =>
-        type == typeof(Variant)
-        || IsGodotCollectionType(type);
-
-    private static bool IsGodotCollectionType(Type type)
-    {
-        if (type == null || type.IsGenericParameter)
-        {
-            return false;
-        }
-        if (type.Namespace == "Godot.Collections")
-        {
-            return type.Name.StartsWith("Dictionary", StringComparison.Ordinal)
-                || type.Name.StartsWith("Array", StringComparison.Ordinal);
-        }
-        if (!type.IsGenericType)
-        {
-            return false;
-        }
-        foreach (Type genericArgument in type.GetGenericArguments())
-        {
-            if (IsGodotCollectionType(genericArgument))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void AssertCoords(
         IReadOnlyList<Vector2I> actual,
         IReadOnlyList<Vector2I> expected,

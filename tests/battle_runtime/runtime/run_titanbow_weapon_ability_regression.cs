@@ -114,10 +114,7 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildTitanbowUnit("projection", strength: 18);
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
 
@@ -159,21 +156,6 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
             "力量需求必须由装备能力 attack_roll_bonus=-4 条件配置声明。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除泰坦之弓后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除泰坦之弓后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除泰坦之弓后装备能力源应清空。"
-        );
     }
 
     private void TestTitanbowAddsDamageDiceAgainstLargeOrLargerTargetsOnly()

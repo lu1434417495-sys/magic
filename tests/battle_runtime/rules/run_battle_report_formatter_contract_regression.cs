@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Godot;
 
 public partial class run_battle_report_formatter_contract_regression : LifecycleTestSceneTree
@@ -80,7 +79,21 @@ public partial class run_battle_report_formatter_contract_regression : Lifecycle
         formatter.AppendDamageResultLogLines(batch, "施术者", "目标", result);
 
         _test.Eq(batch.log_lines.Count, 3, "typed damage result 应生成伤害、护盾吸收和护盾破碎日志。");
-        AssertAllLinesNonEmpty(batch.log_lines, "typed damage result 应生成非空战斗日志。");
+        _test.Eq(
+            batch.log_lines[0],
+            "施术者 对 目标 造成 18 点伤害（因 冰霜抗性 减半后结算）。",
+            "typed damage log 应准确投影伤害值与减半来源。"
+        );
+        _test.Eq(
+            batch.log_lines[1],
+            "目标 的护盾吸收了 3 点伤害。",
+            "typed damage log 应准确投影护盾吸收值。"
+        );
+        _test.Eq(
+            batch.log_lines[2],
+            "目标 的护盾被击碎。",
+            "typed damage log 应准确投影破盾结果。"
+        );
     }
 
     private void TestMeteorSummaryProjectionStillFormatsEntry()
@@ -103,7 +116,11 @@ public partial class run_battle_report_formatter_contract_regression : Lifecycle
         Godot.Collections.Array<string> lines = formatter.FormatMeteorSwarmSummary(entry);
 
         _test.Eq(lines.Count, 1, "meteor summary projection 应生成一行摘要。");
-        _test.False(string.IsNullOrWhiteSpace(lines[0]), "meteor summary projection 应生成非空摘要。");
+        _test.Eq(
+            lines[0],
+            "陨星雨覆盖 9 格，波及 2 个单位，造成 42 点总伤害；留下陨坑 3 格、碎石 2 格、尘土 1 格。",
+            "meteor summary 应准确投影目标数、总伤害与每类 terrain 统计。"
+        );
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName team, string displayName)
@@ -120,54 +137,6 @@ public partial class run_battle_report_formatter_contract_regression : Lifecycle
     private static string EntryString(Godot.Collections.Dictionary entry, string key)
     {
         return entry.GetValueOrDefault(key, "").AsString();
-    }
-
-    private void AssertAllLinesNonEmpty(IReadOnlyList<string> lines, string message)
-    {
-        if (lines == null || lines.Count == 0)
-        {
-            _test.Fail(message);
-            return;
-        }
-        foreach (string line in lines)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                _test.Fail(message);
-                return;
-            }
-        }
-    }
-
-    private static bool IsGodotPayloadType(Type type)
-    {
-        if (type.IsByRef || type.IsPointer || type.IsArray)
-        {
-            type = type.GetElementType() ?? type;
-        }
-        if (type == typeof(Variant))
-        {
-            return true;
-        }
-        string typeName = type.FullName ?? "";
-        if (
-            typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal)
-            || typeName.StartsWith("Godot.Collections.Array", StringComparison.Ordinal)
-        )
-        {
-            return true;
-        }
-        if (type.IsGenericType)
-        {
-            foreach (Type genericArgument in type.GetGenericArguments())
-            {
-                if (IsGodotPayloadType(genericArgument))
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
 }

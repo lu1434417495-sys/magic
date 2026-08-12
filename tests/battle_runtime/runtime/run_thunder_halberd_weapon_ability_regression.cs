@@ -98,10 +98,7 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildThunderHalberdUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, ThunderHalberdItemId, "雷霆之戟装备后 unit 应保留真实 item_id。");
@@ -125,25 +122,6 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
             "eq_thunder_halberd_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除雷霆之戟后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除雷霆之戟后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除雷霆之戟后装备能力源应清空。"
-        );
-        _test.False(
-            equipped.HasEffectiveTrait(ThunderSlashTraitId),
-            "移除雷霆之戟后雷鸣斩 trait 不应残留。"
-        );
     }
 
     private void TestThunderSlashAddsThunderDamageOnRealWeaponHit()

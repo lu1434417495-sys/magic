@@ -169,7 +169,7 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
             state.enemy_unit_ids.Add(elite.unit_id);
             runtime.SetupStateForTests(state);
 
-            BattleResolutionResult result = runtime._build_battle_resolution_result();
+            BattleResolutionResult result = runtime.GetBattleResolutionResult();
             _test.Eq(
                 CountMatchingLootQuantity(
                     result.loot_entries,
@@ -201,7 +201,7 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
             state.enemy_unit_ids.Add(boss.unit_id);
             runtime.SetupStateForTests(state);
 
-            BattleResolutionResult result = runtime._build_battle_resolution_result();
+            BattleResolutionResult result = runtime.GetBattleResolutionResult();
             _test.Eq(
                 CountMatchingLootQuantity(
                     result.loot_entries,
@@ -233,7 +233,7 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
             state.enemy_unit_ids.Add(boss.unit_id);
             runtime.SetupStateForTests(state);
 
-            BattleResolutionResult result = runtime._build_battle_resolution_result();
+            BattleResolutionResult result = runtime.GetBattleResolutionResult();
             _test.Eq(
                 runtime.GetDoomSentenceRefundCalamityTotal(),
                 5,

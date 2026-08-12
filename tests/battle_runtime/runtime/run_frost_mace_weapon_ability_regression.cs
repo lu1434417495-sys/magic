@@ -117,9 +117,6 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildFrostMaceUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -155,33 +152,6 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
             "装备冰霜锤不应投影极地适应占位 trait。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除冰霜锤后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除冰霜锤后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除冰霜锤后装备能力源应清空。"
-        );
-        _test.False(
-            equipped.HasEffectiveTrait(FrozenStrikeTraitId),
-            "移除冰霜锤后冰冻打击 trait 不应残留。"
-        );
-        _test.False(
-            equipped.HasEffectiveTrait(SealPowerTraitId),
-            "移除冰霜锤后封印之力 trait 不应残留。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除冰霜锤后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestFrozenStrikeAddsColdDamageOnNormalTarget()

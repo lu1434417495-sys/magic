@@ -6,6 +6,11 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_damage_resolver_preview_contract_regression : LifecycleTestSceneTree
 {
+    private sealed class MaxRollDamageResolver : BattleDamageResolver
+    {
+        public override int _roll_damage_die(int diceSides) => Math.Max(diceSides, 1);
+    }
+
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -295,6 +300,41 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
                 BattleDamagePreviewSaveMode.Expected
             );
 
+        AssertKnownCompactProjection(
+            "Full preview",
+            full.Applied,
+            full.RollMode,
+            full.SaveMode,
+            full.PreSaveDamage,
+            full.PostSaveDamage,
+            full.HpDamage,
+            full.Damage,
+            full.IncomingBudgetDamage,
+            full.ShieldAbsorbed,
+            full.ShieldBroken,
+            full.ShieldHpBefore,
+            full.ShieldHpAfter,
+            full.ErrorCode,
+            full.SaveEstimate
+        );
+        AssertKnownCompactProjection(
+            "Compact score preview",
+            score.Applied,
+            score.RollMode,
+            score.SaveMode,
+            score.PreSaveDamage,
+            score.PostSaveDamage,
+            score.HpDamage,
+            score.Damage,
+            score.IncomingBudgetDamage,
+            score.ShieldAbsorbed,
+            score.ShieldBroken,
+            score.ShieldHpBefore,
+            score.ShieldHpAfter,
+            score.ErrorCode,
+            score.SaveEstimate
+        );
+
         _test.Eq(score.Applied, full.Applied, "Compact score preview should preserve applied.");
         _test.Eq(score.RollMode, full.RollMode, "Compact score preview should preserve roll mode.");
         _test.Eq(score.SaveMode, full.SaveMode, "Compact score preview should preserve save mode.");
@@ -336,9 +376,51 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         );
     }
 
+    private void AssertKnownCompactProjection(
+        string label,
+        bool applied,
+        StringName rollMode,
+        StringName saveMode,
+        int preSaveDamage,
+        int postSaveDamage,
+        int hpDamage,
+        int damage,
+        int incomingBudgetDamage,
+        int shieldAbsorbed,
+        bool shieldBroken,
+        int shieldHpBefore,
+        int shieldHpAfter,
+        string errorCode,
+        BattleDamagePreviewSaveEstimate saveEstimate
+    )
+    {
+        _test.True(applied, $"{label} should apply the known damage fixture.");
+        _test.Eq(rollMode, new StringName("average"), $"{label} should preserve average roll mode.");
+        _test.Eq(saveMode, new StringName("expected"), $"{label} should preserve expected save mode.");
+        _test.Eq(preSaveDamage, 10, $"{label} should halve the fixture's 20 fire damage before the save.");
+        _test.Eq(postSaveDamage, 5, $"{label} should apply the successful partial save to 10 damage.");
+        _test.Eq(hpDamage, 0, $"{label} should leave no damage after the shield absorbs five points.");
+        _test.Eq(damage, 0, $"{label} should report zero applied HP damage.");
+        _test.Eq(incomingBudgetDamage, 5, $"{label} should retain five points in the incoming damage budget.");
+        _test.Eq(shieldAbsorbed, 5, $"{label} should consume five points from the six-point shield.");
+        _test.False(shieldBroken, $"{label} should leave the six-point shield intact at one HP.");
+        _test.Eq(shieldHpBefore, 6, $"{label} should expose the known starting shield HP.");
+        _test.Eq(shieldHpAfter, 1, $"{label} should expose the known remaining shield HP.");
+        _test.Eq(errorCode, "", $"{label} should complete without an error code.");
+        _test.True(saveEstimate?.HasSave == true, $"{label} should retain the configured agility save.");
+        _test.Eq(saveEstimate?.DamageBeforeSave ?? -1, 10, $"{label} save should start from mitigated damage 10.");
+        _test.Eq(saveEstimate?.DamageOnSaveFailure ?? -1, 10, $"{label} failed save branch should retain 10 damage.");
+        _test.Eq(saveEstimate?.DamageOnSaveSuccess ?? -1, 5, $"{label} successful save branch should halve damage to five.");
+        _test.Eq(saveEstimate?.DamageAfterSaveEstimate ?? -1, 5, $"{label} override roll 20 should select the five-damage save result.");
+        _test.Eq(saveEstimate?.SaveSuccessProbabilityBasisPoints ?? -1, 10000, $"{label} override roll 20 should make save success certain.");
+        _test.Eq(saveEstimate?.Dc ?? -1, 10, $"{label} should retain the configured save DC.");
+        _test.Eq(saveEstimate?.Ability ?? "", "agility", $"{label} should retain the configured save ability.");
+        _test.Eq(saveEstimate?.SaveTag ?? "", "magic", $"{label} should retain the configured save tag.");
+    }
+
     private void TestAttributeScaledRecoveryDiceUseFormalFields()
     {
-        var resolver = new BattleDamageResolver();
+        var resolver = new MaxRollDamageResolver();
         BattleUnitState source = MakeUnit("recovery_source", "player");
         source.attribute_snapshot.SetValue("constitution", 12);
         source.attribute_snapshot.SetValue("constitution_modifier", 1);
@@ -364,7 +446,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         ));
         GDictionary healResult = healResultLease.Value;
         int healing = DictInt(healResult, "healing");
-        _test.True(healing >= 2 && healing <= 14, "Healing should use typed 2D(4+CON+WILL) dice sides.");
+        _test.Eq(healing, 14, "Healing should roll the injected maximum of typed 2D(4+CON+WILL).");
         _test.Eq(healTarget.GetCurrentHp(), 10 + healing, "Typed healing dice should write back HP.");
 
         BattleUnitState staminaTarget = MakeUnit("stamina_target", "player");
@@ -384,22 +466,68 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             new[] { staminaEffect },
             DamageResolutionContext.Empty()
         );
-        _test.True(
-            staminaTarget.GetCurrentStamina() >= 2 && staminaTarget.GetCurrentStamina() <= 14,
-            "Stamina restore should use typed attribute-scaled dice sides."
+        _test.Eq(
+            staminaTarget.GetCurrentStamina(),
+            14,
+            "Stamina restore should roll the injected maximum of typed 2D(4+CON+WILL)."
         );
 
         var shieldService = new BattleShieldService();
+        var shieldRuntime = new BattleRuntimeModule();
+        shieldRuntime.SetupStateForTests(new BattleState());
+        shieldService.Setup(shieldRuntime);
+        BattleUnitState shieldTarget = MakeUnit("shield_target", "player");
+        SkillDefinition shieldSkill = TestSkillDefinitionProjection.BuildSkill(
+            "attribute_scaled_shield"
+        );
         CombatEffectDefinition shieldEffect = TestSkillDefinitionProjection.BuildEffect(
             "shield",
             diceCount: 2,
             diceSidesBase: 4,
             diceSidesPerConstitutionMod: 1,
-            diceSidesPerWillpowerMod: 1
+            diceSidesPerWillpowerMod: 1,
+            durationTu: 60
         );
-        _test.True(shieldService._has_shield_dice_config(shieldEffect), "Shield service should detect typed attribute-scaled dice.");
-        int shieldHp = shieldService._resolve_shield_hp(source, shieldEffect, new GDictionary());
-        _test.True(shieldHp >= 2 && shieldHp <= 14, "Shield HP should use typed attribute-scaled dice.");
+        BattleShieldApplyResult shieldResult;
+        try
+        {
+            TrueRandomSeedService.ConfigureDeterministicForTests(1729);
+            shieldResult = shieldService.ApplyUnitShieldEffectsResult(
+                source,
+                shieldTarget,
+                shieldSkill,
+                new[] { shieldEffect },
+                new Dictionary<long, int>()
+            );
+        }
+        finally
+        {
+            TrueRandomSeedService.ClearDeterministicForTests();
+            shieldService.DisposeRuntime();
+            shieldRuntime.Dispose();
+        }
+        BattleUnitShieldSnapshot shieldState = shieldTarget.GetShieldStateTyped();
+        _test.True(shieldResult.Applied, "Formal shield apply should accept typed attribute-scaled dice.");
+        _test.Eq(
+            shieldState.CurrentHp,
+            10,
+            "Seed 1729 should roll 5+5 on typed 2D7; ignoring attribute scaling would produce 1+2 on 2D4."
+        );
+        _test.Eq(
+            shieldState.MaxHp,
+            shieldState.CurrentHp,
+            "Formal shield apply should atomically initialize current and maximum shield HP."
+        );
+        _test.Eq(
+            shieldState.SourceUnitId,
+            source.unit_id,
+            "Formal shield apply should retain the source unit."
+        );
+        _test.Eq(
+            shieldState.SourceSkillId,
+            shieldSkill.SkillId,
+            "Formal shield apply should retain the source skill."
+        );
     }
 
     private void TestHealFatalUsesTypedEffectParams()

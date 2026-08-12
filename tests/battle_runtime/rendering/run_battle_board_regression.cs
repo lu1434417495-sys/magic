@@ -24,14 +24,24 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
 
     public override async void _Initialize()
     {
-        Root.Size = new Vector2I((int)ViewportSize.X, (int)ViewportSize.Y);
-        TestCanyonGenerationUsesTypedColumnsAndSupportedProps();
-        TestCanyonMapSizeInputContract();
-        TestAllFormalTerrainProfilesReturnTypedLayouts();
-        TestTerrainLayoutTransfersCellOwnershipOnce();
-        TestRenderProfileFormalSourceSpecs();
-        await TestBoardSceneRendersGeneratedCanyon();
-        RequestTestExit(_test.Finish("Battle board regression"));
+        try
+        {
+            Root.Size = new Vector2I((int)ViewportSize.X, (int)ViewportSize.Y);
+            TestCanyonGenerationUsesTypedColumnsAndSupportedProps();
+            TestCanyonMapSizeInputContract();
+            TestAllFormalTerrainProfilesReturnTypedLayouts();
+            TestTerrainLayoutTransfersCellOwnershipOnce();
+            TestRenderProfileFormalSourceSpecs();
+            await TestBoardSceneRendersGeneratedCanyon();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Battle board regression"));
+        }
     }
 
     private void TestCanyonGenerationUsesTypedColumnsAndSupportedProps()

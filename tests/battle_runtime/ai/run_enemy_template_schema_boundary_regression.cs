@@ -7,6 +7,8 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_enemy_template_schema_boundary_regression : LifecycleTestSceneTree
 {
+    private const string SaveAdvantageRoundTripPath =
+        "user://enemy_template_save_advantage_tags_roundtrip_regression.tres";
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -15,7 +17,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         TestDictionaryReferenceIndicesBuildTypedSchemaInputsFromStringNameKeys();
         TestTypedSchemaValidationRejectsMissingTypedItemReferences();
         TestCognitionKindIsRequiredAndClosed();
-        TestSaveAdvantageTagsExportFieldExists();
+        TestSaveAdvantageTagsSurviveResourceRoundTrip();
         TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes();
         TestSaveAdvantageTagsRejectEmptyTag();
         TestSaveAdvantageTagsRejectUnsupportedBaseTag();
@@ -180,6 +182,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             "missing_item_schema_template",
             "missing_item_schema_weapon"
         );
+        template.drop_entries.Clear();
         template.drop_entries.Add(
             new DropEntryDef
             {
@@ -204,21 +207,73 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             new Dictionary<StringName, ItemDefinition>(),
             skillDefinitionIndex
         );
+        _test.Eq(
+            errors.Count,
+            2,
+            $"缺失 item fixture 应只报告装备与掉落两条引用错误。 errors={FormatErrors(errors)}"
+        );
         _test.True(
-            errors.Count >= 2,
-            $"typed ValidateSchemaTyped() 应直接报告缺失装备和掉落 item 引用。 errors={FormatErrors(errors)}"
+            ContainsError(
+                errors,
+                "Enemy template missing_item_schema_template references missing attack_equipment_item_id missing_item_schema_weapon."
+            ),
+            $"应精确报告缺失攻击装备 missing_item_schema_weapon。 errors={FormatErrors(errors)}"
+        );
+        _test.True(
+            ContainsError(
+                errors,
+                "Enemy template missing_item_schema_template drop missing_drop references missing item_id missing_drop_item."
+            ),
+            $"应精确报告 missing_drop 的缺失 item missing_drop_item。 errors={FormatErrors(errors)}"
         );
     }
 
-    private void TestSaveAdvantageTagsExportFieldExists()
+    private void TestSaveAdvantageTagsSurviveResourceRoundTrip()
     {
-        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
-        _test.True(property != null, "EnemyTemplateDef 应公开 save_advantage_tags 导出字段。");
-        _test.True(
-            property != null
-                && Attribute.IsDefined(property, typeof(ExportAttribute), inherit: true),
-            "EnemyTemplateDef.save_advantage_tags 应使用 [Export] 暴露给模板资源。"
-        );
+        CleanupFile(SaveAdvantageRoundTripPath);
+        try
+        {
+            using EnemyTemplateDef template = BuildValidTemplate(
+                "save_advantage_roundtrip_template",
+                "save_advantage_roundtrip_weapon"
+            );
+            template.save_advantage_tags = new GStringNameArray { "illusion", "poison" };
+            _test.Eq(
+                ResourceSaver.Save(template, SaveAdvantageRoundTripPath),
+                Error.Ok,
+                "EnemyTemplateDef fixture 应能写入真实 .tres 资源。"
+            );
+
+            using EnemyTemplateDef loaded = ResourceLoader.Load<EnemyTemplateDef>(
+                SaveAdvantageRoundTripPath,
+                cacheMode: ResourceLoader.CacheMode.IgnoreDeep
+            );
+            _test.True(loaded != null, "保存后的 EnemyTemplateDef 应能从 .tres 重新加载。");
+            if (loaded == null)
+            {
+                return;
+            }
+
+            _test.Eq(
+                loaded.save_advantage_tags.Count,
+                2,
+                "save_advantage_tags 应经资源序列化保留完整元素数量。"
+            );
+            _test.Eq(
+                loaded.save_advantage_tags[0],
+                new StringName("illusion"),
+                "save_advantage_tags 应经资源序列化保留第一项。"
+            );
+            _test.Eq(
+                loaded.save_advantage_tags[1],
+                new StringName("poison"),
+                "save_advantage_tags 应经资源序列化保留第二项。"
+            );
+        }
+        finally
+        {
+            CleanupFile(SaveAdvantageRoundTripPath);
+        }
     }
 
     private void TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes()
@@ -614,8 +669,16 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             tags.Add(tag);
         }
 
-        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
-        property?.SetValue(template, tags);
+        template.save_advantage_tags = tags;
+    }
+
+    private static void CleanupFile(string virtualPath)
+    {
+        string absolutePath = ProjectSettings.GlobalizePath(virtualPath);
+        if (Godot.FileAccess.FileExists(absolutePath))
+        {
+            DirAccess.RemoveAbsolute(absolutePath);
+        }
     }
 
     private static bool ContainsError(GStringArray errors, string fragment)

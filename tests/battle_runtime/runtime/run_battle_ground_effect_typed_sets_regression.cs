@@ -9,58 +9,21 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
 
     public override void _Initialize()
     {
-        TestWindPushUsesTypedAffectedSets();
-        TestGroundUnitEffectsMergesTypedWindPushAffectedIds();
+        TestGroundUnitEffectsReportsEveryRecursivelyPushedUnit();
         TestSpecialForcedMoveUsesTypedContextDirection();
         TestGroundApplicationResultsProjectInternalBoundary();
-        TestBuildGroundEffectCoordsUsesTypedHelperBoundary();
-        TestDedupeEffectDefsUsesTypedHelperBoundary();
+        TestSquare2GroundEffectCoordsExpandAndSort();
+        TestDuplicateWeaponAttackEffectDamagesGroundTargetOnce();
+        TestEdgeClearAppliesThroughGroundTerrainEffectPath();
         RequestTestExit(_test.Finish("Battle ground effect typed sets regression"));
     }
 
-    private void TestGroundEffectServiceUsesPlainTypedHelperBoundary()
-    {
-    }
-
-    private void TestWindPushUsesTypedAffectedSets()
-    {
-        Fixture fixture = BuildWindPushFixture();
-        var batch = new BattleEventBatch();
-        BattleGroundWindPushResult result =
-            fixture.Runtime._ground_effect_service._apply_ground_wind_push_effects_result(
-                fixture.Source,
-                fixture.Skill,
-                new[] { fixture.WindPushEffect },
-                new List<Vector2I> { new Vector2I(1, 0) },
-                new List<Vector2I> { new Vector2I(1, 0) },
-                batch
-            );
-
-        _test.True(result.Applied, "wind push 应成功推动连锁单位。");
-        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(2, 0), "前排单位应被推到后排原坐标。");
-        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(3, 0), "后排阻挡单位应先被递归推开。");
-        _test.True(
-            result.AffectedUnitIds.Contains(fixture.Front.unit_id),
-            "typed affected set 应包含前排单位。"
-        );
-        _test.True(
-            result.AffectedUnitIds.Contains(fixture.Back.unit_id),
-            "typed affected set 应包含递归推动的后排单位。"
-        );
-        _test.Eq(result.AffectedUnitIds.Count, 2, "typed affected set 不应重复记录单位。");
-        CleanupFixture(fixture, batch);
-    }
-
-    private void TestSpecialSkillResolverUsesPlainTypedHelperBoundary()
-    {
-    }
-
-    private void TestGroundUnitEffectsMergesTypedWindPushAffectedIds()
+    private void TestGroundUnitEffectsReportsEveryRecursivelyPushedUnit()
     {
         Fixture fixture = BuildWindPushFixture();
         var batch = new BattleEventBatch();
         BattleGroundUnitEffectsResult result =
-            fixture.Runtime._ground_effect_service._apply_ground_unit_effects_result(
+            fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
                 fixture.Source,
                 fixture.Skill,
                 null,
@@ -99,18 +62,6 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             "typed context direction 应覆盖 source->target fallback 方向。"
         );
         CleanupFixture(fixture, batch);
-    }
-
-    private void TestGroundApplicationResultPublicApiStaysTyped()
-    {
-    }
-
-    private void AssertResultTypePublicApiStaysTyped(Type type, string typeName)
-    {
-        _test.True(
-            type.IsValueType || type.IsSealed,
-            $"{typeName} 应保持 plain C# result DTO。"
-        );
     }
 
     private void TestGroundApplicationResultsProjectInternalBoundary()
@@ -156,7 +107,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         );
     }
 
-    private void TestBuildGroundEffectCoordsUsesTypedHelperBoundary()
+    private void TestSquare2GroundEffectCoordsExpandAndSort()
     {
         Fixture fixture = BuildGroundEffectCoordsFixture();
         try
@@ -186,26 +137,40 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         }
     }
 
-    private void TestDedupeEffectDefsUsesTypedHelperBoundary()
+    private void TestDuplicateWeaponAttackEffectDamagesGroundTargetOnce()
     {
         Fixture fixture = BuildWindPushFixture();
         try
         {
-            CombatEffectDefinition windPushDefinition = fixture.WindPushEffect;
-            var duplicatePayload = new List<CombatEffectDefinition>
-            {
-                windPushDefinition,
-                windPushDefinition,
-            };
-            IReadOnlyList<CombatEffectDefinition> typedDeduped = fixture
+            CombatEffectDefinition weaponDamage = TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                effectTargetTeamFilter: "enemy",
+                power: 6,
+                damageTag: "force",
+                resolveAsWeaponAttack: true
+            );
+            fixture.Source.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 100);
+            fixture.Front.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 1);
+            fixture.Runtime.ConfigureDamageResolverForTests(new FixedHitMaxDamageResolver());
+            int hpBefore = fixture.Front.GetCurrentHp();
+            using var batch = new BattleEventBatch();
+            AttackEffectResolutionResult result = fixture
                 .Runtime
                 ._ground_effect_service
-                .DedupeEffectDefinitionsByIdentityTyped(duplicatePayload);
+                .ResolveGroundUnitEffectResult(
+                    fixture.Source,
+                    fixture.Front,
+                    fixture.Skill,
+                    new[] { weaponDamage, weaponDamage },
+                    batch
+                );
 
-            _test.Eq(typedDeduped.Count, 1, "typed dedupe helper 应按实例去重。");
-            _test.True(
-                ReferenceEquals(typedDeduped[0], windPushDefinition),
-                "typed dedupe helper 应保留原始 effect definition 实例。"
+            _test.True(result.AttackSuccess, "ground weapon-attack 路径应完成真实命中结算。");
+            _test.Eq(result.Damage, 6, "重复引用同一伤害效果时，结算结果只能包含一次伤害。");
+            _test.Eq(
+                fixture.Front.GetCurrentHp(),
+                hpBefore - 6,
+                "重复效果实例不得让 ground 目标被扣血两次。"
             );
         }
         finally
@@ -214,8 +179,194 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         }
     }
 
-    private void TestEdgeClearUsesTypedPrivateBoundary()
+    private void TestEdgeClearAppliesThroughGroundTerrainEffectPath()
     {
+        CombatEffectDefinition edgeClearEffect =
+            TestSkillDefinitionProjection.BuildEffect("edge_clear");
+        CombatEffectDefinition directDamageEffect =
+            TestSkillDefinitionProjection.BuildEffect("damage");
+        Fixture fixture = BuildEdgeClearFixture(
+            new[] { edgeClearEffect, directDamageEffect }
+        );
+        try
+        {
+            IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions =
+                fixture.Runtime.CollectGroundTerrainEffectDefinitionsTyped(
+                    fixture.Skill,
+                    null,
+                    fixture.Source
+                );
+            _test.Eq(
+                terrainEffectDefinitions.Count,
+                1,
+                "正式 ground terrain effect collection 应只收集 edge_clear，不应混入 unit damage。"
+            );
+            _test.True(
+                terrainEffectDefinitions.Contains(edgeClearEffect),
+                "edge_clear 必须被 IsGroundPayloadEffect 分类并进入正式 terrain effect collection。"
+            );
+            _test.False(
+                terrainEffectDefinitions.Contains(directDamageEffect),
+                "direct damage 不应进入正式 terrain effect collection。"
+            );
+
+            AssertEdgeClearOutcome(
+                fixture,
+                terrainEffectDefinitions,
+                "wall",
+                new Vector2I(0, 0),
+                new Vector2I(1, 0),
+                expectedApplied: true
+            );
+            AssertEdgeClearOutcome(
+                fixture,
+                terrainEffectDefinitions,
+                "door",
+                new Vector2I(0, 0),
+                new Vector2I(0, 1),
+                expectedApplied: true
+            );
+            AssertEdgeClearOutcome(
+                fixture,
+                terrainEffectDefinitions,
+                "gate",
+                new Vector2I(0, 0),
+                new Vector2I(1, 0),
+                expectedApplied: true
+            );
+            AssertEdgeClearOutcome(
+                fixture,
+                terrainEffectDefinitions,
+                "low_wall",
+                new Vector2I(0, 0),
+                new Vector2I(0, 1),
+                expectedApplied: false
+            );
+        }
+        finally
+        {
+            CleanupFixture(fixture, null);
+        }
+    }
+
+    private void AssertEdgeClearOutcome(
+        Fixture fixture,
+        IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
+        StringName featureKind,
+        Vector2I first,
+        Vector2I second,
+        bool expectedApplied
+    )
+    {
+        Vector2I direction = second - first;
+        _test.True(
+            fixture.Runtime._grid_service.SetEdgeFeature(
+                fixture.State,
+                first,
+                direction,
+                BuildBlockingEdgeFeature(featureKind)
+            ),
+            $"edge_clear 前置边缘应能写入：{featureKind} direction={direction}"
+        );
+
+        using BattleEventBatch batch = new();
+        BattleGroundTerrainEffectsResult result =
+            fixture.Runtime.ApplyGroundTerrainEffectsResultTyped(
+                fixture.Source,
+                fixture.Skill,
+                terrainEffectDefinitions,
+                new[] { first, second },
+                batch
+            );
+        BattleEdgeFeatureState remainingFeature = fixture
+            .Runtime
+            ._grid_service
+            .GetCellState(fixture.State, first)
+            ?.GetEdgeFeature(direction);
+
+        _test.Eq(
+            result.Applied,
+            expectedApplied,
+            $"edge_clear 正式地形效果入口对 {featureKind} 的 applied 结果应符合默认白名单。"
+        );
+        if (expectedApplied)
+        {
+            _test.True(
+                remainingFeature != null && remainingFeature.IsEmpty(),
+                $"默认 edge_clear 应保留格子并把 {featureKind} 边缘规范化为空状态。"
+            );
+            _test.Eq(
+                batch.ChangedCoordsTyped.Count,
+                2,
+                $"移除 {featureKind} 后应把边缘两端都标记为变化坐标。"
+            );
+            _test.True(
+                batch.ChangedCoordsTyped.Contains(first)
+                && batch.ChangedCoordsTyped.Contains(second),
+                $"移除 {featureKind} 后 changed coords 应包含边缘两端。"
+            );
+        }
+        else
+        {
+            _test.True(
+                remainingFeature != null && remainingFeature.feature_kind == featureKind,
+                $"默认 edge_clear 不应移除非白名单边缘 {featureKind}。"
+            );
+            _test.Eq(
+                batch.ChangedCoordsTyped.Count,
+                0,
+                $"拒绝移除 {featureKind} 时不应报告变化坐标。"
+            );
+        }
+    }
+
+    private Fixture BuildEdgeClearFixture(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        var runtime = new BattleRuntimeModule();
+        runtime.setup();
+
+        StringName skillId = "typed_edge_clear_skill";
+        BattleState state = BuildState(new Vector2I(2, 2));
+        BattleUnitState source = BuildUnit(
+            "typed_edge_clear_source",
+            "player",
+            new Vector2I(0, 0)
+        );
+        source.AddKnownActiveSkill(skillId);
+        source.SetKnownSkillLevelTyped(skillId, 1);
+        state.active_unit_id = source.unit_id;
+        AddUnit(runtime, state, source);
+        runtime.SetupStateForTests(state);
+
+        return new Fixture
+        {
+            Runtime = runtime,
+            State = state,
+            Source = source,
+            Skill = TestSkillDefinitionProjection.BuildSkill(
+                skillId,
+                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                    skillId,
+                    effects: effectDefinitions,
+                    targetMode: "ground"
+                )
+            ),
+        };
+    }
+
+    private static BattleEdgeFeatureState BuildBlockingEdgeFeature(StringName featureKind)
+    {
+        return new BattleEdgeFeatureState
+        {
+            feature_kind = featureKind,
+            render_kind = "wall",
+            render_layers = 1,
+            blocks_move = true,
+            blocks_occupancy = true,
+            blocks_los = true,
+        };
     }
 
     private Fixture BuildWindPushFixture()
@@ -415,16 +566,6 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"单位应能放入测试棋盘：{unit.unit_id}"
         );
-    }
-
-    private static bool IsGodotCollectionOrVariant(Type type)
-    {
-        if (type == typeof(Variant))
-            return true;
-        Type genericDefinition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-        return genericDefinition == typeof(Godot.Collections.Dictionary)
-            || genericDefinition == typeof(Godot.Collections.Array)
-            || type.Namespace == "Godot.Collections";
     }
 
     private static bool ReadBool(Godot.Collections.Dictionary source, string key) =>

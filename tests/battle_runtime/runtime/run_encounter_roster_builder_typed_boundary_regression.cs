@@ -75,6 +75,22 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         GArray typedUnits = typedUnitsLease.Value;
         GArray sessionUnits = sessionUnitsLease.Value;
 
+        _test.Eq(typedUnits.Count, 5, "mist_hollow stage 2 应构建 5 个敌方单位。");
+        _test.Eq(
+            CountUnitsByTemplate(typedUnits, "mist_beast"),
+            2,
+            "mist_hollow stage 2 应包含 2 只 mist_beast。"
+        );
+        _test.Eq(
+            CountUnitsByTemplate(typedUnits, "mist_harrier"),
+            2,
+            "mist_hollow stage 2 应包含 2 只 mist_harrier。"
+        );
+        _test.Eq(
+            CountUnitsByTemplate(typedUnits, "mist_weaver"),
+            1,
+            "mist_hollow stage 2 应包含 1 只 mist_weaver。"
+        );
         _test.Eq(typedUnits.Count, sessionUnits.Count, "不同 typed 输入源构建的 enemy unit 数量应一致。");
         _test.Eq(
             SummarizeUnits(typedUnits),
@@ -389,6 +405,31 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             gameSession.GetItemDefsTyped()
         );
 
+        _test.Eq(plainLoot.Count, 1, "wolf_den stage 0 应聚合为一条战利品预览。");
+        if (plainLoot.Count == 1)
+        {
+            IReadOnlyDictionary<string, object> entry = plainLoot[0];
+            _test.Eq(
+                PlainString(entry, "drop_source_kind"),
+                "encounter_roster",
+                "wolf_den 战利品应标记 encounter_roster 来源。"
+            );
+            _test.Eq(
+                PlainString(entry, "drop_source_id"),
+                "wolf_den",
+                "wolf_den 战利品应保留 roster id。"
+            );
+            _test.Eq(
+                PlainString(entry, "item_id"),
+                "beast_hide",
+                "wolf_den stage 0 应预览荒狼皮掉落。"
+            );
+            _test.Eq(
+                PlainInt(entry, "quantity", 0),
+                2,
+                "wolf_den stage 0 的两只 wolf_raider 应聚合为 2 个 beast_hide。"
+            );
+        }
         _test.Eq(plainLoot.Count, explicitPlainLoot.Count, "plain loot preview 数量应一致。");
         _test.Eq(
             SummarizeLoot(plainLoot),
@@ -414,6 +455,22 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             );
         }
         return string.Join(" || ", values);
+    }
+
+    private static int CountUnitsByTemplate(GArray units, StringName templateId)
+    {
+        int count = 0;
+        foreach (Variant unitValue in units ?? new GArray())
+        {
+            if (
+                BattleUnitState.TryReadUnitPayload(unitValue, out BattleUnitState unit)
+                && unit?.enemy_template_id == templateId
+            )
+            {
+                count += 1;
+            }
+        }
+        return count;
     }
 
     private static string SummarizeLoot(

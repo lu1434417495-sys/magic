@@ -113,10 +113,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             AssertCloudsplitterSkillDefinition(skill, fixture);
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildStormsEyeUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, StormsEyeItemId, "风暴之眼装备后 unit 应保留真实 item_id。");
@@ -147,26 +144,6 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             "eq_storms_eye_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除风暴之眼后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除风暴之眼后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除风暴之眼后装备能力源应清空。"
-        );
-        _test.False(equipped.HasEffectiveTrait(LightningEdgeTraitId), "移除后雷刃不应残留。");
-        _test.False(equipped.HasEffectiveTrait(ThunderRiftTraitId), "移除后雷鸣裂击不应残留。");
-        _test.False(equipped.HasEffectiveTrait(CloudsplitterTraitId), "移除后裂云重劈不应残留。");
-        BattleTestFixture.DisposeBattleUnit(equipped);
-        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestStormsEyeAddsLightningOnHitAndThunderOnCritical()

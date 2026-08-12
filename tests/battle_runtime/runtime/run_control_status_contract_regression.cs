@@ -22,11 +22,9 @@ public partial class run_control_status_contract_regression : LifecycleTestScene
 
     private void TestPetrifiedSelfSaveFailureSkipsTurn()
     {
-        Fixture fixture = BuildTurnResolver();
+        Fixture fixture = RequireTurnResolver(nameof(TestPetrifiedSelfSaveFailureSkipsTurn));
         if (fixture.Resolver == null)
-        {
             return;
-        }
         AddControlStatus(
             fixture.Target,
             "petrified",
@@ -56,11 +54,9 @@ public partial class run_control_status_contract_regression : LifecycleTestScene
 
     private void TestPetrifiedSelfSaveSuccessRemovesStatusAndAllowsAction()
     {
-        Fixture fixture = BuildTurnResolver();
+        Fixture fixture = RequireTurnResolver(nameof(TestPetrifiedSelfSaveSuccessRemovesStatusAndAllowsAction));
         if (fixture.Resolver == null)
-        {
             return;
-        }
         AddControlStatus(
             fixture.Target,
             "petrified",
@@ -87,11 +83,9 @@ public partial class run_control_status_contract_regression : LifecycleTestScene
 
     private void TestMadnessSelfSaveFailureReturnsAiOverridePolicy()
     {
-        Fixture fixture = BuildTurnResolver();
+        Fixture fixture = RequireTurnResolver(nameof(TestMadnessSelfSaveFailureReturnsAiOverridePolicy));
         if (fixture.Resolver == null)
-        {
             return;
-        }
         AddControlStatus(
             fixture.Target,
             "madness",
@@ -124,11 +118,9 @@ public partial class run_control_status_contract_regression : LifecycleTestScene
 
     private void TestMadnessSelfSaveSuccessRemovesStatusAndAllowsAction()
     {
-        Fixture fixture = BuildTurnResolver();
+        Fixture fixture = RequireTurnResolver(nameof(TestMadnessSelfSaveSuccessRemovesStatusAndAllowsAction));
         if (fixture.Resolver == null)
-        {
             return;
-        }
         AddControlStatus(
             fixture.Target,
             "madness",
@@ -157,7 +149,17 @@ public partial class run_control_status_contract_regression : LifecycleTestScene
         );
     }
 
-    private static Fixture BuildTurnResolver()
+    private Fixture RequireTurnResolver(string scenario)
+    {
+        Fixture fixture = BuildTurnResolverFixture();
+        _test.True(
+            fixture.Resolver != null,
+            $"{scenario}: battle runtime setup must provide the formal skill turn resolver."
+        );
+        return fixture;
+    }
+
+    private static Fixture BuildTurnResolverFixture()
     {
         BattleRuntimeModule runtime = new();
         runtime.setup();

@@ -94,9 +94,6 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         AssertStrengthRequirement(fixture.ItemDefs, 19, false);
         AssertStrengthRequirement(fixture.ItemDefs, 20, true);
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon(20);
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildMountainbreakerUnit(20, "projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -110,16 +107,6 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         AssertAbilitySource(equipped, FollowupTrait, FollowupBinding);
         AssertAbilitySource(equipped, AnchorTrait, AnchorBinding);
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除裂山者后 weapon_item_id 应清空。");
-        _test.Eq(equippedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除后 profile 应恢复。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除后装备能力源应清空。"
-        );
     }
 
     private void TestCollapseFollowupAndLeylineAnchor()

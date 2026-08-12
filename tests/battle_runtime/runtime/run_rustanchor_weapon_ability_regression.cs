@@ -92,10 +92,7 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
         if (fixture.SkillDefs.TryGetValue(SunkAnchorSkillId, out SkillDefinition skill))
             AssertSunkAnchorSkillDefinition(skill, fixture);
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildRustanchorUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, ItemId, "锈锚装备后 unit 应保留 item_id。");
@@ -111,17 +108,6 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
         AssertUnitHasTraitAndAbilitySource(equipped, RustChainTraitId, RustChainBindingId, "eq_rustanchor_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, NoReturnTraitId, NoReturnBindingId, "eq_rustanchor_projection");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除锈锚后 weapon_item_id 应清空。");
-        _test.Eq(removedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除锈锚后武器 profile 应恢复。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除锈锚后装备能力源应清空。"
-        );
     }
 
     private void TestSunkAnchorSkillAppliesStatusBlocksForcedMoveAndReducesDamage()

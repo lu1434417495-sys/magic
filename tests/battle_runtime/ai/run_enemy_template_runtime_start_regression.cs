@@ -23,6 +23,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
             TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection();
             TestEnemyTemporalProjectionSurvivesBattleStart();
+            TestEnemyTemplateSaveImmunityTagsProjectToBattleUnit();
             TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit();
             TestEnemyTemplateDamageResistancesProjectToBattleUnit();
             TestEnemyTemplateDerivesHpAndAttackFromFormulaWhenNotOverridden();
@@ -62,7 +63,14 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             expectedEnemyCount: 1,
             expectedBrainId: "ranged_suppressor",
             expectedStateId: "pressure",
-            requiredSkillIds: new[] { "archer_suppressive_fire", "archer_pinning_shot" }
+            requiredSkillIds: new[]
+            {
+                "archer_suppressive_fire",
+                "archer_pinning_shot",
+                "archer_harrier_mark",
+                "archer_aimed_shot",
+                "basic_attack",
+            }
         );
         AssertTemplateStart(
             "encounter_weaver",
@@ -378,16 +386,76 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         }
     }
 
+    private void TestEnemyTemplateSaveImmunityTagsProjectToBattleUnit()
+    {
+        AssertEnemyTemplateSaveTagProjection(
+            "illusion_immune",
+            template =>
+                template.save_immunity_tags = new GStringNameArray { "illusion" },
+            enemyUnit =>
+            {
+                _test.True(
+                    enemyUnit.HasSaveImmunityTag(new StringName("illusion")),
+                    "EnemyTemplateDef.save_immunity_tags 应投影到 BattleUnitState。"
+                );
+
+                BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+                    null,
+                    enemyUnit,
+                    MakeIllusionSaveEffect(),
+                    BattleSaveContext.WithSaveRollOverride(1)
+                );
+                _test.True(
+                    saveResult.Immune,
+                    "投影出的 illusion 免疫标签应让 illusion 豁免在掷骰前免疫。"
+                );
+            }
+        );
+    }
+
     private void TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit()
+    {
+        AssertEnemyTemplateSaveTagProjection(
+            "illusion_advantage",
+            template =>
+                template.save_advantage_tags = new GStringNameArray { "illusion" },
+            enemyUnit =>
+            {
+                _test.True(
+                    enemyUnit.HasSaveAdvantageTag(new StringName("illusion")),
+                    "EnemyTemplateDef.save_advantage_tags 应投影到 BattleUnitState。"
+                );
+
+                BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+                    null,
+                    enemyUnit,
+                    MakeIllusionSaveEffect(),
+                    BattleSaveContext.WithSaveRollOverrides(new[] { 2, 18 })
+                );
+                _test.Eq(
+                    saveResult.NaturalRoll,
+                    18,
+                    "投影出的 illusion 优势标签应在真实豁免中选择较高掷骰。"
+                );
+                _test.True(saveResult.Success, "优势模板单位应以较高掷骰通过 DC 12 豁免。");
+            }
+        );
+    }
+
+    private void AssertEnemyTemplateSaveTagProjection(
+        string fixtureId,
+        Action<EnemyTemplateDef> configureTemplate,
+        Action<BattleUnitState> assertProjectedUnit
+    )
     {
         using var gameSessionScope = new GameSessionScope();
         GameSession gameSession = gameSessionScope.Session;
-        StringName templateId = "runtime_start_illusion_immune_enemy_template";
+        StringName templateId = $"runtime_start_{fixtureId}_enemy_template";
         var itemDefs = new Dictionary<StringName, ItemDefinition>(
             gameSession.GetItemDefsTyped()
         );
         ItemDefinition customWeapon = MakeWeapon(
-            "runtime_start_illusion_immune_enemy_blade",
+            $"runtime_start_{fixtureId}_enemy_blade",
             "illusion_blade",
             "physical_slash",
             1,
@@ -398,16 +466,16 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         itemDefs[customWeapon.ItemId] = customWeapon;
 
         EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.ItemId);
-        template.save_immunity_tags = new GStringNameArray { "illusion" };
+        configureTemplate(template);
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
             [templateId] = template.ToDefinition(itemDefs),
         };
         using EncounterRosterBuilder builder = BuildEncounterRosterBuilder(enemyTemplates);
         EncounterAnchorData anchor = BuildEncounterAnchor(
-            "encounter_runtime_start_illusion_immune_enemy",
+            $"encounter_runtime_start_{fixtureId}_enemy",
             templateId,
-            "幻象免疫敌人"
+            "豁免标签投影敌人"
         );
         using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
             anchor,
@@ -428,21 +496,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             return;
         }
 
-        _test.True(
-            enemyUnit.HasSaveImmunityTag(new StringName("illusion")),
-            "EnemyTemplateDef.save_immunity_tags 应投影到 BattleUnitState.save_immunity_tags。"
-        );
-
-        BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
-            null,
-            enemyUnit,
-            MakeIllusionSaveEffect(),
-            BattleSaveContext.WithSaveRollOverride(1)
-        );
-        _test.True(
-            saveResult.Immune,
-            "投影出的 illusion 免疫标签应让 illusion 豁免在掷骰前免疫。"
-        );
+        assertProjectedUnit(enemyUnit);
     }
 
     private void TestEnemyTemplateDerivesHpAndAttackFromFormulaWhenNotOverridden()
@@ -848,21 +902,6 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             },
             "EnemyTemplateRuntimeStart.BuildCustomEnemyTemplate"
         );
-    }
-
-    private static void SetSaveAdvantageTags(
-        EnemyTemplateDef template,
-        params StringName[] saveAdvantageTags
-    )
-    {
-        var tags = new GStringNameArray();
-        foreach (StringName tag in saveAdvantageTags ?? Array.Empty<StringName>())
-        {
-            tags.Add(tag);
-        }
-
-        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
-        property?.SetValue(template, tags);
     }
 
     private static ItemDefinition MakeWeapon(

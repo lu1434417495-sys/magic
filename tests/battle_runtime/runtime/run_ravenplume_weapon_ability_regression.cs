@@ -265,8 +265,12 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
             "ravenplume_crow_feast"
         );
         _test.True(
-            feastTarget.GetCurrentHp() <= 0 || !feastTarget.IsAlive(),
-            $"群鸦之宴应造成 4D6 necrotic 伤害并击杀 1HP 目标。 logs={JoinLogs(feastBatch)}"
+            feastTarget.GetCurrentHp() <= 0,
+            $"群鸦之宴应把 1HP 目标生命降至零。 logs={JoinLogs(feastBatch)}"
+        );
+        _test.False(
+            feastTarget.IsAlive(),
+            $"群鸦之宴应把 1HP 目标标记为死亡。 logs={JoinLogs(feastBatch)}"
         );
         _test.Eq(
             CountLivingCrows(state, holder),

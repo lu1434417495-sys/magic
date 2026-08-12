@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_map_panel_schema_regression : LifecycleTestSceneTree
@@ -12,19 +11,43 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
 
     public override async void _Initialize()
     {
-        await TestBattleMapPanelAppliesFormalSnapshot();
-        await TestBattleMapPanelAppliesCommandDock();
-        await TestBattleMapPanelViewportControlsAndFateRow();
-        await TestBattleMapPanelReleasesPendingBattlePayload();
-        RequestTestExit(_test.Finish("Battle map panel schema regression"));
+        try
+        {
+            await TestBattleMapPanelAppliesFormalSnapshot();
+            await TestBattleMapPanelAppliesCommandDock();
+            await TestBattleMapPanelViewportControlsAndFateRow();
+            await TestBattleMapPanelRevealUsesDetachedSnapshotAndCancelsCleanly();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Battle map panel schema regression"));
+        }
     }
 
-    private async System.Threading.Tasks.Task TestBattleMapPanelReleasesPendingBattlePayload()
+    private async System.Threading.Tasks.Task TestBattleMapPanelRevealUsesDetachedSnapshotAndCancelsCleanly()
     {
         var panel = BattleMapPanelScene.Instantiate<BattleMapPanel>();
         Root.AddChild(panel);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        var loadingEvents = new List<(bool IsLoading, float Progress)>();
+        int readySignalCount = 0;
+        void OnLoadingStateChanged(bool isLoading, float progress) =>
+            RecordLoadingEvent(isLoading, progress);
+        void RecordLoadingEvent(bool isLoading, float progress)
+        {
+            loadingEvents.Add((isLoading, progress));
+            if (!isLoading && Mathf.IsEqualApprox(progress, 100.0f))
+            {
+                readySignalCount += 1;
+            }
+        }
+        panel.battle_loading_state_changed += OnLoadingStateChanged;
 
         BattleUnitState ally = BattleTestFixture.BuildUnit(
             "panel_pending_ally",
@@ -43,80 +66,52 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             new[] { enemy }
         );
 
+        string projectedAllyName = ally.display_name;
         ShowPendingBattle(panel, fixture.State);
-        for (
-            int frame = 0;
-            frame < 5 && ReadPrivateField<bool>(panel, "_has_pending_show_battle_payload");
-            frame++
-        )
-        {
-            await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        }
-        AssertPendingBattlePayloadCleared(panel, "应用完成后");
-        ShowPendingBattle(panel, fixture.State);
-        AssertPendingBattlePayloadCleared(panel, "同一 battle reveal 更新后");
-
-        panel.HideBattle();
-        ShowPendingBattle(panel, fixture.State);
-        BattleBoardRenderSnapshot pendingSnapshot =
-            ReadPrivateField<BattleBoardRenderSnapshot>(panel, "_pending_board_snapshot");
         _test.True(
-            pendingSnapshot != null
-                && pendingSnapshot.BattleId == fixture.State.battle_id
-                && pendingSnapshot.MapSize == fixture.State.map_size,
-            "HideBattle 前应持有 detached board snapshot。"
+            panel.Visible && panel.IsLoadingBattle() && panel.GetLoadingProgress() > 0.0f,
+            "首次 ShowBattle 应公开进入可见 loading 状态。"
         );
+        ally.display_name = "mutated_after_snapshot";
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.Eq(
+            panel.unit_name_label.Text,
+            projectedAllyName,
+            "异步 reveal 应应用调用时生成的 detached HUD snapshot，而不是随后改写的 live unit。"
+        );
+
         panel.HideBattle();
-        AssertPendingBattlePayloadCleared(panel, "HideBattle 后");
+        _test.False(panel.Visible, "HideBattle 应立即隐藏 panel。");
+        _test.False(panel.IsLoadingBattle(), "HideBattle 应取消进行中的 reveal。");
+        _test.Eq(panel.GetLoadingProgress(), 0.0f, "HideBattle 应把 loading progress 归零。");
+        _test.Eq(panel.unit_name_label.Text, "待命", "HideBattle 应恢复占位 HUD，而非保留上场快照。");
+        _test.True(
+            loadingEvents.Count > 0
+                && !loadingEvents[^1].IsLoading
+                && Mathf.IsEqualApprox(loadingEvents[^1].Progress, 0.0f),
+            "HideBattle 应通过公开 loading signal 发布取消和归零。"
+        );
+
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.False(panel.Visible, "已取消的异步 reveal 不应在后续 frame 重新显示 panel。");
+        _test.Eq(
+            panel.unit_name_label.Text,
+            "待命",
+            "已取消的异步 reveal 不应在后续 frame 写回旧 HUD snapshot。"
+        );
 
         ShowPendingBattle(panel, fixture.State);
-        panel.UpdateHoverPreview(
-            fixture.State,
-            Vector2I.Zero,
-            Array.Empty<Vector2I>(),
-            "",
-            ""
-        );
-        _test.Eq(
-            ReadPrivateField<Vector2I>(panel, "_hover_preview_coord"),
-            Vector2I.Zero,
-            "_ExitTree 前 hover preview 只应保留展示坐标。"
-        );
-        int revealTicketBeforeExit = ReadPrivateField<int>(panel, "_battle_reveal_ticket");
+        _test.True(panel.IsLoadingBattle(), "再次 ShowBattle 应启动新的 reveal 生命周期。");
+        int readySignalCountBeforeExit = readySignalCount;
         panel.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-
-        AssertPendingBattlePayloadCleared(panel, "_ExitTree 后");
         _test.Eq(
-            ReadPrivateField<Vector2I>(panel, "_hover_preview_coord"),
-            BattleMapPanel.INVALID_HOVER_COORD(),
-            "_ExitTree 应清空 hover preview 展示坐标。"
-        );
-        _test.True(
-            ReadPrivateField<int>(panel, "_battle_reveal_ticket") > revealTicketBeforeExit,
-            "_ExitTree 应使仍在等待的 battle reveal ticket 失效。"
-        );
-        _test.Eq(
-            ReadPrivateField<float>(panel, "_battle_loading_progress"),
-            0.0f,
-            "_ExitTree 应在不发布 UI signal 的情况下归零 loading progress。"
-        );
-    }
-
-    private void AssertPendingBattlePayloadCleared(BattleMapPanel panel, string stage)
-    {
-        _test.False(
-            ReadPrivateField<bool>(panel, "_has_pending_show_battle_payload"),
-            $"{stage}不应保留 pending payload flag。"
-        );
-        _test.True(
-            ReadPrivateField<BattleBoardRenderSnapshot>(panel, "_pending_board_snapshot") == null,
-            $"{stage}不应保留 pending board snapshot。"
-        );
-        _test.True(
-            ReadPrivateField<BattleHudSnapshot>(panel, "_pending_hud_snapshot") == null,
-            $"{stage}不应保留 pending HUD snapshot。"
+            readySignalCount,
+            readySignalCountBeforeExit,
+            "_ExitTree 应静默失效等待中的 reveal，不得在节点退出后发布迟到的 ready 信号。"
         );
     }
 
@@ -133,17 +128,6 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             Array.Empty<StringName>(),
             ""
         );
-
-    private static T ReadPrivateField<T>(BattleMapPanel panel, string fieldName)
-    {
-        FieldInfo field =
-            typeof(BattleMapPanel).GetField(
-                fieldName,
-                BindingFlags.Instance | BindingFlags.NonPublic
-            )
-            ?? throw new MissingFieldException(typeof(BattleMapPanel).FullName, fieldName);
-        return (T)field.GetValue(panel);
-    }
 
     private async System.Threading.Tasks.Task TestBattleMapPanelViewportControlsAndFateRow()
     {

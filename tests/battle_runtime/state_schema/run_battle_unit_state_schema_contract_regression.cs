@@ -37,7 +37,6 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         TestRejectsEquipmentViewBadPayload();
         TestRejectsBadWeaponDicePayloads();
         TestWeaponProjectionStrictLoadPreservesRawUntilCanonicalBoundary();
-        TestBodySizeRulesWrapperIsRemoved();
 
         DisposePayloadLeases();
         RequestTestExit(_test.Finish("Battle unit state schema regression"));
@@ -1656,14 +1655,6 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         );
     }
 
-    private void TestBodySizeRulesWrapperIsRemoved()
-    {
-        _test.True(
-            FindLoadedType("BodySizeRules") == null,
-            "BodySizeRules Godot wrapper 应删除，测试和生产路径应直接使用 BodySizeContentRules 或本地 helper。"
-        );
-    }
-
     private static BattleUnitState BuildUnit()
     {
         BattleUnitState unit = new BattleUnitState()
@@ -1980,17 +1971,6 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
     private static string StableVector2IText(Vector2I vector)
     {
         return $"Vector2I({vector.X},{vector.Y})";
-    }
-
-    private static Type FindLoadedType(string typeName)
-    {
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            Type type = assembly.GetType(typeName);
-            if (type != null)
-                return type;
-        }
-        return null;
     }
 
     private static bool ThrowsInvalidOperation(Action action)

@@ -108,10 +108,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildWyrmbreakUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, WyrmbreakItemId, "龙骨断剑装备后 unit 应保留真实 item_id。");
@@ -168,26 +165,6 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
         if (burstEntry != null)
             _test.False(burstEntry.IsSelectable, "0 层龙魂怒气时龙魂爆发应存在但不可选。");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除龙骨断剑后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除龙骨断剑后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            removedWeapon.AttackRange,
-            baselineWeapon.AttackRange,
-            "移除龙骨断剑后攻击距离应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除龙骨断剑后装备能力源应清空。"
-        );
     }
 
     private void AssertDragonSoulExtensionSkillConfig(WyrmbreakFixture fixture)

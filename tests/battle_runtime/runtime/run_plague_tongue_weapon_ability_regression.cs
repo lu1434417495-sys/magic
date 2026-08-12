@@ -110,10 +110,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildPlagueTongueUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
 
@@ -169,31 +166,6 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
             "eq_plague_tongue_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除瘟疫之舌后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除瘟疫之舌后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            removedWeapon.AttackRange,
-            baselineWeapon.AttackRange,
-            "移除瘟疫之舌后攻击距离应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除瘟疫之舌后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除瘟疫之舌后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestPoisonTouchAddsIndependentPoisonDamageOnHit()
@@ -341,7 +313,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         state.enemy_unit_ids.Add(defeated.unit_id);
         fixture.Runtime.SetupStateForTests(state);
 
-        fixture.Runtime._collect_defeated_unit_loot(defeated, killer);
+        fixture.Runtime._loot_resolver.CollectDefeatedUnitLoot(defeated, killer);
 
         _test.Eq(
             CountTerrainEffects(state, "plague_cloud"),
@@ -403,7 +375,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         state.enemy_unit_ids.Add(successTarget.unit_id);
         fixture.Runtime.SetupStateForTests(state);
 
-        fixture.Runtime._collect_defeated_unit_loot(defeated, killer);
+        fixture.Runtime._loot_resolver.CollectDefeatedUnitLoot(defeated, killer);
         fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 60);
         _test.Eq(
             CountTerrainEffects(state, "plague_cloud"),

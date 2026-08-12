@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -8,130 +7,131 @@ public partial class run_repeat_attack_decay_multiplier_regression : LifecycleTe
 
     public override void _Initialize()
     {
-        TestStagePercentCompoundsDecay();
-        TestStagePercentTruncatesTowardZero();
-        TestStagePercentCompoundsAmplify();
-        TestInvalidPercentFallsBackToIdentity();
-        TestStageEffectsCarryDecayMultiplier();
-        TestIdentityPercentKeepsEffectUntouched();
+        AssertRepeatDamageScenario(
+            multiplierPercent: 50,
+            stageCount: 4,
+            expectedDamage: 187,
+            "50% 衰减应产生 100+50+25+12 的真实四段伤害。"
+        );
+        AssertRepeatDamageScenario(
+            multiplierPercent: 200,
+            stageCount: 3,
+            expectedDamage: 700,
+            "200% 放大应产生 100+200+400 的真实三段伤害。"
+        );
+        AssertRepeatDamageScenario(
+            multiplierPercent: 100,
+            stageCount: 3,
+            expectedDamage: 300,
+            "100% 身份倍率应让三段伤害保持等额。"
+        );
+        AssertRepeatDamageScenario(
+            multiplierPercent: 0,
+            stageCount: 3,
+            expectedDamage: 300,
+            "0% 非法倍率应在正式连击结算中回退到 100%。"
+        );
+        AssertRepeatDamageScenario(
+            multiplierPercent: -50,
+            stageCount: 3,
+            expectedDamage: 300,
+            "负倍率应在正式连击结算中回退到 100%。"
+        );
 
         RequestTestExit(_test.Finish("Repeat attack decay multiplier regression"));
     }
 
-    private static CombatEffectDefinition BuildRepeatEffect(int multiplierPercent)
+    private void AssertRepeatDamageScenario(
+        int multiplierPercent,
+        int stageCount,
+        int expectedDamage,
+        string message
+    )
     {
-        return TestSkillDefinitionProjection.BuildEffect(
+        StringName skillId = $"repeat_decay_{multiplierPercent}_{stageCount}";
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 100,
+            damageTag: "force"
+        );
+        CombatEffectDefinition repeatEffect = TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
             effectTargetTeamFilter: "enemy",
             parameters: new Dictionary<string, object>
             {
+                ["cost_resource"] = "aura",
+                ["follow_up_fixed_cost"] = 1,
+                ["follow_up_attack_penalty"] = 0,
                 ["follow_up_damage_multiplier_percent"] = multiplierPercent,
             }
         );
-    }
-
-    private static CombatEffectDefinition BuildDamageEffect()
-    {
-        return TestSkillDefinitionProjection.BuildEffect(
-            "damage",
-            effectTargetTeamFilter: "enemy",
-            power: 5,
-            damageTag: "force"
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect, repeatEffect }
+            )
         );
-    }
 
-    private void TestStagePercentCompoundsDecay()
-    {
+        BattleUnitState source = BattleTestFixture.BuildUnit(
+            $"repeat_decay_source_{multiplierPercent}_{stageCount}",
+            "player",
+            new Vector2I(1, 1),
+            currentHp: 1000
+        );
+        source.AddKnownActiveSkill(skillId);
+        source.SetKnownSkillLevelTyped(skillId, 1);
+        source.SetCurrentAura(stageCount - 1);
+        source.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 100);
+        BattleUnitState target = BattleTestFixture.BuildUnit(
+            $"repeat_decay_target_{multiplierPercent}_{stageCount}",
+            "enemy",
+            new Vector2I(2, 1),
+            currentHp: 2000
+        );
+        target.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 1);
+
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            $"repeat_decay_battle_{multiplierPercent}_{stageCount}",
+            new Vector2I(4, 3),
+            new[] { source },
+            new[] { target }
+        );
+        BattleTestFixture.ConfigureDamageResolverForTests(
+            fixture.Runtime,
+            new FixedHitMaxDamageResolver()
+        );
+        BattleTestFixture.ConfigureHitResolverForTests(
+            fixture.Runtime,
+            new FixedHitResolver(10)
+        );
         var resolver = new BattleRepeatAttackResolver();
-        CombatEffectDefinition repeat = BuildRepeatEffect(50);
-        _test.Eq(
-            resolver._get_repeat_attack_stage_damage_percent(repeat, 0),
-            100,
-            "衰减连击第 1 段应保持全额。"
-        );
-        _test.Eq(
-            resolver._get_repeat_attack_stage_damage_percent(repeat, 1),
-            50,
-            "50% 衰减的第 2 段应为 50%,不允许被钳回 100%。"
-        );
-        _test.Eq(
-            resolver._get_repeat_attack_stage_damage_percent(repeat, 2),
-            25,
-            "衰减按段整数复合,第 3 段应为 25%。"
-        );
-    }
+        resolver.Setup(fixture.Runtime);
+        try
+        {
+            int hpBefore = target.GetCurrentHp();
+            using var batch = new BattleEventBatch();
+            bool executed = resolver.ApplyRepeatAttackSkillResult(
+                source,
+                target,
+                skill,
+                skill.CombatProfile.EffectDefinitions,
+                repeatEffect,
+                batch
+            );
 
-    private void TestStagePercentTruncatesTowardZero()
-    {
-        var resolver = new BattleRepeatAttackResolver();
-        CombatEffectDefinition repeat = BuildRepeatEffect(50);
-        _test.Eq(
-            resolver._get_repeat_attack_stage_damage_percent(repeat, 3),
-            12,
-            "整数复合向下截断:第 4 段应为 12%(25×50/100),不是 12.5 的四舍五入 13。"
-        );
-    }
-
-    private void TestStagePercentCompoundsAmplify()
-    {
-        var resolver = new BattleRepeatAttackResolver();
-        CombatEffectDefinition repeat = BuildRepeatEffect(200);
-        _test.Eq(
-            resolver._get_repeat_attack_stage_damage_percent(repeat, 1),
-            200,
-            "放大连击第 2 段应为 200%。"
-        );
-        _test.Eq(
-            resolver._get_repeat_attack_stage_damage_percent(repeat, 2),
-            400,
-            "放大连击按段整数复合,第 3 段应为 400%。"
-        );
-    }
-
-    private void TestInvalidPercentFallsBackToIdentity()
-    {
-        var resolver = new BattleRepeatAttackResolver();
-        _test.Eq(
-            resolver._get_repeat_attack_stage_damage_percent(BuildRepeatEffect(0), 1),
-            100,
-            "百分比 0 不合法,应回退为等额 100%。"
-        );
-        _test.Eq(
-            resolver._get_repeat_attack_stage_damage_percent(BuildRepeatEffect(-50), 1),
-            100,
-            "负百分比不合法,应回退为等额 100%。"
-        );
-    }
-
-    private void TestStageEffectsCarryDecayMultiplier()
-    {
-        var resolver = new BattleRepeatAttackResolver();
-        CombatEffectDefinition repeat = BuildRepeatEffect(50);
-        List<CombatEffectDefinition> staged = resolver._build_repeat_attack_stage_effects(
-            new[] { BuildDamageEffect() },
-            repeat,
-            50
-        );
-        _test.Eq(staged.Count, 1, "阶段效果列表应保留伤害效果。");
-        _test.True(
-            Math.Abs(staged[0].PreResistanceDamageMultiplier - 0.5) < 1e-9,
-            "衰减百分比应换算进阶段伤害效果的 pre_resistance 倍率。"
-        );
-    }
-
-    private void TestIdentityPercentKeepsEffectUntouched()
-    {
-        var resolver = new BattleRepeatAttackResolver();
-        CombatEffectDefinition repeat = BuildRepeatEffect(100);
-        CombatEffectDefinition damage = BuildDamageEffect();
-        List<CombatEffectDefinition> staged = resolver._build_repeat_attack_stage_effects(
-            new[] { damage },
-            repeat,
-            100
-        );
-        _test.True(
-            ReferenceEquals(staged[0], damage),
-            "等额百分比不应重建效果定义。"
-        );
+            _test.True(executed, $"连击场景应至少命中第一段：{message}");
+            _test.Eq(hpBefore - target.GetCurrentHp(), expectedDamage, message);
+            _test.Eq(
+                source.GetCurrentAura(),
+                0,
+                $"{stageCount} 段场景应消费 {stageCount - 1} 点追击 Aura 后停止。"
+            );
+        }
+        finally
+        {
+            resolver.DisposeRuntime();
+        }
     }
 }

@@ -578,11 +578,16 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
                 preview != null && !preview.allowed,
                 $"{statusId} 应在预览阶段拒绝整个技能。"
             );
-            _test.True(
-                LogsContain(preview?.LogLinesTyped, "限制移动")
-                    || statusId == BattleStatusSemanticTable.STATUS_PETRIFIED
-                    || statusId == BattleStatusSemanticTable.STATUS_PARALYZED,
-                $"{statusId} 的拒绝原因应保持正式状态门禁语义。logs={string.Join(" | ", preview?.LogLinesTyped ?? Array.Empty<string>())}"
+            BattleSkillCastBlockReasonKind expectedReason =
+                statusId == BattleStatusSemanticTable.STATUS_PETRIFIED
+                    ? BattleSkillCastBlockReasonKind.Petrified
+                    : statusId == BattleStatusSemanticTable.STATUS_PARALYZED
+                        ? BattleSkillCastBlockReasonKind.Paralyzed
+                        : BattleSkillCastBlockReasonKind.MovementRestricted;
+            _test.Eq(
+                fixture.Runtime.GetSkillCastBlockReason(caster, skill),
+                expectedReason,
+                $"{statusId} 应报告精确的 typed 拒绝原因，而不是只要任意拒绝日志就通过。"
             );
             BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
             _test.Eq(caster.GetCurrentAp(), 2, $"{statusId} 拒绝不得消耗AP。");

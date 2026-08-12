@@ -34,15 +34,24 @@ public partial class run_battle_rating_projection_regression : LifecycleTestScen
     private void TestStatsMapProjectionUsesMemberKeys()
     {
         BattleRatingMemberStats stats = BuildStats();
+        var mapKey = new StringName("map_owned_member");
         var map = new Dictionary<StringName, BattleRatingMemberStats>
         {
-            [new StringName("hero_member")] = stats,
+            [mapKey] = stats,
         };
 
         GDictionary payload = BattleRatingProjection.ProjectStatsMap(map);
-        GDictionary memberPayload = payload[new StringName("hero_member")].AsGodotDictionary();
+        GDictionary memberPayload = payload[mapKey].AsGodotDictionary();
 
-        _test.Eq(memberPayload["member_name"].AsString(), "Hero", "rating stats map 应按 member id 投影成员。");
+        _test.True(
+            !payload.ContainsKey(stats.member_id),
+            "rating stats map 不应偷偷改用 value.member_id 取代字典拥有的 key。"
+        );
+        _test.Eq(
+            memberPayload["member_name"].AsString(),
+            "Hero",
+            "rating stats map 应按输入 map key 投影对应成员。"
+        );
     }
 
     private static BattleRatingMemberStats BuildStats()

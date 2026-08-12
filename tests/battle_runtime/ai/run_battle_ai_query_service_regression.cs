@@ -230,12 +230,6 @@ public partial class run_battle_ai_query_service_regression : LifecycleTestScene
             )
         );
 
-    private static bool IsGodotDynamicBoundaryType(Type type) =>
-        type == typeof(Godot.Collections.Dictionary)
-        || type == typeof(Variant)
-        || type.FullName == "Godot.Collections.Dictionary"
-        || type.FullName == "Godot.Collections.Array";
-
     private sealed class Fixture
     {
         public BattleState State;

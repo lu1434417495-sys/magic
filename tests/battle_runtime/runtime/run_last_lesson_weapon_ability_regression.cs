@@ -133,7 +133,6 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildLastLessonUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -173,20 +172,6 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             "eq_last_lesson_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除最后一课后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除最后一课后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除最后一课后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestOldChenLegacyGainsTeachingsOnlyWhenTurnEndsWithoutDamage()

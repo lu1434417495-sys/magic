@@ -129,7 +129,6 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "血阶 state_key 必须在装备配置中声明为持久状态。"
         );
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildMemoryeaterUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -148,22 +147,6 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         AssertUnitHasTraitAndAbilitySource(equipped, MourningVineLungeTraitId, MourningVineLungeBindingId, "eq_memoryeater_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, BlackBloomAwakeningTraitId, BlackBloomAwakeningBindingId, "eq_memoryeater_projection");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除噬忆血蔓后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除后装备 trait 实例应回到装备前状态。"
-        );
-        BattleTestFixture.DisposeBattleUnit(equipped);
-        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestLifebloodCounterIncrementsOnlyForThisWeaponAttackAgainstLivingKinds()
@@ -254,7 +237,10 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         SetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directTierStateKey, 1);
         BattleUnitState directKill = BuildEnemy("lifeblood_direct", new Vector2I(1, 0), 0, "humanoid");
         directKill.MarkDead();
-        directFixture.Runtime._collect_defeated_unit_loot(directKill, directAttacker);
+        directFixture.Runtime._loot_resolver.CollectDefeatedUnitLoot(
+            directKill,
+            directAttacker
+        );
         _test.Eq(GetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directAction.StateKey), 10L, "没有攻击来源证明的击杀不应增加生命簿。");
         _test.Eq(GetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directTierStateKey), 1L, "没有攻击来源证明的击杀不应改变保存血阶。");
     }

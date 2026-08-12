@@ -85,7 +85,17 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
             state.ValidateSchema("schema_brain", SkillDefinitions()),
             "enemy_ai_generation_slots_schema.duplicate_errors"
         );
-        _test.True(errors.Count >= 2, $"重复 slot id/order 应被拒绝: {FormatErrors(errors)}");
+        _test.Eq(errors.Count, 2, $"重复 fixture 应只触发 slot id/order 两条规则: {FormatErrors(errors)}");
+        AssertHasError(
+            errors,
+            "Enemy brain schema_brain state engage declares duplicate generation slot_id dup.",
+            "重复 slot_id 应命中 engage state 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "Enemy brain schema_brain state engage declares duplicate generation slot order 10.",
+            "重复 slot order 应命中 engage state 的精确诊断。"
+        );
     }
 
     private void TestInvalidFamilyAndTemplateAreRejected()
@@ -106,7 +116,17 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
             state.ValidateSchema("schema_brain", SkillDefinitions()),
             "enemy_ai_generation_slots_schema.invalid_family_errors"
         );
-        _test.True(errors.Count >= 2, $"旧 alias/未知 family 与缺失 template action 应被拒绝: {FormatErrors(errors)}");
+        _test.Eq(errors.Count, 2, $"invalid family/template fixture 应只触发目标规则: {FormatErrors(errors)}");
+        AssertHasError(
+            errors,
+            "engage generation slot bad_family declares unsupported action_family old_use_skill.",
+            "旧 action family alias 应命中 bad_family slot 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "engage generation slot missing_template style_template_action_id does_not_exist does not exist in the same state.",
+            "缺失 style template action 应命中 missing_template slot 的精确诊断。"
+        );
     }
 
     private void TestSelectorDistanceContractsAreRejected()
@@ -140,7 +160,17 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
             state.ValidateSchema("schema_brain", SkillDefinitions()),
             "enemy_ai_generation_slots_schema.selector_distance_errors"
         );
-        _test.True(errors.Count >= 2, $"未知 selector 与距离契约 min > max 应被拒绝: {FormatErrors(errors)}");
+        _test.Eq(errors.Count, 2, $"selector/distance fixture 应只触发目标规则: {FormatErrors(errors)}");
+        AssertHasError(
+            errors,
+            "engage generation slot bad_selector declares unsupported target_selector legacy_selector.",
+            "未知 selector 应命中 bad_selector slot 的精确诊断。"
+        );
+        AssertHasError(
+            errors,
+            "engage generation slot bad_distance desired_min_distance cannot exceed desired_max_distance.",
+            "min > max 应命中 bad_distance slot 的精确诊断。"
+        );
     }
 
     private static EnemyAiStateDef BuildState()
@@ -187,6 +217,7 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
             style_template_action_id = templateActionId,
             target_selector = "nearest_enemy",
             score_bucket_id = "default_offense",
+            distance_reference = "target_unit",
         };
         foreach (string affordance in affordances)
         {
@@ -215,5 +246,15 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
         };
 
     private static string FormatErrors(GStringArray errors) => string.Join("; ", errors);
+
+    private void AssertHasError(GStringArray errors, string fragment, string message)
+    {
+        foreach (string error in errors)
+        {
+            if ((error ?? "").Contains(fragment))
+                return;
+        }
+        _test.Fail($"{message} expected={fragment} errors={FormatErrors(errors)}");
+    }
 
 }

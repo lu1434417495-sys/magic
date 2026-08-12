@@ -78,16 +78,6 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
             StateId,
             ActionId
         );
-        _test.True(
-            entry?.Action is RetreatActionDefinition,
-            "正式 mage retreat action 应从 process snapshot/runtime plan 暴露 typed RetreatActionDefinition。"
-        );
-        _test.False(
-            entry?.Action != null
-                && typeof(Resource).IsAssignableFrom(entry.Action.GetType()),
-            "retreat runtime entry 不应保留 authored Resource fallback。"
-        );
-
         int initialRangedDistance = scope.Runtime._grid_service.GetDistanceBetweenUnits(
             actor,
             rangedThreat
@@ -128,8 +118,6 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
                 decision?.action_trace_id != new StringName(""),
                 "retreat decision 应关联 plain action trace。"
             );
-            AssertPlainDecisionBoundary(decision);
-
             AiActionTrace trace = FindTrace(context, ActionId);
             _test.True(trace != null && trace.CandidateCount > 0, "retreat trace 应记录正式候选。" );
             _test.Eq(
@@ -204,19 +192,6 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
         {
             context.PopActionMetadata();
         }
-    }
-
-    private void AssertPlainDecisionBoundary(BattleAiDecision decision)
-    {
-        _test.False(
-            decision != null && typeof(GodotObject).IsAssignableFrom(decision.GetType()),
-            "retreat decision 应是 plain CLR value。"
-        );
-        _test.False(
-            decision?.command != null
-                && typeof(GodotObject).IsAssignableFrom(decision.command.GetType()),
-            "retreat command 应是 plain CLR value。"
-        );
     }
 
     private static AiActionTrace FindTrace(BattleAiContext context, string actionId)

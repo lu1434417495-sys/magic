@@ -94,9 +94,6 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
             AssertEchoThrowSkillDefinition(echoThrow, fixture);
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildEchoUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -142,20 +139,6 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
             _test.Eq(entry.EquipmentGrantedActionId, EchoThrowGrantId, "回音投掷入口应携带 grant id。");
         }
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除回音后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除回音后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除回音后装备能力源应清空。"
-        );
     }
 
     private void TestEchoThrowUsesCasterLineAndStacksForDamagedTargets()

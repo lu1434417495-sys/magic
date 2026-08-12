@@ -75,15 +75,20 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 killerMember.member_id,
                 "Low Luck Killer"
             );
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, killerUnit);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, killerUnit);
 
             BattleResolutionResult resolutionResult =
                 BattleObjectiveTestFactory.CreateEliminationResolution("player");
             resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
-            int equipmentEntries = CountDropType(
+            int randomEquipmentEntries = CountDropType(
                 resolutionResult.loot_entries,
-                BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance)
+                BattleLootIds.ToStringName(BattleLootDropKind.RandomEquipment)
+            );
+            _test.Eq(
+                dropService.Calls.Count,
+                0,
+                "战斗层只应冻结 random_equipment request 与击杀者 luck，不应提前生成实例。"
             );
             GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
@@ -92,7 +97,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             _test.Eq(
                 dropService.Calls.Count,
                 1,
-                "fixed item 掉落不应重复调用 equipment_drop_service。"
+                "world commit 应且仅应调用一次 equipment_drop_service。"
             );
             if (dropService.Calls.Count > 0)
             {
@@ -114,9 +119,9 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 );
             }
             _test.Eq(
-                equipmentEntries,
+                randomEquipmentEntries,
                 1,
-                "BattleResolutionResult 应保存击杀时已解析完成的 equipment_instance 条目。"
+                "BattleResolutionResult 应保存带击杀者 luck 的 random_equipment request。"
             );
             _test.True(commitResult.Ok, "per-kill 掉落应能成功提交到共享仓库。");
             _test.Eq(
@@ -146,7 +151,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 _test.Eq(
                     equipmentInstance.rarity,
                     (int)EquipmentInstanceState.RarityTier.COMMON,
-                    "低 luck 击杀者应保留击杀时 roll 出的低稀有度。"
+                    "低 luck 击杀者应在 world commit 时 roll 出低稀有度。"
                 );
             }
             _test.Eq(
@@ -203,7 +208,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 "neutral_loot_wolf",
                 "中立掉落荒狼"
             );
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, null);
 
             BattleResolutionResult resolutionResult =
                 BattleObjectiveTestFactory.CreateEliminationResolution("player");
@@ -282,7 +287,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 "overflow_loot_wolf",
                 "满包掉落荒狼"
             );
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, null);
 
             BattleResolutionResult resolutionResult =
                 BattleObjectiveTestFactory.CreateEliminationResolution("player");
@@ -357,7 +362,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 "持钉锤敌人"
             );
             BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, null);
 
             _test.True(
                 battleRuntime._active_loot_entries.Count == 0,
@@ -401,6 +406,8 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
     {
         if (facade == null)
             return;
+        facade._equipment_drop_service = dropService;
+        facade.SetUniqueEquipmentDropRollRangeForTesting((_, _) => 100);
         GameContentCatalog catalog = facade.GetContentCatalogTyped();
         facade.GetBattleRuntime()
             ?.setup(

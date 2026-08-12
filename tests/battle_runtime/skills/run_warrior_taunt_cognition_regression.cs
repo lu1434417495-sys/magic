@@ -7,8 +7,6 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_warrior_taunt_cognition_regression :
     LifecycleTestSceneTree
 {
-    private const string SkillPath =
-        "res://data/configs/skills/warrior_taunt.tres";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
@@ -68,12 +66,6 @@ public partial class run_warrior_taunt_cognition_regression :
                 && taunt.Description.Contains("暂时失效"),
             "总描述应明确理解门槛以及失去理智时仅暂停挑衅。"
         );
-        _test.False(
-            FileAccess.GetFileAsString(SkillPath)
-                .Contains("attack_roll_bonus"),
-            "无实际加值的 attack_roll_bonus=0 不应留在技能资源中。"
-        );
-
         int[] durations = { 40, 50, 50, 60, 60, 60 };
         int[] staminaCosts = { 30, 30, 25, 25, 25, 25 };
         int[] cooldowns = { 120, 120, 120, 120, 120, 100 };
@@ -91,6 +83,11 @@ public partial class run_warrior_taunt_cognition_regression :
                 costs.CooldownTu,
                 cooldowns[level],
                 $"挑衅{level}级冷却应匹配批准曲线。"
+            );
+            _test.Eq(
+                taunt.CombatProfile.GetEffectiveAttackRollBonus(level),
+                0,
+                $"挑衅{level}级不应获得攻击检定加值。"
             );
             _test.Eq(
                 taunt.CombatProfile.GetEffectiveAreaPattern(level),

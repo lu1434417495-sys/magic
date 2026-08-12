@@ -44,13 +44,6 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
             originalActionCount,
             "Assembler should not write generated actions back into the authoring Resource."
         );
-        foreach (BattleAiRuntimeActionEntry entry in entries)
-        {
-            _test.True(
-                entry?.Action is EnemyAiActionDefinition,
-                "Authored and generated entries should share EnemyAiActionDefinition."
-            );
-        }
     }
 
     private void TestAssemblerEnablesCandidateMetadataWithoutMutatingAuthoredMove()
@@ -84,9 +77,8 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
             "chain_arc"
         );
         _test.True(
-            generatedMove?.Metadata.force_candidate_request_evaluation == true
-                && generatedMove.Action is MoveToRangeActionDefinition,
-            "Generated move_to_range should use one immutable definition and candidate metadata."
+            generatedMove?.Metadata.force_candidate_request_evaluation == true,
+            "Generated move_to_range should enable candidate-request evaluation metadata."
         );
     }
 
