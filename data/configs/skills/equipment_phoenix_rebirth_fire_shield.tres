@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_fire_shield"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"self"
+status_id = &"phoenix_fire_shield"
+power = 1
+duration_tu = 60
+stack_behavior = &"refresh"
+stack_limit = 1
+attack_roll_penalty = 0
+counts_as_debuff_override = true
+counts_as_debuff = false
+undispellable = true
+
+[sub_resource type="Resource" id="Combat_fire_shield"]
+script = ExtResource("2_combat")
+skill_id = &"equipment_phoenix_rebirth_fire_shield"
+target_mode = &"unit"
+target_team_filter = &"self"
+target_selection_mode = &"self"
+range_pattern = &"single"
+range_value = 0
+area_pattern = &"single"
+area_value = 0
+requires_los = false
+ap_cost = 2
+attack_resolution_mode = &"direct_effect"
+delivery_categories = Array[StringName]([&"equipment", &"phoenix_rebirth", &"fire", &"defense"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_fire_shield")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"equipment_phoenix_rebirth_fire_shield"
+display_name = "释放火盾"
+icon_id = &"equipment_phoenix_rebirth_fire_shield"
+description = "凤凰涅槃板甲的装备技能。消耗2 AP，每个世界日一次；清除板甲全部燃烧层并获得持续60 TU的凤凰火盾（AC+3）。火盾期间每次成功近战命中后，攻击者受到2D6 fire，无豁免。任意燃烧层数均可使用。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"phoenix_rebirth", &"fire", &"defense", &"legendary"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_fire_shield")

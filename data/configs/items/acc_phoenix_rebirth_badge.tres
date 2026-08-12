@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"acc_phoenix_rebirth_badge"
+display_name = "凤凰重生徽章"
+description = "一枚由凤凰金与火焰石铸造的徽章，徽章上刻着一只展翅的凤凰——凤凰重生的标志。\n\nconstitution save+1。佩戴者及半径2格内所有存活友方受到fire伤害时减半（火焰庇护，多个徽章不叠加）。每日一次可消耗2 AP释放「凤凰祝福」——使自身及半径2格内所有存活友方获得120 TU凤凰祝福：HP降至0时自动恢复1D10 HP（每名受益者每场战斗一次），且攻击主直接段附加1D6 fire。"
+icon = ""
+is_stackable = false
+base_price = 9000
+buy_price = 9000
+sell_price = 4500
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"accessory", &"badge", &"phoenix_rebirth_set", &"world_unique_equipment"])
+trait_ids = Array[StringName]([&"equipment.phoenix_rebirth.badge.constitution_save", &"equipment.phoenix_rebirth.badge.fire_shelter"])
+equipment_slot_ids = Array[String](["badge"])
+equipment_type_id = &"accessory"
+attribute_modifiers = Array[Resource]([])

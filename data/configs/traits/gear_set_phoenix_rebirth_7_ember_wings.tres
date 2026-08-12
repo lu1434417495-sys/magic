@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDamageResistanceEntryDef.cs" id="2_resistance"]
+
+[sub_resource type="Resource" id="Resistance_fire_immune"]
+script = ExtResource("2_resistance")
+damage_tag = &"fire"
+mitigation_tier = &"immune"
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"gear_set.phoenix_rebirth.7.ember_wings"
+display_name = "余烬展翼"
+description = "凤凰重生套装7件效果：免疫火焰伤害；每场战斗首次在正式伤害结算后存活且生命不高于25%时，恢复2D8生命并进入120 TU余烬形态。"
+categories = Array[StringName]([&"gear_set_bonus", &"equipment_ability"])
+allowed_source_kinds = Array[StringName]([&"gear_set_threshold"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([SubResource("Resistance_fire_immune")])
+save_bonus_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

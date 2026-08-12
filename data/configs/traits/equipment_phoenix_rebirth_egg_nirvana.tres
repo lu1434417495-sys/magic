@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"equipment.phoenix_rebirth.egg.nirvana"
+display_name = "凤凰涅槃"
+description = "仅在凤凰重生10件套完整激活时生效。每个世界月一次，致死伤害（包括律令死亡）将生命恢复至30%最大生命，并获得120 TU火焰化身、释放半径2格的3D10火焰爆发。"
+categories = Array[StringName]([&"equipment_ability", &"phoenix_rebirth"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

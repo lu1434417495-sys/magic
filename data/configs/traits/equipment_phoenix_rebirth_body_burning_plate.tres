@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"equipment.phoenix_rebirth.body.burning_plate"
+display_name = "涅槃板甲燃烧"
+description = "外部非自身、非装备能力生成的正 fire 原始伤害使板甲获得1层燃烧并刷新至60 TU；最多3层，每层AC+1。装备技能火盾消耗2 AP、每个世界日一次，可在任意层数使用：清除全部燃烧并获得60 TU凤凰火盾（AC+3）；火盾期间每次成功近战命中后，攻击者受到2D6 fire，无豁免。"
+categories = Array[StringName]([&"equipment_ability", &"phoenix_rebirth"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

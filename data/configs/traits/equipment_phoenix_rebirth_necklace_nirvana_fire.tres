@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"equipment.phoenix_rebirth.necklace.nirvana_fire"
+display_name = "涅槃之火"
+description = "每个世界日一次，消耗1 AP使自身或1格内一个友方恢复3D8 HP，并移除至多一个可驱散有害魔法。"
+categories = Array[StringName]([&"equipment_ability", &"phoenix_rebirth"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

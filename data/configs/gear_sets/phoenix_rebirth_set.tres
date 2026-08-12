@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="GearSetDef" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/gear_sets/GearSetDef.cs" id="1_set"]
+[ext_resource type="Script" path="res://scripts/player/progression/gear_sets/GearSetThresholdDef.cs" id="2_threshold"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="3_modifier"]
+
+[sub_resource type="Resource" id="Threshold_3"]
+script = ExtResource("2_threshold")
+threshold_id = &"phoenix_bloodline"
+required_piece_count = 3
+display_name = "凤凰血脉"
+description = "freeze 伤害减半，体质豁免检定+2。"
+mandatory_member_item_ids = Array[StringName]([])
+attribute_modifiers = Array[Resource]([])
+granted_trait_ids = Array[StringName]([&"gear_set.phoenix_rebirth.3.phoenix_bloodline"])
+
+[sub_resource type="Resource" id="Modifier_5_hp_max"]
+script = ExtResource("3_modifier")
+attribute_id = &"hp_max"
+mode = &"flat"
+value = 20
+
+[sub_resource type="Resource" id="Threshold_5"]
+script = ExtResource("2_threshold")
+threshold_id = &"undying_heartfire"
+required_piece_count = 5
+display_name = "不灭心火"
+description = "最大生命+20。"
+mandatory_member_item_ids = Array[StringName]([])
+attribute_modifiers = Array[Resource]([SubResource("Modifier_5_hp_max")])
+granted_trait_ids = Array[StringName]([])
+
+[sub_resource type="Resource" id="Threshold_7"]
+script = ExtResource("2_threshold")
+threshold_id = &"ember_wings"
+required_piece_count = 7
+display_name = "余烬展翼"
+description = "免疫fire伤害。每场战斗首次在正式伤害与致死仲裁结束后存活且生命不高于25%时，恢复2D8生命并进入120 TU余烬形态：移动力+1，武器、徒手或法术攻击的主直接伤害段附加1D4 fire。"
+mandatory_member_item_ids = Array[StringName]([])
+attribute_modifiers = Array[Resource]([])
+granted_trait_ids = Array[StringName]([&"gear_set.phoenix_rebirth.7.ember_wings"])
+
+[sub_resource type="Resource" id="Threshold_10"]
+script = ExtResource("2_threshold")
+threshold_id = &"solar_rebirth"
+required_piece_count = 10
+display_name = "太阳涅槃"
+description = "生命不高于50%时可消耗3 AP、每日一次发动：自身恢复至50%最大生命；半径3格敌人受到4D10 fire（敏捷DC17成功减半）；半径3格内生命百分比最低的至多4名其他友方恢复2D8；进入240 TU金焰形态，移动力+2且攻击主直接段附加1D10 fire。"
+mandatory_member_item_ids = Array[StringName]([])
+attribute_modifiers = Array[Resource]([])
+granted_trait_ids = Array[StringName]([&"gear_set.phoenix_rebirth.10.solar_rebirth"])
+
+[resource]
+script = ExtResource("1_set")
+gear_set_id = &"phoenix_rebirth_set"
+display_name = "凤凰重生"
+description = "由十件凤凰主题装备组成的蜕变套装；套装阈值为3/5/7/10件。"
+member_item_ids = Array[StringName]([&"armor_phoenix_rebirth_head", &"armor_phoenix_rebirth_body", &"armor_phoenix_rebirth_hands", &"armor_phoenix_rebirth_feet", &"acc_phoenix_rebirth_cloak", &"acc_phoenix_rebirth_necklace", &"acc_phoenix_rebirth_ring_1", &"acc_phoenix_rebirth_ring_2", &"acc_phoenix_rebirth_trinket", &"acc_phoenix_rebirth_badge"])
+usage_anchor_item_id = &"armor_phoenix_rebirth_head"
+thresholds = Array[Resource]([SubResource("Threshold_3"), SubResource("Threshold_5"), SubResource("Threshold_7"), SubResource("Threshold_10")])

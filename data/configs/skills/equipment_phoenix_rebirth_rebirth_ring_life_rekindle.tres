@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_life_rekindle"]
+script = ExtResource("1_effect")
+effect_type = &"heal"
+effect_target_team_filter = &"self"
+heal_missing_hp_percent = 60
+
+[sub_resource type="Resource" id="Combat_life_rekindle"]
+script = ExtResource("2_combat")
+skill_id = &"equipment_phoenix_rebirth_rebirth_ring_life_rekindle"
+target_mode = &"unit"
+target_team_filter = &"self"
+target_selection_mode = &"self"
+range_pattern = &"single"
+range_value = 0
+area_pattern = &"single"
+area_value = 0
+requires_los = false
+ap_cost = 2
+attack_resolution_mode = &"direct_effect"
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+delivery_categories = Array[StringName]([&"equipment", &"phoenix_rebirth", &"heal", &"survival"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_life_rekindle")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"equipment_phoenix_rebirth_rebirth_ring_life_rekindle"
+display_name = "生命重燃"
+icon_id = &"equipment_phoenix_rebirth_rebirth_ring_life_rekindle"
+description = "重生之戒的装备技能。生命不高于50%时可消耗2 AP，恢复已损失生命的60%；每场战斗一次，不能复活。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"phoenix_rebirth", &"heal", &"survival", &"legendary"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_life_rekindle")

@@ -1,0 +1,359 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=68 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="4_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="5_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="6_compare"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="7_fact"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/HasStatusConditionPayloadDef.cs" id="8_has_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="9_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="10_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="11_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/HealActionPayloadDef.cs" id="12_heal"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="13_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ModifyAbilityStateActionPayloadDef.cs" id="14_modify_state"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="15_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="16_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ClearStatusActionPayloadDef.cs" id="17_clear_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityStateSchemaDef.cs" id="18_state_schema"]
+
+[sub_resource type="Resource" id="Literal_zero"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 0
+
+[sub_resource type="Resource" id="Literal_2500"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 2500
+
+[sub_resource type="Resource" id="Literal_5000"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 5000
+
+[sub_resource type="Resource" id="Fact_source_hp_percent_bp"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"hp_percent_bp"
+subject = &"source"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_ember_wings_used"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"equipment_ability_state"
+subject = &"source"
+binding_id = &"binding.gear_set.phoenix_rebirth.7.ember_wings"
+state_key = &"ember_wings_used"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_hp_lte_25"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_source_hp_percent_bp")
+compare = &"lte"
+right = SubResource("Literal_2500")
+
+[sub_resource type="Resource" id="Compare_ember_unused"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_ember_wings_used")
+compare = &"eq"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Condition_hp_lte_25"]
+script = ExtResource("5_condition")
+condition_id = &"condition.phoenix_rebirth.ember_wings.hp_lte_25"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_lte_25")
+
+[sub_resource type="Resource" id="Condition_ember_unused"]
+script = ExtResource("5_condition")
+condition_id = &"condition.phoenix_rebirth.ember_wings.unused"
+kind = &"compare_fact"
+payload = SubResource("Compare_ember_unused")
+
+[sub_resource type="Resource" id="ConditionGroup_ember_trigger"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_hp_lte_25"), SubResource("Condition_ember_unused")])
+
+[sub_resource type="Resource" id="Has_source_golden_form"]
+script = ExtResource("8_has_status")
+subject = &"source"
+status_id = &"phoenix_form_golden"
+
+[sub_resource type="Resource" id="Condition_source_golden_form"]
+script = ExtResource("5_condition")
+condition_id = &"condition.phoenix_rebirth.source_golden_form"
+kind = &"has_status"
+payload = SubResource("Has_source_golden_form")
+
+[sub_resource type="Resource" id="ConditionGroup_source_not_golden"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+negate = true
+conditions = Array[Resource]([SubResource("Condition_source_golden_form")])
+
+[sub_resource type="Resource" id="State_ember_wings_used"]
+script = ExtResource("18_state_schema")
+state_key = &"ember_wings_used"
+owner_scope = &"binding"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"battle"
+visible_to_ui = true
+
+[sub_resource type="Resource" id="DiceTerm_2d8_heal"]
+script = ExtResource("10_dice_term")
+dice_count = 2
+dice_sides = 8
+
+[sub_resource type="Resource" id="Dice_2d8_heal"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("DiceTerm_2d8_heal")])
+
+[sub_resource type="Resource" id="Action_ember_heal_payload"]
+script = ExtResource("12_heal")
+target_selector = &"source"
+dice = SubResource("Dice_2d8_heal")
+
+[sub_resource type="Resource" id="Action_ember_heal"]
+script = ExtResource("11_action")
+action_id = &"action.phoenix_rebirth.ember_wings.heal"
+kind = &"heal"
+payload = SubResource("Action_ember_heal_payload")
+
+[sub_resource type="Resource" id="Action_apply_ember_form_payload"]
+script = ExtResource("13_apply_status")
+target_selector = &"source"
+status_id = &"phoenix_form_ember"
+duration_tu = 120
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "余烬展翼"
+attack_roll_penalty = 0
+move_point_capacity_delta = 1
+counts_as_debuff_override = true
+counts_as_debuff = false
+undispellable = true
+
+[sub_resource type="Resource" id="Action_apply_ember_form"]
+script = ExtResource("11_action")
+action_id = &"action.phoenix_rebirth.ember_wings.apply_form"
+kind = &"apply_status"
+payload = SubResource("Action_apply_ember_form_payload")
+condition_group = SubResource("ConditionGroup_source_not_golden")
+
+[sub_resource type="Resource" id="Action_mark_ember_used_payload"]
+script = ExtResource("14_modify_state")
+target_selector = &"source"
+state_key = &"ember_wings_used"
+operation = &"set"
+int_delta = 1
+
+[sub_resource type="Resource" id="Action_mark_ember_used"]
+script = ExtResource("11_action")
+action_id = &"action.phoenix_rebirth.ember_wings.consume"
+kind = &"modify_ability_state"
+payload = SubResource("Action_mark_ember_used_payload")
+
+[sub_resource type="Resource" id="Reaction_ember_wings_trigger"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.phoenix_rebirth.ember_wings.after_damage"
+trigger = &"on_damage_taken_finalized"
+timing = &"after_damage"
+priority = 100
+condition_group = SubResource("ConditionGroup_ember_trigger")
+actions = Array[Resource]([SubResource("Action_ember_heal"), SubResource("Action_apply_ember_form"), SubResource("Action_mark_ember_used")])
+
+[sub_resource type="Resource" id="DiceTerm_1d4_fire"]
+script = ExtResource("10_dice_term")
+dice_count = 1
+dice_sides = 4
+
+[sub_resource type="Resource" id="Dice_1d4_fire"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("DiceTerm_1d4_fire")])
+
+[sub_resource type="Resource" id="Action_ember_append_payload"]
+script = ExtResource("15_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d4_fire")
+damage_type = &"fire"
+require_weapon_damage = false
+replacement_group_id = &"phoenix_attack_append"
+replacement_priority = 100
+damage_tags = Array[StringName]([&"fire"])
+
+[sub_resource type="Resource" id="Action_ember_append"]
+script = ExtResource("11_action")
+action_id = &"action.phoenix_rebirth.ember_wings.append_fire"
+kind = &"add_damage_dice"
+payload = SubResource("Action_ember_append_payload")
+
+[sub_resource type="Resource" id="Has_source_ember_form"]
+script = ExtResource("8_has_status")
+subject = &"source"
+status_id = &"phoenix_form_ember"
+
+[sub_resource type="Resource" id="Condition_source_ember_form"]
+script = ExtResource("5_condition")
+condition_id = &"condition.phoenix_rebirth.source_ember_form"
+kind = &"has_status"
+payload = SubResource("Has_source_ember_form")
+
+[sub_resource type="Resource" id="ConditionGroup_source_ember_form"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_source_ember_form")])
+
+[sub_resource type="Resource" id="Reaction_ember_append"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.phoenix_rebirth.ember_wings.on_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+priority = 100
+condition_group = SubResource("ConditionGroup_source_ember_form")
+actions = Array[Resource]([SubResource("Action_ember_append")])
+
+[sub_resource type="Resource" id="Binding_ember_wings"]
+script = ExtResource("2_binding")
+binding_id = &"binding.gear_set.phoenix_rebirth.7.ember_wings"
+trait_id = &"gear_set.phoenix_rebirth.7.ember_wings"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"gear_set_threshold"])
+required_trait_categories = Array[StringName]([&"equipment_ability"])
+state_schemas = Array[Resource]([SubResource("State_ember_wings_used")])
+reactions = Array[Resource]([SubResource("Reaction_ember_wings_trigger"), SubResource("Reaction_ember_append")])
+
+[sub_resource type="Resource" id="Compare_hp_lte_50"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_source_hp_percent_bp")
+compare = &"lte"
+right = SubResource("Literal_5000")
+
+[sub_resource type="Resource" id="Condition_hp_lte_50"]
+script = ExtResource("5_condition")
+condition_id = &"condition.phoenix_rebirth.solar_rebirth.hp_lte_50"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_lte_50")
+
+[sub_resource type="Resource" id="ConditionGroup_solar_available"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_hp_lte_50")])
+
+[sub_resource type="Resource" id="Grant_solar_rebirth"]
+script = ExtResource("16_grant")
+granted_action_id = &"grant.phoenix_rebirth.solar_rebirth.skill"
+granted_kind = &"skill"
+skill_id = &"gear_set_phoenix_rebirth_solar_rebirth"
+skill_level = 1
+usage_period_kind = &"per_world_day"
+max_uses_per_period = 1
+display_category = &"equipment"
+display_priority = 200
+availability_conditions = SubResource("ConditionGroup_solar_available")
+
+[sub_resource type="Resource" id="Action_clear_ember_payload"]
+script = ExtResource("17_clear_status")
+target_selector = &"source"
+status_id = &"phoenix_form_ember"
+
+[sub_resource type="Resource" id="Action_clear_ember"]
+script = ExtResource("11_action")
+action_id = &"action.phoenix_rebirth.solar_rebirth.clear_ember"
+kind = &"clear_status"
+payload = SubResource("Action_clear_ember_payload")
+
+[sub_resource type="Resource" id="Action_apply_golden_form_payload"]
+script = ExtResource("13_apply_status")
+target_selector = &"source"
+status_id = &"phoenix_form_golden"
+duration_tu = 240
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "太阳涅槃"
+attack_roll_penalty = 0
+move_point_capacity_delta = 2
+counts_as_debuff_override = true
+counts_as_debuff = false
+undispellable = true
+
+[sub_resource type="Resource" id="Action_apply_golden_form"]
+script = ExtResource("11_action")
+action_id = &"action.phoenix_rebirth.solar_rebirth.apply_golden_form"
+kind = &"apply_status"
+payload = SubResource("Action_apply_golden_form_payload")
+
+[sub_resource type="Resource" id="Reaction_solar_rebirth_used"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.phoenix_rebirth.solar_rebirth.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+priority = 100
+actions = Array[Resource]([SubResource("Action_clear_ember"), SubResource("Action_apply_golden_form")])
+
+[sub_resource type="Resource" id="DiceTerm_1d10_fire"]
+script = ExtResource("10_dice_term")
+dice_count = 1
+dice_sides = 10
+
+[sub_resource type="Resource" id="Dice_1d10_fire"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("DiceTerm_1d10_fire")])
+
+[sub_resource type="Resource" id="Action_golden_append_payload"]
+script = ExtResource("15_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d10_fire")
+damage_type = &"fire"
+require_weapon_damage = false
+replacement_group_id = &"phoenix_attack_append"
+replacement_priority = 400
+damage_tags = Array[StringName]([&"fire"])
+
+[sub_resource type="Resource" id="Action_golden_append"]
+script = ExtResource("11_action")
+action_id = &"action.phoenix_rebirth.solar_rebirth.append_fire"
+kind = &"add_damage_dice"
+payload = SubResource("Action_golden_append_payload")
+
+[sub_resource type="Resource" id="ConditionGroup_source_golden_form"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_source_golden_form")])
+
+[sub_resource type="Resource" id="Reaction_golden_append"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.phoenix_rebirth.solar_rebirth.on_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+priority = 110
+condition_group = SubResource("ConditionGroup_source_golden_form")
+actions = Array[Resource]([SubResource("Action_golden_append")])
+
+[sub_resource type="Resource" id="Binding_solar_rebirth"]
+script = ExtResource("2_binding")
+binding_id = &"binding.gear_set.phoenix_rebirth.10.solar_rebirth"
+trait_id = &"gear_set.phoenix_rebirth.10.solar_rebirth"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"gear_set_threshold"])
+required_trait_categories = Array[StringName]([&"equipment_ability"])
+reactions = Array[Resource]([SubResource("Reaction_solar_rebirth_used"), SubResource("Reaction_golden_append")])
+granted_actions = Array[Resource]([SubResource("Grant_solar_rebirth")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.gear_set.phoenix_rebirth"
+schema_version = 1
+load_order = 253
+bindings = Array[Resource]([SubResource("Binding_ember_wings"), SubResource("Binding_solar_rebirth")])

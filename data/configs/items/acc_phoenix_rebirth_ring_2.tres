@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"acc_phoenix_rebirth_ring_2"
+display_name = "凤凰重生灰烬之戒"
+description = "一枚由凤凰灰烬与火焰银铸造的戒指，戒指表面的灰烬会在佩戴者集中精神时重新燃烧。\n\n受到fire伤害时减半，constitution save+1。每日一次可消耗1 AP释放「灰烬之火」：自身或1格内一个存活友方恢复2D10 HP，或对1格内一个敌人造成3D10 fire。治疗与攻击是同一技能入口的两个目标分支，共享同一个每日次数。"
+icon = ""
+is_stackable = false
+base_price = 8000
+buy_price = 8000
+sell_price = 4000
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"accessory", &"ring_2", &"phoenix_rebirth_set", &"world_unique_equipment"])
+trait_ids = Array[StringName]([&"equipment.phoenix_rebirth.ash_ring.fire_resistance", &"equipment.phoenix_rebirth.ash_ring.constitution_save", &"equipment.phoenix_rebirth.ash_ring.fire"])
+equipment_slot_ids = Array[String](["ring_2"])
+equipment_type_id = &"accessory"
+attribute_modifiers = Array[Resource]([])

@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_variant"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_skill"]
+
+[sub_resource type="Resource" id="Effect_charge"]
+script = ExtResource("2_effect")
+effect_type = &"charge"
+
+[sub_resource type="Resource" id="Variant_charge_line"]
+script = ExtResource("1_variant")
+variant_id = &"flame_charge_line"
+display_name = "火焰冲锋"
+description = "选择同一行或同一列的目标格，沿该方向逐格冲锋，并在每个离开格留下火焰轨迹。"
+effect_defs = Array[ExtResource("2_effect")]([SubResource("Effect_charge")])
+
+[sub_resource type="Resource" id="Combat_flame_charge"]
+script = ExtResource("3_combat")
+skill_id = &"equipment_phoenix_rebirth_flame_charge"
+target_mode = &"ground"
+target_team_filter = &"any"
+range_pattern = &"single"
+range_value = 0
+range_move_point_capacity_multiplier = 3
+area_pattern = &"single"
+area_value = 0
+requires_los = false
+ap_cost = 2
+mp_cost = 0
+stamina_cost = 0
+cooldown_tu = 0
+cast_variants = Array[ExtResource("1_variant")]([SubResource("Variant_charge_line")])
+
+[resource]
+script = ExtResource("4_skill")
+skill_id = &"equipment_phoenix_rebirth_flame_charge"
+display_name = "火焰冲锋"
+icon_id = &"equipment_phoenix_rebirth_flame_charge"
+description = "装备技能。消耗2 AP，沿正交直线冲锋，最大距离为当前有效移动力容量的3倍；每个离开格留下持续60TU的火焰轨迹，任何进入轨迹的单位受到2D6 fire。同一移动命令只结算一次轨迹伤害。使用次数由凤凰涅槃胫甲的每日一次入口管理。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"phoenix_rebirth", &"mobility", &"charge", &"fire", &"legendary"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_flame_charge")

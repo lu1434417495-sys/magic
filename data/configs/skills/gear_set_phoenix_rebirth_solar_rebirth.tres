@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_self_heal_floor"]
+script = ExtResource("1_effect")
+effect_type = &"heal"
+heal_to_hp_percent_floor = 50
+effect_target_team_filter = &"self"
+
+[sub_resource type="Resource" id="Effect_enemy_fire"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+effect_target_team_filter = &"enemy"
+damage_tag = &"fire"
+damage_tags = Array[StringName]([&"fire"])
+dice_count = 4
+dice_sides = 10
+save_dc = 17
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
+
+[sub_resource type="Resource" id="Effect_ally_heal"]
+script = ExtResource("1_effect")
+effect_type = &"heal"
+effect_target_team_filter = &"ally"
+dice_count = 2
+dice_sides = 8
+max_affected_targets = 4
+exclude_source = true
+target_order = &"lowest_hp_percent_then_unit_id"
+
+[sub_resource type="Resource" id="Combat_solar_rebirth"]
+script = ExtResource("2_combat")
+skill_id = &"gear_set_phoenix_rebirth_solar_rebirth"
+target_mode = &"ground"
+target_team_filter = &"any"
+range_pattern = &"single"
+range_value = 0
+area_pattern = &"radius"
+area_value = 3
+requires_los = false
+ap_cost = 3
+attack_resolution_mode = &"direct_effect"
+delivery_categories = Array[StringName]([&"equipment", &"gear_set", &"phoenix_rebirth", &"fire", &"heal"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_self_heal_floor"), SubResource("Effect_enemy_fire"), SubResource("Effect_ally_heal")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"gear_set_phoenix_rebirth_solar_rebirth"
+display_name = "太阳涅槃"
+icon_id = &"gear_set_phoenix_rebirth_solar_rebirth"
+description = "凤凰重生10件套技能。生命不高于50%时消耗3 AP：自身恢复至50%最大生命；半径3格敌人受到4D10 fire（敏捷DC17成功减半）；半径3格内生命百分比最低的至多4名其他友方恢复2D8。随后进入240 TU金焰形态。每日一次。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"gear_set", &"phoenix_rebirth", &"fire", &"heal", &"legendary"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_solar_rebirth")

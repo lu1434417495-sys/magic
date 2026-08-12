@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"equipment.phoenix_rebirth.status.blessing"
+display_name = "凤凰祝福状态能力"
+description = "凤凰祝福状态的装备能力定义：攻击附加1D6火焰，且每名受益者每场战斗一次可从普通致死伤害恢复1D10生命。"
+categories = Array[StringName]([&"equipment_ability", &"phoenix_rebirth"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

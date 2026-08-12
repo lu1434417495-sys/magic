@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_armor_ac_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = &"armor_ac_bonus"
+mode = &"flat"
+value = 1
+source_type = &"equipment"
+source_id = &"armor_phoenix_rebirth_feet"
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"armor_phoenix_rebirth_feet"
+display_name = "凤凰涅槃胫甲"
+description = "一对由凤凰羽毛与余烬丝编织而成的辉煌胫甲，胫甲表面不断有火焰在流动。每一步踏下，火焰会在地面上留下短暂的燃烧足迹——不是弱点，是标记，也是陷阱。\n\n菲尼克斯在锻造这对胫甲时，将「火焰之步」能力封入了羽毛。他说：\"这对胫甲不只是鞋子，它们是'火焰的道路'——让我每一步都留下燃烧的痕迹。\"\n\n特殊效果：普通移动时，每个离开格留下持续60TU的火焰足迹，任何阵营单位进入时受到1D6 fire；每日一次可消耗2 AP发动「火焰冲锋」，沿正交直线冲锋至最多有效移动力容量的3倍距离，每个离开格改为留下持续60TU的火焰冲锋轨迹，任何阵营单位进入时受到2D6 fire。同次冲锋只生成2D6轨迹，不与普通1D6足迹重复计算。穿戴者只有在具备fire免疫时才不会被这些足迹伤害。"
+icon = ""
+is_stackable = false
+base_price = 17000
+buy_price = 17000
+sell_price = 8500
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"armor", &"feet", &"cloth", &"heavy_armor", &"phoenix_rebirth_set", &"world_unique_equipment"])
+trait_ids = Array[StringName]([&"equipment.phoenix_rebirth.feet.fire_step"])
+equipment_slot_ids = Array[String](["feet"])
+equipment_type_id = &"armor"
+attribute_modifiers = Array[Resource]([SubResource("Resource_armor_ac_bonus")])

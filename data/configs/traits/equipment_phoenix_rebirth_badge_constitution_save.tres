@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/TraitSaveBonusEntryDef.cs" id="2_save_bonus"]
+
+[sub_resource type="Resource" id="SaveBonus_constitution"]
+script = ExtResource("2_save_bonus")
+save_ability = &"constitution"
+bonus = 1
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"equipment.phoenix_rebirth.badge.constitution_save"
+display_name = "凤凰徽章体质守护"
+description = "装备者的体质豁免检定获得+1加值。"
+categories = Array[StringName]([])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([SubResource("SaveBonus_constitution")])
+roll_value_schema = Array[Resource]([])

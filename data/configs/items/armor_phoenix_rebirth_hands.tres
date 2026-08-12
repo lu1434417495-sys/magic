@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
+
+[sub_resource type="Resource" id="Resource_armor_ac_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = &"armor_ac_bonus"
+mode = &"flat"
+value = 1
+source_type = &"equipment"
+source_id = &"armor_phoenix_rebirth_hands"
+
+[sub_resource type="Resource" id="Resource_attack_bonus"]
+script = ExtResource("2_modifier")
+attribute_id = &"attack_bonus"
+mode = &"flat"
+value = 1
+source_type = &"equipment"
+source_id = &"armor_phoenix_rebirth_hands"
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"armor_phoenix_rebirth_hands"
+display_name = "凤凰涅槃护手"
+description = "一对由凤凰羽毛与余烬丝编织而成的辉煌护手，护手表面不断有火焰在跳跃。\n\n常驻攻击检定+1。主手为空时可消耗1 AP进行「火焰打击」，在正式命中链造成1D8 physical_blunt + 1D10 fire；critical时两段骰各追加一组。还可消耗1 AP触碰相邻的其他存活友方并恢复2D10 HP，每个世界日三次，不能选择自己或死者。"
+icon = ""
+is_stackable = false
+base_price = 17000
+buy_price = 17000
+sell_price = 8500
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"armor", &"hands", &"cloth", &"heavy_armor", &"phoenix_rebirth_set", &"world_unique_equipment"])
+trait_ids = Array[StringName]([&"equipment.phoenix_rebirth.gauntlet.flames"])
+equipment_slot_ids = Array[String](["hands"])
+equipment_type_id = &"armor"
+attribute_modifiers = Array[Resource]([SubResource("Resource_armor_ac_bonus"), SubResource("Resource_attack_bonus")])
