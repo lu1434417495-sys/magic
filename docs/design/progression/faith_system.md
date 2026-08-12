@@ -40,7 +40,6 @@ FaithDeityDef / FaithRankDef
 ## 代表性回归
 
 - `tests/progression/fate/run_faith_service_regression.cs`
-- `tests/progression/fate/run_faith_service_reward_regression.cs`
 - `tests/runtime/validation/run_progression_content_registry_typed_regression.cs`
 
 架构装载范围见 [`../project_context_units.md`](../project_context_units.md) 的 CU-11、CU-12、CU-13 和 CU-14。

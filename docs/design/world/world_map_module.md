@@ -340,7 +340,7 @@ proxy 在命令后负责调用 render target 的 `RenderFromRuntime(refreshWorld
 5. guaranteed facilities 先放置；optional pool 在剩余 slot 中按数量上限放置。
 6. optional facility 按 `WeightedFacilityEntry.weight` 加权随机抽取；权重总和 <= 0 时停止抽取，成功放置后从 optional pool 移除同 facility id，避免重复抽中。
 7. 服务 action id 优先由 NPC 的 `interaction_script_id` 查固定映射；未命中时把 `service_type` 转 snake_case 并生成 `service:<service_type>`，service_type 为空时使用 `service:service`。
-8. 如果所有设施/NPC 都没有 `party_warehouse` 交互，生成器必须追加一个 fallback 服务：facility id 为 `<settlement_id>__settlement_service_desk`，NPC id 为 `<settlement_id>__settlement_quartermaster`，action id 为 `service:warehouse`。
+8. 生成器不追加虚构的仓库 fallback；`service:warehouse` 只能来自 authored NPC 的 `party_warehouse` 交互。tier 0 村庄可以没有据点仓库服务；全队仓库仍可由独立的 `party warehouse` 命令打开，不能据此伪造 settlement service。
 
 ### WorldEventData 投影
 

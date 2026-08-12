@@ -509,6 +509,9 @@ post-exit 结果；post-exit 失败不能回写已经结束的 `ShutdownReport`�
 `TestExitCoordinator` 作为适配器：它把 `TestResult` 映射为 `ShutdownCallerResult`，连同 requested
 exit code 交给 production
 `ApplicationLifetimeCoordinator`，但不自行执行 barrier 或 Quit。所有测试采用同一顺序：
+适配器先等待一个 process frame；该等待失败时会把异常转换为 exit code `1` 的失败
+`TestResult` 后继续提交。首次异步 shutdown 提交失败时同样转换为失败结果，并仅通过同一
+coordinator 再提交一次；重试仍失败时只记录诊断，不另建 `Quit` 或第二条 shutdown 路径。
 
 ```text
 test body completes
@@ -640,7 +643,7 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 | 4 | Enemy/AI catalog 与 plan/decision 全 typed、热路径无 authored Resource/Godot collection 中转 | 现有 full-suite retry=1/output baseline，阶段 5 删除 | Enemy/AI/BattleSim raw debt、Resource action fallback、instance-id metadata |
 | 5 | 本 spec 全部静态/行为/稳定性合同 | 无 | 剩余 suppress、reflection walker、quarantine、retry 与宽泛日志豁免 |
 
-## 实施状态（2026-07-12）
+## 历史实施状态（2026-07-12）
 
 方案 B 的阶段 1–5 与 Phase 6 累计验收均已完成。最终验证代码 HEAD 为 `b3f617d6`；本节之后创建的文档 closure 提交只记录结果，不改变已验证代码 HEAD。完整实施范围是 `9c0f4c40^..b3f617d6`，共 67 个提交：
 
@@ -654,13 +657,13 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 - AI fixture plain projection 与显式 wrapper ownership：`8222dc77`、`28b203b5`、`138b351f`、`cc125f0b`、`0224a2be`、`9ab7dfb7`、`c7603906`；
 - promotion prompt、UI/command log 与 progression selection 最终 plain 化：`8a445459`、`b3f617d6`。
 
-验证在 `b3f617d6` 加已保留的用户工作树 overlay 上执行，并非纯净 HEAD；生命周期实现、测试和 runner 在累计验收期间保持冻结。任何后续代码/测试/runner 修改都必须重跑累计验收，文档-only closure 不触发重跑。
+验证在 `b3f617d6` 加已保留的用户工作树 overlay 上执行，并非纯净 HEAD；生命周期实现、测试和 runner 在累计验收期间保持冻结。下表只记录 2026-07-12 当时的历史验收，不是当前测试清单；其中 cleanup/boundary 两个 runner 当时包含源码扫描，现行回归已经删除这类检查。任何后续代码/测试/runner 修改都必须按当前行为回归口径重新验证，不能把下表结果当作当前 checkout 的 PASS。
 
 | 验收项 | 验证代码 HEAD | 精确命令/参数 | 规模/轮次 | 结果与生命周期证据 |
 |---|---|---|---|---|
 | build | `b3f617d6` | `dotnet build magic.csproj` | 1 次 | PASS：0 warning / 0 error |
 | runner tooling | `b3f617d6` | `python -m unittest tests.tooling.test_run_regression_suite -v` | 18 tests | PASS：18/18；retry option/implementation 已删除，strict output/exit/fatal gate 通过 |
-| cumulative cleanup/boundary gates | `b3f617d6` | `python tests/run_regression_suite.py --pattern runtime/validation/run_runtime_lifecycle_ --jobs 2 --fail-on-output-error --lifecycle-correctness` | 2 tests | PASS：2/2；`legacy_debt=0`，raw/opaque storage violation=0，shutdown failures=0 |
+| historical cleanup/boundary gates | `b3f617d6` | `python tests/run_regression_suite.py --pattern runtime/validation/run_runtime_lifecycle_ --jobs 2 --fail-on-output-error --lifecycle-correctness` | 2 tests | 历史 PASS：2/2；当时记录 `legacy_debt=0`、raw/opaque storage violation=0、shutdown failures=0；该源码扫描口径已停用 |
 | deterministic lifecycle soak | `b3f617d6` | `python tests/run_regression_suite.py --pattern run_application_lifecycle_soak_regression --jobs 1 --fail-on-output-error --lifecycle-correctness` | 1 test / 110 samples | PASS：managed `28,262,152 → 28,286,752 B`，delta `24,600 B`，slope `272.77 B/轮`；private `189,321,216 → 187,443,200 B`，delta `-1,878,016 B`，slope `-13,914.11 B/轮`；每轮 owner/borrower/job/scope/lease、四类 violation、suppression 与 quarantine 全为 0，activity created/closed 成对 |
 | focused runtime/lifecycle | `b3f617d6` | `python tests/run_regression_suite.py --pattern runtime/lifecycle --jobs 8 --fail-on-output-error --lifecycle-correctness` | 8 tests | PASS：8/8；lane 内 soak managed `28,262,304 → 28,287,000 B`，delta `24,696 B`，slope `274.71 B/轮`；private `185,604,096 → 181,284,864 B`，delta `-4,319,232 B`，slope `-5,368.35 B/轮`；fatal marker、shutdown failure、`legacy_debt` 为 0 |
 | AI subset 10 rounds | `b3f617d6` | `for ($i = 1; $i -le 10; $i++) { python tests/run_regression_suite.py --pattern battle_runtime/ai --jobs 16 --fail-on-output-error --lifecycle-correctness; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }` | 10 × 39 | PASS：每轮 39/39，累计 390/390；零失败、零 retry |
@@ -670,7 +673,9 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 
 ## 验收合同
 
-### 静态检查
+### 静态设计约束（不由回归用例扫描源码）
+
+以下条目保留架构意图，但当前测试不读取 `.cs`、runner、workflow 或文件清单来证明“全仓不存在”或“唯一调用者”。这类结论只能来自当前代码审查；回归用例只报告其实际执行到的 typed 状态、owner 计数、shutdown 结果与可观察行为。
 
 1. production 中 `quarantineOnDrain: true` 为 0。
 2. `SceneTree.Quit` 的 production 调用者只有 `ApplicationLifetimeCoordinator`。
@@ -743,6 +748,7 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 - `tests/shared/LifecycleTestSceneTree.cs`：统一测试退出入口并先关闭 fixture owner；
 - `tests/shared/TestExitCoordinator.cs`：`TestResult` 到 production shutdown request 的适配器；
 - `tests/shared/LifecycleMeasurementBarrier.cs`：仅用于单进程 soak 周期量测的 GC/finalizer drain；
+- `tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs`：验证已加载 runtime service 的 CLR/Godot 类型边界、实际 autoload/snapshot 绑定、lifecycle audit 计数与 lease/scope 关闭后的活动向量；不扫描项目源码；
 - `tests/shared/TestResourceOwnership.cs`：pathless authored/test wrapper 的显式 fixture owner；
 - `tests/shared/TestContentResourceLoader.cs`：`CacheMode.IgnoreDeep` path-backed test content loader；
 - `tests/shared/TestWorldGenerationDefinitionFactory.cs`：world authored fixture 到 definition 的同步边界；
