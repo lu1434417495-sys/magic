@@ -166,12 +166,25 @@ internal sealed class SkillCombatProfileValidator
             );
         if (combatProfile.range_value < 0)
             errors.Add($"Skill {skillId} combat_profile range_value must be >= 0.");
+        if (combatProfile.range_move_point_capacity_multiplier < 0)
+            errors.Add(
+                $"Skill {skillId} combat_profile range_move_point_capacity_multiplier must be >= 0."
+            );
         if (!IsValidWeaponRangePolicy(combatProfile.weapon_range_policy))
             errors.Add(
                 $"Skill {skillId} combat_profile uses unsupported weapon_range_policy {combatProfile.weapon_range_policy}; expected empty, current_weapon, or configured."
             );
         if (combatProfile.area_value < 0)
             errors.Add($"Skill {skillId} combat_profile area_value must be >= 0.");
+        if (
+            (combatProfile.ground_effect_require_full_area
+                || combatProfile.ground_effect_require_empty
+                || combatProfile.ground_effect_require_traversable)
+            && combatProfile.TargetModeKind != BattleTargetMode.Ground
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile ground effect placement requirements require target_mode=ground."
+            );
         if (combatProfile.random_chain_attack_count < 0)
             errors.Add(
                 $"Skill {skillId} combat_profile random_chain_attack_count must be >= 0."
@@ -1241,6 +1254,54 @@ internal sealed class SkillCombatProfileValidator
             if (effectDef.overlay_priority < 0)
                 errors.Add(
                     $"Skill {skillId} terrain_effect in {contextLabel} overlay_priority must be >= 0."
+                );
+            if (effectDef.TerrainContactModeKind == CombatTerrainContactMode.Unknown)
+                errors.Add(
+                    $"Skill {skillId} terrain_effect in {contextLabel} uses unsupported terrain_contact_mode {effectDef.terrain_contact_mode}."
+                );
+            if (
+                effectDef.TerrainContactModeKind
+                == CombatTerrainContactMode.InterruptMovementOnFailedSave
+            )
+            {
+                if (effectDef.save_dc <= 0 || effectDef.save_ability == "")
+                    errors.Add(
+                        $"Skill {skillId} terrain_effect in {contextLabel} movement interruption requires positive save_dc and save_ability."
+                    );
+                if (effectDef.terrain_effective_trigger_count <= 0)
+                    errors.Add(
+                        $"Skill {skillId} terrain_effect in {contextLabel} movement interruption requires terrain_effective_trigger_count >= 1."
+                    );
+                if (!effectDef.terrain_recheck_from_inside)
+                    errors.Add(
+                        $"Skill {skillId} terrain_effect in {contextLabel} movement interruption must enable terrain_recheck_from_inside."
+                    );
+                if (
+                    effectDef.status_id != ""
+                    || effectDef.save_failure_status_id != ""
+                    || effectDef.power != 0
+                    || effectDef.dice_count != 0
+                    || effectDef.dice_sides != 0
+                    || parameters.ContainsKey("contact_status_id")
+                    || parameters.ContainsKey("contact_damage_dice_count")
+                    || parameters.ContainsKey("contact_damage_dice_sides")
+                    || parameters.ContainsKey("contact_damage_flat_bonus")
+                    || parameters.ContainsKey("contact_damage_tag")
+                )
+                    errors.Add(
+                        $"Skill {skillId} terrain_effect in {contextLabel} movement interruption cannot also author damage or status payloads."
+                    );
+            }
+            if (effectDef.terrain_max_active_instances_per_source < 0)
+                errors.Add(
+                    $"Skill {skillId} terrain_effect in {contextLabel} terrain_max_active_instances_per_source must be >= 0."
+                );
+            if (
+                effectDef.terrain_replace_existing_from_source
+                && effectDef.terrain_max_active_instances_per_source != 1
+            )
+                errors.Add(
+                    $"Skill {skillId} terrain_effect in {contextLabel} source replacement currently requires terrain_max_active_instances_per_source=1."
                 );
             if (parameters.ContainsKey("render_overlay_id"))
                 errors.Add(

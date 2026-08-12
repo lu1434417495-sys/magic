@@ -20,6 +20,7 @@ public class BattlePreview
     private BattleSaveBranchPreviewData _saveBranchPreview;
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
+    private BattleTerrainContactPreviewData _terrainContactPreview;
 
     public bool allowed { get; set; } = false;
     public ReadOnlyCollection<string> log_lines => _logLinesView;
@@ -61,6 +62,8 @@ public class BattlePreview
         CloneDamagePreview(_damagePreview);
     internal BattleFatePreviewData FatePreviewTyped => _fatePreview ?? hit_preview?.FatePreview;
     internal BattleSaveBranchPreviewData SaveBranchPreviewTyped => _saveBranchPreview;
+    internal BattleTerrainContactPreviewData TerrainContactPreviewTyped =>
+        _terrainContactPreview;
 
     public BattlePreview()
     {
@@ -239,6 +242,11 @@ public class BattlePreview
     internal void ClearSaveBranchPreview()
     {
         _saveBranchPreview = null;
+    }
+
+    internal void SetTerrainContactPreview(BattleTerrainContactPreviewData value)
+    {
+        _terrainContactPreview = value;
     }
 
     private static BattleDamagePreviewRangeService.SkillDamagePreview? CloneDamagePreview(

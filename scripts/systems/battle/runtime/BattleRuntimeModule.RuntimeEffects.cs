@@ -321,6 +321,41 @@ public sealed partial class BattleRuntimeModule
         );
     }
 
+    internal void GrantTerrainEffectiveTriggerMastery(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        StringName skillId,
+        BattleEventBatch batch
+    )
+    {
+        SkillDefinition skillDefinition = GetSkillDefinitionTyped(skillId);
+        if (
+            sourceUnit == null
+            || skillDefinition?.CombatProfile?.MasteryTriggerModeKind
+                != CombatSkillMasteryTriggerMode.TerrainEffectiveTrigger
+            || IsEmpty(sourceUnit.source_member_id)
+            || _characterGateway == null
+        )
+        {
+            return;
+        }
+        int masteryAmount = _skill_mastery_service.ResolveTargetMasteryAmount(
+            sourceUnit,
+            targetUnit,
+            skillDefinition
+        );
+        if (masteryAmount <= 0)
+        {
+            return;
+        }
+        CharacterProgressionDelta delta = _characterGateway.GrantBattleMastery(
+            sourceUnit.source_member_id,
+            skillId,
+            masteryAmount
+        );
+        _append_progression_delta_to_batch(sourceUnit, delta, batch);
+    }
+
     internal void _grant_skill_mastery_if_needed(
         BattleUnitState active_unit,
         StringName skillId,

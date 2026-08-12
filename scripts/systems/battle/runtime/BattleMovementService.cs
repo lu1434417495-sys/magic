@@ -585,9 +585,11 @@ internal class BattleMovementService
         );
         BattleValidatedMoveExecutionResult executionResult =
             MoveUnitAlongValidatedPathTyped(active_unit, anchorPath, targetCoord, batch);
-        if (executionResult.Executed)
+        if (executionResult.Executed || executionResult.MovementAttemptCommitted)
         {
-            moveCost = GetMovePathCost(active_unit, executionResult.ExecutedPath);
+            moveCost = executionResult.StoppedByTerrainContact
+                ? moveResult.Cost
+                : GetMovePathCost(active_unit, executionResult.ExecutedPath);
             active_unit.SetCurrentMovePoints(active_unit.GetCurrentMovePoints() - moveCost);
             RecordActionIssued(active_unit, BattleTypedNames.ToStringName(BattleCommandKind.Move));
             if (batch != null)
@@ -613,6 +615,13 @@ internal class BattleMovementService
             if (executionResult.StoppedByBarrier)
             {
                 AppendLog(batch, $"{active_unit.display_name} 的移动被屏障拦下，停在当前可达位置。");
+            }
+            if (executionResult.StoppedByTerrainContact)
+            {
+                AppendLog(
+                    batch,
+                    $"{active_unit.display_name} 的移动被地格效果拦停，并支付原选定路径的全部 {moveCost} 点移动力。"
+                );
             }
         }
         else
@@ -657,6 +666,21 @@ internal class BattleMovementService
             return result;
         }
 
+        var processedTerrainContactKeys = new HashSet<string>();
+        BattleTerrainMovementContactResult startingContact = TerrainEffectSystem
+            ?.ResolveMovementContactForUnit(
+                active_unit,
+                BattleSaveContext.Empty,
+                batch,
+                processedTerrainContactKeys,
+                startingInsideCheck: true
+            ) ?? BattleTerrainMovementContactResult.None;
+        if (startingContact.MovementBlocked)
+        {
+            result.StoppedByTerrainContact = true;
+            result.MovementAttemptCommitted = true;
+            return result;
+        }
         for (int pathIndex = 1; pathIndex < path.Count; pathIndex++)
         {
             Vector2I nextCoord = path[pathIndex];
@@ -706,8 +730,22 @@ internal class BattleMovementService
             TerrainEffectSystem?.ApplyContactEffectsForUnit(
                 active_unit,
                 BattleSaveContext.Empty,
-                batch
+                batch,
+                processedTerrainContactKeys
             );
+            BattleTerrainMovementContactResult movementContact = TerrainEffectSystem
+                ?.ResolveMovementContactForUnit(
+                    active_unit,
+                    BattleSaveContext.Empty,
+                    batch,
+                    processedTerrainContactKeys
+                ) ?? BattleTerrainMovementContactResult.None;
+            if (movementContact.MovementBlocked)
+            {
+                result.StoppedByTerrainContact = true;
+                result.MovementAttemptCommitted = true;
+                return result;
+            }
             if (!active_unit.IsAlive())
             {
                 return result;

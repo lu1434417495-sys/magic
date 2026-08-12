@@ -342,6 +342,29 @@ public partial class CombatEffectDef : Resource
     public StringName terrain_effect_id { get; set; } = "";
 
     [Export]
+    public StringName terrain_contact_mode { get; set; } = "";
+    internal CombatTerrainContactMode TerrainContactModeKind
+    {
+        get => CombatTerrainContactModeRules.ToMode(terrain_contact_mode);
+        set => terrain_contact_mode = CombatTerrainContactModeRules.ToStringName(value);
+    }
+
+    [Export]
+    public int terrain_effective_trigger_count { get; set; }
+
+    [Export]
+    public bool terrain_requires_ground_contact { get; set; }
+
+    [Export]
+    public bool terrain_recheck_from_inside { get; set; }
+
+    [Export]
+    public int terrain_max_active_instances_per_source { get; set; }
+
+    [Export]
+    public bool terrain_replace_existing_from_source { get; set; }
+
+    [Export]
     public StringName terrain_replace_to { get; set; } = "";
 
     [Export]

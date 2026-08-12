@@ -219,6 +219,10 @@ internal sealed class BattleAiDecisionResult
             estimated_height_delta = source.estimated_height_delta,
             estimated_ground_control_cell_count = source.estimated_ground_control_cell_count,
             ground_control_score = source.ground_control_score,
+            estimated_terrain_interrupt_threat_count =
+                source.estimated_terrain_interrupt_threat_count,
+            estimated_terrain_interrupt_reachable_count =
+                source.estimated_terrain_interrupt_reachable_count,
             estimated_lethal_target_count = source.estimated_lethal_target_count,
             estimated_lethal_threat_target_count = source.estimated_lethal_threat_target_count,
             estimated_lethal_target_ids = CloneList(source.estimated_lethal_target_ids),

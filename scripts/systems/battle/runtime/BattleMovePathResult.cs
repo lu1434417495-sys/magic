@@ -24,5 +24,7 @@ internal sealed class BattleValidatedMoveExecutionResult
     public bool Executed { get; set; }
     public bool ReachedTarget { get; set; }
     public bool StoppedByBarrier { get; set; }
+    public bool StoppedByTerrainContact { get; set; }
+    public bool MovementAttemptCommitted { get; set; }
     public List<Vector2I> ExecutedPath { get; } = new();
 }

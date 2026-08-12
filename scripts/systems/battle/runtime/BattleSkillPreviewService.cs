@@ -792,13 +792,45 @@ internal sealed class BattleSkillPreviewService
                     preview.TargetUnitIdsTyped
                 )
             );
+            IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions =
+                Runtime?.CollectGroundTerrainEffectDefinitionsTyped(
+                    skillDefinition,
+                    castVariantDefinition,
+                    active_unit
+                ) ?? Array.Empty<CombatEffectDefinition>();
+            foreach (CombatEffectDefinition terrainEffect in terrainEffectDefinitions)
+            {
+                if (
+                    terrainEffect?.TerrainContactModeKind
+                    != CombatTerrainContactMode.InterruptMovementOnFailedSave
+                )
+                {
+                    continue;
+                }
+                preview.SetTerrainContactPreview(
+                    new BattleTerrainContactPreviewData(
+                        terrainEffect.TerrainContactMode,
+                        terrainEffect.SaveDc,
+                        terrainEffect.SaveAbility,
+                        terrainEffect.TerrainEffectiveTriggerCount,
+                        terrainEffect.DurationTu,
+                        terrainEffect.TerrainRecheckFromInside,
+                        terrainEffect.TerrainRequiresGroundContact
+                    )
+                );
+                break;
+            }
         }
         using (new BattleAiTraceSpan("preview:ground_skill.log_lines"))
         {
             if (preview.allowed)
             {
+                BattleTerrainContactPreviewData terrainContact =
+                    preview.TerrainContactPreviewTyped;
                 preview.AddLogLine(
-                    $"{active_unit.DisplayName} 可使用 {_owner._format_skill_variant_label(skillDefinition, castVariantDefinition)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
+                    terrainContact != null
+                        ? $"{active_unit.DisplayName} 可使用 {_owner._format_skill_variant_label(skillDefinition, castVariantDefinition)}，布置 {preview.TargetCoordsTyped.Count} 格地面机关：敏捷豁免 DC {terrainContact.SaveDc}，失败拦停，可有效阻挡 {terrainContact.EffectiveTriggerCount} 次，持续 {terrainContact.DurationTu}TU。"
+                        : $"{active_unit.DisplayName} 可使用 {_owner._format_skill_variant_label(skillDefinition, castVariantDefinition)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
                 );
             }
             else

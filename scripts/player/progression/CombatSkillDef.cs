@@ -43,6 +43,7 @@ internal enum CombatAreaDirectionMode
 {
     Unknown = 0,
     TargetVector,
+    TargetVectorPerpendicular,
     CasterFacing,
 }
 
@@ -60,6 +61,8 @@ public partial class CombatSkillDef : Resource
     private static readonly StringName AreaOriginCaster = "caster";
     private static readonly StringName AreaOriginAnchorCoord = "anchor_coord";
     private static readonly StringName AreaDirectionTargetVector = "target_vector";
+    private static readonly StringName AreaDirectionTargetVectorPerpendicular =
+        "target_vector_perpendicular";
     private static readonly StringName AreaDirectionCasterFacing = "caster_facing";
 
     [Export]
@@ -99,6 +102,15 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public bool requires_los { get; set; }
+
+    [Export]
+    public bool ground_effect_require_full_area { get; set; }
+
+    [Export]
+    public bool ground_effect_require_empty { get; set; }
+
+    [Export]
+    public bool ground_effect_require_traversable { get; set; }
 
     [Export]
     public int ap_cost { get; set; } = 1;
@@ -642,6 +654,8 @@ public partial class CombatSkillDef : Resource
     {
         if (value == AreaDirectionTargetVector)
             return CombatAreaDirectionMode.TargetVector;
+        if (value == AreaDirectionTargetVectorPerpendicular)
+            return CombatAreaDirectionMode.TargetVectorPerpendicular;
         if (value == AreaDirectionCasterFacing)
             return CombatAreaDirectionMode.CasterFacing;
         return CombatAreaDirectionMode.Unknown;
@@ -705,6 +719,8 @@ public partial class CombatSkillDef : Resource
         return mode switch
         {
             CombatAreaDirectionMode.TargetVector => AreaDirectionTargetVector,
+            CombatAreaDirectionMode.TargetVectorPerpendicular =>
+                AreaDirectionTargetVectorPerpendicular,
             CombatAreaDirectionMode.CasterFacing => AreaDirectionCasterFacing,
             _ => "",
         };

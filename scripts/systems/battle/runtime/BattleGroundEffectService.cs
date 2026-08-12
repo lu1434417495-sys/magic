@@ -1044,6 +1044,12 @@ internal class BattleGroundEffectService
                     StringName fieldInstanceId = _build_terrain_effect_instance_id(
                         effectDefinition.TerrainEffectId
                     );
+                    Runtime._terrain_effect_system.PrepareTimedTerrainFieldPlacement(
+                        sourceUnit,
+                        effectDefinition,
+                        fieldInstanceId,
+                        batch
+                    );
                     int appliedCoordCount = 0;
                     foreach (Vector2I effectCoord in normalizedEffectCoords)
                     {

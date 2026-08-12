@@ -902,6 +902,19 @@ public class BattleSpecialSkillResolver
 
         BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
         int movedSteps = 0;
+        var processedTerrainContactKeys = new HashSet<string>();
+        BattleTerrainMovementContactResult startingContact = _runtime._terrain_effect_system
+            ?.ResolveMovementContactForUnit(
+                unitState,
+                saveContext,
+                eventBatch,
+                processedTerrainContactKeys,
+                startingInsideCheck: true
+            ) ?? BattleTerrainMovementContactResult.None;
+        if (startingContact.MovementBlocked)
+        {
+            return 0;
+        }
         for (int step = 0; step < moveDistance; step++)
         {
             Vector2I nextCoord = PickForcedMoveCoord(
@@ -955,6 +968,23 @@ public class BattleSpecialSkillResolver
             AppendChangedCoords(eventBatch, previousCoords);
             AppendChangedUnitCoords(eventBatch, unitState);
             AppendChangedUnitId(eventBatch, unitState.unit_id);
+            _runtime._terrain_effect_system?.ApplyContactEffectsForUnit(
+                unitState,
+                saveContext,
+                eventBatch,
+                processedTerrainContactKeys
+            );
+            BattleTerrainMovementContactResult movementContact =
+                _runtime._terrain_effect_system?.ResolveMovementContactForUnit(
+                    unitState,
+                    saveContext,
+                    eventBatch,
+                    processedTerrainContactKeys
+                ) ?? BattleTerrainMovementContactResult.None;
+            if (movementContact.MovementBlocked || !unitState.IsAlive())
+            {
+                break;
+            }
         }
         return movedSteps;
     }

@@ -83,9 +83,23 @@ internal sealed class BattleChargeResolver
         int pathStepHitCount = 0;
         var pathStepSeenUnitIds = new HashSet<StringName>();
         var totalUnitHitCounts = new Dictionary<StringName, int>();
+        var processedTerrainContactKeys = new HashSet<string>();
         string stopReason = "";
 
-        while (movedSteps < requestedDistance)
+        BattleTerrainMovementContactResult startingContact = Runtime._terrain_effect_system
+            ?.ResolveMovementContactForUnit(
+                active_unit,
+                BattleSaveContext.Empty,
+                chargeBatch,
+                processedTerrainContactKeys,
+                startingInsideCheck: true
+            ) ?? BattleTerrainMovementContactResult.None;
+        if (startingContact.MovementBlocked)
+        {
+            stopReason = "terrain_contact";
+        }
+
+        while (movedSteps < requestedDistance && string.IsNullOrEmpty(stopReason))
         {
             Vector2I nextAnchor =
                 active_unit.GetAnchorCoord() + direction;
@@ -143,6 +157,29 @@ internal sealed class BattleChargeResolver
             AppendChangedUnitId(chargeBatch, active_unit.unit_id);
             AppendChangedCoords(chargeBatch, previousCoords);
             AppendChangedUnitCoords(chargeBatch, active_unit);
+            Runtime._terrain_effect_system?.ApplyContactEffectsForUnit(
+                active_unit,
+                BattleSaveContext.Empty,
+                chargeBatch,
+                processedTerrainContactKeys
+            );
+            BattleTerrainMovementContactResult movementContact = Runtime._terrain_effect_system
+                ?.ResolveMovementContactForUnit(
+                    active_unit,
+                    BattleSaveContext.Empty,
+                    chargeBatch,
+                    processedTerrainContactKeys
+                ) ?? BattleTerrainMovementContactResult.None;
+            if (movementContact.MovementBlocked)
+            {
+                stopReason = "terrain_contact";
+                break;
+            }
+            if (!active_unit.IsAlive())
+            {
+                stopReason = "terrain_effect";
+                break;
+            }
 
             PathStepResult stepAoeResult = ApplyChargePathStepAoeEffects(
                 active_unit,

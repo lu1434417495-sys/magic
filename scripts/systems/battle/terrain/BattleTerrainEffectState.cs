@@ -37,6 +37,12 @@ public class BattleTerrainEffectState
         "contact_timeline_damage_dice_sides",
         "contact_timeline_damage_flat_bonus",
         "contact_blocked_by_trait_id",
+        "terrain_contact_mode",
+        "terrain_remaining_effective_triggers",
+        "terrain_requires_ground_contact",
+        "terrain_recheck_from_inside",
+        "terrain_max_active_instances_per_source",
+        "terrain_replace_existing_from_source",
     };
 
     private static readonly string[] SerializedFieldNames =
@@ -133,6 +139,14 @@ public class BattleTerrainEffectState
     public int contact_timeline_damage_dice_sides { get; set; }
     public int contact_timeline_damage_flat_bonus { get; set; }
     public StringName contact_blocked_by_trait_id { get; set; } = "";
+    public StringName terrain_contact_mode { get; set; } = "";
+    internal CombatTerrainContactMode TerrainContactModeKind =>
+        CombatTerrainContactModeRules.ToMode(terrain_contact_mode);
+    public int terrain_remaining_effective_triggers { get; set; }
+    public bool terrain_requires_ground_contact { get; set; }
+    public bool terrain_recheck_from_inside { get; set; }
+    public int terrain_max_active_instances_per_source { get; set; }
+    public bool terrain_replace_existing_from_source { get; set; }
     public StringName source_unit_id { get; set; } = "";
     public StringName source_skill_id { get; set; } = "";
     public StringName target_team_filter { get; set; } = "any";
@@ -304,6 +318,24 @@ public class BattleTerrainEffectState
             contact_timeline_damage_dice_sides = GetInt(parameters, "contact_timeline_damage_dice_sides"),
             contact_timeline_damage_flat_bonus = GetInt(parameters, "contact_timeline_damage_flat_bonus"),
             contact_blocked_by_trait_id = GetStringName(parameters, "contact_blocked_by_trait_id"),
+            terrain_contact_mode = GetStringName(parameters, "terrain_contact_mode"),
+            terrain_remaining_effective_triggers = GetInt(
+                parameters,
+                "terrain_remaining_effective_triggers"
+            ),
+            terrain_requires_ground_contact = GetBool(
+                parameters,
+                "terrain_requires_ground_contact"
+            ),
+            terrain_recheck_from_inside = GetBool(parameters, "terrain_recheck_from_inside"),
+            terrain_max_active_instances_per_source = GetInt(
+                parameters,
+                "terrain_max_active_instances_per_source"
+            ),
+            terrain_replace_existing_from_source = GetBool(
+                parameters,
+                "terrain_replace_existing_from_source"
+            ),
             source_unit_id = GetStringName(typedData, "source_unit_id"),
             source_skill_id = GetStringName(typedData, "source_skill_id"),
             target_team_filter = targetTeamFilter,
@@ -400,6 +432,12 @@ public class BattleTerrainEffectState
             contact_timeline_damage_dice_sides = contact_timeline_damage_dice_sides,
             contact_timeline_damage_flat_bonus = contact_timeline_damage_flat_bonus,
             contact_blocked_by_trait_id = contact_blocked_by_trait_id,
+            terrain_contact_mode = terrain_contact_mode,
+            terrain_remaining_effective_triggers = terrain_remaining_effective_triggers,
+            terrain_requires_ground_contact = terrain_requires_ground_contact,
+            terrain_recheck_from_inside = terrain_recheck_from_inside,
+            terrain_max_active_instances_per_source = terrain_max_active_instances_per_source,
+            terrain_replace_existing_from_source = terrain_replace_existing_from_source,
             source_unit_id = source_unit_id,
             source_skill_id = source_skill_id,
             target_team_filter = target_team_filter,
@@ -576,6 +614,18 @@ public class BattleTerrainEffectState
         if (contact_blocked_by_trait_id != "")
         {
             projected["contact_blocked_by_trait_id"] = contact_blocked_by_trait_id.ToString();
+        }
+        if (terrain_contact_mode != null && terrain_contact_mode != "")
+        {
+            projected["terrain_contact_mode"] = terrain_contact_mode.ToString();
+            projected["terrain_remaining_effective_triggers"] =
+                terrain_remaining_effective_triggers;
+            projected["terrain_requires_ground_contact"] = terrain_requires_ground_contact;
+            projected["terrain_recheck_from_inside"] = terrain_recheck_from_inside;
+            projected["terrain_max_active_instances_per_source"] =
+                terrain_max_active_instances_per_source;
+            projected["terrain_replace_existing_from_source"] =
+                terrain_replace_existing_from_source;
         }
         return projected;
     }

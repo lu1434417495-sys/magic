@@ -118,6 +118,12 @@ internal sealed class BattleSkillMasteryService : IDisposable
         );
     }
 
+    internal int ResolveTargetMasteryAmount(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition
+    ) => _ResolveSkillMasteryTargetAmount(sourceUnit, targetUnit, skillDefinition);
+
     public void RecordMasteryAmount(StringName skillId, int amount)
     {
         if (skillId == "" || amount <= 0)

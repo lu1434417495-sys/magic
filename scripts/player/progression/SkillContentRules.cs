@@ -129,6 +129,8 @@ internal static class CombatSkillContentRules
     private static readonly StringName AreaOriginCaster = "caster";
     private static readonly StringName AreaOriginAnchorCoord = "anchor_coord";
     private static readonly StringName AreaDirectionTargetVector = "target_vector";
+    private static readonly StringName AreaDirectionTargetVectorPerpendicular =
+        "target_vector_perpendicular";
     private static readonly StringName AreaDirectionCasterFacing = "caster_facing";
 
     internal static CombatSpellFateMode ToSpellFateMode(StringName value)
@@ -177,6 +179,8 @@ internal static class CombatSkillContentRules
     {
         if (value == AreaDirectionTargetVector)
             return CombatAreaDirectionMode.TargetVector;
+        if (value == AreaDirectionTargetVectorPerpendicular)
+            return CombatAreaDirectionMode.TargetVectorPerpendicular;
         if (value == AreaDirectionCasterFacing)
             return CombatAreaDirectionMode.CasterFacing;
         return CombatAreaDirectionMode.Unknown;

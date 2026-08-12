@@ -202,6 +202,7 @@ internal enum CombatSkillMasteryTriggerMode
     IncomingPhysicalHit,
     SecondaryHit,
     SourceBoundWeaponBonusDamage,
+    TerrainEffectiveTrigger,
 }
 
 internal enum CombatSkillMasteryAmountMode
@@ -336,6 +337,8 @@ internal static class BattleTypedNames
     internal static readonly StringName MasteryTriggerSecondaryHit = "secondary_hit";
     internal static readonly StringName MasteryTriggerSourceBoundWeaponBonusDamage =
         "source_bound_weapon_bonus_damage";
+    internal static readonly StringName MasteryTriggerTerrainEffectiveTrigger =
+        "terrain_effective_trigger";
     internal static readonly StringName MasteryAmountPerTargetRank = "per_target_rank";
     internal static readonly StringName MasteryAmountPerCastHpRatio = "per_cast_hp_ratio";
     internal static readonly StringName EnemyTargetRankNormal = "normal";
@@ -916,6 +919,8 @@ internal static class BattleTypedNames
             return CombatSkillMasteryTriggerMode.SecondaryHit;
         if (value == MasteryTriggerSourceBoundWeaponBonusDamage)
             return CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage;
+        if (value == MasteryTriggerTerrainEffectiveTrigger)
+            return CombatSkillMasteryTriggerMode.TerrainEffectiveTrigger;
         return CombatSkillMasteryTriggerMode.Unknown;
     }
 
@@ -935,6 +940,8 @@ internal static class BattleTypedNames
             CombatSkillMasteryTriggerMode.SecondaryHit => MasteryTriggerSecondaryHit,
             CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage =>
                 MasteryTriggerSourceBoundWeaponBonusDamage,
+            CombatSkillMasteryTriggerMode.TerrainEffectiveTrigger =>
+                MasteryTriggerTerrainEffectiveTrigger,
             _ => Empty,
         };
     }

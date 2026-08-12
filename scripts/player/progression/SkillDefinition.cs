@@ -640,7 +640,10 @@ public sealed class CombatSkillDefinition
         IReadOnlyList<StringName> requiredWeaponTypeIds = null,
         bool allowsNaturalWeapon = false,
         CombatWindupDefinition windup = null,
-        bool requiresHeavyWeapon = false
+        bool requiresHeavyWeapon = false,
+        bool groundEffectRequireFullArea = false,
+        bool groundEffectRequireEmpty = false,
+        bool groundEffectRequireTraversable = false
     )
     {
         SkillId = skillId;
@@ -717,6 +720,9 @@ public sealed class CombatSkillDefinition
         RandomChainContinueOnMiss = randomChainContinueOnMiss;
         Windup = windup;
         RequiresHeavyWeapon = requiresHeavyWeapon;
+        GroundEffectRequireFullArea = groundEffectRequireFullArea;
+        GroundEffectRequireEmpty = groundEffectRequireEmpty;
+        GroundEffectRequireTraversable = groundEffectRequireTraversable;
     }
 
     public StringName SkillId { get; }
@@ -773,6 +779,9 @@ public sealed class CombatSkillDefinition
     public bool AllowsNaturalWeapon { get; }
     public CombatWindupDefinition Windup { get; }
     public bool RequiresHeavyWeapon { get; }
+    public bool GroundEffectRequireFullArea { get; }
+    public bool GroundEffectRequireEmpty { get; }
+    public bool GroundEffectRequireTraversable { get; }
     public IReadOnlyList<StringName> RequiredWeaponTypeIds { get; }
     public IReadOnlyList<StringName> ExcludedWeaponFamilies { get; }
     public IReadOnlyList<StringName> ExcludedWeaponTypeIds { get; }
@@ -958,7 +967,10 @@ public sealed class CombatSkillDefinition
             RequiredWeaponTypeIds,
             AllowsNaturalWeapon,
             Windup,
-            RequiresHeavyWeapon
+            RequiresHeavyWeapon,
+            GroundEffectRequireFullArea,
+            GroundEffectRequireEmpty,
+            GroundEffectRequireTraversable
         );
 
     internal CombatSkillDefinition WithArea(StringName areaPattern, int areaValue) =>
@@ -1022,7 +1034,10 @@ public sealed class CombatSkillDefinition
             RequiredWeaponTypeIds,
             AllowsNaturalWeapon,
             Windup,
-            RequiresHeavyWeapon
+            RequiresHeavyWeapon,
+            GroundEffectRequireFullArea,
+            GroundEffectRequireEmpty,
+            GroundEffectRequireTraversable
         );
 
     public int GetFumbleProtectionLimit(int skillLevel)
@@ -1122,7 +1137,10 @@ public sealed class CombatSkillDefinition
             CopyStringNameArray(source.required_weapon_type_ids),
             source.allows_natural_weapon,
             CombatWindupDefinition.FromResource(source.windup_profile),
-            source.requires_heavy_weapon
+            source.requires_heavy_weapon,
+            source.ground_effect_require_full_area,
+            source.ground_effect_require_empty,
+            source.ground_effect_require_traversable
         );
     }
 
@@ -1850,7 +1868,13 @@ public sealed class CombatEffectDefinition
         StringName requiredTargetCreatureTypeTag = default,
         BattleCognitionKind requiredTargetMinCognition =
             BattleCognitionKind.Unknown,
-        int sourceRetreatDistance = 0
+        int sourceRetreatDistance = 0,
+        StringName terrainContactMode = default,
+        int terrainEffectiveTriggerCount = 0,
+        bool terrainRequiresGroundContact = false,
+        bool terrainRecheckFromInside = false,
+        int terrainMaxActiveInstancesPerSource = 0,
+        bool terrainReplaceExistingFromSource = false
     )
     {
         EffectType = effectType;
@@ -1863,6 +1887,15 @@ public sealed class CombatEffectDefinition
         StatusId = statusId;
         SaveFailureStatusId = saveFailureStatusId;
         TerrainEffectId = terrainEffectId;
+        TerrainContactMode = terrainContactMode;
+        TerrainEffectiveTriggerCount = System.Math.Max(terrainEffectiveTriggerCount, 0);
+        TerrainRequiresGroundContact = terrainRequiresGroundContact;
+        TerrainRecheckFromInside = terrainRecheckFromInside;
+        TerrainMaxActiveInstancesPerSource = System.Math.Max(
+            terrainMaxActiveInstancesPerSource,
+            0
+        );
+        TerrainReplaceExistingFromSource = terrainReplaceExistingFromSource;
         TerrainReplaceTo = terrainReplaceTo;
         HeightDelta = heightDelta;
         RequiresWeapon = requiresWeapon;
@@ -2050,6 +2083,14 @@ public sealed class CombatEffectDefinition
     public StringName StatusId { get; }
     public StringName SaveFailureStatusId { get; }
     public StringName TerrainEffectId { get; }
+    public StringName TerrainContactMode { get; }
+    internal CombatTerrainContactMode TerrainContactModeKind =>
+        CombatTerrainContactModeRules.ToMode(TerrainContactMode);
+    public int TerrainEffectiveTriggerCount { get; }
+    public bool TerrainRequiresGroundContact { get; }
+    public bool TerrainRecheckFromInside { get; }
+    public int TerrainMaxActiveInstancesPerSource { get; }
+    public bool TerrainReplaceExistingFromSource { get; }
     public StringName TerrainReplaceTo { get; }
     public int HeightDelta { get; }
     public bool RequiresWeapon { get; }
@@ -2219,6 +2260,12 @@ public sealed class CombatEffectDefinition
         CombatEffectContentRules.ToTriggerEvent(TriggerEvent);
     internal BattleForcedMoveMode ForcedMoveModeKind =>
         BattleTypedNames.ToForcedMoveMode(ForcedMoveMode);
+    internal bool IsUnlockedAtSkillLevel(int skillLevel)
+    {
+        int normalizedLevel = System.Math.Max(skillLevel, 0);
+        return normalizedLevel >= System.Math.Max(MinSkillLevel, 0)
+            && (MaxSkillLevel < 0 || normalizedLevel <= MaxSkillLevel);
+    }
     internal BattleSaveDcMode SaveDcModeKind =>
         BattleSaveContentRules.ToSaveDcMode(SaveDcMode);
 
@@ -2515,7 +2562,13 @@ public sealed class CombatEffectDefinition
             requiredTargetCreatureTypeTag: RequiredTargetCreatureTypeTag,
             requiredTargetMinCognition:
                 RequiredTargetMinCognition,
-            sourceRetreatDistance: SourceRetreatDistance
+            sourceRetreatDistance: SourceRetreatDistance,
+            terrainContactMode: TerrainContactMode,
+            terrainEffectiveTriggerCount: TerrainEffectiveTriggerCount,
+            terrainRequiresGroundContact: TerrainRequiresGroundContact,
+            terrainRecheckFromInside: TerrainRecheckFromInside,
+            terrainMaxActiveInstancesPerSource: TerrainMaxActiveInstancesPerSource,
+            terrainReplaceExistingFromSource: TerrainReplaceExistingFromSource
         );
     }
 
@@ -2695,7 +2748,13 @@ public sealed class CombatEffectDefinition
             requiredTargetCreatureTypeTag: RequiredTargetCreatureTypeTag,
             requiredTargetMinCognition:
                 RequiredTargetMinCognition,
-            sourceRetreatDistance: SourceRetreatDistance
+            sourceRetreatDistance: SourceRetreatDistance,
+            terrainContactMode: TerrainContactMode,
+            terrainEffectiveTriggerCount: TerrainEffectiveTriggerCount,
+            terrainRequiresGroundContact: TerrainRequiresGroundContact,
+            terrainRecheckFromInside: TerrainRecheckFromInside,
+            terrainMaxActiveInstancesPerSource: TerrainMaxActiveInstancesPerSource,
+            terrainReplaceExistingFromSource: TerrainReplaceExistingFromSource
         );
     }
 
@@ -2883,7 +2942,15 @@ public sealed class CombatEffectDefinition
                     BattleCognitionContentRules.ToKind(
                         source.required_target_min_cognition
                     ),
-                sourceRetreatDistance: source.source_retreat_distance
+                sourceRetreatDistance: source.source_retreat_distance,
+                terrainContactMode: source.terrain_contact_mode,
+                terrainEffectiveTriggerCount: source.terrain_effective_trigger_count,
+                terrainRequiresGroundContact: source.terrain_requires_ground_contact,
+                terrainRecheckFromInside: source.terrain_recheck_from_inside,
+                terrainMaxActiveInstancesPerSource:
+                    source.terrain_max_active_instances_per_source,
+                terrainReplaceExistingFromSource:
+                    source.terrain_replace_existing_from_source
             );
     }
 

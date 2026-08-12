@@ -7,7 +7,6 @@ internal sealed class BattleAiGroundSkillActionEvaluator
     private static readonly StringName EmptyStringName = "";
 
     private readonly BattleAiTypedActionHelper _helper = new();
-    private readonly Dictionary<StringName, CombatCastVariantDefinition> _implicitGroundOptionDefinitionsBySkillId = new();
     private UseGroundSkillActionDefinition _action;
 
     private sealed class GroundCandidatePrefilter
@@ -429,6 +428,10 @@ internal sealed class BattleAiGroundSkillActionEvaluator
                                     ["estimated_ground_control_cell_count"] =
                                         scoreInput.estimated_ground_control_cell_count,
                                     ["ground_control_score"] = scoreInput.ground_control_score,
+                                    ["estimated_terrain_interrupt_threat_count"] =
+                                        scoreInput.estimated_terrain_interrupt_threat_count,
+                                    ["estimated_terrain_interrupt_reachable_count"] =
+                                        scoreInput.estimated_terrain_interrupt_reachable_count,
                                     ["acceptance_reason"] = _resolve_candidate_acceptance_reason(
                                         scoreInput
                                     ),
@@ -626,6 +629,10 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             Vector2I direction = context.unit_state != null
                 ? targetCoord - context.unit_state.GetAnchorCoord()
                 : Vector2I.Zero;
+            direction = BattleTargetCollectionService.ResolveAreaDirection(
+                combatProfile,
+                direction
+            );
             foreach (
                 Vector2I effectCoord in context.grid_service.GetAreaCoords(
                     context.state,
@@ -923,6 +930,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             || scoreInput.estimated_enemy_healing > 0
             || scoreInput.estimated_status_count > 0
             || scoreInput.estimated_control_count > 0
+            || scoreInput.ground_control_score > 0
+            || scoreInput.estimated_terrain_interrupt_threat_count > 0
             || scoreInput.estimated_taunt_ally_damage_relief > 0
             || scoreInput.estimated_lethal_target_count > 0
             || scoreInput.estimated_lethal_threat_target_count > 0
@@ -1497,7 +1506,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             return options;
         if (combatProfile.CastVariants.Count == 0)
         {
-            options.Add(BuildImplicitGroundOptionDefinition(skillDefinition));
+            options.Add(BuildImplicitGroundOptionDefinition(skillDefinition, skillLevel));
             return options;
         }
         SkillEffectiveCombatDefinition effectiveDefinition =
@@ -1512,25 +1521,26 @@ internal sealed class BattleAiGroundSkillActionEvaluator
     }
 
     private CombatCastVariantDefinition BuildImplicitGroundOptionDefinition(
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
-        StringName skillId = ProgressionDataUtils.to_string_name(
-            skillDefinition?.SkillId ?? EmptyStringName
-        );
-        if (
-            skillId != ""
-            && _implicitGroundOptionDefinitionsBySkillId.TryGetValue(
-                skillId,
-                out CombatCastVariantDefinition cachedOption
-            )
+        CombatSkillDefinition profile = skillDefinition?.CombatProfile;
+        var activeEffects = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in profile?.EffectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
         )
         {
-            return cachedOption;
+            if (
+                effectDefinition != null
+                && effectDefinition.IsUnlockedAtSkillLevel(skillLevel)
+            )
+            {
+                activeEffects.Add(effectDefinition);
+            }
         }
-
-        CombatSkillDefinition profile = skillDefinition?.CombatProfile;
-        var option = new CombatCastVariantDefinition(
+        return new CombatCastVariantDefinition(
             "",
             "",
             "",
@@ -1541,12 +1551,9 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             ),
             1,
             Array.Empty<StringName>(),
-            profile?.EffectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
+            activeEffects,
             null
         );
-        if (skillId != "")
-            _implicitGroundOptionDefinitionsBySkillId[skillId] = option;
-        return option;
     }
 
     internal static bool IsChargeOption(CombatCastVariantDefinition castVariant)

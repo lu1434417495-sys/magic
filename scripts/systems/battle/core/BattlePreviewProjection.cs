@@ -111,6 +111,11 @@ internal static class BattlePreviewProjection
             preview.SaveBranchPreviewTyped,
             "BattlePreviewProjection.save_branch_preview"
         );
+        target["terrain_contact_preview"] = WriteTerrainContactPreview(
+            lease,
+            preview.TerrainContactPreviewTyped,
+            "BattlePreviewProjection.terrain_contact_preview"
+        );
         target["special_profile_gate_result"] = WriteSpecialProfileGate(
             lease,
             preview.special_profile_gate_result,
@@ -121,6 +126,28 @@ internal static class BattlePreviewProjection
             preview.special_profile_preview_facts,
             "BattlePreviewProjection.special_profile_preview_facts"
         );
+    }
+
+    private static GDictionary WriteTerrainContactPreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleTerrainContactPreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null)
+        {
+            return result;
+        }
+        result["contact_mode"] = preview.ContactMode;
+        result["save_dc"] = preview.SaveDc;
+        result["save_ability"] = preview.SaveAbility;
+        result["effective_trigger_count"] = preview.EffectiveTriggerCount;
+        result["duration_tu"] = preview.DurationTu;
+        result["rechecks_from_inside"] = preview.RechecksFromInside;
+        result["requires_ground_contact"] = preview.RequiresGroundContact;
+        return result;
     }
 
     private static GDictionary WriteAttackPreview<TLeaseRoot>(

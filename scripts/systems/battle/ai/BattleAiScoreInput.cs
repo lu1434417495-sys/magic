@@ -44,6 +44,8 @@ public sealed class BattleAiScoreInput
     public int estimated_height_delta { get; set; } = 0;
     public int estimated_ground_control_cell_count { get; set; } = 0;
     public int ground_control_score { get; set; } = 0;
+    public int estimated_terrain_interrupt_threat_count { get; set; } = 0;
+    public int estimated_terrain_interrupt_reachable_count { get; set; } = 0;
     public int estimated_lethal_target_count { get; set; } = 0;
     public int estimated_lethal_threat_target_count { get; set; } = 0;
     public List<StringName> estimated_lethal_target_ids { get; set; } = new();
@@ -270,6 +272,10 @@ public sealed class BattleAiScoreInput
             ["estimated_height_delta"] = estimated_height_delta,
             ["estimated_ground_control_cell_count"] = estimated_ground_control_cell_count,
             ["ground_control_score"] = ground_control_score,
+            ["estimated_terrain_interrupt_threat_count"] =
+                estimated_terrain_interrupt_threat_count,
+            ["estimated_terrain_interrupt_reachable_count"] =
+                estimated_terrain_interrupt_reachable_count,
             ["estimated_lethal_target_count"] = estimated_lethal_target_count,
             ["estimated_lethal_threat_target_count"] = estimated_lethal_threat_target_count,
             ["estimated_lethal_target_ids"] = CloneStringNameList(estimated_lethal_target_ids),
@@ -491,6 +497,16 @@ public sealed class BattleAiScoreInput
             estimated_ground_control_cell_count
         );
         AppendNamedValueFingerprint(builder, "ground_control_score", ground_control_score);
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_terrain_interrupt_threat_count",
+            estimated_terrain_interrupt_threat_count
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_terrain_interrupt_reachable_count",
+            estimated_terrain_interrupt_reachable_count
+        );
         AppendNamedValueFingerprint(
             builder,
             "estimated_lethal_target_count",

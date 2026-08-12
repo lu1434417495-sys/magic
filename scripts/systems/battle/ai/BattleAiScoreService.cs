@@ -379,7 +379,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             effectiveEffectDefinitions
         );
         using (new BattleAiTraceSpan("score_input:ground_control"))
-            PopulateGroundControlMetrics(scoreInput, effectiveEffectDefinitions);
+            PopulateGroundControlMetrics(scoreInput, context, effectiveEffectDefinitions);
         PopulateRandomChainMetrics(
             scoreInput,
             context,
@@ -923,6 +923,7 @@ public sealed partial class BattleAiScoreService : IDisposable
 
     private void PopulateGroundControlMetrics(
         BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
@@ -942,7 +943,99 @@ public sealed partial class BattleAiScoreService : IDisposable
         }
         scoreInput.estimated_ground_control_cell_count = cellCount;
         scoreInput.ground_control_score = cellCount * perCellScore;
+        PopulateTerrainInterruptRouteMetrics(scoreInput, context, effectDefinitions);
         scoreInput.hit_payoff_score += scoreInput.ground_control_score;
+    }
+
+    private void PopulateTerrainInterruptRouteMetrics(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        CombatEffectDefinition interruptEffect = null;
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions
+            ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (
+                effectDefinition?.TerrainContactModeKind
+                == CombatTerrainContactMode.InterruptMovementOnFailedSave
+            )
+            {
+                interruptEffect = effectDefinition;
+                break;
+            }
+        }
+        if (
+            interruptEffect == null
+            || context?.state == null
+            || context.unit_state == null
+            || context.grid_service == null
+        )
+        {
+            return;
+        }
+
+        int terrainWeight = Math.Max(_scoreProfile?.TerrainWeight ?? 0, 0);
+        int triggerCount = Math.Max(interruptEffect.TerrainEffectiveTriggerCount, 1);
+        int actorDistanceReference = int.MaxValue;
+        foreach (BattleUnitState candidate in context.state.GetUnitsTyped())
+        {
+            if (
+                candidate == null
+                || !candidate.IsAlive()
+                || (
+                    interruptEffect.TerrainRequiresGroundContact
+                    && candidate.HasMovementTag(new StringName("fly"))
+                )
+                || !BattleTargetTeamRules.IsUnitValidForFilter(
+                    context.unit_state,
+                    candidate,
+                    interruptEffect.EffectTargetTeamFilter != ""
+                        ? interruptEffect.EffectTargetTeamFilter
+                        : new StringName("enemy")
+                )
+            )
+            {
+                continue;
+            }
+            actorDistanceReference = context.grid_service.GetDistanceFromUnitToCoord(
+                candidate,
+                context.unit_state.GetAnchorCoord()
+            );
+            int bestDistanceToField = int.MaxValue;
+            bool liesOnApproach = false;
+            foreach (Vector2I fieldCoord in scoreInput.target_coords)
+            {
+                int distanceToField = context.grid_service.GetDistanceFromUnitToCoord(
+                    candidate,
+                    fieldCoord
+                );
+                bestDistanceToField = Math.Min(bestDistanceToField, distanceToField);
+                int fieldToActor = context.grid_service.GetDistance(
+                    fieldCoord,
+                    context.unit_state.GetAnchorCoord()
+                );
+                if (distanceToField + fieldToActor <= actorDistanceReference + 1)
+                {
+                    liesOnApproach = true;
+                }
+            }
+            if (!liesOnApproach)
+            {
+                continue;
+            }
+            scoreInput.estimated_terrain_interrupt_threat_count += 1;
+            if (bestDistanceToField <= Math.Max(candidate.GetCurrentMovePoints(), 1))
+            {
+                scoreInput.estimated_terrain_interrupt_reachable_count += 1;
+            }
+        }
+        scoreInput.ground_control_score +=
+            scoreInput.estimated_terrain_interrupt_threat_count
+                * terrainWeight
+                * triggerCount
+            + scoreInput.estimated_terrain_interrupt_reachable_count * terrainWeight;
     }
 
     private static int CountUniqueTargetCoords(IEnumerable<Vector2I> targetCoords)
