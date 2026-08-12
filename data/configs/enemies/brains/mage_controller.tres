@@ -12,7 +12,6 @@
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiGenerationSlotDef.cs" id="10_slot"]
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiTransitionRuleDef.cs" id="11_transition_rule"]
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiTransitionConditionDef.cs" id="12_transition_condition"]
-[ext_resource type="Script" path="res://scripts/enemies/actions/UseRandomChainSkillAction.cs" id="13_random_chain"]
 
 [sub_resource type="Resource" id="Action_blink_escape"]
 script = ExtResource("9_reposition")
@@ -81,15 +80,17 @@ desired_max_distance = 5
 distance_reference = &"target_coord"
 
 [sub_resource type="Resource" id="Action_chain_lightning"]
-script = ExtResource("13_random_chain")
+script = ExtResource("4_unit")
 action_id = &"mage_chain_lightning"
 score_bucket_id = &"mist_offense"
 skill_ids = Array[StringName]([&"mage_chain_lightning"])
 target_selector = &"lowest_hp_enemy"
+minimum_effective_target_count = 2
+maximum_friendly_fire_target_count = 99
+allow_friendly_lethal = false
 desired_min_distance = 4
 desired_max_distance = 5
-distance_reference = &"candidate_pool"
-minimum_candidate_count = 2
+distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_take_position"]
 script = ExtResource("5_move")
