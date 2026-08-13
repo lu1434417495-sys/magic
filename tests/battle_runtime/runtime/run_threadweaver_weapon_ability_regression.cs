@@ -315,7 +315,7 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         _test.Eq(combat?.RangeValue ?? 0, 2, "Thread Mending should use 10ft/2-cell range.");
         _test.Eq(combat?.ApCost ?? 0, 1, "Thread Mending should cost 1AP.");
         CombatEffectDefinition heal = FirstEffect(mendSkill);
-        _test.Eq(heal?.EffectKind ?? BattleEffectKind.Unknown, BattleEffectKind.Heal, "Thread Mending should heal.");
+        _test.Eq(heal?.EffectKind ?? BattleEffectKind.Unknown, BattleEffectKind.HealFatal, "Thread Mending should use the typed revive effect.");
         _test.Eq(heal?.DiceCount ?? 0, 2, "Thread Mending should roll 2 dice.");
         _test.Eq(heal?.DiceSides ?? 0, 8, "Thread Mending should roll D8s.");
         _test.Eq(heal?.DiceBonus ?? 0, 10, "Thread Mending should add +10 healing.");

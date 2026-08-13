@@ -6,7 +6,7 @@
 
 [sub_resource type="Resource" id="Effect_thread_mending_heal"]
 script = ExtResource("1_effect")
-effect_type = &"heal"
+effect_type = &"heal_fatal"
 effect_target_team_filter = &"ally"
 dice_count = 2
 dice_sides = 8
