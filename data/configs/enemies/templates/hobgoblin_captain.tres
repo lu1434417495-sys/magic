@@ -1,7 +1,15 @@
-[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
 [ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyBattleEquipmentDef.cs" id="3_equipment"]
+
+[sub_resource type="Resource" id="Resource_body_armor"]
+script = ExtResource("3_equipment")
+slot_id = &"body"
+item_id = &"iron_scale_mail"
+rarity = 1
+current_durability = 84
 
 [sub_resource type="Resource" id="Resource_drop_hobgoblin_spear"]
 script = ExtResource("2_dropdef")
@@ -22,6 +30,7 @@ action_threshold = 45
 cognition_kind = &"sapient"
 tags = Array[StringName]([&"humanoid", &"goblinoid"])
 attack_equipment_item_id = &"militia_spear"
+battle_equipment_entries = Array[ExtResource("3_equipment")]([SubResource("Resource_body_armor")])
 base_attribute_overrides = {
 &"strength": 15,
 &"agility": 11,
