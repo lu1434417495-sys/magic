@@ -1,197 +1,175 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_877hs"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_pv3h0"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_7auls"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_jaqfj"]
-[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_tnpse"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_877hs"]
-script = ExtResource("3_7auls")
-effect_type = &"damage"
-max_skill_level = 0
-damage_tag = &"lightning"
-dice_count = 3
-dice_sides = 6
+[sub_resource type="Resource" id="Pull_l0_l3"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+max_skill_level = 3
+effect_target_team_filter = &"enemy"
+forced_move_mode = &"airborne_pull"
+forced_move_distance = 1
+forced_move_max_target_body_size = 1
+required_target_status_id = &"shocked"
+required_target_status_min_stacks = 1
 
-[sub_resource type="Resource" id="Resource_pv3h0"]
-script = ExtResource("3_7auls")
-effect_type = &"damage"
-min_skill_level = 1
-max_skill_level = 2
-damage_tag = &"lightning"
-dice_count = 4
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_7auls"]
-script = ExtResource("3_7auls")
-effect_type = &"damage"
-min_skill_level = 3
-max_skill_level = 4
-damage_tag = &"lightning"
-dice_count = 5
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_jaqfj"]
-script = ExtResource("3_7auls")
-effect_type = &"damage"
-min_skill_level = 5
-max_skill_level = 6
-damage_tag = &"lightning"
-dice_count = 6
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_tnpse"]
-script = ExtResource("3_7auls")
-effect_type = &"damage"
-min_skill_level = 7
-damage_tag = &"lightning"
-dice_count = 7
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_rnqtm"]
-script = ExtResource("3_7auls")
-effect_type = &"status"
-power = 2
-min_skill_level = 3
+[sub_resource type="Resource" id="Pull_l4"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+min_skill_level = 4
 max_skill_level = 4
 effect_target_team_filter = &"enemy"
-status_id = &"shocked"
-duration_tu = 80
+forced_move_mode = &"airborne_pull"
+forced_move_distance = 1
+forced_move_max_target_body_size = 4
+required_target_status_id = &"shocked"
+required_target_status_min_stacks = 1
 
-[sub_resource type="Resource" id="Resource_ew06n"]
-script = ExtResource("3_7auls")
-effect_type = &"status"
-power = 2
+[sub_resource type="Resource" id="Pull_l5_l7"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
 min_skill_level = 5
-max_skill_level = 6
+effect_target_team_filter = &"enemy"
+forced_move_mode = &"airborne_pull"
+forced_move_distance = 2
+forced_move_max_target_body_size = 4
+required_target_status_id = &"shocked"
+required_target_status_min_stacks = 1
+
+[sub_resource type="Resource" id="Consume_shocked"]
+script = ExtResource("1_effect")
+effect_type = &"erase_status"
 effect_target_team_filter = &"enemy"
 status_id = &"shocked"
-duration_tu = 100
+trigger_event = &"forced_move_applied"
 
-[sub_resource type="Resource" id="Resource_wxk28"]
-script = ExtResource("3_7auls")
+[sub_resource type="Resource" id="Apply_staggered"]
+script = ExtResource("1_effect")
 effect_type = &"status"
-power = 3
-min_skill_level = 7
+power = 1
 effect_target_team_filter = &"enemy"
-status_id = &"shocked"
-duration_tu = 120
+status_id = &"staggered"
+duration_tu = 40
+trigger_event = &"forced_move_applied"
 
-[sub_resource type="Resource" id="Resource_n1lev"]
-script = ExtResource("4_jaqfj")
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_voltage_hook"
 delivery_categories = Array[StringName]([&"spell"])
 projectile_kind = &"magical"
-range_value = 5
-ap_cost = 2
-mp_cost = 80
-cooldown_tu = 10
-attack_roll_bonus = 1
+range_value = 4
+requires_los = true
+ap_cost = 1
+mp_cost = 60
+cooldown_tu = 120
+attack_resolution_mode = &"direct_effect"
 level_overrides = {
-3: {
-"range_value": 6
+1: {
+"mp_cost": 55
 },
-5: {
-"cooldown_tu": 5,
-"range_value": 6
+2: {
+"range_value": 5
+},
+3: {
+"cooldown_tu": 110
+},
+4: {},
+5: {},
+6: {
+"mp_cost": 50
 },
 7: {
-"attack_roll_bonus": 2,
-"range_value": 7
+"cooldown_tu": 100,
+"range_value": 6
 }
 }
-effect_defs = Array[ExtResource("3_7auls")]([SubResource("Resource_877hs"), SubResource("Resource_pv3h0"), SubResource("Resource_7auls"), SubResource("Resource_jaqfj"), SubResource("Resource_tnpse"), SubResource("Resource_rnqtm"), SubResource("Resource_ew06n"), SubResource("Resource_wxk28")])
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"control", &"displacement", &"setup_consumer"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Pull_l0_l3"), SubResource("Pull_l4"), SubResource("Pull_l5_l7"), SubResource("Consume_shocked"), SubResource("Apply_staggered")])
 
 [resource]
-script = ExtResource("5_tnpse")
+script = ExtResource("3_skill")
 skill_id = &"mage_voltage_hook"
 display_name = "伏电牵引"
 icon_id = &"mage_voltage_hook"
-description = "用电流把目标拉近 1 格；若目标已 shocked，则再额外 staggered 1。"
+description = "选择视线与射程内1名处于感电的敌人，再选择一次最终落点。目标无须进行攻击检定、AC判定或豁免，若体型符合当前等级上限且不免疫强制位移，则被升至空中并牵引至比当前位置更接近施法者的合法空格。牵引按正交格距计算，可跨越中间单位占据的格子且不受高低差限制，但不能穿越显式魔法边界；中间格不触发地形，落地时结算一次地形接触。成功位移后消耗感电并施加40TU踉跄。该技能不造成伤害。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
-tags = Array[StringName]([&"mage", &"magic", &"lightning", &"output", &"control"])
+tags = Array[StringName]([&"mage", &"magic", &"lightning", &"control", &"displacement"])
 growth_tier = &"advanced"
 attribute_growth_progress = {
 "intelligence": 110,
 "perception": 20,
 "willpower": 50
 }
-level_description_template = "攻击检定+{hit}，造成{dmg}点伤害。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_template = "射程{range}格；牵引感电目标最多{pull}格，允许体型≤{size}。不判AC且无豁免；成功后消耗感电并施加40TU踉跄。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "3D6",
-"duration": "60",
-"hit": "+1",
-"mp": "80",
-"range": "5"
+"ap": "1",
+"cooldown": "120",
+"mp": "60",
+"pull": "1",
+"range": "4",
+"size": "1"
 },
 "1": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "4D6",
-"duration": "60",
-"hit": "+1",
-"mp": "80",
-"range": "5"
+"ap": "1",
+"cooldown": "120",
+"mp": "55",
+"pull": "1",
+"range": "4",
+"size": "1"
 },
 "2": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "4D6",
-"duration": "60",
-"hit": "+1",
-"mp": "80",
-"range": "5"
+"ap": "1",
+"cooldown": "120",
+"mp": "55",
+"pull": "1",
+"range": "5",
+"size": "1"
 },
 "3": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "5D6",
-"duration": "80",
-"hit": "+1",
-"mp": "80",
-"range": "6"
+"ap": "1",
+"cooldown": "110",
+"mp": "55",
+"pull": "1",
+"range": "5",
+"size": "1"
 },
 "4": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "5D6",
-"duration": "80",
-"hit": "+1",
-"mp": "80",
-"range": "6"
+"ap": "1",
+"cooldown": "110",
+"mp": "55",
+"pull": "1",
+"range": "5",
+"size": "4"
 },
 "5": {
-"ap": "2",
-"cooldown": "5",
-"dmg": "6D6",
-"duration": "100",
-"hit": "+1",
-"mp": "80",
-"range": "6"
+"ap": "1",
+"cooldown": "110",
+"mp": "55",
+"pull": "2",
+"range": "5",
+"size": "4"
 },
 "6": {
-"ap": "2",
-"cooldown": "5",
-"dmg": "6D6",
-"duration": "100",
-"hit": "+1",
-"mp": "80",
-"range": "6"
+"ap": "1",
+"cooldown": "110",
+"mp": "50",
+"pull": "2",
+"range": "5",
+"size": "4"
 },
 "7": {
-"ap": "2",
-"cooldown": "5",
-"dmg": "7D6",
-"duration": "120",
-"hit": "+2",
-"mp": "80",
-"range": "7"
+"ap": "1",
+"cooldown": "100",
+"mp": "50",
+"pull": "2",
+"range": "6",
+"size": "4"
 }
 }
-combat_profile = SubResource("Resource_n1lev")
+combat_profile = SubResource("Combat")

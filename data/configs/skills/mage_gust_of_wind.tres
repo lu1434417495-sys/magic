@@ -11,6 +11,11 @@ max_skill_level = 0
 effect_target_team_filter = &"enemy"
 forced_move_mode = &"wind_push"
 forced_move_distance = 1
+forced_move_max_target_body_size = 2
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"strength"
+save_tag = &"strength"
 
 [sub_resource type="Resource" id="Push_l1"]
 script = ExtResource("1_wind_effect")
@@ -20,6 +25,11 @@ max_skill_level = 2
 effect_target_team_filter = &"enemy"
 forced_move_mode = &"wind_push"
 forced_move_distance = 1
+forced_move_max_target_body_size = 2
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"strength"
+save_tag = &"strength"
 
 [sub_resource type="Resource" id="Push_l3"]
 script = ExtResource("1_wind_effect")
@@ -29,6 +39,11 @@ max_skill_level = 4
 effect_target_team_filter = &"enemy"
 forced_move_mode = &"wind_push"
 forced_move_distance = 2
+forced_move_max_target_body_size = 2
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"strength"
+save_tag = &"strength"
 
 [sub_resource type="Resource" id="Push_l5"]
 script = ExtResource("1_wind_effect")
@@ -38,6 +53,11 @@ max_skill_level = 6
 effect_target_team_filter = &"enemy"
 forced_move_mode = &"wind_push"
 forced_move_distance = 2
+forced_move_max_target_body_size = 2
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"strength"
+save_tag = &"strength"
 
 [sub_resource type="Resource" id="Push_l7"]
 script = ExtResource("1_wind_effect")
@@ -46,6 +66,11 @@ min_skill_level = 7
 effect_target_team_filter = &"enemy"
 forced_move_mode = &"wind_push"
 forced_move_distance = 3
+forced_move_max_target_body_size = 4
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"strength"
+save_tag = &"strength"
 
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_wind_combat")
@@ -57,18 +82,25 @@ range_value = 1
 area_pattern = &"cone"
 area_value = 2
 ap_cost = 1
-mp_cost = 80
-cooldown_tu = 20
+mp_cost = 100
+cooldown_tu = 240
 level_overrides = {
-3: {},
-5: {
-"cooldown_tu": 15
+2: {
+"mp_cost": 95
 },
-7: {
+4: {
+"cooldown_tu": 230
+},
+5: {
 "area_value": 3
+},
+6: {
+"cooldown_tu": 220
 }
 }
 mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+mastery_base_amount = 5
 ai_tags = Array[StringName]([&"aoe", &"control", &"displacement"])
 effect_defs = Array[ExtResource("1_wind_effect")]([SubResource("Push_l0"), SubResource("Push_l1"), SubResource("Push_l3"), SubResource("Push_l5"), SubResource("Push_l7")])
 
@@ -77,7 +109,7 @@ script = ExtResource("3_wind_skill")
 skill_id = &"mage_gust_of_wind"
 display_name = "强风术"
 icon_id = &"mage_gust_of_wind"
-description = "从施法者前方鼓起强风，锥尖为点击格，范围向外扩张，并沿风向推开敌人。"
+description = "选择施法者正交相邻的地格确定风向，在前方形成锥形强风。范围内敌人进行力量豁免（DC为施法者法术豁免DC）；失败时沿风向推动，成功则不移动。位移不能穿过单位、障碍、屏障或非法地格，受阻时停在最后合法格，并逐格触发地形接触。不进行攻击检定且不造成伤害。1至6级仅影响体型2及以下目标，7级可影响体型4及以下目标；首领身份本身不提供强风免疫。允许对空范围施放，并照常消耗资源及进入冷却。每名实际移动至少1格的敌人每次施放只计一次熟练度：普通5、精英10、首领15；仅成功作用于屏障时固定获得5点，空放、豁免成功、体型或免疫拦截、零位移均不增长熟练度。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
@@ -88,69 +120,77 @@ attribute_growth_progress = {
 "perception": 30,
 "willpower": 50
 }
-level_description_template = "前方{area}，沿风向推动敌人{push}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_template = "选择相邻格确定风向；前方{area}内，体型不高于{body}的敌人力量豁免失败时沿风向推动{push}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "1",
 "area": "锥形3列",
-"cooldown": "20",
-"mp": "80",
+"body": "2",
+"cooldown": "240",
+"mp": "100",
 "push": "1",
 "range": "1"
 },
 "1": {
 "ap": "1",
 "area": "锥形3列",
-"cooldown": "20",
-"mp": "80",
+"body": "2",
+"cooldown": "240",
+"mp": "100",
 "push": "1",
 "range": "1"
 },
 "2": {
 "ap": "1",
 "area": "锥形3列",
-"cooldown": "20",
-"mp": "80",
+"body": "2",
+"cooldown": "240",
+"mp": "95",
 "push": "1",
 "range": "1"
 },
 "3": {
 "ap": "1",
 "area": "锥形3列",
-"cooldown": "20",
-"mp": "80",
+"body": "2",
+"cooldown": "240",
+"mp": "95",
 "push": "2",
 "range": "1"
 },
 "4": {
 "ap": "1",
 "area": "锥形3列",
-"cooldown": "20",
-"mp": "80",
+"body": "2",
+"cooldown": "230",
+"mp": "95",
 "push": "2",
 "range": "1"
 },
 "5": {
 "ap": "1",
-"area": "锥形3列",
-"cooldown": "15",
-"mp": "80",
+"area": "锥形4列",
+"body": "2",
+"cooldown": "230",
+"mp": "95",
 "push": "2",
 "range": "1"
 },
 "6": {
 "ap": "1",
-"area": "锥形3列",
-"cooldown": "15",
-"mp": "80",
+"area": "锥形4列",
+"body": "2",
+"cooldown": "220",
+"mp": "95",
 "push": "2",
 "range": "1"
 },
 "7": {
 "ap": "1",
 "area": "锥形4列",
-"cooldown": "15",
-"mp": "80",
+"body": "4",
+"cooldown": "220",
+"mp": "95",
 "push": "3",
 "range": "1"
 }

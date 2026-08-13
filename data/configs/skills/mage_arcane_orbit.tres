@@ -1,197 +1,194 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_lucgi"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_th804"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_6ifg5"]
-[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_wtoy7"]
-[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_fk61v"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatRangedWeaponReactionDef.cs" id="2_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_skill"]
 
-[sub_resource type="Resource" id="Resource_lucgi"]
-script = ExtResource("3_6ifg5")
-effect_type = &"damage"
-effect_categories = Array[StringName]([&"force_effect"])
-max_skill_level = 0
-damage_tag = &"force"
-dice_count = 3
-dice_sides = 6
+[sub_resource type="Resource" id="Resource_orbit_l0_l1"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+status_id = &"arcane_orbit_ready"
+display_name = "轨道法珠"
+power = 2
+max_skill_level = 1
+duration_tu = 60
+stack_behavior = &"add"
+stack_limit = 2
+dispellable_magic = true
+dispellable_beneficial_magic = true
 
-[sub_resource type="Resource" id="Resource_th804"]
-script = ExtResource("3_6ifg5")
-effect_type = &"damage"
-effect_categories = Array[StringName]([&"force_effect"])
-min_skill_level = 1
+[sub_resource type="Resource" id="Resource_orbit_l2"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+status_id = &"arcane_orbit_ready"
+display_name = "轨道法珠"
+power = 2
+min_skill_level = 2
 max_skill_level = 2
-damage_tag = &"force"
-dice_count = 4
-dice_sides = 6
+duration_tu = 75
+stack_behavior = &"add"
+stack_limit = 2
+dispellable_magic = true
+dispellable_beneficial_magic = true
 
-[sub_resource type="Resource" id="Resource_6ifg5"]
-script = ExtResource("3_6ifg5")
-effect_type = &"damage"
-effect_categories = Array[StringName]([&"force_effect"])
-min_skill_level = 3
-max_skill_level = 4
-damage_tag = &"force"
-dice_count = 5
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_wtoy7"]
-script = ExtResource("3_6ifg5")
-effect_type = &"damage"
-effect_categories = Array[StringName]([&"force_effect"])
-min_skill_level = 5
-max_skill_level = 6
-damage_tag = &"force"
-dice_count = 6
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_fk61v"]
-script = ExtResource("3_6ifg5")
-effect_type = &"damage"
-effect_categories = Array[StringName]([&"force_effect"])
-min_skill_level = 7
-damage_tag = &"force"
-dice_count = 7
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_dd4u8"]
-script = ExtResource("3_6ifg5")
+[sub_resource type="Resource" id="Resource_orbit_l3_l5"]
+script = ExtResource("1_effect")
 effect_type = &"status"
-power = 2
-min_skill_level = 3
-max_skill_level = 4
-effect_target_team_filter = &"enemy"
-status_id = &"marked"
-duration_tu = 80
-
-[sub_resource type="Resource" id="Resource_uegpr"]
-script = ExtResource("3_6ifg5")
-effect_type = &"status"
-power = 2
-min_skill_level = 5
-max_skill_level = 6
-effect_target_team_filter = &"enemy"
-status_id = &"marked"
-duration_tu = 100
-
-[sub_resource type="Resource" id="Resource_r8vqu"]
-script = ExtResource("3_6ifg5")
-effect_type = &"status"
+status_id = &"arcane_orbit_ready"
+display_name = "轨道法珠"
 power = 3
-min_skill_level = 7
-effect_target_team_filter = &"enemy"
-status_id = &"marked"
-duration_tu = 120
+min_skill_level = 3
+max_skill_level = 5
+duration_tu = 75
+stack_behavior = &"add"
+stack_limit = 3
+dispellable_magic = true
+dispellable_beneficial_magic = true
 
-[sub_resource type="Resource" id="Resource_i8kxo"]
-script = ExtResource("4_wtoy7")
+[sub_resource type="Resource" id="Resource_orbit_l6"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+status_id = &"arcane_orbit_ready"
+display_name = "轨道法珠"
+power = 3
+min_skill_level = 6
+max_skill_level = 6
+duration_tu = 90
+stack_behavior = &"add"
+stack_limit = 3
+dispellable_magic = true
+dispellable_beneficial_magic = true
+
+[sub_resource type="Resource" id="Resource_orbit_l7"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+status_id = &"arcane_orbit_ready"
+display_name = "轨道法珠"
+power = 4
+min_skill_level = 7
+duration_tu = 90
+stack_behavior = &"add"
+stack_limit = 4
+dispellable_magic = true
+dispellable_beneficial_magic = true
+
+[sub_resource type="Resource" id="Resource_ranged_weapon_reaction"]
+script = ExtResource("2_reaction")
+readiness_status_id = &"arcane_orbit_ready"
+trigger_weapon_families = Array[StringName]([&"bow", &"crossbow"])
+damage_tag = &"force"
+attack_defense_mode = &"touch"
+attack_roll_bonus_by_skill_level = PackedInt32Array(0, 1, 1, 1, 2, 2, 2, 3)
+consume_status_stacks = 1
+trigger_on_hit = true
+trigger_on_miss = true
+allow_critical = false
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("3_combat")
 skill_id = &"mage_arcane_orbit"
 delivery_categories = Array[StringName]([&"spell"])
-target_team_filter = &"ally"
+target_mode = &"unit"
+target_team_filter = &"self"
+target_selection_mode = &"self"
+selection_order_mode = &"stable"
 range_value = 0
 area_pattern = &"self"
-ap_cost = 2
-mp_cost = 80
-cooldown_tu = 10
+ap_cost = 1
+mp_cost = 100
+cooldown_tu = 240
+attack_resolution_mode = &"direct_effect"
+attack_defense_mode = &"touch"
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
 level_overrides = {
-3: {},
-5: {
-"cooldown_tu": 5
+3: {
+"cooldown_tu": 210
 },
-7: {}
+5: {
+"mp_cost": 90
+},
+7: {
+"cooldown_tu": 180
 }
-target_selection_mode = &"self"
-effect_defs = Array[ExtResource("3_6ifg5")]([SubResource("Resource_lucgi"), SubResource("Resource_th804"), SubResource("Resource_6ifg5"), SubResource("Resource_wtoy7"), SubResource("Resource_fk61v"), SubResource("Resource_dd4u8"), SubResource("Resource_uegpr"), SubResource("Resource_r8vqu")])
+}
+ranged_weapon_reaction_profile = SubResource("Resource_ranged_weapon_reaction")
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Resource_orbit_l0_l1"), SubResource("Resource_orbit_l2"), SubResource("Resource_orbit_l3_l5"), SubResource("Resource_orbit_l6"), SubResource("Resource_orbit_l7")])
 
 [resource]
-script = ExtResource("5_fk61v")
+script = ExtResource("4_skill")
 skill_id = &"mage_arcane_orbit"
 display_name = "轨道法珠"
 icon_id = &"mage_arcane_orbit"
-description = "在自身周围生成法珠，首次受到近战接触时自动反击。"
+description = "在自身周围形成轨道法珠。持续期间，每当你成为弓或弩的直接远程武器攻击目标，待该次独立攻击检定及其全部效果结算完毕后，无论原攻击命中或未命中，均消耗1枚法珠对攻击者进行一次独立的接触攻击检定；命中时，复制该次攻击已快照的主武器骰及其W倍率并转为力场伤害。法珠不复制属性与固定加值、暴击额外骰、毒素、装备能力或其他伤害段，且本次反击不能暴击；反击沿用已成立的原弹道，不重新检查距离或视线。每次独立攻击检定最多触发并消耗1枚。重复施放不会叠加第二组法珠，而是将现有法珠补满至当前等级上限并刷新持续时间。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
-tags = Array[StringName]([&"mage", &"magic", &"arcane", &"output", &"control", &"support"])
+tags = Array[StringName]([&"mage", &"magic", &"arcane", &"reaction", &"defense", &"anti_ranged"])
 growth_tier = &"advanced"
 attribute_growth_progress = {
 "intelligence": 90,
 "perception": 20,
 "willpower": 70
 }
-level_description_template = "自身增益，法珠环绕自动反击。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
+level_description_template = "形成{orbs}枚法珠，持续{duration}TU；每次受到弓/弩远程武器攻击检定后消耗1枚，以{hit}进行不可暴击的独立接触攻击，命中造成该次攻击主武器骰W倍率的力场伤害。重施补满并刷新。消耗1AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "3D6",
+"cooldown": "240",
 "duration": "60",
 "hit": "+0",
-"mp": "80",
-"range": "0"
+"mp": "100",
+"orbs": "2"
 },
 "1": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "4D6",
+"cooldown": "240",
 "duration": "60",
-"hit": "+0",
-"mp": "80",
-"range": "0"
+"hit": "+1",
+"mp": "100",
+"orbs": "2"
 },
 "2": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "4D6",
-"duration": "60",
-"hit": "+0",
-"mp": "80",
-"range": "0"
+"cooldown": "240",
+"duration": "75",
+"hit": "+1",
+"mp": "100",
+"orbs": "2"
 },
 "3": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "5D6",
-"duration": "80",
-"hit": "+0",
-"mp": "80",
-"range": "0"
+"cooldown": "210",
+"duration": "75",
+"hit": "+1",
+"mp": "100",
+"orbs": "3"
 },
 "4": {
-"ap": "2",
-"cooldown": "10",
-"dmg": "5D6",
-"duration": "80",
-"hit": "+0",
-"mp": "80",
-"range": "0"
+"cooldown": "210",
+"duration": "75",
+"hit": "+2",
+"mp": "100",
+"orbs": "3"
 },
 "5": {
-"ap": "2",
-"cooldown": "5",
-"dmg": "6D6",
-"duration": "100",
-"hit": "+0",
-"mp": "80",
-"range": "0"
+"cooldown": "210",
+"duration": "75",
+"hit": "+2",
+"mp": "90",
+"orbs": "3"
 },
 "6": {
-"ap": "2",
-"cooldown": "5",
-"dmg": "6D6",
-"duration": "100",
-"hit": "+0",
-"mp": "80",
-"range": "0"
+"cooldown": "210",
+"duration": "90",
+"hit": "+2",
+"mp": "90",
+"orbs": "3"
 },
 "7": {
-"ap": "2",
-"cooldown": "5",
-"dmg": "7D6",
-"duration": "120",
-"hit": "+0",
-"mp": "80",
-"range": "0"
+"cooldown": "180",
+"duration": "90",
+"hit": "+3",
+"mp": "90",
+"orbs": "4"
 }
 }
-combat_profile = SubResource("Resource_i8kxo")
+combat_profile = SubResource("Resource_combat")
