@@ -222,6 +222,28 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
         activeUnit.SetCurrentAp(2);
         activeUnit.SetCurrentStamina(50);
         activeUnit.SetCooldownsTyped(null);
+        activeUnit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = "equipped",
+                weapon_item_id = "skill_entry_identity_bow",
+                weapon_profile_type_id = "longbow",
+                weapon_range_type = "ranged",
+                weapon_family = "bow",
+                weapon_current_grip = "two_handed",
+                weapon_attack_range = 8,
+                weapon_one_handed_dice = new WeaponDice(),
+                weapon_two_handed_dice = new WeaponDice
+                {
+                    dice_count = 1,
+                    dice_sides = 8,
+                    flat_bonus = 0,
+                },
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = true,
+                weapon_physical_damage_tag = "physical_pierce",
+            }
+        );
         if (activeUnit.attribute_snapshot != null)
         {
             activeUnit.attribute_snapshot.SetValue("action_points", 2);
