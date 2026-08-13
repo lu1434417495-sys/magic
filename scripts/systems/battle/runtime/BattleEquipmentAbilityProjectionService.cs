@@ -175,80 +175,81 @@ internal static class BattleEquipmentAbilityProjectionService
             );
         }
 
-        StringName attackEquipmentItemId = ProgressionDataUtils.to_string_name(
-            template.AttackEquipmentItemId
-        );
-        if (attackEquipmentItemId == "")
+        var equipmentSources = new List<(ItemDefinition Item, StringName InstanceId)>();
+        EquipmentState equipmentView = unit.GetEquipmentView();
+        foreach (StringName entrySlotId in equipmentView?.GetEntrySlotIdsTyped() ?? Array.Empty<StringName>())
         {
-            return new BattleEquipmentAbilityProjectionResult(
-                sources,
-                temporalProgressModifiers,
-                cognitionCeilingModifiers
-            );
+            EquipmentEntryState entry = equipmentView.GetEntry(entrySlotId);
+            ItemDefinition itemDefinition = ResolveItemDefinition(entry?.item_id ?? "", itemDefinitions);
+            if (entry != null && !entry.IsEmpty() && itemDefinition != null)
+                equipmentSources.Add((itemDefinition, entry.instance_id));
         }
-
-        ItemDefinition sourceItem = ResolveItemDefinition(
+        StringName attackEquipmentItemId = ProgressionDataUtils.to_string_name(template.AttackEquipmentItemId);
+        ItemDefinition attackEquipmentItem = ResolveItemDefinition(
             attackEquipmentItemId,
             itemDefinitions
         );
-        if (sourceItem == null)
-        {
-            return new BattleEquipmentAbilityProjectionResult(
-                sources,
-                temporalProgressModifiers,
-                cognitionCeilingModifiers
-            );
-        }
+        if (
+            attackEquipmentItem != null
+            && !equipmentSources.Exists(source => source.Item.ItemId == attackEquipmentItem.ItemId)
+        )
+            equipmentSources.Add((attackEquipmentItem, ""));
 
         var effectiveTraitIds = new HashSet<StringName>();
-        foreach (StringName traitId in sourceItem.GetTraitIdsTyped())
+        foreach ((ItemDefinition sourceItem, StringName _) in equipmentSources)
         {
-            StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
-            if (normalizedTraitId != "")
-                effectiveTraitIds.Add(normalizedTraitId);
+            foreach (StringName traitId in sourceItem.GetTraitIdsTyped())
+            {
+                StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
+                if (normalizedTraitId != "")
+                    effectiveTraitIds.Add(normalizedTraitId);
+            }
         }
 
-        foreach (StringName traitId in sourceItem.GetTraitIdsTyped())
+        foreach ((ItemDefinition sourceItem, StringName sourceInstanceId) in equipmentSources)
         {
-            StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
-            if (normalizedTraitId == "")
-                continue;
-            IReadOnlyList<EquipmentAbilityBindingDefinition> matchedBindings =
-                FilterByRequiredEffectiveTraits(
-                    EquipmentAbilityBindingMatcher.FindBindings(
-                        bindings.Values,
-                        normalizedTraitId,
-                        TraitSourceKind.EquipmentFixed,
-                        GetTraitCategories(normalizedTraitId, traitDefs),
-                        sourceItem
-                    ),
-                    effectiveTraitIds
-                );
-            if (matchedBindings.Count == 0)
-                continue;
+            foreach (StringName traitId in sourceItem.GetTraitIdsTyped())
+            {
+                StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
+                if (normalizedTraitId == "")
+                    continue;
+                IReadOnlyList<EquipmentAbilityBindingDefinition> matchedBindings =
+                    FilterByRequiredEffectiveTraits(
+                        EquipmentAbilityBindingMatcher.FindBindings(
+                            bindings.Values,
+                            normalizedTraitId,
+                            TraitSourceKind.EquipmentFixed,
+                            GetTraitCategories(normalizedTraitId, traitDefs),
+                            sourceItem
+                        ),
+                        effectiveTraitIds
+                    );
+                if (matchedBindings.Count == 0)
+                    continue;
 
-            sources.Add(
-                new BattleEquipmentAbilitySourceState
-                {
-                    EffectiveInstanceKey = new StringName(
-                        $"enemy_battle_only_equipment::{unit.unit_id}::{attackEquipmentItemId}::{normalizedTraitId}"
-                    ),
-                    EquipmentDefId = attackEquipmentItemId,
-                    SourceEquipmentInstanceId = "",
-                    SourceKind = EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment,
-                    AbilityIds = SortedBindingIds(matchedBindings),
-                }
-            );
-            AddTemporalProgressModifiers(
-                temporalProgressModifiers,
-                matchedBindings,
-                ""
-            );
-            AddCognitionCeilingModifiers(
-                cognitionCeilingModifiers,
-                matchedBindings,
-                ""
-            );
+                sources.Add(
+                    new BattleEquipmentAbilitySourceState
+                    {
+                        EffectiveInstanceKey = new StringName(
+                            $"enemy_battle_only_equipment::{unit.unit_id}::{sourceItem.ItemId}::{normalizedTraitId}"
+                        ),
+                        EquipmentDefId = sourceItem.ItemId,
+                        SourceEquipmentInstanceId = sourceInstanceId,
+                        SourceKind = EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment,
+                        AbilityIds = SortedBindingIds(matchedBindings),
+                    }
+                );
+                AddTemporalProgressModifiers(
+                    temporalProgressModifiers,
+                    matchedBindings,
+                    sourceInstanceId
+                );
+                AddCognitionCeilingModifiers(
+                    cognitionCeilingModifiers,
+                    matchedBindings,
+                    sourceInstanceId
+                );
+            }
         }
 
         return new BattleEquipmentAbilityProjectionResult(

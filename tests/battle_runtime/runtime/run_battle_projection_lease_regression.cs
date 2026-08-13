@@ -159,8 +159,36 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             );
             AssertOrder(
                 lease.Value,
-                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,fate_preview,save_branch_preview,equipment_ability_preview,terrain_contact_preview,special_profile_gate_result,special_profile_preview_facts",
+                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,source_advance_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,status_contribution_previews,fate_preview,save_branch_preview,equipment_ability_preview,terrain_contact_preview,shield_preview,equipment_durability_preview,forced_move_preview,position_swap_preview,ranged_weapon_reaction_preview,special_profile_gate_result,special_profile_preview_facts",
                 "preview"
+            );
+            using GDictionary shieldPreview =
+                lease.Value["shield_preview"].AsGodotDictionary();
+            _test.Eq(
+                shieldPreview.Count,
+                0,
+                "Non-shield preview fixture must project an empty shield value object."
+            );
+            using GDictionary equipmentDurabilityPreview =
+                lease.Value["equipment_durability_preview"].AsGodotDictionary();
+            _test.Eq(
+                equipmentDurabilityPreview.Count,
+                0,
+                "Non-durability preview fixture must project an empty durability value object."
+            );
+            using GDictionary forcedMovePreview =
+                lease.Value["forced_move_preview"].AsGodotDictionary();
+            _test.Eq(
+                forcedMovePreview.Count,
+                0,
+                "Non-forced-move preview fixture must project an empty typed value object."
+            );
+            using GDictionary rangedWeaponReactionPreview =
+                lease.Value["ranged_weapon_reaction_preview"].AsGodotDictionary();
+            _test.Eq(
+                rangedWeaponReactionPreview.Count,
+                0,
+                "Non-ranged-weapon preview fixture must project an empty typed value object."
             );
             using GDictionary saveBranch =
                 lease.Value["save_branch_preview"].AsGodotDictionary();
@@ -172,7 +200,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             AssertPreviewNestedSchema(lease.Value);
             AssertGolden(
                 lease.Value,
-                "1982:0f0f3e09e14fb7032c9285575930f28ab1504472ce591d79d07ae41ee0430fc7",
+                "2365:5e26135b1c11c2b9a723f693bb0037b844796a57a7f9a1be7a69f42dc0334309",
                 "preview fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);
@@ -284,7 +312,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             AssertDamageNestedSchema(lease.Value);
             AssertGolden(
                 lease.Value,
-                "5549:31db4b4c68c656999e7fc9ce1a6e0ae664b9f1f88c56635bcfde6c61f9334e6d",
+                "5617:a1f02ffc6e97203d289288009cde95e0810e2fe562e3998c18d23a065727bb22",
                 "damage result fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);
@@ -518,7 +546,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         using GDictionary hit = root["hit_preview"].AsGodotDictionary();
         AssertOrder(
             hit,
-            "summary_text,source,hit_rate_percent,success_rate_percent,base_hit_rate_percent,force_hit_no_crit,force_critical_on_hit,crit_locked,stage_hit_rates,stage_success_rates,stage_base_hit_rates,stage_required_rolls,stage_preview_texts,attack_roll_modifier_breakdown",
+            "summary_text,source,hit_rate_percent,success_rate_percent,base_hit_rate_percent,force_hit_no_crit,force_critical_on_hit,crit_locked,stage_hit_rates,stage_success_rates,stage_base_hit_rates,stage_required_rolls,stage_preview_texts,stage_reach_probability_basis_points,stage_damage_multiplier_percent,repeat_attack_expected_damage_basis_points,repeat_attack_potential_damage_basis_points,attack_roll_modifier_breakdown",
             "preview hit facts"
         );
         using GDictionary damage = root["damage_preview"].AsGodotDictionary();
@@ -554,7 +582,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         using GDictionary estimate = root["save_estimate"].AsGodotDictionary();
         AssertOrder(
             estimate,
-            "has_save,damage_before_save,damage_after_save,damage_after_save_estimate,damage_after_save_worst,damage_on_save_failure,damage_on_save_success,save_partial_on_success,save_success_probability_basis_points,save_success_rate_percent,save_failure_probability_basis_points,dc,ability,save_tag,advantage_state,ability_value,ability_modifier,bonus,immune,sources",
+            "has_save,damage_before_save,damage_after_save,damage_after_save_estimate,damage_after_save_worst,damage_on_save_failure,damage_on_save_success,save_partial_on_success,save_success_probability_basis_points,save_success_rate_percent,save_failure_probability_basis_points,dc,ability,save_tag,advantage_state,ability_value,ability_modifier,bonus,immune,sources,save_failure_status_outcomes",
             "damage save estimate"
         );
         _test.True(estimate["has_save"].AsBool(), "Damage golden must exercise HasSave.");
@@ -562,6 +590,12 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         _test.Eq(sources.Count, 1, "Damage golden must exercise save sources.");
         using GDictionary source = sources[0].AsGodotDictionary();
         AssertOrder(source, "source_id,type,tag,mode", "damage save source");
+        using GArray weightedOutcomes = estimate["save_failure_status_outcomes"].AsGodotArray();
+        _test.Eq(
+            weightedOutcomes.Count,
+            0,
+            "Damage golden without weighted failure content must project an empty outcome list."
+        );
         using GArray estimates = root["save_estimates"].AsGodotArray();
         _test.Eq(estimates.Count, 1, "Damage golden save estimate list drifted.");
     }

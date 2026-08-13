@@ -102,6 +102,7 @@ public partial class BattleDamageResolver : IDisposable
 
     public void Dispose()
     {
+        _rangedWeaponAttackReactionSink = null;
         _fate_event_bus.Dispose();
     }
 
@@ -558,6 +559,8 @@ public partial class BattleDamageResolver : IDisposable
 
         IReadOnlyList<CombatEffectDefinition> resolvedEffectDefinitions =
             ToEffectDefinitionList(effect_definitions);
+        BattleRangedWeaponAttackSnapshot rangedWeaponAttackSnapshot =
+            CaptureRangedWeaponAttackSnapshot(source_unit, resolvedEffectDefinitions);
         AttackContext normalizedAttackContext = attack_context ?? new AttackContext();
         AttackResolutionMetadata attackMetadata = ResolveAttackMetadata(
             source_unit,
@@ -599,6 +602,13 @@ public partial class BattleDamageResolver : IDisposable
             );
             ClearComboStackOnMiss(source_unit);
             ConsumeOneShotAttackCheckStatuses(source_unit);
+            ResolveRangedWeaponAttackReaction(
+                source_unit,
+                target_unit,
+                rangedWeaponAttackSnapshot,
+                attackMetadata,
+                normalizedAttackContext
+            );
             return AttackEffectResolutionResultReader.FinalizeTypedResult(failedResult);
         }
 
@@ -666,6 +676,13 @@ public partial class BattleDamageResolver : IDisposable
             normalizedAttackContext
         );
         ConsumeOneShotAttackCheckStatuses(source_unit);
+        ResolveRangedWeaponAttackReaction(
+            source_unit,
+            target_unit,
+            rangedWeaponAttackSnapshot,
+            attackMetadata,
+            normalizedAttackContext
+        );
         return AttackEffectResolutionResultReader.FinalizeTypedResult(resolvedResult);
     }
 
@@ -1399,6 +1416,7 @@ public partial class BattleDamageResolver : IDisposable
                         source_unit,
                         effectDefinition,
                         damageSaveResult,
+                        contextFlags,
                         out StringName saveFailureStatusId
                     )
                 )
@@ -1625,6 +1643,10 @@ public partial class BattleDamageResolver : IDisposable
                     if (erasedStatusId != "" && target_unit.HasStatusEffect(erasedStatusId))
                     {
                         target_unit.EraseStatusEffect(erasedStatusId);
+                        if (!removedStatusEffectIds.Contains(erasedStatusId))
+                        {
+                            removedStatusEffectIds.Add(erasedStatusId);
+                        }
                         applied = true;
                     }
                 }
@@ -2004,6 +2026,7 @@ public partial class BattleDamageResolver : IDisposable
             CombatEffectTriggerEvent.CriticalHit => context.CriticalHit,
             CombatEffectTriggerEvent.OrdinaryHit => context.AttackSuccess && !context.CriticalHit,
             CombatEffectTriggerEvent.SecondaryHit => context.SecondaryHitSuccess,
+            CombatEffectTriggerEvent.ForcedMoveApplied => context.ForcedMoveApplied,
             _ => false,
         };
     }
@@ -2081,6 +2104,11 @@ public partial class BattleDamageResolver : IDisposable
     public virtual int _roll_damage_die(int dice_sides)
     {
         return TrueRandomSeedService.RandiRange(1, Math.Max(dice_sides, 1));
+    }
+
+    public virtual int _roll_weighted_status_outcome(int totalWeight)
+    {
+        return TrueRandomSeedService.RandiRange(1, Math.Max(totalWeight, 1));
     }
 
     private static int GetIntParam(GDictionary @params, StringName key, int fallback = 0)

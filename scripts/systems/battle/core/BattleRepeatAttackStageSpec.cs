@@ -17,6 +17,8 @@ public readonly struct BattleRepeatAttackStageSpec
     public readonly int follow_up_fixed_cost;
     public readonly int follow_up_cost_addition;
     public readonly double follow_up_cost_multiplier;
+    public readonly int stage_damage_multiplier_percent;
+    public readonly bool stop_on_miss;
     public readonly bool fate_aware;
     public readonly StringName stage_label;
 
@@ -34,6 +36,8 @@ public readonly struct BattleRepeatAttackStageSpec
         int followUpFixedCost,
         int followUpCostAddition,
         double followUpCostMultiplier,
+        int stageDamageMultiplierPercent,
+        bool stopOnMiss,
         bool fateAware,
         StringName stageLabel
     )
@@ -54,6 +58,8 @@ public readonly struct BattleRepeatAttackStageSpec
         follow_up_fixed_cost = Mathf.Max(followUpFixedCost, 0);
         follow_up_cost_addition = Mathf.Max(followUpCostAddition, 0);
         follow_up_cost_multiplier = Math.Max(followUpCostMultiplier, 1.0);
+        stage_damage_multiplier_percent = Mathf.Max(stageDamageMultiplierPercent, 1);
+        stop_on_miss = stopOnMiss;
         fate_aware = fateAware;
         stage_label = stageLabel ?? new StringName("");
     }
@@ -67,8 +73,9 @@ public readonly struct BattleRepeatAttackStageSpec
     )
     {
         int stageIndex = Mathf.Max(stage_index_value, 0);
-        IReadOnlyDictionary<string, object> parameters = repeat_attack_effect?.Parameters;
-        if (repeat_attack_effect == null || parameters == null || parameters.Count == 0)
+        IReadOnlyDictionary<string, object> parameters =
+            repeat_attack_effect?.Parameters ?? EmptyParameters;
+        if (repeat_attack_effect == null)
         {
             return new BattleRepeatAttackStageSpec(
                 stageIndex,
@@ -84,6 +91,8 @@ public readonly struct BattleRepeatAttackStageSpec
                 0,
                 0,
                 1.0,
+                100,
+                true,
                 fate_aware_value,
                 new StringName($"repeat_stage_{stageIndex}")
             );
@@ -93,7 +102,10 @@ public readonly struct BattleRepeatAttackStageSpec
             stageIndex,
             stage_count_value,
             skill_level_value,
-            ReadInt(parameters, "base_attack_bonus"),
+            ReadInt(parameters, "base_attack_bonus")
+                + (stageIndex > 0
+                    ? repeat_attack_effect.GetFollowUpAttackRollBonus(skill_level_value)
+                    : 0),
             ReadInt(parameters, "follow_up_attack_penalty"),
             ResolvePenaltyFreeStages(parameters, skill_level_value),
             ReadBool(parameters, "exponential_penalty"),
@@ -106,6 +118,11 @@ public readonly struct BattleRepeatAttackStageSpec
             ReadInt(parameters, "follow_up_fixed_cost"),
             ReadInt(parameters, "follow_up_cost_addition"),
             ReadFloat(parameters, "follow_up_cost_multiplier", 1.0),
+            ResolveStageDamageMultiplierPercent(
+                repeat_attack_effect.FollowUpDamageMultiplierPercent,
+                stageIndex
+            ),
+            repeat_attack_effect.StopOnMiss,
             fate_aware_value,
             new StringName($"repeat_stage_{stageIndex}")
         );
@@ -142,6 +159,8 @@ public readonly struct BattleRepeatAttackStageSpec
             follow_up_fixed_cost,
             follow_up_cost_addition,
             follow_up_cost_multiplier,
+            stage_damage_multiplier_percent,
+            stop_on_miss,
             fate_aware,
             stage_label
         );
@@ -163,6 +182,8 @@ public readonly struct BattleRepeatAttackStageSpec
             follow_up_fixed_cost,
             follow_up_cost_addition,
             follow_up_cost_multiplier,
+            stage_damage_multiplier_percent,
+            stop_on_miss,
             value,
             stage_label
         );
@@ -224,6 +245,24 @@ public readonly struct BattleRepeatAttackStageSpec
             }
         }
         return Mathf.Max(resolvedStages, 0);
+    }
+
+    private static int ResolveStageDamageMultiplierPercent(
+        int followUpMultiplierPercent,
+        int stageIndex
+    )
+    {
+        int percent = 100;
+        int normalizedMultiplier = Mathf.Max(followUpMultiplierPercent, 1);
+        for (int stage = 0; stage < stageIndex; stage++)
+        {
+            percent = (int)Math.Clamp(
+                (long)percent * normalizedMultiplier / 100L,
+                1L,
+                int.MaxValue
+            );
+        }
+        return percent;
     }
 
     private static IReadOnlyDictionary<string, object> ReadDictionary(

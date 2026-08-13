@@ -85,6 +85,7 @@ internal enum BattleEffectKind
     ChainDamage,
     Charge,
     ForcedMove,
+    PositionSwap,
     SourceRetreat,
     VaultBehindTarget,
     PathStepAoe,
@@ -143,6 +144,7 @@ internal enum BattleForcedMoveMode
     Knockback,
     Reposition,
     GrappleAscent,
+    AirbornePull,
 }
 
 internal enum BattleTerrainEffectRuntimeKind
@@ -274,6 +276,7 @@ internal static class BattleTypedNames
         "equipment_durability_damage";
     internal static readonly StringName EffectExecute = "execute";
     internal static readonly StringName EffectForcedMove = "forced_move";
+    internal static readonly StringName EffectPositionSwap = "position_swap";
     internal static readonly StringName EffectSourceRetreat = "source_retreat";
     internal static readonly StringName EffectVaultBehindTarget = "vault_behind_target";
     internal static readonly StringName EffectGradedSaveExecute = "graded_save_execute";
@@ -312,6 +315,7 @@ internal static class BattleTypedNames
     internal static readonly StringName ForcedMoveKnockback = "knockback";
     internal static readonly StringName ForcedMoveReposition = "reposition";
     internal static readonly StringName ForcedMoveGrappleAscent = "grapple_ascent";
+    internal static readonly StringName ForcedMoveAirbornePull = "airborne_pull";
     internal static readonly StringName TerrainEffectRuntimeMovementCost = "movement_cost";
     internal static readonly StringName TerrainEffectRuntimeNone = "none";
     internal static readonly StringName PositionCastDistance = "cast_distance";
@@ -589,6 +593,8 @@ internal static class BattleTypedNames
             return BattleEffectKind.Charge;
         if (value == EffectForcedMove)
             return BattleEffectKind.ForcedMove;
+        if (value == EffectPositionSwap)
+            return BattleEffectKind.PositionSwap;
         if (value == EffectSourceRetreat)
             return BattleEffectKind.SourceRetreat;
         if (value == EffectVaultBehindTarget)
@@ -654,6 +660,7 @@ internal static class BattleTypedNames
             BattleEffectKind.ChainDamage => EffectChainDamage,
             BattleEffectKind.Charge => EffectCharge,
             BattleEffectKind.ForcedMove => EffectForcedMove,
+            BattleEffectKind.PositionSwap => EffectPositionSwap,
             BattleEffectKind.SourceRetreat => EffectSourceRetreat,
             BattleEffectKind.VaultBehindTarget => EffectVaultBehindTarget,
             BattleEffectKind.PathStepAoe => EffectPathStepAoe,
@@ -740,6 +747,8 @@ internal static class BattleTypedNames
             return BattleForcedMoveMode.Reposition;
         if (value == ForcedMoveGrappleAscent)
             return BattleForcedMoveMode.GrappleAscent;
+        if (value == ForcedMoveAirbornePull)
+            return BattleForcedMoveMode.AirbornePull;
         return BattleForcedMoveMode.Unknown;
     }
 
@@ -755,6 +764,7 @@ internal static class BattleTypedNames
             BattleForcedMoveMode.Knockback => ForcedMoveKnockback,
             BattleForcedMoveMode.Reposition => ForcedMoveReposition,
             BattleForcedMoveMode.GrappleAscent => ForcedMoveGrappleAscent,
+            BattleForcedMoveMode.AirbornePull => ForcedMoveAirbornePull,
             _ => Empty,
         };
     }
@@ -1010,6 +1020,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.GradedSaveExecute
                 or BattleEffectKind.Charge
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.PositionSwap
                 or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.PathStepAoe
                 or BattleEffectKind.RepeatAttackUntilFail
@@ -1045,6 +1056,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.ApplyStatus
                 or BattleEffectKind.BodySizeCategoryOverride
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.PositionSwap
                 or BattleEffectKind.SourceRetreat
                 or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.Execute

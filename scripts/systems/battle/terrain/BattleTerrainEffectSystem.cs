@@ -893,15 +893,24 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             dispellableHarmfulMagic: effectState.contact_dispellable_harmful_magic,
             dispellableBeneficialMagic: effectState.contact_dispellable_beneficial_magic
         );
+        StringName sourceUnitId = sourceUnit?.unit_id ?? new StringName("");
+        BattleStatusSourceIdentity sourceIdentity = effectState.source_skill_id != ""
+            ? BattleStatusSourceIdentity.Skill(sourceUnitId, effectState.source_skill_id)
+            : BattleStatusSourceIdentity.TerrainEffect(sourceUnitId, effectState.effect_id);
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
             statusEffect,
-            sourceUnit?.unit_id ?? new StringName(""),
+            sourceUnitId,
             targetUnit.GetStatusEffect(effectState.contact_status_id),
-            effectState.contact_status_id
+            effectState.contact_status_id,
+            sourceIdentity
         );
         if (statusEntry == null)
             return;
         ApplyContactTimelineDamagePayload(statusEntry, effectState);
+        BattleStatusSemanticTable.SynchronizeSourceContributionTimelinePayload(
+            statusEntry,
+            sourceIdentity
+        );
         targetUnit.SetStatusEffect(statusEntry);
         runtime.MarkAppliedStatusesForTurnTiming(
             targetUnit,
@@ -924,6 +933,8 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             return;
         if (effectState.contact_tick_interval_tu > 0)
             statusEntry.tick_interval_tu = effectState.contact_tick_interval_tu;
+        if (effectState.contact_damage_tag != "")
+            statusEntry.damage_tag = effectState.contact_damage_tag;
         if (
             effectState.contact_timeline_damage_dice_count > 0
             && effectState.contact_timeline_damage_dice_sides > 0

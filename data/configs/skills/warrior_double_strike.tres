@@ -29,6 +29,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_repeat"]
 script = ExtResource("3_effect")
 effect_type = &"fixed_repeat_attack"
+stop_on_miss = false
 fixed_attack_count = 2
 
 [sub_resource type="Resource" id="Resource_combat"]

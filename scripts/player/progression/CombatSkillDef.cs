@@ -95,6 +95,11 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public StringName weapon_range_policy { get; set; } = "";
+    internal CombatWeaponRangePolicy WeaponRangePolicyKind
+    {
+        get => CombatWeaponRangePolicyRules.ToPolicy(weapon_range_policy);
+        set => weapon_range_policy = CombatWeaponRangePolicyRules.ToStringName(value);
+    }
 
     [Export]
     public StringName area_pattern { get; set; } = "single";
@@ -125,6 +130,12 @@ public partial class CombatSkillDef : Resource
     public int stamina_cost { get; set; }
 
     [Export]
+    public int mp_cost_per_target_slot { get; set; }
+
+    [Export]
+    public int stamina_cost_per_target_slot { get; set; }
+
+    [Export]
     public int cooldown_tu { get; set; }
 
     [Export]
@@ -143,7 +154,19 @@ public partial class CombatSkillDef : Resource
     public CombatDirectionalPiercingDef directional_piercing_profile { get; set; }
 
     [Export]
+    public CombatApproachAttackDef approach_attack_profile { get; set; }
+
+    [Export]
+    public CombatLineThroughAttackDef line_through_attack_profile { get; set; }
+
+    [Export]
+    public CombatSequentialLineHitDef sequential_line_hit_profile { get; set; }
+
+    [Export]
     public CombatSpellReactionDef spell_reaction_profile { get; set; }
+
+    [Export]
+    public CombatRangedWeaponReactionDef ranged_weapon_reaction_profile { get; set; }
 
     [Export]
     public StringName pending_cast_binding_mode { get; set; } = "soft_anchor";
@@ -208,6 +231,9 @@ public partial class CombatSkillDef : Resource
         get => BattleTypedNames.ToCombatSkillMasteryAmountMode(mastery_amount_mode);
         set => mastery_amount_mode = BattleTypedNames.ToStringName(value);
     }
+
+    [Export(PropertyHint.Range, "1,1000,1")]
+    public int mastery_base_amount { get; set; } = 1;
 
     [Export]
     public StringName spell_fate_mode { get; set; } = "";
@@ -318,6 +344,17 @@ public partial class CombatSkillDef : Resource
     public bool allow_repeat_target { get; set; }
 
     [Export]
+    public StringName unit_target_resolution_mode { get; set; } = "aggregate";
+
+    internal CombatUnitTargetResolutionMode UnitTargetResolutionModeKind
+    {
+        get => CombatUnitTargetResolutionContentRules.ToMode(unit_target_resolution_mode);
+        set =>
+            unit_target_resolution_mode =
+                CombatUnitTargetResolutionContentRules.ToStringName(value);
+    }
+
+    [Export]
     public int max_hits_per_target { get; set; }
 
     [Export]
@@ -418,6 +455,26 @@ public partial class CombatSkillDef : Resource
                 ? effectiveCooldownTu
                 : cooldown_tu
         );
+    }
+
+    public int GetEffectiveMpCostPerTargetSlot(int skillLevel)
+    {
+        var ov = GetCachedLevelOverride(skillLevel);
+        return TryReadResourceCostOverride(ov, "mp_cost_per_target_slot", out int value)
+            ? value
+            : mp_cost_per_target_slot;
+    }
+
+    public int GetEffectiveStaminaCostPerTargetSlot(int skillLevel)
+    {
+        var ov = GetCachedLevelOverride(skillLevel);
+        return TryReadResourceCostOverride(
+            ov,
+            "stamina_cost_per_target_slot",
+            out int value
+        )
+            ? value
+            : stamina_cost_per_target_slot;
     }
 
     public Godot.Collections.Dictionary GetLevelOverride(int skillLevel)

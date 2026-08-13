@@ -52,6 +52,33 @@ public class AttributeSnapshot
         };
     }
 
+    internal static AttributeSnapshotIdKind ToIdKind(StringName id)
+    {
+        if (id == StrengthModifier)
+            return AttributeSnapshotIdKind.StrengthModifier;
+        if (id == AgilityModifier)
+            return AttributeSnapshotIdKind.AgilityModifier;
+        if (id == ConstitutionModifier)
+            return AttributeSnapshotIdKind.ConstitutionModifier;
+        if (id == PerceptionModifier)
+            return AttributeSnapshotIdKind.PerceptionModifier;
+        if (id == IntelligenceModifier)
+            return AttributeSnapshotIdKind.IntelligenceModifier;
+        if (id == WillpowerModifier)
+            return AttributeSnapshotIdKind.WillpowerModifier;
+        if (id == BaseAttackBonus)
+            return AttributeSnapshotIdKind.BaseAttackBonus;
+        if (id == SpellProficiencyBonus)
+            return AttributeSnapshotIdKind.SpellProficiencyBonus;
+        return AttributeSnapshotIdKind.Unknown;
+    }
+
+    internal static bool IsAbilityModifierKind(AttributeSnapshotIdKind kind)
+    {
+        return kind >= AttributeSnapshotIdKind.StrengthModifier
+            && kind <= AttributeSnapshotIdKind.WillpowerModifier;
+    }
+
     public void SetValue(StringName attribute_id, int value)
     {
         _values[attribute_id] = value;

@@ -16,7 +16,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
     {
         try
         {
-            TestNaturalWeaponMeleeAggressorFallsBackToBasicAttack();
+            TestNaturalWeaponMeleeAggressorCanUseHeavyStrike();
             TestMeleeAggressorChargeDecisionMovesTowardTarget();
             TestFormalAdvanceCommitsDecisionStatePatchOnce();
             TestFrontlineBulwarkChargeDecisionMovesTowardTarget();
@@ -34,7 +34,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         RequestTestExit(_test.Finish("Battle AI melee charge behavior regression"));
     }
 
-    private void TestNaturalWeaponMeleeAggressorFallsBackToBasicAttack()
+    private void TestNaturalWeaponMeleeAggressorCanUseHeavyStrike()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
@@ -80,21 +80,34 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         );
         _test.Eq(
             heavyStrikeBlockReason,
-            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
-            $"体力充足时，天生武器荒狼的重击应被 runtime 武器门槛阻断。 reason={heavyStrikeBlockReason}"
+            BattleSkillCastBlockReasonKind.None,
+            $"体力充足时，近战型天生武器荒狼的重击应通过 runtime 武器门槛。 reason={heavyStrikeBlockReason}"
+        );
+
+        var heavyStrikeCommand = new BattleCommand
+        {
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+            unit_id = wolf.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("warrior_heavy_strike"),
+            skill_id = "warrior_heavy_strike",
+            target_unit_id = player.unit_id,
+            target_coord = player.GetAnchorCoord(),
+        };
+        BattlePreview heavyStrikePreview = runtime.PreviewCommand(heavyStrikeCommand);
+        string heavyStrikePreviewLog = heavyStrikePreview != null
+            ? string.Join(";", heavyStrikePreview.log_lines)
+            : "<null>";
+        _test.True(
+            heavyStrikePreview?.allowed == true,
+            $"近战型天生武器重击应通过 canonical preview。 log={heavyStrikePreviewLog}"
         );
 
         BattleAiDecision decision = runtime._ai_service
             .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
             ?.Decision;
         _test.True(decision?.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。");
-        _test.Eq(
-            decision?.command?.skill_id ?? (StringName)"",
-            (StringName)"basic_attack",
-            "重击被装备武器门槛阻断后，天生武器单位应回退到基础攻击。"
-        );
         BattlePreview preview = runtime.PreviewCommand(decision?.command);
-        _test.True(preview?.allowed == true, "天生武器基础攻击应通过 runtime preview。");
+        _test.True(preview?.allowed == true, "天生武器AI选择的攻击指令应通过 runtime preview。");
     }
 
     private void TestMeleeAggressorChargeDecisionMovesTowardTarget()

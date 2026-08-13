@@ -79,6 +79,10 @@ public partial class EnemyTemplateDef : Resource
     public StringName attack_equipment_item_id { get; set; } = "";
 
     [Export]
+    public Godot.Collections.Array<EnemyBattleEquipmentDef> battle_equipment_entries { get; set; } =
+        new();
+
+    [Export]
     public StringName natural_weapon_damage_tag { get; set; } = "";
 
     [Export]
@@ -382,6 +386,8 @@ public partial class EnemyTemplateDef : Resource
             );
         skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
         itemDefinitions ??= new Dictionary<StringName, ItemDefinition>();
+        foreach (var e in _validate_battle_equipment_entries(itemDefinitions))
+            errors.Add(e);
         HashSet<StringName> declaredSkillIds = _build_declared_skill_id_set();
         foreach (var e in _validate_template_skill_ids(skillDefinitions))
             errors.Add(e);
@@ -806,6 +812,78 @@ public partial class EnemyTemplateDef : Resource
             errors.Add(
                 $"Enemy template {template_id} attack_equipment_item_id {iid} must project a weapon physical damage tag."
             );
+        return errors;
+    }
+
+    private Godot.Collections.Array<string> _validate_battle_equipment_entries(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
+    {
+        var errors = new Godot.Collections.Array<string>();
+        var occupiedSlots = new HashSet<StringName>();
+        int entryIndex = 0;
+        foreach (
+            EnemyBattleEquipmentDef entry in battle_equipment_entries
+                ?? new Godot.Collections.Array<EnemyBattleEquipmentDef>()
+        )
+        {
+            string entryLabel = $"battle_equipment_entries[{entryIndex}]";
+            entryIndex++;
+            if (entry == null)
+            {
+                errors.Add($"Enemy template {template_id} {entryLabel} must be set.");
+                continue;
+            }
+            StringName slotId = ProgressionDataUtils.to_string_name(entry.slot_id);
+            StringName itemId = ProgressionDataUtils.to_string_name(entry.item_id);
+            if (!EquipmentRules.IsValidSlot(slotId))
+            {
+                errors.Add(
+                    $"Enemy template {template_id} {entryLabel}.slot_id {slotId} is unsupported."
+                );
+            }
+            ItemDefinition itemDefinition = _try_get_indexed_item_definition(
+                itemId,
+                itemDefinitions
+            );
+            if (itemDefinition == null || !itemDefinition.IsEquipment())
+            {
+                errors.Add(
+                    $"Enemy template {template_id} {entryLabel}.item_id {itemId} must reference equipment content."
+                );
+                continue;
+            }
+            if (!itemDefinition.GetEquipmentSlotIdsTyped().Contains(slotId))
+            {
+                errors.Add(
+                    $"Enemy template {template_id} {entryLabel} item {itemId} cannot be equipped in {slotId}."
+                );
+            }
+            foreach (StringName occupiedSlotId in itemDefinition.GetFinalOccupiedSlotIdsTyped(slotId))
+            {
+                if (!occupiedSlots.Add(occupiedSlotId))
+                {
+                    errors.Add(
+                        $"Enemy template {template_id} {entryLabel} overlaps occupied slot {occupiedSlotId}."
+                    );
+                }
+            }
+            if (entry.rarity < 0 || entry.rarity > (int)EquipmentInstanceState.RarityTier.LEGENDARY)
+            {
+                errors.Add(
+                    $"Enemy template {template_id} {entryLabel}.rarity must be between common and legendary."
+                );
+            }
+            else if (!EquipmentDurabilityDefinition.IsValidCurrentDurability(
+                entry.current_durability,
+                entry.rarity
+            ))
+            {
+                errors.Add(
+                    $"Enemy template {template_id} {entryLabel}.current_durability must be within 1..{EquipmentDurabilityDefinition.GetMaxDurabilityForRarity(entry.rarity)}."
+                );
+            }
+        }
         return errors;
     }
 

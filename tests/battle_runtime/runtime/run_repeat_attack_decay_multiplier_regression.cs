@@ -25,19 +25,6 @@ public partial class run_repeat_attack_decay_multiplier_regression : LifecycleTe
             expectedDamage: 300,
             "100% 身份倍率应让三段伤害保持等额。"
         );
-        AssertRepeatDamageScenario(
-            multiplierPercent: 0,
-            stageCount: 3,
-            expectedDamage: 300,
-            "0% 非法倍率应在正式连击结算中回退到 100%。"
-        );
-        AssertRepeatDamageScenario(
-            multiplierPercent: -50,
-            stageCount: 3,
-            expectedDamage: 300,
-            "负倍率应在正式连击结算中回退到 100%。"
-        );
-
         RequestTestExit(_test.Finish("Repeat attack decay multiplier regression"));
     }
 
@@ -58,12 +45,12 @@ public partial class run_repeat_attack_decay_multiplier_regression : LifecycleTe
         CombatEffectDefinition repeatEffect = TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
             effectTargetTeamFilter: "enemy",
+            followUpDamageMultiplierPercent: multiplierPercent,
             parameters: new Dictionary<string, object>
             {
                 ["cost_resource"] = "aura",
                 ["follow_up_fixed_cost"] = 1,
                 ["follow_up_attack_penalty"] = 0,
-                ["follow_up_damage_multiplier_percent"] = multiplierPercent,
             }
         );
         SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(

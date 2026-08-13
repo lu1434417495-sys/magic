@@ -143,7 +143,11 @@ internal class BattleAttackCheckPolicyService
         return CopyAttackCheckWithCriticalOverride(context, attackCheck);
     }
 
-    public AttackPreviewData BuildAttackPreview(BattleAttackCheckPolicyContext context)
+    public AttackPreviewData BuildAttackPreview(
+        BattleAttackCheckPolicyContext context,
+        int flat_bonus = 0,
+        int flat_penalty = 0
+    )
     {
         if (_hitResolver == null || context == null)
         {
@@ -173,7 +177,13 @@ internal class BattleAttackCheckPolicyService
             _equipmentAttackCheckQuery
                 ?.ResolveCriticalHitOverride(context)
                 ?.ForceCriticalOnHit == true;
-        if (modifierBundle.IsEmpty() && defenseAdjustment.IsEmpty && !hasCriticalOverride)
+        if (
+            modifierBundle.IsEmpty()
+            && defenseAdjustment.IsEmpty
+            && !hasCriticalOverride
+            && flat_bonus == 0
+            && flat_penalty == 0
+        )
         {
             return _hitResolver.BuildSkillDefinitionAttackPreview(
                 context.battle_state,
@@ -184,7 +194,11 @@ internal class BattleAttackCheckPolicyService
             );
         }
 
-        AttackCheckInput attackCheck = BuildAttackCheck(context, 0, 0);
+        AttackCheckInput attackCheck = BuildAttackCheck(
+            context,
+            flat_bonus,
+            flat_penalty
+        );
         AttackCheckInput resolvedCheck = _hitResolver.BuildFateAwareAttackCheckPreview(
             context.battle_state,
             context.attacker_view,
@@ -251,6 +265,9 @@ internal class BattleAttackCheckPolicyService
         var summaryChecks = new List<AttackCheckInput>();
         var stages = new List<AttackPreviewStage>();
         var combinedBreakdown = new List<BattleAttackRollModifierSpec>();
+        int stageReachProbabilityBasisPoints = 10000;
+        int expectedDamageBasisPoints = 0;
+        int potentialDamageBasisPoints = 0;
 
         for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
         {
@@ -271,9 +288,35 @@ internal class BattleAttackCheckPolicyService
                     baseHitRatePercent: attackCheck.BaseHitRatePercent,
                     requiredRoll: attackCheck.RequiredRoll,
                     displayRequiredRoll: attackCheck.DisplayRequiredRoll,
-                    previewText: attackCheck.PreviewText
+                    previewText: attackCheck.PreviewText,
+                    reachProbabilityBasisPoints: stageReachProbabilityBasisPoints,
+                    damageMultiplierPercent: stageSpec.stage_damage_multiplier_percent
                 )
             );
+            expectedDamageBasisPoints = SaturatingAdd(
+                expectedDamageBasisPoints,
+                ResolveExpectedStageDamageBasisPoints(
+                    stageReachProbabilityBasisPoints,
+                    stageSuccessRate,
+                    stageSpec.stage_damage_multiplier_percent
+                )
+            );
+            potentialDamageBasisPoints = SaturatingAdd(
+                potentialDamageBasisPoints,
+                SaturatingMultiply(stageSpec.stage_damage_multiplier_percent, 100)
+            );
+            if (stageSpec.stop_on_miss)
+            {
+                stageReachProbabilityBasisPoints = Mathf.Clamp(
+                    (int)Math.Round(
+                        (double)stageReachProbabilityBasisPoints
+                            * stageSuccessRate
+                            / 100.0
+                    ),
+                    0,
+                    10000
+                );
+            }
             foreach (BattleAttackRollModifierSpec spec in BuildModifierBundle(stageContext).Breakdown)
             {
                 combinedBreakdown.Add(spec);
@@ -282,13 +325,18 @@ internal class BattleAttackCheckPolicyService
 
         var preview = new AttackPreviewData
         {
-            SummaryText = _hitResolver.FormatRepeatAttackPreviewSummary(summaryChecks),
+            SummaryText = AppendRepeatAttackStageSummary(
+                _hitResolver.FormatRepeatAttackPreviewSummary(summaryChecks),
+                stages
+            ),
             Stages = stages,
             HitRatePercent = AverageStageRate(stages, stage => stage.SuccessRatePercent),
             SuccessRatePercent = AverageStageRate(stages, stage => stage.SuccessRatePercent),
             BaseHitRatePercent = AverageStageRate(stages, stage => stage.BaseHitRatePercent),
             BaseAttackBonus = stage_specs[0].stage_base_attack_bonus,
             FollowUpAttackPenalty = stage_specs[0].follow_up_attack_penalty,
+            RepeatAttackExpectedDamageBasisPoints = expectedDamageBasisPoints,
+            RepeatAttackPotentialDamageBasisPoints = potentialDamageBasisPoints,
             ForceCriticalOnHit = summaryChecks.Exists(
                 check => check.ForceCriticalOnHit && !check.CritLocked && !check.ForceHitNoCrit
             ),
@@ -1205,6 +1253,47 @@ internal class BattleAttackCheckPolicyService
             total += selector(stage);
         }
         return Mathf.RoundToInt((float)total / stages.Count);
+    }
+
+    private static int ResolveExpectedStageDamageBasisPoints(
+        int reachProbabilityBasisPoints,
+        int successRatePercent,
+        int damageMultiplierPercent
+    ) =>
+        (int)Math.Clamp(
+            (long)Mathf.Clamp(reachProbabilityBasisPoints, 0, 10000)
+                * Mathf.Clamp(successRatePercent, 0, 100)
+                * Math.Max(damageMultiplierPercent, 1)
+                / 10000L,
+            0L,
+            int.MaxValue
+        );
+
+    private static int SaturatingMultiply(int left, int right) =>
+        (int)Math.Clamp((long)left * right, 0L, int.MaxValue);
+
+    private static int SaturatingAdd(int left, int right) =>
+        (int)Math.Clamp((long)left + right, 0L, int.MaxValue);
+
+    private static string AppendRepeatAttackStageSummary(
+        string summary,
+        IReadOnlyList<AttackPreviewStage> stages
+    )
+    {
+        if (stages == null || stages.Count <= 1)
+        {
+            return summary ?? "";
+        }
+        var parts = new List<string>();
+        for (int index = 1; index < stages.Count; index++)
+        {
+            AttackPreviewStage stage = stages[index];
+            string reachPercent = (stage.ReachProbabilityBasisPoints / 100.0).ToString("0.#");
+            parts.Add(
+                $"第{index + 1}段到达率 {reachPercent}%，伤害 {stage.DamageMultiplierPercent}%"
+            );
+        }
+        return $"{summary}；{string.Join("；", parts)}";
     }
 
     private static bool IsEmpty(StringName value)

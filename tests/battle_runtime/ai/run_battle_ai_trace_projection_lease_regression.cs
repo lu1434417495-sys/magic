@@ -80,11 +80,14 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             AssertFixedLegacyGolden(payload);
             AssertMeteorSchema(payload);
             AssertLayeredBarrierSchema(payload);
+            AssertShieldScoreSchema(payload);
+            AssertEquipmentDurabilityScoreSchema(payload);
+            AssertForcedMoveScoreSchema(payload);
             AssertLegacyTraceReference(trace, payload);
             AssertFingerprint(
                 payload,
-                12205,
-                "67e896c96a9d7e19b324058e76e11d3872b2eb37d92c4635020ed4abd3ad5083",
+                12992,
+                "ed96cea4799e18285b8bd7401c7f8a17396b8b216dd4e665fd185a55e1dd2be3",
                 "full AI trace payload"
             );
             AssertDictionaryKeysAreStrings(payload, "trace");
@@ -419,7 +422,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         using GDictionary command = payload["command"].AsGodotDictionary();
         AssertKeyOrder(
             command,
-            "command_type,unit_id,skill_id,skill_variant_id,target_unit_id,target_unit_ids,target_coord,target_coords,source_retreat_direction",
+            "command_type,unit_id,skill_id,skill_variant_id,target_unit_id,target_unit_ids,target_coord,target_coords,source_retreat_direction,forced_move_destination_coord",
             "command"
         );
         _test.Eq(ReadText(command, "command_type"), "skill", "Command type golden.");
@@ -553,6 +556,79 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         );
     }
 
+    private void AssertShieldScoreSchema(GDictionary payload)
+    {
+        using GDictionary scoreInput = payload["score_input"].AsGodotDictionary();
+        _test.True(
+            scoreInput.ContainsKey("estimated_shield_gain_basis_points"),
+            "AI trace score schema must expose total expected shield gain."
+        );
+        _test.True(
+            scoreInput.ContainsKey("estimated_ally_shield_gain_basis_points"),
+            "AI trace score schema must expose ally expected shield gain."
+        );
+        _test.Eq(
+            scoreInput["estimated_shield_gain_basis_points"].AsInt32(),
+            0,
+            "Non-shield trace fixture should project zero expected shield gain."
+        );
+        _test.Eq(
+            scoreInput["estimated_ally_shield_gain_basis_points"].AsInt32(),
+            0,
+            "Non-shield trace fixture should project zero ally shield gain."
+        );
+    }
+
+    private void AssertEquipmentDurabilityScoreSchema(GDictionary payload)
+    {
+        using GDictionary scoreInput = payload["score_input"].AsGodotDictionary();
+        _test.True(
+            scoreInput.ContainsKey("estimated_equipment_durability_loss_basis_points"),
+            "AI trace score schema must expose expected equipment durability loss."
+        );
+        _test.True(
+            scoreInput.ContainsKey("estimated_equipment_destruction_probability_basis_points"),
+            "AI trace score schema must expose equipment destruction probability."
+        );
+        _test.Eq(
+            scoreInput["estimated_equipment_durability_loss_basis_points"].AsInt32(),
+            0,
+            "Non-durability trace fixture should project zero expected durability loss."
+        );
+        _test.Eq(
+            scoreInput["estimated_equipment_destruction_probability_basis_points"].AsInt32(),
+            0,
+            "Non-durability trace fixture should project zero destruction probability."
+        );
+    }
+
+    private void AssertForcedMoveScoreSchema(GDictionary payload)
+    {
+        using GDictionary scoreInput = payload["score_input"].AsGodotDictionary();
+        foreach (
+            string key in new[]
+            {
+                "forced_move_distance",
+                "forced_move_engagement_delta",
+                "forced_move_landing_terrain_effect_delta",
+                "forced_move_height_delta",
+                "forced_move_caster_exposure_penalty",
+                "forced_move_position_score",
+            }
+        )
+        {
+            _test.True(
+                scoreInput.ContainsKey(key),
+                $"AI trace score schema must expose typed forced-move fact '{key}'."
+            );
+            _test.Eq(
+                scoreInput[key].AsInt32(),
+                0,
+                $"Non-forced-move trace fixture should project zero for '{key}'."
+            );
+        }
+    }
+
     private void AssertLegacyLabelArray(
         GDictionary component,
         string key,
@@ -630,8 +706,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 lease.Value,
-                9737,
-                "5f13015b2774ff61fcea68ca05f05755a99770057a7029845691feb87b459272",
+                10360,
+                "f094e0549afe6374cb9bf76f3e9c1fda08e30383234f7d749dd7d47b6c13b00f",
                 "full standalone AI score payload"
             );
         }
@@ -914,8 +990,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 reportLease.Value,
-                16460,
-                "15e919b08deb7d0f4180818dc047034a219e00994c9a4a42546e0e0841ac0e6d",
+                17247,
+                "15bf9f381169130cfcc22f0ad17effcc6ff962487cb18e0c84538d17ec837d8c",
                 "full simulation report payload"
             );
         }

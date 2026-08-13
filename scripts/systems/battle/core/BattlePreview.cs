@@ -9,19 +9,30 @@ public class BattlePreview
     private readonly List<StringName> _targetUnitIds = new();
     private readonly List<Vector2I> _targetCoords = new();
     private readonly List<Vector2I> _sourceRetreatPath = new();
+    private readonly List<Vector2I> _sourceAdvancePath = new();
     private readonly List<StringName> _randomChainCandidateUnitIds = new();
     private readonly List<StringName> _randomChainImpactCandidateUnitIds = new();
+    private readonly List<BattleStatusContributionPreviewData> _statusContributionPreviews =
+        new();
     private readonly ReadOnlyCollection<string> _logLinesView;
     private readonly ReadOnlyCollection<StringName> _targetUnitIdsView;
     private readonly ReadOnlyCollection<Vector2I> _targetCoordsView;
     private readonly ReadOnlyCollection<Vector2I> _sourceRetreatPathView;
+    private readonly ReadOnlyCollection<Vector2I> _sourceAdvancePathView;
     private readonly ReadOnlyCollection<StringName> _randomChainCandidateUnitIdsView;
     private readonly ReadOnlyCollection<StringName> _randomChainImpactCandidateUnitIdsView;
+    private readonly ReadOnlyCollection<BattleStatusContributionPreviewData>
+        _statusContributionPreviewsView;
     private BattleSaveBranchPreviewData _saveBranchPreview;
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
     private BattleEquipmentAbilityCommandPreviewResult _equipmentAbilityPreview;
     private BattleTerrainContactPreviewData _terrainContactPreview;
+    private BattleShieldPreviewData _shieldPreview;
+    private BattleEquipmentDurabilityPreviewData _equipmentDurabilityPreview;
+    private BattleForcedMovePreviewData _forcedMovePreview;
+    private BattlePositionSwapPreviewData _positionSwapPreview;
+    private BattleRangedWeaponReactionPreviewData _rangedWeaponReactionPreview;
 
     public bool allowed { get; set; } = false;
     public ReadOnlyCollection<string> log_lines => _logLinesView;
@@ -45,6 +56,11 @@ public class BattlePreview
         get => new(_sourceRetreatPath);
         set => SetSourceRetreatPath(value);
     }
+    public Vector2IList source_advance_path
+    {
+        get => new(_sourceAdvancePath);
+        set => SetSourceAdvancePath(value);
+    }
     public Vector2I resolved_anchor_coord { get; set; } = new Vector2I(-1, -1);
     public int move_cost { get; set; } = 0;
     public AttackPreviewData hit_preview { get; set; }
@@ -54,11 +70,14 @@ public class BattlePreview
     internal IReadOnlyList<StringName> TargetUnitIdsTyped => _targetUnitIdsView;
     internal IReadOnlyList<Vector2I> TargetCoordsTyped => _targetCoordsView;
     internal IReadOnlyList<Vector2I> SourceRetreatPathTyped => _sourceRetreatPathView;
+    internal IReadOnlyList<Vector2I> SourceAdvancePathTyped => _sourceAdvancePathView;
     internal IReadOnlyList<StringName> RandomChainCandidateUnitIdsTyped =>
         _randomChainCandidateUnitIdsView;
     internal IReadOnlyList<StringName> RandomChainImpactCandidateUnitIdsTyped =>
         _randomChainImpactCandidateUnitIdsView;
     internal IReadOnlyList<string> LogLinesTyped => _logLinesView;
+    internal IReadOnlyList<BattleStatusContributionPreviewData>
+        StatusContributionPreviewsTyped => _statusContributionPreviewsView;
     internal BattleDamagePreviewRangeService.SkillDamagePreview? DamagePreviewTyped =>
         CloneDamagePreview(_damagePreview);
     internal BattleFatePreviewData FatePreviewTyped => _fatePreview ?? hit_preview?.FatePreview;
@@ -67,6 +86,15 @@ public class BattlePreview
         _equipmentAbilityPreview ?? BattleEquipmentAbilityCommandPreviewResult.None;
     internal BattleTerrainContactPreviewData TerrainContactPreviewTyped =>
         _terrainContactPreview;
+    internal BattleShieldPreviewData ShieldPreviewTyped => CloneShieldPreview(_shieldPreview);
+    internal BattleEquipmentDurabilityPreviewData EquipmentDurabilityPreviewTyped =>
+        _equipmentDurabilityPreview?.Clone();
+    internal BattleForcedMovePreviewData ForcedMovePreviewTyped =>
+        _forcedMovePreview?.Clone();
+    internal BattlePositionSwapPreviewData PositionSwapPreviewTyped =>
+        _positionSwapPreview?.Clone();
+    internal BattleRangedWeaponReactionPreviewData RangedWeaponReactionPreviewTyped =>
+        _rangedWeaponReactionPreview;
 
     public BattlePreview()
     {
@@ -74,9 +102,11 @@ public class BattlePreview
         _targetUnitIdsView = _targetUnitIds.AsReadOnly();
         _targetCoordsView = _targetCoords.AsReadOnly();
         _sourceRetreatPathView = _sourceRetreatPath.AsReadOnly();
+        _sourceAdvancePathView = _sourceAdvancePath.AsReadOnly();
         _randomChainCandidateUnitIdsView = _randomChainCandidateUnitIds.AsReadOnly();
         _randomChainImpactCandidateUnitIdsView =
             _randomChainImpactCandidateUnitIds.AsReadOnly();
+        _statusContributionPreviewsView = _statusContributionPreviews.AsReadOnly();
     }
 
     internal void SetTargetUnitIds(IEnumerable<StringName> values)
@@ -153,6 +183,20 @@ public class BattlePreview
         _sourceRetreatPath.Clear();
     }
 
+    internal void SetSourceAdvancePath(IEnumerable<Vector2I> values)
+    {
+        _sourceAdvancePath.Clear();
+        if (values == null)
+            return;
+        foreach (Vector2I value in values)
+            _sourceAdvancePath.Add(value);
+    }
+
+    internal void ClearSourceAdvancePath()
+    {
+        _sourceAdvancePath.Clear();
+    }
+
     internal void SetRandomChainCandidateUnitIds(IEnumerable<StringName> values)
     {
         _randomChainCandidateUnitIds.Clear();
@@ -212,6 +256,26 @@ public class BattlePreview
         _logLines.Add(value ?? "");
     }
 
+    internal void ClearStatusContributionPreviews()
+    {
+        _statusContributionPreviews.Clear();
+    }
+
+    internal void SetRangedWeaponReactionPreview(
+        BattleRangedWeaponReactionPreviewData preview
+    )
+    {
+        _rangedWeaponReactionPreview = preview;
+    }
+
+    internal void AddStatusContributionPreview(
+        BattleStatusContributionPreviewData value
+    )
+    {
+        if (value != null)
+            _statusContributionPreviews.Add(value);
+    }
+
     internal void InsertLogLine(int index, string value)
     {
         _logLines.Insert(index, value ?? "");
@@ -259,6 +323,46 @@ public class BattlePreview
         _terrainContactPreview = value;
     }
 
+    internal void SetShieldPreview(BattleShieldPreviewData value)
+    {
+        _shieldPreview = CloneShieldPreview(value);
+    }
+
+    internal void ClearShieldPreview()
+    {
+        _shieldPreview = null;
+    }
+
+    internal void SetEquipmentDurabilityPreview(BattleEquipmentDurabilityPreviewData value)
+    {
+        _equipmentDurabilityPreview = value?.Clone();
+    }
+
+    internal void ClearEquipmentDurabilityPreview()
+    {
+        _equipmentDurabilityPreview = null;
+    }
+
+    internal void SetForcedMovePreview(BattleForcedMovePreviewData value)
+    {
+        _forcedMovePreview = value?.Clone();
+    }
+
+    internal void ClearForcedMovePreview()
+    {
+        _forcedMovePreview = null;
+    }
+
+    internal void SetPositionSwapPreview(BattlePositionSwapPreviewData value)
+    {
+        _positionSwapPreview = value?.Clone();
+    }
+
+    internal void ClearPositionSwapPreview()
+    {
+        _positionSwapPreview = null;
+    }
+
     private static BattleDamagePreviewRangeService.SkillDamagePreview? CloneDamagePreview(
         BattleDamagePreviewRangeService.SkillDamagePreview? value
     )
@@ -277,6 +381,28 @@ public class BattlePreview
                     ?? System.Array.Empty<BattleDamagePreviewRangeService.DamageEffectRange>()
             )
         );
+    }
+
+    private static BattleShieldPreviewData CloneShieldPreview(BattleShieldPreviewData value)
+    {
+        if (value == null)
+        {
+            return null;
+        }
+        return new BattleShieldPreviewData
+        {
+            HasShield = value.HasShield,
+            MinShieldHp = value.MinShieldHp,
+            MaxShieldHp = value.MaxShieldHp,
+            ExpectedShieldHpBasisPoints = value.ExpectedShieldHpBasisPoints,
+            AttributeModifier = value.AttributeModifier,
+            DurationTu = value.DurationTu,
+            TargetCount = value.TargetCount,
+            ExpectedBenefitingTargetCount = value.ExpectedBenefitingTargetCount,
+            ExpectedTotalNetGainBasisPoints = value.ExpectedTotalNetGainBasisPoints,
+            RollPerTarget = value.RollPerTarget,
+            ShieldFamily = value.ShieldFamily,
+        };
     }
 
 }

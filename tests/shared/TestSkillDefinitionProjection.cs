@@ -290,7 +290,15 @@ internal static class TestSkillDefinitionProjection
         int repeatHitStatusDurationTu = 0,
         string repeatHitStatusLogTemplate = "",
         BattleCognitionKind requiredTargetMinCognition =
-            BattleCognitionKind.Unknown
+            BattleCognitionKind.Unknown,
+        StringName shieldFamily = default,
+        StringName shieldAttributeModifierId = default,
+        bool shieldRollPerTarget = false,
+        int followUpDamageMultiplierPercent = 100,
+        IReadOnlyList<int> followUpAttackRollBonusCurve = null,
+        int fixedAttackCount = 0,
+        bool stopOnMiss = true,
+        int forcedMoveMaxTargetBodySize = 0
     )
     {
         return new CombatEffectDefinition(
@@ -382,7 +390,15 @@ internal static class TestSkillDefinitionProjection
             repeatHitStatusPower: repeatHitStatusPower,
             repeatHitStatusDurationTu: repeatHitStatusDurationTu,
             repeatHitStatusLogTemplate: repeatHitStatusLogTemplate,
-            requiredTargetMinCognition: requiredTargetMinCognition
+            requiredTargetMinCognition: requiredTargetMinCognition,
+            shieldFamily: shieldFamily,
+            shieldAttributeModifierId: shieldAttributeModifierId,
+            shieldRollPerTarget: shieldRollPerTarget,
+            followUpDamageMultiplierPercent: followUpDamageMultiplierPercent,
+            followUpAttackRollBonusCurve: followUpAttackRollBonusCurve,
+            fixedAttackCount: fixedAttackCount,
+            stopOnMiss: stopOnMiss,
+            forcedMoveMaxTargetBodySize: forcedMoveMaxTargetBodySize
         );
     }
 

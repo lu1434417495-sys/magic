@@ -330,6 +330,19 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             return false;
         }
 
+        if (BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition))
+        {
+            return ApplyOrderedUnitTargetSlots(
+                caster,
+                validation.TargetUnits,
+                skillDefinition,
+                castVariantDefinition,
+                resolvedEffectDefinitions,
+                batch,
+                BattleSpellControlResult.None()
+            );
+        }
+
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
         CombatEffectDefinition repeatAttackEffect =
             repeatAttackResolver?.get_repeat_attack_effect_def(resolvedEffectDefinitions);
@@ -352,9 +365,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 resolvedEffectDefinitions,
                 validation.TargetUnits
             );
-        IReadOnlyList<BattleUnitState> plannedTargets = CollectPlannedTargets(
+        IReadOnlyList<BattleUnitState> plannedTargets = CollectPlannedTargetsOrValidatedTargets(
             resolvedEffectDefinitions,
-            targetPlan
+            targetPlan,
+            validation.TargetUnits
         );
         if (plannedTargets.Count == 0)
         {

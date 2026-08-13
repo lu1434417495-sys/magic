@@ -367,8 +367,18 @@ public sealed partial class BattleAiScoreService : IDisposable
                 context,
                 skillDefinition
             );
+        effectiveEffectDefinitions = FilterRangedWeaponReactionReadinessEffects(
+            effectiveEffectDefinitions,
+            skillDefinition
+        );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
+        PopulateForcedMovePositionMetrics(scoreInput, context);
         PopulateSpellReactionThreatMetrics(scoreInput, context, skillDefinition);
+        PopulateRangedWeaponReactionThreatMetrics(
+            scoreInput,
+            context,
+            skillDefinition
+        );
         PopulateTauntAllyDamageRelief(
             scoreInput,
             context,
@@ -608,7 +618,15 @@ public sealed partial class BattleAiScoreService : IDisposable
         total += scoreInput.estimated_post_save_damage
             * _scoreProfile.SaveReliableDamageWeight;
         total += scoreInput.estimated_control_count * _scoreProfile.ControlWeight;
+        total += (int)Math.Clamp(
+            (long)scoreInput.estimated_control_probability_basis_points
+                * _scoreProfile.ControlWeight
+                / 10000L,
+            int.MinValue,
+            int.MaxValue
+        );
         total += scoreInput.ground_control_score * _scoreProfile.GroundControlWeight;
+        total += scoreInput.position_swap_utility_score;
         total += RoundToInt(
             (double)(scoreInput.estimated_hit_rate_percent - 100)
                 * _scoreProfile.HitRateReliabilityWeight
@@ -1219,9 +1237,17 @@ public sealed partial class BattleAiScoreService : IDisposable
         }
         CombatDirectionalPiercingDefinition directionalPiercing =
             skillDefinition?.CombatProfile?.DirectionalPiercing;
+        CombatLineThroughAttackDefinition lineThroughAttack =
+            skillDefinition?.CombatProfile?.LineThroughAttack;
+        CombatSequentialLineHitDefinition sequentialLineHit =
+            skillDefinition?.CombatProfile?.SequentialLineHit;
+        bool usesOrderedTargetSlots =
+            BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition);
         IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
             effectTargetPlan =
                 directionalPiercing == null
+                    && lineThroughAttack == null
+                    && sequentialLineHit == null
                     ? BuildAiEffectTargetPlan(
                         actor,
                         skillDefinition,
@@ -1230,7 +1256,11 @@ public sealed partial class BattleAiScoreService : IDisposable
                     )
                     : null;
         IReadOnlyList<BattleUnitState> plannedTargets =
-            directionalPiercing == null
+            usesOrderedTargetSlots
+                ? candidateUnits
+                : directionalPiercing == null
+                && lineThroughAttack == null
+                && sequentialLineHit == null
                 ? CollectAiPlannedTargets(effectDefinitions, effectTargetPlan)
                 : candidateUnits;
         scoreInput.target_unit_ids.Clear();
@@ -1246,16 +1276,46 @@ public sealed partial class BattleAiScoreService : IDisposable
                     GetContextSkillLevel(context, skillDefinition.SkillId)
                 )
                 : 100;
+        CombatEffectDefinition repeatAttackEffect = FindRepeatAttackEffect(
+            effectDefinitions
+        );
+        int repeatAttackStageCount =
+            repeatAttackEffect != null
+                ? Math.Max(scoreInput.preview?.hit_preview?.StageCount ?? 0, 1)
+                : 0;
         foreach (BattleUnitState targetUnit in plannedTargets)
         {
-            IReadOnlyList<CombatEffectDefinition> targetEffects =
-                directionalPiercing == null
-                    ? CollectAiEffectsForTarget(
+            IReadOnlyList<CombatEffectDefinition> targetEffects;
+            if (sequentialLineHit != null)
+            {
+                targetEffects = BuildSequentialLineHitExpectedEffects(
+                    effectDefinitions,
+                    directionalTargetIndex,
+                    scoreInput.preview?.hit_preview
+                );
+            }
+            else if (lineThroughAttack != null)
+            {
+                targetEffects = BuildLineThroughAttackExpectedEffects(
+                        effectDefinitions,
+                        lineThroughAttack,
+                        GetContextSkillLevel(context, skillDefinition.SkillId),
+                        directionalTargetIndex,
+                        plannedTargets.Count,
+                        scoreInput.preview?.hit_preview
+                    );
+            }
+            else if (directionalPiercing == null)
+            {
+                targetEffects = CollectAiEffectsForTarget(
                         effectDefinitions,
                         effectTargetPlan,
                         targetUnit.unit_id
-                    )
-                    : BattleSkillExecutionOrchestrator.BuildDirectionalPiercingEffects(
+                    );
+            }
+            else
+            {
+                targetEffects = BattleSkillExecutionOrchestrator.BuildDirectionalPiercingEffects(
                         effectDefinitions,
                         directionalBaseDamagePercent / 100.0
                             * BattleDirectionalPiercingRules.GetExpectedDecayMultiplier(
@@ -1264,9 +1324,18 @@ public sealed partial class BattleAiScoreService : IDisposable
                                 scoreInput.estimated_hit_rate_percent
                             )
                     );
+            }
             if (targetEffects.Count == 0)
             {
                 continue;
+            }
+            if (repeatAttackEffect != null)
+            {
+                targetEffects = BattleRepeatAttackResolver.BuildRepeatAttackPreviewEffects(
+                    targetEffects,
+                    repeatAttackEffect,
+                    repeatAttackStageCount
+                );
             }
             PopulateTargetEffectMetrics(
                 scoreInput,
@@ -1277,17 +1346,72 @@ public sealed partial class BattleAiScoreService : IDisposable
             );
             directionalTargetIndex++;
         }
+        PopulatePositionSwapMetrics(
+            scoreInput,
+            context,
+            skillDefinition,
+            effectDefinitions
+        );
         PopulateChainDamageMetrics(scoreInput, context, skillDefinition, effectDefinitions);
         int healingPayoff =
             (scoreInput.estimated_ally_healing - scoreInput.estimated_enemy_healing)
             * _scoreProfile.HealWeight;
         int damagePayoff = scoreInput.hit_payoff_score - healingPayoff;
+        int hitPayoffProbabilityBasisPoints = ResolveHitPayoffProbabilityBasisPoints(
+            scoreInput.preview?.hit_preview,
+            scoreInput.estimated_hit_rate_percent
+        );
+        if (lineThroughAttack != null || sequentialLineHit != null)
+            hitPayoffProbabilityBasisPoints = 10000;
         scoreInput.hit_payoff_score = RoundToInt(
-            (double)damagePayoff * scoreInput.estimated_hit_rate_percent / 100.0
+            (double)damagePayoff * hitPayoffProbabilityBasisPoints / 10000.0
         ) + healingPayoff;
         scoreInput.target_priority_score = RoundToInt(
-            (double)scoreInput.target_priority_score * scoreInput.estimated_hit_rate_percent / 100.0
+            (double)scoreInput.target_priority_score
+                * hitPayoffProbabilityBasisPoints
+                / 10000.0
         );
+    }
+
+    private static CombatEffectDefinition FindRepeatAttackEffect(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        foreach (
+            CombatEffectDefinition effectDefinition in
+                effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition?.EffectKind
+                is BattleEffectKind.RepeatAttackUntilFail
+                    or BattleEffectKind.FixedRepeatAttack
+            )
+            {
+                return effectDefinition;
+            }
+        }
+        return null;
+    }
+
+    private static int ResolveHitPayoffProbabilityBasisPoints(
+        AttackPreviewData hitPreview,
+        int fallbackHitRatePercent
+    )
+    {
+        if (
+            hitPreview?.RepeatAttackPotentialDamageBasisPoints > 0
+            && hitPreview.RepeatAttackExpectedDamageBasisPoints >= 0
+        )
+        {
+            return (int)Math.Clamp(
+                (long)hitPreview.RepeatAttackExpectedDamageBasisPoints * 10000L
+                    / hitPreview.RepeatAttackPotentialDamageBasisPoints,
+                0L,
+                10000L
+            );
+        }
+        return Mathf.Clamp(fallbackHitRatePercent, 0, 100) * 100;
     }
 
     private void PopulateSpecialProfileMetrics(BattleAiScoreInput scoreInput, IBattleAiScoreContext context)

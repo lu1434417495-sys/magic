@@ -1688,6 +1688,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     {
         _damage_resolver?.SetEquipmentAbilityPorts(null, null);
         _damage_resolver?.SetFatalInterceptArbiter(null);
+        _damage_resolver?.SetRangedWeaponAttackReactionSink(null);
         _damage_resolver = damage_resolver ?? new BattleDamageResolver();
         BindDamageResolver();
         if (_ai_service != null)
@@ -2780,13 +2781,49 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattleUnitState active_unit,
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant = null,
-        BattleEventBatch batch = null
-    ) => _skill_turn_resolver.ConsumeSkillCosts(active_unit, skillDefinition, castVariant, batch);
+        BattleEventBatch batch = null,
+        int targetSlotCount = 1
+    ) =>
+        _skill_turn_resolver.ConsumeSkillCosts(
+            active_unit,
+            skillDefinition,
+            castVariant,
+            batch,
+            targetSlotCount
+        );
 
     internal CombatSkillResourceCosts _get_effective_skill_resource_costs(
         BattleUnitState active_unit,
-        SkillDefinition skillDefinition
-    ) => _skill_turn_resolver.GetEffectiveSkillResourceCosts(active_unit, skillDefinition);
+        SkillDefinition skillDefinition,
+        int targetSlotCount = 1
+    ) =>
+        _skill_turn_resolver.GetEffectiveSkillResourceCosts(
+            active_unit,
+            skillDefinition,
+            targetSlotCount
+        );
+
+    internal string _get_target_slot_cost_block_reason(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        int targetSlotCount
+    ) =>
+        _skill_turn_resolver.GetTargetSlotCostBlockReason(
+            activeUnit,
+            skillDefinition,
+            targetSlotCount
+        );
+
+    internal string _get_target_slot_cost_block_reason(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        int targetSlotCount
+    ) =>
+        _skill_turn_resolver.GetTargetSlotCostBlockReason(
+            activeUnit,
+            skillDefinition,
+            targetSlotCount
+        );
 
     internal int _get_effective_skill_range(
         BattleUnitState active_unit,
@@ -2901,6 +2938,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _damage_resolver.SetSkillDefinitions(GetSkillDefinitionIndexTyped());
         _damage_resolver.SetHitResolver(_hit_resolver);
         _damage_resolver.SetDamageApplicationHook(_contingency_system);
+        _damage_resolver.SetRangedWeaponAttackReactionSink(_skill_orchestrator);
     }
 
     private void BindEquipmentRulePorts()
@@ -2930,6 +2968,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _attack_check_policy_service?.UnbindEquipmentAttackCheckQuery();
         _damage_resolver?.SetEquipmentAbilityPorts(null, null);
         _damage_resolver?.SetFatalInterceptArbiter(null);
+        _damage_resolver?.SetRangedWeaponAttackReactionSink(null);
     }
 
     internal static bool IsEmpty(StringName value) => value == default || value == (StringName)"";

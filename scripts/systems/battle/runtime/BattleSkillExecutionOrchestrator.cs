@@ -515,36 +515,56 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleUnitState active_unit,
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant = null,
-        BattleEventBatch batch = null
+        BattleEventBatch batch = null,
+        int targetSlotCount = 1
     )
     {
         return Runtime?._consume_skill_costs(
             active_unit,
             skillDefinition,
             castVariant,
-            batch
+            batch,
+            targetSlotCount
         ) == true;
     }
 
     internal CombatSkillResourceCosts _get_effective_skill_resource_costs(
         BattleUnitState active_unit,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int targetSlotCount = 1
     )
     {
-        return Runtime?._get_effective_skill_resource_costs(active_unit, skillDefinition)
+        return Runtime?._get_effective_skill_resource_costs(
+                active_unit,
+                skillDefinition,
+                targetSlotCount
+            )
             ?? CombatSkillResourceCosts.Zero;
     }
 
     internal CombatSkillResourceCosts _get_effective_skill_resource_costs(
         BattleUnitReadView active_unit,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int targetSlotCount = 1
     )
     {
         return Runtime?._skill_turn_resolver?.GetEffectiveSkillResourceCosts(
                 active_unit,
-                skillDefinition
+                skillDefinition,
+                targetSlotCount
             ) ?? CombatSkillResourceCosts.Zero;
     }
+
+    internal string _get_target_slot_cost_block_reason(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        int targetSlotCount
+    ) =>
+        Runtime?._get_target_slot_cost_block_reason(
+            activeUnit,
+            skillDefinition,
+            targetSlotCount
+        ) ?? "";
 
     internal int _get_effective_skill_range(
         BattleUnitState active_unit,
@@ -1301,12 +1321,15 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             return false;
         }
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
+        bool allowDeadTargets = BattleEffectTargetRequirementRules.AllowsDeadUnitTarget(
+            effectDefinitions
+        );
         var candidateUnits = new List<BattleUnitState>();
         foreach (StringName targetUnitId in pendingCast.TargetUnitIds)
         {
             if (
                 state.TryGetUnitTyped(targetUnitId, out BattleUnitState candidateUnit)
-                && candidateUnit.IsAlive()
+                && (candidateUnit.IsAlive() || allowDeadTargets)
             )
             {
                 candidateUnits.Add(candidateUnit);
@@ -1319,9 +1342,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 effectDefinitions,
                 candidateUnits
             );
-        IReadOnlyList<BattleUnitState> plannedTargets = CollectPlannedTargets(
+        IReadOnlyList<BattleUnitState> plannedTargets = CollectPlannedTargetsOrValidatedTargets(
             effectDefinitions,
-            targetPlan
+            targetPlan,
+            candidateUnits
         );
         bool applied = false;
         foreach (BattleUnitState targetUnit in plannedTargets)
@@ -1425,6 +1449,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 barrierClip.TerrainEffectCoords,
                 batch
             );
+        RecordBarrierOnlyGroundMastery(
+            activeUnit,
+            skillDefinition,
+            barrierClip,
+            unitResult,
+            terrainResult
+        );
         bool applied =
             barrierClip.BarrierApplied || unitResult.Applied || terrainResult.Applied;
         if (applied)
@@ -1576,6 +1607,39 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleEventBatch batch
     )
     {
+        if (BattleSequentialLineHitRules.IsSequentialLineHitSkill(skillDefinition))
+        {
+            return _handle_sequential_line_hit_skill_command(
+                active_unit,
+                command,
+                skillDefinition,
+                castVariantDefinition,
+                effectDefinitions,
+                batch
+            );
+        }
+        if (BattleLineThroughAttackRules.IsLineThroughAttackSkill(skillDefinition))
+        {
+            return _handle_line_through_attack_skill_command(
+                active_unit,
+                command,
+                skillDefinition,
+                castVariantDefinition,
+                effectDefinitions,
+                batch
+            );
+        }
+        if (BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition))
+        {
+            return _handle_ordered_unit_target_slots_skill_command(
+                active_unit,
+                command,
+                skillDefinition,
+                castVariantDefinition,
+                effectDefinitions,
+                batch
+            );
+        }
         BattleUnitSkillValidationResult validation = _validate_unit_skill_targets_result(
             active_unit,
             command,
@@ -1616,7 +1680,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         IReadOnlyList<BattleUnitState> plannedTargets =
             isRandomChain
                 ? validation.TargetUnits
-                : CollectPlannedTargets(resolvedEffectDefinitions, targetPlan);
+                : CollectPlannedTargetsOrValidatedTargets(
+                    resolvedEffectDefinitions,
+                    targetPlan,
+                    validation.TargetUnits
+                );
         if (!isRandomChain && plannedTargets.Count == 0)
         {
             return false;
@@ -1626,6 +1694,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             sourceRetreatEffect != null && plannedTargets.Count == 1
                 ? plannedTargets[0].GetAnchorCoord()
                 : new Vector2I(-1, -1);
+        BattleUnitState approachAttackTarget =
+            BattleApproachAttackRules.IsApproachAttackSkill(skillDefinition)
+            && plannedTargets.Count == 1
+                ? plannedTargets[0]
+                : null;
 
         if (!_consume_skill_costs(active_unit, skillDefinition, castVariantDefinition, batch))
         {
@@ -1653,6 +1726,32 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         if (spellControlContext.SkipEffects)
         {
             return true;
+        }
+
+        if (approachAttackTarget != null)
+        {
+            BattleValidatedMoveExecutionResult advanceResult =
+                Runtime?._movement_service.ExecuteApproachAttackAdvance(
+                    active_unit,
+                    approachAttackTarget,
+                    skillDefinition,
+                    batch
+                ) ?? new BattleValidatedMoveExecutionResult();
+            if (
+                !advanceResult.ReachedTarget
+                || !BattleApproachAttackRules.IsAttackReadyAfterAdvance(
+                    Runtime?.GetGridService(),
+                    active_unit,
+                    approachAttackTarget,
+                    skillDefinition
+                )
+            )
+            {
+                batch?.AddLogLine(
+                    "踏步推进后目标、武器或攻击距离已失效，后续攻击取消；已支付费用与冷却不返还。"
+                );
+                return true;
+            }
         }
 
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
@@ -1712,7 +1811,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     castVariantDefinition,
                     targetEffects,
                     batch,
-                    spellControlContext
+                    spellControlContext,
+                    forced_move_context: BattleForcedMoveContext.FromDestination(
+                        command.forced_move_destination_coord
+                    )
                 )
             )
             {
@@ -1867,6 +1969,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 barrierClip.TerrainEffectCoords,
                 batch
             );
+        RecordBarrierOnlyGroundMastery(
+            active_unit,
+            skillDefinition,
+            barrierClip,
+            unitResult,
+            terrainResult
+        );
         bool applied =
             barrierClip.BarrierApplied || unitResult.Applied || terrainResult.Applied;
 
@@ -2064,7 +2173,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         bool force_hit_allow_crit = false,
         int flat_attack_bonus = 0,
         Action<AttackEffectResolutionResult> resolution_sink = null,
-        bool force_weapon_attack_resolution = false
+        bool force_weapon_attack_resolution = false,
+        bool record_skill_mastery = true,
+        BattleForcedMoveContext forced_move_context = default
     )
     {
         effectDefinitions ??= Array.Empty<CombatEffectDefinition>();
@@ -2143,21 +2254,24 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             castVariantDefinition,
             effectDefinitions,
             batch,
-            BattleForcedMoveContext.Empty,
+            forced_move_context,
             damageResult.AttackSuccess
         );
         MarkAppliedStatusesForTurnTiming(
             target_unit,
             specialResult.StatusEffectIds
         );
-        skillMasteryService?.RecordTargetResult(
-            active_unit,
-            target_unit,
-            skillDefinition,
-            damageResult,
-            effectDefinitions,
-            additionalEffectApplied: shieldResult.Applied || specialResult.Applied
-        );
+        if (record_skill_mastery)
+        {
+            skillMasteryService?.RecordTargetResult(
+                active_unit,
+                target_unit,
+                skillDefinition,
+                damageResult,
+                effectDefinitions,
+                additionalEffectApplied: shieldResult.Applied || specialResult.Applied
+            );
+        }
         var appliedStatusIds = new List<StringName>();
         if (damageResult.StatusEffectIds != null)
         {
@@ -2215,7 +2329,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             damageResult,
             batch
         );
-        if (movedSteps > 0)
+        if (
+            movedSteps > 0
+            && BattleAirbornePullRules.FindEffect(effectDefinitions) == null
+        )
         {
             batch?.AddLogLine(
                 $"{active_unit.display_name} 使用 {skillLabel}，向更安全位置移动 {movedSteps} 格。"

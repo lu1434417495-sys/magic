@@ -1520,8 +1520,10 @@ public sealed class ProgressionService
         if (_unit_progress == null || skillDefinition?.CombatProfile == null)
             return;
 
-        CombatSkillResourceCosts costs = skillDefinition.CombatProfile.GetEffectiveResourceCostValues(
-            skillLevel
+        CombatSkillResourceCosts costs = BattleTargetSlotCostRules.Resolve(
+            skillDefinition.CombatProfile,
+            skillLevel,
+            1
         );
         if (costs.MpCost > 0)
             _unit_progress.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));

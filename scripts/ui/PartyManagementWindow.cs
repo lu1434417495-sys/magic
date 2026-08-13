@@ -903,6 +903,8 @@ public partial class PartyManagementWindow : ModalWindowShell
                     "ap_cost",
                     "mp_cost",
                     "stamina_cost",
+                    "mp_cost_per_target_slot",
+                    "stamina_cost_per_target_slot",
                     "aura_cost",
                     "cooldown_tu",
                 }
@@ -915,6 +917,8 @@ public partial class PartyManagementWindow : ModalWindowShell
                     "ap_cost" => "AP",
                     "mp_cost" => "MP",
                     "stamina_cost" => "体力",
+                    "mp_cost_per_target_slot" => "单槽MP",
+                    "stamina_cost_per_target_slot" => "单槽体力",
                     "aura_cost" => "斗气",
                     "cooldown_tu" => "冷却",
                     _ => "",

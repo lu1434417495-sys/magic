@@ -80,6 +80,7 @@ internal sealed class BattleAiDecisionResult
             windup_tier = source.windup_tier,
             target_unit_id = source.target_unit_id,
             source_retreat_direction = source.source_retreat_direction,
+            forced_move_destination_coord = source.forced_move_destination_coord,
             target_coord = source.target_coord,
             equipment_operation = source.equipment_operation,
             equipment_slot_id = source.equipment_slot_id,
@@ -207,12 +208,22 @@ internal sealed class BattleAiDecisionResult
             estimated_post_save_damage = source.estimated_post_save_damage,
             estimated_shield_absorbed = source.estimated_shield_absorbed,
             estimated_healing = source.estimated_healing,
+            estimated_shield_gain_basis_points =
+                source.estimated_shield_gain_basis_points,
+            estimated_equipment_durability_loss_basis_points =
+                source.estimated_equipment_durability_loss_basis_points,
+            estimated_equipment_destruction_probability_basis_points =
+                source.estimated_equipment_destruction_probability_basis_points,
             estimated_enemy_damage = source.estimated_enemy_damage,
             estimated_ally_damage = source.estimated_ally_damage,
             estimated_enemy_healing = source.estimated_enemy_healing,
             estimated_ally_healing = source.estimated_ally_healing,
+            estimated_ally_shield_gain_basis_points =
+                source.estimated_ally_shield_gain_basis_points,
             estimated_status_count = source.estimated_status_count,
             estimated_control_count = source.estimated_control_count,
+            estimated_control_probability_basis_points =
+                source.estimated_control_probability_basis_points,
             estimated_taunt_ally_damage_relief =
                 source.estimated_taunt_ally_damage_relief,
             estimated_terrain_effect_count = source.estimated_terrain_effect_count,
@@ -274,6 +285,17 @@ internal sealed class BattleAiDecisionResult
                 source.attack_roll_modifier_breakdown
             ),
             hit_payoff_score = source.hit_payoff_score,
+            forced_move_distance = source.forced_move_distance,
+            forced_move_engagement_delta = source.forced_move_engagement_delta,
+            forced_move_landing_terrain_effect_delta =
+                source.forced_move_landing_terrain_effect_delta,
+            forced_move_height_delta = source.forced_move_height_delta,
+            forced_move_caster_exposure_penalty =
+                source.forced_move_caster_exposure_penalty,
+            forced_move_position_score = source.forced_move_position_score,
+            position_swap_utility_score = source.position_swap_utility_score,
+            position_swap_success_probability_basis_points =
+                source.position_swap_success_probability_basis_points,
             target_priority_score = source.target_priority_score,
             friendly_fire_penalty_score = source.friendly_fire_penalty_score,
             path_step_hit_count = source.path_step_hit_count,
@@ -523,7 +545,12 @@ internal sealed class BattleAiDecisionResult
             source.Immune,
             source.Sources != null
                 ? new List<BattleSaveSource>(source.Sources)
-                : Array.Empty<BattleSaveSource>()
+                : Array.Empty<BattleSaveSource>(),
+            source.SaveFailureStatusOutcomes != null
+                ? new List<BattleWeightedStatusOutcomePreviewData>(
+                    source.SaveFailureStatusOutcomes
+                )
+                : Array.Empty<BattleWeightedStatusOutcomePreviewData>()
         );
     }
 

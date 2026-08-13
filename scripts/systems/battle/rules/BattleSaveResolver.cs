@@ -296,7 +296,8 @@ public static class BattleSaveResolver
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         CombatEffectDefinition effect_definition,
-        BattleSaveContext context = default
+        BattleSaveContext context = default,
+        int additionalSaveBonus = 0
     )
     {
         int resolvedDc = ResolveSaveDc(source_unit, effect_definition, context);
@@ -331,7 +332,8 @@ public static class BattleSaveResolver
         StringName advantageState = ResolveAdvantageState(tagState);
         int saveBonus =
             GetStatusSaveBonus(target_unit, saveTag)
-            + GetUnitAbilitySaveBonus(target_unit, saveAbility);
+            + GetUnitAbilitySaveBonus(target_unit, saveAbility)
+            + additionalSaveBonus;
         int successBasisPoints = EstimateSuccessProbabilityBasisPoints(
             advantageState,
             resolvedDc,

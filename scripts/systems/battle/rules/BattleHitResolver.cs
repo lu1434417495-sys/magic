@@ -125,6 +125,9 @@ public class BattleHitResolver : IDisposable
         );
         var stageChecks = new List<AttackCheckInput>();
         var stages = new List<AttackPreviewStage>();
+        int stageReachProbabilityBasisPoints = 10000;
+        int expectedDamageBasisPoints = 0;
+        int potentialDamageBasisPoints = 0;
         for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
         {
             AttackCheckInput attackCheck = BuildFateAwareRepeatAttackStageHitCheck(
@@ -136,6 +139,14 @@ public class BattleHitResolver : IDisposable
                 stageIndex
             );
             int stageSuccessRate = attackCheck.SuccessRatePercent;
+            BattleRepeatAttackStageSpec stageSpec =
+                BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
+                    repeat_attack_effect,
+                    stageIndex,
+                    normalizedStageCount,
+                    active_unit.GetKnownSkillLevelTyped(skill_definition.SkillId),
+                    true
+                );
             stageChecks.Add(attackCheck);
             stages.Add(
                 new AttackPreviewStage(
@@ -144,9 +155,38 @@ public class BattleHitResolver : IDisposable
                     baseHitRatePercent: attackCheck.BaseHitRatePercent,
                     requiredRoll: attackCheck.RequiredRoll,
                     displayRequiredRoll: attackCheck.DisplayRequiredRoll,
-                    previewText: attackCheck.PreviewText
+                    previewText: attackCheck.PreviewText,
+                    reachProbabilityBasisPoints: stageReachProbabilityBasisPoints,
+                    damageMultiplierPercent: stageSpec.stage_damage_multiplier_percent
                 )
             );
+            expectedDamageBasisPoints = (int)Math.Clamp(
+                (long)expectedDamageBasisPoints
+                    + (long)stageReachProbabilityBasisPoints
+                        * Mathf.Clamp(stageSuccessRate, 0, 100)
+                        * stageSpec.stage_damage_multiplier_percent
+                        / 10000L,
+                0L,
+                int.MaxValue
+            );
+            potentialDamageBasisPoints = (int)Math.Clamp(
+                (long)potentialDamageBasisPoints
+                    + (long)stageSpec.stage_damage_multiplier_percent * 100L,
+                0L,
+                int.MaxValue
+            );
+            if (stageSpec.stop_on_miss)
+            {
+                stageReachProbabilityBasisPoints = Mathf.Clamp(
+                    (int)Math.Round(
+                        (double)stageReachProbabilityBasisPoints
+                            * stageSuccessRate
+                            / 100.0
+                    ),
+                    0,
+                    10000
+                );
+            }
         }
         int avgSuccessRate = 0;
         int avgBaseHitRate = 0;
@@ -172,6 +212,8 @@ public class BattleHitResolver : IDisposable
             BaseAttackBonus = repeat_attack_effect?.GetIntParamTyped("base_attack_bonus", 0) ?? 0,
             FollowUpAttackPenalty =
                 repeat_attack_effect?.GetIntParamTyped("follow_up_attack_penalty", 0) ?? 0,
+            RepeatAttackExpectedDamageBasisPoints = expectedDamageBasisPoints,
+            RepeatAttackPotentialDamageBasisPoints = potentialDamageBasisPoints,
             FatePreview = stageChecks.Count > 0
                 ? BattleFatePreviewData.FromAttackCheck(stageChecks[0])
                 : null,

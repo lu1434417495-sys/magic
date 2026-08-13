@@ -17,6 +17,8 @@ public readonly record struct AttackPreviewStage
 	public readonly int RequiredRoll;
 	public readonly int DisplayRequiredRoll;
 	public readonly string PreviewText;
+	public readonly int ReachProbabilityBasisPoints;
+	public readonly int DamageMultiplierPercent;
 
 	public AttackPreviewStage(
 		int hitRatePercent,
@@ -24,7 +26,9 @@ public readonly record struct AttackPreviewStage
 		int baseHitRatePercent,
 		int requiredRoll,
 		int displayRequiredRoll,
-		string previewText
+		string previewText,
+		int reachProbabilityBasisPoints = 10000,
+		int damageMultiplierPercent = 100
 	)
 	{
 		HitRatePercent = hitRatePercent;
@@ -33,6 +37,8 @@ public readonly record struct AttackPreviewStage
 		RequiredRoll = requiredRoll;
 		DisplayRequiredRoll = displayRequiredRoll;
 		PreviewText = previewText;
+		ReachProbabilityBasisPoints = Mathf.Clamp(reachProbabilityBasisPoints, 0, 10000);
+		DamageMultiplierPercent = Mathf.Max(damageMultiplierPercent, 1);
 	}
 }
 
@@ -61,6 +67,8 @@ public class AttackPreviewData
 	// 仅多段攻击有效
 	public int BaseAttackBonus { get; set; }
 	public int FollowUpAttackPenalty { get; set; }
+	public int RepeatAttackExpectedDamageBasisPoints { get; set; }
+	public int RepeatAttackPotentialDamageBasisPoints { get; set; }
 
 	internal IReadOnlyList<BattleAttackRollModifierSpec> AttackRollModifierBreakdownTyped =>
 		_attackRollModifierBreakdown;
@@ -93,6 +101,10 @@ public class AttackPreviewData
 			["stage_base_hit_rates"] = StageBaseHitRates,
 			["stage_required_rolls"] = StageRequiredRolls,
 			["stage_preview_texts"] = StagePreviewTexts,
+			["stage_reach_probability_basis_points"] = StageReachProbabilityBasisPoints,
+			["stage_damage_multiplier_percent"] = StageDamageMultiplierPercents,
+			["repeat_attack_expected_damage_basis_points"] = RepeatAttackExpectedDamageBasisPoints,
+			["repeat_attack_potential_damage_basis_points"] = RepeatAttackPotentialDamageBasisPoints,
 			["attack_roll_modifier_breakdown"] = AttackRollModifierBreakdown,
 		};
 	}
@@ -205,6 +217,28 @@ public class AttackPreviewData
 			var result = new GStringArray();
 			foreach (var stage in Stages)
 				result.Add(stage.PreviewText);
+			return result;
+		}
+	}
+
+	public GIntArray StageReachProbabilityBasisPoints
+	{
+		get
+		{
+			var result = new GIntArray();
+			foreach (var stage in Stages)
+				result.Add(stage.ReachProbabilityBasisPoints);
+			return result;
+		}
+	}
+
+	public GIntArray StageDamageMultiplierPercents
+	{
+		get
+		{
+			var result = new GIntArray();
+			foreach (var stage in Stages)
+				result.Add(stage.DamageMultiplierPercent);
 			return result;
 		}
 	}

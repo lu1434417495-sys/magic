@@ -30,6 +30,159 @@ internal readonly record struct EquipmentDurabilityDamageEffectResult(
 
 internal sealed class BattleEquipmentDurabilityResolver
 {
+    internal BattleEquipmentDurabilityPreviewData BuildPreview(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        StringName skillId = default,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
+    )
+    {
+        if (
+            targetUnit == null
+            || effectDefinition?.EffectKind != BattleEffectKind.EquipmentDurabilityDamage
+        )
+        {
+            return null;
+        }
+        BattleDamageResolver.EquipmentDurabilitySelectionQuery query =
+            BuildEquipmentDurabilitySelectionQueryFromEffect(
+                targetUnit,
+                effectDefinition,
+                DamageResolutionContext.Empty(),
+                consumeRandom: false
+            );
+        BattleDamageResolver.EquipmentDurabilitySelectionResult selection =
+            SelectEquipmentForDurabilityDamage(query);
+        if (selection.Candidates.Count == 0 || selection.TotalWeight <= 0)
+        {
+            return new BattleEquipmentDurabilityPreviewData
+            {
+                HasEffect = true,
+                HasMatchingEquipment = false,
+                TargetUnitId = targetUnit.unit_id,
+            };
+        }
+
+        BattleDamageResolver.EquipmentDurabilitySelectionCandidate primary = default;
+        bool hasPrimary = false;
+        long expectedLossWeighted = 0;
+        long destructionProbabilityWeighted = 0;
+        foreach (BattleDamageResolver.EquipmentDurabilitySelectionCandidate candidate in selection.Candidates)
+        {
+            EquipmentAbilityEquipmentTargetRef targetRef = candidate.Target;
+            EquipmentInstanceState instance = targetUnit
+                .GetEquipmentView()
+                ?.GetEntry(targetRef?.EntrySlotId ?? "")
+                ?.GetEquipmentInstance();
+            if (targetRef == null || instance == null || instance.current_durability <= 0)
+                continue;
+            int rarityBonus = EquipmentDurabilityRules.GetDisjunctionSaveBonusForRarity(
+                instance.rarity
+            );
+            BattleSaveProbabilityResult probability =
+                BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                    sourceUnit,
+                    targetUnit,
+                    effectDefinition,
+                    BattleSaveContext.ForSkill(skillId),
+                    rarityBonus
+                );
+            int failureBasisPoints = Math.Clamp(
+                probability.FailureProbabilityBasisPoints,
+                0,
+                10000
+            );
+            int loss = Math.Min(Math.Max(effectDefinition.Power, 0), instance.current_durability);
+            expectedLossWeighted += (long)loss * failureBasisPoints * candidate.Weight;
+            if (loss >= instance.current_durability)
+                destructionProbabilityWeighted += (long)failureBasisPoints * candidate.Weight;
+            if (
+                !hasPrimary
+                || candidate.Weight > primary.Weight
+                || (
+                    candidate.Weight == primary.Weight
+                    && string.CompareOrdinal(
+                        targetRef.EntrySlotId.ToString(),
+                        primary.Target.EntrySlotId.ToString()
+                    ) < 0
+                )
+            )
+            {
+                primary = candidate;
+                hasPrimary = true;
+            }
+        }
+        if (!hasPrimary)
+        {
+            return new BattleEquipmentDurabilityPreviewData
+            {
+                HasEffect = true,
+                HasMatchingEquipment = false,
+                TargetUnitId = targetUnit.unit_id,
+            };
+        }
+
+        EquipmentAbilityEquipmentTargetRef primaryRef = primary.Target;
+        EquipmentInstanceState primaryInstance = targetUnit
+            .GetEquipmentView()
+            .GetEntry(primaryRef.EntrySlotId)
+            .GetEquipmentInstance();
+        int primaryRarityBonus = EquipmentDurabilityRules.GetDisjunctionSaveBonusForRarity(
+            primaryInstance.rarity
+        );
+        BattleSaveProbabilityResult primaryProbability =
+            BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                sourceUnit,
+                targetUnit,
+                effectDefinition,
+                BattleSaveContext.ForSkill(skillId),
+                primaryRarityBonus
+            );
+        int primaryLoss = Math.Min(
+            Math.Max(effectDefinition.Power, 0),
+            Math.Max(primaryInstance.current_durability, 0)
+        );
+        string itemDisplayName = itemDefinitions != null
+            && itemDefinitions.TryGetValue(primaryRef.ItemId, out ItemDefinition itemDefinition)
+            && itemDefinition != null
+                ? itemDefinition.DisplayName
+                : "";
+        return new BattleEquipmentDurabilityPreviewData
+        {
+            HasEffect = true,
+            HasMatchingEquipment = true,
+            TargetUnitId = targetUnit.unit_id,
+            EntrySlotId = primaryRef.EntrySlotId,
+            SlotId = primaryRef.SlotId,
+            ItemId = primaryRef.ItemId,
+            ItemDisplayName = itemDisplayName,
+            Rarity = primaryInstance.rarity,
+            CurrentDurability = primaryInstance.current_durability,
+            MaximumDurability = EquipmentDurabilityRules.GetMaxDurabilityForRarity(
+                primaryInstance.rarity
+            ),
+            DurabilityLossOnFailedSave = primaryLoss,
+            DurabilityAfterFailedSave = Math.Max(primaryInstance.current_durability - primaryLoss, 0),
+            SaveDc = primaryProbability.Dc,
+            SaveAbility = primaryProbability.Ability,
+            EquipmentRaritySaveBonus = primaryRarityBonus,
+            SaveSuccessProbabilityBasisPoints = primaryProbability.SuccessProbabilityBasisPoints,
+            SaveFailureProbabilityBasisPoints = primaryProbability.FailureProbabilityBasisPoints,
+            ExpectedDurabilityLossBasisPoints = (int)Math.Clamp(
+                expectedLossWeighted / selection.TotalWeight,
+                0,
+                int.MaxValue
+            ),
+            DestructionProbabilityBasisPoints = (int)Math.Clamp(
+                destructionProbabilityWeighted / selection.TotalWeight,
+                0,
+                10000
+            ),
+            CandidateCount = selection.Candidates.Count,
+        };
+    }
+
     internal EquipmentDurabilityDamageEffectResult ApplyEquipmentDurabilityDamageEffect(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
@@ -384,14 +537,18 @@ internal sealed class BattleEquipmentDurabilityResolver
     private static BattleDamageResolver.EquipmentDurabilitySelectionQuery BuildEquipmentDurabilitySelectionQueryFromEffect(
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition,
-        DamageResolutionContext damageContext
+        DamageResolutionContext damageContext,
+        bool consumeRandom = true
     )
     {
-        StringName overrideSlot =
-            damageContext?.EquipmentSlotOverride ?? new StringName("");
+        StringName overrideSlot = ProgressionDataUtils.to_string_name(
+            damageContext?.EquipmentSlotOverride ?? new StringName("")
+        );
         if (overrideSlot == "" && effectDefinition != null)
         {
-            overrideSlot = effectDefinition.GetStringNameParamTyped("equipment_slot_override");
+            overrideSlot = ProgressionDataUtils.to_string_name(
+                effectDefinition.GetStringNameParamTyped("equipment_slot_override")
+            );
         }
         return new BattleDamageResolver.EquipmentDurabilitySelectionQuery
         {
@@ -399,7 +556,7 @@ internal sealed class BattleEquipmentDurabilityResolver
             TargetSlots = GetEquipmentDurabilityTargetSlots(effectDefinition),
             SlotWeights = GetEquipmentDurabilitySlotWeights(effectDefinition),
             ExplicitSlotOverride = overrideSlot,
-            ConsumeRandom = true,
+            ConsumeRandom = consumeRandom,
         };
     }
 

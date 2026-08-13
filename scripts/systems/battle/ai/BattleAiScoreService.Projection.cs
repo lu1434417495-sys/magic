@@ -545,6 +545,104 @@ public partial class BattleAiScoreService
         return bestDamage;
     }
 
+    private void PopulatePositionSwapMetrics(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        BattlePositionSwapPreviewData preview = scoreInput?.preview?.PositionSwapPreviewTyped;
+        CombatEffectDefinition effect = BattlePositionSwapRules.FindEffect(effectDefinitions);
+        BattleState state = ContextState(context);
+        BattleUnitState actor = ContextUnitState(context);
+        BattleGridService gridService = ContextGridService(context);
+        if (
+            preview == null
+            || effect == null
+            || state == null
+            || actor == null
+            || gridService == null
+            || !state.TryGetUnitTyped(preview.TargetUnitId, out BattleUnitState targetUnit)
+            || targetUnit == null
+        )
+            return;
+
+        bool allyTarget = actor.faction_id == targetUnit.faction_id;
+        int currentIncoming = EstimateIncomingThreatAtCoord(
+            context,
+            targetUnit,
+            preview.TargetFrom
+        );
+        int swappedIncoming = EstimateIncomingThreatAtCoord(
+            context,
+            targetUnit,
+            preview.TargetTo
+        );
+        int threatDelta = allyTarget
+            ? currentIncoming - swappedIncoming
+            : swappedIncoming - currentIncoming;
+        int threatWeight = Math.Max(
+            Math.Max(_scoreProfile?.IncomingThreatReliefWeight ?? 0, _scoreProfile?.ControlWeight ?? 0),
+            1
+        );
+        int utility = threatDelta * threatWeight;
+        if (
+            allyTarget
+            && utility > 0
+            && targetUnit.attribute_snapshot != null
+        )
+        {
+            int hpMax = Math.Max(targetUnit.attribute_snapshot.GetValue("hp_max"), 1);
+            int thresholdBp = Math.Clamp(_scoreProfile?.LowHpUrgencyThresholdBp ?? 0, 0, 10000);
+            if (targetUnit.GetCurrentHp() * 10000 <= hpMax * thresholdBp)
+                utility += Math.Max(_scoreProfile?.LowHpUrgencyWeight ?? 0, 0);
+        }
+
+        int probabilityBasisPoints = Math.Clamp(
+            preview.SwapProbabilityBasisPoints,
+            0,
+            10000
+        );
+        scoreInput.position_swap_success_probability_basis_points = probabilityBasisPoints;
+        scoreInput.position_swap_utility_score = RoundToInt(
+            (double)utility * probabilityBasisPoints / 10000.0
+        );
+        scoreInput.effective_target_count = Math.Max(scoreInput.effective_target_count, 1);
+        if (allyTarget)
+            scoreInput.ally_target_count = Math.Max(scoreInput.ally_target_count, 1);
+        else
+            scoreInput.enemy_target_count = Math.Max(scoreInput.enemy_target_count, 1);
+    }
+
+    private int EstimateIncomingThreatAtCoord(
+        IBattleAiScoreContext context,
+        BattleUnitState targetUnit,
+        Vector2I targetCoord
+    )
+    {
+        BattleState state = ContextState(context);
+        BattleGridService gridService = ContextGridService(context);
+        if (state == null || gridService == null || targetUnit == null)
+            return 0;
+        int total = 0;
+        foreach (BattleUnitState threatUnit in state.GetUnitsTyped())
+        {
+            if (
+                threatUnit == null
+                || !threatUnit.IsAlive()
+                || threatUnit.faction_id == targetUnit.faction_id
+            )
+                continue;
+            ThreatProfile profile = GetUnitThreatProfile(context, threatUnit);
+            int distance = gridService.GetDistanceFromUnitToCoord(threatUnit, targetCoord);
+            if (distance < 0 || distance > profile.Range)
+                continue;
+            total += Math.Max(EstimateThreatProfileDamageAtDistance(profile, distance), 1);
+        }
+        return total;
+    }
+
     private static int EstimateWeaponAverageDamage(BattleUnitState threatUnit)
     {
         if (threatUnit == null)

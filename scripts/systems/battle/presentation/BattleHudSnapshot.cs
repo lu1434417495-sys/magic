@@ -199,7 +199,8 @@ internal sealed record BattleHudStatusEffectSnapshot(
     int Stacks,
     int RemainingTu,
     bool IsDebuff,
-    string TooltipText
+    string TooltipText,
+    int SourceContributionCount = 0
 ) : IBattlePresentationSnapshotValue
 {
     public IReadOnlyDictionary<string, object> CanonicalFacts =>
@@ -209,7 +210,8 @@ internal sealed record BattleHudStatusEffectSnapshot(
             ("stacks", Stacks),
             ("remaining_tu", RemainingTu),
             ("is_debuff", IsDebuff),
-            ("tooltip_text", TooltipText ?? "")
+            ("tooltip_text", TooltipText ?? ""),
+            ("source_contribution_count", SourceContributionCount)
         );
 }
 

@@ -144,7 +144,7 @@ public static class BattleRangeService
         return UnitHasMeleeWeapon(unitInfo)
             || (
                 UnitUsesAllowedNaturalWeapon(unitInfo, skillDefinition)
-                && unitInfo.WeaponAttackRange <= 2
+                && unitInfo.WeaponRangeType == WeaponRangeTypeMelee
             );
     }
 
@@ -594,28 +594,53 @@ public static class BattleRangeService
         }
         if (RequiresCurrentMeleeWeapon(skillDefinition))
         {
-            return unitInfo.WeaponAttackRange;
+            return UsesCurrentWeaponWithConfiguredBonus(skillDefinition)
+                ? AddRanges(unitInfo.WeaponAttackRange, configuredRange)
+                : unitInfo.WeaponAttackRange;
         }
         if (IsWeaponRangeSkill(skillDefinition))
         {
             int weaponRange = unitInfo.WeaponAttackRange;
             if (weaponRange > 0)
             {
-                return weaponRange;
+                return UsesCurrentWeaponWithConfiguredBonus(skillDefinition)
+                    ? AddRanges(weaponRange, configuredRange)
+                    : weaponRange;
+            }
+            if (UsesCurrentWeaponWithConfiguredBonus(skillDefinition))
+            {
+                return 0;
             }
             if (SkillHasTag(skillDefinition, "melee"))
             {
                 return 1;
             }
         }
+        if (UsesCurrentWeaponWithConfiguredBonus(skillDefinition))
+        {
+            return 0;
+        }
         return configuredRange;
     }
 
     private static bool UsesConfiguredWeaponRange(SkillDefinition skillDefinition)
     {
-        return ProgressionDataUtils.to_string_name(
-            skillDefinition?.CombatProfile?.WeaponRangePolicy ?? new StringName("")
-        ) == "configured";
+        return skillDefinition?.CombatProfile?.WeaponRangePolicyKind
+            == CombatWeaponRangePolicy.Configured;
+    }
+
+    private static bool UsesCurrentWeaponWithConfiguredBonus(
+        SkillDefinition skillDefinition
+    )
+    {
+        return skillDefinition?.CombatProfile?.WeaponRangePolicyKind
+            == CombatWeaponRangePolicy.CurrentWeaponPlusConfigured;
+    }
+
+    private static int AddRanges(int baseRange, int bonusRange)
+    {
+        long total = (long)Math.Max(baseRange, 0) + Math.Max(bonusRange, 0);
+        return total >= int.MaxValue ? int.MaxValue : (int)total;
     }
 
     public static bool IsGroundJumpSkill(SkillDefinition skillDefinition)

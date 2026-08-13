@@ -27,7 +27,8 @@ public partial class BattleDamageResolver
         int AbilityModifier,
         int Bonus,
         bool Immune,
-        IReadOnlyList<BattleSaveSource> Sources
+        IReadOnlyList<BattleSaveSource> Sources,
+        IReadOnlyList<BattleWeightedStatusOutcomePreviewData> SaveFailureStatusOutcomes
     )
     {
         public static DamagePreviewSaveEstimate None(int damageBeforeSave)
@@ -52,7 +53,8 @@ public partial class BattleDamageResolver
                 0,
                 0,
                 false,
-                Array.Empty<BattleSaveSource>()
+                Array.Empty<BattleSaveSource>(),
+                Array.Empty<BattleWeightedStatusOutcomePreviewData>()
             );
         }
 
@@ -78,7 +80,8 @@ public partial class BattleDamageResolver
                 AbilityModifier,
                 Bonus,
                 Immune,
-                Sources
+                Sources,
+                SaveFailureStatusOutcomes
             );
         }
     }
@@ -1425,7 +1428,11 @@ public partial class BattleDamageResolver
             probability.AbilityModifier,
             probability.Bonus,
             probability.Immune,
-            probability.Sources ?? Array.Empty<BattleSaveSource>()
+            probability.Sources ?? Array.Empty<BattleSaveSource>(),
+            BattleWeightedStatusOutcomeRules.BuildPreview(
+                effectDefinition?.SaveFailureStatusOutcomes,
+                failureBasisPoints
+            )
         );
     }
 

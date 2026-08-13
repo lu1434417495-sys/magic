@@ -9,6 +9,7 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
     {
         TestTypedRollContextCachesShieldHp();
         TestTypedApplyPathUsesSharedContext();
+        TestPerTargetRollAndWillpowerModifier();
         TestShieldReplacementPolicyPreservesAtomicOwnerState();
         RequestTestExit(_test.Finish("Battle shield service typed context regression"));
     }
@@ -230,6 +231,64 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
                 "new_family"
             ),
             "异 family 替换应一次性写入完整新 owner 状态。"
+        );
+    }
+
+    private void TestPerTargetRollAndWillpowerModifier()
+    {
+        var service = new BattleShieldService();
+        BattleUnitState source = BuildUnit("per_target_source");
+        source.attribute_snapshot.SetValue(
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower),
+            16
+        );
+        BattleUnitState firstTarget = BuildUnit("per_target_first");
+        BattleUnitState secondTarget = BuildUnit("per_target_second");
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill("typed_holy_barrier");
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "shield",
+            diceCount: 1,
+            diceSides: 8,
+            diceBonus: 3,
+            durationTu: 40,
+            shieldFamily: "holy_barrier",
+            shieldAttributeModifierId: "willpower_modifier",
+            shieldRollPerTarget: true
+        );
+        var rollContext = new Dictionary<long, int>();
+
+        BattleShieldApplyResult firstResult = service.ApplyShieldEffectToTargetResult(
+            source,
+            firstTarget,
+            skill,
+            effect,
+            rollContext
+        );
+        BattleShieldApplyResult secondResult = service.ApplyShieldEffectToTargetResult(
+            source,
+            secondTarget,
+            skill,
+            effect,
+            rollContext
+        );
+
+        _test.True(firstResult.Applied && secondResult.Applied, "逐目标护盾应分别应用到两个目标。");
+        _test.Eq(firstResult.CurrentShieldHp, 7, "无 runtime RNG 时应结算 1+3+意志调整值3。");
+        _test.Eq(secondResult.CurrentShieldHp, 7, "第二目标也应使用施法者意志调整值。");
+        _test.Eq(rollContext.Count, 2, "逐目标投骰必须为两个不同单位写入两个 cache 项。");
+        _test.True(
+            rollContext.ContainsKey(service._get_shield_roll_cache_key(effect, firstTarget.unit_id)),
+            "第一个目标应有独立投骰 cache key。"
+        );
+        _test.True(
+            rollContext.ContainsKey(service._get_shield_roll_cache_key(effect, secondTarget.unit_id)),
+            "第二个目标应有独立投骰 cache key。"
+        );
+        _test.Eq(effect.ShieldFamily, new StringName("holy_barrier"), "typed family 应进入 immutable definition。");
+        _test.Eq(
+            effect.ShieldAttributeModifierId,
+            new StringName("willpower_modifier"),
+            "typed 属性调整值 id 应进入 immutable definition。"
         );
     }
 

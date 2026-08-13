@@ -21,8 +21,14 @@ public partial class BattleAiScoreService
         public int KillProbabilityBasisPoints;
         public bool SoulFractureApplied;
         public int Healing;
+        public int ShieldGainBasisPoints;
+        public int EquipmentDurabilityLossBasisPoints;
+        public int EquipmentDestructionProbabilityBasisPoints;
+        public int HarmfulStatusCount;
+        public int BeneficialStatusCount;
         public int HarmfulControlCount;
         public int BeneficialControlCount;
+        public int HarmfulControlProbabilityBasisPoints;
         public int TerrainEffectCount;
         public int HeightDelta;
         public List<DamageSaveEstimate> SaveEstimates = new();
@@ -43,8 +49,16 @@ public partial class BattleAiScoreService
                 KillProbabilityBasisPoints = KillProbabilityBasisPoints,
                 SoulFractureApplied = SoulFractureApplied,
                 Healing = Healing,
+                ShieldGainBasisPoints = ShieldGainBasisPoints,
+                EquipmentDurabilityLossBasisPoints = EquipmentDurabilityLossBasisPoints,
+                EquipmentDestructionProbabilityBasisPoints =
+                    EquipmentDestructionProbabilityBasisPoints,
+                HarmfulStatusCount = HarmfulStatusCount,
+                BeneficialStatusCount = BeneficialStatusCount,
                 HarmfulControlCount = HarmfulControlCount,
                 BeneficialControlCount = BeneficialControlCount,
+                HarmfulControlProbabilityBasisPoints =
+                    HarmfulControlProbabilityBasisPoints,
                 TerrainEffectCount = TerrainEffectCount,
                 HeightDelta = HeightDelta,
                 SaveEstimates = CloneSaveEstimates(SaveEstimates),
@@ -533,10 +547,13 @@ public partial class BattleAiScoreService
         int estimatedDamage,
         int estimatedHealing,
         int harmfulControlCount,
+        int harmfulControlProbabilityBasisPoints,
         int beneficialControlCount,
         int estimatedTerrainEffectCount,
         int estimatedHeightDelta,
         int estimatedShieldAbsorbed,
+        int estimatedEquipmentDurabilityLossBasisPoints,
+        int estimatedEquipmentDestructionProbabilityBasisPoints,
         int lethalProbabilityBasisPoints,
         bool isExecute = false,
         int executeKillProbabilityBasisPoints = 0
@@ -545,7 +562,9 @@ public partial class BattleAiScoreService
         bool hasBeneficialEnemyEffect =
             estimatedDamage > 0
             || harmfulControlCount > 0
+            || harmfulControlProbabilityBasisPoints > 0
             || estimatedShieldAbsorbed > 0
+            || estimatedEquipmentDurabilityLossBasisPoints > 0
             || estimatedTerrainEffectCount > 0
             || estimatedHeightDelta > 0;
         if (hasBeneficialEnemyEffect)
@@ -555,8 +574,28 @@ public partial class BattleAiScoreService
         scoreInput.hit_payoff_score += estimatedDamage * _scoreProfile.DamageWeight;
         scoreInput.hit_payoff_score -= estimatedHealing * _scoreProfile.HealWeight;
         scoreInput.hit_payoff_score += harmfulControlCount * _scoreProfile.StatusWeight;
+        scoreInput.hit_payoff_score += (int)Math.Clamp(
+            (long)harmfulControlProbabilityBasisPoints * _scoreProfile.StatusWeight
+                / 10000L,
+            int.MinValue,
+            int.MaxValue
+        );
         scoreInput.hit_payoff_score +=
             estimatedShieldAbsorbed * Math.Max(_scoreProfile.ShieldAbsorbedWeight, 0);
+        scoreInput.hit_payoff_score += (int)Math.Clamp(
+            (long)estimatedEquipmentDurabilityLossBasisPoints
+                * Math.Max(_scoreProfile.DamageWeight, 1)
+                / 40000L,
+            0L,
+            int.MaxValue
+        );
+        scoreInput.hit_payoff_score += (int)Math.Clamp(
+            (long)estimatedEquipmentDestructionProbabilityBasisPoints
+                * Math.Max(_scoreProfile.StatusWeight, 1)
+                / 10000L,
+            0L,
+            int.MaxValue
+        );
         scoreInput.hit_payoff_score -= beneficialControlCount * _scoreProfile.StatusWeight;
         scoreInput.hit_payoff_score += estimatedTerrainEffectCount * _scoreProfile.TerrainWeight;
         scoreInput.hit_payoff_score += estimatedHeightDelta * _scoreProfile.HeightWeight;
@@ -564,7 +603,7 @@ public partial class BattleAiScoreService
             context,
             targetUnit,
             estimatedDamage,
-            harmfulControlCount,
+            harmfulControlCount + (harmfulControlProbabilityBasisPoints > 0 ? 1 : 0),
             estimatedTerrainEffectCount,
             estimatedHeightDelta
         );
@@ -578,7 +617,7 @@ public partial class BattleAiScoreService
         );
         scoreInput.hit_payoff_score += lethalBonus;
         scoreInput.target_priority_score += lethalBonus;
-        if (harmfulControlCount > 0)
+        if (harmfulControlCount > 0 || harmfulControlProbabilityBasisPoints > 0)
         {
             AppendUniqueStringName(scoreInput.estimated_control_target_ids, targetUnit.unit_id);
             if (IsPriorityThreatTarget(context, targetUnit))
@@ -652,8 +691,17 @@ public partial class BattleAiScoreService
                 ? 10000
                 : 0;
         int estimatedHealing = targetMetrics.Healing;
+        int estimatedShieldGainBasisPoints = targetMetrics.ShieldGainBasisPoints;
+        int estimatedEquipmentDurabilityLossBasisPoints =
+            targetMetrics.EquipmentDurabilityLossBasisPoints;
+        int estimatedEquipmentDestructionProbabilityBasisPoints =
+            targetMetrics.EquipmentDestructionProbabilityBasisPoints;
+        int harmfulStatusCount = targetMetrics.HarmfulStatusCount;
+        int beneficialStatusCount = targetMetrics.BeneficialStatusCount;
         int harmfulControlCount = targetMetrics.HarmfulControlCount;
         int beneficialControlCount = targetMetrics.BeneficialControlCount;
+        int harmfulControlProbabilityBasisPoints =
+            targetMetrics.HarmfulControlProbabilityBasisPoints;
         int estimatedTerrainEffectCount = targetMetrics.TerrainEffectCount;
         int estimatedHeightDelta = targetMetrics.HeightDelta;
         bool isAlly = targetUnit.faction_id == actor.faction_id;
@@ -664,8 +712,21 @@ public partial class BattleAiScoreService
         scoreInput.estimated_post_save_damage += estimatedPostSaveDamage;
         scoreInput.estimated_shield_absorbed += estimatedShieldAbsorbed;
         scoreInput.estimated_healing += estimatedHealing;
-        scoreInput.estimated_status_count += harmfulControlCount + beneficialControlCount;
+        scoreInput.estimated_shield_gain_basis_points += estimatedShieldGainBasisPoints;
+        scoreInput.estimated_equipment_durability_loss_basis_points +=
+            estimatedEquipmentDurabilityLossBasisPoints;
+        scoreInput.estimated_equipment_destruction_probability_basis_points = Math.Max(
+            scoreInput.estimated_equipment_destruction_probability_basis_points,
+            estimatedEquipmentDestructionProbabilityBasisPoints
+        );
+        scoreInput.estimated_status_count +=
+            harmfulStatusCount
+            + beneficialStatusCount
+            + harmfulControlCount
+            + beneficialControlCount;
         scoreInput.estimated_control_count += harmfulControlCount + beneficialControlCount;
+        scoreInput.estimated_control_probability_basis_points +=
+            harmfulControlProbabilityBasisPoints;
         scoreInput.estimated_terrain_effect_count += estimatedTerrainEffectCount;
         scoreInput.estimated_height_delta += estimatedHeightDelta;
         if (targetMetrics.IsExecute)
@@ -696,12 +757,16 @@ public partial class BattleAiScoreService
             scoreInput.ally_target_count += 1;
             scoreInput.estimated_ally_damage += estimatedDamage;
             scoreInput.estimated_ally_healing += estimatedHealing;
+            scoreInput.estimated_ally_shield_gain_basis_points +=
+                estimatedShieldGainBasisPoints;
             PopulateAllyTargetPayoff(
                 scoreInput,
                 targetUnit,
                 estimatedDamage,
                 estimatedHealing,
+                estimatedShieldGainBasisPoints,
                 harmfulControlCount,
+                harmfulControlProbabilityBasisPoints,
                 beneficialControlCount,
                 damageLethalProbabilityBasisPoints,
                 targetMetrics.IsExecute,
@@ -720,10 +785,13 @@ public partial class BattleAiScoreService
             estimatedDamage,
             estimatedHealing,
             harmfulControlCount,
+            harmfulControlProbabilityBasisPoints,
             beneficialControlCount,
             estimatedTerrainEffectCount,
             estimatedHeightDelta,
             estimatedShieldAbsorbed,
+            estimatedEquipmentDurabilityLossBasisPoints,
+            estimatedEquipmentDestructionProbabilityBasisPoints,
             damageLethalProbabilityBasisPoints,
             targetMetrics.IsExecute,
             targetMetrics.KillProbabilityBasisPoints
@@ -735,34 +803,55 @@ public partial class BattleAiScoreService
         BattleUnitState targetUnit,
         int estimatedDamage,
         int estimatedHealing,
+        int estimatedShieldGainBasisPoints,
         int harmfulControlCount,
+        int harmfulControlProbabilityBasisPoints,
         int beneficialControlCount,
         int damageLethalProbabilityBasisPoints,
         bool isExecute = false,
         int executeKillProbabilityBasisPoints = 0
     )
     {
-        bool hasAllyBenefit = estimatedHealing > 0 || beneficialControlCount > 0;
+        bool hasAllyBenefit =
+            estimatedHealing > 0
+            || estimatedShieldGainBasisPoints > 0
+            || beneficialControlCount > 0;
         if (hasAllyBenefit)
         {
             scoreInput.effective_target_count += 1;
             scoreInput.hit_payoff_score += estimatedHealing * _scoreProfile.HealWeight;
+            scoreInput.hit_payoff_score += (int)Math.Clamp(
+                (long)estimatedShieldGainBasisPoints * _scoreProfile.HealWeight / 10000L,
+                int.MinValue,
+                int.MaxValue
+            );
             scoreInput.hit_payoff_score += beneficialControlCount * _scoreProfile.StatusWeight;
         }
-        if (estimatedDamage <= 0 && harmfulControlCount <= 0)
+        if (
+            estimatedDamage <= 0
+            && harmfulControlCount <= 0
+            && harmfulControlProbabilityBasisPoints <= 0
+        )
         {
             return;
         }
         scoreInput.estimated_friendly_fire_target_count += 1;
         scoreInput.estimated_friendly_fire_damage += estimatedDamage;
-        if (harmfulControlCount > 0)
+        if (harmfulControlCount > 0 || harmfulControlProbabilityBasisPoints > 0)
         {
             scoreInput.estimated_friendly_control_target_count += 1;
         }
         int penalty =
             estimatedDamage * _scoreProfile.FriendlyFireDamageWeight
             + _scoreProfile.FriendlyFireTargetWeight
-            + harmfulControlCount * _scoreProfile.FriendlyControlTargetWeight;
+            + harmfulControlCount * _scoreProfile.FriendlyControlTargetWeight
+            + (int)Math.Clamp(
+                (long)harmfulControlProbabilityBasisPoints
+                    * _scoreProfile.FriendlyControlTargetWeight
+                    / 10000L,
+                int.MinValue,
+                int.MaxValue
+            );
         bool isFriendlyLethal =
             isExecute
                 ? Mathf.Clamp(executeKillProbabilityBasisPoints, 0, 10000) > 0
@@ -870,6 +959,8 @@ public partial class BattleAiScoreService
                 hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.SaveAbility ?? "").GetHashCode();
                 hash = hash * 31 + ProgressionDataUtils.to_string_name(effectDefinition?.SaveTag ?? "").GetHashCode();
                 hash = hash * 31 + (effectDefinition?.Power ?? 0);
+                hash = hash * 31 + (effectDefinition?.DurationTu ?? 0);
+                hash = hash * 31 + (effectDefinition?.TickIntervalTu ?? 0);
                 hash = hash * 31 + (effectDefinition?.HealToHpPercentFloor ?? 0);
                 hash = hash * 31 + (effectDefinition?.HealMissingHpPercent ?? 0);
                 hash = hash * 31 + (effectDefinition?.MaxAffectedTargets ?? 0);
@@ -885,6 +976,9 @@ public partial class BattleAiScoreService
                 hash = hash * 31 + (effectDefinition?.SaveDc ?? 0);
                 hash = hash * 31 + (effectDefinition?.SavePartialOnSuccess == true ? 1 : 0);
                 hash = hash * 31 + BuildStringNameListSignature(effectDefinition?.EffectTags);
+                hash = hash * 31 + BuildWeightedStatusOutcomeSignature(
+                    effectDefinition?.SaveFailureStatusOutcomes
+                );
             }
             return hash * 31 + count;
         }
@@ -914,6 +1008,19 @@ public partial class BattleAiScoreService
                 hash = hash * 31 + (status?.death_prevention_priority ?? 0);
                 hash = hash * 31 + (status?.save_bonus ?? 0);
                 hash = hash * 31 + (status?.control_save_bonus ?? 0);
+                foreach (
+                    BattleStatusSourceContributionState contribution
+                    in status?.GetSourceContributionsTyped()
+                        ?? Array.Empty<BattleStatusSourceContributionState>()
+                )
+                {
+                    hash = hash * 31 + contribution.Identity.StableKey.GetHashCode();
+                    hash = hash * 31 + contribution.Power;
+                    hash = hash * 31 + contribution.Stacks;
+                    hash = hash * 31 + contribution.DurationTu;
+                    hash = hash * 31 + contribution.TickIntervalTu;
+                    hash = hash * 31 + contribution.NextTickAtTu;
+                }
                 hash = hash * 31 + BuildStringNameListSignature(status?.save_advantage_tags);
                 hash = hash * 31 + BuildStringNameListSignature(status?.save_disadvantage_tags);
                 hash = hash * 31 + BuildStringNameListSignature(status?.save_immunity_tags);
@@ -982,6 +1089,36 @@ public partial class BattleAiScoreService
         }
     }
 
+    private static int BuildWeightedStatusOutcomeSignature(
+        IReadOnlyList<CombatWeightedStatusOutcomeDefinition> outcomes
+    )
+    {
+        unchecked
+        {
+            int hash = 17;
+            foreach (
+                CombatWeightedStatusOutcomeDefinition outcome in
+                    outcomes ?? Array.Empty<CombatWeightedStatusOutcomeDefinition>()
+            )
+            {
+                CombatEffectDefinition status = outcome?.StatusEffect;
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(
+                    outcome?.OutcomeId ?? ""
+                ).GetHashCode();
+                hash = hash * 31 + (outcome?.Weight ?? 0);
+                hash = hash * 31 + ProgressionDataUtils.to_string_name(
+                    status?.StatusId ?? ""
+                ).GetHashCode();
+                hash = hash * 31 + (status?.DurationTu ?? 0);
+                hash = hash * 31 + (status?.Power ?? 0);
+                hash = hash * 31 + (status?.AttackRollPenalty ?? 0);
+                hash = hash * 31 + (status?.LockCounterattack == true ? 1 : 0);
+                hash = hash * 31 + (status?.LockCrit == true ? 1 : 0);
+            }
+            return hash;
+        }
+    }
+
     private TargetEffectMetrics BuildTargetEffectMetricsImpl(
         IBattleAiScoreContext context,
         SkillDefinition skillDefinition,
@@ -1026,6 +1163,30 @@ public partial class BattleAiScoreService
             {
                 metrics.IsEmpty = false;
                 damageEffects.Add(effectDefinition);
+                StringName failureStatusId = ProgressionDataUtils.to_string_name(
+                    effectDefinition.SaveFailureStatusId
+                );
+                if (
+                    failureStatusId != ""
+                    && BattleStatusSemanticTable.UsesSourceDefinitionStacking(
+                        failureStatusId
+                    )
+                    && BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                        sourceUnit,
+                        targetUnit,
+                        effectDefinition
+                    ).FailureProbabilityBasisPoints > 0
+                    && WouldAddSourceScopedStatusContribution(
+                        skillDefinition,
+                        sourceUnit,
+                        targetUnit,
+                        effectDefinition,
+                        failureStatusId
+                    )
+                )
+                {
+                    metrics.HarmfulStatusCount += 1;
+                }
             }
             else if (effectKind == BattleEffectKind.Execute)
             {
@@ -1084,6 +1245,27 @@ public partial class BattleAiScoreService
                 {
                     continue;
                 }
+                if (BattleStatusSemanticTable.UsesSourceDefinitionStacking(statusId))
+                {
+                    if (
+                        !WouldAddSourceScopedStatusContribution(
+                            skillDefinition,
+                            sourceUnit,
+                            targetUnit,
+                            effectDefinition,
+                            statusId
+                        )
+                    )
+                    {
+                        continue;
+                    }
+                    metrics.IsEmpty = false;
+                    if (IsBeneficialEffectFilter(targetFilter))
+                        metrics.BeneficialStatusCount += 1;
+                    else
+                        metrics.HarmfulStatusCount += 1;
+                    continue;
+                }
                 if (IsBeneficialEffectFilter(targetFilter))
                 {
                     if (BattleStatusSemanticTable.IsHarmfulStatus(statusId))
@@ -1130,9 +1312,43 @@ public partial class BattleAiScoreService
                         projection.utility_control_count * hitCount;
                 }
             }
+            else if (effectKind == BattleEffectKind.Shield)
+            {
+                metrics.IsEmpty = false;
+                BattleShieldValueRange range = BattleShieldPreviewRules.BuildValueRange(
+                    sourceUnit,
+                    skillDefinition,
+                    effectDefinition
+                );
+                metrics.ShieldGainBasisPoints +=
+                    BattleShieldPreviewRules.EstimateExpectedNetGainBasisPoints(
+                        targetUnit,
+                        range
+                    );
+            }
+            else if (effectKind == BattleEffectKind.EquipmentDurabilityDamage)
+            {
+                BattleEquipmentDurabilityPreviewData durabilityPreview =
+                    new BattleEquipmentDurabilityResolver().BuildPreview(
+                        sourceUnit,
+                        targetUnit,
+                        effectDefinition,
+                        skillDefinition?.SkillId ?? "",
+                        context?.item_definitions
+                    );
+                if (durabilityPreview?.HasMatchingEquipment == true)
+                {
+                    metrics.IsEmpty = false;
+                    metrics.EquipmentDurabilityLossBasisPoints +=
+                        durabilityPreview.ExpectedDurabilityLossBasisPoints * hitCount;
+                    metrics.EquipmentDestructionProbabilityBasisPoints = Math.Max(
+                        metrics.EquipmentDestructionProbabilityBasisPoints,
+                        durabilityPreview.DestructionProbabilityBasisPoints
+                    );
+                }
+            }
             else if (
-                effectKind == BattleEffectKind.Shield
-                || effectKind == BattleEffectKind.StaminaRestore
+                effectKind == BattleEffectKind.StaminaRestore
                 || effectKind == BattleEffectKind.BodySizeCategoryOverride
             )
             {
@@ -1178,8 +1394,76 @@ public partial class BattleAiScoreService
                 metrics.HasTypedLethalPreview || estimateResult.HasTypedLethalPreview;
             metrics.SaveEstimates.AddRange(ScaleSaveEstimates(estimateResult.SaveEstimates, 1));
             metrics.DamageEstimates = CloneDamageEstimates(estimateResult.DamageEstimates);
+            foreach (CombatEffectDefinition damageEffect in damageEffects)
+            {
+                if ((damageEffect?.SaveFailureStatusOutcomes?.Count ?? 0) == 0)
+                    continue;
+                BattleSaveProbabilityResult controlProbability =
+                    BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                        sourceUnit,
+                        targetUnit,
+                        damageEffect,
+                        BattleSaveContext.ForSkill(ResolveSkillId(skillDefinition))
+                    );
+                if (!controlProbability.HasSave)
+                    continue;
+                metrics.HarmfulControlProbabilityBasisPoints = (int)Math.Clamp(
+                    (long)metrics.HarmfulControlProbabilityBasisPoints
+                        + (long)Math.Clamp(
+                            controlProbability.FailureProbabilityBasisPoints,
+                            0,
+                            10000
+                        ) * hitCount,
+                    0L,
+                    int.MaxValue
+                );
+            }
         }
         return metrics;
+    }
+
+    private static bool WouldAddSourceScopedStatusContribution(
+        SkillDefinition skillDefinition,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        StringName statusId
+    )
+    {
+        if (
+            sourceUnit == null
+            || targetUnit == null
+            || effectDefinition == null
+            || !BattleStatusSemanticTable.UsesSourceDefinitionStacking(statusId)
+        )
+        {
+            return false;
+        }
+        StringName skillId = ProgressionDataUtils.to_string_name(
+            skillDefinition?.SkillId ?? ""
+        );
+        BattleStatusSourceIdentity sourceIdentity = skillId != ""
+            ? BattleStatusSourceIdentity.Skill(sourceUnit.unit_id, skillId)
+            : BattleStatusSourceIdentity.RuntimeEffect(sourceUnit.unit_id, statusId);
+        BattleStatusEffectState existingStatus = targetUnit.GetStatusEffect(statusId);
+        BattleStatusSourceContributionState before =
+            existingStatus?.GetSourceContributionTyped(sourceIdentity);
+        BattleStatusEffectState mergedStatus = BattleStatusSemanticTable.MergeStatus(
+            effectDefinition,
+            sourceUnit.unit_id,
+            existingStatus,
+            statusId,
+            sourceIdentity
+        );
+        BattleStatusSourceContributionState after =
+            mergedStatus?.GetSourceContributionTyped(sourceIdentity);
+        if (after == null)
+            return false;
+        return before == null
+            || after.Stacks > before.Stacks
+            || after.Power > before.Power
+            || after.DurationTu > before.DurationTu
+            || after.TickIntervalTu != before.TickIntervalTu;
     }
 
     private static int CountHostileSpellReactionThreats(
@@ -1250,7 +1534,9 @@ public partial class BattleAiScoreService
             actor,
             estimatedDamage: 0,
             estimatedHealing: 0,
+            estimatedShieldGainBasisPoints: 0,
             harmfulControlCount: 0,
+            harmfulControlProbabilityBasisPoints: 0,
             beneficialControlCount: 1,
             damageLethalProbabilityBasisPoints: 0
         );

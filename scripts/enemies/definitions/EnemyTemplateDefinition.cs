@@ -99,6 +99,7 @@ internal sealed class EnemyTemplateDefinition
         IReadOnlyList<StringName> saveImmunityTags,
         IReadOnlyDictionary<StringName, StringName> damageResistances,
         StringName attackEquipmentItemId,
+        IReadOnlyList<EnemyBattleEquipmentDefinition> battleEquipmentEntries,
         StringName naturalWeaponDamageTag,
         int naturalWeaponAttackRange,
         IReadOnlyDictionary<StringName, int> baseAttributeOverrides,
@@ -131,6 +132,7 @@ internal sealed class EnemyTemplateDefinition
         SaveImmunityTags = EnemyDefinitionCollections.FreezeList(saveImmunityTags);
         DamageResistances = EnemyDefinitionCollections.FreezeDictionary(damageResistances);
         AttackEquipmentItemId = attackEquipmentItemId;
+        BattleEquipmentEntries = EnemyDefinitionCollections.FreezeList(battleEquipmentEntries);
         NaturalWeaponDamageTag = naturalWeaponDamageTag;
         NaturalWeaponAttackRange = naturalWeaponAttackRange;
         BaseAttributeOverrides = EnemyDefinitionCollections.FreezeDictionary(baseAttributeOverrides);
@@ -163,6 +165,7 @@ internal sealed class EnemyTemplateDefinition
     internal IReadOnlyList<StringName> SaveImmunityTags { get; }
     internal IReadOnlyDictionary<StringName, StringName> DamageResistances { get; }
     internal StringName AttackEquipmentItemId { get; }
+    internal IReadOnlyList<EnemyBattleEquipmentDefinition> BattleEquipmentEntries { get; }
     internal StringName NaturalWeaponDamageTag { get; }
     internal int NaturalWeaponAttackRange { get; }
     internal IReadOnlyDictionary<StringName, int> BaseAttributeOverrides { get; }
@@ -232,6 +235,15 @@ internal sealed class EnemyTemplateDefinition
             if (drop != null)
                 drops.Add(drop.ToDefinition());
         }
+        var battleEquipmentEntries = new List<EnemyBattleEquipmentDefinition>();
+        foreach (
+            EnemyBattleEquipmentDef entry in source.battle_equipment_entries
+                ?? new Godot.Collections.Array<EnemyBattleEquipmentDef>()
+        )
+        {
+            if (entry != null)
+                battleEquipmentEntries.Add(entry.ToDefinition());
+        }
         WeaponProjection weapon = source.GetWeaponProjectionTyped(itemDefinitions);
         return new EnemyTemplateDefinition(
             source.template_id,
@@ -254,6 +266,7 @@ internal sealed class EnemyTemplateDefinition
             source.save_immunity_tags,
             source.GetDamageResistancesTyped(),
             source.attack_equipment_item_id,
+            battleEquipmentEntries,
             source.natural_weapon_damage_tag,
             source.natural_weapon_attack_range,
             source.GetBaseAttributeOverridesResolvedTyped(),

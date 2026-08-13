@@ -1013,6 +1013,10 @@ public partial class BattleDamageResolver
         {
             return 0;
         }
+        if (effectDefinition.DiceCount > 0 && effectDefinition.DiceSides > 0)
+        {
+            return ResolveHealAmount(sourceUnit, targetUnit, effectDefinition);
+        }
         int skillLevel = Math.Max(context?.SourceSkillLevel ?? 0, 0);
         if (skillLevel <= 0 && sourceUnit != null && context != null && context.SkillId != "")
         {
@@ -1055,18 +1059,29 @@ public partial class BattleDamageResolver
         {
             ClearOtherCrownBreakSeals(targetUnit, resolvedStatusId);
         }
+        StringName sourceUnitId = sourceUnit != null
+            ? sourceUnit.unit_id
+            : new StringName("");
+        StringName sourceSkillId = ProgressionDataUtils.to_string_name(context?.SkillId ?? "");
+        BattleStatusSourceIdentity sourceIdentity = sourceSkillId != ""
+            ? BattleStatusSourceIdentity.Skill(sourceUnitId, sourceSkillId)
+            : BattleStatusSourceIdentity.RuntimeEffect(sourceUnitId, resolvedStatusId);
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
             effectDefinition,
-            sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
+            sourceUnitId,
             targetUnit.GetStatusEffect(resolvedStatusId),
-            resolvedStatusId
+            resolvedStatusId,
+            sourceIdentity
         );
         if (statusEntry == null)
         {
             return false;
         }
-        StringName sourceSkillId = ProgressionDataUtils.to_string_name(context?.SkillId ?? "");
-        if (statusEntry.source_skill_id == "" && sourceSkillId != "")
+        if (
+            !statusEntry.HasSourceContributionsTyped()
+            && statusEntry.source_skill_id == ""
+            && sourceSkillId != ""
+        )
         {
             statusEntry.source_skill_id = sourceSkillId;
         }
@@ -1083,6 +1098,7 @@ public partial class BattleDamageResolver
         BattleUnitState sourceUnit,
         CombatEffectDefinition effectDefinition,
         BattleSaveResult saveResult,
+        DamageResolutionContext context,
         out StringName appliedStatusId
     )
     {
@@ -1092,21 +1108,52 @@ public partial class BattleDamageResolver
             || effectDefinition == null
             || !saveResult.HasSave
             || saveResult.Success
-            || effectDefinition.SaveFailureStatusId == ""
         )
         {
             return false;
         }
 
+        CombatEffectDefinition statusEffectDefinition = effectDefinition;
+        StringName authoredStatusId = ProgressionDataUtils.to_string_name(
+            effectDefinition.SaveFailureStatusId
+        );
+        if ((effectDefinition.SaveFailureStatusOutcomes?.Count ?? 0) > 0)
+        {
+            int totalWeight = BattleWeightedStatusOutcomeRules.GetTotalWeight(
+                effectDefinition.SaveFailureStatusOutcomes
+            );
+            if (totalWeight <= 0)
+                return false;
+            CombatWeightedStatusOutcomeDefinition selectedOutcome =
+                BattleWeightedStatusOutcomeRules.SelectByRoll(
+                    effectDefinition.SaveFailureStatusOutcomes,
+                    _roll_weighted_status_outcome(totalWeight)
+                );
+            statusEffectDefinition = selectedOutcome?.StatusEffect;
+            authoredStatusId = ProgressionDataUtils.to_string_name(
+                statusEffectDefinition?.StatusId ?? ""
+            );
+        }
+        if (statusEffectDefinition == null || authoredStatusId == "")
+            return false;
+
         StringName resolvedStatusId = BattleTemporalStatusService.ApplyEliteBossStasisDowngrade(
             targetUnit,
-            ProgressionDataUtils.to_string_name(effectDefinition.SaveFailureStatusId)
+            authoredStatusId
         );
         if (resolvedStatusId == "")
         {
             return false;
         }
-        if (!ApplyStatusEffect(targetUnit, sourceUnit, effectDefinition, resolvedStatusId))
+        if (
+            !ApplyStatusEffect(
+                targetUnit,
+                sourceUnit,
+                statusEffectDefinition,
+                resolvedStatusId,
+                context
+            )
+        )
         {
             return false;
         }

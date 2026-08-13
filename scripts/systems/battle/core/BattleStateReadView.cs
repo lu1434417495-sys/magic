@@ -410,6 +410,7 @@ internal readonly struct BattleStatusReadView
         _status?.main_skill_lock_other_debuff_count ?? 0;
     internal bool LockCounterattack => _status?.lock_counterattack ?? false;
     internal bool LockGuard => _status?.lock_guard ?? false;
+    internal bool ForcedMoveImmune => _status?.forced_move_immune ?? false;
     internal int Power => _status?.power ?? 0;
     internal int RangeBonus => _status?.range_bonus ?? 0;
     internal int AttackRollBonus => _status?.attack_roll_bonus ?? 0;

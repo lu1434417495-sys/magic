@@ -11,8 +11,6 @@ internal sealed class BattleRepeatAttackResolver
     private static readonly StringName STATUS_CROWN_BREAK_BROKEN_HAND = "crown_break_broken_hand";
 
     private static readonly StringName DamageEffect = "damage";
-    private static readonly string PreResistanceStage = "pre_resistance";
-
     private readonly record struct RepeatAttackRuntimeParameters(
         bool StopOnMiss,
         bool StopOnTargetDown,
@@ -23,22 +21,10 @@ internal sealed class BattleRepeatAttackResolver
             CombatEffectDefinition effectDefinition
         )
         {
-            // 追击倍率用整数百分比(与 damage_ratio_percent 等内容参数同一惯例,
-            // 规则层不引入浮点):100 = 等额,允许衰减(<100)与放大(>100);
-            // 0 或负数任何设计下都不合法,静默回退为等额。
-            int followUpPercent = (int)Math.Round(
-                GetFloat(
-                    effectDefinition?.Parameters,
-                    "follow_up_damage_multiplier_percent",
-                    100.0
-                )
-            );
-            if (followUpPercent <= 0)
-                followUpPercent = 100;
             return new RepeatAttackRuntimeParameters(
                 effectDefinition?.StopOnMiss ?? true,
                 effectDefinition?.StopOnTargetDown ?? true,
-                followUpPercent
+                effectDefinition?.FollowUpDamageMultiplierPercent ?? 100
             );
         }
 
@@ -207,7 +193,7 @@ internal sealed class BattleRepeatAttackResolver
                     $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段未命中 {DisplayName(target_unit)}，{stageResolutionText}{stageCostText}。"
                 );
                 _runtime?.AppendResultReportEntry(batch, stageResult);
-                if (!isFixedRepeat && repeatParameters.StopOnMiss)
+                if (repeatParameters.StopOnMiss)
                 {
                     break;
                 }
@@ -357,10 +343,17 @@ internal sealed class BattleRepeatAttackResolver
         IEnumerable<CombatEffectDefinition> effect_definitions
     )
     {
+        return CollectRepeatAttackBaseEffectsTyped(effect_definitions);
+    }
+
+    private static List<CombatEffectDefinition> CollectRepeatAttackBaseEffectsTyped(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
         var stagedEffects = new List<CombatEffectDefinition>();
         foreach (
             CombatEffectDefinition effectDefinition in
-                effect_definitions ?? Array.Empty<CombatEffectDefinition>()
+                effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
         )
         {
             if (
@@ -372,6 +365,34 @@ internal sealed class BattleRepeatAttackResolver
             }
         }
         return stagedEffects;
+    }
+
+    internal static List<CombatEffectDefinition> BuildRepeatAttackPreviewEffects(
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        CombatEffectDefinition repeatAttackEffect,
+        int stageCount
+    )
+    {
+        var result = new List<CombatEffectDefinition>();
+        if (repeatAttackEffect == null || stageCount <= 0)
+        {
+            return result;
+        }
+        List<CombatEffectDefinition> baseEffects =
+            CollectRepeatAttackBaseEffectsTyped(effectDefinitions);
+        RepeatAttackRuntimeParameters parameters =
+            RepeatAttackRuntimeParameters.FromEffect(repeatAttackEffect);
+        int normalizedStageCount = Math.Clamp(stageCount, 1, REPEAT_ATTACK_STAGE_GUARD);
+        for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
+        {
+            result.AddRange(
+                BuildRepeatAttackStageEffects(
+                    baseEffects,
+                    parameters.GetStageDamagePercent(stageIndex)
+                )
+            );
+        }
+        return result;
     }
 
     private BattleRepeatAttackStageSpec BuildRuntimeStageSpec(
@@ -1015,15 +1036,18 @@ internal sealed class BattleRepeatAttackResolver
         int damage_percent
     )
     {
+        return BuildRepeatAttackStageEffects(base_effects, damage_percent);
+    }
+
+    private static List<CombatEffectDefinition> BuildRepeatAttackStageEffects(
+        IEnumerable<CombatEffectDefinition> baseEffects,
+        int damagePercent
+    )
+    {
         var stagedEffects = new List<CombatEffectDefinition>();
-        string damageMultiplierStage = GetString(
-            repeat_attack_effect?.Parameters,
-            "damage_multiplier_stage",
-            PreResistanceStage
-        );
         foreach (
             CombatEffectDefinition effectDefinition in
-                base_effects ?? Array.Empty<CombatEffectDefinition>()
+                baseEffects ?? Array.Empty<CombatEffectDefinition>()
         )
         {
             if (effectDefinition == null)
@@ -1033,13 +1057,12 @@ internal sealed class BattleRepeatAttackResolver
             CombatEffectDefinition stageEffect = effectDefinition;
             if (
                 stageEffect.EffectKind == BattleEffectKind.Damage
-                && damageMultiplierStage == PreResistanceStage
-                && damage_percent != 100
+                && damagePercent != 100
             )
             {
                 // 整数百分比只在交给伤害管线的边界处转一次浮点。
                 stageEffect = stageEffect.WithPreResistanceDamageMultiplier(
-                    damage_percent / 100.0
+                    damagePercent / 100.0
                 );
             }
             stagedEffects.Add(stageEffect);
@@ -1132,57 +1155,6 @@ internal sealed class BattleRepeatAttackResolver
                 activeUnit.SetCurrentStamina(normalizedValue);
                 break;
         }
-    }
-
-    private static double GetFloat(
-        IReadOnlyDictionary<string, object> source,
-        string key,
-        double fallback = 0.0
-    )
-    {
-        if (!TryResolveStringKey(source, key, out object value))
-            return fallback;
-        return value switch
-        {
-            byte byteValue => byteValue,
-            short shortValue => shortValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            _ => fallback,
-        };
-    }
-
-    private static string GetString(
-        IReadOnlyDictionary<string, object> source,
-        string key,
-        string fallback = ""
-    )
-    {
-        if (!TryResolveStringKey(source, key, out object value))
-            return fallback;
-        string result = value switch
-        {
-            string text => text,
-            StringName stringName => stringName.ToString(),
-            _ => "",
-        };
-        return string.IsNullOrEmpty(result) ? fallback : result;
-    }
-
-    private static bool TryResolveStringKey(
-        IReadOnlyDictionary<string, object> source,
-        string key,
-        out object value
-    )
-    {
-        value = null;
-        if (source == null || string.IsNullOrEmpty(key))
-        {
-            return false;
-        }
-        return source.TryGetValue(key, out value);
     }
 
     private static void AppendLog(BattleEventBatch batch, string line)

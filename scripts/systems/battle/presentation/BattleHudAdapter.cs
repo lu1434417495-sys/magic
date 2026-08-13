@@ -144,16 +144,31 @@ public sealed class BattleHudAdapter : IDisposable
         DamagePreviewSummary damagePreview = BuildSelectedSkillDamagePreview(
             runtimePreview
         );
-        if (!saveBranchPreview.IsEmpty)
+        if (SaveBranchReplacesDamagePreview(runtimePreview))
             damagePreview = DamagePreviewSummary.Empty;
         FatePreviewFacts fatePreview = BuildSelectedSkillFatePreview(
             runtimePreview
         );
+        BattleShieldPreviewData shieldPreview = runtimePreview?.ShieldPreviewTyped;
+        BattleEquipmentDurabilityPreviewData equipmentDurabilityPreview =
+            runtimePreview?.EquipmentDurabilityPreviewTyped;
+        BattlePositionSwapPreviewData positionSwapPreview =
+            runtimePreview?.PositionSwapPreviewTyped;
+        BattleForcedMovePreviewData forcedMovePreview =
+            runtimePreview?.ForcedMovePreviewTyped;
+        BattleRangedWeaponReactionPreviewData rangedWeaponReactionPreview =
+            runtimePreview?.RangedWeaponReactionPreviewTyped;
         string tooltipText = BuildSelectedSkillPreviewTooltip(
             hitPreview,
             fatePreview,
             damagePreview,
-            saveBranchPreview
+            saveBranchPreview,
+            shieldPreview,
+            equipmentDurabilityPreview,
+            forcedMovePreview,
+            positionSwapPreview,
+            rangedWeaponReactionPreview,
+            runtimePreview?.StatusContributionPreviewsTyped
         );
         string headerTitle = !string.IsNullOrWhiteSpace(encounter_display_name)
             ? encounter_display_name
@@ -366,7 +381,7 @@ public sealed class BattleHudAdapter : IDisposable
         DamagePreviewSummary damagePreview = BuildSelectedSkillDamagePreview(
             hover_runtime_preview
         );
-        if (!saveBranchPreview.IsEmpty)
+        if (SaveBranchReplacesDamagePreview(hover_runtime_preview))
             damagePreview = DamagePreviewSummary.Empty;
         FatePreviewFacts fatePreview = BuildSelectedSkillFatePreview(
             hover_runtime_preview
@@ -483,7 +498,8 @@ public sealed class BattleHudAdapter : IDisposable
                     Mathf.Max(status.stacks, 0),
                     status.duration,
                     isDebuff,
-                    BuildStatusEffectTooltip(label, status, isDebuff)
+                    BuildStatusEffectTooltip(label, status, isDebuff),
+                    status.GetSourceContributionsTyped().Count
                 )
             );
         }
@@ -500,6 +516,23 @@ public sealed class BattleHudAdapter : IDisposable
         if (status.stacks > 1)
             parts.Add($"层数 {status.stacks}");
         parts.Add(status.HasDuration() ? $"剩余 {status.duration} TU" : "持续到战斗结束或被解除");
+        IReadOnlyList<BattleStatusSourceContributionState> contributions =
+            status.GetSourceContributionsTyped();
+        if (contributions.Count > 0)
+        {
+            parts.Add($"{contributions.Count} 个独立来源");
+            for (int index = 0; index < contributions.Count; index++)
+            {
+                BattleStatusSourceContributionState contribution = contributions[index];
+                string durationText = contribution.DurationTu >= 0
+                    ? $"剩余 {contribution.DurationTu} TU"
+                    : "持续到战斗结束或被解除";
+                parts.Add(
+                    $"来源 {index + 1}：{contribution.Stacks} 层，{durationText}，每 {contribution.TickIntervalTu} TU 结算"
+                );
+            }
+            parts.Add("不同来源分别叠加和计时；解除该状态会清除全部来源");
+        }
         return string.Join(" · ", parts);
     }
 
@@ -1764,6 +1797,13 @@ public sealed class BattleHudAdapter : IDisposable
         BattlePreview selectedSkillPreview
     ) => BattlePresentationPayload.FromSaveBranch(selectedSkillPreview?.SaveBranchPreviewTyped);
 
+    private static bool SaveBranchReplacesDamagePreview(BattlePreview preview)
+    {
+        StringName kind = preview?.SaveBranchPreviewTyped?.Kind ?? "";
+        return kind == new StringName("execute")
+            || kind == new StringName("graded_save_execute");
+    }
+
     private FatePreviewFacts BuildSelectedSkillFatePreview(BattlePreview selectedSkillPreview)
     {
         BattleFatePreviewData fatePreview = selectedSkillPreview?.FatePreviewTyped;
@@ -1890,7 +1930,13 @@ public sealed class BattleHudAdapter : IDisposable
         AttackPreviewData hitPreview,
         FatePreviewFacts fatePreview,
         DamagePreviewSummary damagePreview,
-        BattlePresentationPayload saveBranchPreview
+        BattlePresentationPayload saveBranchPreview,
+        BattleShieldPreviewData shieldPreview,
+        BattleEquipmentDurabilityPreviewData equipmentDurabilityPreview,
+        BattleForcedMovePreviewData forcedMovePreview,
+        BattlePositionSwapPreviewData positionSwapPreview,
+        BattleRangedWeaponReactionPreviewData rangedWeaponReactionPreview,
+        IReadOnlyList<BattleStatusContributionPreviewData> statusContributionPreviews
     )
     {
         var sections = new List<string>();
@@ -1903,6 +1949,29 @@ public sealed class BattleHudAdapter : IDisposable
         string damageText = damagePreview.SummaryText;
         if (!string.IsNullOrEmpty(damageText))
             sections.Add(damageText);
+        string shieldText = shieldPreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(shieldText))
+            sections.Add(shieldText);
+        string equipmentDurabilityText = equipmentDurabilityPreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(equipmentDurabilityText))
+            sections.Add(equipmentDurabilityText);
+        string forcedMoveText = forcedMovePreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(forcedMoveText))
+            sections.Add(forcedMoveText);
+        string positionSwapText = positionSwapPreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(positionSwapText))
+            sections.Add(positionSwapText);
+        string rangedWeaponReactionText = rangedWeaponReactionPreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(rangedWeaponReactionText))
+            sections.Add(rangedWeaponReactionText);
+        foreach (
+            BattleStatusContributionPreviewData statusPreview
+            in statusContributionPreviews ?? Array.Empty<BattleStatusContributionPreviewData>()
+        )
+        {
+            if (!string.IsNullOrEmpty(statusPreview?.SummaryText))
+                sections.Add(statusPreview.SummaryText);
+        }
         string fateTooltip = fatePreview?.TooltipText ?? "";
         if (!string.IsNullOrEmpty(fateTooltip))
             sections.Add(fateTooltip);
@@ -2148,8 +2217,10 @@ public sealed class BattleHudAdapter : IDisposable
         if (skillDefinition?.CombatProfile == null)
             return CombatSkillResourceCosts.Zero;
         int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
-        CombatSkillResourceCosts costs =
-            GetEffectiveCombatDefinition(skillDefinition, skillLevel).ResourceCosts;
+        CombatSkillResourceCosts costs = GetEffectiveCombatDefinition(
+            skillDefinition,
+            skillLevel
+        ).GetResourceCostsForTargetSlots(1);
         CombatDirectionalPiercingDefinition piercing =
             skillDefinition.CombatProfile.DirectionalPiercing;
         if (activeUnit == null || piercing == null)

@@ -118,6 +118,164 @@ internal class BattleMovementService
         );
     }
 
+    internal BattleApproachAttackPlan BuildApproachAttackPlan(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        return BattleApproachAttackRules.BuildPlan(
+            State,
+            GridService,
+            LayeredBarrierService,
+            sourceUnit,
+            targetUnit,
+            skillDefinition,
+            IsMovementBlocked(sourceUnit)
+        );
+    }
+
+    internal BattleApproachAttackPlan BuildApproachAttackPlan(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        return BattleApproachAttackRules.BuildPlan(
+            State,
+            GridService,
+            LayeredBarrierService,
+            sourceUnit,
+            targetUnit,
+            skillDefinition,
+            IsMovementBlocked(sourceUnit)
+        );
+    }
+
+    internal BattleValidatedMoveExecutionResult ExecuteApproachAttackAdvance(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        BattleEventBatch batch
+    )
+    {
+        BattleApproachAttackPlan plan = BuildApproachAttackPlan(
+            sourceUnit,
+            targetUnit,
+            skillDefinition
+        );
+        if (plan?.Allowed != true)
+        {
+            AppendLog(
+                batch,
+                plan?.Message ?? "当前无法完成踏步推进，攻击取消。"
+            );
+            return new BattleValidatedMoveExecutionResult();
+        }
+
+        Vector2I previousAnchor = sourceUnit.GetAnchorCoord();
+        List<Vector2I> previousCoords = CloneCoords(
+            sourceUnit.GetOccupiedCoordsReadViewTyped()
+        );
+        BattleValidatedMoveExecutionResult executionResult =
+            MoveUnitAlongValidatedPathTyped(
+                sourceUnit,
+                plan.Path,
+                plan.FinalCoord,
+                batch
+            );
+        if (executionResult.Executed || executionResult.MovementAttemptCommitted)
+        {
+            batch?.AddChangedUnitId(sourceUnit.unit_id);
+            AppendChangedCoords(batch, previousCoords);
+            AppendChangedUnitCoords(batch, sourceUnit);
+            Vector2I finalAnchor = sourceUnit.GetAnchorCoord();
+            _runtime?.EmitContingencyPositionChanged(
+                sourceUnit,
+                previousAnchor,
+                finalAnchor,
+                _runtime.AllocateContingencySourceEventId("position_changed")
+            );
+        }
+
+        int movedSteps = Math.Max(executionResult.ExecutedPath.Count - 1, 0);
+        if (
+            !executionResult.ReachedTarget
+            || !BattleApproachAttackRules.IsAtPlanHeight(
+                State,
+                sourceUnit,
+                plan,
+                skillDefinition
+            )
+        )
+        {
+            AppendLog(
+                batch,
+                $"{sourceUnit.display_name} 的推进在 {movedSteps} 格后中断，后续攻击取消；已支付费用与冷却不返还。"
+            );
+            return executionResult;
+        }
+
+        AppendLog(
+            batch,
+            $"{sourceUnit.display_name} 沿直线踏步推进 {movedSteps} 格，不消耗移动力。"
+        );
+        return executionResult;
+    }
+
+    internal bool ExecuteLineThroughAttackLanding(
+        BattleUnitState sourceUnit,
+        BattleLineThroughAttackPlan plan,
+        SkillDefinition skillDefinition,
+        BattleEventBatch batch
+    )
+    {
+        if (
+            !BattleLineThroughAttackRules.CanCommitLanding(
+                State,
+                GridService,
+                LayeredBarrierService,
+                sourceUnit,
+                plan
+            )
+        )
+        {
+            AppendLog(batch, "终点攻击命中，但敌后落点已经失效，施术者留在原地。");
+            return false;
+        }
+
+        Vector2I previousAnchor = sourceUnit.GetAnchorCoord();
+        List<Vector2I> previousCoords = CloneCoords(
+            sourceUnit.GetOccupiedCoordsReadViewTyped()
+        );
+        if (!GridService.MoveUnit(State, sourceUnit, plan.Destination))
+        {
+            AppendLog(batch, "终点攻击命中，但敌后位移执行失败，施术者留在原地。");
+            return false;
+        }
+
+        batch?.AddChangedUnitId(sourceUnit.unit_id);
+        AppendChangedCoords(batch, previousCoords);
+        AppendChangedUnitCoords(batch, sourceUnit);
+        _runtime?._equipment_ability_runtime_service?.ApplyMovementTrails(
+            sourceUnit,
+            plan.AnchorPath,
+            skillDefinition?.SkillId ?? new StringName(""),
+            batch
+        );
+        _runtime?.EmitContingencyPositionChanged(
+            sourceUnit,
+            previousAnchor,
+            sourceUnit.GetAnchorCoord(),
+            _runtime.AllocateContingencySourceEventId("position_changed")
+        );
+        AppendLog(
+            batch,
+            $"{sourceUnit.display_name} 穿过终点目标，落到 ({plan.Destination.X}, {plan.Destination.Y})。"
+        );
+        return true;
+    }
+
     internal int ExecuteSourceRetreat(
         BattleUnitState sourceUnit,
         Vector2I targetCoord,

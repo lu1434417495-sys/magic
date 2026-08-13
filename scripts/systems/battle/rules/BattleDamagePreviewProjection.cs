@@ -102,6 +102,51 @@ internal static class BattleDamagePreviewProjection
             estimate.Sources,
             "BattleDamagePreviewProjection.save_estimate.sources"
         );
+        target["save_failure_status_outcomes"] = WriteWeightedStatusOutcomes(
+            lease,
+            estimate.SaveFailureStatusOutcomes,
+            "BattleDamagePreviewProjection.save_estimate.save_failure_status_outcomes"
+        );
+    }
+
+    private static GArray WriteWeightedStatusOutcomes<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<BattleWeightedStatusOutcomePreviewData> outcomes,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        if (outcomes == null)
+            return result;
+        for (int index = 0; index < outcomes.Count; index++)
+        {
+            BattleWeightedStatusOutcomePreviewData outcome = outcomes[index];
+            if (outcome == null)
+                continue;
+            GDictionary payload = lease.Own(
+                new GDictionary(),
+                $"{reason}[{index}]"
+            );
+            payload["outcome_id"] = outcome.OutcomeId;
+            payload["status_id"] = outcome.StatusId;
+            payload["display_name"] = outcome.DisplayName ?? "";
+            payload["weight"] = outcome.Weight;
+            payload["total_weight"] = outcome.TotalWeight;
+            payload["conditional_probability_basis_points"] =
+                outcome.ConditionalProbabilityBasisPoints;
+            payload["application_probability_basis_points"] =
+                outcome.ApplicationProbabilityBasisPoints;
+            payload["duration_tu"] = outcome.DurationTu;
+            payload["power"] = outcome.Power;
+            payload["attack_roll_penalty"] = outcome.AttackRollPenalty;
+            payload["lock_counterattack"] = outcome.LockCounterattack;
+            payload["lock_guard"] = outcome.LockGuard;
+            payload["lock_dodge_bonus"] = outcome.LockDodgeBonus;
+            payload["lock_crit"] = outcome.LockCrit;
+            result.Add(payload);
+        }
+        return result;
     }
 
     private static void WriteInto<TLeaseRoot>(

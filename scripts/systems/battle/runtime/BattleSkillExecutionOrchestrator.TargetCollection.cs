@@ -176,7 +176,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     && _is_unit_valid_for_effect(
                         sourceUnit,
                         candidateUnit,
-                        targetFilter
+                        targetFilter,
+                        allow_dead_targets: BattleEffectTargetRequirementRules
+                            .AllowsDeadUnitTarget(effectDefinition)
                     )
                     && BattleEffectTargetRequirementRules.IsSatisfied(
                         effectDefinition,
@@ -229,7 +231,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     && _is_unit_valid_for_effect(
                         sourceUnit,
                         candidateUnit,
-                        targetFilter
+                        targetFilter,
+                        allow_dead_targets: BattleEffectTargetRequirementRules
+                            .AllowsDeadUnitTarget(effectDefinition)
                     )
                     && BattleEffectTargetRequirementRules.IsSatisfied(
                         effectDefinition,
@@ -278,6 +282,19 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             }
         }
         return result;
+    }
+
+    internal static IReadOnlyList<BattleUnitState> CollectPlannedTargetsOrValidatedTargets(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> plan,
+        IReadOnlyList<BattleUnitState> validatedTargets
+    )
+    {
+        if (effectDefinitions == null || effectDefinitions.Count == 0)
+        {
+            return validatedTargets ?? Array.Empty<BattleUnitState>();
+        }
+        return CollectPlannedTargets(effectDefinitions, plan);
     }
 
     internal static IReadOnlyList<BattleUnitReadView> CollectPlannedTargets(

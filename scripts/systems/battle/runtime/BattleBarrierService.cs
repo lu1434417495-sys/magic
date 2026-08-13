@@ -330,6 +330,35 @@ internal class BattleBarrierService
         return false;
     }
 
+    internal bool HasActiveBarrierBoundaryBetween(
+        Vector2I fromCoord,
+        Vector2I toCoord
+    )
+    {
+        var runtime = _ResolveRuntime();
+        if (runtime?._state == null)
+            return false;
+        foreach (StringName barrierKey in _SortedBarrierKeys())
+        {
+            if (
+                !TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier)
+                || _GetActiveLayer(barrier) == null
+            )
+            {
+                continue;
+            }
+            BattleBarrierFootprintTransition transition =
+                BattleBarrierGeometryService.ClassifyFootprintTransition(
+                    new[] { fromCoord },
+                    new[] { toCoord },
+                    _GetBarrierCoords(barrier)
+                );
+            if (transition.CrossesBoundary)
+                return true;
+        }
+        return false;
+    }
+
     internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,

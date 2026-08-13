@@ -1166,6 +1166,9 @@ public sealed partial class GameRuntimeFacade
         _battle_selection_state.selection_stage
             == GameRuntimeBattleSelectionStage.SourceRetreatDirection
             ? new StringName("source_retreat_direction")
+            : _battle_selection_state.selection_stage
+                == GameRuntimeBattleSelectionStage.ForcedMoveDestination
+            ? new StringName("forced_move_destination")
             : new StringName("");
 
     internal void SetBattleSelectionSkillEntryId(StringName skillEntryId) =>

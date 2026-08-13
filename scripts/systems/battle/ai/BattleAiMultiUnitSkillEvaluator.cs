@@ -101,7 +101,11 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                     continue;
                 }
 
-                bool deferGroupLimitUntilCanonicalPreview = HasLayeredBarrier(context);
+                bool deferGroupLimitUntilCanonicalPreview =
+                    HasLayeredBarrier(context)
+                    || BattleTargetSlotCostRules.UsesOrderedTargetSlots(
+                        skillDefinition
+                    );
                 int canonicalValidGroupCount = 0;
                 foreach (List<BattleUnitState> targetGroup in targetGroups)
                 {
@@ -302,12 +306,27 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
             context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
             ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
         int maxCount = Mathf.Max(effectiveDefinition.MaxTargetCount, minCount);
-        maxCount = Mathf.Min(maxCount, pool.Count);
-        if (pool.Count < minCount)
+        bool usesOrderedTargetSlots =
+            BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition);
+        if (!usesOrderedTargetSlots)
+            maxCount = Mathf.Min(maxCount, pool.Count);
+        if (!usesOrderedTargetSlots && pool.Count < minCount)
             return groups;
 
-        bool deferGroupLimitUntilCanonicalPreview = HasLayeredBarrier(context);
+        bool deferGroupLimitUntilCanonicalPreview =
+            HasLayeredBarrier(context) || usesOrderedTargetSlots;
         var seen = new HashSet<string>();
+        if (usesOrderedTargetSlots)
+        {
+            AppendOrderedTargetSlotGroups(
+                groups,
+                seen,
+                pool,
+                minCount,
+                maxCount
+            );
+            return groups;
+        }
         for (int count = maxCount; count >= minCount; count--)
         {
             if (count == 1)
@@ -341,6 +360,35 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
             }
         }
         return groups;
+    }
+
+    private static void AppendOrderedTargetSlotGroups(
+        List<List<BattleUnitState>> groups,
+        HashSet<string> seen,
+        IReadOnlyList<BattleUnitState> pool,
+        int minCount,
+        int maxCount
+    )
+    {
+        for (int count = maxCount; count >= minCount; count--)
+        {
+            foreach (BattleUnitState focusTarget in pool)
+            {
+                var focused = new List<BattleUnitState>();
+                for (int slot = 0; slot < count; slot++)
+                    focused.Add(focusTarget);
+                AppendTargetGroup(groups, seen, focused);
+            }
+
+            int spreadStartCount = Math.Min(pool.Count, 3);
+            for (int start = 0; start < spreadStartCount; start++)
+            {
+                var spread = new List<BattleUnitState>();
+                for (int slot = 0; slot < count; slot++)
+                    spread.Add(pool[(start + slot) % pool.Count]);
+                AppendTargetGroup(groups, seen, spread);
+            }
+        }
     }
 
     private List<BattleUnitState> BuildCandidatePool(
@@ -385,8 +433,16 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                     skillEntry
                 );
                 if (
-                    barrierAwarePreview?.allowed != true
-                    || !barrierAwarePreview.ContainsTargetUnitId(target.unit_id)
+                    singlePreview?.allowed != true
+                    || (
+                        !BattleTargetSlotCostRules.UsesOrderedTargetSlots(
+                            skillDefinition
+                        )
+                        && (
+                            barrierAwarePreview?.allowed != true
+                            || !barrierAwarePreview.ContainsTargetUnitId(target.unit_id)
+                        )
+                    )
                 )
                 {
                     continue;
@@ -468,10 +524,32 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
         CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
         var targetIds = new List<StringName>();
-        AddUniqueTargetId(targetIds, targetUnit?.unit_id ?? "");
-        AddUniqueTargetId(targetIds, command.target_unit_id);
-        foreach (StringName id in command.TargetUnitIdsTyped)
-            AddUniqueTargetId(targetIds, id);
+        if (BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition))
+        {
+            foreach (StringName id in command.TargetUnitIdsTyped)
+            {
+                StringName normalized = ProgressionDataUtils.to_string_name(id);
+                if (normalized != "")
+                    targetIds.Add(normalized);
+            }
+            if (targetIds.Count == 0)
+            {
+                StringName fallbackTargetId = ProgressionDataUtils.to_string_name(
+                    command.target_unit_id != ""
+                        ? command.target_unit_id
+                        : targetUnit?.unit_id ?? ""
+                );
+                if (fallbackTargetId != "")
+                    targetIds.Add(fallbackTargetId);
+            }
+        }
+        else
+        {
+            AddUniqueTargetId(targetIds, targetUnit?.unit_id ?? "");
+            AddUniqueTargetId(targetIds, command.target_unit_id);
+            foreach (StringName id in command.TargetUnitIdsTyped)
+                AddUniqueTargetId(targetIds, id);
+        }
         if (targetIds.Count == 0)
             return preview;
 
@@ -479,6 +557,24 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
             combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.MultiUnit;
         if (!isMultiTarget && targetIds.Count != 1)
             return preview;
+
+        int skillLevel = GetSkillLevel(actor, skillDefinition.SkillId);
+        SkillEffectiveCombatDefinition effectiveDefinition =
+            context.skill_catalog?.GetEffectiveCombatDefinition(
+                skillDefinition.SkillId,
+                skillLevel
+            ) ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
+        CombatSkillResourceCosts selectedCosts =
+            effectiveDefinition.GetResourceCostsForTargetSlots(targetIds.Count);
+        if (
+            actor.GetCurrentAp() < selectedCosts.ApCost
+            || actor.GetCurrentMp() < selectedCosts.MpCost
+            || actor.GetCurrentStamina() < selectedCosts.StaminaCost
+            || actor.GetCurrentAura() < selectedCosts.AuraCost
+        )
+        {
+            return preview;
+        }
 
         foreach (StringName targetId in targetIds)
         {
@@ -714,7 +810,15 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
             skillDefinition,
             context.skill_catalog
         );
-        return context.grid_service.GetDistanceBetweenUnits(actor, targetUnit) <= effectiveRange;
+        if (context.grid_service.GetDistanceBetweenUnits(actor, targetUnit) > effectiveRange)
+            return false;
+        return skillDefinition.CombatProfile.RequiresLos != true
+            || BattleUnitLineOfSightRules.HasLineOfSight(
+                context.state,
+                context.grid_service,
+                actor.GetAnchorCoord(),
+                targetUnit.GetAnchorCoord()
+            );
     }
 
     private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)

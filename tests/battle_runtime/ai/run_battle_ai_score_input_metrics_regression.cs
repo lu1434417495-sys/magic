@@ -13,9 +13,13 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             TestGroundSkillEffectiveTargetsExcludeFriendlyFire();
             TestEmptyGroundControlCellsStaySeparateFromUnitTargets();
             TestGroundSkillScoreInputExposesMetrics();
+            TestShieldScoreUsesExpectedNetGainWithoutGenericControl();
             TestRepeatAttackScoreUsesStageSuccessRate();
+            TestRepeatAttackScoreUsesConditionalDamageExpectation();
             TestChainSkillScoresFriendlyBounceRisk();
             TestDamageScoreUsesFormalResistanceAndShieldRules();
+            TestWeightedSaveFailureControlUsesExpectedProbability();
+            TestEquipmentDurabilityScoreFavorsArmoredTargetWithoutFilteringUnarmoredTarget();
             TestWillPenetrateShieldBonusCondition();
             TestMultiHitDamageScoreConsumesPreviewShieldSequentially();
             TestLayeredBarrierProjectionTracksLayersAndLifetime();
@@ -33,6 +37,223 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         }
 
         RequestTestExit(_test.Finish("Battle AI score input metrics regression"));
+    }
+
+    private void TestWeightedSaveFailureControlUsesExpectedProbability()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_weighted_save_failure_control",
+            new Vector2I(7, 4)
+        );
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/mage_color_spray.tres",
+            "battle_ai_weighted_save_failure_control"
+        );
+        fixture.AddSkill(skill);
+
+        BattleUnitState actor = BuildUnit(
+            "weighted_control_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        actor.attribute_snapshot.SetValue("intelligence", 18);
+        actor.attribute_snapshot.SetValue(
+            AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus),
+            3
+        );
+        actor.AddKnownActiveSkill(skill.SkillId);
+        actor.SetKnownSkillLevelTyped(skill.SkillId, 1);
+        BattleUnitState lowWillTarget = BuildUnit(
+            "weighted_control_low_will",
+            "player",
+            new Vector2I(3, 1)
+        );
+        lowWillTarget.attribute_snapshot.SetValue("willpower", 6);
+        BattleUnitState highWillTarget = BuildUnit(
+            "weighted_control_high_will",
+            "player",
+            new Vector2I(3, 2)
+        );
+        highWillTarget.attribute_snapshot.SetValue("willpower", 20);
+        fixture.AddUnit(actor);
+        fixture.AddUnit(lowWillTarget);
+        fixture.AddUnit(highWillTarget);
+
+        IReadOnlyList<CombatEffectDefinition> effects = ActiveEffectsAtLevel(
+            skill.CombatProfile.EffectDefinitions,
+            1
+        );
+        _test.Eq(effects.Count, 1, "七色炫光1级应只投影一个生效伤害效果。" );
+        _test.Eq(
+            effects[0].EffectTargetTeamFilter,
+            new StringName(""),
+            "七色炫光伤害效果应继承技能的敌方目标过滤。"
+        );
+        _test.True(
+            BattleTargetTeamRules.IsUnitValidForFilter(
+                actor,
+                lowWillTarget,
+                skill.CombatProfile.TargetTeamFilter
+            ),
+            $"七色炫光的敌方目标过滤应接受低意志目标。filter={skill.CombatProfile.TargetTeamFilter}"
+        );
+        _test.True(
+            effects.Count == 1
+                && BattleEffectTargetRequirementRules.IsSatisfied(effects[0], lowWillTarget),
+            "七色炫光伤害效果的目标前置条件应接受普通存活敌人。"
+        );
+        _test.Eq(
+            BattleCombatEffectTargetRules.SelectTargets(
+                effects[0],
+                actor,
+                new[] { lowWillTarget }
+            ).Count,
+            1,
+            "通用效果目标选择应保留低意志目标。"
+        );
+        BattlePreview lowWillPreview = BuildPreview(lowWillTarget);
+        BattlePreview highWillPreview = BuildPreview(highWillTarget);
+        _test.Eq(lowWillPreview.TargetUnitIdsTyped.Count, 1, "AI预览应携带低意志目标ID。" );
+        _test.True(
+            fixture.State.GetUnit(lowWillTarget.unit_id) != null,
+            "AI评分战斗状态应能解析低意志目标。"
+        );
+        BattleAiScoreInput lowWillScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            BuildCommand(
+                actor,
+                skill.SkillId,
+                lowWillTarget.GetAnchorCoord(),
+                lowWillTarget
+            ),
+            lowWillPreview,
+            effects,
+            BuildPositionMetadata(lowWillTarget, 0, 3)
+        );
+        BattleAiScoreInput highWillScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            BuildCommand(
+                actor,
+                skill.SkillId,
+                highWillTarget.GetAnchorCoord(),
+                highWillTarget
+            ),
+            highWillPreview,
+            effects,
+            BuildPositionMetadata(highWillTarget, 0, 3)
+        );
+
+        _test.True(lowWillScore != null && highWillScore != null, "AI应为两个合法单体目标生成七色炫光评分。");
+        if (lowWillScore == null || highWillScore == null)
+            return;
+        _test.Eq(lowWillScore.estimated_control_count, 0, "随机失败控制不得被当成一次必然控制。");
+        _test.True(
+            lowWillScore.estimated_control_probability_basis_points > 0
+                && lowWillScore.estimated_control_probability_basis_points < 10000,
+            $"AI应以0到100%之间的豁免失败概率记录随机控制收益。actual={lowWillScore.estimated_control_probability_basis_points} damage={lowWillScore.estimated_damage} targets={lowWillScore.effective_target_count}"
+        );
+        _test.True(
+            lowWillScore.estimated_control_probability_basis_points
+                > highWillScore.estimated_control_probability_basis_points,
+            $"低意志目标的随机控制期望概率应高于高意志目标。low={lowWillScore.estimated_control_probability_basis_points} high={highWillScore.estimated_control_probability_basis_points}"
+        );
+        _test.True(
+            lowWillScore.hit_payoff_score > highWillScore.hit_payoff_score,
+            $"其他条件相近时，AI应通过正式豁免概率更偏好低意志目标。low={lowWillScore.hit_payoff_score} high={highWillScore.hit_payoff_score}"
+        );
+    }
+
+    private void TestEquipmentDurabilityScoreFavorsArmoredTargetWithoutFilteringUnarmoredTarget()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_equipment_durability",
+            new Vector2I(6, 4)
+        );
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/warrior_guard_break.tres",
+            "battle_ai_equipment_durability_score_regression"
+        );
+        fixture.AddSkill(skill);
+
+        BattleUnitState actor = BuildUnit(
+            "equipment_durability_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        actor.AddKnownActiveSkill(skill.SkillId);
+        actor.SetKnownSkillLevelTyped(skill.SkillId, 0, preserveZero: true);
+        actor.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = "natural",
+                weapon_profile_type_id = "ai_guard_break_claw",
+                weapon_range_type = "melee",
+                weapon_family = "claw",
+                weapon_current_grip = "one_handed",
+                weapon_attack_range = 2,
+                weapon_one_handed_dice = new WeaponDice
+                {
+                    dice_count = 1,
+                    dice_sides = 6,
+                },
+                weapon_physical_damage_tag = "physical_slash",
+            }
+        );
+        BattleUnitState armoredTarget = BuildUnit(
+            "equipment_durability_armored_target",
+            "player",
+            new Vector2I(2, 1)
+        );
+        EquipBodyArmorForDurabilityScore(armoredTarget);
+        BattleUnitState unarmoredTarget = BuildUnit(
+            "equipment_durability_unarmored_target",
+            "player",
+            new Vector2I(2, 2)
+        );
+        fixture.AddUnit(actor);
+        fixture.AddUnit(armoredTarget);
+        fixture.AddUnit(unarmoredTarget);
+
+        IReadOnlyList<CombatEffectDefinition> activeEffects = ActiveEffectsAtLevel(
+            skill.CombatProfile.EffectDefinitions,
+            0
+        );
+        BattleAiScoreInput armoredScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            BuildCommand(actor, skill.SkillId, armoredTarget.GetAnchorCoord(), armoredTarget),
+            BuildPreview(armoredTarget),
+            activeEffects,
+            BuildPositionMetadata(armoredTarget, 0, 2)
+        );
+        BattleAiScoreInput unarmoredScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            BuildCommand(actor, skill.SkillId, unarmoredTarget.GetAnchorCoord(), unarmoredTarget),
+            BuildPreview(unarmoredTarget),
+            activeEffects,
+            BuildPositionMetadata(unarmoredTarget, 0, 2)
+        );
+
+        _test.True(armoredScore != null, "AI应能为穿甲目标生成摧甲击评分。");
+        _test.True(unarmoredScore != null, "无甲目标仍合法，AI不得通过候选过滤移除摧甲击。");
+        if (armoredScore == null || unarmoredScore == null)
+            return;
+        _test.True(
+            armoredScore.estimated_equipment_durability_loss_basis_points > 0,
+            "穿甲目标应产生正的预期耐久损失指标。"
+        );
+        _test.Eq(
+            unarmoredScore.estimated_equipment_durability_loss_basis_points,
+            0,
+            "无甲目标的预期耐久收益应为零。"
+        );
+        _test.True(
+            armoredScore.hit_payoff_score > unarmoredScore.hit_payoff_score,
+            "其他条件相同时，AI应通过评分算法偏好有可损伤护甲的目标。"
+        );
     }
 
     private void TestGroundSkillEffectiveTargetsExcludeFriendlyFire()
@@ -150,6 +371,61 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         _test.True(score.position_objective_score >= 0, "ground skill score input 应暴露站位目标评分。");
     }
 
+    private void TestShieldScoreUsesExpectedNetGainWithoutGenericControl()
+    {
+        using Fixture fixture = BuildFixture("score_input_shield_net_gain", new Vector2I(5, 3));
+        CombatEffectDefinition shieldEffect = TestSkillDefinitionProjection.BuildEffect(
+            "shield",
+            effectTargetTeamFilter: "ally",
+            diceCount: 1,
+            diceSides: 8,
+            diceBonus: 3,
+            durationTu: 40,
+            shieldFamily: "holy_barrier",
+            shieldAttributeModifierId: "willpower_modifier",
+            shieldRollPerTarget: true
+        );
+        SkillDefinition skill = BuildSkill("ai_shield_probe", "AI Shield Probe", shieldEffect);
+        fixture.AddSkill(skill);
+        BattleUnitState caster = BuildUnit("shield_caster", "hostile", new Vector2I(1, 1));
+        caster.attribute_snapshot.SetValue("willpower", 14);
+        BattleUnitState ally = BuildUnit("shield_ally", "hostile", new Vector2I(2, 1));
+        fixture.AddUnit(caster);
+        fixture.AddUnit(ally);
+
+        BattleAiScoreInput freshScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(caster),
+            skill,
+            BuildCommand(caster, skill.SkillId, ally.GetAnchorCoord(), ally),
+            BuildPreview(ally),
+            new[] { shieldEffect },
+            BuildPositionMetadata(ally, 0, 1)
+        );
+        _test.Eq(
+            freshScore?.estimated_ally_shield_gain_basis_points ?? -1,
+            95000,
+            "1D8+3+意志调整值2应按9.5点预期净护盾进入 AI 输入。"
+        );
+        _test.Eq(freshScore?.estimated_control_count ?? -1, 0, "护盾不应再冒充泛控制收益。");
+        _test.True((freshScore?.hit_payoff_score ?? 0) > 0, "能提高友军有效护盾时应产生正向收益。");
+
+        ally.ReplaceShieldStateTyped(20, 20, 100, "holy_barrier", caster.unit_id, skill.SkillId);
+        BattleAiScoreInput redundantScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(caster),
+            skill,
+            BuildCommand(caster, skill.SkillId, ally.GetAnchorCoord(), ally),
+            BuildPreview(ally),
+            new[] { shieldEffect },
+            BuildPositionMetadata(ally, 0, 1)
+        );
+        _test.Eq(
+            redundantScore?.estimated_ally_shield_gain_basis_points ?? -1,
+            0,
+            "已有更强更久同族护盾时，预期净护盾收益应为零。"
+        );
+        _test.Eq(redundantScore?.hit_payoff_score ?? -1, 0, "完全冗余护盾不得领取效果收益。");
+    }
+
     private void TestRepeatAttackScoreUsesStageSuccessRate()
     {
         using Fixture fixture = BuildFixture("score_input_fate_aware_hit_rate", new Vector2I(5, 3));
@@ -193,6 +469,101 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         _test.Eq(preview.hit_preview.StageBaseHitRates[0], 10, "AI 回归前置：preview 应保留 raw 命中率。");
         _test.Eq(preview.hit_preview.StageSuccessRates[0], 15, "AI 回归前置：preview 应保留正式成功率。");
         _test.Eq(score.estimated_hit_rate_percent, 15, "AI 评分应消费 fate-aware repeat_attack 成功率，而不是 raw hit rate。");
+    }
+
+    private void TestRepeatAttackScoreUsesConditionalDamageExpectation()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_repeat_conditional_damage",
+            new Vector2I(5, 3)
+        );
+        CombatEffectDefinition damage = BuildDamageEffect(10, "enemy");
+        CombatEffectDefinition repeat = TestSkillDefinitionProjection.BuildEffect(
+            "fixed_repeat_attack",
+            effectTargetTeamFilter: "enemy",
+            followUpDamageMultiplierPercent: 200,
+            fixedAttackCount: 2,
+            stopOnMiss: true
+        );
+        SkillDefinition repeatSkill = BuildSkill(
+            "ai_conditional_double_nock_probe",
+            "Conditional Double Nock Probe",
+            damage,
+            repeat
+        );
+        SkillDefinition singleSkill = BuildSkill(
+            "ai_single_arrow_probe",
+            "Single Arrow Probe",
+            damage
+        );
+        fixture.AddSkill(repeatSkill);
+        fixture.AddSkill(singleSkill);
+
+        BattleUnitState scorer = BuildUnit(
+            "conditional_repeat_scorer",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        BattleUnitState target = BuildUnit(
+            "conditional_repeat_target",
+            "player",
+            new Vector2I(2, 1),
+            hp: 100
+        );
+        fixture.AddUnit(scorer);
+        fixture.AddUnit(target);
+
+        BattlePreview repeatPreview = BuildPreview(target);
+        repeatPreview.hit_preview = new AttackPreviewData
+        {
+            Stages = new List<AttackPreviewStage>
+            {
+                new(50, 50, 50, 11, 11, "50%", 10000, 100),
+                new(50, 50, 50, 11, 11, "50%", 5000, 200),
+            },
+            HitRatePercent = 50,
+            SuccessRatePercent = 50,
+            BaseHitRatePercent = 50,
+            RepeatAttackExpectedDamageBasisPoints = 10000,
+            RepeatAttackPotentialDamageBasisPoints = 30000,
+        };
+        BattlePreview singlePreview = BuildPreview(target);
+        singlePreview.hit_preview = new AttackPreviewData
+        {
+            Stages = new List<AttackPreviewStage>
+            {
+                new(50, 50, 50, 11, 11, "50%"),
+            },
+            HitRatePercent = 50,
+            SuccessRatePercent = 50,
+            BaseHitRatePercent = 50,
+        };
+
+        BattleAiScoreInput repeatScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(scorer),
+            repeatSkill,
+            BuildCommand(scorer, repeatSkill.SkillId, target.GetAnchorCoord(), target),
+            repeatPreview,
+            repeatSkill.CombatProfile.EffectDefinitions,
+            BuildPositionMetadata(target, 1, 1)
+        );
+        BattleAiScoreInput singleScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(scorer),
+            singleSkill,
+            BuildCommand(scorer, singleSkill.SkillId, target.GetAnchorCoord(), target),
+            singlePreview,
+            singleSkill.CombatProfile.EffectDefinitions,
+            BuildPositionMetadata(target, 1, 1)
+        );
+
+        _test.Eq(repeatScore?.estimated_hit_rate_percent ?? -1, 50, "AI trace中的命中率应保持真实50%。" );
+        _test.Eq(repeatScore?.estimated_damage ?? -1, 30, "AI应枚举100%与200%两段潜在伤害。" );
+        _test.Eq(singleScore?.estimated_damage ?? -1, 10, "单箭对照潜在伤害应为10。" );
+        _test.Eq(
+            repeatScore?.hit_payoff_score ?? -1,
+            (singleScore?.hit_payoff_score ?? 0) * 2,
+            "50%首箭且第二箭依赖首箭命中时，总伤害收益应是单箭的2倍而非3倍。"
+        );
     }
 
     private void TestChainSkillScoresFriendlyBounceRisk()
@@ -1544,6 +1915,49 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         unit.attribute_snapshot.SetValue("willpower", 10);
         unit.SetAnchorCoord(coord);
         return unit;
+    }
+
+    private static void EquipBodyArmorForDurabilityScore(BattleUnitState unit)
+    {
+        var equipment = new EquipmentState();
+        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(
+            "leather_jerkin",
+            $"ai_durability::{unit.unit_id}::body"
+        );
+        instance.rarity = 0;
+        instance.current_durability = 56;
+        if (
+            !equipment.SetEquippedEntry(
+                "body",
+                "leather_jerkin",
+                new[] { new StringName("body") },
+                instance
+            )
+        )
+        {
+            throw new InvalidOperationException("Failed to equip AI durability score fixture armor.");
+        }
+        unit.SetEquipmentView(equipment);
+    }
+
+    private static IReadOnlyList<CombatEffectDefinition> ActiveEffectsAtLevel(
+        IReadOnlyList<CombatEffectDefinition> effects,
+        int level
+    )
+    {
+        var result = new List<CombatEffectDefinition>();
+        foreach (CombatEffectDefinition effect in effects ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (
+                effect != null
+                && level >= Math.Max(effect.MinSkillLevel, 0)
+                && (effect.MaxSkillLevel < 0 || level <= effect.MaxSkillLevel)
+            )
+            {
+                result.Add(effect);
+            }
+        }
+        return result;
     }
 
     private static SkillDefinition BuildSkill(

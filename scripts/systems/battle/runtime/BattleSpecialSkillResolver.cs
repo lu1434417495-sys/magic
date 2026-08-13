@@ -241,13 +241,18 @@ public class BattleSpecialSkillResolver
             return BattleSpecialSkillResult.Empty();
         }
 
+        IReadOnlyList<CombatEffectDefinition> runtimeEffectDefinitions =
+            effectDefinitions as IReadOnlyList<CombatEffectDefinition>
+            ?? new List<CombatEffectDefinition>(effectDefinitions);
+
         BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
         var seenForcedMoveEffects = new HashSet<long>();
+        bool positionSwapHandled = false;
         bool applied = false;
         int maxMovedSteps = 0;
         var statusEffectIds = new List<StringName>();
         var logLines = new List<string>();
-        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
+        foreach (CombatEffectDefinition effectDefinition in runtimeEffectDefinitions)
         {
             if (effectDefinition == null)
             {
@@ -313,6 +318,72 @@ public class BattleSpecialSkillResolver
                 }
                 continue;
             }
+            if (effectKind == BattleEffectKind.PositionSwap)
+            {
+                if (positionSwapHandled)
+                    continue;
+                positionSwapHandled = true;
+                BattlePositionSwapPlan plan = BattlePositionSwapRules.BuildPlan(
+                    RtState(),
+                    _runtime.GetGridService(),
+                    layeredBarrierService,
+                    active_unit,
+                    target_unit
+                );
+                if (!plan.Allowed)
+                {
+                    logLines.Add(plan.Message);
+                    continue;
+                }
+                if (plan.RequiresEnemySave)
+                {
+                    BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+                        active_unit,
+                        target_unit,
+                        effectDefinition,
+                        BattleSaveContext.ForSkill(skillDefinition.SkillId)
+                    );
+                    if (saveResult.HasSave && saveResult.Success)
+                    {
+                        logLines.Add(
+                            saveResult.Immune
+                                ? $"{target_unit.display_name} 免疫位置交换。"
+                                : $"{target_unit.display_name} 通过意志豁免，抵抗了位置交换。"
+                        );
+                        continue;
+                    }
+                }
+                List<Vector2I> sourcePreviousCoords = DuplicateVector2IArray(
+                    active_unit.GetOccupiedCoordsReadViewTyped()
+                );
+                List<Vector2I> targetPreviousCoords = DuplicateVector2IArray(
+                    target_unit.GetOccupiedCoordsReadViewTyped()
+                );
+                if (
+                    !BattlePositionSwapRules.Commit(
+                        RtState(),
+                        _runtime.GetGridService(),
+                        active_unit,
+                        target_unit,
+                        plan
+                    )
+                )
+                {
+                    logLines.Add("战场状态发生变化，位置交换未能完成。");
+                    continue;
+                }
+                applied = true;
+                AppendChangedCoords(batch, sourcePreviousCoords);
+                AppendChangedCoords(batch, targetPreviousCoords);
+                AppendChangedUnitCoords(batch, active_unit);
+                AppendChangedUnitCoords(batch, target_unit);
+                AppendChangedUnitId(batch, active_unit.unit_id);
+                AppendChangedUnitId(batch, target_unit.unit_id);
+                logLines.Add(
+                    $"{active_unit.display_name} 与 {target_unit.display_name} 交换了位置。"
+                );
+                continue;
+            }
             if (effectKind != BattleEffectKind.ForcedMove)
             {
                 continue;
@@ -341,6 +412,70 @@ public class BattleSpecialSkillResolver
             {
                 applied = true;
                 maxMovedSteps = Math.Max(maxMovedSteps, movedSteps);
+            }
+        }
+
+        if (maxMovedSteps > 0)
+        {
+            var forcedMoveFollowUpEffects = new List<CombatEffectDefinition>();
+            foreach (CombatEffectDefinition effectDefinition in runtimeEffectDefinitions)
+            {
+                if (
+                    effectDefinition?.TriggerEventKind
+                    == CombatEffectTriggerEvent.ForcedMoveApplied
+                )
+                {
+                    forcedMoveFollowUpEffects.Add(effectDefinition);
+                }
+            }
+            if (forcedMoveFollowUpEffects.Count > 0)
+            {
+                AttackEffectResolutionResult? followUpResult = _runtime._damage_resolver
+                    ?.ResolveEffects(
+                        active_unit,
+                        target_unit ?? active_unit,
+                        forcedMoveFollowUpEffects,
+                        DamageResolutionContext
+                            .ForSkill(skillDefinition.SkillId)
+                            .WithBattleState(RtState())
+                            .WithSourceSkillLevel(
+                                Math.Max(
+                                    active_unit.GetKnownSkillLevelTyped(
+                                        skillDefinition.SkillId,
+                                        0
+                                    ),
+                                    0
+                                )
+                            )
+                            .WithForcedMoveApplied()
+                    );
+                if (
+                    followUpResult is AttackEffectResolutionResult resolvedFollowUp
+                    && resolvedFollowUp.Applied
+                )
+                {
+                    applied = true;
+                    foreach (
+                        StringName statusId
+                        in resolvedFollowUp.StatusEffectIds ?? new StringNameList()
+                    )
+                    {
+                        if (!statusEffectIds.Contains(statusId))
+                            statusEffectIds.Add(statusId);
+                        logLines.Add(
+                            $"{(target_unit ?? active_unit).display_name} 获得状态 {statusId}。"
+                        );
+                    }
+                    foreach (
+                        StringName statusId
+                        in resolvedFollowUp.RemovedStatusEffectIds ?? new StringNameList()
+                    )
+                    {
+                        logLines.Add(
+                            $"{(target_unit ?? active_unit).display_name} 失去状态 {statusId}。"
+                        );
+                    }
+                }
             }
         }
         return new BattleSpecialSkillResult(applied, maxMovedSteps, statusEffectIds, logLines);
@@ -876,6 +1011,20 @@ public class BattleSpecialSkillResolver
         {
             return 0;
         }
+        int maximumTargetBodySize = Math.Max(
+            effectDefinition.ForcedMoveMaxTargetBodySize,
+            0
+        );
+        if (
+            maximumTargetBodySize > 0
+            && unitState.GetBodySize() > maximumTargetBodySize
+        )
+        {
+            eventBatch?.AddLogLine(
+                $"{unitState.display_name} 的体型超过本次强制位移上限，未被移动。"
+            );
+            return 0;
+        }
         if (ForcedMoveSaveBlocksEffect(sourceUnit, unitState, effectDefinition, saveContext, eventBatch))
         {
             return 0;
@@ -905,6 +1054,17 @@ public class BattleSpecialSkillResolver
         if (mode is BattleForcedMoveMode.Jump or BattleForcedMoveMode.Blink)
         {
             return 0;
+        }
+        if (mode == BattleForcedMoveMode.AirbornePull)
+        {
+            return ApplyAirbornePullEffect(
+                sourceUnit,
+                unitState,
+                effectDefinition,
+                eventBatch,
+                forcedMoveContext,
+                saveContext
+            );
         }
 
         BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
@@ -994,6 +1154,78 @@ public class BattleSpecialSkillResolver
             }
         }
         return movedSteps;
+    }
+
+    private int ApplyAirbornePullEffect(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        BattleEventBatch eventBatch,
+        BattleForcedMoveContext forcedMoveContext,
+        BattleSaveContext saveContext
+    )
+    {
+        if (!forcedMoveContext.HasDestination)
+            return 0;
+        BattleState state = RtState();
+        BattleGridService gridService = _runtime.GetGridService();
+        BattleLayeredBarrierService barrierService = _runtime._layered_barrier_service;
+        BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
+            state,
+            gridService,
+            barrierService,
+            sourceUnit,
+            targetUnit,
+            effectDefinition,
+            forcedMoveContext.DestinationCoord
+        );
+        if (!plan.Allowed)
+        {
+            eventBatch?.AddLogLine(plan.Message);
+            return 0;
+        }
+
+        Vector2I previousAnchor = targetUnit.GetAnchorCoord();
+        List<Vector2I> previousCoords = new(
+            targetUnit.GetOccupiedCoordsReadViewTyped()
+        );
+        BattleBarrierInteractionResult barrierResult =
+            barrierService?.ResolveUnitBoundaryCrossingResult(
+                targetUnit,
+                previousAnchor,
+                plan.DestinationCoord,
+                eventBatch
+            ) ?? new BattleBarrierInteractionResult(false, false);
+        if (
+            barrierResult.Blocked
+            || !targetUnit.IsAlive()
+            || targetUnit.GetAnchorCoord() != previousAnchor
+            || !gridService.MoveUnitForce(state, targetUnit, plan.DestinationCoord)
+        )
+        {
+            return 0;
+        }
+
+        AppendChangedCoords(eventBatch, previousCoords);
+        AppendChangedUnitCoords(eventBatch, targetUnit);
+        AppendChangedUnitId(eventBatch, targetUnit.unit_id);
+        var processedTerrainContactKeys = new HashSet<string>();
+        _runtime._terrain_effect_system?.ApplyContactEffectsForUnit(
+            targetUnit,
+            saveContext,
+            eventBatch,
+            processedTerrainContactKeys
+        );
+        _runtime._terrain_effect_system?.ResolveMovementContactForUnit(
+            targetUnit,
+            saveContext,
+            eventBatch,
+            processedTerrainContactKeys
+        );
+        eventBatch?.AddLogLine(
+            $"{targetUnit.display_name} 被升至空中，从 ({previousAnchor.X}, {previousAnchor.Y}) 牵引至 ({plan.DestinationCoord.X}, {plan.DestinationCoord.Y}) 后落地。"
+        );
+        return plan.Distance;
     }
 
     private static bool ForcedMoveSaveBlocksEffect(

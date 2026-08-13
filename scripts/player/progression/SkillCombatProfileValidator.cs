@@ -30,6 +30,7 @@ internal sealed class SkillCombatProfileValidator
             { "dice_sides_base", "dice_sides_base" },
             { "dice_sides_per_constitution_mod", "dice_sides_per_constitution_mod" },
             { "dice_sides_per_willpower_mod", "dice_sides_per_willpower_mod" },
+            { "shield_family", "shield_family" },
             { "runtime_pre_resistance_damage_multiplier", "pre_resistance_damage_multiplier" },
             { "dr_bypass_tag", "dr_bypass_tag" },
             { "hp_ratio_threshold_percent", "hp_ratio_threshold_percent" },
@@ -45,6 +46,8 @@ internal sealed class SkillCombatProfileValidator
             { "stop_on_miss", "stop_on_miss" },
             { "stop_on_target_down", "stop_on_target_down" },
             { "fixed_attack_count", "fixed_attack_count" },
+            { "follow_up_damage_multiplier_percent", "follow_up_damage_multiplier_percent" },
+            { "follow_up_attack_roll_bonus_curve", "follow_up_attack_roll_bonus_curve" },
             { "remove_harmful", "remove_harmful" },
             { "remove_harmful_from_allies", "remove_harmful_from_allies" },
             { "remove_beneficial", "remove_beneficial" },
@@ -169,15 +172,19 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} combat_profile uses unsupported mastery_amount_mode {combatProfile.mastery_amount_mode}."
             );
+        if (combatProfile.mastery_base_amount < 1)
+            errors.Add(
+                $"Skill {skillId} combat_profile mastery_base_amount must be >= 1."
+            );
         if (combatProfile.range_value < 0)
             errors.Add($"Skill {skillId} combat_profile range_value must be >= 0.");
         if (combatProfile.range_move_point_capacity_multiplier < 0)
             errors.Add(
                 $"Skill {skillId} combat_profile range_move_point_capacity_multiplier must be >= 0."
             );
-        if (!IsValidWeaponRangePolicy(combatProfile.weapon_range_policy))
+        if (combatProfile.WeaponRangePolicyKind == CombatWeaponRangePolicy.Unknown)
             errors.Add(
-                $"Skill {skillId} combat_profile uses unsupported weapon_range_policy {combatProfile.weapon_range_policy}; expected empty, current_weapon, or configured."
+                $"Skill {skillId} combat_profile uses unsupported weapon_range_policy {combatProfile.weapon_range_policy}; expected empty, current_weapon, configured, or current_weapon_plus_configured."
             );
         if (combatProfile.area_value < 0)
             errors.Add($"Skill {skillId} combat_profile area_value must be >= 0.");
@@ -212,6 +219,8 @@ internal sealed class SkillCombatProfileValidator
             combatProfile.ap_cost < 0
             || combatProfile.mp_cost < 0
             || combatProfile.stamina_cost < 0
+            || combatProfile.mp_cost_per_target_slot < 0
+            || combatProfile.stamina_cost_per_target_slot < 0
             || combatProfile.aura_cost < 0
         )
             errors.Add($"Skill {skillId} combat_profile costs must be >= 0.");
@@ -239,6 +248,16 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} combat_profile uses unsupported attack_defense_mode {combatProfile.attack_defense_mode}."
             );
+        if (
+            !CombatUnitTargetResolutionContentRules.IsValid(
+                combatProfile.unit_target_resolution_mode
+            )
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile uses unsupported unit_target_resolution_mode {combatProfile.unit_target_resolution_mode}; expected one of {CombatUnitTargetResolutionContentRules.ValidValueLabel()}."
+            );
+        }
         if (
             combatProfile.attack_roll_bonus_status_id == ""
             && combatProfile.attack_roll_bonus_status_stack_divisor != 0
@@ -343,7 +362,26 @@ internal sealed class SkillCombatProfileValidator
                 );
         }
         AppendDirectionalPiercingValidationErrors(errors, skillId, combatProfile, skillDef);
+        AppendApproachAttackValidationErrors(errors, skillId, combatProfile, skillDef);
+        CombatLineThroughAttackContentRules.AppendValidationErrors(
+            errors,
+            skillId,
+            combatProfile,
+            skillDef
+        );
+        CombatSequentialLineHitContentRules.AppendValidationErrors(
+            errors,
+            skillId,
+            combatProfile,
+            skillDef
+        );
         AppendSpellReactionValidationErrors(errors, skillId, combatProfile, skillDef);
+        AppendRangedWeaponReactionValidationErrors(
+            errors,
+            skillId,
+            combatProfile,
+            skillDef
+        );
         _executeEffectValidator.AppendTemporalReleaseSkillValidationErrors(errors, skillId, combatProfile);
 
         AppendSpellFateValidationErrors(errors, skillId, combatProfile);
@@ -417,7 +455,17 @@ internal sealed class SkillCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} combat_profile level override {overrideLevelKey} must use a non-negative level."
                 );
-            foreach (string costKey in new[] { "ap_cost", "mp_cost", "stamina_cost", "aura_cost" })
+            foreach (
+                string costKey in new[]
+                {
+                    "ap_cost",
+                    "mp_cost",
+                    "stamina_cost",
+                    "mp_cost_per_target_slot",
+                    "stamina_cost_per_target_slot",
+                    "aura_cost",
+                }
+            )
             {
                 if (
                     SkillContentRegistry.TryReadLevelOverrideInt(
@@ -433,6 +481,19 @@ internal sealed class SkillCombatProfileValidator
                     errors.Add(
                         $"Skill {skillId} combat_profile level override {overrideLevelKey}.{costKey} must be >= 0."
                     );
+            }
+            if (
+                combatProfile.UnitTargetResolutionModeKind
+                    != CombatUnitTargetResolutionMode.OrderedSlots
+                && (
+                    overrideDict.ContainsKey("mp_cost_per_target_slot")
+                    || overrideDict.ContainsKey("stamina_cost_per_target_slot")
+                )
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} combat_profile level override {overrideLevelKey} per-target-slot costs require unit_target_resolution_mode=ordered_slots."
+                );
             }
             if (
                 SkillContentRegistry.TryReadLevelOverrideInt(
@@ -612,6 +673,15 @@ internal sealed class SkillCombatProfileValidator
                 );
             if (castingTimeTu > 0)
             {
+                if (
+                    combatProfile.UnitTargetResolutionModeKind
+                    == CombatUnitTargetResolutionMode.OrderedSlots
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} combat_profile level override {overrideLevelKey}.casting_time_tu is incompatible with ordered_slots."
+                    );
+                }
                 AppendCastingTimeCompatibilityErrors(
                     errors,
                     skillId,
@@ -628,6 +698,51 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} combat_profile max_target_count must be >= min_target_count."
             );
+        if (
+            combatProfile.UnitTargetResolutionModeKind
+            == CombatUnitTargetResolutionMode.OrderedSlots
+        )
+        {
+            if (combatProfile.TargetModeKind != BattleTargetMode.Unit)
+                errors.Add(
+                    $"Skill {skillId} combat_profile ordered_slots requires target_mode=unit."
+                );
+            if (
+                combatProfile.TargetSelectionModeKind
+                != BattleTargetSelectionMode.MultiUnit
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} combat_profile ordered_slots requires target_selection_mode=multi_unit."
+                );
+            }
+            if (!combatProfile.allow_repeat_target)
+                errors.Add(
+                    $"Skill {skillId} combat_profile ordered_slots requires allow_repeat_target=true."
+                );
+            if (
+                combatProfile.SelectionOrderModeKind
+                != BattleTargetSelectionOrderMode.Manual
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} combat_profile ordered_slots requires selection_order_mode=manual."
+                );
+            }
+            if (combatProfile.casting_time_tu > 0)
+                errors.Add(
+                    $"Skill {skillId} combat_profile ordered_slots does not support casting_time_tu; ordered target slots must resolve in the issuing command."
+                );
+        }
+        else if (
+            combatProfile.mp_cost_per_target_slot > 0
+            || combatProfile.stamina_cost_per_target_slot > 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile per-target-slot costs require unit_target_resolution_mode=ordered_slots."
+            );
+        }
         _executeEffectValidator.AppendExecuteCombatProfileValidationErrors(errors, skillId, skillDef, combatProfile);
 
         for (int effectIndex = 0; effectIndex < combatProfile.effect_defs.Count; effectIndex++)
@@ -745,6 +860,12 @@ internal sealed class SkillCombatProfileValidator
         }
 
         AppendSourceRetreatProfileValidationErrors(
+            errors,
+            skillId,
+            skillDef,
+            combatProfile
+        );
+        AppendAirbornePullProfileValidationErrors(
             errors,
             skillId,
             skillDef,
@@ -883,6 +1004,125 @@ internal sealed class SkillCombatProfileValidator
         }
     }
 
+    private static void AppendApproachAttackValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatSkillDef combatProfile,
+        SkillDef skillDef
+    )
+    {
+        CombatApproachAttackDef profile = combatProfile.approach_attack_profile;
+        if (profile == null)
+            return;
+
+        if (
+            combatProfile.TargetModeKind != BattleTargetMode.Unit
+            || combatProfile.TargetFilterKind != BattleTargetFilter.Enemy
+            || combatProfile.target_selection_mode != new StringName("single_unit")
+            || combatProfile.min_target_count != 1
+            || combatProfile.max_target_count != 1
+            || combatProfile.allow_repeat_target
+            || combatProfile.max_hits_per_target != 1
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile requires exactly one enemy unit target."
+            );
+        }
+        if (
+            combatProfile.WeaponRangePolicyKind
+                != CombatWeaponRangePolicy.CurrentWeaponPlusConfigured
+            || !combatProfile.requires_los
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile requires current_weapon_plus_configured range and LOS."
+            );
+        }
+        int maxLevel = Math.Max(skillDef?.max_level ?? 0, 0);
+        for (int level = 0; level <= maxLevel; level++)
+        {
+            if (combatProfile.GetEffectiveRangeValue(level) > 0)
+                continue;
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile requires a positive configured approach distance at every level."
+            );
+            break;
+        }
+        if (
+            combatProfile.required_weapon_families.Count != 0
+            || combatProfile.required_weapon_type_ids.Count == 0
+            || combatProfile.allows_natural_weapon
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile requires explicit equipped weapon type ids and cannot allow natural weapons."
+            );
+        }
+        if (
+            combatProfile.cast_variants.Count > 0
+            || combatProfile.passive_effect_defs.Count > 0
+            || combatProfile.casting_time_tu != 0
+            || combatProfile.windup_profile != null
+            || combatProfile.directional_piercing_profile != null
+            || combatProfile.spell_reaction_profile != null
+            || combatProfile.random_chain_attack_count > 0
+            || combatProfile.special_resolution_profile_id != ""
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile cannot combine with passive effects, cast variants, delayed casting, windup, directional piercing, spell reactions, random chain, or special profiles."
+            );
+        }
+        if (
+            skillDef?.contingency_automation_profile?.can_be_stored_in_contingency
+            == true
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile cannot be stored in contingency."
+            );
+        }
+        if (profile.maximum_path_height_delta_from_origin < 0)
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile maximum_path_height_delta_from_origin must be >= 0."
+            );
+        }
+        if (combatProfile.effect_defs.Count != 1)
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile requires exactly one standard weapon damage effect."
+            );
+            return;
+        }
+
+        CombatEffectDef damage = combatProfile.effect_defs[0];
+        if (
+            damage == null
+            || damage.EffectKind != BattleEffectKind.Damage
+            || !damage.add_weapon_dice
+            || !damage.requires_weapon
+            || !damage.use_weapon_physical_damage_tag
+            || !damage.resolve_as_weapon_attack
+            || damage.power != 0
+            || damage.dice_count != 0
+            || damage.dice_sides != 0
+            || damage.dice_bonus != 0
+            || damage.bonus_damage_dice_count != 0
+            || damage.bonus_damage_dice_sides != 0
+            || damage.bonus_damage_dice_bonus != 0
+            || damage.dr_bypass_tag != ""
+            || damage.mitigation_bypass_damage_tags.Count != 0
+            || damage.mitigation_bypass_tiers.Count != 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile.approach_attack_profile damage must be one ordinary current-weapon attack without fixed damage or mitigation bypass."
+            );
+        }
+    }
+
     private static void AppendSpellReactionValidationErrors(
         Array<string> errors,
         StringName skillId,
@@ -958,6 +1198,171 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} combat_profile.spell_reaction_profile save DC bonuses must be >= 0."
             );
+    }
+
+    private static void AppendRangedWeaponReactionValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatSkillDef combatProfile,
+        SkillDef skillDef
+    )
+    {
+        CombatRangedWeaponReactionDef reaction =
+            combatProfile?.ranged_weapon_reaction_profile;
+        if (reaction == null)
+            return;
+
+        const string profilePath = "combat_profile.ranged_weapon_reaction_profile";
+        if (
+            combatProfile.TargetModeKind != BattleTargetMode.Unit
+            || combatProfile.TargetFilterKind != BattleTargetFilter.Self
+            || combatProfile.TargetSelectionModeKind != BattleTargetSelectionMode.Self
+            || combatProfile.range_value != 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} {profilePath} requires a range-0 self unit target."
+            );
+        }
+        if (
+            combatProfile.AttackResolutionModeKind
+            != CombatSkillAttackResolutionMode.DirectEffect
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} {profilePath} requires attack_resolution_mode=direct_effect on the arming cast."
+            );
+        }
+        if (
+            combatProfile.spell_reaction_profile != null
+            || combatProfile.windup_profile != null
+            || combatProfile.directional_piercing_profile != null
+            || combatProfile.approach_attack_profile != null
+            || combatProfile.line_through_attack_profile != null
+            || combatProfile.sequential_line_hit_profile != null
+            || combatProfile.special_resolution_profile_id != ""
+            || combatProfile.random_chain_attack_count > 0
+            || combatProfile.cast_variants.Count > 0
+            || combatProfile.passive_effect_defs.Count > 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} {profilePath} cannot combine with another special resolution profile, cast variants, or passive effects."
+            );
+        }
+        if (reaction.readiness_status_id == "")
+            errors.Add($"Skill {skillId} {profilePath} requires readiness_status_id.");
+        if (
+            reaction.trigger_weapon_families == null
+            || reaction.trigger_weapon_families.Count == 0
+        )
+        {
+            errors.Add($"Skill {skillId} {profilePath} requires trigger_weapon_families.");
+        }
+        else
+        {
+            var seenFamilies = new HashSet<StringName>();
+            foreach (StringName family in reaction.trigger_weapon_families)
+            {
+                if (family == "" || !seenFamilies.Add(family))
+                {
+                    errors.Add(
+                        $"Skill {skillId} {profilePath} trigger_weapon_families must be non-empty and unique."
+                    );
+                    break;
+                }
+            }
+        }
+        if (DamageTagContentRules.ToDamageTagKind(reaction.damage_tag) == DamageTagKind.Unknown)
+        {
+            errors.Add(
+                $"Skill {skillId} {profilePath} uses unsupported damage_tag {reaction.damage_tag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+            );
+        }
+        if (
+            CombatSkillContentRules.ToAttackDefenseMode(reaction.attack_defense_mode)
+            == CombatSkillAttackDefenseMode.Unknown
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} {profilePath} uses unsupported attack_defense_mode {reaction.attack_defense_mode}."
+            );
+        }
+        else if (
+            CombatSkillContentRules.ToAttackDefenseMode(reaction.attack_defense_mode)
+            != combatProfile.AttackDefenseModeKind
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} {profilePath} attack_defense_mode must match combat_profile.attack_defense_mode."
+            );
+        }
+        if (!reaction.trigger_on_hit && !reaction.trigger_on_miss)
+            errors.Add($"Skill {skillId} {profilePath} must trigger on hit, miss, or both.");
+        if (reaction.consume_status_stacks <= 0)
+            errors.Add($"Skill {skillId} {profilePath} consume_status_stacks must be > 0.");
+
+        int maxLevel = Math.Max(skillDef?.max_level ?? 0, 0);
+        int requiredCurveLength = maxLevel + 1;
+        if (
+            reaction.attack_roll_bonus_by_skill_level == null
+            || reaction.attack_roll_bonus_by_skill_level.Length < requiredCurveLength
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} {profilePath} attack roll curve must cover levels 0 through max_level."
+            );
+        }
+        else if (
+            System.Array.Exists(
+                reaction.attack_roll_bonus_by_skill_level,
+                value => value < 0
+            )
+        )
+        {
+            errors.Add($"Skill {skillId} {profilePath} attack roll bonuses must be >= 0.");
+        }
+
+        for (int level = 0; level <= maxLevel; level++)
+        {
+            int activeReadinessCount = 0;
+            foreach (CombatEffectDef effect in combatProfile.effect_defs)
+            {
+                bool active = effect != null
+                    && level >= Math.Max(effect.min_skill_level, 0)
+                    && (effect.max_skill_level < 0 || level <= effect.max_skill_level);
+                if (!active)
+                    continue;
+                if (
+                    effect.EffectKind != BattleEffectKind.Status
+                    || effect.status_id != reaction.readiness_status_id
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} {profilePath} may only arm its readiness status at level {level}."
+                    );
+                    continue;
+                }
+                activeReadinessCount++;
+                if (
+                    effect.stack_behavior != new StringName("add")
+                    || effect.power < reaction.consume_status_stacks
+                    || effect.stack_limit < effect.power
+                    || effect.duration_tu <= 0
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} {profilePath} readiness status at level {level} requires add stacking, positive consumable power, stack_limit >= power, and duration_tu > 0."
+                    );
+                }
+            }
+            if (activeReadinessCount != 1)
+            {
+                errors.Add(
+                    $"Skill {skillId} {profilePath} must resolve to exactly one readiness status at level {level}; found {activeReadinessCount}."
+                );
+            }
+        }
     }
 
     private static void AppendSourceRetreatProfileValidationErrors(
@@ -1047,6 +1452,132 @@ internal sealed class SkillCombatProfileValidator
         }
         return count;
     }
+
+    private static void AppendAirbornePullProfileValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        SkillDef skillDef,
+        CombatSkillDef combatProfile
+    )
+    {
+        if (combatProfile == null)
+            return;
+        var airborneEffects = new List<CombatEffectDef>();
+        foreach (CombatEffectDef effect in combatProfile.effect_defs)
+        {
+            if (IsAirbornePullEffect(effect))
+                airborneEffects.Add(effect);
+        }
+        bool misplaced = false;
+        foreach (CombatEffectDef effect in combatProfile.passive_effect_defs)
+            misplaced |= IsAirbornePullEffect(effect);
+        foreach (CombatCastVariantDef variant in combatProfile.cast_variants)
+        {
+            foreach (CombatEffectDef effect in variant?.effect_defs ?? new())
+                misplaced |= IsAirbornePullEffect(effect);
+        }
+        if (airborneEffects.Count == 0 && !misplaced)
+            return;
+        if (airborneEffects.Count == 0 || misplaced)
+        {
+            errors.Add(
+                $"Skill {skillId} airborne_pull effects must be authored only in combat_profile.effect_defs."
+            );
+        }
+        if (
+            combatProfile.TargetModeKind != BattleTargetMode.Unit
+            || combatProfile.TargetFilterKind != BattleTargetFilter.Enemy
+            || combatProfile.TargetSelectionModeKind
+                != BattleTargetSelectionMode.SingleUnit
+            || combatProfile.min_target_count != 1
+            || combatProfile.max_target_count != 1
+            || combatProfile.allow_repeat_target
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} airborne_pull requires exactly one enemy unit target."
+            );
+        }
+        if (
+            combatProfile.AttackResolutionModeKind
+            != CombatSkillAttackResolutionMode.DirectEffect
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} airborne_pull must use attack_resolution_mode = direct_effect because it does not roll against AC."
+            );
+        }
+        if (
+            combatProfile.casting_time_tu != 0
+            || combatProfile.windup_profile != null
+            || combatProfile.cast_variants.Count > 0
+            || combatProfile.special_resolution_profile_id != ""
+            || combatProfile.random_chain_attack_count > 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} airborne_pull cannot use delayed casting, windup, cast variants, special resolution, or random-chain resolution because it requires an explicit destination."
+            );
+        }
+        if (
+            skillDef?.contingency_automation_profile?.can_be_stored_in_contingency
+            == true
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} airborne_pull cannot be stored in contingency because automatic execution has no selected destination."
+            );
+        }
+        int maxLevel = Math.Max(skillDef?.max_level ?? 0, 0);
+        for (int level = 0; level <= maxLevel; level++)
+        {
+            int activeCount = 0;
+            foreach (CombatEffectDef effect in airborneEffects)
+            {
+                if (
+                    level >= Math.Max(effect.min_skill_level, 0)
+                    && (effect.max_skill_level < 0 || level <= effect.max_skill_level)
+                )
+                {
+                    activeCount++;
+                }
+            }
+            if (activeCount == 1)
+                continue;
+            errors.Add(
+                $"Skill {skillId} airborne_pull must resolve to exactly one active forced_move effect at level {level}; found {activeCount}."
+            );
+        }
+        foreach (CombatEffectDef effect in combatProfile.effect_defs)
+        {
+            if (
+                !IsAirbornePullEffect(effect)
+                && effect?.TriggerEventKind
+                    != CombatEffectTriggerEvent.ForcedMoveApplied
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} airborne_pull is pure control and cannot include independently resolved {effect?.effect_type} effects."
+                );
+            }
+            if (
+                effect?.TriggerEventKind == CombatEffectTriggerEvent.ForcedMoveApplied
+                && effect.EffectKind
+                    is not BattleEffectKind.Status
+                    and not BattleEffectKind.ApplyStatus
+                    and not BattleEffectKind.EraseStatus
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} forced_move_applied currently supports only status, apply_status, or erase_status follow-up effects."
+                );
+            }
+        }
+    }
+
+    private static bool IsAirbornePullEffect(CombatEffectDef effect) =>
+        effect?.EffectKind == BattleEffectKind.ForcedMove
+        && effect.ForcedMoveModeKind == BattleForcedMoveMode.AirbornePull;
 
     private static bool HasStatusEffect(
         Godot.Collections.Array<CombatEffectDef> effects,
@@ -1182,6 +1713,18 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported trigger_event {effectDef.trigger_event}."
             );
+        if (
+            effectDef.TriggerEventKind == CombatEffectTriggerEvent.ForcedMoveApplied
+            && effectKind
+                is not BattleEffectKind.Status
+                and not BattleEffectKind.ApplyStatus
+                and not BattleEffectKind.EraseStatus
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} uses forced_move_applied on an unsupported effect type."
+            );
+        }
         if (effectDef.TriggerConditionKind == CombatEffectTriggerCondition.Unknown)
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported trigger_condition {effectDef.trigger_condition}."
@@ -1293,6 +1836,17 @@ internal sealed class SkillCombatProfileValidator
                 $"Skill {skillId} effect {contextLabel} tick_interval_tu must be 0 or a multiple of {SkillContentRegistry.TuGranularity}."
             );
 
+        if (
+            effectDef.EffectKind != BattleEffectKind.Shield
+            && (
+                effectDef.shield_family != ""
+                || effectDef.shield_attribute_modifier_id != ""
+                || effectDef.shield_roll_per_target
+            )
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} shield fields are only supported on shield effects."
+            );
         AppendSaveValidationErrors(errors, skillId, effectDef, contextLabel);
         SaveTagListContentRules.AppendValidationErrors(
             errors,
@@ -1388,6 +1942,35 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} fixed_attack_count is only supported on fixed_repeat_attack."
             );
+        bool isRepeatAttack =
+            effectKind == BattleEffectKind.FixedRepeatAttack
+            || effectKind == BattleEffectKind.RepeatAttackUntilFail;
+        if (!isRepeatAttack && effectDef.follow_up_damage_multiplier_percent != 100)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} follow_up_damage_multiplier_percent is only supported on repeat attacks."
+            );
+        if (isRepeatAttack && effectDef.follow_up_damage_multiplier_percent <= 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} follow_up_damage_multiplier_percent must be > 0."
+            );
+        if (
+            !isRepeatAttack
+            && effectDef.follow_up_attack_roll_bonus_curve != null
+            && effectDef.follow_up_attack_roll_bonus_curve.Length > 0
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} follow_up_attack_roll_bonus_curve is only supported on repeat attacks."
+            );
+        if (
+            effectDef.follow_up_attack_roll_bonus_curve != null
+            && System.Array.Exists(
+                effectDef.follow_up_attack_roll_bonus_curve,
+                value => value < 0
+            )
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} follow_up_attack_roll_bonus_curve values must be >= 0."
+            );
         if (
             effectKind != BattleEffectKind.SourceRetreat
             && effectDef.source_retreat_distance != 0
@@ -1395,6 +1978,15 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} source_retreat_distance is only supported on source_retreat."
             );
+        if (
+            effectKind != BattleEffectKind.ForcedMove
+            && effectDef.forced_move_max_target_body_size != 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} forced_move_max_target_body_size is only supported on forced_move."
+            );
+        }
 
         if (effectKind == BattleEffectKind.Damage)
         {
@@ -1542,6 +2134,30 @@ internal sealed class SkillCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} shield effect in {contextLabel} must have positive duration_tu in {SkillContentRegistry.TuGranularity} TU steps."
                 );
+            AttributeSnapshotIdKind shieldModifierKind =
+                effectDef.ShieldAttributeModifierKind;
+            if (
+                effectDef.shield_family != ""
+                && string.IsNullOrWhiteSpace(effectDef.shield_family.ToString())
+            )
+                errors.Add(
+                    $"Skill {skillId} shield effect in {contextLabel} shield_family must not be whitespace."
+                );
+            if (
+                effectDef.shield_attribute_modifier_id != ""
+                && !AttributeSnapshot.IsAbilityModifierKind(shieldModifierKind)
+            )
+                errors.Add(
+                    $"Skill {skillId} shield effect in {contextLabel} shield_attribute_modifier_id must name a base ability modifier."
+                );
+            if (
+                effectDef.shield_roll_per_target
+                && !hasValidFixedDiceConfig
+                && !hasValidDynamicDiceConfig
+            )
+                errors.Add(
+                    $"Skill {skillId} shield effect in {contextLabel} shield_roll_per_target requires a valid dice config."
+                );
         }
         else if (
             effectKind == BattleEffectKind.Heal
@@ -1626,6 +2242,7 @@ internal sealed class SkillCombatProfileValidator
                 if (
                     effectDef.status_id != ""
                     || effectDef.save_failure_status_id != ""
+                    || effectDef.save_failure_status_outcomes.Count > 0
                     || effectDef.power != 0
                     || effectDef.dice_count != 0
                     || effectDef.dice_sides != 0
@@ -1742,6 +2359,46 @@ internal sealed class SkillCombatProfileValidator
                     $"Skill {skillId} body_size_category_override effect in {contextLabel} must have positive duration_tu."
                 );
         }
+        else if (effectKind == BattleEffectKind.PositionSwap)
+        {
+            CombatSkillDef profile = skillDef?.combat_profile;
+            if (contextLabel.Contains("passive_effect_defs", StringComparison.Ordinal))
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} cannot be passive."
+                );
+            if (profile?.TargetModeKind != BattleTargetMode.Unit)
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} requires target_mode unit."
+                );
+            if (profile?.TargetSelectionModeKind != BattleTargetSelectionMode.SingleUnit)
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} requires target_selection_mode single_unit."
+                );
+            if (profile?.target_team_filter != "any")
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} requires target_team_filter any."
+                );
+            if (profile?.requires_los != true)
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} requires requires_los=true."
+                );
+            if (effectDef.effect_target_team_filter != "any")
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} requires effect_target_team_filter any."
+                );
+            if (!effectDef.exclude_source)
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} requires exclude_source=true."
+                );
+            if (effectDef.SaveDcModeKind != BattleSaveDcMode.CasterSpell)
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} requires save_dc_mode caster_spell for hostile targets."
+                );
+            if (effectDef.TriggerEventKind != CombatEffectTriggerEvent.None)
+                errors.Add(
+                    $"Skill {skillId} position_swap effect in {contextLabel} must resolve directly and cannot have trigger_event."
+                );
+        }
         else if (effectKind == BattleEffectKind.ForcedMove)
         {
             if (parameters.ContainsKey("mode"))
@@ -1772,6 +2429,65 @@ internal sealed class SkillCombatProfileValidator
                     errors.Add(
                         $"Skill {skillId} grapple_ascent effect in {contextLabel} must have grapple_max_height_gain >= 2."
                     );
+            }
+            else if (effectDef.ForcedMoveModeKind == BattleForcedMoveMode.AirbornePull)
+            {
+                if (effectDef.forced_move_distance <= 0)
+                    errors.Add(
+                        $"Skill {skillId} airborne_pull effect in {contextLabel} must have forced_move_distance >= 1."
+                    );
+                if (
+                    effectDef.forced_move_max_target_body_size < 1
+                    || effectDef.forced_move_max_target_body_size > 4
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} airborne_pull effect in {contextLabel} forced_move_max_target_body_size must be between 1 and 4."
+                    );
+                }
+                if (effectDef.required_target_status_id == "")
+                    errors.Add(
+                        $"Skill {skillId} airborne_pull effect in {contextLabel} requires required_target_status_id."
+                    );
+                if (
+                    effectDef.save_dc != 0
+                    || effectDef.save_ability != ""
+                    || effectDef.save_tag != ""
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} airborne_pull effect in {contextLabel} cannot declare a saving throw."
+                    );
+                }
+                if (effectDef.TriggerEventKind != CombatEffectTriggerEvent.None)
+                    errors.Add(
+                        $"Skill {skillId} airborne_pull effect in {contextLabel} must resolve directly and cannot have trigger_event."
+                    );
+            }
+            else if (effectDef.ForcedMoveModeKind == BattleForcedMoveMode.WindPush)
+            {
+                if (effectDef.forced_move_distance <= 0)
+                    errors.Add(
+                        $"Skill {skillId} wind_push effect in {contextLabel} must have forced_move_distance >= 1."
+                    );
+                if (
+                    effectDef.forced_move_max_target_body_size < 1
+                    || effectDef.forced_move_max_target_body_size > 4
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} wind_push effect in {contextLabel} forced_move_max_target_body_size must be between 1 and 4."
+                    );
+                }
+                if (
+                    effectDef.save_dc <= 0
+                    && effectDef.SaveDcModeKind != BattleSaveDcMode.CasterSpell
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} wind_push effect in {contextLabel} requires a saving throw."
+                    );
+                }
             }
             else if (effectDef.forced_move_distance <= 0)
                 errors.Add(
@@ -1942,6 +2658,9 @@ internal sealed class SkillCombatProfileValidator
             effectDef.save_dc_source_ability
         );
         var saveTag = ProgressionDataUtils.to_string_name(effectDef.save_tag);
+        bool hasWeightedFailureOutcomes =
+            effectDef.save_failure_status_outcomes != null
+            && effectDef.save_failure_status_outcomes.Count > 0;
         if (saveDcMode == BattleSaveDcMode.Unknown)
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported save_dc_mode {effectDef.save_dc_mode}."
@@ -1975,6 +2694,16 @@ internal sealed class SkillCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} effect {contextLabel} save_failure_status_id requires save_dc >= 1 or caster_spell save_dc_mode."
                 );
+            if (hasWeightedFailureOutcomes)
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel} save_failure_status_outcomes requires save_dc >= 1 or caster_spell save_dc_mode."
+                );
+            AppendWeightedSaveFailureOutcomeValidationErrors(
+                errors,
+                skillId,
+                effectDef,
+                contextLabel
+            );
             if (effectDef.save_partial_on_success)
                 errors.Add(
                     $"Skill {skillId} effect {contextLabel} save_partial_on_success requires save_dc >= 1 or caster_spell save_dc_mode."
@@ -2003,6 +2732,121 @@ internal sealed class SkillCombatProfileValidator
         )
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} save_failure_status_id is only supported on status or damage effects."
+            );
+        AppendWeightedSaveFailureOutcomeValidationErrors(
+            errors,
+            skillId,
+            effectDef,
+            contextLabel
+        );
+    }
+
+    private void AppendWeightedSaveFailureOutcomeValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        if (
+            effectDef?.save_failure_status_outcomes == null
+            || effectDef.save_failure_status_outcomes.Count == 0
+        )
+        {
+            return;
+        }
+        if (effectDef.EffectKind != BattleEffectKind.Damage)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} save_failure_status_outcomes is only supported on damage effects."
+            );
+        if (effectDef.save_failure_status_id != "")
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} cannot combine save_failure_status_id with save_failure_status_outcomes."
+            );
+
+        var outcomeIds = new System.Collections.Generic.HashSet<StringName>();
+        long totalWeight = 0;
+        for (int index = 0; index < effectDef.save_failure_status_outcomes.Count; index++)
+        {
+            CombatWeightedStatusOutcomeDef outcome =
+                effectDef.save_failure_status_outcomes[index];
+            string outcomeLabel =
+                $"{contextLabel}.save_failure_status_outcomes[{index}]";
+            if (outcome == null)
+            {
+                errors.Add($"Skill {skillId} effect {outcomeLabel} is null.");
+                continue;
+            }
+            StringName outcomeId = ProgressionDataUtils.to_string_name(outcome.outcome_id);
+            if (outcomeId == "")
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.outcome_id must be non-empty."
+                );
+            else if (!outcomeIds.Add(outcomeId))
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.outcome_id {outcomeId} is duplicated."
+                );
+            if (outcome.weight <= 0)
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.weight must be > 0."
+                );
+            else
+                totalWeight += outcome.weight;
+
+            CombatEffectDef statusEffect = outcome.status_effect;
+            if (statusEffect == null)
+            {
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.status_effect must be non-null."
+                );
+                continue;
+            }
+            if (
+                statusEffect.EffectKind != BattleEffectKind.Status
+                && statusEffect.EffectKind != BattleEffectKind.ApplyStatus
+            )
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.status_effect must be status or apply_status."
+                );
+            if (statusEffect.effect_target_team_filter != "")
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.status_effect must inherit the already-resolved target and leave effect_target_team_filter empty."
+                );
+            if (statusEffect.min_skill_level != 0 || statusEffect.max_skill_level != -1)
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.status_effect cannot define an independent level window."
+                );
+            if (
+                (statusEffect.trigger_event != "" && statusEffect.trigger_event != "none")
+                || (statusEffect.trigger_condition != ""
+                    && statusEffect.trigger_condition != "none")
+            )
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.status_effect cannot define an independent trigger."
+                );
+            if (
+                statusEffect.save_dc > 0
+                || statusEffect.SaveDcModeKind == BattleSaveDcMode.CasterSpell
+                || statusEffect.save_ability != ""
+                || statusEffect.save_tag != ""
+                || statusEffect.save_failure_status_id != ""
+                || statusEffect.save_failure_status_outcomes.Count > 0
+                || statusEffect.save_partial_on_success
+            )
+                errors.Add(
+                    $"Skill {skillId} effect {outcomeLabel}.status_effect cannot define a nested save or failure outcome."
+                );
+
+            AppendEffectValidationErrors(
+                errors,
+                skillId,
+                statusEffect,
+                $"{outcomeLabel}.status_effect"
+            );
+        }
+        if (totalWeight > int.MaxValue)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} save_failure_status_outcomes total weight exceeds {int.MaxValue}."
             );
     }
 
@@ -2110,12 +2954,6 @@ internal sealed class SkillCombatProfileValidator
         return value == BattleTypedNames.PendingCastBindingSoftAnchor
             || value == BattleTypedNames.PendingCastBindingHardAnchor
             || value == BattleTypedNames.PendingCastBindingGroundBind;
-    }
-
-    private static bool IsValidWeaponRangePolicy(StringName value)
-    {
-        StringName normalized = ProgressionDataUtils.to_string_name(value);
-        return normalized == "" || normalized == "current_weapon" || normalized == "configured";
     }
 
     private void AppendCastingTimeCompatibilityErrors(

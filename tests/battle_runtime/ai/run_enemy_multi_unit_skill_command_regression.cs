@@ -91,6 +91,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             }
 
             TestBarrierBlockedCandidateDoesNotConsumePoolLimit();
+            TestOrderedTargetSlotsEnumerateRepeatedTargetsAndScoreActualCost();
         }
         catch (Exception exception)
         {
@@ -214,6 +215,139 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             !CommandContainsTargetUnitId(command, blockedTargetA.unit_id),
             "the first fully blocked candidate group should not consume the canonical group limit"
         );
+    }
+
+    private void TestOrderedTargetSlotsEnumerateRepeatedTargetsAndScoreActualCost()
+    {
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/mage_arcane_missile.tres",
+            "enemy_multi_unit_skill_ordered_slots"
+        );
+        BattleUnitState source = _runtimeScope.OwnWrapper(
+            BuildUnit("ordered_slot_actor", "hostile", new Vector2I(0, 0)),
+            "ordered-slot-source"
+        );
+        BattleUnitState targetA = _runtimeScope.OwnWrapper(
+            BuildUnit("ordered_slot_target_a", "player", new Vector2I(2, 0)),
+            "ordered-slot-target-a"
+        );
+        BattleUnitState targetB = _runtimeScope.OwnWrapper(
+            BuildUnit("ordered_slot_target_b", "player", new Vector2I(3, 0)),
+            "ordered-slot-target-b"
+        );
+        source.AddKnownActiveSkill(skill.SkillId);
+        source.SetKnownSkillLevelTyped(skill.SkillId, 10, preserveZero: true);
+        source.SetCurrentMp(100);
+        source.SetCurrentStamina(100);
+
+        BattleState state = _runtimeScope.OwnWrapper(
+            new BattleState
+            {
+                battle_id = "ordered_target_slot_ai",
+                phase = "unit_acting",
+                map_size = new Vector2I(8, 2),
+                active_unit_id = source.unit_id,
+                timeline = new BattleTimelineState(),
+            },
+            "ordered-slot-state"
+        );
+        state.SetUnit(source);
+        state.SetUnit(targetA);
+        state.SetUnit(targetB);
+        var context = new BattleAiContext
+        {
+            state = state,
+            unit_state = source,
+            grid_service = new BattleGridService(),
+            skill_cast_block_reason_callback = (_, _) =>
+                BattleSkillCastBlockReasonKind.None,
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skill.SkillId] = skill,
+            }
+        );
+        var action = new UseMultiUnitSkillActionDefinition(
+            "ordered_slot_action",
+            "test",
+            BattleAiActionIntent.Offense,
+            new[] { skill.SkillId },
+            "nearest_enemy",
+            0,
+            5,
+            EnemyAiDistanceReferences.ToStringName(
+                EnemyAiDistanceReference.TargetUnit
+            ),
+            2,
+            12
+        );
+
+        BattleAiDecision decision = new BattleAiMultiUnitSkillEvaluator().Evaluate(
+            action,
+            context
+        );
+        BattleCommand command = decision?.command;
+        _test.True(command != null, "ordered_slots AI 应枚举出可用候选。" );
+        if (command == null)
+            return;
+        _test.Eq(command.TargetUnitIdsTyped.Count, 6, "10级AI候选应允许编排6发。" );
+        _test.True(
+            command.TargetUnitIdsTyped[0] == command.TargetUnitIdsTyped[1],
+            "AI必须枚举向同一目标重复分配飞弹的集中火力候选。"
+        );
+
+        var preview = new BattlePreview { allowed = true };
+        foreach (StringName targetUnitId in command.TargetUnitIdsTyped)
+            preview.AddTargetUnitId(targetUnitId);
+        using var scoreService = new BattleAiScoreService();
+        BattleAiScoreInput scoreInput = scoreService.BuildSkillScoreInput(
+            context,
+            skill,
+            command,
+            preview,
+            skill.CombatProfile.EffectDefinitions,
+            new Dictionary<string, object>(StringComparer.Ordinal)
+        );
+        _test.True(scoreInput != null, "ordered_slots 应能进入通用AI评分。" );
+        _test.Eq(scoreInput?.mp_cost ?? -1, 30, "AI评分必须按6发计算30法力。" );
+        _test.Eq(
+            scoreInput?.stamina_cost ?? -1,
+            42,
+            "AI评分必须按6发计算42体力。"
+        );
+        _test.Eq(scoreInput?.target_count ?? -1, 6, "AI评分必须保留6个有序伤害槽位。" );
+
+        StringName singleTargetId = command.TargetUnitIdsTyped[0];
+        var singleCommand = new BattleCommand
+        {
+            command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+            unit_id = source.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skill.SkillId),
+            skill_id = skill.SkillId,
+            target_unit_id = singleTargetId,
+        };
+        singleCommand.SetTargetUnitIds(new[] { singleTargetId });
+        var singlePreview = new BattlePreview { allowed = true };
+        singlePreview.AddTargetUnitId(singleTargetId);
+        BattleAiScoreInput singleScoreInput = scoreService.BuildSkillScoreInput(
+            context,
+            skill,
+            singleCommand,
+            singlePreview,
+            skill.CombatProfile.EffectDefinitions,
+            new Dictionary<string, object>(StringComparer.Ordinal)
+        );
+        _test.True(
+            singleScoreInput != null
+                && scoreInput != null
+                && scoreInput.estimated_enemy_damage
+                    == singleScoreInput.estimated_enemy_damage * 6,
+            "AI伤害评分必须按每个有序飞弹槽位线性累计，重复目标不得被去重。"
+        );
+        BattleTestFixture.DisposeBattlePreview(singlePreview);
+        BattleTestFixture.DisposeBattlePreview(preview);
+        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)

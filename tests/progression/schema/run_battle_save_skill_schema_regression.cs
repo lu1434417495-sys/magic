@@ -21,6 +21,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
     {
         TestSkillSchemaAcceptsValidSaveFields();
         TestDamageSaveCanApplyFailureStatus();
+        TestWeightedSaveFailureStatusOutcomesValidation();
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
         TestSkillSchemaRejectsInvalidSaveFields();
         TestSkillSchemaRejectsInvalidSaveTagLists();
@@ -105,6 +106,90 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         _test.True(
             errors.Count == 0,
             $"damage effect should support save_failure_status_id using the same save result. errors={string.Join(" | ", errors)}"
+        );
+    }
+
+    private void TestWeightedSaveFailureStatusOutcomesValidation()
+    {
+        using SkillContentRegistry registry = new(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        );
+        using CombatEffectDef dazzled = new()
+        {
+            effect_type = "status",
+            status_id = "weighted_dazzled",
+            duration_tu = 50,
+            attack_roll_penalty = 2,
+        };
+        using CombatEffectDef staggered = new()
+        {
+            effect_type = "status",
+            status_id = "staggered",
+            power = 1,
+            duration_tu = 50,
+        };
+        using CombatWeightedStatusOutcomeDef first = new()
+        {
+            outcome_id = "dazzled",
+            weight = 1,
+            status_effect = dazzled,
+        };
+        using CombatWeightedStatusOutcomeDef second = new()
+        {
+            outcome_id = "staggered",
+            weight = 2,
+            status_effect = staggered,
+        };
+        using CombatEffectDef validDamage = BuildValidDynamicSaveEffect();
+        validDamage.save_failure_status_outcomes = new()
+        {
+            first,
+            second,
+        };
+        AssertExactErrors(
+            ValidateEffect(registry, "valid_weighted_failure_outcomes", validDamage),
+            "valid weighted save-failure status outcomes"
+        );
+
+        using CombatEffectDef invalidNestedStatus = new()
+        {
+            effect_type = "status",
+            status_id = "invalid_nested_save",
+            duration_tu = 50,
+            save_dc = 10,
+            save_ability = "willpower",
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic),
+        };
+        using CombatWeightedStatusOutcomeDef invalidFirst = new()
+        {
+            outcome_id = "duplicate",
+            weight = 0,
+            status_effect = invalidNestedStatus,
+        };
+        using CombatWeightedStatusOutcomeDef invalidSecond = new()
+        {
+            outcome_id = "duplicate",
+            weight = 1,
+            status_effect = staggered,
+        };
+        using CombatEffectDef invalidDamage = BuildValidDynamicSaveEffect();
+        invalidDamage.save_failure_status_id = "legacy_static_status";
+        invalidDamage.save_failure_status_outcomes = new()
+        {
+            invalidFirst,
+            invalidSecond,
+        };
+        string formattedErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "invalid_weighted_failure_outcomes", invalidDamage)
+        );
+        _test.True(
+            formattedErrors.Contains("cannot combine save_failure_status_id")
+                && formattedErrors.Contains(".weight must be > 0")
+                && formattedErrors.Contains("outcome_id duplicate is duplicated")
+                && formattedErrors.Contains("cannot define a nested save or failure outcome"),
+            $"加权失败状态池应拒绝旧静态状态混用、非正权重、重复ID与嵌套豁免。 errors={formattedErrors}"
         );
     }
 

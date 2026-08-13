@@ -24,6 +24,7 @@ public class BattleStatusEffectState
         "display_label",
         "tick_interval_tu",
         "next_tick_at_tu",
+        "source_contributions",
         "timeline_damage_dice_count",
         "timeline_damage_dice_sides",
         "timeline_damage_flat_bonus",
@@ -111,6 +112,7 @@ public class BattleStatusEffectState
     public StringName source_profile_id { get; set; } = "";
     public StringName source_layer_id { get; set; } = "";
     public StringName source_skill_id { get; set; } = "";
+    private readonly List<BattleStatusSourceContributionState> _sourceContributions = new();
     public StringName stack_behavior { get; set; } = "";
     public int stack_limit { get; set; }
     public int power { get; set; }
@@ -253,6 +255,207 @@ public class BattleStatusEffectState
         return existingEntry?.DuplicateState() ?? new BattleStatusEffectState();
     }
 
+    internal bool HasSourceContributionsTyped() => _sourceContributions.Count > 0;
+
+    internal IReadOnlyList<BattleStatusSourceContributionState> GetSourceContributionsTyped() =>
+        _sourceContributions;
+
+    internal BattleStatusSourceContributionState GetSourceContributionTyped(
+        BattleStatusSourceIdentity identity
+    )
+    {
+        if (!identity.IsValid)
+            return null;
+        foreach (BattleStatusSourceContributionState contribution in _sourceContributions)
+        {
+            if (contribution?.Identity == identity)
+                return contribution;
+        }
+        return null;
+    }
+
+    internal int GetSourceContributionStacksTyped(BattleStatusSourceIdentity identity) =>
+        System.Math.Max(GetSourceContributionTyped(identity)?.Stacks ?? 0, 0);
+
+    internal int GetSourceContributionStacksForUnitTyped(StringName sourceUnitId)
+    {
+        StringName normalizedSourceUnitId = ProgressionDataUtils.to_string_name(sourceUnitId);
+        int total = 0;
+        foreach (BattleStatusSourceContributionState contribution in _sourceContributions)
+        {
+            if (
+                contribution?.IsValid != true
+                || contribution.Identity.SourceUnitId != normalizedSourceUnitId
+            )
+            {
+                continue;
+            }
+            total = total > int.MaxValue - contribution.Stacks
+                ? int.MaxValue
+                : total + contribution.Stacks;
+        }
+        return total;
+    }
+
+    internal void SetSourceContributionTyped(
+        BattleStatusSourceContributionState contribution
+    )
+    {
+        if (contribution?.IsValid != true)
+            throw new System.ArgumentException("A valid source contribution is required.");
+        for (int index = 0; index < _sourceContributions.Count; index++)
+        {
+            if (_sourceContributions[index].Identity != contribution.Identity)
+                continue;
+            _sourceContributions[index] = contribution;
+            SortSourceContributions();
+            return;
+        }
+        _sourceContributions.Add(contribution);
+        SortSourceContributions();
+    }
+
+    internal bool RemoveSourceContributionTyped(BattleStatusSourceIdentity identity)
+    {
+        for (int index = 0; index < _sourceContributions.Count; index++)
+        {
+            if (_sourceContributions[index].Identity != identity)
+                continue;
+            _sourceContributions.RemoveAt(index);
+            return true;
+        }
+        return false;
+    }
+
+    internal void ReplaceSourceContributionsTyped(
+        IEnumerable<BattleStatusSourceContributionState> contributions
+    )
+    {
+        _sourceContributions.Clear();
+        var identities = new HashSet<BattleStatusSourceIdentity>();
+        foreach (
+            BattleStatusSourceContributionState contribution in contributions
+                ?? System.Array.Empty<BattleStatusSourceContributionState>()
+        )
+        {
+            if (contribution?.IsValid != true || !identities.Add(contribution.Identity))
+                throw new System.ArgumentException("Source contributions must be valid and unique.");
+            _sourceContributions.Add(contribution.Duplicate());
+        }
+        SortSourceContributions();
+    }
+
+    internal List<Dictionary<string, object>> BuildSourceContributionSnapshotsPlain()
+    {
+        var result = new List<Dictionary<string, object>>(_sourceContributions.Count);
+        foreach (BattleStatusSourceContributionState contribution in _sourceContributions)
+        {
+            if (contribution?.IsValid == true)
+                result.Add(contribution.BuildSnapshotPlain());
+        }
+        return result;
+    }
+
+    internal void RebuildSourceContributionAggregateTyped()
+    {
+        if (_sourceContributions.Count == 0)
+        {
+            power = 0;
+            stacks = 0;
+            duration = 0;
+            tick_interval_tu = 0;
+            next_tick_at_tu = 0;
+            timeline_damage_dice_count = 0;
+            timeline_damage_dice_sides = 0;
+            timeline_damage_flat_bonus = 0;
+            source_unit_id = "";
+            source_skill_id = "";
+            damage_tag = "";
+            return;
+        }
+
+        int aggregatePower = 0;
+        int aggregateStacks = 0;
+        int aggregateDuration = 0;
+        bool indefiniteDuration = false;
+        int aggregateTickInterval = 0;
+        int aggregateNextTick = 0;
+        StringName commonSourceUnitId = _sourceContributions[0].Identity.SourceUnitId;
+        StringName commonSkillId =
+            _sourceContributions[0].Identity.Kind == BattleStatusSourceKind.Skill
+                ? _sourceContributions[0].Identity.SourceDefinitionId
+                : new StringName("");
+        StringName commonDamageTag = _sourceContributions[0].DamageTag;
+        foreach (BattleStatusSourceContributionState contribution in _sourceContributions)
+        {
+            aggregatePower = System.Math.Max(aggregatePower, contribution.Power);
+            aggregateStacks = aggregateStacks > int.MaxValue - contribution.Stacks
+                ? int.MaxValue
+                : aggregateStacks + contribution.Stacks;
+            if (contribution.DurationTu < 0)
+                indefiniteDuration = true;
+            else
+                aggregateDuration = System.Math.Max(aggregateDuration, contribution.DurationTu);
+            if (
+                contribution.TickIntervalTu > 0
+                && (aggregateTickInterval <= 0 || contribution.TickIntervalTu < aggregateTickInterval)
+            )
+            {
+                aggregateTickInterval = contribution.TickIntervalTu;
+            }
+            if (
+                contribution.NextTickAtTu > 0
+                && (aggregateNextTick <= 0 || contribution.NextTickAtTu < aggregateNextTick)
+            )
+            {
+                aggregateNextTick = contribution.NextTickAtTu;
+            }
+            if (contribution.Identity.SourceUnitId != commonSourceUnitId)
+                commonSourceUnitId = "";
+            if (
+                contribution.Identity.Kind != BattleStatusSourceKind.Skill
+                || contribution.Identity.SourceDefinitionId != commonSkillId
+            )
+            {
+                commonSkillId = "";
+            }
+            if (contribution.DamageTag != commonDamageTag)
+                commonDamageTag = "";
+        }
+
+        power = aggregatePower;
+        stacks = aggregateStacks;
+        duration = indefiniteDuration ? -1 : aggregateDuration;
+        tick_interval_tu = aggregateTickInterval;
+        next_tick_at_tu = aggregateNextTick;
+        source_unit_id = commonSourceUnitId;
+        source_skill_id = commonSkillId;
+        damage_tag = commonDamageTag;
+        if (_sourceContributions.Count == 1)
+        {
+            BattleStatusSourceContributionState only = _sourceContributions[0];
+            timeline_damage_dice_count = only.TimelineDamageDiceCount;
+            timeline_damage_dice_sides = only.TimelineDamageDiceSides;
+            timeline_damage_flat_bonus = only.TimelineDamageFlatBonus;
+        }
+        else
+        {
+            timeline_damage_dice_count = 0;
+            timeline_damage_dice_sides = 0;
+            timeline_damage_flat_bonus = 0;
+        }
+    }
+
+    private void SortSourceContributions()
+    {
+        _sourceContributions.Sort(
+            (left, right) => System.StringComparer.Ordinal.Compare(
+                left.Identity.StableKey,
+                right.Identity.StableKey
+            )
+        );
+    }
+
     public BattleStatusEffectState DuplicateState()
     {
         var duplicate = new BattleStatusEffectState
@@ -350,6 +553,7 @@ public class BattleStatusEffectState
             save_bonus_by_tag = BuildStringNameIntMap(save_bonus_by_tag),
         };
         duplicate.SetParamsTyped(_params);
+        duplicate.ReplaceSourceContributionsTyped(_sourceContributions);
         return duplicate;
     }
 
@@ -395,6 +599,10 @@ public class BattleStatusEffectState
         if (next_tick_at_tu > 0)
         {
             payload["next_tick_at_tu"] = next_tick_at_tu;
+        }
+        if (_sourceContributions.Count > 0)
+        {
+            payload["source_contributions"] = BuildSourceContributionSnapshotsPlain();
         }
         if (timeline_damage_dice_count > 0 || timeline_damage_dice_sides > 0)
         {
@@ -518,6 +726,33 @@ public class BattleStatusEffectState
             )
             {
                 return null;
+            }
+        }
+
+        var sourceContributions = new List<BattleStatusSourceContributionState>();
+        if (effectDict.ContainsKey("source_contributions"))
+        {
+            Variant rawContributions = effectDict["source_contributions"];
+            if (rawContributions.VariantType != Variant.Type.Array)
+                return null;
+            GArray contributionPayloads = rawContributions.AsGodotArray();
+            if (contributionPayloads.Count == 0)
+                return null;
+            var identities = new HashSet<BattleStatusSourceIdentity>();
+            foreach (Variant rawContribution in contributionPayloads)
+            {
+                if (
+                    rawContribution.VariantType != Variant.Type.Dictionary
+                    || !BattleStatusSourceContributionState.TryFromDictionary(
+                        rawContribution.AsGodotDictionary(),
+                        out BattleStatusSourceContributionState contribution
+                    )
+                    || !identities.Add(contribution.Identity)
+                )
+                {
+                    return null;
+                }
+                sourceContributions.Add(contribution);
             }
         }
 
@@ -789,6 +1024,25 @@ public class BattleStatusEffectState
             main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,
         };
         state.SetParamsTyped(CopyResidualParamsPlain(parameters));
+        if (sourceContributions.Count > 0)
+        {
+            state.ReplaceSourceContributionsTyped(sourceContributions);
+            state.RebuildSourceContributionAggregateTyped();
+            if (
+                state.source_unit_id != new StringName(sourceUnitId)
+                || state.power != power
+                || state.stacks != stacks
+                || state.duration != durationValue
+                || state.tick_interval_tu != tickIntervalValue
+                || state.next_tick_at_tu != nextTickAtValue
+                || state.timeline_damage_dice_count != timelineDamageDiceCountValue
+                || state.timeline_damage_dice_sides != timelineDamageDiceSidesValue
+                || state.timeline_damage_flat_bonus != timelineDamageFlatBonusValue
+            )
+            {
+                return null;
+            }
+        }
         return state;
     }
 

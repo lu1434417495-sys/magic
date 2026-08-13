@@ -355,6 +355,23 @@ internal sealed class BattleDamagePreviewScoreResult
     }
 }
 
+public sealed record BattleWeightedStatusOutcomePreviewData(
+    StringName OutcomeId,
+    StringName StatusId,
+    string DisplayName,
+    int Weight,
+    int TotalWeight,
+    int ConditionalProbabilityBasisPoints,
+    int ApplicationProbabilityBasisPoints,
+    int DurationTu,
+    int Power,
+    int AttackRollPenalty,
+    bool LockCounterattack,
+    bool LockGuard,
+    bool LockDodgeBonus,
+    bool LockCrit
+);
+
 public sealed class BattleDamagePreviewSaveEstimate
 {
     public bool HasSave { get; private set; }
@@ -378,6 +395,11 @@ public sealed class BattleDamagePreviewSaveEstimate
     public bool Immune { get; private set; }
     public IReadOnlyList<BattleSaveSource> Sources { get; private set; } =
         Array.Empty<BattleSaveSource>();
+    public IReadOnlyList<BattleWeightedStatusOutcomePreviewData> SaveFailureStatusOutcomes
+    {
+        get;
+        private set;
+    } = Array.Empty<BattleWeightedStatusOutcomePreviewData>();
 
     public static BattleDamagePreviewSaveEstimate Create(
         bool hasSave,
@@ -399,7 +421,8 @@ public sealed class BattleDamagePreviewSaveEstimate
         int abilityModifier,
         int bonus,
         bool immune,
-        IReadOnlyList<BattleSaveSource> sources
+        IReadOnlyList<BattleSaveSource> sources,
+        IReadOnlyList<BattleWeightedStatusOutcomePreviewData> saveFailureStatusOutcomes = null
     )
     {
         return new BattleDamagePreviewSaveEstimate
@@ -424,6 +447,11 @@ public sealed class BattleDamagePreviewSaveEstimate
             Bonus = bonus,
             Immune = immune,
             Sources = sources ?? Array.Empty<BattleSaveSource>(),
+            SaveFailureStatusOutcomes = saveFailureStatusOutcomes != null
+                ? new List<BattleWeightedStatusOutcomePreviewData>(
+                    saveFailureStatusOutcomes
+                ).AsReadOnly()
+                : Array.Empty<BattleWeightedStatusOutcomePreviewData>(),
         };
     }
 
@@ -483,6 +511,45 @@ public sealed class BattleDamagePreviewSaveEstimate
         result["bonus"] = Bonus;
         result["immune"] = Immune;
         result["sources"] = BuildTraceSaveSourceList(Sources);
+        result["save_failure_status_outcomes"] =
+            BuildTraceWeightedStatusOutcomeList(SaveFailureStatusOutcomes);
+        return result;
+    }
+
+    private static List<object> BuildTraceWeightedStatusOutcomeList(
+        IReadOnlyList<BattleWeightedStatusOutcomePreviewData> outcomes
+    )
+    {
+        var result = new List<object>();
+        foreach (
+            BattleWeightedStatusOutcomePreviewData outcome in
+                outcomes ?? Array.Empty<BattleWeightedStatusOutcomePreviewData>()
+        )
+        {
+            if (outcome == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["outcome_id"] = outcome.OutcomeId,
+                    ["status_id"] = outcome.StatusId,
+                    ["display_name"] = outcome.DisplayName ?? "",
+                    ["weight"] = outcome.Weight,
+                    ["total_weight"] = outcome.TotalWeight,
+                    ["conditional_probability_basis_points"] =
+                        outcome.ConditionalProbabilityBasisPoints,
+                    ["application_probability_basis_points"] =
+                        outcome.ApplicationProbabilityBasisPoints,
+                    ["duration_tu"] = outcome.DurationTu,
+                    ["power"] = outcome.Power,
+                    ["attack_roll_penalty"] = outcome.AttackRollPenalty,
+                    ["lock_counterattack"] = outcome.LockCounterattack,
+                    ["lock_guard"] = outcome.LockGuard,
+                    ["lock_dodge_bonus"] = outcome.LockDodgeBonus,
+                    ["lock_crit"] = outcome.LockCrit,
+                }
+            );
+        }
         return result;
     }
 

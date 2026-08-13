@@ -7,14 +7,7 @@ internal static class EquipmentDurabilityRules
     private const int RARITY_LEGENDARY = 4;
 
     internal static int GetMaxDurabilityForRarity(int rarity) =>
-        rarity switch
-        {
-            RARITY_UNCOMMON => 84,
-            RARITY_RARE => 120,
-            RARITY_EPIC => 160,
-            RARITY_LEGENDARY => 200,
-            _ => 56,
-        };
+        EquipmentDurabilityDefinition.GetMaxDurabilityForRarity(rarity);
 
     internal static int GetDefaultCurrentDurability(int rarity) => GetMaxDurabilityForRarity(rarity);
 
@@ -29,5 +22,5 @@ internal static class EquipmentDurabilityRules
         };
 
     internal static bool IsValidCurrentDurability(int value, int rarity) =>
-        value >= 1 && value <= GetMaxDurabilityForRarity(rarity);
+        EquipmentDurabilityDefinition.IsValidCurrentDurability(value, rarity);
 }

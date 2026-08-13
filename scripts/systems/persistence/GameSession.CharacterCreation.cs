@@ -735,12 +735,13 @@ public partial class GameSession
             return 0;
 
         CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
+        CombatSkillResourceCosts costs = BattleTargetSlotCostRules.Resolve(combatProfile, 0, 1);
         int score = 0;
-        score += combatProfile.ApCost * 2;
-        score += combatProfile.MpCost;
-        score += combatProfile.StaminaCost;
-        score += combatProfile.AuraCost * 2;
-        score += Mathf.Max(combatProfile.CooldownTu / 5 - 1, 0);
+        score += costs.ApCost * 2;
+        score += costs.MpCost;
+        score += costs.StaminaCost;
+        score += costs.AuraCost * 2;
+        score += Mathf.Max(costs.CooldownTu / 5 - 1, 0);
         if (combatProfile.TargetModeKind == BattleTargetMode.Ground)
             score += 1;
         var areaPattern = BattleTypedNames.ToAreaPattern(combatProfile.AreaPattern);

@@ -59,9 +59,11 @@ internal sealed class RandomStartingSkillResourceSupportService
             return 0;
 
         int skillLevel = Mathf.Max(randomSkillProgress.skill_level, 0);
-        int mpCost = randomStartingSkillDefinition
-            .CombatProfile.GetEffectiveResourceCostValues(skillLevel)
-            .MpCost;
+        int mpCost = BattleTargetSlotCostRules.Resolve(
+            randomStartingSkillDefinition.CombatProfile,
+            skillLevel,
+            1
+        ).MpCost;
         if (mpCost <= 0)
             return 0;
 

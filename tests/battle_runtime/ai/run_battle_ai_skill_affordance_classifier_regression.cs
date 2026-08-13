@@ -11,6 +11,7 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Life
         TestUnitDamageSkillMapsToHostileUnitAffordance();
         TestAnyProfileWithEnemyOnlyEffectStaysHostile();
         TestAllyHealSkillMapsToSupportAffordance();
+        TestGroundShieldSkillMapsToSupportAffordance();
         TestMixedUnitSkillKeepsHostileAndSupportAffordances();
         TestMixedGroundSkillKeepsHostileAndSupportAffordances();
         TestGroundControlSkillMapsToGroundFamily();
@@ -38,6 +39,21 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Life
         _test.True(record.is_generatable, "友方治疗技能应可生成。");
         AssertListHas(record.affordances, "ally_heal", "友方治疗技能应标为 ally_heal。");
         AssertListHas(record.action_families, "use_unit_skill", "友方治疗技能仍应使用 unit skill action family。");
+    }
+
+    private void TestGroundShieldSkillMapsToSupportAffordance()
+    {
+        SkillDefinition skill = BuildSkill(
+            "holy_barrier",
+            "ground",
+            "ally",
+            Effect("shield", "ally")
+        );
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.True(record.is_generatable, "纯范围护盾技能应进入 AI 候选枚举。");
+        AssertListHas(record.effect_roles, "shield", "范围护盾应暴露 shield effect role。");
+        AssertListHas(record.affordances, "self_or_ally_buff", "范围护盾应标为支援增益。");
+        AssertListHas(record.action_families, "use_ground_skill", "范围护盾应使用 ground skill family。");
     }
 
     private void TestAnyProfileWithEnemyOnlyEffectStaysHostile()

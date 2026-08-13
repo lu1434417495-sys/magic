@@ -662,6 +662,106 @@ public sealed class CombatSpellReactionDefinition
     }
 }
 
+public sealed class CombatRangedWeaponReactionDefinition
+{
+    public CombatRangedWeaponReactionDefinition(
+        StringName readinessStatusId,
+        IReadOnlyList<StringName> triggerWeaponFamilies,
+        StringName damageTag,
+        StringName attackDefenseMode,
+        IReadOnlyList<int> attackRollBonusBySkillLevel,
+        int consumeStatusStacks,
+        bool triggerOnHit,
+        bool triggerOnMiss,
+        bool allowCritical
+    )
+    {
+        ReadinessStatusId = ProgressionDataUtils.to_string_name(readinessStatusId);
+        TriggerWeaponFamilies = SkillDefinitionCollectionFreeze.List(triggerWeaponFamilies);
+        DamageTag = ProgressionDataUtils.to_string_name(damageTag);
+        AttackDefenseMode = ProgressionDataUtils.to_string_name(attackDefenseMode);
+        AttackRollBonusBySkillLevel = SkillDefinitionCollectionFreeze.List(
+            attackRollBonusBySkillLevel
+        );
+        ConsumeStatusStacks = Mathf.Max(consumeStatusStacks, 1);
+        TriggerOnHit = triggerOnHit;
+        TriggerOnMiss = triggerOnMiss;
+        AllowCritical = allowCritical;
+    }
+
+    public StringName ReadinessStatusId { get; }
+    public IReadOnlyList<StringName> TriggerWeaponFamilies { get; }
+    public StringName DamageTag { get; }
+    public StringName AttackDefenseMode { get; }
+    public IReadOnlyList<int> AttackRollBonusBySkillLevel { get; }
+    public int ConsumeStatusStacks { get; }
+    public bool TriggerOnHit { get; }
+    public bool TriggerOnMiss { get; }
+    public bool AllowCritical { get; }
+
+    internal CombatSkillAttackDefenseMode AttackDefenseModeKind =>
+        CombatSkillContentRules.ToAttackDefenseMode(AttackDefenseMode);
+
+    public int GetAttackRollBonus(int skillLevel)
+    {
+        if (AttackRollBonusBySkillLevel == null || AttackRollBonusBySkillLevel.Count == 0)
+            return 0;
+        return AttackRollBonusBySkillLevel[
+            Mathf.Clamp(skillLevel, 0, AttackRollBonusBySkillLevel.Count - 1)
+        ];
+    }
+
+    public bool SupportsWeaponFamily(StringName weaponFamily)
+    {
+        foreach (StringName configuredFamily in TriggerWeaponFamilies)
+        {
+            if (configuredFamily == weaponFamily)
+                return true;
+        }
+        return false;
+    }
+
+    internal static CombatRangedWeaponReactionDefinition FromResource(
+        CombatRangedWeaponReactionDef source
+    )
+    {
+        if (source == null)
+            return null;
+        return new CombatRangedWeaponReactionDefinition(
+            source.readiness_status_id,
+            CopyStringNameArray(source.trigger_weapon_families),
+            source.damage_tag,
+            source.attack_defense_mode,
+            CopyIntArray(source.attack_roll_bonus_by_skill_level),
+            source.consume_status_stacks,
+            source.trigger_on_hit,
+            source.trigger_on_miss,
+            source.allow_critical
+        );
+    }
+
+    private static IReadOnlyList<StringName> CopyStringNameArray(
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        if (values == null || values.Count == 0)
+            return System.Array.Empty<StringName>();
+        var result = new StringName[values.Count];
+        for (int index = 0; index < values.Count; index++)
+            result[index] = ProgressionDataUtils.to_string_name(values[index]);
+        return result;
+    }
+
+    private static IReadOnlyList<int> CopyIntArray(int[] values)
+    {
+        if (values == null || values.Length == 0)
+            return System.Array.Empty<int>();
+        int[] result = new int[values.Length];
+        System.Array.Copy(values, result, values.Length);
+        return result;
+    }
+}
+
 public sealed class CombatSkillDefinition
 {
     private static readonly IReadOnlyList<StringName> EmptyStringNames =
@@ -742,7 +842,15 @@ public sealed class CombatSkillDefinition
         CombatDirectionalPiercingDefinition directionalPiercing = null,
         bool groundEffectRequireFullArea = false,
         bool groundEffectRequireEmpty = false,
-        bool groundEffectRequireTraversable = false
+        bool groundEffectRequireTraversable = false,
+        CombatApproachAttackDefinition approachAttack = null,
+        CombatLineThroughAttackDefinition lineThroughAttack = null,
+        int masteryBaseAmount = 1,
+        CombatRangedWeaponReactionDefinition rangedWeaponReaction = null,
+        CombatSequentialLineHitDefinition sequentialLineHit = null,
+        StringName unitTargetResolutionMode = default,
+        int mpCostPerTargetSlot = 0,
+        int staminaCostPerTargetSlot = 0
     )
     {
         SkillId = skillId;
@@ -767,6 +875,7 @@ public sealed class CombatSkillDefinition
         LevelOverrides = FreezeLevelOverrides(levelOverrides);
         MasteryTriggerMode = masteryTriggerMode;
         MasteryAmountMode = masteryAmountMode;
+        MasteryBaseAmount = Mathf.Max(masteryBaseAmount, 1);
         SpellFateMode = spellFateMode;
         SpellCriticalMode = spellCriticalMode;
         SpellCriticalMpRefundPercent = Mathf.Clamp(spellCriticalMpRefundPercent, 0, 100);
@@ -821,11 +930,18 @@ public sealed class CombatSkillDefinition
         RequiresHeavyWeapon = requiresHeavyWeapon;
         AttackDefenseMode = attackDefenseMode;
         SpellReaction = spellReaction;
+        RangedWeaponReaction = rangedWeaponReaction;
         RangeMovePointCapacityMultiplier = rangeMovePointCapacityMultiplier;
         DirectionalPiercing = directionalPiercing;
         GroundEffectRequireFullArea = groundEffectRequireFullArea;
         GroundEffectRequireEmpty = groundEffectRequireEmpty;
         GroundEffectRequireTraversable = groundEffectRequireTraversable;
+        ApproachAttack = approachAttack;
+        LineThroughAttack = lineThroughAttack;
+        SequentialLineHit = sequentialLineHit;
+        UnitTargetResolutionMode = unitTargetResolutionMode;
+        MpCostPerTargetSlot = mpCostPerTargetSlot;
+        StaminaCostPerTargetSlot = staminaCostPerTargetSlot;
     }
 
     public StringName SkillId { get; }
@@ -835,6 +951,8 @@ public sealed class CombatSkillDefinition
     public int RangeValue { get; }
     public int RangeMovePointCapacityMultiplier { get; }
     public StringName WeaponRangePolicy { get; }
+    internal CombatWeaponRangePolicy WeaponRangePolicyKind =>
+        CombatWeaponRangePolicyRules.ToPolicy(WeaponRangePolicy);
     public StringName AreaPattern { get; }
     public int AreaValue { get; }
     public bool RequiresLos { get; }
@@ -844,6 +962,8 @@ public sealed class CombatSkillDefinition
     public int ApCost { get; }
     public int MpCost { get; }
     public int StaminaCost { get; }
+    public int MpCostPerTargetSlot { get; }
+    public int StaminaCostPerTargetSlot { get; }
     public int CooldownTu { get; }
     public int CastingTimeTu { get; }
     public int CastingMaintenanceDc { get; }
@@ -853,11 +973,16 @@ public sealed class CombatSkillDefinition
     public StringName AttackResolutionMode { get; }
     public StringName AttackDefenseMode { get; }
     public CombatSpellReactionDefinition SpellReaction { get; }
+    public CombatRangedWeaponReactionDefinition RangedWeaponReaction { get; }
     public CombatDirectionalPiercingDefinition DirectionalPiercing { get; }
+    public CombatApproachAttackDefinition ApproachAttack { get; }
+    public CombatLineThroughAttackDefinition LineThroughAttack { get; }
+    public CombatSequentialLineHitDefinition SequentialLineHit { get; }
     public int AuraCost { get; }
     public IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> LevelOverrides { get; }
     public StringName MasteryTriggerMode { get; }
     public StringName MasteryAmountMode { get; }
+    public int MasteryBaseAmount { get; }
     public StringName SpellFateMode { get; }
     public StringName SpellCriticalMode { get; }
     public int SpellCriticalMpRefundPercent { get; }
@@ -878,6 +1003,7 @@ public sealed class CombatSkillDefinition
     public int MinTargetCount { get; }
     public int MaxTargetCount { get; }
     public bool AllowRepeatTarget { get; }
+    public StringName UnitTargetResolutionMode { get; }
     public int MaxHitsPerTarget { get; }
     public int RandomChainAttackCount { get; }
     public bool RandomChainContinueOnMiss { get; }
@@ -901,6 +1027,8 @@ public sealed class CombatSkillDefinition
         BattleTypedNames.ToTargetSelectionMode(TargetSelectionMode);
     internal BattleTargetSelectionOrderMode SelectionOrderModeKind =>
         BattleTypedNames.ToTargetSelectionOrderMode(SelectionOrderMode);
+    internal CombatUnitTargetResolutionMode UnitTargetResolutionModeKind =>
+        CombatUnitTargetResolutionContentRules.ToMode(UnitTargetResolutionMode);
     internal PendingCastBindingModeKind PendingCastBindingModeKind =>
         BattleTypedNames.ToPendingCastBindingMode(PendingCastBindingMode);
     internal CombatSkillMasteryTriggerMode MasteryTriggerModeKind =>
@@ -963,6 +1091,20 @@ public sealed class CombatSkillDefinition
                 : CooldownTu
         );
     }
+
+    public int GetEffectiveMpCostPerTargetSlot(int skillLevel) =>
+        ReadIntOverride(
+            BuildLevelOverride(skillLevel),
+            "mp_cost_per_target_slot",
+            MpCostPerTargetSlot
+        );
+
+    public int GetEffectiveStaminaCostPerTargetSlot(int skillLevel) =>
+        ReadIntOverride(
+            BuildLevelOverride(skillLevel),
+            "stamina_cost_per_target_slot",
+            StaminaCostPerTargetSlot
+        );
 
     public int GetEffectiveAttackRollBonus(int skillLevel) =>
         ReadIntOverride(BuildLevelOverride(skillLevel), "attack_roll_bonus", AttackRollBonus);
@@ -1101,7 +1243,15 @@ public sealed class CombatSkillDefinition
             DirectionalPiercing,
             GroundEffectRequireFullArea,
             GroundEffectRequireEmpty,
-            GroundEffectRequireTraversable
+            GroundEffectRequireTraversable,
+            ApproachAttack,
+            LineThroughAttack,
+            MasteryBaseAmount,
+            RangedWeaponReaction,
+            SequentialLineHit,
+            UnitTargetResolutionMode,
+            MpCostPerTargetSlot,
+            StaminaCostPerTargetSlot
         );
 
     internal CombatSkillDefinition WithArea(StringName areaPattern, int areaValue) =>
@@ -1172,7 +1322,15 @@ public sealed class CombatSkillDefinition
             DirectionalPiercing,
             GroundEffectRequireFullArea,
             GroundEffectRequireEmpty,
-            GroundEffectRequireTraversable
+            GroundEffectRequireTraversable,
+            ApproachAttack,
+            LineThroughAttack,
+            MasteryBaseAmount,
+            RangedWeaponReaction,
+            SequentialLineHit,
+            UnitTargetResolutionMode,
+            MpCostPerTargetSlot,
+            StaminaCostPerTargetSlot
         );
 
     public int GetFumbleProtectionLimit(int skillLevel)
@@ -1279,7 +1437,23 @@ public sealed class CombatSkillDefinition
             ProjectDirectionalPiercingDefinition(source.directional_piercing_profile),
             source.ground_effect_require_full_area,
             source.ground_effect_require_empty,
-            source.ground_effect_require_traversable
+            source.ground_effect_require_traversable,
+            CombatApproachAttackDefinition.FromResource(
+                source.approach_attack_profile
+            ),
+            CombatLineThroughAttackDefinition.FromResource(
+                source.line_through_attack_profile
+            ),
+            source.mastery_base_amount,
+            CombatRangedWeaponReactionDefinition.FromResource(
+                source.ranged_weapon_reaction_profile
+            ),
+            CombatSequentialLineHitDefinition.FromResource(
+                source.sequential_line_hit_profile
+            ),
+            source.unit_target_resolution_mode,
+            source.mp_cost_per_target_slot,
+            source.stamina_cost_per_target_slot
         );
     }
 
@@ -1856,6 +2030,53 @@ public sealed class CombatTargetDamageMultiplierRuleDefinition
     }
 }
 
+public sealed class CombatWeightedStatusOutcomeDefinition
+{
+    public CombatWeightedStatusOutcomeDefinition(
+        StringName outcomeId,
+        int weight,
+        CombatEffectDefinition statusEffect
+    )
+    {
+        OutcomeId = ProgressionDataUtils.to_string_name(outcomeId);
+        Weight = System.Math.Max(weight, 0);
+        StatusEffect = statusEffect;
+    }
+
+    public StringName OutcomeId { get; }
+    public int Weight { get; }
+    public CombatEffectDefinition StatusEffect { get; }
+
+    internal static IReadOnlyList<CombatWeightedStatusOutcomeDefinition> ProjectArray(
+        Godot.Collections.Array<CombatWeightedStatusOutcomeDef> source,
+        string path
+    )
+    {
+        if (source == null || source.Count == 0)
+            return System.Array.Empty<CombatWeightedStatusOutcomeDefinition>();
+
+        var result = new List<CombatWeightedStatusOutcomeDefinition>(source.Count);
+        for (int index = 0; index < source.Count; index++)
+        {
+            CombatWeightedStatusOutcomeDef outcome = source[index];
+            if (outcome == null)
+                continue;
+            result.Add(
+                new CombatWeightedStatusOutcomeDefinition(
+                    outcome.outcome_id,
+                    outcome.weight,
+                    CombatEffectDefinition.FromResource(
+                        outcome.status_effect,
+                        $"{path}[{index}].status_effect",
+                        includeSaveFailureStatusOutcomes: false
+                    )
+                )
+            );
+        }
+        return SkillDefinitionCollectionFreeze.List(result);
+    }
+}
+
 public sealed class CombatEffectDefinition
 {
     private static readonly IReadOnlyList<StringName> EmptyStringNames =
@@ -2041,7 +2262,14 @@ public sealed class CombatEffectDefinition
         bool terrainRequiresGroundContact = false,
         bool terrainRecheckFromInside = false,
         int terrainMaxActiveInstancesPerSource = 0,
-        bool terrainReplaceExistingFromSource = false
+        bool terrainReplaceExistingFromSource = false,
+        StringName shieldFamily = default,
+        StringName shieldAttributeModifierId = default,
+        bool shieldRollPerTarget = false,
+        int followUpDamageMultiplierPercent = 100,
+        IReadOnlyList<int> followUpAttackRollBonusCurve = null,
+        int forcedMoveMaxTargetBodySize = 0,
+        IReadOnlyList<CombatWeightedStatusOutcomeDefinition> saveFailureStatusOutcomes = null
     )
     {
         EffectType = effectType;
@@ -2053,6 +2281,9 @@ public sealed class CombatEffectDefinition
             requiredTargetMinCognition;
         StatusId = statusId;
         SaveFailureStatusId = saveFailureStatusId;
+        SaveFailureStatusOutcomes = SkillDefinitionCollectionFreeze.List(
+            saveFailureStatusOutcomes
+        );
         TerrainEffectId = terrainEffectId;
         TerrainContactMode = terrainContactMode;
         TerrainEffectiveTriggerCount = System.Math.Max(terrainEffectiveTriggerCount, 0);
@@ -2134,6 +2365,7 @@ public sealed class CombatEffectDefinition
         TargetOrder = ProgressionDataUtils.to_string_name(targetOrder);
         RangeBonus = rangeBonus;
         ForcedMoveDistance = forcedMoveDistance;
+        ForcedMoveMaxTargetBodySize = System.Math.Max(forcedMoveMaxTargetBodySize, 0);
         GrappleMaxHeightGain = System.Math.Max(grappleMaxHeightGain, 0);
         SourceRetreatDistance = System.Math.Max(sourceRetreatDistance, 0);
         JumpBaseBudget = jumpBaseBudget;
@@ -2143,6 +2375,14 @@ public sealed class CombatEffectDefinition
         DiceSidesBase = diceSidesBase;
         DiceSidesPerConstitutionMod = diceSidesPerConstitutionMod;
         DiceSidesPerWillpowerMod = diceSidesPerWillpowerMod;
+        ShieldFamily = ProgressionDataUtils.to_string_name(shieldFamily);
+        ShieldAttributeModifierId = ProgressionDataUtils.to_string_name(
+            shieldAttributeModifierId
+        );
+        ShieldAttributeModifierKind = AttributeSnapshot.ToIdKind(
+            ShieldAttributeModifierId
+        );
+        ShieldRollPerTarget = shieldRollPerTarget;
         Parameters = ContentValueNormalizer.NormalizeDictionary(
             parameters,
             "CombatEffectDefinition.Parameters"
@@ -2172,6 +2412,13 @@ public sealed class CombatEffectDefinition
         StopOnMiss = stopOnMiss;
         StopOnTargetDown = stopOnTargetDown;
         FixedAttackCount = fixedAttackCount;
+        FollowUpDamageMultiplierPercent = System.Math.Max(
+            followUpDamageMultiplierPercent,
+            1
+        );
+        FollowUpAttackRollBonusCurve = SkillDefinitionCollectionFreeze.List(
+            followUpAttackRollBonusCurve
+        );
         RemoveHarmful = removeHarmful;
         RemoveHarmfulFromAllies = removeHarmfulFromAllies;
         RemoveBeneficial = removeBeneficial;
@@ -2255,6 +2502,7 @@ public sealed class CombatEffectDefinition
     public BattleCognitionKind RequiredTargetMinCognition { get; }
     public StringName StatusId { get; }
     public StringName SaveFailureStatusId { get; }
+    public IReadOnlyList<CombatWeightedStatusOutcomeDefinition> SaveFailureStatusOutcomes { get; }
     public StringName TerrainEffectId { get; }
     public StringName TerrainContactMode { get; }
     internal CombatTerrainContactMode TerrainContactModeKind =>
@@ -2333,6 +2581,7 @@ public sealed class CombatEffectDefinition
     public StringName TargetOrder { get; }
     public int RangeBonus { get; }
     public int ForcedMoveDistance { get; }
+    public int ForcedMoveMaxTargetBodySize { get; }
     public int GrappleMaxHeightGain { get; }
     public int SourceRetreatDistance { get; }
     public int JumpBaseBudget { get; }
@@ -2342,6 +2591,10 @@ public sealed class CombatEffectDefinition
     public int DiceSidesBase { get; }
     public int DiceSidesPerConstitutionMod { get; }
     public int DiceSidesPerWillpowerMod { get; }
+    public StringName ShieldFamily { get; }
+    public StringName ShieldAttributeModifierId { get; }
+    internal AttributeSnapshotIdKind ShieldAttributeModifierKind { get; }
+    public bool ShieldRollPerTarget { get; }
     public IReadOnlyDictionary<string, object> Parameters { get; }
     public IReadOnlyList<StringName> EffectCategories { get; }
     public bool AllowRepeatHitsAcrossSteps { get; }
@@ -2364,6 +2617,8 @@ public sealed class CombatEffectDefinition
     public bool StopOnMiss { get; }
     public bool StopOnTargetDown { get; }
     public int FixedAttackCount { get; }
+    public int FollowUpDamageMultiplierPercent { get; }
+    public IReadOnlyList<int> FollowUpAttackRollBonusCurve { get; }
     public bool RemoveHarmful { get; }
     public bool RemoveHarmfulFromAllies { get; }
     public bool RemoveBeneficial { get; }
@@ -2446,6 +2701,15 @@ public sealed class CombatEffectDefinition
         int normalizedLevel = System.Math.Max(skillLevel, 0);
         return normalizedLevel >= System.Math.Max(MinSkillLevel, 0)
             && (MaxSkillLevel < 0 || normalizedLevel <= MaxSkillLevel);
+    }
+    internal int GetFollowUpAttackRollBonus(int skillLevel)
+    {
+        if (FollowUpAttackRollBonusCurve == null || FollowUpAttackRollBonusCurve.Count == 0)
+        {
+            return 0;
+        }
+        int index = Mathf.Clamp(skillLevel, 0, FollowUpAttackRollBonusCurve.Count - 1);
+        return System.Math.Max(FollowUpAttackRollBonusCurve[index], 0);
     }
     internal BattleSaveDcMode SaveDcModeKind =>
         BattleSaveContentRules.ToSaveDcMode(SaveDcMode);
@@ -2755,7 +3019,14 @@ public sealed class CombatEffectDefinition
             terrainRequiresGroundContact: TerrainRequiresGroundContact,
             terrainRecheckFromInside: TerrainRecheckFromInside,
             terrainMaxActiveInstancesPerSource: TerrainMaxActiveInstancesPerSource,
-            terrainReplaceExistingFromSource: TerrainReplaceExistingFromSource
+            terrainReplaceExistingFromSource: TerrainReplaceExistingFromSource,
+            shieldFamily: ShieldFamily,
+            shieldAttributeModifierId: ShieldAttributeModifierId,
+            shieldRollPerTarget: ShieldRollPerTarget,
+            followUpDamageMultiplierPercent: FollowUpDamageMultiplierPercent,
+            followUpAttackRollBonusCurve: FollowUpAttackRollBonusCurve,
+            forcedMoveMaxTargetBodySize: ForcedMoveMaxTargetBodySize,
+            saveFailureStatusOutcomes: SaveFailureStatusOutcomes
         );
     }
 
@@ -2947,13 +3218,21 @@ public sealed class CombatEffectDefinition
             terrainRequiresGroundContact: TerrainRequiresGroundContact,
             terrainRecheckFromInside: TerrainRecheckFromInside,
             terrainMaxActiveInstancesPerSource: TerrainMaxActiveInstancesPerSource,
-            terrainReplaceExistingFromSource: TerrainReplaceExistingFromSource
+            terrainReplaceExistingFromSource: TerrainReplaceExistingFromSource,
+            shieldFamily: ShieldFamily,
+            shieldAttributeModifierId: ShieldAttributeModifierId,
+            shieldRollPerTarget: ShieldRollPerTarget,
+            followUpDamageMultiplierPercent: FollowUpDamageMultiplierPercent,
+            followUpAttackRollBonusCurve: FollowUpAttackRollBonusCurve,
+            forcedMoveMaxTargetBodySize: ForcedMoveMaxTargetBodySize,
+            saveFailureStatusOutcomes: SaveFailureStatusOutcomes
         );
     }
 
     internal static CombatEffectDefinition FromResource(
         CombatEffectDef source,
-        string path
+        string path,
+        bool includeSaveFailureStatusOutcomes = true
     )
     {
         return source == null
@@ -3149,7 +3428,23 @@ public sealed class CombatEffectDefinition
                 terrainMaxActiveInstancesPerSource:
                     source.terrain_max_active_instances_per_source,
                 terrainReplaceExistingFromSource:
-                    source.terrain_replace_existing_from_source
+                    source.terrain_replace_existing_from_source,
+                shieldFamily: source.shield_family,
+                shieldAttributeModifierId: source.shield_attribute_modifier_id,
+                shieldRollPerTarget: source.shield_roll_per_target,
+                followUpDamageMultiplierPercent:
+                    source.follow_up_damage_multiplier_percent,
+                followUpAttackRollBonusCurve:
+                    source.follow_up_attack_roll_bonus_curve,
+                forcedMoveMaxTargetBodySize:
+                    source.forced_move_max_target_body_size,
+                saveFailureStatusOutcomes:
+                    includeSaveFailureStatusOutcomes
+                        ? CombatWeightedStatusOutcomeDefinition.ProjectArray(
+                            source.save_failure_status_outcomes,
+                            $"{path}.save_failure_status_outcomes"
+                        )
+                        : System.Array.Empty<CombatWeightedStatusOutcomeDefinition>()
             );
     }
 

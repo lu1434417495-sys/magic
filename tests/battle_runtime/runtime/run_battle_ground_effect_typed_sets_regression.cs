@@ -9,7 +9,8 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
 
     public override void _Initialize()
     {
-        TestGroundUnitEffectsReportsEveryRecursivelyPushedUnit();
+        TestGroundUnitEffectsDoNotPushUnitsOutsideArea();
+        TestGroundUnitEffectsMoveAffectedUnitsFarToNear();
         TestSpecialForcedMoveUsesTypedContextDirection();
         TestGroundApplicationResultsProjectInternalBoundary();
         TestSquare2GroundEffectCoordsExpandAndSort();
@@ -18,7 +19,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         RequestTestExit(_test.Finish("Battle ground effect typed sets regression"));
     }
 
-    private void TestGroundUnitEffectsReportsEveryRecursivelyPushedUnit()
+    private void TestGroundUnitEffectsDoNotPushUnitsOutsideArea()
     {
         Fixture fixture = BuildWindPushFixture();
         var batch = new BattleEventBatch();
@@ -33,10 +34,32 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
                 new List<Vector2I> { new Vector2I(1, 0) }
             );
 
-        _test.True(result.Applied, "ground unit effects 应应用 wind push。");
-        _test.Eq(result.AffectedUnitCount, 2, "ground unit effects 应合并 wind push affected set。");
-        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(2, 0), "ground unit effects 应推动前排单位。");
-        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(3, 0), "ground unit effects 应推动递归阻挡单位。");
+        _test.False(result.Applied, "锥形外阻挡单位不得被 wind push 递归带动。");
+        _test.Eq(result.AffectedUnitCount, 0, "零位移不得报告 affected unit。");
+        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(1, 0), "范围内目标应被锥形外单位挡住。");
+        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(2, 0), "锥形外阻挡单位必须保持原位。");
+        CleanupFixture(fixture, batch);
+    }
+
+    private void TestGroundUnitEffectsMoveAffectedUnitsFarToNear()
+    {
+        Fixture fixture = BuildWindPushFixture();
+        var batch = new BattleEventBatch();
+        BattleGroundUnitEffectsResult result =
+            fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+                fixture.Source,
+                fixture.Skill,
+                null,
+                new[] { fixture.WindPushEffect },
+                new List<Vector2I> { new Vector2I(1, 0), new Vector2I(2, 0) },
+                batch,
+                new List<Vector2I> { new Vector2I(1, 0) }
+            );
+
+        _test.True(result.Applied, "同一风区内的相邻目标应能按风向整体后移。");
+        _test.Eq(result.AffectedUnitCount, 2, "每个实际移动的风区目标都应计入 affected set。");
+        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(2, 0), "近端目标应在远端目标腾空后移动。");
+        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(3, 0), "远端目标必须先沿风向移动。");
         CleanupFixture(fixture, batch);
     }
 

@@ -576,6 +576,7 @@ public sealed class BattleBoardController : IDisposable
         if (
             _target_selection_mode == "movement"
             || _target_selection_mode == "source_retreat_direction"
+            || _target_selection_mode == "forced_move_destination"
         )
         {
             foreach (Vector2I reachableCoord in _valid_target_coords)
@@ -1030,6 +1031,7 @@ public sealed class BattleBoardController : IDisposable
         if (
             _target_selection_mode == "movement"
             || _target_selection_mode == "source_retreat_direction"
+            || _target_selection_mode == "forced_move_destination"
         )
             return;
         var previewCoordSet = new HashSet<Vector2I>();

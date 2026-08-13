@@ -255,6 +255,7 @@ public partial class BattleAiScoreService
             if (
                 !IsEmpty(effectDefinition.StatusId)
                 || !IsEmpty(effectDefinition.SaveFailureStatusId)
+                || (effectDefinition.SaveFailureStatusOutcomes?.Count ?? 0) > 0
             )
             {
                 return true;
@@ -451,7 +452,12 @@ public partial class BattleAiScoreService
                 ? ContextSkillCatalog(context)
                     .GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
                 : SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
-        CombatSkillResourceCosts costs = effectiveDefinition.ResourceCosts;
+        int targetSlotCount = Math.Max(
+            scoreInput.command?.TargetUnitIdsTyped.Count ?? 0,
+            1
+        );
+        CombatSkillResourceCosts costs =
+            effectiveDefinition.GetResourceCostsForTargetSlots(targetSlotCount);
         scoreInput.ap_cost = Math.Max(costs.ApCost, 0);
         scoreInput.mp_cost = Math.Max(costs.MpCost, 0);
         scoreInput.stamina_cost = Math.Max(
@@ -464,11 +470,31 @@ public partial class BattleAiScoreService
             scoreInput.ap_cost * _scoreProfile.ApCostWeight
             + scoreInput.mp_cost * _scoreProfile.MpCostWeight
             + scoreInput.stamina_cost * _scoreProfile.StaminaCostWeight
-            + scoreInput.aura_cost * _scoreProfile.AuraCostWeight
+            + BuildNormalizedAuraCostPercent(
+                ContextUnitState(context),
+                scoreInput.aura_cost
+            ) * _scoreProfile.AuraCostWeight
             + scoreInput.cooldown_tu * _scoreProfile.CooldownWeight;
         scoreInput.resource_cost_score += BuildReserveResourceCost(
             ContextUnitState(context),
             scoreInput
+        );
+    }
+
+    internal static int BuildNormalizedAuraCostPercent(
+        BattleUnitState actor,
+        int auraCost
+    )
+    {
+        if (auraCost <= 0)
+            return 0;
+        int auraCapacity = Math.Max(actor?.GetAuraMax() ?? 0, actor?.GetCurrentAura() ?? 0);
+        if (auraCapacity <= 0)
+            return 100;
+        return Mathf.Clamp(
+            Mathf.RoundToInt(100.0f * auraCost / auraCapacity),
+            1,
+            100
         );
     }
 

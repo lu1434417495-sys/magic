@@ -57,7 +57,12 @@ internal sealed class BattleAiTypedActionHelper
         );
         if (skillDefinition?.CombatProfile == null)
             return false;
-        if (skillDefinition.CombatProfile.Windup != null)
+        if (
+            skillDefinition.CombatProfile.Windup != null
+            || skillDefinition.CombatProfile.ApproachAttack != null
+            || skillDefinition.CombatProfile.LineThroughAttack != null
+            || skillDefinition.CombatProfile.SequentialLineHit != null
+        )
             return true;
         foreach (CombatEffectDefinition effect in skillDefinition.CombatProfile.EffectDefinitions)
         {
@@ -65,6 +70,8 @@ internal sealed class BattleAiTypedActionHelper
                 effect?.EffectKind
                 is BattleEffectKind.VaultBehindTarget
                     or BattleEffectKind.SourceRetreat
+                    or BattleEffectKind.PositionSwap
+                || effect?.ForcedMoveModeKind == BattleForcedMoveMode.AirbornePull
             )
                 return true;
         }
@@ -78,6 +85,8 @@ internal sealed class BattleAiTypedActionHelper
                     effect?.EffectKind
                     is BattleEffectKind.VaultBehindTarget
                         or BattleEffectKind.SourceRetreat
+                        or BattleEffectKind.PositionSwap
+                    || effect?.ForcedMoveModeKind == BattleForcedMoveMode.AirbornePull
                 )
                     return true;
             }

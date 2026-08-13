@@ -14,7 +14,7 @@ public partial class run_skill_attack_defense_mode_schema_regression : Lifecycle
         TestTypedValuesRoundTrip();
         TestInvalidBaseAndLevelOverrideModesAreRejected();
         TestLevelOverrideProjection();
-        TestArcaneMissileUsesTouchAcAndExplainsIt();
+        TestArcaneMissileForceHitSupersedesDefenseMode();
 
         RequestTestExit(_test.Finish("Skill attack defense mode schema regression"));
     }
@@ -109,7 +109,7 @@ public partial class run_skill_attack_defense_mode_schema_regression : Lifecycle
         );
     }
 
-    private void TestArcaneMissileUsesTouchAcAndExplainsIt()
+    private void TestArcaneMissileForceHitSupersedesDefenseMode()
     {
         SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
             ArcaneMissilePath,
@@ -121,19 +121,23 @@ public partial class run_skill_attack_defense_mode_schema_regression : Lifecycle
 
         _test.Eq(
             skill.CombatProfile.AttackDefenseModeKind,
-            CombatSkillAttackDefenseMode.Touch,
-            "Arcane Missile should explicitly use touch AC."
+            CombatSkillAttackDefenseMode.Normal,
+            "A forced-hit Arcane Missile should not advertise an alternate AC mode."
+        );
+        _test.Eq(
+            skill.CombatProfile.AttackResolutionModeKind,
+            CombatSkillAttackResolutionMode.ForceHitNoCrit,
+            "Arcane Missile should explicitly force a hit without allowing critical hits."
         );
         _test.True(
-            skill.Description.Contains("接触AC")
-                && skill.Description.Contains("护甲")
-                && skill.Description.Contains("盾牌")
-                && skill.Description.Contains("天生护甲"),
-            $"Arcane Missile description should disclose the ignored AC components. description={skill.Description}"
+            skill.Description.Contains("必定命中")
+                && skill.Description.Contains("不能暴击"),
+            $"Arcane Missile description should disclose forced-hit/no-crit behavior. description={skill.Description}"
         );
         _test.True(
-            skill.LevelDescriptionTemplate.Contains("接触AC"),
-            "Arcane Missile level text should identify the touch-AC attack check."
+            skill.LevelDescriptionTemplate.Contains("必定命中")
+                && skill.LevelDescriptionTemplate.Contains("不能暴击"),
+            "Arcane Missile level text should identify forced-hit/no-crit resolution."
         );
     }
 

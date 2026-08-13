@@ -357,12 +357,22 @@ internal sealed class BattleAiActionAssembler
             EnemyAiActionFamily.UseMultiUnitSkill,
             EnemyAiDistanceReference.TargetUnit
         );
+        StringName targetSelector =
+            skillDefinition?.CombatProfile?.TargetSelectionModeKind
+                == BattleTargetSelectionMode.Self
+            || skillDefinition?.CombatProfile?.TargetFilterKind
+                == BattleTargetFilter.Self
+                ? EnemyAiTargetSelectorRules.Self
+                : ResolveTargetSelector(
+                    stateActions,
+                    EnemyAiTargetSelectorRules.NearestEnemy
+                );
         return new UseUnitSkillActionDefinition(
             actionId,
             ResolveGeneratedScoreBucketId(stateActions, EnemyAiActionFamily.UseUnitSkill),
             actionIntent,
             new[] { skillDefinition.SkillId },
-            ResolveTargetSelector(stateActions, EnemyAiTargetSelectorRules.NearestEnemy),
+            targetSelector,
             1,
             0,
             false,

@@ -167,8 +167,11 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
             if (arcaneMissile == null)
                 return;
 
-            CombatSkillResourceCosts startingCosts = arcaneMissile
-                .CombatProfile.GetEffectiveResourceCostValues(0);
+            CombatSkillResourceCosts startingCosts = BattleTargetSlotCostRules.Resolve(
+                arcaneMissile.CombatProfile,
+                0,
+                1
+            );
             _test.True(startingCosts.MpCost > 0, "法力伴随授予前置必须是真正消耗 MP 的技能。");
 
             AssertManaPoolRoll(skillDefinitions, arcaneMissile, 0);

@@ -562,6 +562,16 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
             BattleStatusEffectState status = statusSubject.GetStatusEffect(statusId);
             if (
                 query.RequireSourceUnitMatch
+                && status?.HasSourceContributionsTyped() == true
+            )
+            {
+                value = sourceUnit == null
+                    ? 0
+                    : status.GetSourceContributionStacksForUnitTyped(sourceUnit.unit_id);
+                return true;
+            }
+            if (
+                query.RequireSourceUnitMatch
                 && (sourceUnit == null || status?.source_unit_id != sourceUnit.unit_id)
             )
             {
@@ -618,6 +628,13 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
                 BattleStatusEffectState status = unit?.GetStatusEffect(totalStatusId);
                 if (status == null || status.stacks <= 0)
                     continue;
+                if (status.HasSourceContributionsTyped())
+                {
+                    totalStacks += status.GetSourceContributionStacksForUnitTyped(
+                        stacksOwner.unit_id
+                    );
+                    continue;
+                }
                 if (
                     ProgressionDataUtils.to_string_name(status.source_unit_id)
                     != stacksOwner.unit_id

@@ -6,6 +6,7 @@ internal static class CombatEffectContentRules
     private static readonly StringName TriggerEventCriticalHit = "critical_hit";
     private static readonly StringName TriggerEventOrdinaryHit = "ordinary_hit";
     private static readonly StringName TriggerEventSecondaryHit = "secondary_hit";
+    private static readonly StringName TriggerEventForcedMoveApplied = "forced_move_applied";
     private static readonly StringName TriggerConditionBattleStart = "battle_start";
     private static readonly StringName TriggerConditionOnFatalDamage = "on_fatal_damage";
     private static readonly StringName LifetimePolicyTimed = "timed";
@@ -27,6 +28,8 @@ internal static class CombatEffectContentRules
             return CombatEffectTriggerEvent.OrdinaryHit;
         if (value == TriggerEventSecondaryHit)
             return CombatEffectTriggerEvent.SecondaryHit;
+        if (value == TriggerEventForcedMoveApplied)
+            return CombatEffectTriggerEvent.ForcedMoveApplied;
         return CombatEffectTriggerEvent.Unknown;
     }
 
@@ -68,6 +71,7 @@ internal static class CombatEffectContentRules
             CombatEffectTriggerEvent.CriticalHit => TriggerEventCriticalHit,
             CombatEffectTriggerEvent.OrdinaryHit => TriggerEventOrdinaryHit,
             CombatEffectTriggerEvent.SecondaryHit => TriggerEventSecondaryHit,
+            CombatEffectTriggerEvent.ForcedMoveApplied => TriggerEventForcedMoveApplied,
             _ => "",
         };
     }

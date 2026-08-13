@@ -120,6 +120,7 @@ internal sealed class BattleAiSkillAffordanceClassifier
         BattleTargetMode targetMode = combatProfile.TargetModeKind;
         bool hasHostileDamage = false;
         bool hasSupportHeal = false;
+        bool hasSupportShield = false;
         bool hasHostileControl = false;
         bool hasSupportControl = false;
         bool hasGroundControl = false;
@@ -149,6 +150,11 @@ internal sealed class BattleAiSkillAffordanceClassifier
                 hasSupportHeal |= canTargetSupport;
                 record.AddEffectRole(new StringName("heal"));
             }
+            if (effectKind == BattleEffectKind.Shield)
+            {
+                hasSupportShield |= canTargetSupport;
+                record.AddEffectRole(new StringName("shield"));
+            }
             if (IsControlEffect(effectDef))
             {
                 hasHostileControl |= canTargetHostile;
@@ -164,11 +170,18 @@ internal sealed class BattleAiSkillAffordanceClassifier
                 hasGroundControl = true;
                 record.AddEffectRole(new StringName("ground_control"));
             }
-            if (effectKind == BattleEffectKind.ForcedMove)
+            if (
+                effectKind == BattleEffectKind.ForcedMove
+                || effectKind == BattleEffectKind.PositionSwap
+            )
             {
                 hasHostileReposition |= canTargetHostile;
                 hasSupportReposition |= canTargetSupport;
-                record.AddEffectRole(new StringName("forced_move"));
+                record.AddEffectRole(
+                    effectKind == BattleEffectKind.PositionSwap
+                        ? new StringName("position_swap")
+                        : new StringName("forced_move")
+                );
             }
         }
 
@@ -182,7 +195,7 @@ internal sealed class BattleAiSkillAffordanceClassifier
             {
                 record.AddAffordance(new StringName("ally_heal"));
             }
-            if (hasSupportControl || hasSupportReposition)
+            if (hasSupportShield || hasSupportControl || hasSupportReposition)
             {
                 record.AddAffordance(new StringName("self_or_ally_buff"));
             }
@@ -204,7 +217,7 @@ internal sealed class BattleAiSkillAffordanceClassifier
             {
                 record.AddAffordance(new StringName("ally_heal"));
             }
-            if (hasSupportControl || hasSupportReposition)
+            if (hasSupportShield || hasSupportControl || hasSupportReposition)
             {
                 record.AddAffordance(new StringName("self_or_ally_buff"));
             }
@@ -389,13 +402,16 @@ internal sealed class BattleAiSkillAffordanceClassifier
             || effectKind == BattleEffectKind.ApplyStatus
             || effectKind == BattleEffectKind.GradedSaveExecute
             || effectKind == BattleEffectKind.ForcedMove
+            || effectKind == BattleEffectKind.PositionSwap
             || effectKind == BattleEffectKind.Terrain
             || effectKind == BattleEffectKind.HeightDelta
         )
         {
             return true;
         }
-        return effectDef.StatusId != "" || effectDef.SaveFailureStatusId != "";
+        return effectDef.StatusId != ""
+            || effectDef.SaveFailureStatusId != ""
+            || (effectDef.SaveFailureStatusOutcomes?.Count ?? 0) > 0;
     }
 
     private static bool IsExecuteEffect(CombatEffectDefinition effectDef)

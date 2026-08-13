@@ -232,49 +232,7 @@ public partial class BattleUnitState
         BattleStatusEffectState effect
     )
     {
-        var result = Map(
-            ("status_id", effect.status_id.ToString()),
-            ("source_unit_id", effect.source_unit_id.ToString()),
-            ("power", effect.power),
-            ("params", effect.GetParamsTyped()),
-            ("stacks", effect.stacks)
-        );
-        if (effect.HasDuration())
-            result["duration"] = effect.duration;
-        if (!string.IsNullOrWhiteSpace(effect.display_label))
-            result["display_label"] = effect.display_label;
-        if (effect.tick_interval_tu > 0)
-            result["tick_interval_tu"] = effect.tick_interval_tu;
-        if (effect.next_tick_at_tu > 0)
-            result["next_tick_at_tu"] = effect.next_tick_at_tu;
-        if (effect.timeline_damage_dice_count > 0 || effect.timeline_damage_dice_sides > 0)
-        {
-            result["timeline_damage_dice_count"] = effect.timeline_damage_dice_count;
-            result["timeline_damage_dice_sides"] = effect.timeline_damage_dice_sides;
-        }
-        if (effect.timeline_damage_flat_bonus > 0)
-            result["timeline_damage_flat_bonus"] = effect.timeline_damage_flat_bonus;
-        if (effect.skip_next_turn_end_decay)
-            result["skip_next_turn_end_decay"] = true;
-        if (effect.counts_as_debuff_override)
-        {
-            result["counts_as_debuff_override"] = true;
-            result["counts_as_debuff"] = effect.counts_as_debuff;
-        }
-        if (effect.lock_counterattack)
-            result["lock_counterattack"] = true;
-        if (effect.lock_guard)
-            result["lock_guard"] = true;
-        if (effect.lock_dodge_bonus)
-            result["lock_dodge_bonus"] = true;
-        if (effect.lock_crit)
-            result["lock_crit"] = true;
-        if (effect.main_skill_lock_other_debuff_count > 0)
-        {
-            result["main_skill_lock_other_debuff_count"] =
-                effect.main_skill_lock_other_debuff_count;
-        }
-        return result;
+        return effect.BuildSnapshotPlain();
     }
 
     private static Dictionary<string, object> BuildAttributeSnapshotPlain(

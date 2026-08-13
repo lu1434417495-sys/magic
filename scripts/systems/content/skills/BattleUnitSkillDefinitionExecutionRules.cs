@@ -68,6 +68,7 @@ internal static class BattleUnitSkillDefinitionExecutionRules
                 or BattleEffectKind.LayeredBarrier
                 or BattleEffectKind.BodySizeCategoryOverride
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.PositionSwap
                 or BattleEffectKind.SourceRetreat
                 or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.ChainDamage

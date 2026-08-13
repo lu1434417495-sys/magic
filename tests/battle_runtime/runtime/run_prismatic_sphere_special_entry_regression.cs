@@ -414,7 +414,6 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             effectTargetTeamFilter: "enemy",
             parameters: new Dictionary<string, object>
             {
-                ["follow_up_damage_multiplier_percent"] = 100,
             }
         );
         return TestSkillDefinitionProjection.BuildSkill(

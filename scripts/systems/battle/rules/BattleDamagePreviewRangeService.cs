@@ -131,8 +131,14 @@ public static class BattleDamagePreviewRangeService
         DiceRange weaponDiceRange = addWeaponDice
             ? BuildWeaponDiceRange(sourceUnit, effectDefinition.WeaponDiceMultiplier)
             : DiceRange.Empty;
-        int effectMinDamage = power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage;
-        int effectMaxDamage = power + skillDiceRange.MaxDamage + weaponDiceRange.MaxDamage;
+        int effectMinDamage = ApplyPreResistanceMultiplier(
+            power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage,
+            effectDefinition.PreResistanceDamageMultiplier
+        );
+        int effectMaxDamage = ApplyPreResistanceMultiplier(
+            power + skillDiceRange.MaxDamage + weaponDiceRange.MaxDamage,
+            effectDefinition.PreResistanceDamageMultiplier
+        );
 
         return new DamageEffectRange(
             effectIndex,
@@ -157,8 +163,14 @@ public static class BattleDamagePreviewRangeService
         DiceRange weaponDiceRange = addWeaponDice
             ? BuildWeaponDiceRange(sourceUnit, effectDefinition.WeaponDiceMultiplier)
             : DiceRange.Empty;
-        int effectMinDamage = power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage;
-        int effectMaxDamage = power + skillDiceRange.MaxDamage + weaponDiceRange.MaxDamage;
+        int effectMinDamage = ApplyPreResistanceMultiplier(
+            power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage,
+            effectDefinition.PreResistanceDamageMultiplier
+        );
+        int effectMaxDamage = ApplyPreResistanceMultiplier(
+            power + skillDiceRange.MaxDamage + weaponDiceRange.MaxDamage,
+            effectDefinition.PreResistanceDamageMultiplier
+        );
 
         return new DamageEffectRange(
             effectIndex,
@@ -221,6 +233,19 @@ public static class BattleDamagePreviewRangeService
         (int)Math.Min(
             (long)Math.Max(value, 0) * Math.Max(multiplier, 1),
             int.MaxValue
+        );
+
+    private static int ApplyPreResistanceMultiplier(int value, double multiplier) =>
+        Math.Max(
+            (int)Math.Clamp(
+                Math.Round(
+                    Math.Max(value, 0) * Math.Max(multiplier, 0.0),
+                    MidpointRounding.AwayFromZero
+                ),
+                0.0,
+                int.MaxValue
+            ),
+            0
         );
 
     private static DiceRange BuildDiceRange(int diceCount, int diceSides, int diceBonus)

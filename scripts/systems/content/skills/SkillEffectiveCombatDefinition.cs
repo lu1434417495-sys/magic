@@ -25,6 +25,8 @@ public sealed class SkillEffectiveCombatDefinition
         int areaValue,
         int rangeValue,
         int maxTargetCount,
+        int mpCostPerTargetSlot,
+        int staminaCostPerTargetSlot,
         int fumbleProtectionLimit,
         bool hasSpellFateControl,
         bool usesGroundAnchorDriftBacklash,
@@ -44,6 +46,8 @@ public sealed class SkillEffectiveCombatDefinition
         AreaValue = areaValue;
         RangeValue = rangeValue;
         MaxTargetCount = maxTargetCount;
+        MpCostPerTargetSlot = mpCostPerTargetSlot;
+        StaminaCostPerTargetSlot = staminaCostPerTargetSlot;
         FumbleProtectionLimit = fumbleProtectionLimit;
         HasSpellFateControl = hasSpellFateControl;
         UsesGroundAnchorDriftBacklash = usesGroundAnchorDriftBacklash;
@@ -63,11 +67,30 @@ public sealed class SkillEffectiveCombatDefinition
     public int AreaValue { get; }
     public int RangeValue { get; }
     public int MaxTargetCount { get; }
+    public int MpCostPerTargetSlot { get; }
+    public int StaminaCostPerTargetSlot { get; }
     public int FumbleProtectionLimit { get; }
     public bool HasSpellFateControl { get; }
     public bool UsesGroundAnchorDriftBacklash { get; }
     public IReadOnlyList<CombatCastVariantDefinition> UnlockedCastVariants { get; }
     public bool HasCombatProfile => CombatProfile != null;
+
+    public CombatSkillResourceCosts GetResourceCostsForTargetSlots(int targetSlotCount)
+    {
+        if (
+            CombatProfile?.UnitTargetResolutionModeKind
+            != CombatUnitTargetResolutionMode.OrderedSlots
+        )
+        {
+            return ResourceCosts;
+        }
+        return BattleTargetSlotCostRules.ApplyLinearTargetSlotCosts(
+            ResourceCosts,
+            MpCostPerTargetSlot,
+            StaminaCostPerTargetSlot,
+            targetSlotCount
+        );
+    }
 
     internal static SkillEffectiveCombatDefinition BuildUncached(
         SkillDefinition skillDefinition,
@@ -109,6 +132,8 @@ public sealed class SkillEffectiveCombatDefinition
             profile.GetEffectiveAreaValue(skillLevel),
             profile.GetEffectiveRangeValue(skillLevel),
             profile.GetEffectiveMaxTargetCount(skillLevel),
+            profile.GetEffectiveMpCostPerTargetSlot(skillLevel),
+            profile.GetEffectiveStaminaCostPerTargetSlot(skillLevel),
             profile.GetFumbleProtectionLimit(skillLevel),
             profile.HasSpellFateControl(),
             profile.UsesGroundAnchorDriftBacklash(),
@@ -129,6 +154,8 @@ public sealed class SkillEffectiveCombatDefinition
             0,
             PendingCastBindingModeKind.SoftAnchor,
             EmptyAreaPattern,
+            0,
+            0,
             0,
             0,
             0,

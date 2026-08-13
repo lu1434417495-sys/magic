@@ -43,12 +43,11 @@ script = ExtResource("3_3q1il")
 effect_type = &"repeat_attack_until_fail"
 stop_on_miss = true
 stop_on_target_down = true
+follow_up_damage_multiplier_percent = 200
 params = {
 "base_attack_bonus": 0,
 "cost_resource": "aura",
-"damage_multiplier_stage": "pre_resistance",
 "follow_up_cost_multiplier": 2,
-"follow_up_damage_multiplier_percent": 200,
 "follow_up_attack_penalty": 2,
 "penalty_free_stages_by_level": {
 "1": 1,

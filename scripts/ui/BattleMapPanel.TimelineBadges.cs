@@ -65,6 +65,8 @@ public partial class BattleMapPanel
         string text = string.IsNullOrEmpty(status.Label) ? status.StatusId : status.Label;
         if (status.Stacks > 1)
             text += $"×{status.Stacks}";
+        if (status.SourceContributionCount > 1)
+            text += $"[{status.SourceContributionCount}源]";
         if (status.RemainingTu >= 0)
             text += $" {status.RemainingTu}TU";
         return text;

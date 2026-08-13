@@ -124,6 +124,12 @@ internal static class BattleAiMutationStableProjection
                 StableMap.FromTypedDictionary(statusEffect.ParamsSnapshotPlain)
             )
         );
+        result.Set(
+            "source_contributions",
+            BattleAiMutationSnapshotModel.ReadStableTypedValue(
+                statusEffect.BuildSourceContributionSnapshotsPlain()
+            )
+        );
         return result;
     }
 

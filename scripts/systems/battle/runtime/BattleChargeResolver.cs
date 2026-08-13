@@ -671,7 +671,11 @@ internal sealed class BattleChargeResolver
             BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
                 statusEffect,
                 activeUnit.unit_id,
-                targetUnit.GetStatusEffect(statusId)
+                targetUnit.GetStatusEffect(statusId),
+                sourceIdentity: BattleStatusSourceIdentity.Skill(
+                    activeUnit.unit_id,
+                    skillDefinition?.SkillId ?? new StringName("")
+                )
             );
             if (statusEntry == null)
             {

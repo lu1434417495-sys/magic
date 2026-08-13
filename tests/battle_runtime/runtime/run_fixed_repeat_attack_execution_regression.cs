@@ -158,6 +158,7 @@ public partial class run_fixed_repeat_attack_execution_regression : LifecycleTes
         using CombatEffectDef repeatResource = new()
         {
             effect_type = "fixed_repeat_attack",
+            stop_on_miss = false,
             fixed_attack_count = 3,
         };
         CombatEffectDefinition damage = CombatEffectDefinition.FromResource(

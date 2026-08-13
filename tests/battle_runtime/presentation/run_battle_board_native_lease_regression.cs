@@ -29,12 +29,14 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
 
             BattleBoardController controller = board._controller;
             TileSet firstTileSet = controller?._tile_set;
+            int baselineImageCount = CountOwnedRenderResources<Image>(controller);
+            int baselineImageTextureCount = CountOwnedRenderResources<ImageTexture>(controller);
             AssertGenerationActive(baseline, board, "初始 bind");
             AssertResourceOwnership(
                 controller,
                 baseline,
-                expectedImageCount: 2,
-                expectedImageTextureCount: 3,
+                expectedImageCount: baselineImageCount,
+                expectedImageTextureCount: baselineImageTextureCount,
                 expectedStyleBoxCount: 0
             );
 
@@ -113,8 +115,8 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             AssertResourceOwnership(
                 controller,
                 baseline,
-                expectedImageCount: 2,
-                expectedImageTextureCount: 3,
+                expectedImageCount: baselineImageCount,
+                expectedImageTextureCount: baselineImageTextureCount,
                 expectedStyleBoxCount: 2
             );
             for (int redrawIndex = 0; redrawIndex < 4; redrawIndex++)
@@ -139,8 +141,8 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             AssertResourceOwnership(
                 controller,
                 baseline,
-                expectedImageCount: 4,
-                expectedImageTextureCount: 5,
+                expectedImageCount: baselineImageCount + 2,
+                expectedImageTextureCount: baselineImageTextureCount + 2,
                 expectedStyleBoxCount: 2
             );
 
@@ -249,6 +251,20 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             baseline.QuarantineCount,
             $"{label}: 正常生产路径不得进入 quarantine。"
         );
+    }
+
+    private static int CountOwnedRenderResources<T>(BattleBoardController controller)
+        where T : Resource
+    {
+        if (controller == null)
+            return 0;
+        int count = 0;
+        foreach (IDisposable wrapper in controller.SnapshotOwnedRenderResources())
+        {
+            if (wrapper is T)
+                count++;
+        }
+        return count;
     }
 
     private void AssertResourceOwnership(

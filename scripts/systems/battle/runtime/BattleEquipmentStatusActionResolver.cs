@@ -314,7 +314,11 @@ internal sealed class BattleEquipmentStatusActionResolver
             statusEffect,
             sourceUnit.unit_id,
             targetUnit.GetStatusEffect(payload.StatusId),
-            payload.StatusId
+            payload.StatusId,
+            BattleStatusSourceIdentity.EquipmentAbility(
+                sourceUnit.unit_id,
+                binding.BindingId
+            )
         );
         if (statusEntry == null)
             return;
@@ -333,6 +337,13 @@ internal sealed class BattleEquipmentStatusActionResolver
             payload.DamageTags ?? Array.Empty<StringName>()
         );
         statusEntry.mitigation_tier = payload.MitigationTier;
+        BattleStatusSemanticTable.SynchronizeSourceContributionTimelinePayload(
+            statusEntry,
+            BattleStatusSourceIdentity.EquipmentAbility(
+                sourceUnit.unit_id,
+                binding.BindingId
+            )
+        );
         targetUnit.SetStatusEffect(statusEntry);
         if (payload.MovePointCapacityDelta != 0)
             targetUnit.ClampCurrentMovePointsToCapacity();

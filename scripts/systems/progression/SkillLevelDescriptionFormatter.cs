@@ -415,6 +415,14 @@ public static class SkillLevelDescriptionFormatter
             { "ap_cost", costs.ApCost },
             { "mp_cost", costs.MpCost },
             { "stamina_cost", costs.StaminaCost },
+            {
+                "mp_cost_per_target_slot",
+                profile.GetEffectiveMpCostPerTargetSlot(level)
+            },
+            {
+                "stamina_cost_per_target_slot",
+                profile.GetEffectiveStaminaCostPerTargetSlot(level)
+            },
             { "cooldown_tu", costs.CooldownTu },
             { "attack_roll_bonus", profile.GetEffectiveAttackRollBonus(level) },
             { "aura_cost", costs.AuraCost },

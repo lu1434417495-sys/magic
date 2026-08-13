@@ -732,7 +732,7 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
         AssertInvalid(
             repositionAction,
             pushSkill,
-            "blink or jump forced_move",
+            "supported ground relocation forced_move",
             "ground reposition action 应拒绝普通 push"
         );
     }

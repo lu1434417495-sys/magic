@@ -27,9 +27,79 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         TestDamageResistancesRejectUnsupportedMitigationTier();
         TestDerivedHpAndAttackBonusFollowLevelFormula();
         TestCreatureLevelAndHitDieValidation();
+        TestBattleEquipmentEntriesRequireTypedEquipmentAndValidDurability();
         TestSkillLevelMapValidationRemainsUnchanged();
 
         RequestTestExit(_test.Finish("Enemy template schema boundary regression"));
+    }
+
+    private void TestBattleEquipmentEntriesRequireTypedEquipmentAndValidDurability()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "battle_equipment_schema_template",
+            "battle_equipment_schema_weapon"
+        );
+        template.battle_equipment_entries.Add(
+            new EnemyBattleEquipmentDef
+            {
+                slot_id = "body",
+                item_id = "battle_equipment_schema_armor",
+                rarity = 1,
+                current_durability = 84,
+            }
+        );
+        var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>
+        {
+            [template.brain_id] = BuildBrain(template.brain_id, template.initial_state_id),
+        };
+        var itemDefinitions = new Dictionary<StringName, ItemDefinition>
+        {
+            [template.attack_equipment_item_id] = MakeWeapon(
+                template.attack_equipment_item_id,
+                "battle_equipment_schema_weapon_type"
+            ),
+            ["battle_equipment_schema_armor"] = MakeArmor(
+                "battle_equipment_schema_armor"
+            ),
+        };
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>
+        {
+            ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", maxLevel: 2),
+        };
+
+        GStringArray validErrors = template.ValidateSchemaTyped(
+            brainIndex,
+            itemDefinitions,
+            skillDefinitions
+        );
+        _test.Eq(
+            validErrors.Count,
+            0,
+            $"typed敌方战斗装备应接受合法身体护甲与对应稀有度耐久。errors={FormatErrors(validErrors)}"
+        );
+
+        template.battle_equipment_entries[0].current_durability = 85;
+        GStringArray durabilityErrors = template.ValidateSchemaTyped(
+            brainIndex,
+            itemDefinitions,
+            skillDefinitions
+        );
+        _test.True(
+            ContainsError(durabilityErrors, "current_durability must be within 1..84"),
+            $"uncommon敌方装备应拒绝超过84的初始耐久。errors={FormatErrors(durabilityErrors)}"
+        );
+
+        template.battle_equipment_entries[0].current_durability = 84;
+        itemDefinitions.Remove("battle_equipment_schema_armor");
+        GStringArray missingItemErrors = template.ValidateSchemaTyped(
+            brainIndex,
+            itemDefinitions,
+            skillDefinitions
+        );
+        _test.True(
+            ContainsError(missingItemErrors, "must reference equipment content"),
+            $"敌方战斗装备应拒绝缺失的item定义。errors={FormatErrors(missingItemErrors)}"
+        );
     }
 
     private void TestTypedSchemaValidationAcceptsTypedReferenceTables()
@@ -601,6 +671,17 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
 
     private static ItemDefinition MakeWeapon(StringName itemId, StringName weaponTypeId) =>
         MakeWeaponResource(itemId, weaponTypeId).ToDefinition();
+
+    private static ItemDefinition MakeArmor(StringName itemId) =>
+        new ItemDef
+        {
+            item_id = itemId,
+            CategoryKind = ItemCategoryKind.Equipment,
+            EquipmentTypeKind = ItemEquipmentTypeKind.Armor,
+            equipment_slot_ids = new Godot.Collections.Array<string> { "body" },
+            is_stackable = false,
+            max_stack = 1,
+        }.ToDefinition();
 
     private static ItemDef MakeWeaponResource(StringName itemId, StringName weaponTypeId)
     {

@@ -1,14 +1,28 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public readonly record struct BattleForcedMoveContext(Vector2I Direction)
+public readonly record struct BattleForcedMoveContext(
+    Vector2I Direction,
+    Vector2I DestinationCoord,
+    bool DestinationSelected
+)
 {
-    public static BattleForcedMoveContext Empty => new(Vector2I.Zero);
+    private static readonly Vector2I InvalidCoord = new(-1, -1);
+
+    public BattleForcedMoveContext(Vector2I direction)
+        : this(direction, InvalidCoord, false) { }
+
+    public static BattleForcedMoveContext Empty => new(Vector2I.Zero, InvalidCoord, false);
 
     public bool HasDirection => Direction != Vector2I.Zero;
 
     public static BattleForcedMoveContext FromDirection(Vector2I direction) =>
-        new(NormalizeAxisDirection(direction));
+        new(NormalizeAxisDirection(direction), InvalidCoord, false);
+
+    public static BattleForcedMoveContext FromDestination(Vector2I destinationCoord) =>
+        new(Vector2I.Zero, destinationCoord, true);
+
+    public bool HasDestination => DestinationSelected && DestinationCoord != InvalidCoord;
 
     public static Vector2I NormalizeAxisDirection(Vector2I direction)
     {

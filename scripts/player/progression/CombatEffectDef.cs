@@ -10,6 +10,7 @@ internal enum CombatEffectTriggerEvent
     CriticalHit,
     OrdinaryHit,
     SecondaryHit,
+    ForcedMoveApplied,
 }
 
 internal enum CombatEffectTriggerCondition
@@ -150,6 +151,20 @@ public partial class CombatEffectDef : Resource
     public int dice_sides_per_willpower_mod { get; set; }
 
     [Export]
+    public StringName shield_family { get; set; } = "";
+
+    [Export]
+    public StringName shield_attribute_modifier_id { get; set; } = "";
+    internal AttributeSnapshotIdKind ShieldAttributeModifierKind
+    {
+        get => AttributeSnapshot.ToIdKind(shield_attribute_modifier_id);
+        set => shield_attribute_modifier_id = AttributeSnapshot.ToStringName(value);
+    }
+
+    [Export]
+    public bool shield_roll_per_target { get; set; }
+
+    [Export]
     public int bonus_damage_dice_count { get; set; }
 
     [Export]
@@ -228,6 +243,12 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int fixed_attack_count { get; set; }
+
+    [Export]
+    public int follow_up_damage_multiplier_percent { get; set; } = 100;
+
+    [Export]
+    public int[] follow_up_attack_roll_bonus_curve { get; set; } = System.Array.Empty<int>();
 
     [Export]
     public bool remove_harmful { get; set; }
@@ -406,6 +427,9 @@ public partial class CombatEffectDef : Resource
     public int forced_move_distance { get; set; }
 
     [Export]
+    public int forced_move_max_target_body_size { get; set; }
+
+    [Export]
     public int grapple_max_height_gain { get; set; }
 
     [Export]
@@ -488,6 +512,9 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public StringName save_failure_status_id { get; set; } = "";
+
+    [Export]
+    public Godot.Collections.Array<CombatWeightedStatusOutcomeDef> save_failure_status_outcomes { get; set; } = new();
 
     [Export]
     public bool save_partial_on_success { get; set; }

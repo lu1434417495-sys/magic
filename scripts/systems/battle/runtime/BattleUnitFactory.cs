@@ -393,8 +393,10 @@ internal sealed class BattleUnitFactory
 
     internal IReadOnlyList<StringName> RefreshEquipmentProjection(BattleUnitState us)
     {
-        if (us == null || (string)us.source_member_id == "" || _runtime == null)
+        if (us == null || _runtime == null)
             return Array.Empty<StringName>();
+        if ((string)us.source_member_id == "")
+            return RefreshEnemyEquipmentProjection(us);
         PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
             return Array.Empty<StringName>();
@@ -455,6 +457,77 @@ internal sealed class BattleUnitFactory
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
         _sync_trait_passive_projection(us);
+        return changedUnitIds;
+    }
+
+    private IReadOnlyList<StringName> RefreshEnemyEquipmentProjection(BattleUnitState unit)
+    {
+        EnemyTemplateDefinition template = _runtime.GetEnemyTemplateTyped(
+            unit?.enemy_template_id ?? ""
+        );
+        if (unit == null || template == null)
+            return Array.Empty<StringName>();
+        AttributeSnapshot previousSnapshot = _snap(unit);
+        int previousHpMax = Mathf.Max(
+            previousSnapshot?.GetValue(AttributeService.HP_MAX) ?? 1,
+            1
+        );
+        int previousMpMax = Mathf.Max(
+            previousSnapshot?.GetValue(AttributeService.MP_MAX) ?? 0,
+            0
+        );
+        int previousStaminaMax = Mathf.Max(
+            previousSnapshot?.GetValue(AttributeService.STAMINA_MAX) ?? 0,
+            0
+        );
+        int previousAuraMax = Mathf.Max(
+            previousSnapshot?.GetValue(AttributeService.AURA_MAX) ?? 0,
+            0
+        );
+        AttributeSnapshot snapshot = EnemyBattleEquipmentProjectionService.BuildAttributeSnapshot(
+            template,
+            unit.GetEquipmentView(),
+            _runtime.GetItemDefIndexTyped()
+        );
+        unit.attribute_snapshot = snapshot;
+        BattleEquipmentAbilityProjectionResult equipmentAbilityProjection =
+            BattleEquipmentAbilityProjectionService.ProjectEnemyBattleOnly(
+                unit,
+                template,
+                GetEquipmentAbilityBindingIndex(),
+                _runtime.GetTraitDefIndexTyped(),
+                _runtime.GetItemDefIndexTyped()
+            );
+        unit.ReplaceEquipmentAbilityProjectionTyped(
+            equipmentAbilityProjection.Sources,
+            equipmentAbilityProjection.TemporalProgressModifiers,
+            equipmentAbilityProjection.CognitionCeilingModifiers
+        );
+        IReadOnlyList<StringName> changedUnitIds = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ClearTargetMarksForRemovedEquipmentSources(_runtime.GetState(), unit)
+            ?? Array.Empty<StringName>();
+        int hpMax = Mathf.Max(snapshot.GetValue(AttributeService.HP_MAX), 1);
+        int mpMax = Mathf.Max(snapshot.GetValue(AttributeService.MP_MAX), 0);
+        int staminaMax = Mathf.Max(snapshot.GetValue(AttributeService.STAMINA_MAX), 0);
+        int auraMax = Mathf.Max(snapshot.GetValue(AttributeService.AURA_MAX), 0);
+        unit.SetCurrentHp(
+            hpMax < previousHpMax ? Mathf.Clamp(unit.GetCurrentHp(), 0, hpMax) : unit.GetCurrentHp()
+        );
+        unit.SetCurrentMp(
+            mpMax < previousMpMax ? Mathf.Clamp(unit.GetCurrentMp(), 0, mpMax) : unit.GetCurrentMp()
+        );
+        unit.SetCurrentStamina(
+            staminaMax < previousStaminaMax
+                ? Mathf.Clamp(unit.GetCurrentStamina(), 0, staminaMax)
+                : unit.GetCurrentStamina()
+        );
+        unit.SetCurrentAura(
+            auraMax < previousAuraMax
+                ? Mathf.Clamp(unit.GetCurrentAura(), 0, auraMax)
+                : unit.GetCurrentAura()
+        );
+        unit.SetActionThresholdTyped(_resolve_action_threshold_from_snapshot(snapshot));
         return changedUnitIds;
     }
 
