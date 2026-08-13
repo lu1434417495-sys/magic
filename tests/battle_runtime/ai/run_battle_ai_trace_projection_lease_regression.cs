@@ -1044,8 +1044,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 summaryLease.Value,
-                6432,
-                "297b77d61b13269a5d3c5d7eefc0578d7073fd8e16a26239bba0e0eb54621b25",
+                7038,
+                "31ea47ff123248ee839121a6e5a93fc906a98afdae99b823802ebfd857c4958e",
                 "full compact trace summary payload"
             );
         }

@@ -594,6 +594,22 @@ public sealed class BattleSimTraceSummaryBuilder
             MpCost = ReadPlainInt(score, "mp_cost"),
             AuraCost = ReadPlainInt(score, "aura_cost"),
             MoveCost = ReadPlainInt(score, "move_cost"),
+            EstimatedFriendlyFireTargetCount = ReadPlainInt(
+                score,
+                "estimated_friendly_fire_target_count"
+            ),
+            EstimatedFriendlyFireDamage = ReadPlainInt(score, "estimated_friendly_fire_damage"),
+            EstimatedFriendlyLethalTargetCount = ReadPlainInt(
+                score,
+                "estimated_friendly_lethal_target_count"
+            ),
+            FriendlyFirePenaltyScore = ReadPlainInt(score, "friendly_fire_penalty_score"),
+            EstimatedHealing = ReadPlainInt(score, "estimated_healing"),
+            EstimatedStatusCount = ReadPlainInt(score, "estimated_status_count"),
+            EstimatedTerrainEffectCount = ReadPlainInt(score, "estimated_terrain_effect_count"),
+            CooldownTu = ReadPlainInt(score, "cooldown_tu"),
+            DesiredMinDistance = ReadPlainInt(score, "desired_min_distance", -1),
+            DesiredMaxDistance = ReadPlainInt(score, "desired_max_distance", -1),
         };
     }
 
@@ -657,6 +673,16 @@ public sealed class BattleSimTraceSummaryBuilder
             MpCost = score.mp_cost,
             AuraCost = score.aura_cost,
             MoveCost = score.move_cost,
+            EstimatedFriendlyFireTargetCount = score.estimated_friendly_fire_target_count,
+            EstimatedFriendlyFireDamage = score.estimated_friendly_fire_damage,
+            EstimatedFriendlyLethalTargetCount = score.estimated_friendly_lethal_target_count,
+            FriendlyFirePenaltyScore = score.friendly_fire_penalty_score,
+            EstimatedHealing = score.estimated_healing,
+            EstimatedStatusCount = score.estimated_status_count,
+            EstimatedTerrainEffectCount = score.estimated_terrain_effect_count,
+            CooldownTu = score.cooldown_tu,
+            DesiredMinDistance = score.desired_min_distance,
+            DesiredMaxDistance = score.desired_max_distance,
         };
     }
 
@@ -1257,6 +1283,19 @@ public sealed class BattleSimTraceSummaryBuilder
         public int AuraCost { get; set; }
         public int MoveCost { get; set; }
 
+        // Tie-breakers the decision engine applies ahead of total_score, plus the payoff and
+        // cost dimensions a low-token summary needs to explain why a candidate actually won.
+        public int EstimatedFriendlyFireTargetCount { get; set; }
+        public int EstimatedFriendlyFireDamage { get; set; }
+        public int EstimatedFriendlyLethalTargetCount { get; set; }
+        public int FriendlyFirePenaltyScore { get; set; }
+        public int EstimatedHealing { get; set; }
+        public int EstimatedStatusCount { get; set; }
+        public int EstimatedTerrainEffectCount { get; set; }
+        public int CooldownTu { get; set; }
+        public int DesiredMinDistance { get; set; } = -1;
+        public int DesiredMaxDistance { get; set; } = -1;
+
 
         public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary()
         {
@@ -1324,7 +1363,17 @@ public sealed class BattleSimTraceSummaryBuilder
                 ("stamina_cost", StaminaCost),
                 ("mp_cost", MpCost),
                 ("aura_cost", AuraCost),
-                ("move_cost", MoveCost)
+                ("move_cost", MoveCost),
+                ("estimated_friendly_fire_target_count", EstimatedFriendlyFireTargetCount),
+                ("estimated_friendly_fire_damage", EstimatedFriendlyFireDamage),
+                ("estimated_friendly_lethal_target_count", EstimatedFriendlyLethalTargetCount),
+                ("friendly_fire_penalty_score", FriendlyFirePenaltyScore),
+                ("estimated_healing", EstimatedHealing),
+                ("estimated_status_count", EstimatedStatusCount),
+                ("estimated_terrain_effect_count", EstimatedTerrainEffectCount),
+                ("cooldown_tu", CooldownTu),
+                ("desired_min_distance", DesiredMinDistance),
+                ("desired_max_distance", DesiredMaxDistance)
             );
         }
     }

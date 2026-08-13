@@ -132,6 +132,16 @@ def build_child_process_env(
 	return env
 
 
+# Entry points that require CLI arguments and fail by design when invoked bare. They match the
+# run_*.cs collection glob but are tools, not self-contained tests, so no flag should collect them.
+# Runners living under a tools/ directory are already excluded by the /tools/ rule below.
+CLI_ONLY_TEST_PATHS = frozenset(
+	{
+		"tests/battle_runtime/simulation/run_battle_balance_simulation.cs",
+	}
+)
+
+
 def get_repo_path(repo_root: Path, path: Path) -> str:
 	return path.resolve().relative_to(repo_root.resolve()).as_posix()
 
@@ -141,6 +151,8 @@ def should_skip_test(repo_path: str, pattern: str, include_simulation: bool, inc
 	if "/tools/" in lower_path:
 		return True
 	if "/e2e/" in lower_path:
+		return True
+	if lower_path in CLI_ONLY_TEST_PATHS:
 		return True
 	if not include_simulation and "/simulation/" in lower_path:
 		return True
