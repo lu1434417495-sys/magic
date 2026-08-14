@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class BattleChargeResolver
 {
@@ -30,16 +28,20 @@ internal sealed class BattleChargeResolver
         }
     }
 
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<IBattleChargeRuntimePort> _runtimeRef;
     private BattleSkillMasteryService _skillMasteryService;
 
-    private BattleRuntimeModule Runtime
+    private IBattleChargeRuntimePort Runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        set =>
+            _runtimeRef = value != null ? new WeakReference<IBattleChargeRuntimePort>(value) : null;
     }
 
-    internal void Setup(BattleRuntimeModule runtime, BattleSkillMasteryService skillMasteryService)
+    internal void Setup(
+        IBattleChargeRuntimePort runtime,
+        BattleSkillMasteryService skillMasteryService
+    )
     {
         Runtime = runtime;
         _skillMasteryService = skillMasteryService;
@@ -87,14 +89,12 @@ internal sealed class BattleChargeResolver
         var processedTerrainContactKeys = new HashSet<string>();
         string stopReason = "";
 
-        BattleTerrainMovementContactResult startingContact = Runtime._terrain_effect_system
-            ?.ResolveMovementContactForUnit(
-                active_unit,
-                BattleSaveContext.Empty,
-                chargeBatch,
-                processedTerrainContactKeys,
-                startingInsideCheck: true
-            ) ?? BattleTerrainMovementContactResult.None;
+        BattleTerrainMovementContactResult startingContact = Runtime.ResolveMovementContact(
+            active_unit,
+            chargeBatch,
+            processedTerrainContactKeys,
+            startingInsideCheck: true
+        );
         if (startingContact.MovementBlocked)
         {
             stopReason = "terrain_contact";
@@ -128,13 +128,12 @@ internal sealed class BattleChargeResolver
             }
 
             Vector2I previousAnchor = active_unit.GetAnchorCoord();
-            BattleBarrierInteractionResult barrierResult =
-                Runtime._layered_barrier_service?.ResolveUnitBoundaryCrossingResult(
-                    active_unit,
-                    previousAnchor,
-                    nextAnchor,
-                    chargeBatch
-                ) ?? new BattleBarrierInteractionResult(false, false);
+            BattleBarrierInteractionResult barrierResult = Runtime.ResolveUnitBoundaryCrossing(
+                active_unit,
+                previousAnchor,
+                nextAnchor,
+                chargeBatch
+            );
             if (
                 barrierResult.Blocked
                 || !active_unit.IsAlive()
@@ -159,19 +158,17 @@ internal sealed class BattleChargeResolver
             AppendChangedUnitId(chargeBatch, active_unit.unit_id);
             AppendChangedCoords(chargeBatch, previousCoords);
             AppendChangedUnitCoords(chargeBatch, active_unit);
-            Runtime._terrain_effect_system?.ApplyContactEffectsForUnit(
+            Runtime.ApplyTerrainContactEffects(
                 active_unit,
-                BattleSaveContext.Empty,
                 chargeBatch,
                 processedTerrainContactKeys
             );
-            BattleTerrainMovementContactResult movementContact = Runtime._terrain_effect_system
-                ?.ResolveMovementContactForUnit(
-                    active_unit,
-                    BattleSaveContext.Empty,
-                    chargeBatch,
-                    processedTerrainContactKeys
-                ) ?? BattleTerrainMovementContactResult.None;
+            BattleTerrainMovementContactResult movementContact = Runtime.ResolveMovementContact(
+                active_unit,
+                chargeBatch,
+                processedTerrainContactKeys,
+                startingInsideCheck: false
+            );
             if (movementContact.MovementBlocked)
             {
                 stopReason = "terrain_contact";
@@ -235,7 +232,7 @@ internal sealed class BattleChargeResolver
             }
         }
 
-        Runtime._equipment_ability_runtime_service?.ApplyMovementTrails(
+        Runtime.ApplyMovementTrails(
             active_unit,
             executedPath,
             skillDefinition.SkillId,
@@ -434,22 +431,14 @@ internal sealed class BattleChargeResolver
                 anchorCoord,
                 pathStepAoeEffect
             );
-            IReadOnlyList<Vector2I> allowedEffectCoords = anchorEffectCoords;
-            BattleLayeredBarrierService barrierService = Runtime._layered_barrier_service;
-            if (barrierService != null)
-            {
-                allowedEffectCoords = barrierService
-                    .PreviewGroundEffectBarrierClipResultAtCoord(
-                        active_unit,
-                        anchorCoord,
-                        skillDefinition,
-                        stageEffects,
-                        Array.Empty<CombatEffectDefinition>(),
-                        anchorEffectCoords,
-                        castVariantDefinition
-                    )
-                    .UnitEffects.AllowedCoords;
-            }
+            IReadOnlyList<Vector2I> allowedEffectCoords = Runtime.PreviewGroundEffectAllowedCoords(
+                active_unit,
+                anchorCoord,
+                skillDefinition,
+                stageEffects,
+                anchorEffectCoords,
+                castVariantDefinition
+            );
             foreach (Vector2I effectCoord in allowedEffectCoords)
             {
                 if (coordSet.Add(effectCoord))
@@ -498,22 +487,14 @@ internal sealed class BattleChargeResolver
                 anchorCoord,
                 pathStepAoeEffect
             );
-            IReadOnlyList<Vector2I> allowedEffectCoords = anchorEffectCoords;
-            BattleLayeredBarrierService barrierService = Runtime._layered_barrier_service;
-            if (barrierService != null)
-            {
-                allowedEffectCoords = barrierService
-                    .PreviewGroundEffectBarrierClipResultAtCoord(
-                        active_unit,
-                        anchorCoord,
-                        skillDefinition,
-                        stageEffects,
-                        Array.Empty<CombatEffectDefinition>(),
-                        anchorEffectCoords,
-                        castVariantDefinition
-                    )
-                    .UnitEffects.AllowedCoords;
-            }
+            IReadOnlyList<Vector2I> allowedEffectCoords = Runtime.PreviewGroundEffectAllowedCoords(
+                active_unit,
+                anchorCoord,
+                skillDefinition,
+                stageEffects,
+                anchorEffectCoords,
+                castVariantDefinition
+            );
             foreach (Vector2I effectCoord in allowedEffectCoords)
             {
                 if (coordSet.Add(effectCoord))
@@ -972,23 +953,16 @@ internal sealed class BattleChargeResolver
             return new PathStepResult(false);
         }
         CombatEffectDefinition[] stageEffects = { stageEffect };
-        BattleLayeredBarrierService barrierService = Runtime._layered_barrier_service;
-        if (barrierService != null)
-        {
-            effectCoords = new List<Vector2I>(
-                barrierService
-                    .ResolveGroundEffectBarrierClipResult(
-                        activeUnit,
-                        skillDefinition,
-                        stageEffects,
-                        Array.Empty<CombatEffectDefinition>(),
-                        effectCoords,
-                        batch,
-                        castVariantDefinition
-                    )
-                    .UnitEffects.AllowedCoords
-            );
-        }
+        effectCoords = new List<Vector2I>(
+            Runtime.ResolveGroundEffectAllowedCoords(
+                activeUnit,
+                skillDefinition,
+                stageEffects,
+                effectCoords,
+                batch,
+                castVariantDefinition
+            )
+        );
 
         foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
         {
@@ -1057,7 +1031,7 @@ internal sealed class BattleChargeResolver
                     skillDefinition,
                     stageResult
                 );
-                Runtime?._apply_source_bound_weapon_bonus_mastery_grants(
+                Runtime?.ApplySourceBoundWeaponBonusMasteryGrants(
                     activeUnit,
                     targetUnit,
                     stageResult,
@@ -1548,13 +1522,12 @@ internal sealed class BattleChargeResolver
         if (sidePush.Available)
         {
             Vector2I blockerAnchor = blocker.GetAnchorCoord();
-            BattleBarrierInteractionResult barrierResult =
-                Runtime._layered_barrier_service?.ResolveUnitBoundaryCrossingResult(
-                    blocker,
-                    blockerAnchor,
-                    sidePush.Coord,
-                    batch
-                ) ?? new BattleBarrierInteractionResult(false, false);
+            BattleBarrierInteractionResult barrierResult = Runtime.ResolveUnitBoundaryCrossing(
+                blocker,
+                blockerAnchor,
+                sidePush.Coord,
+                batch
+            );
             if (
                 barrierResult.Blocked
                 || !blocker.IsAlive()
@@ -1596,13 +1569,12 @@ internal sealed class BattleChargeResolver
             Vector2I blockerAnchor = blocker.GetAnchorCoord();
             if (GridService.CanPlaceUnit(State, blocker, forwardCoord))
             {
-                BattleBarrierInteractionResult barrierResult =
-                    Runtime._layered_barrier_service?.ResolveUnitBoundaryCrossingResult(
-                        blocker,
-                        blockerAnchor,
-                        forwardCoord,
-                        batch
-                    ) ?? new BattleBarrierInteractionResult(false, false);
+                BattleBarrierInteractionResult barrierResult = Runtime.ResolveUnitBoundaryCrossing(
+                    blocker,
+                    blockerAnchor,
+                    forwardCoord,
+                    batch
+                );
                 if (
                     barrierResult.Blocked
                     || !blocker.IsAlive()
@@ -2119,21 +2091,19 @@ internal sealed class BattleChargeResolver
         return Runtime != null;
     }
 
-    private BattleState State => Runtime?._state;
+    private BattleState State => Runtime?.GetBattleState();
 
-    private BattleGridService GridService => Runtime?._grid_service;
+    private BattleGridService GridService => Runtime?.GetGridService();
 
-    private BattleDamageResolver DamageResolver => Runtime?._damage_resolver;
+    private BattleDamageResolver DamageResolver => Runtime?.GetDamageResolver();
 
     private StringName ResolveEffectTargetFilter(
         SkillDefinition skillDefinition,
         CombatEffectDefinition effectDefinition
     )
     {
-        return Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
-            skillDefinition,
-            effectDefinition
-        ) ?? new StringName("");
+        return Runtime?.ResolveEffectTargetFilter(skillDefinition, effectDefinition)
+            ?? new StringName("");
     }
 
     private bool IsUnitValidForEffect(
@@ -2152,10 +2122,7 @@ internal sealed class BattleChargeResolver
         {
             yield break;
         }
-        Runtime._ensure_sidecars_ready();
-        foreach (
-            BattleUnitState unit in Runtime._skill_orchestrator.CollectUnitsInCoords(effectCoords)
-        )
+        foreach (BattleUnitState unit in Runtime.CollectUnitsInCoords(effectCoords))
         {
             if (unit != null)
             {
@@ -2194,15 +2161,6 @@ internal sealed class BattleChargeResolver
             targetUnit,
             statusEffectIds
         );
-    }
-
-    private void AppendResultSourceStatusEffects(
-        BattleEventBatch batch,
-        BattleUnitState sourceUnit,
-        GDictionary result
-    )
-    {
-        Runtime?.AppendResultSourceStatusEffects(batch, sourceUnit, result);
     }
 
     private void AppendResultSourceStatusEffects(
@@ -2418,11 +2376,11 @@ internal sealed class BattleChargeResolver
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static BattleRuntimeModule ResolveWeakRef(
-        WeakReference<BattleRuntimeModule> weakRef
+    private static IBattleChargeRuntimePort ResolveWeakRef(
+        WeakReference<IBattleChargeRuntimePort> weakRef
     )
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
+        if (weakRef == null || !weakRef.TryGetTarget(out IBattleChargeRuntimePort target))
         {
             return null;
         }

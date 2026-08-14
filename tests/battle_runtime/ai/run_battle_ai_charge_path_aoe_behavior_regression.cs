@@ -315,7 +315,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         CombatCastVariantDefinition variant = whirlwind.CombatProfile.CastVariants[0];
         using var masteryService = new BattleSkillMasteryService();
         var chargeResolver = new BattleChargeResolver();
-        chargeResolver.Setup(runtime, masteryService);
+        chargeResolver.Setup(runtime._moduleBorrowers.ChargeBridge, masteryService);
         using var batch = new BattleEventBatch();
 
         bool executed = chargeResolver.handle_charge_skill_command_result(

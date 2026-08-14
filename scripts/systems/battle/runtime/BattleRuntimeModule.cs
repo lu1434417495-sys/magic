@@ -435,7 +435,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _skill_outcome_committer.Setup(this);
         _battle_rating_system.Setup(this, _skill_mastery_service);
          _unit_factory.Setup(this);
-        _charge_resolver.Setup(this, _skill_mastery_service);
+        _moduleBorrowers.ChargeBridge.Setup(this);
+        _charge_resolver.Setup(_moduleBorrowers.ChargeBridge, _skill_mastery_service);
         _repeat_attack_resolver.Setup(this, _skill_mastery_service);
         _skill_mastery_service.Clear();
         _fate_runtime.Setup(
@@ -1526,7 +1527,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _skill_outcome_committer.Setup(this);
         _battle_rating_system.Setup(this, _skill_mastery_service);
          _unit_factory.Setup(this);
-        _charge_resolver.Setup(this, _skill_mastery_service);
+        _moduleBorrowers.ChargeBridge.Setup(this);
+        _charge_resolver.Setup(_moduleBorrowers.ChargeBridge, _skill_mastery_service);
         _repeat_attack_resolver.Setup(this, _skill_mastery_service);
         _change_equipment_resolver.Setup(this);
         _loot_resolver.Setup(this);

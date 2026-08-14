@@ -136,6 +136,8 @@
 
     { "glob": "scripts/systems/battle/runtime/BattleTimelineDriver.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/IBattleTimelineRuntimePort.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/BattleChargeResolver.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/IBattleChargeRuntimePort.cs", "layer": "battle_runtime_isolated" },
 
     { "glob": "scripts/systems/battle/runtime/**/*.cs", "layer": "application" },
 
