@@ -263,7 +263,10 @@ internal sealed class BattleRuntimeServices : IDisposable
     )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        GroundEffects.Setup(runtime);
+        // 就地绑定 bridge（经 IsBoundTo 幂等）：本方法可能早于 _moduleBorrowers.Setup 跑到，
+        // 不保证的话地面效果服务族会拿到未绑定的端口而静默 no-op。
+        runtime._moduleBorrowers.GroundEffectBridge.Setup(runtime);
+        GroundEffects.Setup(runtime._moduleBorrowers.GroundEffectBridge);
         SpecialSkills.Setup(runtime);
         Movement.Setup(runtime);
         Contingencies.Setup(contingencyRuntimePort);

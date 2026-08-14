@@ -7,19 +7,19 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal class BattleGroundSkillValidationService
 {
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<IBattleGroundEffectRuntimePort> _runtimeRef;
     private BattleGroundEffectService _owner;
     private BattleGroundRelocationService _relocationService;
     private BattleGroundEffectCoordService _coordService;
 
-    private BattleRuntimeModule _runtime
+    private IBattleGroundEffectRuntimePort _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<IBattleGroundEffectRuntimePort>(value) : null;
     }
 
     internal void Setup(
-        BattleRuntimeModule runtime,
+        IBattleGroundEffectRuntimePort runtime,
         BattleGroundEffectService owner,
         BattleGroundRelocationService relocationService,
         BattleGroundEffectCoordService coordService
@@ -45,9 +45,9 @@ internal class BattleGroundSkillValidationService
         _runtime = null;
     }
 
-    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
+    private static IBattleGroundEffectRuntimePort ResolveWeakRef(WeakReference<IBattleGroundEffectRuntimePort> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
+        if (weakRef == null || !weakRef.TryGetTarget(out IBattleGroundEffectRuntimePort target))
         {
             return null;
         }
@@ -56,9 +56,9 @@ internal class BattleGroundSkillValidationService
 
     private static readonly StringName Empty = "";
 
-    private BattleRuntimeModule Runtime => _runtime;
-    private BattleState State => Runtime?._state;
-    private BattleGridService GridService => Runtime?._grid_service;
+    private IBattleGroundEffectRuntimePort Runtime => _runtime;
+    private BattleState State => Runtime?.GetBattleState();
+    private BattleGridService GridService => Runtime?.GetGridService();
 
 
     internal string GetGroundSpecialEffectValidationMessage(
@@ -174,7 +174,7 @@ internal class BattleGroundSkillValidationService
             return deniedResult with
             {
                 Message =
-                    Runtime?._get_skill_cast_block_message(activeUnit, skillDefinition)
+                    Runtime?.GetSkillCastBlockMessage(activeUnit, skillDefinition)
                     ?? "正式技能检查未绑定，无法施放该技能。",
             };
         }
@@ -187,7 +187,7 @@ internal class BattleGroundSkillValidationService
                     Message = $"该技能形态需要选择 {requiredCoordCount} 个地格。",
                 };
         }
-        BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
+        BattleChargeResolver chargeResolver = Runtime?.GetChargeResolver();
         if (castVariantDefinition != null && chargeResolver != null && chargeResolver.IsChargeOption(castVariantDefinition))
         {
             return chargeResolver.ValidateChargeCommandResult(
@@ -377,7 +377,7 @@ internal class BattleGroundSkillValidationService
         {
             return deniedResult with { Message = "该技能形态不是地面施法。" };
         }
-        string blockReason = Runtime?._get_skill_command_block_reason(
+        string blockReason = Runtime?.GetSkillCommandBlockReason(
             activeUnit,
             skillDefinition,
             castVariantDefinition
@@ -395,7 +395,7 @@ internal class BattleGroundSkillValidationService
                     Message = $"该技能形态需要选择 {requiredCoordCount} 个地格。",
                 };
         }
-        BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
+        BattleChargeResolver chargeResolver = Runtime?.GetChargeResolver();
         if (castVariantDefinition != null && chargeResolver != null && chargeResolver.IsChargeOption(castVariantDefinition))
         {
             return chargeResolver.ValidateChargeCommandResult(
@@ -595,7 +595,7 @@ internal class BattleGroundSkillValidationService
         if (!AllUnitEffectsRequireQualifiedTargets(effects))
             return "";
         IReadOnlyList<Vector2I> effectCoords =
-            Runtime?.BuildGroundEffectCoordsTyped(
+            Runtime?.BuildGroundEffectCoords(
                 skillDefinition,
                 targetCoords,
                 activeUnit.GetAnchorCoord(),
@@ -647,7 +647,7 @@ internal class BattleGroundSkillValidationService
         if (!AllUnitEffectsRequireQualifiedTargets(effects))
             return "";
         IReadOnlyList<Vector2I> effectCoords =
-            Runtime?.BuildGroundEffectCoordsTyped(
+            Runtime?.BuildGroundEffectCoords(
                 skillDefinition,
                 targetCoords,
                 activeUnit.Coord,
@@ -767,7 +767,7 @@ internal class BattleGroundSkillValidationService
     {
         return GetGroundPlacementValidationMessageCore(
             skillDefinition,
-            Runtime?.BuildGroundEffectCoordsTyped(
+            Runtime?.BuildGroundEffectCoords(
                 skillDefinition,
                 targetCoords,
                 activeUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1),
@@ -786,7 +786,7 @@ internal class BattleGroundSkillValidationService
     {
         return GetGroundPlacementValidationMessageCore(
             skillDefinition,
-            Runtime?.BuildGroundEffectCoordsTyped(
+            Runtime?.BuildGroundEffectCoords(
                 skillDefinition,
                 targetCoords,
                 activeUnit.IsValid ? activeUnit.Coord : new Vector2I(-1, -1),
@@ -912,7 +912,7 @@ internal class BattleGroundSkillValidationService
                 castVariantDefinition,
                 sourceView
             );
-        BattleGroundEffectBarrierClipResult clip = Runtime?._layered_barrier_service
+        BattleGroundEffectBarrierClipResult clip = Runtime?.GetLayeredBarrierService()
             ?.PreviewGroundEffectBarrierClipResultAtCoord(
                 sourceState,
                 sourceView.Coord,

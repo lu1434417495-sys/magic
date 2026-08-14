@@ -142,6 +142,11 @@
     { "glob": "scripts/systems/battle/runtime/IBattleCommandPreviewRuntimePort.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/BattleSkillPreviewService.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/IBattleSkillPreviewRuntimePort.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/BattleGroundEffectService.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/BattleGroundEffectCoordService.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/BattleGroundRelocationService.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/BattleGroundSkillValidationService.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/IBattleGroundEffectRuntimePort.cs", "layer": "battle_runtime_isolated" },
 
     { "glob": "scripts/systems/battle/runtime/**/*.cs", "layer": "application" },
 

@@ -7,18 +7,18 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal class BattleGroundRelocationService
 {
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<IBattleGroundEffectRuntimePort> _runtimeRef;
     private BattleGroundEffectService _owner;
     private BattleGroundEffectCoordService _coordService;
 
-    private BattleRuntimeModule _runtime
+    private IBattleGroundEffectRuntimePort _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<IBattleGroundEffectRuntimePort>(value) : null;
     }
 
     internal void Setup(
-        BattleRuntimeModule runtime,
+        IBattleGroundEffectRuntimePort runtime,
         BattleGroundEffectService owner,
         BattleGroundEffectCoordService coordService
     )
@@ -40,9 +40,9 @@ internal class BattleGroundRelocationService
         _runtime = null;
     }
 
-    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
+    private static IBattleGroundEffectRuntimePort ResolveWeakRef(WeakReference<IBattleGroundEffectRuntimePort> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
+        if (weakRef == null || !weakRef.TryGetTarget(out IBattleGroundEffectRuntimePort target))
         {
             return null;
         }
@@ -51,10 +51,10 @@ internal class BattleGroundRelocationService
 
     private static readonly StringName Empty = "";
 
-    private BattleRuntimeModule Runtime => _runtime;
-    private BattleState State => Runtime?._state;
-    private BattleGridService GridService => Runtime?._grid_service;
-    private BattleLayeredBarrierService LayeredBarrierService => Runtime?._layered_barrier_service;
+    private IBattleGroundEffectRuntimePort Runtime => _runtime;
+    private BattleState State => Runtime?.GetBattleState();
+    private BattleGridService GridService => Runtime?.GetGridService();
+    private BattleLayeredBarrierService LayeredBarrierService => Runtime?.GetLayeredBarrierService();
 
 
     internal bool ApplyGroundPrecastSpecialEffects(
@@ -338,7 +338,7 @@ internal class BattleGroundRelocationService
         {
             return 0;
         }
-        int runtimeLevel = Runtime?._get_unit_skill_level(
+        int runtimeLevel = Runtime?.GetUnitSkillLevel(
             activeUnit,
             skillDefinition.SkillId
         ) ?? 0;
@@ -577,7 +577,7 @@ internal class BattleGroundRelocationService
                 {
                     continue;
                 }
-                int movedSteps = Runtime?._special_skill_resolver?.ApplyForcedMoveEffect(
+                int movedSteps = Runtime?.ApplyForcedMoveEffect(
                     sourceUnit,
                     targetUnit,
                     effectDefinition,
@@ -593,7 +593,7 @@ internal class BattleGroundRelocationService
                 AppendAffectedUnitId(affectedUnitIds, targetUnit);
             }
         }
-        BattleSkillMasteryService masteryService = Runtime?._skill_mastery_service;
+        BattleSkillMasteryService masteryService = Runtime?.GetSkillMasteryService();
         if (masteryService != null && skillDefinition != null)
         {
             foreach (StringName targetUnitId in affectedUnitIds)

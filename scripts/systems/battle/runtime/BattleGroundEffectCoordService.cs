@@ -7,17 +7,17 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal class BattleGroundEffectCoordService
 {
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<IBattleGroundEffectRuntimePort> _runtimeRef;
     private BattleGroundEffectService _owner;
 
-    private BattleRuntimeModule _runtime
+    private IBattleGroundEffectRuntimePort _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<IBattleGroundEffectRuntimePort>(value) : null;
     }
 
     internal void Setup(
-        BattleRuntimeModule runtime,
+        IBattleGroundEffectRuntimePort runtime,
         BattleGroundEffectService owner
     )
     {
@@ -34,9 +34,9 @@ internal class BattleGroundEffectCoordService
         _runtime = null;
     }
 
-    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
+    private static IBattleGroundEffectRuntimePort ResolveWeakRef(WeakReference<IBattleGroundEffectRuntimePort> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
+        if (weakRef == null || !weakRef.TryGetTarget(out IBattleGroundEffectRuntimePort target))
         {
             return null;
         }
@@ -45,12 +45,12 @@ internal class BattleGroundEffectCoordService
 
     private static readonly StringName Empty = "";
 
-    private BattleRuntimeModule Runtime => _runtime;
-    private BattleState State => Runtime?._state;
-    private BattleGridService GridService => Runtime?._grid_service;
+    private IBattleGroundEffectRuntimePort Runtime => _runtime;
+    private BattleState State => Runtime?.GetBattleState();
+    private BattleGridService GridService => Runtime?.GetGridService();
     private BattleTargetCollectionService TargetCollectionService =>
-        Runtime?._target_collection_service;
-    private BattleSkillResolutionRules SkillResolutionRules => Runtime?._skill_resolution_rules;
+        Runtime?.GetTargetCollectionService();
+    private BattleSkillResolutionRules SkillResolutionRules => Runtime?.GetSkillResolutionRules();
 
 
     internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
@@ -290,7 +290,7 @@ internal class BattleGroundEffectCoordService
         )
     {
         IReadOnlyList<BattleUnitState> candidateUnits = CollectUnitsInCoords(effectCoords);
-        return Runtime?._skill_orchestrator.BuildUnitEffectTargetPlan(
+        return Runtime?.BuildUnitEffectTargetPlan(
                 sourceUnit,
                 skillDefinition,
                 effectDefinitions,
@@ -312,7 +312,7 @@ internal class BattleGroundEffectCoordService
         {
             candidateUnits.Add(new BattleUnitReadView(candidateUnit));
         }
-        return Runtime?._skill_orchestrator.BuildUnitEffectTargetPlan(
+        return Runtime?.BuildUnitEffectTargetPlan(
                 sourceUnit,
                 skillDefinition,
                 effectDefinitions,
@@ -325,7 +325,7 @@ internal class BattleGroundEffectCoordService
     {
         return _runtime == null
             ? new List<BattleUnitState>()
-            : new List<BattleUnitState>(Runtime._skill_orchestrator.CollectUnitsInCoords(effectCoords));
+            : new List<BattleUnitState>(Runtime.CollectUnitsInCoords(effectCoords));
     }
 
     internal static HashSet<int> BuildEffectInstanceIdSet(

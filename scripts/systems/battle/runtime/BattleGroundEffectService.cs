@@ -26,18 +26,18 @@ internal class BattleGroundEffectService
         }
     }
 
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<IBattleGroundEffectRuntimePort> _runtimeRef;
     private readonly BattleGroundRelocationService _relocationService = new();
     private readonly BattleGroundSkillValidationService _validationService = new();
     private readonly BattleGroundEffectCoordService _coordService = new();
 
-    private BattleRuntimeModule _runtime
+    private IBattleGroundEffectRuntimePort _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<IBattleGroundEffectRuntimePort>(value) : null;
     }
 
-    internal void Setup(BattleRuntimeModule runtime)
+    internal void Setup(IBattleGroundEffectRuntimePort runtime)
     {
         _runtime = runtime;
         _coordService.Setup(runtime, this);
@@ -54,19 +54,19 @@ internal class BattleGroundEffectService
     internal void Dispose()
     {
         Exception firstFailure = null;
-        BattleRuntimeModule.RunTeardownStep(
+        BattleTeardown.RunStep(
             ref firstFailure,
             _validationService.DisposeRuntime
         );
-        BattleRuntimeModule.RunTeardownStep(
+        BattleTeardown.RunStep(
             ref firstFailure,
             _relocationService.DisposeRuntime
         );
-        BattleRuntimeModule.RunTeardownStep(
+        BattleTeardown.RunStep(
             ref firstFailure,
             _coordService.DisposeRuntime
         );
-        BattleRuntimeModule.RunTeardownStep(ref firstFailure, () => _runtime = null);
+        BattleTeardown.RunStep(ref firstFailure, () => _runtime = null);
         if (firstFailure != null)
             ExceptionDispatchInfo.Capture(firstFailure).Throw();
     }
@@ -124,7 +124,7 @@ internal class BattleGroundEffectService
         int kill_count
     )
     {
-        Runtime?._record_effect_metrics(
+        Runtime?.RecordEffectMetrics(
             source_unit,
             target_unit,
             damage,
@@ -135,7 +135,7 @@ internal class BattleGroundEffectService
 
     internal void _record_unit_defeated(BattleUnitState unit_state)
     {
-        Runtime?._record_unit_defeated(unit_state);
+        Runtime?.RecordUnitDefeated(unit_state);
     }
 
     internal void append_damage_result_log_lines(
@@ -189,7 +189,7 @@ internal class BattleGroundEffectService
         BattleEventBatch batch
     )
     {
-        Runtime?._apply_on_kill_gain_resources_effects(
+        Runtime?.ApplyOnKillGainResourcesEffects(
             sourceUnit,
             defeatedUnit,
             skillDefinition,
@@ -201,7 +201,7 @@ internal class BattleGroundEffectService
     internal bool _is_crown_break_target_eligible(BattleUnitState active_unit, BattleUnitState target_unit)
     {
         return _runtime != null
-            && Runtime._is_crown_break_target_eligible(
+            && Runtime.IsCrownBreakTargetEligible(
                 active_unit,
                 target_unit
             );
@@ -219,7 +219,7 @@ internal class BattleGroundEffectService
 
     internal bool _is_crown_break_skill(StringName skill_id)
     {
-        return _runtime != null && Runtime._is_crown_break_skill(skill_id);
+        return _runtime != null && Runtime.IsCrownBreakSkill(skill_id);
     }
 
     private void RecordVajraBodyMasteryFromIncomingDamageTyped(
@@ -230,7 +230,7 @@ internal class BattleGroundEffectService
         BattleEventBatch batch = null
     )
     {
-        Runtime?.RecordVajraBodyMasteryFromIncomingDamageTyped(
+        Runtime?.RecordVajraBodyMasteryFromIncomingDamage(
             sourceUnit,
             targetUnit,
             skillDefinition,
@@ -278,7 +278,7 @@ internal class BattleGroundEffectService
     )
     {
         return _runtime != null
-            && Runtime._is_unit_valid_for_effect(
+            && Runtime.IsUnitValidForEffect(
                 source_unit,
                 target_unit,
                 target_team_filter
@@ -292,7 +292,7 @@ internal class BattleGroundEffectService
     )
     {
         return _runtime != null
-            && Runtime._is_unit_valid_for_effect(
+            && Runtime.IsUnitValidForEffect(
                 source_unit,
                 target_unit,
                 target_team_filter
@@ -301,12 +301,12 @@ internal class BattleGroundEffectService
 
     internal void _flush_last_stand_mastery_records(BattleEventBatch batch)
     {
-        Runtime?._flush_last_stand_mastery_records(batch);
+        Runtime?.FlushLastStandMasteryRecords(batch);
     }
 
     internal void _append_changed_coord(BattleEventBatch batch, Vector2I coord)
     {
-        Runtime?._append_changed_coord(batch, coord);
+        Runtime?.AppendChangedCoord(batch, coord);
     }
 
     internal void AppendChangedCoords(BattleEventBatch batch, IReadOnlyList<Vector2I> coords)
@@ -323,12 +323,12 @@ internal class BattleGroundEffectService
 
     internal void _append_changed_unit_id(BattleEventBatch batch, StringName unit_id)
     {
-        Runtime?._append_changed_unit_id(batch, unit_id);
+        Runtime?.AppendChangedUnitId(batch, unit_id);
     }
 
     internal void _append_changed_unit_coords(BattleEventBatch batch, BattleUnitState unit_state)
     {
-        Runtime?._append_changed_unit_coords(batch, unit_state);
+        Runtime?.AppendChangedUnitCoords(batch, unit_state);
     }
 
     internal void _collect_defeated_unit_loot(
@@ -337,19 +337,19 @@ internal class BattleGroundEffectService
         BattleEventBatch batch = null
     )
     {
-        Runtime?._collect_defeated_unit_loot(unit_state, killer_unit, batch);
+        Runtime?.CollectDefeatedUnitLoot(unit_state, killer_unit, batch);
     }
 
     internal void _clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null)
     {
-        Runtime?._clear_defeated_unit(unit_state, batch);
+        Runtime?.ClearDefeatedUnit(unit_state, batch);
     }
 
     internal int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)
     {
         return _runtime == null
             ? 0
-            : Runtime._get_unit_skill_level(unit_state, skill_id);
+            : Runtime.GetUnitSkillLevel(unit_state, skill_id);
     }
 
     internal BattleSkillCastBlockReasonKind _get_skill_cast_block_reason(
@@ -359,7 +359,7 @@ internal class BattleGroundEffectService
     {
         return _runtime == null
             ? BattleSkillCastBlockReasonKind.SkillCastCheckUnbound
-            : Runtime._get_skill_cast_block_reason(active_unit, skillDefinition);
+            : Runtime.GetSkillCastBlockReason(active_unit, skillDefinition);
     }
 
     internal int _get_effective_skill_range(
@@ -369,7 +369,7 @@ internal class BattleGroundEffectService
     {
         return _runtime == null
             ? 0
-            : Runtime._get_effective_skill_range(active_unit, skillDefinition);
+            : Runtime.GetEffectiveSkillRange(active_unit, skillDefinition);
     }
 
     internal int _get_effective_skill_range(
@@ -379,17 +379,17 @@ internal class BattleGroundEffectService
     {
         return _runtime == null
             ? 0
-            : Runtime._get_effective_skill_range(active_unit, skillDefinition);
+            : Runtime.GetEffectiveSkillRange(active_unit, skillDefinition);
     }
 
     internal bool _is_movement_blocked(BattleUnitState unit_state)
     {
-        return _runtime != null && Runtime._is_movement_blocked(unit_state);
+        return _runtime != null && Runtime.IsMovementBlocked(unit_state);
     }
 
     internal bool _is_movement_blocked(BattleUnitReadView unitView)
     {
-        return _runtime != null && Runtime._movement_service.IsMovementBlocked(unitView);
+        return _runtime != null && Runtime.IsMovementBlocked(unitView);
     }
 
     internal bool ApplyGroundPrecastSpecialEffects(
@@ -514,7 +514,7 @@ internal class BattleGroundEffectService
     )
     {
         BattleDamageResolver damageResolver = Runtime?.GetDamageResolver();
-        BattleMagicBacklashResolver magicBacklashResolver = Runtime?._magic_backlash_resolver;
+        BattleMagicBacklashResolver magicBacklashResolver = Runtime?.GetMagicBacklashResolver();
         if (
             damageResolver == null
             || magicBacklashResolver == null
@@ -550,7 +550,7 @@ internal class BattleGroundEffectService
     )
     {
         BattleDamageResolver damageResolver = Runtime?.GetDamageResolver();
-        BattleMagicBacklashResolver magicBacklashResolver = Runtime?._magic_backlash_resolver;
+        BattleMagicBacklashResolver magicBacklashResolver = Runtime?.GetMagicBacklashResolver();
         if (
             damageResolver == null
             || magicBacklashResolver == null
@@ -701,7 +701,7 @@ internal class BattleGroundEffectService
                     batch,
                     forcedMoveContext
                 );
-            Runtime?._skill_mastery_service?.RecordTargetResult(
+            Runtime?.RecordSkillMasteryTargetResult(
                 sourceUnit,
                 targetUnit,
                 skillDefinition,
@@ -840,7 +840,7 @@ internal class BattleGroundEffectService
                     healing,
                     targetUnit.IsAlive() ? 0 : 1
                 );
-                Runtime?._battle_rating_system?.RecordContributionFromUnits(
+                Runtime?.RecordRatingContributionFromUnits(
                     sourceUnit,
                     targetUnit,
                     damage,
@@ -912,7 +912,7 @@ internal class BattleGroundEffectService
         {
             IReadOnlyList<CombatEffectDefinition> attackEffectDefinitions =
                 DedupeEffectDefinitionsByIdentityTyped(normalizedEffectDefinitions);
-            BattleRuntimeModule runtime = _runtime as BattleRuntimeModule;
+            IBattleGroundEffectRuntimePort runtime = _runtime;
             BattleAttackCheckPolicyService attackPolicy =
                 runtime?.GetAttackCheckPolicyService();
             BattleDamageResolver damageResolver = runtime?.GetDamageResolver();
@@ -1054,7 +1054,7 @@ internal class BattleGroundEffectService
                     StringName fieldInstanceId = _build_terrain_effect_instance_id(
                         effectDefinition.TerrainEffectId
                     );
-                    Runtime._terrain_effect_system.PrepareTimedTerrainFieldPlacement(
+                    Runtime.PrepareTimedTerrainFieldPlacement(
                         sourceUnit,
                         effectDefinition,
                         fieldInstanceId,
@@ -1064,7 +1064,7 @@ internal class BattleGroundEffectService
                     foreach (Vector2I effectCoord in normalizedEffectCoords)
                     {
                         if (
-                            Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
+                            Runtime.UpsertTimedTerrainEffectFromDefinition(
                                 effectCoord,
                                 sourceUnit,
                                 skillDefinition,
@@ -1445,7 +1445,7 @@ internal class BattleGroundEffectService
             return false;
         }
         IReadOnlyList<BattleTerrainTopologyChange> changes =
-            Runtime._terrain_topology_service.ReclassifyWaterTerrainNearCoords(
+            Runtime.ReclassifyWaterTerrainNearCoords(
                 state,
                 effectCoords
             );
@@ -1502,8 +1502,7 @@ internal class BattleGroundEffectService
         {
             return Empty;
         }
-        int nonce = Runtime._terrain_effect_nonce + 1;
-        Runtime._terrain_effect_nonce = nonce;
+        int nonce = Runtime.AllocateTerrainEffectNonce();
         BattleState state = State;
         int currentTu = state?.timeline != null ? state.timeline.current_tu : 0;
         return new StringName($"{effect_id}_{currentTu}_{nonce}");
@@ -1520,13 +1519,13 @@ internal class BattleGroundEffectService
             : "地格效果";
     }
 
-    private BattleState State => Runtime?._state;
-    private BattleGridService GridService => Runtime?._grid_service;
+    private BattleState State => Runtime?.GetBattleState();
+    private BattleGridService GridService => Runtime?.GetGridService();
     private BattleTargetCollectionService TargetCollectionService =>
-        Runtime?._target_collection_service;
-    private BattleSkillResolutionRules SkillResolutionRules => Runtime?._skill_resolution_rules;
-    private BattleRuntimeModule Runtime => _runtime;
-    private BattleLayeredBarrierService LayeredBarrierService => Runtime?._layered_barrier_service;
+        Runtime?.GetTargetCollectionService();
+    private BattleSkillResolutionRules SkillResolutionRules => Runtime?.GetSkillResolutionRules();
+    private IBattleGroundEffectRuntimePort Runtime => _runtime;
+    private BattleLayeredBarrierService LayeredBarrierService => Runtime?.GetLayeredBarrierService();
 
     private static bool IsArrayEmpty(GArray array)
     {
@@ -1672,9 +1671,9 @@ internal class BattleGroundEffectService
         }
     }
 
-    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
+    private static IBattleGroundEffectRuntimePort ResolveWeakRef(WeakReference<IBattleGroundEffectRuntimePort> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
+        if (weakRef == null || !weakRef.TryGetTarget(out IBattleGroundEffectRuntimePort target))
         {
             return null;
         }

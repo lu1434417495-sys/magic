@@ -2348,17 +2348,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
     }
 
-    internal static void RunTeardownStep(ref Exception firstFailure, Action action)
-    {
-        try
-        {
-            action?.Invoke();
-        }
-        catch (Exception exception)
-        {
-            firstFailure ??= exception;
-        }
-    }
+    internal static void RunTeardownStep(ref Exception firstFailure, Action action) =>
+        BattleTeardown.RunStep(ref firstFailure, action);
 
     private void ClearRuntimeBattleStateReference()
     {

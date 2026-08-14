@@ -95,7 +95,7 @@ public partial class run_battle_terrain_topology_service_regression : LifecycleT
         var runtime = new BattleRuntimeModule();
         BattleState state = BuildFlatState(new Vector2I(3, 3), 4);
         runtime.SetupStateForTests(state);
-        runtime._ground_effect_service.Setup(runtime);
+        runtime._ground_effect_service.Setup(runtime._moduleBorrowers.GroundEffectBridge);
         SetCell(state, new Vector2I(1, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater), 3);
         SetCell(state, new Vector2I(0, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.Land), 2);
 

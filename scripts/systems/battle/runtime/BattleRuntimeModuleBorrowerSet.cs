@@ -50,6 +50,7 @@ internal sealed class BattleRuntimeModuleBorrowerSet
     internal BattleTimelineBridgeService TimelineBridge { get; } = new();
     internal BattleChargeBridgeService ChargeBridge { get; } = new();
     internal BattleSkillPreviewBridgeService SkillPreviewBridge { get; } = new();
+    internal BattleGroundEffectBridgeService GroundEffectBridge { get; } = new();
     internal BattleCommandPreviewBridgeService CommandPreviewBridge { get; } = new();
     internal BattleAiDecisionBindingService AiDecisionBinding { get; } = new();
 
@@ -67,6 +68,7 @@ internal sealed class BattleRuntimeModuleBorrowerSet
             TimelineBridge,
             ChargeBridge,
             SkillPreviewBridge,
+            GroundEffectBridge,
             CommandPreviewBridge,
             AiDecisionBinding,
         ];
