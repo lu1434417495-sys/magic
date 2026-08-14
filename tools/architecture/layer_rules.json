@@ -140,6 +140,8 @@
     { "glob": "scripts/systems/battle/runtime/IBattleChargeRuntimePort.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/BattleCommandPreviewService.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/IBattleCommandPreviewRuntimePort.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/BattleSkillPreviewService.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/IBattleSkillPreviewRuntimePort.cs", "layer": "battle_runtime_isolated" },
 
     { "glob": "scripts/systems/battle/runtime/**/*.cs", "layer": "application" },
 

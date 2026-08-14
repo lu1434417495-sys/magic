@@ -10,26 +10,27 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal sealed class BattleSkillPreviewService
 {
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+
+    private WeakReference<IBattleSkillPreviewRuntimePort> _runtimeRef;
     private BattleSkillExecutionOrchestrator _owner;
     private BattleSkillTargetValidationService _targetValidationService;
 
-    private BattleRuntimeModule _runtime
+    private IBattleSkillPreviewRuntimePort _runtime
     {
         get =>
             _runtimeRef != null
-            && _runtimeRef.TryGetTarget(out BattleRuntimeModule runtime)
+            && _runtimeRef.TryGetTarget(out IBattleSkillPreviewRuntimePort runtime)
                 ? runtime
                 : null;
         set =>
             _runtimeRef =
-                value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+                value != null ? new WeakReference<IBattleSkillPreviewRuntimePort>(value) : null;
     }
 
-    private BattleRuntimeModule Runtime => _runtime;
+    private IBattleSkillPreviewRuntimePort Runtime => _runtime;
 
     internal void Setup(
-        BattleRuntimeModule runtime,
+        IBattleSkillPreviewRuntimePort runtime,
         BattleSkillExecutionOrchestrator owner,
         BattleSkillTargetValidationService targetValidationService
     )
@@ -62,13 +63,13 @@ internal sealed class BattleSkillPreviewService
         BattlePreview preview
     )
     {
-        SkillDefinition skillDefinition = Runtime?.GetSkillDefinitionTyped(command.skill_id);
+        SkillDefinition skillDefinition = Runtime?.GetSkillDefinition(command.skill_id);
         if (skillDefinition?.CombatProfile == null)
         {
             preview.AddLogLine("技能或目标无效。");
             return;
         }
-        var runtime = _runtime as BattleRuntimeModule;
+        IBattleSkillPreviewRuntimePort runtime = _runtime;
         bool isMeteorSwarm =
             skillDefinition.CombatProfile.SpecialResolutionProfileId
             == new StringName("meteor_swarm");
@@ -77,14 +78,11 @@ internal sealed class BattleSkillPreviewService
             BattleSpecialProfileGateResult gateResult;
             using (new BattleAiTraceSpan("preview:skill.meteor_gate"))
             {
-                gateResult = runtime._special_profile_gate != null
-                    ? runtime._special_profile_gate.PreviewSkill(
-                        skillDefinition,
-                        command,
-                        active_unit,
-                        runtime._state
-                    )
-                    : null;
+                gateResult = runtime.PreviewSpecialProfileSkill(
+                    skillDefinition,
+                    command,
+                    active_unit
+                );
             }
             preview.special_profile_gate_result = gateResult;
             if (gateResult == null || !gateResult.Allowed)
@@ -108,14 +106,8 @@ internal sealed class BattleSkillPreviewService
                 preview.AddLogLine(blockReason);
                 return;
             }
-            if (runtime._meteor_swarm_resolver != null)
+            if (runtime.PopulateMeteorSwarmPreview(active_unit, command, skillDefinition, preview))
             {
-                runtime._meteor_swarm_resolver.PopulatePreview(
-                    active_unit,
-                    command,
-                    skillDefinition,
-                    preview
-                );
                 return;
             }
             preview.allowed = false;
@@ -127,7 +119,7 @@ internal sealed class BattleSkillPreviewService
         using (new BattleAiTraceSpan("preview:skill.resolve_options"))
         {
             bool allowRepeat = skillDefinition.CombatProfile.AllowRepeatTarget;
-            policy = Runtime?._skill_resolution_rules
+            policy = Runtime?.GetSkillResolutionRules()
                 ?.BuildSkillResolutionPolicy(
                     skillDefinition,
                     active_unit,
@@ -212,7 +204,7 @@ internal sealed class BattleSkillPreviewService
         preview.ClearShieldPreview();
         preview.ClearEquipmentDurabilityPreview();
         preview.ClearStatusContributionPreviews();
-        castVariantDefinition ??= Runtime?._skill_resolution_rules
+        castVariantDefinition ??= Runtime?.GetSkillResolutionRules()
             ?.ResolveUnitCastVariantDefinition(
                 skillDefinition,
                 active_unit,
@@ -325,7 +317,7 @@ internal sealed class BattleSkillPreviewService
                 );
             }
             BattleLayeredBarrierService layeredBarrierService =
-                Runtime?._layered_barrier_service;
+                Runtime?.GetLayeredBarrierService();
             if (hasDeterministicTargets)
             {
                 BattleBarrierPreviewSession barrierPreviewSession =
@@ -785,7 +777,7 @@ internal sealed class BattleSkillPreviewService
         BattlePositionSwapPlan plan = BattlePositionSwapRules.BuildPlan(
             _owner.RtState(),
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
+            Runtime?.GetLayeredBarrierService(),
             sourceUnit,
             targetUnit
         );
@@ -853,7 +845,7 @@ internal sealed class BattleSkillPreviewService
         if (sourceRetreatEffect == null)
             return;
 
-        BattleSourceRetreatPlan plan = Runtime?._movement_service.BuildSourceRetreatPlan(
+        BattleSourceRetreatPlan plan = Runtime?.BuildSourceRetreatPlan(
             sourceUnit,
             targetUnit.Coord,
             command?.source_retreat_direction ?? Vector2I.Zero,
@@ -882,8 +874,7 @@ internal sealed class BattleSkillPreviewService
         if (!BattleApproachAttackRules.IsApproachAttackSkill(skillDefinition))
             return;
 
-        BattleApproachAttackPlan plan = Runtime?._movement_service
-            .BuildApproachAttackPlan(sourceUnit, targetUnit, skillDefinition);
+        BattleApproachAttackPlan plan = Runtime?.BuildApproachAttackPlan(sourceUnit, targetUnit, skillDefinition);
         if (plan?.Allowed != true)
             return;
 
@@ -918,7 +909,7 @@ internal sealed class BattleSkillPreviewService
         BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
             _owner.RtState(),
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
+            Runtime?.GetLayeredBarrierService(),
             sourceUnit,
             targetUnit,
             effect,
@@ -999,9 +990,8 @@ internal sealed class BattleSkillPreviewService
             return Array.Empty<Vector2I>();
         IReadOnlyList<Vector2I> emptyTargetCoords = Array.Empty<Vector2I>();
         BattleTargetCollectionResult collectedTargetCoords =
-            Runtime?._target_collection_service.CollectCombatProfileTargetCoords(
+            Runtime?.CollectCombatProfileTargetCoords(
                 state,
-                Runtime.GetGridService(),
                 activeUnit.Coord,
                 combatProfile,
                 emptyTargetCoords,
@@ -1048,7 +1038,7 @@ internal sealed class BattleSkillPreviewService
         preview.ClearForcedMovePreview();
         preview.ClearDamagePreview();
         preview.ClearStatusContributionPreviews();
-        castVariantDefinition ??= Runtime?._skill_resolution_rules
+        castVariantDefinition ??= Runtime?.GetSkillResolutionRules()
             ?.ResolveGroundCastVariantDefinition(
                 skillDefinition,
                 active_unit,
@@ -1080,7 +1070,7 @@ internal sealed class BattleSkillPreviewService
         using (new BattleAiTraceSpan("preview:ground_skill.validate"))
         {
             validation =
-                Runtime?.ValidateGroundSkillCommandResultTyped(
+                Runtime?.ValidateGroundSkillCommandResult(
                     active_unit,
                     skillDefinition,
                     castVariantDefinition,
@@ -1104,7 +1094,7 @@ internal sealed class BattleSkillPreviewService
                     ? active_unit.Coord
                     : new Vector2I(-1, -1);
                 IReadOnlyList<Vector2I> builtCoords =
-                    Runtime?.BuildGroundEffectCoordsTyped(
+                    Runtime?.BuildGroundEffectCoords(
                         skillDefinition,
                         validation.TargetCoords,
                         sourceCoord,
@@ -1116,9 +1106,9 @@ internal sealed class BattleSkillPreviewService
             preview.resolved_anchor_coord = validation.ResolvedAnchorCoord;
             allowed = validation.Allowed;
             bool chargePathPreview = false;
-            if (allowed && Runtime?._charge_resolver != null)
+            if (allowed && Runtime?.GetChargeResolver() != null)
             {
-                CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
+                CombatEffectDefinition pathStepAoeEffect = Runtime.GetChargeResolver()
                     .GetChargePathStepAoeEffectDefinition(
                         castVariantDefinition,
                         skillDefinition,
@@ -1127,7 +1117,7 @@ internal sealed class BattleSkillPreviewService
                 if (pathStepAoeEffect != null)
                 {
                     chargePathPreview = true;
-                    previewCoords = Runtime._charge_resolver.BuildChargeStepAoePreviewCoords(
+                    previewCoords = Runtime.GetChargeResolver().BuildChargeStepAoePreviewCoords(
                         active_unit,
                         skillDefinition,
                         validation.Direction,
@@ -1140,7 +1130,7 @@ internal sealed class BattleSkillPreviewService
             if (chargePathPreview)
             {
                 previewUnitEffectDefinitions =
-                    Runtime?.CollectGroundUnitEffectDefinitionsTyped(
+                    Runtime?.CollectGroundUnitEffectDefinitions(
                         skillDefinition,
                         castVariantDefinition,
                         active_unit
@@ -1167,7 +1157,7 @@ internal sealed class BattleSkillPreviewService
         using (new BattleAiTraceSpan("preview:ground_skill.collect_unit_ids"))
         {
             IReadOnlyList<StringName> previewUnitIds =
-                Runtime?.CollectGroundPreviewUnitIdsTyped(
+                Runtime?.CollectGroundPreviewUnitIds(
                     active_unit,
                     skillDefinition,
                     previewUnitEffectDefinitions,
@@ -1175,11 +1165,11 @@ internal sealed class BattleSkillPreviewService
                 ) ?? Array.Empty<StringName>();
             preview.SetTargetUnitIds(previewUnitIds);
         }
-        if (allowed && Runtime?._charge_resolver != null)
+        if (allowed && Runtime?.GetChargeResolver() != null)
         {
             using (new BattleAiTraceSpan("preview:ground_skill.path_step_aoe"))
             {
-                CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
+                CombatEffectDefinition pathStepAoeEffect = Runtime.GetChargeResolver()
                     .GetChargePathStepAoeEffectDefinition(
                         castVariantDefinition,
                         skillDefinition,
@@ -1188,7 +1178,7 @@ internal sealed class BattleSkillPreviewService
                 if (pathStepAoeEffect != null)
                 {
                     StringName pathStepTargetFilter =
-                        Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
+                        Runtime?.GetSkillResolutionRules()?.ResolveEffectTargetFilter(
                             skillDefinition,
                             pathStepAoeEffect
                         ) ?? new StringName("");
@@ -1262,7 +1252,7 @@ internal sealed class BattleSkillPreviewService
                 preview.AddStatusContributionPreview(statusPreview);
             }
             IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions =
-                Runtime?.CollectGroundTerrainEffectDefinitionsTyped(
+                Runtime?.CollectGroundTerrainEffectDefinitions(
                     skillDefinition,
                     castVariantDefinition,
                     active_unit
@@ -1358,7 +1348,7 @@ internal sealed class BattleSkillPreviewService
         BattleForcedMovePreviewData windPreview = BattleWindPushRules.BuildPreview(
             state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
+            Runtime?.GetLayeredBarrierService(),
             mutableSource,
             windPushEffect,
             preview.TargetUnitIdsTyped,
@@ -1400,7 +1390,7 @@ internal sealed class BattleSkillPreviewService
         }
 
         CombatEffectDefinition effectDefinition = FindFirstValidGradedSaveExecuteEffect(
-            Runtime?._skill_resolution_rules?.CollectGroundUnitEffectDefinitions(
+            Runtime?.GetSkillResolutionRules()?.CollectGroundUnitEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -1422,7 +1412,7 @@ internal sealed class BattleSkillPreviewService
         }
 
         StringName targetFilter =
-            Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
+            Runtime?.GetSkillResolutionRules()?.ResolveEffectTargetFilter(
                 skillDefinition,
                 effectDefinition
             ) ?? new StringName("");
@@ -1644,7 +1634,7 @@ internal sealed class BattleSkillPreviewService
         AttackEffectResolutionResult result
     )
     {
-        Runtime?._report_formatter.AppendDamageResultLogLines(
+        Runtime?.AppendDamageResultLogLines(
             batch,
             subject_label,
             target_display_name,
@@ -1663,7 +1653,7 @@ internal sealed class BattleSkillPreviewService
         {
             return null;
         }
-        List<CombatEffectDefinition> effectDefinitions = Runtime?._skill_resolution_rules
+        List<CombatEffectDefinition> effectDefinitions = Runtime?.GetSkillResolutionRules()
             ?.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
@@ -1876,7 +1866,7 @@ internal sealed class BattleSkillPreviewService
         }
 
         IReadOnlyList<CombatEffectDefinition> effectDefinitions =
-            Runtime?._skill_resolution_rules?.CollectUnitSkillEffectDefinitions(
+            Runtime?.GetSkillResolutionRules()?.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -2131,7 +2121,7 @@ internal sealed class BattleSkillPreviewService
                 targetUnit,
                 effectDefinition,
                 skillDefinition?.SkillId ?? "",
-                Runtime?.GetItemDefIndexTyped()
+                Runtime?.GetItemDefIndex()
             );
         }
         return null;

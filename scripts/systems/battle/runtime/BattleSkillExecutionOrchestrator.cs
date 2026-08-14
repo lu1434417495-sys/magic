@@ -36,7 +36,14 @@ internal sealed partial class BattleSkillExecutionOrchestrator
     internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
-        _skillPreviewService.Setup(runtime, this, _targetValidationService);
+        // 就地绑定 bridge：Borrower.Setup 经 IsBoundTo 幂等，orchestrator 的 Setup 可能早于
+        // _moduleBorrowers.Setup 跑到，不在这里保证的话预览服务会拿到未绑定的端口而静默 no-op。
+        runtime._moduleBorrowers.SkillPreviewBridge.Setup(runtime);
+        _skillPreviewService.Setup(
+            runtime._moduleBorrowers.SkillPreviewBridge,
+            this,
+            _targetValidationService
+        );
         _targetValidationService.Setup(runtime, this, _randomChainSkillService);
         _chainDamageService.Setup(runtime, this, _skillPreviewService);
         _randomChainSkillService.Setup(runtime, this, _targetValidationService);

@@ -49,6 +49,7 @@ internal sealed class BattleRuntimeModuleBorrowerSet
     internal BattleContingencyBridgeService ContingencyBridge { get; } = new();
     internal BattleTimelineBridgeService TimelineBridge { get; } = new();
     internal BattleChargeBridgeService ChargeBridge { get; } = new();
+    internal BattleSkillPreviewBridgeService SkillPreviewBridge { get; } = new();
     internal BattleCommandPreviewBridgeService CommandPreviewBridge { get; } = new();
     internal BattleAiDecisionBindingService AiDecisionBinding { get; } = new();
 
@@ -65,6 +66,7 @@ internal sealed class BattleRuntimeModuleBorrowerSet
             ContingencyBridge,
             TimelineBridge,
             ChargeBridge,
+            SkillPreviewBridge,
             CommandPreviewBridge,
             AiDecisionBinding,
         ];
