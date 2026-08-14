@@ -28,24 +28,7 @@ internal enum BattleStartContextReferenceRole
     BorrowedForSynchronousStart = 1,
 }
 
-internal readonly struct BattleDefeatHandlingOptions
-{
-    internal readonly bool CollectLoot;
-    internal readonly bool RecordEnemyDefeatedAchievement;
-    internal readonly BattleKillProvenance KillProvenance;
-
-    internal BattleDefeatHandlingOptions(
-        bool collectLoot = true,
-        bool recordEnemyDefeatedAchievement = false,
-        BattleKillProvenance killProvenance = default
-    )
-    {
-        CollectLoot = collectLoot;
-        RecordEnemyDefeatedAchievement = recordEnemyDefeatedAchievement;
-        KillProvenance = killProvenance;
-    }
-
-}
+// BattleDefeatHandlingOptions 已移至 battle/core/BattleDefeatHandlingOptions.cs（domain_state）。
 
 internal readonly struct BattleStartOptions
 {
@@ -468,7 +451,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _shield_service.Setup(this);
         _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
         _layered_barrier_service.Setup(this, _barrierProfileIndex);
-        _timeline_driver.Setup(this);
+        // bridge 的绑定在此就地保证：Borrower.Setup 经 IsBoundTo 幂等，
+        // 因此即便 FinishSetup 尚未跑过（_ensure_sidecars_ready 早于它的路径），
+        // driver 拿到的也是已绑定的端口，而不是静默 no-op 的空壳。
+        _moduleBorrowers.TimelineBridge.Setup(this);
+        _timeline_driver.Setup(_moduleBorrowers.TimelineBridge);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
         _moduleBorrowers.Setup(this);
@@ -1548,7 +1535,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _shield_service.Setup(this);
         _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
         _layered_barrier_service.Setup(this, _barrierProfileIndex);
-        _timeline_driver.Setup(this);
+        // bridge 的绑定在此就地保证：Borrower.Setup 经 IsBoundTo 幂等，
+        // 因此即便 FinishSetup 尚未跑过（_ensure_sidecars_ready 早于它的路径），
+        // driver 拿到的也是已绑定的端口，而不是静默 no-op 的空壳。
+        _moduleBorrowers.TimelineBridge.Setup(this);
+        _timeline_driver.Setup(_moduleBorrowers.TimelineBridge);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
     }
@@ -1707,7 +1698,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _shield_service.Setup(this);
         _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
         _layered_barrier_service.Setup(this, _barrierProfileIndex);
-        _timeline_driver.Setup(this);
+        // bridge 的绑定在此就地保证：Borrower.Setup 经 IsBoundTo 幂等，
+        // 因此即便 FinishSetup 尚未跑过（_ensure_sidecars_ready 早于它的路径），
+        // driver 拿到的也是已绑定的端口，而不是静默 no-op 的空壳。
+        _moduleBorrowers.TimelineBridge.Setup(this);
+        _timeline_driver.Setup(_moduleBorrowers.TimelineBridge);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
         BindEquipmentRulePorts();

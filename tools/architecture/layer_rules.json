@@ -6,6 +6,7 @@
     { "id": "content_definition", "analyzeOutgoingDependencies": true },
     { "id": "domain_state", "analyzeOutgoingDependencies": true },
     { "id": "domain_runtime", "analyzeOutgoingDependencies": true },
+    { "id": "battle_runtime_isolated", "analyzeOutgoingDependencies": true },
     { "id": "application", "analyzeOutgoingDependencies": true },
     { "id": "presentation", "analyzeOutgoingDependencies": true },
     { "id": "composition", "analyzeOutgoingDependencies": true },
@@ -132,6 +133,10 @@
     { "glob": "scripts/systems/battle/runtime/BattleMovePathResult.cs", "layer": "domain_state" },
     { "glob": "scripts/systems/battle/runtime/BattleMovePathResultProjection.cs", "layer": "domain_state" },
     { "glob": "scripts/systems/battle/runtime/BattleBarrierStore.cs", "layer": "domain_state" },
+
+    { "glob": "scripts/systems/battle/runtime/BattleTimelineDriver.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/IBattleTimelineRuntimePort.cs", "layer": "battle_runtime_isolated" },
+
     { "glob": "scripts/systems/battle/runtime/**/*.cs", "layer": "application" },
 
     { "glob": "scripts/player/equipment/*Rules.cs", "layer": "domain_runtime" },
@@ -196,9 +201,15 @@
       "id": "production-to-nonproduction",
       "fromLayers": [
         "content_authoring", "content_definition", "domain_state", "domain_runtime",
+        "battle_runtime_isolated",
         "application", "presentation", "composition", "infrastructure"
       ],
       "toLayers": ["tests", "tooling"]
+    },
+    {
+      "id": "battle-isolated-to-hub",
+      "fromLayers": ["battle_runtime_isolated"],
+      "toLayers": ["composition", "content_authoring", "presentation"]
     },
     {
       "id": "content-definition-to-runtime",
