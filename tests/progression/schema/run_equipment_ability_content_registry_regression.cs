@@ -97,7 +97,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestBuiltInHandlerSpecsExposeStaticValidationMetadata()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> conditionSpecs =
             registry.GetConditionHandlerSpecsTyped();
         IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> actionSpecs =
@@ -172,7 +173,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestValidationContextAndClosedDomainsFailClosed()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityRegistryBuildResult missingContextResult = registry.Rebuild(
             Array.Empty<EquipmentAbilityContentPackDef>(),
             null
@@ -298,7 +300,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestStatusDeclarationsAreCollectedBeforeReferencesAreValidated()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityContentPackDef pack = BuildValidPack(
             "pack.status_catalog",
             "binding.status_catalog"
@@ -361,7 +364,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestEmptyAndMinimalValidPacksBuildAndFindBindings()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityRegistryBuildResult emptyResult =
             registry.Rebuild(Array.Empty<EquipmentAbilityContentPackDef>(), BuildValidationContext());
 
@@ -421,7 +425,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         ((AddDamageDiceActionPayloadDef)validReaction.actions[0].payload).damage_type =
             "poison";
 
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityRegistryBuildResult validResult = registry.Rebuild(
             new[] { validPack },
             BuildValidationContext()
@@ -501,9 +506,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
                 cognition_ceiling = "instinctive",
             }
         );
-        var registry = new EquipmentAbilityContentRegistry(
-            new TestContentResourceLoader()
-        );
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityRegistryBuildResult validResult =
             registry.Rebuild(
                 new[] { validPack },
@@ -574,7 +578,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestDependencyOrderedReplaceBinding()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityContentPackDef basePack = BuildValidPack("base_pack", "base.binding");
         EquipmentAbilityContentPackDef replacementPack =
             BuildValidPack("mod_pack", "mod.binding", loadOrder: 0);
@@ -601,7 +606,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestReplaceBindingRejectsUnrelatedBindingIdCollision()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityContentPackDef basePack = BuildValidPack("base_pack", "base.binding", loadOrder: 0);
         EquipmentAbilityContentPackDef otherPack =
             BuildValidPack("other_pack", "other.binding", loadOrder: 1);
@@ -632,7 +638,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestLifecycleSnapshotDoesNotRetainResourceMutations()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityContentPackDef pack = BuildValidPack();
         EquipmentAbilityRegistryBuildResult result =
             registry.Rebuild(new[] { pack }, BuildValidationContext());
@@ -678,7 +685,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestFailedRebuildKeepsLastSuccessfulSnapshot()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityRegistryBuildResult validResult =
             registry.Rebuild(new[] { BuildValidPack() }, BuildValidationContext());
         _test.True(validResult.Success, $"valid pack should build: {FormatErrors(validResult.Errors)}");
@@ -806,7 +814,8 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
 
     private void TestInvalidContentFailsFastWithStableCodesAndPaths()
     {
-        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
         EquipmentAbilityRegistryBuildResult result =
             registry.Rebuild(new[] { BuildInvalidPack() }, BuildValidationContext());
 
