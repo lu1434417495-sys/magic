@@ -1,19 +1,28 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.ExceptionServices;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GBattleUnitArray = System.Collections.Generic.List<BattleUnitState>;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrower
+internal sealed class BattleAiDecisionBindingService
 {
     private readonly Dictionary<StringName, BattleAiRuntimeActionPlan> _actionPlansByUnitId =
         new();
+
+    private WeakReference<IBattleAiDecisionBindingRuntimePort> _runtimeRef;
+
+    private IBattleAiDecisionBindingRuntimePort Runtime =>
+        _runtimeRef != null
+        && _runtimeRef.TryGetTarget(out IBattleAiDecisionBindingRuntimePort port)
+            ? port
+            : null;
+
+    internal void Setup(IBattleAiDecisionBindingRuntimePort runtime)
+    {
+        _runtimeRef =
+            runtime != null
+                ? new WeakReference<IBattleAiDecisionBindingRuntimePort>(runtime)
+                : null;
+    }
 
     internal bool HasActionPlans => _actionPlansByUnitId.Count != 0;
 
@@ -25,30 +34,26 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
     internal void _build_ai_action_plans()
     {
         ClearAiActionPlans();
-        if (_runtime._state == null || _runtime._ai_action_assembler == null)
+        IBattleAiDecisionBindingRuntimePort runtime = Runtime;
+        BattleState state = runtime?.GetBattleState();
+        if (state == null || runtime.IsActionAssemblerReady() != true)
             return;
         try
         {
-            foreach (BattleUnitState unitState in _runtime._state.GetUnitsTyped())
+            foreach (BattleUnitState unitState in state.GetUnitsTyped())
             {
                 if (
                     unitState == null
                     || unitState.ControlModeKind == BattleUnitControlMode.Manual
-                    || BattleRuntimeModule.IsEmpty(unitState.ai_brain_id)
+                    || IsEmpty(unitState.ai_brain_id)
                 )
                     continue;
-                EnemyAiBrainDefinition brain = _runtime.GetEnemyAiBrainTyped(unitState.ai_brain_id);
+                EnemyAiBrainDefinition brain = runtime.GetEnemyAiBrain(unitState.ai_brain_id);
                 if (brain == null)
                     continue;
-                BattleAiRuntimeActionPlan actionPlan = _runtime._ai_action_assembler.BuildUnitActionPlan(
+                BattleAiRuntimeActionPlan actionPlan = runtime.BuildUnitActionPlan(
                     unitState,
-                    brain,
-                    _runtime.GetSkillDefinitionIndexTyped(),
-                    _runtime._skillCatalog,
-                    _runtime.GetEquipmentAbilityBindingIndexTyped(),
-                    _runtime.GetItemDefIndexTyped(),
-                    _runtime._state,
-                    _runtime.GetBattleWorldStep()
+                    brain
                 );
                 if (actionPlan != null)
                     _actionPlansByUnitId[unitState.unit_id] = actionPlan;
@@ -57,7 +62,7 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         catch
         {
             Exception cleanupFailure = null;
-            BattleRuntimeModule.RunTeardownStep(ref cleanupFailure, ClearAiActionPlans);
+            BattleTeardown.RunStep(ref cleanupFailure, ClearAiActionPlans);
             throw;
         }
     }
@@ -69,7 +74,7 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         Exception firstFailure = null;
         foreach (BattleAiRuntimeActionPlan plan in plans)
         {
-            BattleRuntimeModule.RunTeardownStep(ref firstFailure, () => plan?.Dispose());
+            BattleTeardown.RunStep(ref firstFailure, () => plan?.Dispose());
         }
         if (firstFailure != null)
         {
@@ -77,63 +82,31 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         }
     }
 
-    internal override void DisposeRuntime()
-    {
-        try
-        {
-            ClearAiActionPlans();
-        }
-        finally
-        {
-            base.DisposeRuntime();
-        }
-    }
-
     internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state)
     {
-        if (unit_state == null || _runtime._ai_action_assembler == null)
+        IBattleAiDecisionBindingRuntimePort runtime = Runtime;
+        if (unit_state == null || runtime?.IsActionAssemblerReady() != true)
             return;
-        if (unit_state.ControlModeKind == BattleUnitControlMode.Manual || BattleRuntimeModule.IsEmpty(unit_state.ai_brain_id))
+        if (
+            unit_state.ControlModeKind == BattleUnitControlMode.Manual
+            || IsEmpty(unit_state.ai_brain_id)
+        )
             return;
-        EnemyAiBrainDefinition brain = _runtime.GetEnemyAiBrainTyped(unit_state.ai_brain_id);
+        EnemyAiBrainDefinition brain = runtime.GetEnemyAiBrain(unit_state.ai_brain_id);
         if (brain == null)
             return;
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            _runtime.GetSkillDefinitionIndexTyped();
-        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
-            equipmentAbilityBindings = _runtime.GetEquipmentAbilityBindingIndexTyped();
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
-            _runtime.GetItemDefIndexTyped();
         _actionPlansByUnitId.TryGetValue(
             unit_state.unit_id,
             out BattleAiRuntimeActionPlan previousPlan
         );
         if (
             previousPlan != null
-            && !previousPlan.IsStaleFor(
-                unit_state,
-                brain,
-                _runtime._skillCatalog,
-                skillDefinitions,
-                equipmentAbilityBindings,
-                itemDefinitions,
-                _runtime._state,
-                _runtime.GetBattleWorldStep()
-            )
+            && !runtime.IsActionPlanStaleFor(previousPlan, unit_state, brain)
         )
         {
             return;
         }
-        BattleAiRuntimeActionPlan actionPlan = _runtime._ai_action_assembler.BuildUnitActionPlan(
-            unit_state,
-            brain,
-            skillDefinitions,
-            _runtime._skillCatalog,
-            equipmentAbilityBindings,
-            itemDefinitions,
-            _runtime._state,
-            _runtime.GetBattleWorldStep()
-        );
+        BattleAiRuntimeActionPlan actionPlan = runtime.BuildUnitActionPlan(unit_state, brain);
         if (actionPlan != null)
         {
             _actionPlansByUnitId[unit_state.unit_id] = actionPlan;
@@ -147,30 +120,9 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         BattleAiContext ai_context
     )
     {
-        if (unit_state == null || ai_context == null || _runtime._state == null || _runtime._grid_service == null)
+        if (unit_state == null || ai_context == null)
             return;
-        _runtime._runtime_services.BindAiHelperServicesForDecision(
-            new BattleAiHelperBindingContext(
-                _runtime._state,
-                _runtime._grid_service,
-                unit_state,
-                _runtime.GetSkillDefinitionIndexTyped(),
-                _runtime.GetBarrierProfileIndexTyped(),
-                _runtime.GetEquipmentAbilityBindingIndexTyped(),
-                _runtime.GetItemDefIndexTyped(),
-                _runtime._skillCatalog,
-                _runtime._ai_service.GetScoreService(),
-                _runtime._ai_move_query_cost_callback,
-                _runtime._ai_query_action_score_input_callback,
-                _runtime._ai_movement_blocked_callback,
-                _runtime._ai_move_cost_callback,
-                _runtime._ai_preview_command_callback,
-                _runtime._ai_skill_score_input_callback,
-                _runtime._ai_action_score_input_callback,
-                _runtime._ai_skill_cast_block_reason_callback
-            ),
-            ai_context
-        );
+        Runtime?.BindAiHelperServicesForDecision(unit_state, ai_context);
     }
 
     internal BattleAiContext _prepare_ai_context_for_decision(BattleUnitState activeUnit)
@@ -179,25 +131,7 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
             activeUnit.unit_id,
             out BattleAiRuntimeActionPlan actionPlan
         );
-        return _runtime._runtime_services.PrepareAiContextForDecision(
-            new BattleAiDecisionContextSetup(
-                _runtime._state,
-                activeUnit,
-                _runtime._grid_service,
-                actionPlan,
-                _runtime.GetSkillDefinitionIndexTyped(),
-                _runtime.GetBarrierProfileIndexTyped(),
-                _runtime.GetEquipmentAbilityBindingIndexTyped(),
-                _runtime.GetItemDefIndexTyped(),
-                _runtime._ai_trace_enabled,
-                _runtime._skillCatalog,
-                _runtime._ai_move_cost_callback,
-                _runtime._ai_preview_command_callback,
-                _runtime._ai_skill_score_input_callback,
-                _runtime._ai_action_score_input_callback,
-                _runtime._ai_skill_cast_block_reason_callback
-            )
-        );
+        return Runtime?.PrepareAiContextForDecision(activeUnit, actionPlan);
     }
 
     internal BattleAiScoreInput BuildAiSkillScoreInput(
@@ -210,16 +144,15 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         BattleAiSkillCandidateScoreFacts? candidateScoreFacts
     )
     {
-        return _runtime._ai_service.GetScoreService()
-            .BuildSkillScoreInput(
-                context,
-                skillDefinition,
-                command,
-                preview,
-                effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>(),
-                metadata,
-                candidateScoreFacts
-            );
+        return Runtime?.BuildSkillScoreInput(
+            context,
+            skillDefinition,
+            command,
+            preview,
+            effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
+            metadata,
+            candidateScoreFacts
+        );
     }
 
     internal BattleAiScoreInput BuildAiActionScoreInput(
@@ -232,16 +165,15 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         IReadOnlyDictionary<string, object> metadata
     )
     {
-        return _runtime._ai_service.GetScoreService()
-            .BuildActionScoreInput(
-                context,
-                actionKind,
-                actionLabel,
-                scoreBucketId,
-                command,
-                preview,
-                metadata
-            );
+        return Runtime?.BuildActionScoreInput(
+            context,
+            actionKind,
+            actionLabel,
+            scoreBucketId,
+            command,
+            preview,
+            metadata
+        );
     }
 
     internal BattleAiScoreInput BuildAiQueryActionScoreInput(
@@ -254,7 +186,7 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         IReadOnlyDictionary<string, object> metadata
     )
     {
-        return _runtime._runtime_services.BuildActionScoreInput(
+        return Runtime?.BuildQueryActionScoreInput(
             service,
             actionKind,
             actionLabel,
@@ -267,28 +199,36 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
 
     internal bool IsAiMovementBlocked(StringName unitId)
     {
-        _runtime._state.TryGetUnitTyped(unitId, out BattleUnitState candidate);
-        return candidate != null && _runtime._is_movement_blocked(candidate);
+        IBattleAiDecisionBindingRuntimePort runtime = Runtime;
+        BattleState state = runtime?.GetBattleState();
+        if (state == null)
+            return false;
+        state.TryGetUnitTyped(unitId, out BattleUnitState candidate);
+        return candidate != null && runtime.IsMovementBlocked(candidate);
     }
 
     internal int _get_ai_move_query_cost(StringName unit_id, Vector2I _from_coord, Vector2I to_coord)
     {
-        if (_runtime._state == null)
+        IBattleAiDecisionBindingRuntimePort runtime = Runtime;
+        BattleState state = runtime?.GetBattleState();
+        if (state == null)
             return 1;
-        _runtime._state.TryGetUnitTyped(unit_id, out BattleUnitState unitState);
-        return unitState == null ? 1 : _runtime._movementCommandService._get_move_cost_for_unit_target(unitState, to_coord);
+        state.TryGetUnitTyped(unit_id, out BattleUnitState unitState);
+        return unitState == null ? 1 : runtime.GetMoveCostForUnitTarget(unitState, to_coord);
     }
 
     internal void _prepare_ai_turn(BattleUnitState unit_state)
     {
         if (unit_state == null)
             return;
+        IBattleAiDecisionBindingRuntimePort runtime = Runtime;
+        BattleState state = runtime?.GetBattleState();
         unit_state.ai_blackboard.SetInt(
             "turn_started_tu",
-            _runtime._state?.timeline != null ? _runtime._state.timeline.current_tu : 0
+            state?.timeline != null ? state.timeline.current_tu : 0
         );
         unit_state.ai_blackboard.SetInt("turn_decision_count", 0);
-        EnemyAiBrainDefinition brain = _runtime.GetEnemyAiBrainTyped(unit_state.ai_brain_id);
+        EnemyAiBrainDefinition brain = runtime?.GetEnemyAiBrain(unit_state.ai_brain_id);
         if (brain != null && !brain.HasState(unit_state.ai_state_id))
             unit_state.ai_state_id = brain.DefaultStateId;
     }
@@ -299,6 +239,8 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
             return;
         unit_state.ai_blackboard.Remove("turn_started_tu");
         unit_state.ai_blackboard.Remove("turn_decision_count");
-        _runtime._skill_turn_resolver?.ClearTurnAiOverride(unit_state);
+        Runtime?.ClearTurnAiOverride(unit_state);
     }
+
+    private static bool IsEmpty(StringName value) => value == default || value == (StringName)"";
 }

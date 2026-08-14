@@ -52,7 +52,7 @@ internal sealed class BattleRuntimeModuleBorrowerSet
     internal BattleSkillPreviewBridgeService SkillPreviewBridge { get; } = new();
     internal BattleGroundEffectBridgeService GroundEffectBridge { get; } = new();
     internal BattleCommandPreviewBridgeService CommandPreviewBridge { get; } = new();
-    internal BattleAiDecisionBindingService AiDecisionBinding { get; } = new();
+    internal BattleAiDecisionBindingBridgeService AiDecisionBindingBridge { get; } = new();
 
     internal BattleRuntimeModuleBorrowerSet()
     {
@@ -70,7 +70,7 @@ internal sealed class BattleRuntimeModuleBorrowerSet
             SkillPreviewBridge,
             GroundEffectBridge,
             CommandPreviewBridge,
-            AiDecisionBinding,
+            AiDecisionBindingBridge,
         ];
         var typeNames = new string[_borrowers.Length];
         for (int index = 0; index < _borrowers.Length; index++)

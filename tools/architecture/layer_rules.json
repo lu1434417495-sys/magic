@@ -147,6 +147,8 @@
     { "glob": "scripts/systems/battle/runtime/BattleGroundRelocationService.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/BattleGroundSkillValidationService.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/IBattleGroundEffectRuntimePort.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/BattleAiDecisionBindingService.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/IBattleAiDecisionBindingRuntimePort.cs", "layer": "battle_runtime_isolated" },
 
     { "glob": "scripts/systems/battle/runtime/**/*.cs", "layer": "application" },
 

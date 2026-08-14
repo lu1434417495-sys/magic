@@ -335,8 +335,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _moduleBorrowers.MovementCommand;
     internal BattleMetricsReportService _metricsReportService =>
         _moduleBorrowers.MetricsReport;
-    internal BattleAiDecisionBindingService _aiDecisionBindingService =>
-        _moduleBorrowers.AiDecisionBinding;
+    internal readonly BattleAiDecisionBindingService _aiDecisionBindingService = new();
     internal BattleContingencyBridgeService _contingencyBridgeService =>
         _moduleBorrowers.ContingencyBridge;
     internal readonly BattleCommandPreviewService _commandPreviewService = new();
@@ -351,6 +350,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         // 预览服务持端口而非 hub，端口就是 borrower set 里那个与本 module 同寿的 bridge 实例，
         // 所以这里绑一次即可；bridge 自己会随 Setup/DisposeRuntime 重新挂到 hub 上。
         _commandPreviewService.Setup(_moduleBorrowers.CommandPreviewBridge);
+        _aiDecisionBindingService.Setup(_moduleBorrowers.AiDecisionBindingBridge);
         SetTerrainGenerator(new BattleTerrainGenerator(), true);
         _ai_move_query_cost_callback = _aiDecisionBindingService._get_ai_move_query_cost;
         _ai_move_cost_callback = _movementCommandService._get_move_cost_for_unit_target;
