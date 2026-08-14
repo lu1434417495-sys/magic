@@ -67,6 +67,13 @@ public class BattlePreview
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }
 
+    /// 释放预览持有的攻击预览引用。原为 <c>BattleRuntimeModule.DisposeBattlePreview</c>，
+    /// 但它只操作 BattlePreview 自身、不碰 hub，故下移到本类型所属的层。
+    internal void ReleaseHitPreview()
+    {
+        hit_preview = null;
+    }
+
     internal IReadOnlyList<StringName> TargetUnitIdsTyped => _targetUnitIdsView;
     internal IReadOnlyList<Vector2I> TargetCoordsTyped => _targetCoordsView;
     internal IReadOnlyList<Vector2I> SourceRetreatPathTyped => _sourceRetreatPathView;

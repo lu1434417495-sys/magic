@@ -339,8 +339,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _moduleBorrowers.AiDecisionBinding;
     internal BattleContingencyBridgeService _contingencyBridgeService =>
         _moduleBorrowers.ContingencyBridge;
-    internal BattleCommandPreviewService _commandPreviewService =>
-        _moduleBorrowers.CommandPreview;
+    internal readonly BattleCommandPreviewService _commandPreviewService = new();
     private BattleStartFailureSnapshot _last_start_failure = new();
     internal BattleCalamityStore calamity_by_member_id = new();
     private long _battleCacheEpoch;
@@ -349,6 +348,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
     public BattleRuntimeModule()
     {
         _moduleBorrowers.Setup(this);
+        // 预览服务持端口而非 hub，端口就是 borrower set 里那个与本 module 同寿的 bridge 实例，
+        // 所以这里绑一次即可；bridge 自己会随 Setup/DisposeRuntime 重新挂到 hub 上。
+        _commandPreviewService.Setup(_moduleBorrowers.CommandPreviewBridge);
         SetTerrainGenerator(new BattleTerrainGenerator(), true);
         _ai_move_query_cost_callback = _aiDecisionBindingService._get_ai_move_query_cost;
         _ai_move_cost_callback = _movementCommandService._get_move_cost_for_unit_target;
@@ -2404,13 +2406,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
         _battleCacheEpoch = _battleCacheEpoch == long.MaxValue ? 1 : _battleCacheEpoch + 1;
         _runtime_services.BeginBattle(_battleCacheEpoch);
-    }
-
-    internal static void DisposeBattlePreview(BattlePreview preview)
-    {
-        if (preview == null)
-            return;
-        preview.hit_preview = null;
     }
 
     internal void _handle_change_equipment_command(
