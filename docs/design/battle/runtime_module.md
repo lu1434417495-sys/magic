@@ -95,7 +95,7 @@ BattleSim 的内部开战单位通过一次性 `BattleStartUnitRoster` 移交：
 
 ## 战斗目标与终局
 
-当前正式内容支持歼灭、击败首领、拯救、逃离、护送、防守、截击、节点作业和区域占领九种目标。稳定 id、运行规则与原子结算边界见 [objective_runtime.md](./objective_runtime.md)；尚未实现的组合目标和模式扩展见 [multi_objective_modes.md](../../proposals/battle/multi_objective_modes.md)，不得当成当前可玩内容。
+当前正式内容支持歼灭、击败首领、拯救、逃离、护送、防守、截击、节点作业和区域占领九种目标。稳定 id、运行规则与原子结算边界见 [objective_runtime.md](./objective_runtime.md)；尚未实现的单模式扩展见 [objective_mode_extensions.md](../../proposals/battle/objective_mode_extensions.md)，暂缓的组合目标见 [composite_objectives.md](../../proposals/battle/composite_objectives.md)，二者都不得当成当前可玩内容。
 
 命令、timeline step、开战 reaction 与 promotion choice 都是 objective mutation 根。同步递归反应或多目标结算期间只标记 objective dirty，最外层 `EndObjectiveMutation` 才执行 `FlushBattleOutcomeEvaluation`。final decision 一旦锁存不可替换；存在 promotion/start-confirm modal 时先冻结 timeline，等 modal 完成后再从唯一 `CompleteBattle` 入口生成 result、奖励、phase/batch 和终局日志。`BattleResolutionResult`、Fate、掉落、任务、世界回写与 BattleSim 消费 typed `Outcome/EndReason`；winner 字符串只保留为输出投影。
 
