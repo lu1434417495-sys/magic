@@ -7,7 +7,6 @@ internal enum BattleEdgeFeatureKind
     Unknown = 0,
     None,
     Wall,
-    LowWall,
     Door,
     Gate,
 }
@@ -33,7 +32,6 @@ public class BattleEdgeFeatureState
 {
     private static readonly StringName _FEATURE_NONE = "none";
     private static readonly StringName _FEATURE_WALL = "wall";
-    private static readonly StringName _FEATURE_LOW_WALL = "low_wall";
     private static readonly StringName _FEATURE_DOOR = "door";
     private static readonly StringName _FEATURE_GATE = "gate";
 
@@ -101,7 +99,6 @@ public class BattleEdgeFeatureState
         {
             BattleEdgeFeatureKind.None => _FEATURE_NONE,
             BattleEdgeFeatureKind.Wall => _FEATURE_WALL,
-            BattleEdgeFeatureKind.LowWall => _FEATURE_LOW_WALL,
             BattleEdgeFeatureKind.Door => _FEATURE_DOOR,
             BattleEdgeFeatureKind.Gate => _FEATURE_GATE,
             _ => new StringName(""),
@@ -114,8 +111,6 @@ public class BattleEdgeFeatureState
             return BattleEdgeFeatureKind.None;
         if (value == _FEATURE_WALL)
             return BattleEdgeFeatureKind.Wall;
-        if (value == _FEATURE_LOW_WALL)
-            return BattleEdgeFeatureKind.LowWall;
         if (value == _FEATURE_DOOR)
             return BattleEdgeFeatureKind.Door;
         if (value == _FEATURE_GATE)
@@ -275,16 +270,6 @@ public class BattleEdgeFeatureState
             blocks_move = true,
             blocks_occupancy = true,
             blocks_los = true,
-        };
-    }
-
-    public static BattleEdgeFeatureState MakeLowWall()
-    {
-        return new BattleEdgeFeatureState
-        {
-            FeatureKind = BattleEdgeFeatureKind.LowWall,
-            RenderKind = BattleEdgeRenderKind.Wall,
-            render_layers = 1,
         };
     }
 

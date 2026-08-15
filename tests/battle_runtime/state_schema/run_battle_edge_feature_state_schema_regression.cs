@@ -175,7 +175,7 @@ public partial class run_battle_edge_feature_state_schema_regression : Lifecycle
 
     private void TestDuplicateFeatureStillUsesCurrentSchema()
     {
-        BattleEdgeFeatureState duplicate = BattleEdgeFeatureState.MakeLowWall().DuplicateFeature();
+        BattleEdgeFeatureState duplicate = BattleEdgeFeatureState.MakeToggleDoor().DuplicateFeature();
         _test.True(duplicate != null, "duplicate_feature 应继续返回有效对象。");
         if (duplicate == null)
         {
@@ -184,7 +184,7 @@ public partial class run_battle_edge_feature_state_schema_regression : Lifecycle
 
         _test.Eq(
             duplicate.feature_kind,
-            BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.LowWall),
+            BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.Door),
             "duplicate_feature 应保留 feature_kind。"
         );
         _test.Eq(

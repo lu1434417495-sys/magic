@@ -260,7 +260,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             AssertEdgeClearOutcome(
                 fixture,
                 terrainEffectDefinitions,
-                "low_wall",
+                "non_clearable_kind",
                 new Vector2I(0, 0),
                 new Vector2I(0, 1),
                 expectedApplied: false
