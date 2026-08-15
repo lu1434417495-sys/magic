@@ -34,6 +34,89 @@ internal static class BattleAiActionEvaluatorUtilities
         return preview;
     }
 
+    /// <summary>
+    /// Cheapest accumulated move cost to every anchor the actor can reach this turn, origin
+    /// excluded. Evaluators that only walk the four adjacent cells miss destinations two or three
+    /// steps out, which is where a safe cell usually is.
+    /// </summary>
+    internal static Dictionary<Vector2I, int> CollectReachableAnchorCosts(
+        BattleAiContext context,
+        BattleUnitState actor
+    )
+    {
+        var reachable = new Dictionary<Vector2I, int>();
+        BattleState state = context?.state;
+        BattleGridService grid = context?.grid_service;
+        if (state == null || actor == null || grid == null)
+            return reachable;
+        if (IsUnitMovementBlocked(context, actor))
+            return reachable;
+
+        int maxMovePoints = ResolveCurrentMoveBudget(actor);
+        if (maxMovePoints <= 0)
+            return reachable;
+
+        Vector2I origin = actor.GetAnchorCoord();
+        var frontier = new Queue<(Vector2I Coord, int Cost)>();
+        var bestCosts = new Dictionary<Vector2I, int> { [origin] = 0 };
+        frontier.Enqueue((origin, 0));
+        while (frontier.Count > 0)
+        {
+            (Vector2I currentCoord, int currentCost) = frontier.Dequeue();
+            if (
+                !bestCosts.TryGetValue(currentCoord, out int bestCurrentCost)
+                || currentCost != bestCurrentCost
+            )
+            {
+                continue;
+            }
+            foreach (Vector2I neighbor in grid.GetNeighbors4(state, currentCoord))
+            {
+                if (!grid.CanUnitStepBetweenAnchors(state, actor, currentCoord, neighbor))
+                    continue;
+                int nextCost = currentCost + Math.Max(context.GetMoveCost(actor, neighbor), 1);
+                if (nextCost > maxMovePoints)
+                    continue;
+                if (
+                    bestCosts.TryGetValue(neighbor, out int bestNeighborCost)
+                    && nextCost >= bestNeighborCost
+                )
+                {
+                    continue;
+                }
+                bestCosts[neighbor] = nextCost;
+                frontier.Enqueue((neighbor, nextCost));
+                reachable[neighbor] = nextCost;
+            }
+        }
+        reachable.Remove(origin);
+        return reachable;
+    }
+
+    /// <summary>
+    /// Reachable anchors in a deterministic order: cheapest first, then row-major. Dictionary
+    /// enumeration order must never decide which candidate an evaluator scores first.
+    /// </summary>
+    internal static List<KeyValuePair<Vector2I, int>> SortReachableAnchorCosts(
+        Dictionary<Vector2I, int> reachable
+    )
+    {
+        var ordered = new List<KeyValuePair<Vector2I, int>>(
+            reachable ?? new Dictionary<Vector2I, int>()
+        );
+        ordered.Sort(
+            (left, right) =>
+            {
+                if (left.Value != right.Value)
+                    return left.Value.CompareTo(right.Value);
+                if (left.Key.Y != right.Key.Y)
+                    return left.Key.Y.CompareTo(right.Key.Y);
+                return left.Key.X.CompareTo(right.Key.X);
+            }
+        );
+        return ordered;
+    }
+
     internal static int ResolveCurrentMoveBudget(BattleUnitState unit) =>
         unit == null || unit.GetCurrentMovePoints() <= 0
             ? 0
