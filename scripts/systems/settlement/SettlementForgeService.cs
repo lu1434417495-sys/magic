@@ -137,7 +137,7 @@ public sealed class SettlementForgeService : System.IDisposable
             });
     }
 
-    public GDictionary BuildWindowDataTyped(
+    internal SettlementServiceWindowData BuildWindowDataTyped(
         string interaction_script_id,
         GDictionary settlement_record,
         GDictionary payload,
@@ -153,7 +153,7 @@ public sealed class SettlementForgeService : System.IDisposable
         GDictionary serviceProfile = _resolve_service_profile(payload, interaction_script_id);
         IReadOnlyDictionary<StringName, RecipeDefinition> resolvedRecipeDefinitions =
             _resolve_recipe_defs(recipe_defs);
-        GArray recipeEntries = _build_recipe_window_entries(
+        List<SettlementServiceWindowEntryData> recipeEntries = _build_recipe_window_entries(
             settlement_record,
             payload,
             item_defs,
@@ -177,38 +177,59 @@ public sealed class SettlementForgeService : System.IDisposable
             summaryText = ReadString(serviceProfile, "empty_summary_text", "当前没有可用的配方。");
         }
 
-        return new GDictionary
-        {
-            ["title"] = $"{settlementName} · {ReadString(serviceProfile, "title_suffix", "工坊")}",
-            ["meta"] = $"工坊：{facilityName}  |  规则：消耗材料并原子写入共享仓库。",
-            ["summary_text"] = summaryText,
-            ["state_summary_text"] = ReadString(payload, "state_summary_text"),
-            ["feedback_text"] = !string.IsNullOrEmpty(feedback_text) ? feedback_text : ReadString(serviceProfile, "default_feedback_text", "选择一条配方后即可执行配方操作。"),
-            ["settlement_id"] = ReadString(settlement_record, "settlement_id"),
-            ["interaction_script_id"] = interaction_script_id,
-            ["action_id"] = ReadString(payload, "action_id", ReadString(serviceProfile, "action_id", _build_default_action_id(interaction_script_id))),
-            ["facility_id"] = ReadString(payload, "facility_id"),
-            ["facility_name"] = facilityName,
-            ["npc_id"] = ReadString(payload, "npc_id"),
-            ["npc_name"] = ReadString(payload, "npc_name"),
-            ["service_type"] = ReadString(payload, "service_type", ReadString(serviceProfile, "service_type", "工坊")),
-            ["panel_kind"] = SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Forge),
-            ["confirm_label"] = ReadString(serviceProfile, "confirm_label", "确认"),
-            ["cancel_label"] = "返回",
-            ["show_member_selector"] = false,
-            ["default_member_id"] = ReadString(payload, "member_id", ReadString(payload, "default_member_id")),
-            ["selected_member_id"] = ReadString(payload, "member_id", ReadString(payload, "selected_member_id")),
-            ["entry_title"] = "可选配方",
-            ["summary_title"] = "工坊概况",
-            ["state_title"] = "配方状态",
-            ["cost_title"] = "材料消耗",
-            ["details_title"] = "配方说明",
-            ["member_title"] = "工坊成员",
-            ["empty_state_label"] = "状态：暂无配方",
-            ["empty_cost_label"] = "材料：暂无配方",
-            ["empty_details_text"] = "当前没有可用配方。",
-            ["entries"] = recipeEntries,
-        };
+        string memberId = ReadString(
+            payload,
+            "member_id",
+            ReadString(payload, "default_member_id")
+        );
+        return new SettlementServiceWindowData(
+            ReadString(settlement_record, "settlement_id"),
+            ReadString(
+                payload,
+                "action_id",
+                ReadString(
+                    serviceProfile,
+                    "action_id",
+                    _build_default_action_id(interaction_script_id)
+                )
+            ),
+            SettlementPanelKind.Forge,
+            $"{settlementName} · {ReadString(serviceProfile, "title_suffix", "工坊")}",
+            $"工坊：{facilityName}  |  规则：消耗材料并原子写入共享仓库。",
+            summaryText,
+            !string.IsNullOrEmpty(feedback_text)
+                ? feedback_text
+                : ReadString(
+                    serviceProfile,
+                    "default_feedback_text",
+                    "选择一条配方后即可执行配方操作。"
+                ),
+            new SettlementServiceWindowLabelsData(
+                ReadString(serviceProfile, "confirm_label", "确认"),
+                "返回",
+                "可选配方",
+                "工坊概况",
+                "配方状态",
+                "材料消耗",
+                "配方说明",
+                "工坊成员",
+                "状态：暂无配方",
+                "材料：暂无配方",
+                "当前没有可用配方。"
+            ),
+            false,
+            interaction_script_id,
+            ReadString(payload, "facility_id"),
+            facilityName,
+            ReadString(payload, "npc_id"),
+            ReadString(payload, "npc_name"),
+            ReadString(payload, "service_type", ReadString(serviceProfile, "service_type", "工坊")),
+            recipeEntries,
+            null,
+            memberId,
+            memberId,
+            null
+        );
     }
 
     private RecipeDefinition _resolve_recipe(
@@ -288,7 +309,7 @@ public sealed class SettlementForgeService : System.IDisposable
         return recipeDefs ?? new Dictionary<StringName, RecipeDefinition>();
     }
 
-    private GArray _build_recipe_window_entries(
+    private List<SettlementServiceWindowEntryData> _build_recipe_window_entries(
         GDictionary settlement,
         GDictionary payload,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
@@ -296,7 +317,7 @@ public sealed class SettlementForgeService : System.IDisposable
         PartyWarehouseService warehouse,
         string interactionScriptId)
     {
-        var entries = new GArray();
+        var entries = new List<SettlementServiceWindowEntryData>();
         foreach (RecipeDefinition recipe in _list_matching_recipes(settlement, payload, recipeDefs))
         {
             if (recipe != null)
@@ -307,7 +328,7 @@ public sealed class SettlementForgeService : System.IDisposable
         return entries;
     }
 
-    private GDictionary _build_recipe_window_entry(
+    private SettlementServiceWindowEntryData _build_recipe_window_entry(
         RecipeDefinition recipe,
         GDictionary settlement,
         GDictionary payload,
@@ -360,19 +381,19 @@ public sealed class SettlementForgeService : System.IDisposable
             detailsText += $"\n设施标签：{string.Join(" / ", ToStringList(facilityTags))}";
         }
 
-        return new GDictionary
-        {
-            ["entry_id"] = $"recipe:{recipe.RecipeId}",
-            ["recipe_id"] = recipe.RecipeId.ToString(),
-            ["display_name"] = !string.IsNullOrEmpty(recipe.DisplayName) ? recipe.DisplayName : recipe.RecipeId.ToString(),
-            ["summary_text"] = $"{materialSummary} -> {outputSummary}",
-            ["details_text"] = detailsText,
-            ["state_label"] = stateLabel,
-            ["cost_label"] = $"材料：{materialSummary}",
-            ["is_enabled"] = isEnabled,
-            ["disabled_reason"] = disabledReason,
-            ["interaction_script_id"] = interactionScriptId,
-        };
+        return new SettlementServiceWindowEntryData(
+            $"recipe:{recipe.RecipeId}",
+            !string.IsNullOrEmpty(recipe.DisplayName)
+                ? recipe.DisplayName
+                : recipe.RecipeId.ToString(),
+            $"{materialSummary} -> {outputSummary}",
+            detailsText,
+            stateLabel,
+            $"材料：{materialSummary}",
+            isEnabled,
+            disabledReason,
+            new SettlementForgeSelectionData(recipe.RecipeId)
+        );
     }
 
     private bool _recipe_matches_facility(RecipeDefinition recipe, GDictionary settlement, GDictionary payload)

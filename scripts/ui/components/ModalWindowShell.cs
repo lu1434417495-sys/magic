@@ -9,7 +9,6 @@ using Godot;
 //   基类只负责判定"什么时候算请求关闭"。
 // - 不允许随手关掉的窗（如必须确认的奖励结算）覆写 DismissOnShade /
 //   DismissOnEscape 返回 false；遮罩点击仍会被吞掉，不会漏到底层世界。
-[GlobalClass]
 public partial class ModalWindowShell : Control
 {
     private ColorRect _modal_shade;

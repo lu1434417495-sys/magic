@@ -158,7 +158,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         {
             RuntimeCommandResult openResult = proxy.CommandOpenParty();
             _test.True(openResult.Ok, $"CommandOpenParty() 应委托 runtime。message={openResult.Message}");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Party, "CommandOpenParty() 成功后应更新 runtime modal。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Party, "CommandOpenParty() 成功后应更新 runtime modal。");
             _test.Eq(proxy.GetPartySelectedMemberId().ToString(), "hero", "CommandOpenParty() 应通过 runtime 选中上阵第一人。");
 
             RuntimeCommandResult selectResult = proxy.CommandSelectPartyMember("mage");
@@ -167,8 +167,8 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
 
             RuntimeCommandResult warehouseResult = proxy.CommandOpenPartyWarehouse();
             _test.True(warehouseResult.Ok, $"CommandOpenPartyWarehouse() 应委托 runtime。message={warehouseResult.Message}");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Warehouse, "CommandOpenPartyWarehouse() 成功后应打开 warehouse modal。");
-            _test.Eq(runtime._active_warehouse_entry_label, "队伍管理", "CommandOpenPartyWarehouse() 应保留正式入口标签。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Warehouse, "CommandOpenPartyWarehouse() 成功后应打开 warehouse modal。");
+            _test.Eq(runtime.GetActiveWarehouseEntryLabel(), "队伍管理", "CommandOpenPartyWarehouse() 应保留正式入口标签。");
         }
         finally
         {
@@ -422,9 +422,11 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             );
         GameRuntimeFacade runtime = new()
         {
-            _party_state = partyState,
             _generation_definition = generationDefinition,
         };
+        runtime.SetupForTestFixture(
+            partyState: partyState
+        );
         runtime._world_map_data_context.active_generation_definition = generationDefinition;
         runtime._world_map_data_context.SetActiveWorldData(new GDictionary
         {

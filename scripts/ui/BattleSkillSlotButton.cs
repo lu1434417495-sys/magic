@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
 public partial class BattleSkillSlotButton : Button
 {
     private const float TooltipMinWidth = 240.0f;

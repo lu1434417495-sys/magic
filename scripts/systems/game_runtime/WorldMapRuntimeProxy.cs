@@ -254,9 +254,11 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetActiveBattleEncounterName() ?? "";
     }
 
-    public Dictionary GetSettlementWindowData(string settlementId = "")
+    internal SettlementOverviewWindowData GetSettlementOverviewWindowData(
+        string settlementId = ""
+    )
     {
-        return _runtime?.GetSettlementWindowData(settlementId) ?? new Dictionary();
+        return _runtime?.GetSettlementOverviewWindowData(settlementId);
     }
 
     public string GetSettlementFeedbackText()
@@ -264,13 +266,11 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetSettlementFeedbackText() ?? "";
     }
 
-    internal GodotProjectionLease<Dictionary> GetShopWindowDataLease() =>
-        _runtime?.GetShopWindowDataLease()
-        ?? EmptyWindowDataLease("shop");
+    internal SettlementServiceWindowData GetShopWindowDataTyped() =>
+        _runtime?.GetShopWindowDataTyped();
 
-    internal GodotProjectionLease<Dictionary> GetContractBoardWindowDataLease() =>
-        _runtime?.GetContractBoardWindowDataLease()
-        ?? EmptyWindowDataLease("contract-board");
+    internal SettlementServiceWindowData GetContractBoardWindowDataTyped() =>
+        _runtime?.GetContractBoardWindowDataTyped();
 
     internal NpcQuestOfferWindowData GetNpcQuestOfferWindowDataTyped()
     {
@@ -282,31 +282,15 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetActiveBountyBoardData();
     }
 
-    internal GodotProjectionLease<Dictionary> GetForgeWindowDataLease() =>
-        _runtime?.GetForgeWindowDataLease()
-        ?? EmptyWindowDataLease("forge");
+    internal SettlementServiceWindowData GetForgeWindowDataTyped() =>
+        _runtime?.GetForgeWindowDataTyped();
 
-    internal GodotProjectionLease<Dictionary> GetStagecoachWindowDataLease() =>
-        _runtime?.GetStagecoachWindowDataLease()
-        ?? EmptyWindowDataLease("stagecoach");
+    internal SettlementServiceWindowData GetStagecoachWindowDataTyped() =>
+        _runtime?.GetStagecoachWindowDataTyped();
 
-    private static GodotProjectionLease<Dictionary> EmptyWindowDataLease(string windowId) =>
-        RuntimePlainPayload.ProjectDictionaryLease(
-            new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
-            $"world-map-proxy-{windowId}",
-            LifetimeDomain.Request,
-            $"WorldMapRuntimeProxy.{windowId}"
-        );
-
-    internal GodotProjectionLease<Dictionary> GetCharacterInfoContextLease()
+    internal GameRuntimeCharacterInfoContext GetCharacterInfoContextTyped()
     {
-        return _runtime?.GetCharacterInfoContextLease()
-            ?? RuntimePlainPayload.ProjectDictionaryLease(
-                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
-                "WorldMapRuntimeProxy.character_info_context",
-                LifetimeDomain.Request,
-                "WorldMapRuntimeProxy.character_info_context"
-            );
+        return _runtime?.GetCharacterInfoContextTyped();
     }
 
     public PartyState GetPartyState()
@@ -324,9 +308,9 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetPartySelectedMemberId() ?? new StringName("");
     }
 
-    public Dictionary GetWarehouseWindowData()
+    internal WarehouseWindowData GetWarehouseWindowDataTyped()
     {
-        return _runtime?.GetWarehouseWindowData() ?? new Dictionary();
+        return _runtime?.GetWarehouseWindowDataTyped();
     }
 
     internal System.Collections.Generic.IReadOnlyDictionary<string, object>
@@ -504,6 +488,22 @@ internal sealed class WorldMapRuntimeProxy
         );
     }
 
+    internal RuntimeCommandResult CommandExecuteContractBoardAction(
+        SettlementContractBoardActionRequest request
+    )
+    {
+        return RunRuntimeCommand(
+            () => _runtime.CommandExecuteContractBoardActionTyped(request)
+        );
+    }
+
+    internal RuntimeCommandResult CommandExecuteShopAction(
+        SettlementShopActionRequest request
+    )
+    {
+        return RunRuntimeCommand(() => _runtime.CommandExecuteShopActionTyped(request));
+    }
+
     internal RuntimeCommandResult CommandShopBuy(StringName itemId, int quantity = 1)
     {
         return RunRuntimeCommand(() => _runtime.CommandShopBuyTyped(itemId, quantity));
@@ -516,6 +516,15 @@ internal sealed class WorldMapRuntimeProxy
     )
     {
         return RunRuntimeCommand(() => _runtime.CommandShopSellTyped(itemId, quantity, instanceId));
+    }
+
+    internal RuntimeCommandResult CommandExecuteStagecoachAction(
+        SettlementStagecoachActionRequest request
+    )
+    {
+        return RunRuntimeCommand(
+            () => _runtime.CommandStagecoachTravelTyped(request.TargetSettlementId.ToString())
+        );
     }
 
     internal RuntimeCommandResult CommandStagecoachTravel(string settlementId)

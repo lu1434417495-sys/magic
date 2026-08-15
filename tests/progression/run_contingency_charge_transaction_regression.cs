@@ -331,9 +331,9 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         RuntimeFixture fixture = await BuildRuntimeFixture();
         try
         {
-            SeedGemStack(fixture.Runtime._party_state, 1);
+            SeedGemStack(fixture.Runtime.GetPartyState(), 1);
             fixture.Runtime.SyncPartyStateServices();
-            fixture.GameSession.SetPartyState(fixture.Runtime._party_state);
+            fixture.GameSession.SetPartyState(fixture.Runtime.GetPartyState());
             fixture.GameSession.fail_payload_write = true;
 
             ContingencySetupMutationResult result =
@@ -347,7 +347,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
                 "Runtime rollback should restore service warehouse reference."
             );
             AssertSetupState(
-                fixture.Runtime._party_state,
+                fixture.Runtime.GetPartyState(),
                 "runtime_charge",
                 charged: false,
                 reservedMpMax: 0,
@@ -355,7 +355,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
                 "Runtime rollback should restore command-start setup state."
             );
             _test.Eq(
-                fixture.Runtime._party_state.GetMemberState("hero").current_mp,
+                fixture.Runtime.GetPartyState().GetMemberState("hero").current_mp,
                 30,
                 "Runtime rollback should restore command-start MP."
             );
@@ -465,14 +465,14 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
             TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
 
-        GameRuntimeFacade runtime = new()
-        {
-            _game_session = gameSession,
-            _party_state = partyState,
-            _player_coord = Vector2I.Zero,
-            _selected_coord = Vector2I.Zero,
-            _player_faction_id = "player",
-        };
+        GameRuntimeFacade runtime = new();
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState,
+            playerCoord: Vector2I.Zero,
+            selectedCoord: Vector2I.Zero,
+            playerFactionId: "player"
+        );
         using GodotProjectionLease<GDictionary> worldDataLease =
             gameSession.GetWorldDataLease();
         runtime._world_map_data_context.BindRootWorldData(worldDataLease.Value);

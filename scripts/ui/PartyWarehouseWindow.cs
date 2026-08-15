@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class PartyWarehouseWindow : ModalWindowShell
@@ -36,7 +34,7 @@ public partial class PartyWarehouseWindow : ModalWindowShell
     public Button use_button;
     public Button close_button;
 
-    private WarehouseWindowData _windowData = WarehouseWindowData.Empty();
+    private WarehouseWindowData _windowData = WarehouseWindowData.Empty;
     private StringName _selectedItemId = "";
     private StringName _selectedInstanceId = "";
     private int _selectedEntryIndex = -1;
@@ -99,30 +97,16 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
     protected override void _on_modal_close_requested() => _close_window();
 
-    public void ShowWarehouse(GDictionary window_data)
+    internal void ShowWarehouse(WarehouseWindowData window_data)
     {
-        WarehouseWindowData normalized = WarehouseWindowData.From(window_data);
-        if (normalized == null)
+        if (window_data?.Snapshot == null || !window_data.Snapshot.Available)
         {
             HideWindow();
             return;
         }
-        _windowData = normalized;
+        _windowData = window_data;
         Visible = true;
         RefreshView();
-    }
-
-    public void SetWindowData(GDictionary window_data)
-    {
-        WarehouseWindowData normalized = WarehouseWindowData.From(window_data);
-        if (normalized == null)
-        {
-            HideWindow();
-            return;
-        }
-        _windowData = normalized;
-        if (Visible)
-            RefreshView();
     }
 
     public void RefreshView()
@@ -141,7 +125,7 @@ public partial class PartyWarehouseWindow : ModalWindowShell
     public void HideWindow()
     {
         Visible = false;
-        _windowData = WarehouseWindowData.Empty();
+        _windowData = WarehouseWindowData.Empty;
         _selectedItemId = "";
         _selectedInstanceId = "";
         _selectedEntryIndex = -1;
@@ -158,10 +142,23 @@ public partial class PartyWarehouseWindow : ModalWindowShell
             status_label.Text = "";
     }
 
+    private IReadOnlyList<WarehouseInventoryEntrySnapshot> _entries => _windowData.Snapshot.Entries;
+
+    private IReadOnlyList<WarehouseTargetMemberSnapshot> _target_members =>
+        _windowData.Snapshot.TargetMembers;
+
+    // Only equipment entries carry an instance identity; stack entries submit an empty
+    // instance id so the runtime keeps resolving them by item id alone.
+    private static StringName _entry_instance_id(WarehouseInventoryEntrySnapshot entry) =>
+        entry != null && entry.HasEquipmentInstance ? entry.InstanceId ?? "" : "";
+
+    private static StringName _entry_item_id(WarehouseInventoryEntrySnapshot entry) =>
+        entry?.ItemId ?? "";
+
     private void _rebuild_stack_list()
     {
         stack_list.Clear();
-        foreach (WarehouseEntry entry in _windowData.Entries)
+        foreach (WarehouseInventoryEntrySnapshot entry in _entries)
         {
             string label = $"{entry.DisplayName}  x{entry.Quantity}";
             if (entry.IsStackable)
@@ -174,7 +171,7 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
     private void _restore_selection()
     {
-        if (_windowData.Entries.Count == 0)
+        if (_entries.Count == 0)
         {
             _selectedItemId = "";
             _selectedInstanceId = "";
@@ -185,14 +182,14 @@ public partial class PartyWarehouseWindow : ModalWindowShell
         int targetIndex = -1;
         if (_selectedItemId != (StringName)"")
         {
-            for (int index = 0; index < _windowData.Entries.Count; index++)
+            for (int index = 0; index < _entries.Count; index++)
             {
-                WarehouseEntry entry = _windowData.Entries[index];
+                WarehouseInventoryEntrySnapshot entry = _entries[index];
                 if (
-                    entry.ItemId == _selectedItemId
+                    _entry_item_id(entry) == _selectedItemId
                     && (
                         _selectedInstanceId == (StringName)""
-                        || entry.InstanceId == _selectedInstanceId
+                        || _entry_instance_id(entry) == _selectedInstanceId
                     )
                 )
                 {
@@ -202,19 +199,19 @@ public partial class PartyWarehouseWindow : ModalWindowShell
             }
         }
         if (targetIndex < 0)
-            targetIndex = Mathf.Clamp(_selectedEntryIndex, 0, _windowData.Entries.Count - 1);
+            targetIndex = Mathf.Clamp(_selectedEntryIndex, 0, _entries.Count - 1);
 
         _selectedEntryIndex = targetIndex;
-        WarehouseEntry selectedEntry = _windowData.Entries[targetIndex];
-        _selectedItemId = selectedEntry.ItemId;
-        _selectedInstanceId = selectedEntry.InstanceId;
+        WarehouseInventoryEntrySnapshot selectedEntry = _entries[targetIndex];
+        _selectedItemId = _entry_item_id(selectedEntry);
+        _selectedInstanceId = _entry_instance_id(selectedEntry);
         stack_list.Select(targetIndex);
         stack_list.EnsureCurrentIsVisible();
     }
 
     private void _rebuild_target_member_selector()
     {
-        if (_windowData.TargetMembers.Count == 0)
+        if (_target_members.Count == 0)
         {
             target_member_selector.Clear();
             _selectedTargetMemberId = "";
@@ -228,37 +225,37 @@ public partial class PartyWarehouseWindow : ModalWindowShell
             _selectedTargetMemberId = _resolve_default_target_member_id();
 
         var options = new List<(StringName Id, string Label)>();
-        foreach (TargetMember member in _windowData.TargetMembers)
+        foreach (WarehouseTargetMemberSnapshot member in _target_members)
             options.Add((member.MemberId, member.DisplayName));
         UiOptionButtonUtils.Populate(target_member_selector, options, _selectedTargetMemberId);
     }
 
     private void _refresh_details()
     {
-        if (_windowData.Entries.Count == 0)
+        if (_entries.Count == 0)
         {
             item_icon.Texture = null;
             details_label.Text = "仓库当前为空。";
             return;
         }
 
-        WarehouseEntry entry = _get_selected_entry_data();
-        if (!entry.HasValue)
+        WarehouseInventoryEntrySnapshot entry = _get_selected_entry_data();
+        if (entry == null)
         {
             item_icon.Texture = null;
             details_label.Text = "请选择一个条目查看详情。";
             return;
         }
 
-        item_icon.Texture = _load_icon_texture(entry.IconPath);
+        item_icon.Texture = _load_icon_texture(entry.Icon);
         string storageRuleText = entry.IsStackable
             ? $"每堆上限 {entry.StackLimit}"
             : "不可堆叠，按实例独立占格";
-        string storageModeText = entry.StorageMode == "stack" ? "堆叠条目" : "装备实例条目";
+        string storageModeText = entry.StorageMode == (StringName)"stack" ? "堆叠条目" : "装备实例条目";
         var lines = new List<string>
         {
             $"物品：{entry.DisplayName}",
-            $"物品 ID：{entry.ItemId}",
+            $"物品 ID：{_entry_item_id(entry)}",
             $"当前条目数量：{entry.Quantity}",
             $"同类总数：{entry.TotalQuantity}",
             $"存储方式：{storageModeText}",
@@ -266,9 +263,9 @@ public partial class PartyWarehouseWindow : ModalWindowShell
             $"说明：{entry.Description}",
         };
 
-        if (entry.InstanceId != (StringName)"")
+        if (entry.HasEquipmentInstance)
         {
-            lines.Add($"装备实例：{entry.InstanceId}");
+            lines.Add($"装备实例：{_entry_instance_id(entry)}");
             lines.Add($"品质：{entry.Rarity}");
             lines.Add($"耐久：{entry.CurrentDurability}");
         }
@@ -284,10 +281,10 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
     private void _refresh_controls()
     {
-        WarehouseEntry selectedEntry = _get_selected_entry_data();
-        bool hasSelection = selectedEntry.HasValue;
-        bool isStackEntry = hasSelection && selectedEntry.StorageMode == "stack";
-        bool isEquipmentEntry = hasSelection && selectedEntry.StorageMode == "instance";
+        WarehouseInventoryEntrySnapshot selectedEntry = _get_selected_entry_data();
+        bool hasSelection = selectedEntry != null;
+        bool isStackEntry = hasSelection && selectedEntry.StorageMode == (StringName)"stack";
+        bool isEquipmentEntry = hasSelection && selectedEntry.StorageMode == (StringName)"instance";
         bool isSkillBook = _selected_entry_is_skill_book();
         bool canUseSelectedItem = _can_use_selected_item();
         discard_one_button.Text = isEquipmentEntry ? "丢弃此装备" : "丢弃 1 件";
@@ -296,33 +293,34 @@ public partial class PartyWarehouseWindow : ModalWindowShell
         discard_all_button.Disabled = !isStackEntry;
         target_member_label.Visible = isSkillBook;
         target_member_selector.Visible = isSkillBook;
-        target_member_selector.Disabled = !isSkillBook || _windowData.TargetMembers.Count == 0;
+        target_member_selector.Disabled = !isSkillBook || _target_members.Count == 0;
         use_button.Visible = isSkillBook;
         use_button.Disabled = !canUseSelectedItem;
     }
 
-    private WarehouseEntry _get_selected_entry_data()
+    private WarehouseInventoryEntrySnapshot _get_selected_entry_data()
     {
-        if (_selectedEntryIndex < 0 || _selectedEntryIndex >= _windowData.Entries.Count)
-            return WarehouseEntry.Empty();
-        return _windowData.Entries[_selectedEntryIndex];
+        if (_selectedEntryIndex < 0 || _selectedEntryIndex >= _entries.Count)
+            return null;
+        return _entries[_selectedEntryIndex];
     }
 
     private StringName _resolve_default_target_member_id()
     {
+        StringName defaultTargetMemberId = _windowData.Snapshot.DefaultTargetMemberId ?? "";
         if (
-            _windowData.DefaultTargetMemberId != (StringName)""
-            && _has_target_member(_windowData.DefaultTargetMemberId)
+            defaultTargetMemberId != (StringName)""
+            && _has_target_member(defaultTargetMemberId)
         )
-            return _windowData.DefaultTargetMemberId;
-        if (_windowData.TargetMembers.Count == 0)
+            return defaultTargetMemberId;
+        if (_target_members.Count == 0)
             return "";
-        return _windowData.TargetMembers[0].MemberId;
+        return _target_members[0].MemberId;
     }
 
     private bool _has_target_member(StringName member_id)
     {
-        foreach (TargetMember member in _windowData.TargetMembers)
+        foreach (WarehouseTargetMemberSnapshot member in _target_members)
         {
             if (member.MemberId == member_id)
                 return true;
@@ -332,7 +330,7 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
     private string _get_target_member_display_name(StringName member_id)
     {
-        foreach (TargetMember member in _windowData.TargetMembers)
+        foreach (WarehouseTargetMemberSnapshot member in _target_members)
         {
             if (member.MemberId == member_id)
                 return member.DisplayName;
@@ -342,7 +340,7 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
     private bool _selected_entry_is_skill_book()
     {
-        return _get_selected_entry_data().IsSkillBook;
+        return _get_selected_entry_data()?.IsSkillBook ?? false;
     }
 
     private bool _can_use_selected_item()
@@ -365,9 +363,9 @@ public partial class PartyWarehouseWindow : ModalWindowShell
     private void _on_stack_selected(int index)
     {
         _selectedEntryIndex = index;
-        WarehouseEntry entry = _get_selected_entry_data();
-        _selectedItemId = entry.ItemId;
-        _selectedInstanceId = entry.InstanceId;
+        WarehouseInventoryEntrySnapshot entry = _get_selected_entry_data();
+        _selectedItemId = _entry_item_id(entry);
+        _selectedInstanceId = _entry_instance_id(entry);
         _refresh_details();
         _refresh_controls();
     }
@@ -388,11 +386,11 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
     private void _on_discard_all_button_pressed()
     {
-        WarehouseEntry selectedEntry = _get_selected_entry_data();
+        WarehouseInventoryEntrySnapshot selectedEntry = _get_selected_entry_data();
         if (
             _selectedItemId == (StringName)""
-            || !selectedEntry.HasValue
-            || selectedEntry.StorageMode != "stack"
+            || selectedEntry == null
+            || selectedEntry.StorageMode != (StringName)"stack"
         )
             return;
         EmitSignal(SignalName.discard_all_requested, _selectedItemId);
@@ -411,285 +409,5 @@ public partial class PartyWarehouseWindow : ModalWindowShell
             return;
         HideWindow();
         EmitSignal(SignalName.closed);
-    }
-
-    private sealed class WarehouseWindowData
-    {
-        public string Title { get; private init; } = "共享仓库";
-        public string Meta { get; private init; } = "共享背包按堆栈占格，不计算重量。";
-        public string SummaryText { get; private init; } = "";
-        public string StatusText { get; private init; } = "";
-        public List<WarehouseEntry> Entries { get; private init; } = new();
-        public List<TargetMember> TargetMembers { get; private init; } = new();
-        public StringName DefaultTargetMemberId { get; private init; } = "";
-
-        public static WarehouseWindowData Empty() => new();
-
-        public static WarehouseWindowData From(GDictionary data)
-        {
-            if (data == null)
-                return null;
-            foreach (string fieldName in RequiredStringFields)
-            {
-                if (!HasString(data, fieldName))
-                    return null;
-            }
-            if (!HasArray(data, "entries") || !HasArray(data, "target_members"))
-                return null;
-            List<WarehouseEntry> entries = ParseEntries(ReadArray(data, "entries"));
-            if (entries == null)
-                return null;
-            List<TargetMember> targetMembers = ParseTargetMembers(ReadArray(data, "target_members"));
-            if (targetMembers == null)
-                return null;
-            return new WarehouseWindowData
-            {
-                Title = ReadString(data, "title", ""),
-                Meta = ReadString(data, "meta", ""),
-                SummaryText = ReadString(data, "summary_text", ""),
-                StatusText = ReadString(data, "status_text", ""),
-                Entries = entries,
-                TargetMembers = targetMembers,
-                DefaultTargetMemberId = ReadStringName(data, "default_target_member_id"),
-            };
-        }
-
-        private static List<WarehouseEntry> ParseEntries(GArray entriesData)
-        {
-            var entries = new List<WarehouseEntry>();
-            foreach (Variant entryValue in entriesData)
-            {
-                if (!entryValue.TryAsDictionary(out GDictionary entryData))
-                    return null;
-                WarehouseEntry entry = WarehouseEntry.From(entryData);
-                if (entry == null)
-                    return null;
-                entries.Add(entry);
-            }
-            return entries;
-        }
-
-        private static List<TargetMember> ParseTargetMembers(GArray membersData)
-        {
-            var members = new List<TargetMember>();
-            foreach (Variant memberValue in membersData)
-            {
-                if (!memberValue.TryAsDictionary(out GDictionary memberData))
-                    return null;
-                TargetMember member = TargetMember.From(memberData);
-                if (member.MemberId == (StringName)"" || string.IsNullOrEmpty(member.DisplayName))
-                    return null;
-                members.Add(member);
-            }
-            return members;
-        }
-
-        private static readonly string[] RequiredStringFields =
-        {
-            "title",
-            "meta",
-            "summary_text",
-            "status_text",
-            "default_target_member_id",
-        };
-    }
-
-    private sealed class WarehouseEntry
-    {
-        public bool HasValue { get; private init; }
-        public StringName ItemId { get; private init; } = "";
-        public StringName InstanceId { get; private init; } = "";
-        public string DisplayName { get; private init; } = "";
-        public string Description { get; private init; } = "暂无说明。";
-        public int Quantity { get; private init; }
-        public int TotalQuantity { get; private init; }
-        public bool IsStackable { get; private init; }
-        public int StackLimit { get; private init; } = 1;
-        public string StorageMode { get; private init; } = "";
-        public string IconPath { get; private init; } = "";
-        public int Rarity { get; private init; }
-        public int CurrentDurability { get; private init; }
-        public bool IsSkillBook { get; private init; }
-        public string GrantedSkillName { get; private init; } = "";
-
-        public static WarehouseEntry Empty() => new();
-
-        public static WarehouseEntry From(GDictionary data)
-        {
-            if (data == null)
-                return null;
-            foreach (string fieldName in RequiredStringFields)
-            {
-                if (!HasString(data, fieldName))
-                    return null;
-            }
-            foreach (string fieldName in RequiredIntFields)
-            {
-                if (!HasInt(data, fieldName))
-                    return null;
-            }
-            foreach (string fieldName in RequiredBoolFields)
-            {
-                if (!HasBool(data, fieldName))
-                    return null;
-            }
-            foreach (string fieldName in OptionalStringFields)
-            {
-                if (
-                    TryRead(data, fieldName, out Variant optionalStringValue)
-                    && optionalStringValue.VariantType != Variant.Type.String
-                )
-                    return null;
-            }
-            foreach (string fieldName in OptionalIntFields)
-            {
-                if (
-                    TryRead(data, fieldName, out Variant optionalIntValue)
-                    && optionalIntValue.VariantType != Variant.Type.Int
-                )
-                    return null;
-            }
-            StringName itemId = ReadStringName(data, "item_id");
-            if (itemId == (StringName)"")
-                return null;
-            return new WarehouseEntry
-            {
-                HasValue = true,
-                ItemId = itemId,
-                InstanceId = ReadStringName(data, "instance_id"),
-                DisplayName = ReadString(data, "display_name", ""),
-                Description = ReadString(data, "description", ""),
-                Quantity = ReadInt(data, "quantity", 0),
-                TotalQuantity = ReadInt(data, "total_quantity", 0),
-                IsStackable = ReadBool(data, "is_stackable", false),
-                StackLimit = ReadInt(data, "stack_limit", 1),
-                StorageMode = ReadString(data, "storage_mode", ""),
-                IconPath = ReadString(data, "icon", ""),
-                Rarity = ReadInt(data, "rarity", 0),
-                CurrentDurability = ReadInt(data, "current_durability", 0),
-                IsSkillBook = ReadBool(data, "is_skill_book", false),
-                GrantedSkillName = ReadString(data, "granted_skill_name", ""),
-            };
-        }
-
-        private static readonly string[] RequiredStringFields =
-        {
-            "item_id",
-            "display_name",
-            "description",
-            "icon",
-            "item_category",
-            "granted_skill_id",
-            "storage_mode",
-            "granted_skill_name",
-        };
-
-        private static readonly string[] RequiredIntFields =
-        {
-            "quantity",
-            "total_quantity",
-            "stack_limit",
-        };
-
-        private static readonly string[] RequiredBoolFields =
-        {
-            "is_stackable",
-            "is_skill_book",
-        };
-
-        private static readonly string[] OptionalStringFields =
-        {
-            "instance_id",
-        };
-
-        private static readonly string[] OptionalIntFields =
-        {
-            "rarity",
-            "current_durability",
-        };
-    }
-
-    private readonly record struct TargetMember(StringName MemberId, string DisplayName)
-    {
-        public static TargetMember From(GDictionary data)
-        {
-            if (data == null || !HasString(data, "member_id") || !HasString(data, "display_name"))
-                return default;
-            return new TargetMember(
-                ReadStringName(data, "member_id"),
-                ReadString(data, "display_name", "")
-            );
-        }
-    }
-
-    private static GArray ReadArray(GDictionary dict, string key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static bool HasArray(GDictionary dict, string key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array;
-    }
-
-    private static StringName ReadStringName(GDictionary dict, string key)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return "";
-        return value.VariantType == Variant.Type.String ? new StringName(value.AsString()) : "";
-    }
-
-    private static string ReadString(GDictionary dict, string key, string defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return defaultValue;
-        return value.VariantType == Variant.Type.String ? value.AsString() : defaultValue;
-    }
-
-    private static bool HasString(GDictionary dict, string key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.String;
-    }
-
-    private static bool ReadBool(GDictionary dict, string key, bool defaultValue)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Bool
-            ? value.AsBool()
-            : defaultValue;
-    }
-
-    private static bool HasBool(GDictionary dict, string key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Bool;
-    }
-
-    private static int ReadInt(GDictionary dict, string key, int defaultValue)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
-            ? value.AsInt32()
-            : defaultValue;
-    }
-
-    private static bool HasInt(GDictionary dict, string key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int;
-    }
-
-    private static bool TryRead(GDictionary dict, string key, out Variant value)
-    {
-        if (dict == null || string.IsNullOrEmpty(key))
-        {
-            value = default;
-            return false;
-        }
-        if (dict.ContainsKey(key))
-        {
-            value = dict[key];
-            return true;
-        }
-        value = default;
-        return false;
     }
 }

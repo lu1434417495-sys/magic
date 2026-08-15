@@ -922,14 +922,12 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.CommandCloseActiveModal();
     }
 
-    public void _on_contract_board_service_modal_action_requested(
-        string _settlement_id,
-        string action_id,
-        GDictionary payload
+    internal void _on_contract_board_service_modal_action_requested(
+        SettlementContractBoardActionRequest request
     )
     {
         if (_runtime != null)
-            _runtime_proxy.CommandExecuteSettlementAction(action_id, payload);
+            _runtime_proxy.CommandExecuteContractBoardAction(request);
     }
 
     public void _on_forge_service_modal_closed()
@@ -976,26 +974,15 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.CommandCloseActiveModal();
     }
 
-    public void _on_shop_service_modal_action_requested(
-        string _settlement_id,
-        string _action_id,
-        GDictionary payload
+    internal void _on_shop_service_modal_action_requested(
+        SettlementShopActionRequest request
     )
     {
         if (_runtime == null)
             return;
-        int quantity = Mathf.Max(DictInt(payload, "request_quantity", 1), 1);
-        StringName itemId = new(DictString(payload, "item_id"));
-        StringName instanceId = new(DictString(payload, "instance_id"));
-        if (DictString(payload, "shop_action", "buy") == "sell")
-        {
-            _runtime_proxy.CommandShopSell(itemId, quantity, instanceId);
+        _runtime_proxy.CommandExecuteShopAction(request);
+        if (request.ActionKind == SettlementShopActionKind.Sell)
             RenderFromRuntime();
-        }
-        else
-        {
-            _runtime_proxy.CommandShopBuy(itemId, quantity);
-        }
     }
 
     private void _on_forge_service_modal_action_requested(ForgeActionRequest request)
@@ -1004,18 +991,13 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.CommandExecuteForgeAction(request);
     }
 
-    public void _on_stagecoach_service_modal_action_requested(
-        string _settlement_id,
-        string _action_id,
-        GDictionary payload
+    internal void _on_stagecoach_service_modal_action_requested(
+        SettlementStagecoachActionRequest request
     )
     {
-        if (_runtime == null)
+        if (_runtime == null || !request.IsValid)
             return;
-        string targetSettlementId = DictString(payload, "target_settlement_id");
-        if (string.IsNullOrEmpty(targetSettlementId))
-            return;
-        _runtime_proxy.CommandStagecoachTravel(targetSettlementId);
+        _runtime_proxy.CommandExecuteStagecoachAction(request);
     }
 
     public void _on_character_info_window_closed()
@@ -1363,15 +1345,16 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     {
         settlement_window.action_requested += _on_settlement_action_requested;
         settlement_window.closed += _on_settlement_window_closed;
-        contract_board_service_modal.action_requested +=
+        contract_board_service_modal.ContractActionRequested +=
             _on_contract_board_service_modal_action_requested;
         contract_board_service_modal.closed += _on_contract_board_service_modal_closed;
-        shop_service_modal.action_requested += _on_shop_service_modal_action_requested;
+        shop_service_modal.ShopActionRequested += _on_shop_service_modal_action_requested;
         shop_service_modal.closed += _on_shop_service_modal_closed;
         forge_service_modal.ForgeActionRequested +=
             _on_forge_service_modal_action_requested;
         forge_service_modal.closed += _on_forge_service_modal_closed;
-        stagecoach_service_modal.action_requested += _on_stagecoach_service_modal_action_requested;
+        stagecoach_service_modal.StagecoachActionRequested +=
+            _on_stagecoach_service_modal_action_requested;
         stagecoach_service_modal.closed += _on_stagecoach_service_modal_closed;
         npc_quest_offer_dialog.action_requested += _on_npc_quest_offer_dialog_action_requested;
         npc_quest_offer_dialog.closed += _on_npc_quest_offer_dialog_closed;
@@ -1425,13 +1408,13 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         }
         if (contract_board_service_modal != null)
         {
-            contract_board_service_modal.action_requested -=
+            contract_board_service_modal.ContractActionRequested -=
                 _on_contract_board_service_modal_action_requested;
             contract_board_service_modal.closed -= _on_contract_board_service_modal_closed;
         }
         if (shop_service_modal != null)
         {
-            shop_service_modal.action_requested -= _on_shop_service_modal_action_requested;
+            shop_service_modal.ShopActionRequested -= _on_shop_service_modal_action_requested;
             shop_service_modal.closed -= _on_shop_service_modal_closed;
         }
         if (forge_service_modal != null)
@@ -1442,7 +1425,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         }
         if (stagecoach_service_modal != null)
         {
-            stagecoach_service_modal.action_requested -= _on_stagecoach_service_modal_action_requested;
+            stagecoach_service_modal.StagecoachActionRequested -=
+                _on_stagecoach_service_modal_action_requested;
             stagecoach_service_modal.closed -= _on_stagecoach_service_modal_closed;
         }
         if (npc_quest_offer_dialog != null)
@@ -1547,7 +1531,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (modalId == "settlement")
         {
             settlement_window.ShowSettlement(
-                _runtime_proxy.GetSettlementWindowData("")
+                _runtime_proxy.GetSettlementOverviewWindowData("")
             );
             string settlementFeedback = _runtime_proxy.GetSettlementFeedbackText();
             if (!string.IsNullOrEmpty(settlementFeedback))
@@ -1556,35 +1540,23 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         else
             settlement_window.HideWindow();
         if (modalId == "shop")
-        {
-            using GodotProjectionLease<GDictionary> windowLease =
-                _runtime_proxy.GetShopWindowDataLease();
-            shop_service_modal.ShowShop(windowLease.Value);
-        }
+            shop_service_modal.ShowShop(_runtime_proxy.GetShopWindowDataTyped());
         else
             shop_service_modal.HideWindow();
         if (modalId == "contract_board")
-        {
-            using GodotProjectionLease<GDictionary> windowLease =
-                _runtime_proxy.GetContractBoardWindowDataLease();
-            contract_board_service_modal.ShowShop(windowLease.Value);
-        }
+            contract_board_service_modal.ShowShop(
+                _runtime_proxy.GetContractBoardWindowDataTyped()
+            );
         else
             contract_board_service_modal.HideWindow();
         if (modalId == "forge")
-        {
-            using GodotProjectionLease<GDictionary> windowLease =
-                _runtime_proxy.GetForgeWindowDataLease();
-            forge_service_modal.ShowShop(windowLease.Value);
-        }
+            forge_service_modal.ShowShop(_runtime_proxy.GetForgeWindowDataTyped());
         else
             forge_service_modal.HideWindow();
         if (modalId == "stagecoach")
-        {
-            using GodotProjectionLease<GDictionary> windowLease =
-                _runtime_proxy.GetStagecoachWindowDataLease();
-            stagecoach_service_modal.ShowStagecoach(windowLease.Value);
-        }
+            stagecoach_service_modal.ShowStagecoach(
+                _runtime_proxy.GetStagecoachWindowDataTyped()
+            );
         else
             stagecoach_service_modal.HideWindow();
         // NPC quest offer modal lifecycle is tied to RuntimeModalKind.NpcQuestOffer.
@@ -1597,11 +1569,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         else
             bounty_board_window.HideWindow();
         if (modalId == "character_info")
-        {
-            using GodotProjectionLease<GDictionary> contextLease =
-                _runtime_proxy.GetCharacterInfoContextLease();
-            character_info_window.ShowCharacter(contextLease.Value);
-        }
+            character_info_window.ShowCharacter(_runtime_proxy.GetCharacterInfoContextTyped());
         else
             character_info_window.HideWindow();
         if (modalId == "party")
@@ -1614,7 +1582,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         else
             party_management_window.HideWindow();
         if (modalId == "warehouse")
-            party_warehouse_window.ShowWarehouse(_runtime_proxy.GetWarehouseWindowData());
+            party_warehouse_window.ShowWarehouse(_runtime_proxy.GetWarehouseWindowDataTyped());
         else
             party_warehouse_window.HideWindow();
         if (modalId == "promotion")

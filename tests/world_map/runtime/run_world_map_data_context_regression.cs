@@ -573,14 +573,14 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 TestWorldConfig
             );
             runtime._generation_definition = rootDefinition;
-            runtime._player_coord = new Vector2I(1, 1);
-            runtime._selected_coord = runtime._player_coord;
+            runtime.SetupForTestFixture(playerCoord: new Vector2I(1, 1));
+            runtime.SetupForTestFixture(selectedCoord: runtime.GetPlayerCoord());
             runtime._world_map_data_context.BindRootWorldData(rootWorldData);
             runtime._world_map_data_context.SyncActiveWorldContext(
                 rootDefinition,
                 runtime._grid_system,
-                runtime._player_coord,
-                runtime._selected_coord
+                runtime.GetPlayerCoord(),
+                runtime.GetSelectedCoord()
             );
             runtime._fog_system.Setup(new Vector2I(4, 4));
 

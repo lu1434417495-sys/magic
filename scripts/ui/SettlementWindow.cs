@@ -1,8 +1,5 @@
-using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class SettlementWindow : ModalWindowShell
@@ -34,7 +31,7 @@ public partial class SettlementWindow : ModalWindowShell
     public Label feedback_label;
     public Button close_button;
 
-    private SettlementWindowData _windowData = SettlementWindowData.Empty();
+    private SettlementOverviewWindowData _windowData = SettlementOverviewWindowData.Empty;
     private string _settlementId = "";
     private StringName _selectedMemberId = "";
     private int _selectedServiceIndex = -1;
@@ -87,18 +84,17 @@ public partial class SettlementWindow : ModalWindowShell
 
     protected override void _on_modal_close_requested() => _close_from_button();
 
-    public void ShowSettlement(GDictionary window_data)
+    internal void ShowSettlement(SettlementOverviewWindowData window_data)
     {
-        SettlementWindowData normalized = SettlementWindowData.From(window_data);
-        if (normalized == null)
+        if (window_data == null || !window_data.IsValid)
         {
             HideWindow();
             return;
         }
 
-        _windowData = normalized;
-        _settlementId = _windowData.SettlementId;
-        _selectedMemberId = _windowData.ResolveDefaultMemberId();
+        _windowData = window_data;
+        _settlementId = _windowData.SettlementId.ToString();
+        _selectedMemberId = _resolve_default_member_id();
         _selectedServiceIndex = -1;
         Visible = true;
         _refresh_view();
@@ -107,7 +103,7 @@ public partial class SettlementWindow : ModalWindowShell
     public void HideWindow()
     {
         Visible = false;
-        _windowData = SettlementWindowData.Empty();
+        _windowData = SettlementOverviewWindowData.Empty;
         _settlementId = "";
         _selectedMemberId = "";
         _selectedServiceIndex = -1;
@@ -155,6 +151,32 @@ public partial class SettlementWindow : ModalWindowShell
             feedback_label.Text = _windowData.FeedbackText;
     }
 
+    // The runtime already resolved the default against leader / active / reserve order; the
+    // window only falls back to the first renderable option.
+    private StringName _resolve_default_member_id()
+    {
+        if (
+            _windowData.DefaultMemberId != (StringName)""
+            && _windowData.MemberOptionMap.ContainsKey(_windowData.DefaultMemberId)
+        )
+            return _windowData.DefaultMemberId;
+        foreach (SettlementMemberOptionData option in _windowData.MemberOptions)
+        {
+            if (option.MemberId != (StringName)"")
+                return option.MemberId;
+        }
+        return "";
+    }
+
+    private static string _build_member_option_label(SettlementMemberOptionData option)
+    {
+        string prefix = option.IsLeader ? "队长 · " : "";
+        string roleSuffix = !string.IsNullOrEmpty(option.RosterRole)
+            ? $" · {option.RosterRole}"
+            : "";
+        return $"{prefix}{option.DisplayName}{roleSuffix}  |  HP {option.CurrentHp}  MP {option.CurrentMp}";
+    }
+
     private string _build_meta_text()
     {
         string identityText =
@@ -176,7 +198,7 @@ public partial class SettlementWindow : ModalWindowShell
             return "设施：暂无";
 
         var lines = new List<string> { "设施：" };
-        foreach (FacilityEntry facility in _windowData.Facilities)
+        foreach (SettlementFacilityEntryData facility in _windowData.Facilities)
         {
             string line = $"- {facility.DisplayName} [{facility.SlotTag}]";
             if (!string.IsNullOrEmpty(facility.InteractionType))
@@ -192,7 +214,7 @@ public partial class SettlementWindow : ModalWindowShell
             return "驻留 NPC：暂无";
 
         var lines = new List<string> { "驻留 NPC：" };
-        foreach (ResidentEntry resident in _windowData.Residents)
+        foreach (SettlementResidentEntryData resident in _windowData.Residents)
             lines.Add(
                 $"- {resident.DisplayName} · {resident.ServiceType} · {resident.FacilityName}"
             );
@@ -202,17 +224,14 @@ public partial class SettlementWindow : ModalWindowShell
     private void _rebuild_member_selector()
     {
         var options = new List<(StringName Id, string Label)>();
-        foreach (MemberOption option in _windowData.MemberOptions)
-            options.Add((option.MemberId, option.BuildLabel()));
+        foreach (SettlementMemberOptionData option in _windowData.MemberOptions)
+            options.Add((option.MemberId, _build_member_option_label(option)));
         UiOptionButtonUtils.Populate(member_selector, options, new StringName(""));
 
         member_selector.Visible = _windowData.MemberOptions.Count > 0;
         member_state_label.Visible = true;
 
-        StringName selectedMemberId = _windowData.ResolveDefaultMemberId();
-        if (selectedMemberId == (StringName)"" && _windowData.MemberOptions.Count > 0)
-            selectedMemberId = _windowData.MemberOptions[0].MemberId;
-        _select_member(selectedMemberId);
+        _select_member(_resolve_default_member_id());
     }
 
     private void _select_member(StringName member_id)
@@ -238,7 +257,10 @@ public partial class SettlementWindow : ModalWindowShell
             return;
         }
         if (
-            !_windowData.MemberOptionMap.TryGetValue(_selectedMemberId, out MemberOption option)
+            !_windowData.MemberOptionMap.TryGetValue(
+                _selectedMemberId,
+                out SettlementMemberOptionData option
+            )
             || string.IsNullOrEmpty(option.DisplayName)
         )
         {
@@ -351,37 +373,67 @@ public partial class SettlementWindow : ModalWindowShell
         EmitSignal(
             SignalName.action_requested,
             _settlementId,
-            service.ActionId,
-            service.ActionId,
+            service.ActionId.ToString(),
+            service.ActionId.ToString(),
             _selectedMemberId.ToString(),
             0,
             SettlementSubmissionSources.ToPayloadValue(SettlementSubmissionSource.Settlement)
         );
     }
 
-    private ResolvedService ResolveServiceForSelectedMember(ServiceEntry service)
+    private ResolvedService ResolveServiceForSelectedMember(SettlementServiceEntryData service)
     {
-        ResolvedService resolved = service.ToResolved();
+        var resolved = new ResolvedService(
+            service.ActionId,
+            service.FacilityName,
+            service.NpcName,
+            service.ServiceType,
+            service.InteractionScriptId,
+            service.CostLabel,
+            service.StateLabel,
+            service.IsEnabled,
+            service.DisabledReason
+        );
         if (_selectedMemberId == (StringName)"" || service.MemberAvailability.Count == 0)
             return resolved;
-        string memberKey = _selectedMemberId.ToString();
-        if (!service.MemberAvailability.TryGetValue(memberKey, out MemberAvailability availability))
+        if (
+            !service.MemberAvailability.TryGetValue(
+                _selectedMemberId,
+                out SettlementMemberAvailabilityData availability
+            )
+        )
         {
-            resolved.IsEnabled = false;
-            resolved.DisabledReason = "当前成员不可用";
-            resolved.StateLabel = "状态：当前成员不可用";
-            resolved.ApplyToPayload();
-            return resolved;
+            return resolved with
+            {
+                IsEnabled = false,
+                DisabledReason = "当前成员不可用",
+                StateLabel = "状态：当前成员不可用",
+            };
         }
 
-        resolved.IsEnabled = availability.IsEnabled;
-        resolved.DisabledReason = availability.DisabledReason;
-        resolved.StateLabel = availability.IsEnabled
-            ? "状态：可用"
-            : $"状态：{(!string.IsNullOrEmpty(availability.DisabledReason) ? availability.DisabledReason : "不可用")}";
-        resolved.ApplyToPayload();
-        return resolved;
+        return resolved with
+        {
+            IsEnabled = availability.IsEnabled,
+            DisabledReason = availability.DisabledReason,
+            StateLabel = availability.IsEnabled
+                ? "状态：可用"
+                : $"状态：{(!string.IsNullOrEmpty(availability.DisabledReason) ? availability.DisabledReason : "不可用")}",
+        };
     }
+
+    // UI-local view of one service row after the selected member is applied. It carries no
+    // property bag: submissions go out as stable ids on the existing signal.
+    private readonly record struct ResolvedService(
+        StringName ActionId,
+        string FacilityName,
+        string NpcName,
+        string ServiceType,
+        StringName InteractionScriptId,
+        string CostLabel,
+        string StateLabel,
+        bool IsEnabled,
+        string DisabledReason
+    );
 
     private void _clear_service_buttons()
     {
@@ -403,659 +455,5 @@ public partial class SettlementWindow : ModalWindowShell
             return;
         HideWindow();
         EmitSignal(SignalName.closed);
-    }
-
-    private sealed class SettlementWindowData
-    {
-        public string SettlementId { get; private init; } = "";
-        public string DisplayName { get; private init; } = "";
-        public string TierName { get; private init; } = "";
-        public string FactionId { get; private init; } = "";
-        public string FeedbackText { get; private init; } = "";
-        public string StateSummaryText { get; private init; } = "";
-        public string CountryId { get; private init; } = "";
-        public Vector2I FootprintSize { get; private init; } = Vector2I.One;
-        public PartyState PartyState { get; private init; }
-        public List<MemberOption> MemberOptions { get; private init; } = new();
-        public Dictionary<StringName, MemberOption> MemberOptionMap { get; private init; } = new();
-        public StringName ExplicitDefaultMemberId { get; private init; } = "";
-        public StringName SelectedMemberId { get; private init; } = "";
-        public List<FacilityEntry> Facilities { get; private init; } = new();
-        public List<ResidentEntry> Residents { get; private init; } = new();
-        public List<ServiceEntry> Services { get; private init; } = new();
-
-        public static SettlementWindowData Empty() => new();
-
-        public static SettlementWindowData From(GDictionary data)
-        {
-            if (data == null)
-                return null;
-            foreach (
-                string fieldName in new[]
-                {
-                    "settlement_id",
-                    "display_name",
-                    "tier_name",
-                    "faction_id",
-                    "feedback_text",
-                }
-            )
-            {
-                if (!HasNonEmptyString(data, fieldName))
-                    return null;
-            }
-            if (!HasString(data, "state_summary_text"))
-                return null;
-            if (!HasString(data, "country_id"))
-                return null;
-            if (
-                !HasVector2I(data, "footprint_size")
-            )
-                return null;
-            Vector2I footprintSize = ReadVector2I(data, "footprint_size");
-            if (footprintSize.X < 1 || footprintSize.Y < 1)
-                return null;
-            if (
-                !HasArray(data, "available_services")
-                || !HasArray(data, "facilities")
-                || !HasArray(data, "service_npcs")
-            )
-                return null;
-
-            List<FacilityEntry> facilities = BuildFacilities(ReadArray(data, "facilities"));
-            List<ResidentEntry> residents = BuildResidents(ReadArray(data, "service_npcs"));
-            List<ServiceEntry> services = BuildServices(ReadArray(data, "available_services"));
-            if (facilities == null || residents == null || services == null)
-                return null;
-
-            PartyState partyState = GetPartyState(data);
-            List<MemberOption> memberOptions = BuildMemberOptions(data, partyState);
-            if (memberOptions == null)
-                return null;
-            Dictionary<StringName, MemberOption> memberMap = BuildMemberOptionMap(memberOptions);
-
-            return new SettlementWindowData
-            {
-                SettlementId = data["settlement_id"].AsString().StripEdges(),
-                DisplayName = data["display_name"].AsString().StripEdges(),
-                TierName = data["tier_name"].AsString().StripEdges(),
-                FactionId = data["faction_id"].AsString().StripEdges(),
-                CountryId = data["country_id"].AsString().StripEdges(),
-                FeedbackText = data["feedback_text"].AsString().StripEdges(),
-                StateSummaryText = data["state_summary_text"].AsString(),
-                FootprintSize = footprintSize,
-                PartyState = partyState,
-                MemberOptions = memberOptions,
-                MemberOptionMap = memberMap,
-                ExplicitDefaultMemberId = DictStringName(data, "default_member_id"),
-                SelectedMemberId = DictStringName(data, "selected_member_id"),
-                Facilities = facilities,
-                Residents = residents,
-                Services = services,
-            };
-        }
-
-        public StringName ResolveDefaultMemberId()
-        {
-            if (
-                ExplicitDefaultMemberId != (StringName)""
-                && MemberOptionMap.ContainsKey(ExplicitDefaultMemberId)
-            )
-                return ExplicitDefaultMemberId;
-            if (SelectedMemberId != (StringName)"" && MemberOptionMap.ContainsKey(SelectedMemberId))
-                return SelectedMemberId;
-            if (PartyState != null)
-            {
-                if (
-                    PartyState.leader_member_id != (StringName)""
-                    && MemberOptionMap.ContainsKey(PartyState.leader_member_id)
-                )
-                    return PartyState.leader_member_id;
-                foreach (StringName memberId in PartyState.active_member_ids)
-                {
-                    StringName normalized = ProgressionDataUtils.to_string_name(memberId);
-                    if (normalized != (StringName)"" && MemberOptionMap.ContainsKey(normalized))
-                        return normalized;
-                }
-                foreach (StringName memberId in PartyState.reserve_member_ids)
-                {
-                    StringName normalized = ProgressionDataUtils.to_string_name(memberId);
-                    if (normalized != (StringName)"" && MemberOptionMap.ContainsKey(normalized))
-                        return normalized;
-                }
-            }
-            foreach (MemberOption option in MemberOptions)
-            {
-                if (option.MemberId != (StringName)"")
-                    return option.MemberId;
-            }
-            return "";
-        }
-    }
-
-    private readonly record struct FacilityEntry(
-        string DisplayName,
-        string SlotTag,
-        string InteractionType
-    );
-
-    private readonly record struct ResidentEntry(
-        string DisplayName,
-        string ServiceType,
-        string FacilityName
-    );
-
-    private readonly record struct MemberAvailability(bool IsEnabled, string DisabledReason);
-
-    private sealed class ServiceEntry
-    {
-        private static readonly string[] ServiceEntryKeys =
-        {
-            "settlement_id",
-            "facility_id",
-            "facility_template_id",
-            "facility_name",
-            "npc_id",
-            "npc_template_id",
-            "npc_name",
-            "service_type",
-            "action_id",
-            "interaction_script_id",
-            "cost_label",
-            "state_label",
-            "summary_text",
-            "is_enabled",
-            "disabled_reason",
-            "panel_kind",
-            "interaction_type",
-            "member_availability",
-        };
-
-        public string ActionId { get; private init; } = "";
-        public string FacilityName { get; private init; } = "";
-        public string NpcName { get; private init; } = "";
-        public string ServiceType { get; private init; } = "";
-        public string InteractionScriptId { get; private init; } = "";
-        public string CostLabel { get; private init; } = "";
-        public string StateLabel { get; private init; } = "";
-        public string SummaryText { get; private init; } = "";
-        public bool IsEnabled { get; private init; }
-        public string DisabledReason { get; private init; } = "";
-        public SettlementPanelKind PanelKind { get; private init; } = SettlementPanelKind.None;
-        public Dictionary<string, MemberAvailability> MemberAvailability { get; private init; } =
-            new();
-        public Dictionary<string, object> Payload { get; private init; } = new();
-
-        public ResolvedService ToResolved()
-        {
-            return new ResolvedService
-            {
-                ActionId = ActionId,
-                FacilityName = FacilityName,
-                NpcName = NpcName,
-                ServiceType = ServiceType,
-                InteractionScriptId = InteractionScriptId,
-                CostLabel = CostLabel,
-                StateLabel = StateLabel,
-                SummaryText = SummaryText,
-                IsEnabled = IsEnabled,
-                DisabledReason = DisabledReason,
-                PanelKind = PanelKind,
-                Payload = new Dictionary<string, object>(Payload, StringComparer.Ordinal),
-            };
-        }
-
-        public static ServiceEntry From(GDictionary data)
-        {
-            if (data == null)
-                return null;
-            if (!HasOnlyKnownKeys(data, ServiceEntryKeys))
-                return null;
-            foreach (
-                string fieldName in new[]
-                {
-                    "action_id",
-                    "facility_name",
-                    "npc_name",
-                    "service_type",
-                    "interaction_script_id",
-                    "cost_label",
-                    "state_label",
-                    "summary_text",
-                }
-            )
-            {
-                if (!HasNonEmptyString(data, fieldName))
-                    return null;
-            }
-            if (
-                !HasBool(data, "is_enabled")
-            )
-                return null;
-            if (!HasString(data, "disabled_reason"))
-                return null;
-            bool isEnabled = DictBool(data, "is_enabled", false);
-            string disabledReason = StrictString(data, "disabled_reason").StripEdges();
-            if (!isEnabled && string.IsNullOrEmpty(disabledReason))
-                return null;
-            SettlementPanelKind panelKind = SettlementPanelKind.None;
-            if (data.ContainsKey("panel_kind"))
-            {
-                if (!HasNonEmptyString(data, "panel_kind"))
-                    return null;
-                if (
-                    !SettlementPanelKinds.TryParse(
-                        data["panel_kind"].AsString().StripEdges(),
-                        out panelKind
-                    )
-                    || panelKind == SettlementPanelKind.None
-                )
-                    return null;
-            }
-            if (data.ContainsKey("interaction_type") && !HasString(data, "interaction_type"))
-                return null;
-
-            Dictionary<string, object> payload = RuntimePlainPayload.NormalizeDictionary(
-                data,
-                "SettlementWindow.ServiceEntry"
-            );
-            payload["is_enabled"] = isEnabled;
-            payload["disabled_reason"] = disabledReason;
-            string panelKindText = SettlementPanelKinds.ToPayloadValue(panelKind);
-            if (!string.IsNullOrEmpty(panelKindText))
-                payload["panel_kind"] = panelKindText;
-
-            return new ServiceEntry
-            {
-                ActionId = data["action_id"].AsString().StripEdges(),
-                FacilityName = data["facility_name"].AsString().StripEdges(),
-                NpcName = data["npc_name"].AsString().StripEdges(),
-                ServiceType = data["service_type"].AsString().StripEdges(),
-                InteractionScriptId = data["interaction_script_id"].AsString().StripEdges(),
-                CostLabel = data["cost_label"].AsString().StripEdges(),
-                StateLabel = data["state_label"].AsString().StripEdges(),
-                SummaryText = data["summary_text"].AsString().StripEdges(),
-                IsEnabled = isEnabled,
-                DisabledReason = disabledReason,
-                PanelKind = panelKind,
-                MemberAvailability = ParseMemberAvailability(
-                    DictDictionary(data, "member_availability")
-                ),
-                Payload = payload,
-            };
-        }
-    }
-
-    private sealed class ResolvedService
-    {
-        public string ActionId = "";
-        public string FacilityName = "";
-        public string NpcName = "";
-        public string ServiceType = "";
-        public string InteractionScriptId = "";
-        public string CostLabel = "";
-        public string StateLabel = "";
-        public string SummaryText = "";
-        public bool IsEnabled;
-        public string DisabledReason = "";
-        public SettlementPanelKind PanelKind = SettlementPanelKind.None;
-        public Dictionary<string, object> Payload = new(StringComparer.Ordinal);
-
-        public void ApplyToPayload()
-        {
-            Payload["is_enabled"] = IsEnabled;
-            Payload["disabled_reason"] = DisabledReason;
-            Payload["state_label"] = StateLabel;
-        }
-    }
-
-    private sealed class MemberOption
-    {
-        public StringName MemberId { get; private init; } = "";
-        public string DisplayName { get; private init; } = "";
-        public string RosterRole { get; private init; } = "";
-        public bool IsLeader { get; private init; }
-        public int CurrentHp { get; private init; }
-        public int CurrentMp { get; private init; }
-
-        public string BuildLabel()
-        {
-            string prefix = IsLeader ? "队长 · " : "";
-            string roleSuffix = !string.IsNullOrEmpty(RosterRole) ? $" · {RosterRole}" : "";
-            return $"{prefix}{DisplayName}{roleSuffix}  |  HP {CurrentHp}  MP {CurrentMp}";
-        }
-
-        public static MemberOption From(GDictionary data)
-        {
-            if (data == null)
-                return null;
-            StringName memberId = DictStringName(data, "member_id");
-            if (memberId == (StringName)"")
-                return null;
-            string displayName = StrictString(data, "display_name").StripEdges();
-            if (string.IsNullOrEmpty(displayName))
-                return null;
-            return new MemberOption
-            {
-                MemberId = memberId,
-                DisplayName = displayName,
-                RosterRole = DictString(data, "roster_role", ""),
-                IsLeader = DictBool(data, "is_leader", false),
-                CurrentHp = DictInt(data, "current_hp", 0),
-                CurrentMp = DictInt(data, "current_mp", 0),
-            };
-        }
-
-        public static MemberOption FromParty(
-            PartyState partyState,
-            StringName memberId,
-            string defaultRole
-        )
-        {
-            if (partyState == null || memberId == (StringName)"")
-                return null;
-            PartyMemberState memberState = partyState.GetMemberState(memberId);
-            if (memberState == null)
-                return null;
-            string displayName = memberState.display_name.StripEdges();
-            if (string.IsNullOrEmpty(displayName))
-                return null;
-            return new MemberOption
-            {
-                MemberId = memberId,
-                DisplayName = displayName,
-                RosterRole = defaultRole,
-                IsLeader = partyState.leader_member_id == memberId,
-                CurrentHp = memberState.current_hp,
-                CurrentMp = memberState.current_mp,
-            };
-        }
-    }
-
-    private static List<FacilityEntry> BuildFacilities(GArray value)
-    {
-        var result = new List<FacilityEntry>();
-        foreach (var entryValue in value)
-        {
-            if (!entryValue.TryAsDictionary(out GDictionary entry))
-                return null;
-            if (
-                !HasNonEmptyString(entry, "display_name")
-                || !HasNonEmptyString(entry, "slot_tag")
-                || !HasString(entry, "interaction_type")
-            )
-                return null;
-            result.Add(
-                new FacilityEntry(
-                    entry["display_name"].AsString().StripEdges(),
-                    entry["slot_tag"].AsString().StripEdges(),
-                    entry["interaction_type"].AsString().StripEdges()
-                )
-            );
-        }
-        return result;
-    }
-
-    private static List<ResidentEntry> BuildResidents(GArray value)
-    {
-        var result = new List<ResidentEntry>();
-        foreach (var entryValue in value)
-        {
-            if (!entryValue.TryAsDictionary(out GDictionary entry))
-                return null;
-            if (
-                !HasNonEmptyString(entry, "display_name")
-                || !HasNonEmptyString(entry, "service_type")
-                || !HasNonEmptyString(entry, "facility_name")
-            )
-                return null;
-            result.Add(
-                new ResidentEntry(
-                    entry["display_name"].AsString().StripEdges(),
-                    entry["service_type"].AsString().StripEdges(),
-                    entry["facility_name"].AsString().StripEdges()
-                )
-            );
-        }
-        return result;
-    }
-
-    private static List<ServiceEntry> BuildServices(GArray value)
-    {
-        var result = new List<ServiceEntry>();
-        foreach (var entryValue in value)
-        {
-            if (!entryValue.TryAsDictionary(out GDictionary entryData))
-                return null;
-            ServiceEntry entry = ServiceEntry.From(entryData);
-            if (entry == null)
-                return null;
-            result.Add(entry);
-        }
-        return result;
-    }
-
-    private static Dictionary<string, MemberAvailability> ParseMemberAvailability(GDictionary byMember)
-    {
-        var result = new Dictionary<string, MemberAvailability>();
-        if (byMember == null)
-            return result;
-        foreach (var key in byMember.Keys)
-        {
-            var availabilityValue = byMember[key];
-            if (!availabilityValue.TryAsDictionary(out GDictionary availability))
-                continue;
-            result[key.AsString()] = new MemberAvailability(
-                DictBool(availability, "is_enabled", false),
-                DictString(availability, "disabled_reason", "").StripEdges()
-            );
-        }
-        return result;
-    }
-
-    private static List<MemberOption> BuildMemberOptions(GDictionary data, PartyState partyState)
-    {
-        var options = new List<MemberOption>();
-        if (data.ContainsKey("member_options"))
-        {
-            if (!HasArray(data, "member_options"))
-                return null;
-            foreach (Variant optionValue in ReadArray(data, "member_options"))
-            {
-                if (!optionValue.TryAsDictionary(out GDictionary optionData))
-                    return null;
-                MemberOption option = MemberOption.From(optionData);
-                if (option == null)
-                    return null;
-                options.Add(option);
-            }
-            return options;
-        }
-
-        if (partyState == null)
-            return options;
-        var seenIds = new HashSet<string>();
-        foreach (StringName memberId in partyState.active_member_ids)
-            AppendMemberOption(
-                options,
-                seenIds,
-                partyState,
-                ProgressionDataUtils.to_string_name(memberId),
-                "上阵"
-            );
-        foreach (StringName memberId in partyState.reserve_member_ids)
-            AppendMemberOption(
-                options,
-                seenIds,
-                partyState,
-                ProgressionDataUtils.to_string_name(memberId),
-                "替补"
-            );
-        return options;
-    }
-
-    private static void AppendMemberOption(
-        List<MemberOption> options,
-        HashSet<string> seenIds,
-        PartyState partyState,
-        StringName memberId,
-        string role
-    )
-    {
-        string key = memberId.ToString();
-        if (string.IsNullOrEmpty(key) || seenIds.Contains(key))
-            return;
-        MemberOption option = MemberOption.FromParty(partyState, memberId, role);
-        if (option == null)
-            return;
-        seenIds.Add(key);
-        options.Add(option);
-    }
-
-    private static Dictionary<StringName, MemberOption> BuildMemberOptionMap(
-        List<MemberOption> options
-    )
-    {
-        var result = new Dictionary<StringName, MemberOption>();
-        foreach (MemberOption option in options)
-        {
-            if (option.MemberId != (StringName)"" && !string.IsNullOrEmpty(option.DisplayName))
-                result[option.MemberId] = option;
-        }
-        return result;
-    }
-
-    private static PartyState GetPartyState(GDictionary data)
-    {
-        if (!TryRead(data, "party_state", out Variant value))
-            return null;
-        return PartyState.TryReadPartyPayload(value, out PartyState partyState)
-            ? partyState
-            : null;
-    }
-
-    private static bool HasArray(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Array;
-    }
-
-    private static bool HasString(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.String;
-    }
-
-    private static bool HasVector2I(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Vector2I;
-    }
-
-    private static bool HasBool(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Bool;
-    }
-
-    private static bool HasNonEmptyString(GDictionary data, string key)
-    {
-        return HasString(data, key) && !string.IsNullOrEmpty(data[key].AsString().StripEdges());
-    }
-
-    private static bool HasOnlyKnownKeys(GDictionary data, IReadOnlyList<string> expectedKeys)
-    {
-        if (data == null)
-            return false;
-        foreach (Variant keyValue in data.Keys)
-        {
-            string key = keyValue.ToString();
-            bool found = false;
-            foreach (string expectedKey in expectedKeys)
-            {
-                if (key == expectedKey)
-                {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-                return false;
-        }
-        return true;
-    }
-
-    private static GArray ReadArray(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static GDictionary DictDictionary(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static StringName DictStringName(GDictionary data, string key)
-    {
-        if (!TryRead(data, key, out Variant value))
-            return "";
-        return value.VariantType switch
-        {
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => "",
-        };
-    }
-
-    private static string DictString(GDictionary data, string key, string defaultValue)
-    {
-        if (!TryRead(data, key, out Variant value))
-            return defaultValue;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            _ => defaultValue,
-        };
-    }
-
-    private static string StrictString(GDictionary data, string key)
-    {
-        return DictString(data, key, "");
-    }
-
-    private static bool DictBool(GDictionary data, string key, bool defaultValue)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Bool
-            ? value.AsBool()
-            : defaultValue;
-    }
-
-    private static int DictInt(GDictionary data, string key, int defaultValue)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Int
-            ? value.AsInt32()
-            : defaultValue;
-    }
-
-    private static Vector2I ReadVector2I(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Vector2I
-            ? value.AsVector2I()
-            : Vector2I.Zero;
-    }
-
-    private static bool TryRead(GDictionary data, string key, out Variant value)
-    {
-        if (data == null || string.IsNullOrEmpty(key))
-        {
-            value = default;
-            return false;
-        }
-        if (data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = default;
-        return false;
     }
 }

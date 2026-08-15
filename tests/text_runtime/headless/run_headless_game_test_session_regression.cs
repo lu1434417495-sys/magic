@@ -550,19 +550,19 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
                 return;
 
             _test.True(
-                runtime._battle_runtime.GetEnemyTemplateIndexTyped().ContainsKey("wolf_pack"),
+                runtime.GetBattleRuntime().GetEnemyTemplateIndexTyped().ContainsKey("wolf_pack"),
                 "BattleRuntimeModule typed template index 应继续保留正式 template。"
             );
             _test.True(
-                runtime._battle_runtime.GetEnemyAiBrainIndexTyped().ContainsKey("melee_aggressor"),
+                runtime.GetBattleRuntime().GetEnemyAiBrainIndexTyped().ContainsKey("melee_aggressor"),
                 "BattleRuntimeModule typed brain index 应继续保留正式 brain。"
             );
             _test.True(
-                runtime._battle_runtime.GetEnemyTemplateIndexTyped().ContainsKey(templateId),
+                runtime.GetBattleRuntime().GetEnemyTemplateIndexTyped().ContainsKey(templateId),
                 "GameRuntimeFacade.setup 应消费 synthetic enemy template definition index。"
             );
             _test.True(
-                runtime._battle_runtime.GetEnemyAiBrainIndexTyped().ContainsKey(brainId),
+                runtime.GetBattleRuntime().GetEnemyAiBrainIndexTyped().ContainsKey(brainId),
                 "GameRuntimeFacade.setup 应消费 synthetic enemy brain definition index。"
             );
         }

@@ -445,14 +445,18 @@ internal static class BattleLootEntryPayload
             value = dictionary;
             return true;
         }
-        try
+        // Loot payload members are read out of a Godot dictionary, so anything
+        // that is not already a GDictionary arrives here as a boxed Variant.
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsGodotDictionary();
-            return true;
-        }
-        catch
-        {
+            try
+            {
+                value = variantValue.AsGodotDictionary();
+                return true;
+            }
+            catch
+            {
+            }
         }
         value = new GDictionary();
         return false;
@@ -460,14 +464,16 @@ internal static class BattleLootEntryPayload
 
     private static bool TryAsInt(object rawValue, out int value)
     {
-        try
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsInt32();
-            return true;
-        }
-        catch
-        {
+            try
+            {
+                value = variantValue.AsInt32();
+                return true;
+            }
+            catch
+            {
+            }
         }
         if (rawValue is int intValue)
         {

@@ -1,20 +1,16 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class ShopWindow : ModalWindowShell
 {
+    // Panel-specific typed submissions. The window never assembles a property bag for the
+    // runtime to re-parse: it only reports which stable id the player picked.
+    internal event Action<SettlementShopActionRequest> ShopActionRequested;
+    internal event Action<SettlementContractBoardActionRequest> ContractActionRequested;
     internal event Action<ForgeActionRequest> ForgeActionRequested;
-
-    [Signal]
-    public delegate void action_requestedEventHandler(
-        string settlement_id,
-        string action_id,
-        GDictionary payload
-    );
+    internal event Action<SettlementStagecoachActionRequest> StagecoachActionRequested;
 
     [Signal]
     public delegate void closedEventHandler();
@@ -39,9 +35,7 @@ public partial class ShopWindow : ModalWindowShell
     public Button cancel_button;
     public Button close_button;
 
-    private ShopWindowData _windowData = ShopWindowData.Empty();
-    private string _settlementId = "";
-    private string _actionId = "";
+    private SettlementServiceWindowData _windowData = SettlementServiceWindowData.Empty;
     private int _selectedEntryIndex = -1;
     private StringName _selectedMemberId = "";
     private bool _isShowingConfirmation = false;
@@ -116,36 +110,24 @@ public partial class ShopWindow : ModalWindowShell
 
     protected override void _on_modal_close_requested() => _on_cancel_button_pressed();
 
-    public void ShowShop(GDictionary window_data)
+    internal void ShowShop(SettlementServiceWindowData window_data)
     {
-        ShopWindowData normalized = ShopWindowData.From(window_data);
-        if (normalized == null)
+        if (window_data == null || !window_data.IsValid)
         {
             HideWindow();
             return;
         }
 
-        _windowData = normalized;
-        _settlementId = _windowData.SettlementId;
-        _actionId = _windowData.ActionId;
+        _windowData = window_data;
         _selectedEntryIndex = -1;
         _selectedMemberId = _resolve_default_member_id();
         Visible = true;
         RefreshView();
     }
 
-    public void ShowStagecoach(GDictionary window_data)
+    internal void ShowStagecoach(SettlementServiceWindowData window_data)
     {
-        if (window_data == null || !HasString(window_data, "panel_kind"))
-        {
-            HideWindow();
-            return;
-        }
-        string panelKindText = window_data["panel_kind"].AsString().StripEdges();
-        if (
-            !SettlementPanelKinds.TryParse(panelKindText, out SettlementPanelKind panelKind)
-            || panelKind != SettlementPanelKind.Stagecoach
-        )
+        if (window_data == null || window_data.PanelKind != SettlementPanelKind.Stagecoach)
         {
             HideWindow();
             return;
@@ -157,9 +139,7 @@ public partial class ShopWindow : ModalWindowShell
     {
         Visible = false;
         _isShowingConfirmation = false;
-        _windowData = ShopWindowData.Empty();
-        _settlementId = "";
-        _actionId = "";
+        _windowData = SettlementServiceWindowData.Empty;
         _selectedEntryIndex = -1;
         _selectedMemberId = "";
 
@@ -212,7 +192,7 @@ public partial class ShopWindow : ModalWindowShell
         _refresh_member_state();
         _refresh_details();
         _refresh_controls();
-        if (_windowData.PendingConfirmationQuestId != (StringName)"")
+        if (_windowData.Confirmation != null)
             _show_confirmation_panel();
         else
             _hide_confirmation_panel();
@@ -240,8 +220,8 @@ public partial class ShopWindow : ModalWindowShell
         member_selector.Visible = true;
         member_state_label.Visible = true;
         var options = new List<(StringName Id, string Label)>();
-        foreach (MemberOption option in _windowData.MemberOptions)
-            options.Add((option.MemberId, option.BuildLabel()));
+        foreach (SettlementMemberOptionData option in _windowData.MemberOptions)
+            options.Add((option.MemberId, BuildMemberLabel(option)));
         UiOptionButtonUtils.Populate(member_selector, options, new StringName(""));
 
         member_selector.Visible = _windowData.MemberOptions.Count > 0;
@@ -253,9 +233,37 @@ public partial class ShopWindow : ModalWindowShell
         _select_member(selectedMemberId);
     }
 
+    private static string BuildMemberLabel(SettlementMemberOptionData option)
+    {
+        if (string.IsNullOrEmpty(option.DisplayName))
+            return "";
+        string prefix = option.IsLeader ? "队长 · " : "";
+        string roleSuffix = !string.IsNullOrEmpty(option.RosterRole)
+            ? $" · {option.RosterRole}"
+            : "";
+        return $"{prefix}{option.DisplayName}{roleSuffix}  |  HP {option.CurrentHp}  MP {option.CurrentMp}";
+    }
+
+    // The runtime already resolved the default member; the window only falls back to the
+    // first renderable option when that member is not selectable here.
     private StringName _resolve_default_member_id()
     {
-        return _windowData.ResolveDefaultMemberId();
+        if (
+            _windowData.SelectedMemberId != (StringName)""
+            && _windowData.MemberOptionMap.ContainsKey(_windowData.SelectedMemberId)
+        )
+            return _windowData.SelectedMemberId;
+        if (
+            _windowData.DefaultMemberId != (StringName)""
+            && _windowData.MemberOptionMap.ContainsKey(_windowData.DefaultMemberId)
+        )
+            return _windowData.DefaultMemberId;
+        foreach (SettlementMemberOptionData option in _windowData.MemberOptions)
+        {
+            if (option.MemberId != (StringName)"")
+                return option.MemberId;
+        }
+        return "";
     }
 
     private void _select_member(StringName member_id)
@@ -286,7 +294,10 @@ public partial class ShopWindow : ModalWindowShell
             return;
         }
         if (
-            !_windowData.MemberOptionMap.TryGetValue(_selectedMemberId, out MemberOption option)
+            !_windowData.MemberOptionMap.TryGetValue(
+                _selectedMemberId,
+                out SettlementMemberOptionData option
+            )
             || string.IsNullOrEmpty(option.DisplayName)
         )
         {
@@ -310,14 +321,11 @@ public partial class ShopWindow : ModalWindowShell
     private void _rebuild_entry_list()
     {
         entry_list.Clear();
-        for (int index = 0; index < _windowData.Entries.Count; index++)
-        {
-            ShopEntry entry = _windowData.Entries[index];
+        foreach (SettlementServiceWindowEntryData entry in _windowData.Entries)
             entry_list.AddItem(_build_entry_label(entry));
-        }
     }
 
-    private static string _build_entry_label(ShopEntry entry)
+    private static string _build_entry_label(SettlementServiceWindowEntryData entry)
     {
         string label = $"{entry.DisplayName}\n{entry.StateLabel}  |  {entry.CostLabel}";
         if (!entry.IsEnabled && !string.IsNullOrEmpty(entry.DisabledReason))
@@ -343,20 +351,20 @@ public partial class ShopWindow : ModalWindowShell
     {
         if (_windowData.Entries.Count == 0)
         {
-            state_label.Text = _windowData.EmptyStateLabel;
-            cost_label.Text = _windowData.EmptyCostLabel;
-            details_label.Text = _windowData.EmptyDetailsText;
+            state_label.Text = _windowData.Labels.EmptyStateLabel;
+            cost_label.Text = _windowData.Labels.EmptyCostLabel;
+            details_label.Text = _windowData.Labels.EmptyDetailsText;
             confirm_button.Disabled = true;
             return;
         }
 
-        ShopEntry entry = _get_selected_entry();
+        SettlementServiceWindowEntryData entry = _get_selected_entry();
         state_label.Text = entry.StateLabel;
         cost_label.Text = entry.CostLabel;
         details_label.Text = _build_entry_details(entry);
     }
 
-    private string _build_entry_details(ShopEntry entry)
+    private string _build_entry_details(SettlementServiceWindowEntryData entry)
     {
         var lines = new List<string>
         {
@@ -394,77 +402,12 @@ public partial class ShopWindow : ModalWindowShell
 
     private string _get_selected_member_display_name(StringName member_id)
     {
-        return _windowData.MemberOptionMap.TryGetValue(member_id, out MemberOption option)
+        return _windowData.MemberOptionMap.TryGetValue(
+            member_id,
+            out SettlementMemberOptionData option
+        )
             ? option.DisplayName
             : "";
-    }
-
-    private GodotProjectionLease<GDictionary> _build_confirm_payload()
-    {
-        ShopEntry entry = _get_selected_entry();
-        GodotProjectionLease<GDictionary> lease = RuntimePlainPayload.ProjectDictionaryLease(
-            entry.Payload,
-            "ShopWindow.confirm_payload",
-            LifetimeDomain.Request,
-            "ShopWindow.confirm_payload"
-        );
-        try
-        {
-            GDictionary payload = lease.Value;
-            string panelKind = SettlementPanelKinds.ToPayloadValue(_windowData.PanelKind);
-            string submissionSource = SettlementSubmissionSources.ToPayloadValue(
-                SettlementSubmissionSources.FromPanelKind(_windowData.PanelKind)
-            );
-            payload["settlement_id"] = _settlementId;
-            payload["action_id"] = _actionId;
-            payload["interaction_script_id"] = FirstNonEmpty(
-                _windowData.InteractionScriptId,
-                DictString(payload, "interaction_script_id", "")
-            );
-            payload["facility_id"] = FirstNonEmpty(
-                _windowData.FacilityId,
-                DictString(payload, "facility_id", "")
-            );
-            payload["facility_name"] = FirstNonEmpty(
-                _windowData.FacilityName,
-                DictString(payload, "facility_name", "")
-            );
-            payload["npc_id"] = FirstNonEmpty(
-                _windowData.NpcId,
-                DictString(payload, "npc_id", "")
-            );
-            payload["npc_name"] = FirstNonEmpty(
-                _windowData.NpcName,
-                DictString(payload, "npc_name", "")
-            );
-            payload["service_type"] = FirstNonEmpty(
-                _windowData.ServiceType,
-                DictString(payload, "service_type", "")
-            );
-            payload["member_id"] = _selectedMemberId.ToString();
-            payload["default_member_id"] = _selectedMemberId.ToString();
-            payload["submission_source"] = submissionSource;
-            payload["panel_kind"] = panelKind;
-            payload["state_summary_text"] = _windowData.StateSummaryText;
-            return lease;
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
-    }
-
-    private ForgeActionRequest _build_forge_action_request()
-    {
-        ShopEntry entry = _get_selected_entry();
-        return new ForgeActionRequest(
-            new StringName(_settlementId),
-            new StringName(_actionId),
-            new StringName(_actionId),
-            _selectedMemberId,
-            entry?.RecipeId ?? default
-        );
     }
 
     private void _on_entry_selected(int index)
@@ -487,14 +430,14 @@ public partial class ShopWindow : ModalWindowShell
         _isShowingConfirmation = true;
         confirm_button.Text = "确认";
         cancel_button.Text = "返回";
-        details_label.Text = _windowData.PendingConfirmationText;
+        details_label.Text = _windowData.Confirmation?.Text ?? "";
     }
 
     private void _hide_confirmation_panel()
     {
         _isShowingConfirmation = false;
-        confirm_button.Text = _windowData.ConfirmLabel;
-        cancel_button.Text = _windowData.CancelLabel;
+        confirm_button.Text = _windowData.Labels.ConfirmLabel;
+        cancel_button.Text = _windowData.Labels.CancelLabel;
         _refresh_details();
     }
 
@@ -502,35 +445,77 @@ public partial class ShopWindow : ModalWindowShell
     {
         if (confirm_button.Disabled)
             return;
-        if (
-            _windowData.PendingConfirmationQuestId != (StringName)""
-            && !_isShowingConfirmation
-        )
+        if (_windowData.Confirmation != null && !_isShowingConfirmation)
         {
             _show_confirmation_panel();
             return;
         }
-
-        if (_windowData.PanelKind == SettlementPanelKind.Forge)
-        {
-            ForgeActionRequest request = _build_forge_action_request();
-            if (!request.IsValid)
-                return;
-            HideWindow();
-            ForgeActionRequested?.Invoke(request);
+        if (_windowData.Entries.Count == 0)
             return;
+
+        SettlementServiceWindowEntryData entry = _get_selected_entry();
+        bool confirmAccept = _windowData.Confirmation != null;
+        SettlementActionRequest action = _build_action_request();
+        switch (entry.Selection)
+        {
+            case SettlementShopSelectionData shop:
+                HideWindow();
+                ShopActionRequested?.Invoke(
+                    new SettlementShopActionRequest(
+                        action,
+                        shop.ActionKind,
+                        shop.ItemId,
+                        shop.InstanceId,
+                        1
+                    )
+                );
+                return;
+            case SettlementContractSelectionData contract:
+                HideWindow();
+                ContractActionRequested?.Invoke(
+                    new SettlementContractBoardActionRequest(
+                        action,
+                        contract.QuestId,
+                        confirmAccept
+                    )
+                );
+                return;
+            case SettlementForgeSelectionData forge:
+                {
+                    var request = new ForgeActionRequest(
+                        action.SettlementId,
+                        action.ServiceId,
+                        action.ActionId,
+                        action.MemberId,
+                        forge.RecipeId
+                    );
+                    if (!request.IsValid)
+                        return;
+                    HideWindow();
+                    ForgeActionRequested?.Invoke(request);
+                    return;
+                }
+            case SettlementStagecoachSelectionData stagecoach:
+                HideWindow();
+                StagecoachActionRequested?.Invoke(
+                    new SettlementStagecoachActionRequest(
+                        action,
+                        stagecoach.TargetSettlementId
+                    )
+                );
+                return;
         }
-
-        using GodotProjectionLease<GDictionary> payloadLease = _build_confirm_payload();
-        GDictionary payload = payloadLease.Value;
-        if (_windowData.PendingConfirmationQuestId != (StringName)"")
-            payload["confirm_accept"] = true;
-
-        string settlementId = _settlementId;
-        string actionId = _actionId;
-        HideWindow();
-        EmitSignal(SignalName.action_requested, settlementId, actionId, payload);
     }
+
+    private SettlementActionRequest _build_action_request() =>
+        new(
+            _windowData.SettlementId,
+            _windowData.ActionId,
+            _windowData.ActionId,
+            _selectedMemberId,
+            0,
+            SettlementSubmissionSources.FromPanelKind(_windowData.PanelKind)
+        );
 
     private void _on_cancel_button_pressed()
     {
@@ -550,7 +535,7 @@ public partial class ShopWindow : ModalWindowShell
         _on_cancel_button_pressed();
     }
 
-    private ShopEntry _get_selected_entry()
+    private SettlementServiceWindowEntryData _get_selected_entry()
     {
         if (_selectedEntryIndex >= 0 && _selectedEntryIndex < _windowData.Entries.Count)
             return _windowData.Entries[_selectedEntryIndex];
@@ -559,519 +544,11 @@ public partial class ShopWindow : ModalWindowShell
 
     private void _apply_section_titles()
     {
-        entry_title_label.Text = _windowData.EntryTitle;
-        summary_title_label.Text = _windowData.SummaryTitle;
-        state_title_label.Text = _windowData.StateTitle;
-        cost_title_label.Text = _windowData.CostTitle;
-        details_title_label.Text = _windowData.DetailsTitle;
-        member_title_label.Text = _windowData.MemberTitle;
-    }
-
-    private sealed class ShopWindowData
-    {
-        public string SettlementId { get; private init; } = "";
-        public string ActionId { get; private init; } = "";
-        public SettlementPanelKind PanelKind { get; private init; } = SettlementPanelKind.None;
-        public string Title { get; private init; } = "";
-        public string Meta { get; private init; } = "";
-        public string SummaryText { get; private init; } = "";
-        public string ConfirmLabel { get; private init; } = "";
-        public string CancelLabel { get; private init; } = "";
-        public string EntryTitle { get; private init; } = "";
-        public string SummaryTitle { get; private init; } = "";
-        public string StateTitle { get; private init; } = "";
-        public string CostTitle { get; private init; } = "";
-        public string DetailsTitle { get; private init; } = "";
-        public string MemberTitle { get; private init; } = "";
-        public string EmptyStateLabel { get; private init; } = "";
-        public string EmptyCostLabel { get; private init; } = "";
-        public string EmptyDetailsText { get; private init; } = "";
-        public string StateSummaryText { get; private init; } = "";
-        public bool ShowMemberSelector { get; private init; }
-        public string InteractionScriptId { get; private init; } = "";
-        public string FacilityId { get; private init; } = "";
-        public string FacilityName { get; private init; } = "";
-        public string NpcId { get; private init; } = "";
-        public string NpcName { get; private init; } = "";
-        public string ServiceType { get; private init; } = "";
-        public PartyState PartyState { get; private init; }
-        public List<ShopEntry> Entries { get; private init; } = new();
-        public List<MemberOption> MemberOptions { get; private init; } = new();
-        public Dictionary<StringName, MemberOption> MemberOptionMap { get; private init; } = new();
-        public StringName ExplicitDefaultMemberId { get; private init; } = "";
-        public StringName SelectedMemberId { get; private init; } = "";
-        public StringName PendingConfirmationQuestId { get; private init; } = "";
-        public string PendingConfirmationText { get; private init; } = "";
-        public string PendingConfirmationSource { get; private init; } = "";
-
-        public static ShopWindowData Empty() => new();
-
-        public static ShopWindowData From(GDictionary data)
-        {
-            if (data == null)
-                return null;
-            foreach (string fieldName in RequiredStringFields)
-            {
-                if (!HasNonEmptyString(data, fieldName))
-                    return null;
-            }
-            if (!HasString(data, "state_summary_text"))
-                return null;
-            if (
-                !HasBool(data, "show_member_selector")
-            )
-                return null;
-
-            string panelKindText = data["panel_kind"].AsString().StripEdges();
-            if (
-                !SettlementPanelKinds.TryParse(panelKindText, out SettlementPanelKind panelKind)
-                || panelKind == SettlementPanelKind.None
-            )
-                return null;
-            List<ShopEntry> entries = BuildEntries(data);
-            if (entries == null)
-                return null;
-            if (
-                panelKind == SettlementPanelKind.Forge
-                && entries.Exists(entry => entry.RecipeId == "")
-            )
-            {
-                return null;
-            }
-
-            PartyState partyState = GetPartyState(data);
-            List<MemberOption> memberOptions = BuildMemberOptions(data, partyState);
-            if (memberOptions == null)
-                return null;
-            Dictionary<StringName, MemberOption> memberMap = BuildMemberOptionMap(memberOptions);
-
-            return new ShopWindowData
-            {
-                SettlementId = data["settlement_id"].AsString().StripEdges(),
-                ActionId = data["action_id"].AsString().StripEdges(),
-                PanelKind = panelKind,
-                Title = data["title"].AsString().StripEdges(),
-                Meta = data["meta"].AsString().StripEdges(),
-                SummaryText = data["summary_text"].AsString().StripEdges(),
-                ConfirmLabel = data["confirm_label"].AsString().StripEdges(),
-                CancelLabel = data["cancel_label"].AsString().StripEdges(),
-                EntryTitle = data["entry_title"].AsString().StripEdges(),
-                SummaryTitle = data["summary_title"].AsString().StripEdges(),
-                StateTitle = data["state_title"].AsString().StripEdges(),
-                CostTitle = data["cost_title"].AsString().StripEdges(),
-                DetailsTitle = data["details_title"].AsString().StripEdges(),
-                MemberTitle = data["member_title"].AsString().StripEdges(),
-                EmptyStateLabel = data["empty_state_label"].AsString().StripEdges(),
-                EmptyCostLabel = data["empty_cost_label"].AsString().StripEdges(),
-                EmptyDetailsText = data["empty_details_text"].AsString().StripEdges(),
-                StateSummaryText = data["state_summary_text"].AsString(),
-                ShowMemberSelector = DictBool(data, "show_member_selector", false),
-                InteractionScriptId = OptionalString(data, "interaction_script_id"),
-                FacilityId = OptionalString(data, "facility_id"),
-                FacilityName = OptionalString(data, "facility_name"),
-                NpcId = OptionalString(data, "npc_id"),
-                NpcName = OptionalString(data, "npc_name"),
-                ServiceType = OptionalString(data, "service_type"),
-                PartyState = partyState,
-                Entries = entries,
-                MemberOptions = memberOptions,
-                MemberOptionMap = memberMap,
-                ExplicitDefaultMemberId = DictStringName(data, "default_member_id"),
-                SelectedMemberId = DictStringName(data, "selected_member_id"),
-                PendingConfirmationQuestId = DictStringName(data, "pending_confirmation_quest_id"),
-                PendingConfirmationText = DictString(data, "pending_confirmation_text", ""),
-                PendingConfirmationSource = DictString(data, "pending_confirmation_source", ""),
-            };
-        }
-
-        public StringName ResolveDefaultMemberId()
-        {
-            if (
-                ExplicitDefaultMemberId != (StringName)""
-                && MemberOptionMap.ContainsKey(ExplicitDefaultMemberId)
-            )
-                return ExplicitDefaultMemberId;
-            if (SelectedMemberId != (StringName)"" && MemberOptionMap.ContainsKey(SelectedMemberId))
-                return SelectedMemberId;
-            if (PartyState != null)
-            {
-                if (
-                    PartyState.leader_member_id != (StringName)""
-                    && MemberOptionMap.ContainsKey(PartyState.leader_member_id)
-                )
-                    return PartyState.leader_member_id;
-                foreach (StringName memberId in PartyState.active_member_ids)
-                {
-                    StringName normalized = ProgressionDataUtils.to_string_name(memberId);
-                    if (normalized != (StringName)"" && MemberOptionMap.ContainsKey(normalized))
-                        return normalized;
-                }
-                foreach (StringName memberId in PartyState.reserve_member_ids)
-                {
-                    StringName normalized = ProgressionDataUtils.to_string_name(memberId);
-                    if (normalized != (StringName)"" && MemberOptionMap.ContainsKey(normalized))
-                        return normalized;
-                }
-            }
-            foreach (MemberOption option in MemberOptions)
-            {
-                if (option.MemberId != (StringName)"")
-                    return option.MemberId;
-            }
-            return "";
-        }
-
-        private static readonly string[] RequiredStringFields =
-        {
-            "settlement_id",
-            "action_id",
-            "panel_kind",
-            "title",
-            "meta",
-            "summary_text",
-            "confirm_label",
-            "cancel_label",
-            "entry_title",
-            "summary_title",
-            "state_title",
-            "cost_title",
-            "details_title",
-            "member_title",
-            "empty_state_label",
-            "empty_cost_label",
-            "empty_details_text",
-        };
-    }
-
-    private sealed class ShopEntry
-    {
-        public string EntryId { get; private init; } = "";
-        public string DisplayName { get; private init; } = "";
-        public string SummaryText { get; private init; } = "";
-        public string DetailsText { get; private init; } = "";
-        public string StateLabel { get; private init; } = "";
-        public string CostLabel { get; private init; } = "";
-        public bool IsEnabled { get; private init; }
-        public string DisabledReason { get; private init; } = "";
-        public StringName RecipeId { get; private init; } = "";
-        public Dictionary<string, object> Payload { get; private init; } = new();
-
-        public static ShopEntry From(GDictionary data)
-        {
-            if (data == null)
-                return null;
-            foreach (
-                string fieldName in new[]
-                {
-                    "entry_id",
-                    "display_name",
-                    "summary_text",
-                    "details_text",
-                    "state_label",
-                    "cost_label",
-                }
-            )
-            {
-                if (!HasNonEmptyString(data, fieldName))
-                    return null;
-            }
-            if (
-                !HasBool(data, "is_enabled")
-            )
-                return null;
-            if (!HasString(data, "disabled_reason"))
-                return null;
-
-            bool isEnabled = DictBool(data, "is_enabled", false);
-            string disabledReason = StrictString(data, "disabled_reason").StripEdges();
-            if (!isEnabled && string.IsNullOrEmpty(disabledReason))
-                return null;
-
-            Dictionary<string, object> payload = RuntimePlainPayload.NormalizeDictionary(
-                data,
-                "ShopWindow.ShopEntry"
-            );
-            string entryId = data["entry_id"].AsString().StripEdges();
-            string displayName = data["display_name"].AsString().StripEdges();
-            string summaryText = data["summary_text"].AsString().StripEdges();
-            string detailsText = data["details_text"].AsString().StripEdges();
-            string stateLabel = data["state_label"].AsString().StripEdges();
-            string costLabel = data["cost_label"].AsString().StripEdges();
-            payload["entry_id"] = entryId;
-            payload["display_name"] = displayName;
-            payload["summary_text"] = summaryText;
-            payload["details_text"] = detailsText;
-            payload["state_label"] = stateLabel;
-            payload["cost_label"] = costLabel;
-            payload["is_enabled"] = isEnabled;
-            payload["disabled_reason"] = disabledReason;
-
-            return new ShopEntry
-            {
-                EntryId = entryId,
-                DisplayName = displayName,
-                SummaryText = summaryText,
-                DetailsText = detailsText,
-                StateLabel = stateLabel,
-                CostLabel = costLabel,
-                IsEnabled = isEnabled,
-                DisabledReason = disabledReason,
-                RecipeId = DictStringName(data, "recipe_id"),
-                Payload = payload,
-            };
-        }
-    }
-
-    private sealed class MemberOption
-    {
-        public StringName MemberId { get; private init; } = "";
-        public string DisplayName { get; private init; } = "";
-        public string RosterRole { get; private init; } = "";
-        public bool IsLeader { get; private init; }
-        public int CurrentHp { get; private init; }
-        public int CurrentMp { get; private init; }
-
-        public string BuildLabel()
-        {
-            if (string.IsNullOrEmpty(DisplayName))
-                return "";
-            string prefix = IsLeader ? "队长 · " : "";
-            string roleSuffix = !string.IsNullOrEmpty(RosterRole) ? $" · {RosterRole}" : "";
-            return $"{prefix}{DisplayName}{roleSuffix}  |  HP {CurrentHp}  MP {CurrentMp}";
-        }
-
-        public static MemberOption From(GDictionary data)
-        {
-            if (data == null)
-                return null;
-            StringName memberId = DictStringName(data, "member_id");
-            if (memberId == (StringName)"")
-                return null;
-            string displayName = StrictString(data, "display_name").StripEdges();
-            if (string.IsNullOrEmpty(displayName))
-                return null;
-            return new MemberOption
-            {
-                MemberId = memberId,
-                DisplayName = displayName,
-                RosterRole = DictString(data, "roster_role", ""),
-                IsLeader = DictBool(data, "is_leader", false),
-                CurrentHp = DictInt(data, "current_hp", 0),
-                CurrentMp = DictInt(data, "current_mp", 0),
-            };
-        }
-
-        public static MemberOption FromParty(
-            PartyState partyState,
-            StringName memberId,
-            string defaultRole
-        )
-        {
-            if (partyState == null || memberId == (StringName)"")
-                return null;
-            PartyMemberState memberState = partyState.GetMemberState(memberId);
-            if (memberState == null)
-                return null;
-            string displayName = memberState.display_name.StripEdges();
-            if (string.IsNullOrEmpty(displayName))
-                return null;
-            return new MemberOption
-            {
-                MemberId = memberId,
-                DisplayName = displayName,
-                RosterRole = defaultRole,
-                IsLeader = partyState.leader_member_id == memberId,
-                CurrentHp = memberState.current_hp,
-                CurrentMp = memberState.current_mp,
-            };
-        }
-    }
-
-    private static List<ShopEntry> BuildEntries(GDictionary data)
-    {
-        if (!HasArray(data, "entries"))
-            return null;
-        var entries = new List<ShopEntry>();
-        foreach (Variant entryValue in ReadArray(data, "entries"))
-        {
-            if (!entryValue.TryAsDictionary(out GDictionary entryData))
-                return null;
-            ShopEntry entry = ShopEntry.From(entryData);
-            if (entry == null)
-                return null;
-            entries.Add(entry);
-        }
-        return entries;
-    }
-
-    private static List<MemberOption> BuildMemberOptions(GDictionary data, PartyState partyState)
-    {
-        var options = new List<MemberOption>();
-        if (data.ContainsKey("member_options"))
-        {
-            if (!HasArray(data, "member_options"))
-                return null;
-            foreach (Variant optionValue in ReadArray(data, "member_options"))
-            {
-                if (!optionValue.TryAsDictionary(out GDictionary optionData))
-                    return null;
-                MemberOption option = MemberOption.From(optionData);
-                if (option == null)
-                    return null;
-                options.Add(option);
-            }
-            return options;
-        }
-
-        if (partyState == null)
-            return options;
-        var seenIds = new HashSet<string>();
-        foreach (StringName memberId in partyState.active_member_ids)
-            AppendMemberOption(
-                options,
-                seenIds,
-                partyState,
-                ProgressionDataUtils.to_string_name(memberId),
-                "上阵"
-            );
-        foreach (StringName memberId in partyState.reserve_member_ids)
-            AppendMemberOption(
-                options,
-                seenIds,
-                partyState,
-                ProgressionDataUtils.to_string_name(memberId),
-                "替补"
-            );
-        return options;
-    }
-
-    private static void AppendMemberOption(
-        List<MemberOption> options,
-        HashSet<string> seenIds,
-        PartyState partyState,
-        StringName memberId,
-        string role
-    )
-    {
-        string key = memberId.ToString();
-        if (string.IsNullOrEmpty(key) || seenIds.Contains(key))
-            return;
-        MemberOption option = MemberOption.FromParty(partyState, memberId, role);
-        if (option == null)
-            return;
-        seenIds.Add(key);
-        options.Add(option);
-    }
-
-    private static Dictionary<StringName, MemberOption> BuildMemberOptionMap(
-        List<MemberOption> options
-    )
-    {
-        var result = new Dictionary<StringName, MemberOption>();
-        foreach (MemberOption option in options)
-        {
-            if (option.MemberId != (StringName)"" && !string.IsNullOrEmpty(option.DisplayName))
-                result[option.MemberId] = option;
-        }
-        return result;
-    }
-
-    private static PartyState GetPartyState(GDictionary data)
-    {
-        if (!TryRead(data, "party_state", out Variant value))
-            return null;
-        return PartyState.TryReadPartyPayload(value, out PartyState partyState)
-            ? partyState
-            : null;
-    }
-
-    private static bool HasString(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.String;
-    }
-
-    private static bool HasArray(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Array;
-    }
-
-    private static bool HasBool(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Bool;
-    }
-
-    private static bool HasNonEmptyString(GDictionary data, string key)
-    {
-        return HasString(data, key) && !string.IsNullOrEmpty(data[key].AsString().StripEdges());
-    }
-
-    private static string DictString(GDictionary data, string key, string defaultValue)
-    {
-        if (!TryRead(data, key, out Variant value))
-            return defaultValue;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            _ => defaultValue,
-        };
-    }
-
-    private static StringName DictStringName(GDictionary data, string key)
-    {
-        if (!TryRead(data, key, out Variant value))
-            return "";
-        return value.VariantType == Variant.Type.String ? new StringName(value.AsString()) : "";
-    }
-
-    private static string StrictString(GDictionary data, string key)
-    {
-        return DictString(data, key, "");
-    }
-
-    private static bool DictBool(GDictionary data, string key, bool defaultValue)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Bool
-            ? value.AsBool()
-            : defaultValue;
-    }
-
-    private static int DictInt(GDictionary data, string key, int defaultValue)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Int
-            ? value.AsInt32()
-            : defaultValue;
-    }
-
-    private static string OptionalString(GDictionary data, string key)
-    {
-        return DictString(data, key, "");
-    }
-
-    private static GArray ReadArray(GDictionary data, string key)
-    {
-        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static bool TryRead(GDictionary data, string key, out Variant value)
-    {
-        if (data == null || string.IsNullOrEmpty(key))
-        {
-            value = default;
-            return false;
-        }
-        if (data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static string FirstNonEmpty(string preferred, string fallback)
-    {
-        return !string.IsNullOrEmpty(preferred) ? preferred : fallback;
+        entry_title_label.Text = _windowData.Labels.EntryTitle;
+        summary_title_label.Text = _windowData.Labels.SummaryTitle;
+        state_title_label.Text = _windowData.Labels.StateTitle;
+        cost_title_label.Text = _windowData.Labels.CostTitle;
+        details_title_label.Text = _windowData.Labels.DetailsTitle;
+        member_title_label.Text = _windowData.Labels.MemberTitle;
     }
 }

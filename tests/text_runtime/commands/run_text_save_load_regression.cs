@@ -155,14 +155,13 @@ public partial class run_text_save_load_regression : LifecycleTestSceneTree
         GameRuntimeFacade runtime = runner?.GetSession()?.GetRuntimeFacade();
         if (runtime == null)
             return 0;
-        GDictionary windowData = runtime.GetWarehouseWindowData();
-        foreach (Variant entryValue in ArrayValue(windowData, "entries"))
+        WarehouseWindowData windowData = runtime.GetWarehouseWindowDataTyped();
+        if (windowData == null)
+            return 0;
+        foreach (WarehouseInventoryEntrySnapshot entry in windowData.Snapshot.Entries)
         {
-            GDictionary entry = entryValue.AsGodotDictionary();
-            if (DictString(entry, "item_id") == itemId)
-                return entry.ContainsKey("quantity")
-                    ? entry["quantity"].AsInt32()
-                    : DictInt(entry, "total_quantity");
+            if (entry.ItemId.ToString() == itemId)
+                return entry.Quantity;
         }
         return 0;
     }
@@ -268,13 +267,6 @@ public partial class run_text_save_load_regression : LifecycleTestSceneTree
         };
     }
 
-    private static GArray ArrayValue(GDictionary dictionary, string key)
-    {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotArray()
-            : new GArray();
-    }
-
     private static GDictionary Dict(GDictionary dictionary, string key)
     {
         return dictionary != null && dictionary.ContainsKey(key)
@@ -287,13 +279,4 @@ public partial class run_text_save_load_regression : LifecycleTestSceneTree
         return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsBool() : fallback;
     }
 
-    private static int DictInt(GDictionary dictionary, string key)
-    {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsInt32() : 0;
-    }
-
-    private static string DictString(GDictionary dictionary, string key)
-    {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : "";
-    }
 }

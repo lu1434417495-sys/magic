@@ -3,6 +3,7 @@
 > 状态：**进行中**，分阶段落地。已完成部分是当前实现事实；未完成部分只是方向。
 > 起始：2026-08-14。基线提交 `6545d837`（工作区，非提交态）。
 > 背景审计：[`../../reviews/architecture_review_2026-07-19.html`](../../reviews/architecture_review_2026-07-19.html)
+> 后续收敛计划：[`battle_runtime_architecture_convergence.md`](battle_runtime_architecture_convergence.md)。
 
 ## 0. 前提：先纠正两个会误导人的度量
 

@@ -251,14 +251,14 @@ internal sealed class FateRuntimeModule
         );
     }
 
-    internal GDictionary ResolveLowLuckSettlementEventRewards(GDictionary context)
+    internal LowLuckEventResult ResolveLowLuckSettlementEventRewards(
+        LowLuckSettlementActionInput input
+    )
     {
         if (_lowLuckEventService == null)
-            return new GDictionary();
-        return LowLuckEventResultToDictionary(
-            _lowLuckEventService.HandleSettlementAction(
-                BuildLowLuckSettlementActionInput(context)
-            )
+            return null;
+        return _lowLuckEventService.HandleSettlementAction(
+            input ?? LowLuckSettlementActionInput.Empty
         );
     }
 
@@ -493,19 +493,6 @@ internal sealed class FateRuntimeModule
         return units;
     }
 
-    private static LowLuckSettlementActionInput BuildLowLuckSettlementActionInput(
-        GDictionary context
-    )
-    {
-        return new LowLuckSettlementActionInput(
-            ReadString(context, "action_id"),
-            ReadString(context, "interaction_script_id"),
-            ReadString(context, "facility_id"),
-            ReadString(context, "facility_name"),
-            ReadString(context, "service_type")
-        );
-    }
-
     private static GDictionary LowLuckEventResultToDictionary(LowLuckEventResult result)
     {
         Godot.Collections.Array<StringName> triggeredEventIds = new();
@@ -643,12 +630,6 @@ internal sealed class FateRuntimeModule
     {
         var value = ReadValue(data, key);
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
-    }
-
-    private static string ReadString(GDictionary data, string key)
-    {
-        Variant value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Nil ? "" : value.AsString();
     }
 
     private static StringName ReadStringName(GDictionary data, string key)

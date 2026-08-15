@@ -503,16 +503,19 @@ internal sealed class BattleSpecialProfileManifestValidator
 
     private static bool TryAsInt(object rawValue, out int value)
     {
-        try
+        // Manifest members come from a Godot dictionary read, i.e. boxed Variants.
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsInt32();
-            return true;
+            try
+            {
+                value = variantValue.AsInt32();
+                return true;
+            }
+            catch
+            {
+            }
         }
-        catch
-        {
-            return int.TryParse(rawValue?.ToString() ?? "", out value);
-        }
+        return int.TryParse(rawValue?.ToString() ?? "", out value);
     }
 
     private static bool TryAsDictionary(
@@ -520,17 +523,19 @@ internal sealed class BattleSpecialProfileManifestValidator
         out Godot.Collections.Dictionary value
     )
     {
-        try
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsGodotDictionary();
-            return true;
+            try
+            {
+                value = variantValue.AsGodotDictionary();
+                return true;
+            }
+            catch
+            {
+            }
         }
-        catch
-        {
-            value = rawValue as Godot.Collections.Dictionary;
-            return value != null;
-        }
+        value = rawValue as Godot.Collections.Dictionary;
+        return value != null;
     }
 
 }

@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
 public sealed class SettlementShopService : IDisposable
 {
+    internal const string ShopActionId = "shop:trade";
     private const int PriceBasisPointsDefault = 10000;
     private const int UniqueEquipmentOfferChancePercent = 5;
     private enum ShopItemId
@@ -193,7 +192,7 @@ public sealed class SettlementShopService : IDisposable
         if (shopDef == null || settlementState == null)
         {
             return new SettlementShopWindowBuildResult(
-                new GDictionary(),
+                SettlementServiceWindowData.Empty,
                 settlementState,
                 false
             );
@@ -209,7 +208,7 @@ public sealed class SettlementShopService : IDisposable
             uniqueEquipmentPool
         );
         SettlementShopStateData shopState = resolution.ShopState;
-        var buyEntries = new GDictionaryArray();
+        var entries = new List<SettlementServiceWindowEntryData>();
         foreach (SettlementShopStockEntryData stockEntry in shopState.CurrentInventory)
         {
             ItemDefinition itemDef = GetItemDef(itemDefs, stockEntry.ItemId);
@@ -233,28 +232,29 @@ public sealed class SettlementShopService : IDisposable
                     ? $"唯一实例 {uniqueInstanceId}"
                     : $"库存 {stockEntry.Quantity}";
             string description = itemDef.Description;
-            buyEntries.Add(new GDictionary
-            {
-                { "item_id", stockEntry.ItemId },
-                { "entry_id", isUniqueOffer ? $"buy:{stockEntry.ItemId}:{uniqueInstanceId}" : $"buy:{stockEntry.ItemId}" },
-                { "display_name", GetItemDisplayName(itemDef, stockEntry.ItemId) },
-                { "description", description },
-                { "icon", itemDef.Icon },
-                { "quantity", stockEntry.Quantity },
-                { "unit_price", stockEntry.UnitPrice },
-                { "stock_text", stockText },
-                { "can_buy", canBuy },
-                { "state_label", canBuy ? "状态：可购" : "状态：不可购" },
-                { "cost_label", $"单价 {stockEntry.UnitPrice} 金" },
-                { "summary_text", stockText },
-                { "details_text", ItemTraitDetailText.Compose(description, itemDef, traitDefs) },
-                { "is_enabled", canBuy },
-                { "disabled_reason", canBuy ? "" : stockEntry.Quantity <= 0 ? "库存不足" : "金币不足" },
-                { "shop_action", "buy" },
-            });
+            entries.Add(
+                new SettlementServiceWindowEntryData(
+                    isUniqueOffer
+                        ? $"buy:{stockEntry.ItemId}:{uniqueInstanceId}"
+                        : $"buy:{stockEntry.ItemId}",
+                    GetItemDisplayName(itemDef, stockEntry.ItemId),
+                    stockText,
+                    ItemTraitDetailText.Compose(description, itemDef, traitDefs),
+                    canBuy ? "状态：可购" : "状态：不可购",
+                    $"单价 {stockEntry.UnitPrice} 金",
+                    canBuy,
+                    canBuy ? "" : stockEntry.Quantity <= 0 ? "库存不足" : "金币不足",
+                    new SettlementShopSelectionData(
+                        SettlementShopActionKind.Buy,
+                        stockEntry.ItemId,
+                        "",
+                        stockEntry.Quantity
+                    )
+                )
+            );
         }
 
-        var sellEntries = new GDictionaryArray();
+        var sellEntries = new List<SettlementServiceWindowEntryData>();
         if (warehouse != null)
         {
             foreach (WarehouseInventoryEntry entryData in warehouse.GetInventoryEntriesTyped())
@@ -276,58 +276,68 @@ public sealed class SettlementShopService : IDisposable
                 string instanceId = entryData.InstanceId.ToString();
                 int totalQuantity = entryData.HasEquipmentInstance ? 1 : entryData.TotalQuantity;
                 string stockText = BuildSellStockText(totalQuantity, instanceId);
-                sellEntries.Add(new GDictionary
-                {
-                    { "item_id", itemId },
-                    { "entry_id", !string.IsNullOrEmpty(instanceId) ? $"sell:{itemId}:{instanceId}" : $"sell:{itemId}" },
-                    { "instance_id", instanceId },
-                    { "display_name", GetItemDisplayName(itemDef, itemId) },
-                    { "description", itemDef.Description },
-                    { "icon", itemDef.Icon },
-                    { "quantity", totalQuantity },
-                    { "unit_price", unitPrice },
-                    { "stock_text", stockText },
-                    { "can_sell", true },
-                    { "state_label", "状态：可售" },
-                    { "cost_label", $"回收 {unitPrice} 金" },
-                    { "summary_text", stockText },
-                    { "details_text", ItemTraitDetailText.Compose(itemDef.Description, itemDef, traitDefs) },
-                    { "is_enabled", true },
-                    { "disabled_reason", "" },
-                    { "shop_action", "sell" },
-                });
+                sellEntries.Add(
+                    new SettlementServiceWindowEntryData(
+                        !string.IsNullOrEmpty(instanceId)
+                            ? $"sell:{itemId}:{instanceId}"
+                            : $"sell:{itemId}",
+                        GetItemDisplayName(itemDef, itemId),
+                        stockText,
+                        ItemTraitDetailText.Compose(itemDef.Description, itemDef, traitDefs),
+                        "状态：可售",
+                        $"回收 {unitPrice} 金",
+                        true,
+                        "",
+                        new SettlementShopSelectionData(
+                            SettlementShopActionKind.Sell,
+                            itemId,
+                            instanceId,
+                            totalQuantity
+                        )
+                    )
+                );
             }
         }
 
         SortSellEntries(sellEntries);
+        entries.AddRange(sellEntries);
         string displayName = GetString(settlementRecord, "display_name", "据点");
         int gold = Mathf.Max(currentGold, 0);
         return new SettlementShopWindowBuildResult(
-            new GDictionary
-            {
-                { "title", $"{displayName} · {shopDef.Title}" },
-                { "meta", $"商店：{shopDef.Title}  |  金币：{gold}" },
-                { "shop_id", shopDef.ShopId },
-                { "interaction_script_id", interactionScriptId },
-                { "settlement_id", settlementId },
-                { "panel_kind", SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Shop) },
-                { "gold", gold },
-                { "buy_entries", buyEntries },
-                { "sell_entries", sellEntries },
-                { "feedback_text", feedbackText ?? "" },
-                { "confirm_label", "确认交易" },
-                { "cancel_label", "返回据点" },
-                { "show_member_selector", true },
-                { "entry_title", "交易条目" },
-                { "summary_title", "交易概况" },
-                { "state_title", "交易状态" },
-                { "cost_title", "交易费用" },
-                { "details_title", "交易说明" },
-                { "member_title", "交易成员" },
-                { "empty_state_label", "状态：暂无商品" },
-                { "empty_cost_label", "费用：暂无商品" },
-                { "empty_details_text", "当前没有可交易条目。" },
-            },
+            new SettlementServiceWindowData(
+                settlementId,
+                ShopActionId,
+                SettlementPanelKind.Shop,
+                $"{displayName} · {shopDef.Title}",
+                $"商店：{shopDef.Title}  |  金币：{gold}",
+                $"持有金币：{gold}",
+                feedbackText ?? "",
+                new SettlementServiceWindowLabelsData(
+                    "确认交易",
+                    "返回据点",
+                    "交易条目",
+                    "交易概况",
+                    "交易状态",
+                    "交易费用",
+                    "交易说明",
+                    "交易成员",
+                    "状态：暂无商品",
+                    "费用：暂无商品",
+                    "当前没有可交易条目。"
+                ),
+                true,
+                interactionScriptId,
+                "",
+                "",
+                "",
+                "",
+                "",
+                entries,
+                null,
+                "",
+                "",
+                null
+            ),
             resolution.SettlementState,
             resolution.StateChanged
         );
@@ -913,22 +923,25 @@ public sealed class SettlementShopService : IDisposable
         };
     }
 
-    private static void SortSellEntries(GDictionaryArray entries)
+    private static void SortSellEntries(List<SettlementServiceWindowEntryData> entries)
     {
-        for (int i = 0; i < entries.Count - 1; i++)
-        {
-            for (int j = i + 1; j < entries.Count; j++)
+        // Stable ordering for repeated item ids (equipment instances share an item id):
+        // the entry id carries the instance suffix, so it is the tiebreaker.
+        entries.Sort(
+            (left, right) =>
             {
-                string leftId = GetString(entries[i], "item_id");
-                string rightId = GetString(entries[j], "item_id");
-                if (string.Compare(leftId, rightId, StringComparison.Ordinal) <= 0)
-                {
-                    continue;
-                }
-                (entries[i], entries[j]) = (entries[j], entries[i]);
+                int byItemId = string.CompareOrdinal(SellSortKey(left), SellSortKey(right));
+                return byItemId != 0
+                    ? byItemId
+                    : string.CompareOrdinal(left.EntryId.ToString(), right.EntryId.ToString());
             }
-        }
+        );
     }
+
+    private static string SellSortKey(SettlementServiceWindowEntryData entry) =>
+        entry.Selection is SettlementShopSelectionData selection
+            ? selection.ItemId.ToString()
+            : "";
 
     private static ShopDefinition ResolveShopDef(string interactionScriptId)
     {
@@ -940,43 +953,6 @@ public sealed class SettlementShopService : IDisposable
             }
         }
         return null;
-    }
-
-    private static GDictionary ToShopDefDictionary(ShopDefinition shopDef)
-    {
-        return new GDictionary
-        {
-            { "shop_id", shopDef.ShopId },
-            { "title", shopDef.Title },
-            { "refresh_interval_steps", shopDef.RefreshIntervalSteps },
-            { "guaranteed_items", ToSeedArray(shopDef.GuaranteedItems, false) },
-            { "random_pool", ToSeedArray(shopDef.RandomPool, true) },
-            { "max_random_items", shopDef.MaxRandomItems },
-        };
-    }
-
-    private static GArray ToSeedArray(IEnumerable<ShopItemSeed> seeds, bool includeWeight)
-    {
-        var result = new GArray();
-        foreach (ShopItemSeed seed in seeds)
-        {
-            var data = new GDictionary
-            {
-                { "item_id", ToItemIdString(seed.ItemId) },
-                { "min_qty", seed.MinQty },
-                { "max_qty", seed.MaxQty },
-            };
-            if (includeWeight)
-            {
-                data["weight"] = seed.Weight;
-            }
-            if (seed.PriceBasisPoints != PriceBasisPointsDefault)
-            {
-                data["price_basis_points"] = seed.PriceBasisPoints;
-            }
-            result.Add(data);
-        }
-        return result;
     }
 
     private static ItemDefinition GetItemDef(

@@ -106,41 +106,44 @@ public sealed partial class GameRuntimeFacade
     }
 
     internal WorldGenerationDefinition _generation_definition;
-    internal GameSession _game_session;
-    internal GameRoot _game_root;
-    internal GameContentCatalog _content_catalog;
+    // production 侧已无外部读取（改走 ActiveGameSession）；仅 tests 仍直接访问，随 Step 3 收敛。
+    private GameSession _game_session;
+    private GameRoot _game_root;
+    private GameContentCatalog _content_catalog;
     internal WorldMapGridSystem _grid_system = new();
     internal WorldMapFogSystem _fog_system = new();
-    internal BattleGridService _battle_grid_service = new();
+    private BattleGridService _battle_grid_service = new();
     internal CharacterManagementModule _character_management = new();
     internal PartyWarehouseService _party_warehouse_service = new();
     internal EquipmentDropService _equipment_drop_service = new();
-    internal EquipmentTraitRollService _equipment_trait_roll_service;
+    private EquipmentTraitRollService _equipment_trait_roll_service;
     private GameSession _equipment_trait_roll_service_session;
     private GameContentCatalog _equipment_trait_roll_service_catalog;
     private long _equipment_trait_roll_service_catalog_revision = long.MinValue;
     internal PartyItemUseService _party_item_use_service = new();
     internal PartyEquipmentService _party_equipment_service = new();
     internal EncounterRosterBuilder _encounter_roster_builder = new();
-    internal WildEncounterGrowthSystem _wild_encounter_growth_system = new();
-    internal BattleRuntimeModule _battle_runtime;
-    internal Vector2I _player_coord = Vector2I.Zero;
-    internal Vector2I _selected_coord = Vector2I.Zero;
-    internal Vector2I _pending_harvest_coord = new(-1, -1);
+    private WildEncounterGrowthSystem _wild_encounter_growth_system = new();
+    private BattleRuntimeModule _battle_runtime;
+    private Vector2I _player_coord = Vector2I.Zero;
+    private Vector2I _selected_coord = Vector2I.Zero;
+    private Vector2I _pending_harvest_coord = new(-1, -1);
     internal bool _settlement_entry_active;
     internal Vector2I _settlement_entry_source_coord = new(-1, -1);
     internal Vector2I _settlement_entry_target_coord = new(-1, -1);
-    internal string _player_faction_id = "player";
+    private string _player_faction_id = "player";
+    // production 侧已无外部读取（改走 CaptureRootWorldSnapshot / BindRootWorldData）；
+    // 仅 tests 仍直接访问，随 Step 3 收敛。
     internal WorldMapDataContext _world_map_data_context = new();
     private readonly GameRuntimePendingSubmapPrompt _pending_submap_prompt = new();
-    internal readonly Dictionary<string, object> _pending_battle_start_prompt =
+    private readonly Dictionary<string, object> _pending_battle_start_prompt =
         new(StringComparer.Ordinal);
     private readonly GameRuntimePendingBattleGenerationRequest _pending_battle_generation_request = new();
-    internal PartyState _party_state;
-    internal BattleState _battle_state;
-    internal int _battle_auto_tick_remainder_msec;
+    private PartyState _party_state;
+    private BattleState _battle_state;
+    private int _battle_auto_tick_remainder_msec;
     private GameRuntimeSnapshotBuilder _snapshot_builder = new();
-    internal GameRuntimeCommandLogger _command_logger = new();
+    private GameRuntimeCommandLogger _command_logger = new();
     private GameRuntimeBattleWritebackService _battle_writeback_service = new();
     internal GameRuntimeBattleLootCommitService _battle_loot_commit_service = new();
     private GameRuntimeCharacterInfoBuilder _character_info_builder = new();
@@ -152,36 +155,38 @@ public sealed partial class GameRuntimeFacade
     internal GameRuntimePartyCommandHandler _party_command_handler = new();
     internal GameRuntimeRewardFlowHandler _reward_flow_handler = new();
     internal GameRuntimeQuestCommandHandler _quest_command_handler = new();
-    internal StringName _active_battle_encounter_id = "";
-    internal string _active_battle_encounter_name = "";
+    private StringName _active_battle_encounter_id = "";
+    private string _active_battle_encounter_name = "";
     private GameRuntimePromotionPromptContext _pending_promotion_prompt =
         GameRuntimePromotionPromptContext.Empty;
-    internal PendingCharacterReward _active_reward;
+    private PendingCharacterReward _active_reward;
     private GameRuntimePromotionPromptContext _pending_world_promotion_prompt =
         GameRuntimePromotionPromptContext.Empty;
-    internal RuntimeModalKind _active_modal_kind = RuntimeModalKind.None;
-    internal string _active_warehouse_entry_label = "";
+    private RuntimeModalKind _active_modal_kind = RuntimeModalKind.None;
+    private string _active_warehouse_entry_label = "";
     internal string _active_settlement_id = "";
-    internal string _active_settlement_feedback_text = "";
-    private SettlementContractBoardContext _active_contract_board_context =
-        SettlementContractBoardContext.Empty;
-    internal NpcQuestOfferWindowData _active_npc_quest_offer_data;
-    internal BountyBoardWindowData _active_bounty_board_data;
-    private SettlementShopContext _active_shop_context = SettlementShopContext.Empty;
-    private SettlementForgeContext _active_forge_context = SettlementForgeContext.Empty;
-    private SettlementStagecoachContext _active_stagecoach_context =
-        SettlementStagecoachContext.Empty;
-    internal string _current_status_message = "";
-    internal BattleRefreshMode _last_advance_battle_refresh_mode = BattleRefreshMode.None;
-    internal BattlePresentationDelta _last_advance_battle_presentation_delta =
+    private string _active_settlement_feedback_text = "";
+    private SettlementServiceWindowData _active_contract_board_context =
+        SettlementServiceWindowData.Empty;
+    private NpcQuestOfferWindowData _active_npc_quest_offer_data;
+    private BountyBoardWindowData _active_bounty_board_data;
+    private SettlementServiceWindowData _active_shop_context =
+        SettlementServiceWindowData.Empty;
+    private SettlementServiceWindowData _active_forge_context =
+        SettlementServiceWindowData.Empty;
+    private SettlementServiceWindowData _active_stagecoach_context =
+        SettlementServiceWindowData.Empty;
+    private string _current_status_message = "";
+    private BattleRefreshMode _last_advance_battle_refresh_mode = BattleRefreshMode.None;
+    private BattlePresentationDelta _last_advance_battle_presentation_delta =
         BattlePresentationDelta.None;
-    internal BattlePresentationDelta _last_command_battle_presentation_delta =
+    private BattlePresentationDelta _last_command_battle_presentation_delta =
         BattlePresentationDelta.None;
-    internal readonly Dictionary<string, object> _last_battle_loot_snapshot =
+    private readonly Dictionary<string, object> _last_battle_loot_snapshot =
         new(StringComparer.Ordinal);
     private GameRuntimeCharacterInfoContext _active_character_info_context;
     private GameRuntimeGameOverContext _active_game_over_context;
-    internal StringName _party_selected_member_id = "";
+    private StringName _party_selected_member_id = "";
     private ContingencySetupMutationResult _last_contingency_command_result =
         ContingencySetupMutationResult.Failure("", "", "");
     private readonly Dictionary<StringName, WildEncounterRosterDefinition> _wild_encounter_roster_definitions = new();
@@ -365,12 +370,12 @@ public sealed partial class GameRuntimeFacade
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
         _ClearSettlementEntryContext();
-        _active_contract_board_context = SettlementContractBoardContext.Empty;
+        _active_contract_board_context = SettlementServiceWindowData.Empty;
         _active_npc_quest_offer_data = null;
         _active_bounty_board_data = null;
-        _active_shop_context = SettlementShopContext.Empty;
-        _active_forge_context = SettlementForgeContext.Empty;
-        _active_stagecoach_context = SettlementStagecoachContext.Empty;
+        _active_shop_context = SettlementServiceWindowData.Empty;
+        _active_forge_context = SettlementServiceWindowData.Empty;
+        _active_stagecoach_context = SettlementServiceWindowData.Empty;
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
         _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
         _last_command_battle_presentation_delta = BattlePresentationDelta.None;
@@ -493,12 +498,12 @@ public sealed partial class GameRuntimeFacade
         _pending_world_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
         _active_character_info_context = null;
         _active_game_over_context = null;
-        _active_contract_board_context = SettlementContractBoardContext.Empty;
+        _active_contract_board_context = SettlementServiceWindowData.Empty;
         _active_npc_quest_offer_data = null;
         _active_bounty_board_data = null;
-        _active_shop_context = SettlementShopContext.Empty;
-        _active_forge_context = SettlementForgeContext.Empty;
-        _active_stagecoach_context = SettlementStagecoachContext.Empty;
+        _active_shop_context = SettlementServiceWindowData.Empty;
+        _active_forge_context = SettlementServiceWindowData.Empty;
+        _active_stagecoach_context = SettlementServiceWindowData.Empty;
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
         _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
         _last_command_battle_presentation_delta = BattlePresentationDelta.None;
@@ -916,10 +921,9 @@ public sealed partial class GameRuntimeFacade
     internal void SetPartySelectedMemberId(StringName member_id) =>
         _party_selected_member_id = member_id;
 
-    public GDictionary GetSettlementWindowData() => GetSettlementWindowData("");
-
-    public GDictionary GetSettlementWindowData(string settlement_id) =>
-        _settlement_command_handler.GetSettlementWindowData(settlement_id);
+    internal SettlementOverviewWindowData GetSettlementOverviewWindowData(
+        string settlement_id = ""
+    ) => _settlement_command_handler.GetSettlementOverviewWindowData(settlement_id);
 
     public IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
         string settlement_id
@@ -939,11 +943,8 @@ public sealed partial class GameRuntimeFacade
     internal GodotProjectionLease<GArray> GetAllSettlementRecordsLease() =>
         _world_map_data_context.GetAllSettlementRecordsLease();
 
-    internal GodotProjectionLease<GDictionary> GetCharacterInfoContextLease() =>
-        ProjectPlainPayloadLease(
-            GetCharacterInfoContextSnapshotPlain(),
-            "GameRuntimeFacade.active_character_info_context"
-        );
+    internal GameRuntimeCharacterInfoContext GetCharacterInfoContextTyped() =>
+        _active_character_info_context;
 
     public IReadOnlyDictionary<string, object> GetCharacterInfoContextSnapshotPlain() =>
         _active_character_info_context?.BuildSnapshotPlain()
@@ -954,14 +955,14 @@ public sealed partial class GameRuntimeFacade
     internal void SetActiveWarehouseEntryLabel(string entry_label) =>
         _active_warehouse_entry_label = entry_label;
 
-    internal GodotProjectionLease<GDictionary> GetShopWindowDataLease() =>
-        _settlement_command_handler.GetShopWindowDataLease();
+    internal SettlementServiceWindowData GetShopWindowDataTyped() =>
+        _settlement_command_handler.GetShopWindowDataTyped();
 
     public IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetShopWindowDataSnapshotPlain();
 
-    internal GodotProjectionLease<GDictionary> GetContractBoardWindowDataLease() =>
-        _settlement_command_handler.GetContractBoardWindowDataLease();
+    internal SettlementServiceWindowData GetContractBoardWindowDataTyped() =>
+        _settlement_command_handler.GetContractBoardWindowDataTyped();
 
     public IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetContractBoardWindowDataSnapshotPlain();
@@ -972,21 +973,14 @@ public sealed partial class GameRuntimeFacade
     public IReadOnlyDictionary<string, object> GetBountyBoardWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetBountyBoardWindowDataSnapshotPlain();
 
-    internal GodotProjectionLease<GDictionary> GetForgeWindowDataLease() =>
-        _settlement_command_handler.GetForgeWindowDataLease();
+    internal SettlementServiceWindowData GetForgeWindowDataTyped() =>
+        _settlement_command_handler.GetForgeWindowDataTyped();
 
     public IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetForgeWindowDataSnapshotPlain();
 
-    internal void SetActiveContractBoardContext(GDictionary context) =>
-        _active_contract_board_context =
-            SettlementContractBoardContext.FromBoundaryPayload(context);
-
-    internal void SetActiveContractBoardContextPlain(
-        IReadOnlyDictionary<string, object> context
-    ) =>
-        _active_contract_board_context =
-            SettlementContractBoardContext.FromSnapshot(context);
+    internal void SetActiveContractBoardContext(SettlementServiceWindowData context) =>
+        _active_contract_board_context = context ?? SettlementServiceWindowData.Empty;
 
     internal void SetActiveNpcQuestOfferContext(NpcQuestOfferWindowData data) =>
         _active_npc_quest_offer_data = data;
@@ -1000,86 +994,49 @@ public sealed partial class GameRuntimeFacade
     internal BountyBoardWindowData GetActiveBountyBoardData() =>
         _active_bounty_board_data;
 
-    internal void SetActiveShopContext(GDictionary context) =>
-        _active_shop_context = SettlementShopContext.FromBoundaryPayload(context);
+    internal void SetActiveShopContext(SettlementServiceWindowData context) =>
+        _active_shop_context = context ?? SettlementServiceWindowData.Empty;
 
-    internal void SetActiveShopContextPlain(IReadOnlyDictionary<string, object> context) =>
-        _active_shop_context = SettlementShopContext.FromSnapshot(context);
-
-    internal void SetActiveForgeContext(GDictionary context) =>
-        _active_forge_context = SettlementForgeContext.FromBoundaryPayload(context);
-
-    internal void SetActiveForgeContextPlain(IReadOnlyDictionary<string, object> context) =>
-        _active_forge_context = SettlementForgeContext.FromSnapshot(context);
+    internal void SetActiveForgeContext(SettlementServiceWindowData context) =>
+        _active_forge_context = context ?? SettlementServiceWindowData.Empty;
 
     internal void ClearActiveContractBoardContext() =>
-        _active_contract_board_context = SettlementContractBoardContext.Empty;
+        _active_contract_board_context = SettlementServiceWindowData.Empty;
 
     internal void ClearActiveNpcQuestOfferContext() => _active_npc_quest_offer_data = null;
 
     internal void ClearActiveBountyBoardContext() => _active_bounty_board_data = null;
 
     internal void ClearActiveShopContext() =>
-        _active_shop_context = SettlementShopContext.Empty;
+        _active_shop_context = SettlementServiceWindowData.Empty;
 
     internal void ClearActiveForgeContext() =>
-        _active_forge_context = SettlementForgeContext.Empty;
+        _active_forge_context = SettlementServiceWindowData.Empty;
 
-    internal GodotProjectionLease<GDictionary> GetActiveContractBoardContextLease() =>
-        _active_contract_board_context.ProjectLease(
-            "settlement-contract-board-context",
-            "GameRuntimeFacade.active_contract_board_context"
-        );
+    internal SettlementServiceWindowData GetActiveContractBoardContext() =>
+        _active_contract_board_context;
 
-    internal IReadOnlyDictionary<string, object> GetActiveContractBoardContextPlain() =>
-        _active_contract_board_context.BuildSnapshotPlain();
+    internal SettlementServiceWindowData GetActiveShopContext() => _active_shop_context;
 
-    internal GodotProjectionLease<GDictionary> GetActiveShopContextLease() =>
-        _active_shop_context.ProjectLease(
-            "settlement-shop-context",
-            "GameRuntimeFacade.active_shop_context"
-        );
+    internal SettlementServiceWindowData GetActiveForgeContext() => _active_forge_context;
 
-    internal IReadOnlyDictionary<string, object> GetActiveShopContextPlain() =>
-        _active_shop_context.BuildSnapshotPlain();
-
-    internal GodotProjectionLease<GDictionary> GetActiveForgeContextLease() =>
-        _active_forge_context.ProjectLease(
-            "settlement-forge-context",
-            "GameRuntimeFacade.active_forge_context"
-        );
-
-    internal IReadOnlyDictionary<string, object> GetActiveForgeContextPlain() =>
-        _active_forge_context.BuildSnapshotPlain();
-
-    internal GodotProjectionLease<GDictionary> GetStagecoachWindowDataLease() =>
-        _settlement_command_handler.GetStagecoachWindowDataLease();
+    internal SettlementServiceWindowData GetStagecoachWindowDataTyped() =>
+        _settlement_command_handler.GetStagecoachWindowDataTyped();
 
     public IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetStagecoachWindowDataSnapshotPlain();
 
-    internal void SetActiveStagecoachContext(GDictionary context) =>
-        _active_stagecoach_context = SettlementStagecoachContext.FromBoundaryPayload(context);
-
-    internal void SetActiveStagecoachContextPlain(
-        IReadOnlyDictionary<string, object> context
-    ) =>
-        _active_stagecoach_context = SettlementStagecoachContext.FromSnapshot(context);
+    internal void SetActiveStagecoachContext(SettlementServiceWindowData context) =>
+        _active_stagecoach_context = context ?? SettlementServiceWindowData.Empty;
 
     internal void ClearActiveStagecoachContext() =>
-        _active_stagecoach_context = SettlementStagecoachContext.Empty;
+        _active_stagecoach_context = SettlementServiceWindowData.Empty;
 
-    internal GodotProjectionLease<GDictionary> GetActiveStagecoachContextLease() =>
-        _active_stagecoach_context.ProjectLease(
-            "settlement-stagecoach-context",
-            "GameRuntimeFacade.active_stagecoach_context"
-        );
+    internal SettlementServiceWindowData GetActiveStagecoachContext() =>
+        _active_stagecoach_context;
 
-    internal IReadOnlyDictionary<string, object> GetActiveStagecoachContextPlain() =>
-        _active_stagecoach_context.BuildSnapshotPlain();
-
-    public GDictionary GetWarehouseWindowData() =>
-        _party_state != null ? _warehouse_handler.GetWarehouseWindowData() : new GDictionary();
+    internal WarehouseWindowData GetWarehouseWindowDataTyped() =>
+        _party_state != null ? _warehouse_handler.GetWarehouseWindowDataTyped() : null;
 
     public IReadOnlyDictionary<string, object> GetWarehouseWindowDataSnapshotPlain() =>
         _party_state != null
@@ -1131,9 +1088,9 @@ public sealed partial class GameRuntimeFacade
 
     internal PartyWarehouseService GetPartyWarehouseService() => _party_warehouse_service;
 
-    internal PartyItemUseService GetPartyItemUseService() => _party_item_use_service;
+    private PartyItemUseService GetPartyItemUseService() => _party_item_use_service;
 
-    internal PartyEquipmentService GetPartyEquipmentService() => _party_equipment_service;
+    private PartyEquipmentService GetPartyEquipmentService() => _party_equipment_service;
 
     public StringName GetActiveBattleEncounterId() => _active_battle_encounter_id;
 
@@ -1180,9 +1137,9 @@ public sealed partial class GameRuntimeFacade
     internal void SetBattleSelectionSkillVariantId(StringName variant_id) =>
         _selected_battle_skill_variant_id = variant_id;
 
-    internal StringName GetBattleSelectionLastManualUnitId() => _last_manual_battle_unit_id;
+    private StringName GetBattleSelectionLastManualUnitId() => _last_manual_battle_unit_id;
 
-    internal void SetBattleSelectionLastManualUnitId(StringName unit_id) =>
+    private void SetBattleSelectionLastManualUnitId(StringName unit_id) =>
         _last_manual_battle_unit_id = unit_id;
 
     internal IReadOnlyList<Vector2I> GetBattleSelectionTargetCoordsStateTyped() =>
@@ -1241,23 +1198,23 @@ public sealed partial class GameRuntimeFacade
 
     internal void UpdateStatus(string message) => UpdateStatusInternal(message);
 
-    internal void CloseSettlementModal() =>
+    private void CloseSettlementModal() =>
         _settlement_command_handler.OnSettlementWindowClosed();
 
-    internal void CloseContractBoardModal() =>
+    private void CloseContractBoardModal() =>
         _settlement_command_handler.OnContractBoardWindowClosed();
 
     internal void CloseShopModal() => _settlement_command_handler.OnShopWindowClosed();
 
-    internal void CloseForgeModal() => _settlement_command_handler.OnForgeWindowClosed();
+    private void CloseForgeModal() => _settlement_command_handler.OnForgeWindowClosed();
 
-    internal void CloseStagecoachModal() =>
+    private void CloseStagecoachModal() =>
         _settlement_command_handler.OnStagecoachWindowClosed();
 
-    internal void CloseNpcQuestOfferModal() =>
+    private void CloseNpcQuestOfferModal() =>
         _settlement_command_handler.OnNpcQuestOfferWindowClosed();
 
-    internal void CloseBountyBoardModal() =>
+    private void CloseBountyBoardModal() =>
         _settlement_command_handler.OnBountyBoardWindowClosed();
 
     internal string FormatCoord(Vector2I coord) => FormatCoordInternal(coord);
@@ -1355,7 +1312,7 @@ public sealed partial class GameRuntimeFacade
     public IReadOnlyDictionary<string, int> GetBattleTerrainCountsSnapshotTyped() =>
         _battle_session_facade.GetBattleTerrainCountsSnapshotTyped();
 
-    internal GodotProjectionLease<GDictionary> GetLastBattleLootSnapshotLease() =>
+    private GodotProjectionLease<GDictionary> GetLastBattleLootSnapshotLease() =>
         ProjectPlainPayloadLease(
             _last_battle_loot_snapshot,
             "GameRuntimeFacade.last_battle_loot_snapshot"
@@ -1384,10 +1341,10 @@ public sealed partial class GameRuntimeFacade
 
     internal bool HasPendingPromotionPrompt() => !_pending_promotion_prompt.IsEmpty;
 
-    internal IReadOnlyDictionary<string, object> GetPendingWorldPromotionPromptSnapshotPlain() =>
+    private IReadOnlyDictionary<string, object> GetPendingWorldPromotionPromptSnapshotPlain() =>
         _pending_world_promotion_prompt.ToPlainSnapshot();
 
-    internal bool HasPendingWorldPromotionPrompt() =>
+    private bool HasPendingWorldPromotionPrompt() =>
         !_pending_world_promotion_prompt.IsEmpty;
 
 
@@ -1404,7 +1361,7 @@ public sealed partial class GameRuntimeFacade
         _battle_state = null;
     }
 
-    internal void SetRuntimeBattleSelectedCoord(Vector2I coord) => _battle_selected_coord = coord;
+    private void SetRuntimeBattleSelectedCoord(Vector2I coord) => _battle_selected_coord = coord;
 
     internal void SetRuntimeActiveModalKind(RuntimeModalKind modalKind)
     {
@@ -1423,7 +1380,7 @@ public sealed partial class GameRuntimeFacade
     internal void SetPendingPromotionPrompt(GameRuntimePromotionPromptContext prompt) =>
         _pending_promotion_prompt = prompt ?? GameRuntimePromotionPromptContext.Empty;
 
-    internal void ClearPendingPromotionPrompt() =>
+    private void ClearPendingPromotionPrompt() =>
         _pending_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
 
     internal void SetPendingWorldPromotionPromptState(
@@ -1444,10 +1401,10 @@ public sealed partial class GameRuntimeFacade
 
     internal void ClearBattleSelectionTargets() => _battle_selection_state.ClearTargets();
 
-    internal void ClosePartyManagementModal() =>
+    private void ClosePartyManagementModal() =>
         _party_command_handler?.OnPartyManagementWindowClosed();
 
-    internal void ClosePartyWarehouseModal() =>
+    private void ClosePartyWarehouseModal() =>
         _warehouse_handler?.OnPartyWarehouseWindowClosed();
 
     internal void OpenPartyWarehouseWindow(string entry_label) =>
@@ -1468,11 +1425,11 @@ public sealed partial class GameRuntimeFacade
         PromotionSelectionData selection
     ) => _character_management?.PromoteProfession(member_id, profession_id, selection);
 
-    internal CharacterProgressionDelta ApplyPendingCharacterRewardToParty(
+    private CharacterProgressionDelta ApplyPendingCharacterRewardToParty(
         PendingCharacterReward reward
     ) => _character_management?.ApplyPendingCharacterReward(reward);
 
-    internal void EnqueueCharacterRewardsTyped(
+    private void EnqueueCharacterRewardsTyped(
         IEnumerable<PendingCharacterReward> rewards
     )
     {
@@ -1525,7 +1482,7 @@ public sealed partial class GameRuntimeFacade
 
     internal int PersistPartyState() => PersistPartyStateInternal();
 
-    internal int StagePartyState() => StagePartyStateInternal();
+    private int StagePartyState() => StagePartyStateInternal();
 
     internal bool PresentPendingRewardIfReady() =>
         _reward_flow_handler != null && _reward_flow_handler.PresentPendingRewardIfReady();
@@ -1626,7 +1583,43 @@ public sealed partial class GameRuntimeFacade
         _RefreshFog();
     }
 
-    internal void RefreshFog() => _RefreshFog();
+    private void RefreshFog() => _RefreshFog();
+
+    /// 测试夹具专用装配入口。
+    ///
+    /// 生产路径必须走 <see cref="Setup(GameSession)"/>——它会完整装配 content catalog、
+    /// generation definition、world data 与 encounter roster。测试往往只需要一个隔离的最小
+    /// facade，过去是用对象初始化器直接写 internal 字段绕开 Setup 的；本方法取代那种写法，
+    /// 把夹具注入收敛成一个具名、可 grep、可逐步缩小的接缝，字段本身得以转为 private。
+    ///
+    /// 刻意保持"裸赋值"语义（例如不调用 SyncPartyStateServices），以便与它替换掉的
+    /// 对象初始化器逐字等价；需要联动副作用时请显式调用对应的 SetXxx 方法。
+    /// 传 null 表示该项不注入。
+    internal void SetupForTestFixture(
+        GameSession gameSession = null,
+        PartyState partyState = null,
+        Vector2I? playerCoord = null,
+        Vector2I? selectedCoord = null,
+        string playerFactionId = null,
+        RuntimeModalKind? activeModalKind = null,
+        Vector2I? pendingHarvestCoord = null
+    )
+    {
+        if (gameSession != null)
+            _game_session = gameSession;
+        if (partyState != null)
+            _party_state = partyState;
+        if (playerCoord.HasValue)
+            _player_coord = playerCoord.Value;
+        if (selectedCoord.HasValue)
+            _selected_coord = selectedCoord.Value;
+        if (playerFactionId != null)
+            _player_faction_id = playerFactionId;
+        if (activeModalKind.HasValue)
+            _active_modal_kind = activeModalKind.Value;
+        if (pendingHarvestCoord.HasValue)
+            _pending_harvest_coord = pendingHarvestCoord.Value;
+    }
 
     internal void SetPartyState(PartyState party_state)
     {
@@ -2204,59 +2197,59 @@ public sealed partial class GameRuntimeFacade
 
     internal void RefreshBattleRuntimeState() => RefreshBattleRuntimeStateInternal();
 
-    internal void RefreshBattleRuntimeStateInternal() =>
+    private void RefreshBattleRuntimeStateInternal() =>
         _battle_session_facade.RefreshBattleRuntimeState();
 
-    internal int _build_battle_seed(EncounterAnchorData encounter_anchor) =>
+    private int _build_battle_seed(EncounterAnchorData encounter_anchor) =>
         _battle_session_facade.BuildBattleSeed(encounter_anchor);
 
-    internal BattleState _get_runtime_battle_state() =>
+    private BattleState _get_runtime_battle_state() =>
         _battle_session_facade.GetRuntimeBattleState();
 
-    internal bool _is_battle_finished() => _battle_session_facade.IsBattleFinished();
+    private bool _is_battle_finished() => _battle_session_facade.IsBattleFinished();
 
-    internal BattleUnitState _get_runtime_active_unit() =>
+    private BattleUnitState _get_runtime_active_unit() =>
         _battle_session_facade.GetRuntimeActiveUnit();
 
-    internal BattleUnitState _get_manual_active_unit() =>
+    private BattleUnitState _get_manual_active_unit() =>
         _battle_session_facade.GetManualActiveUnit();
 
-    internal BattleUnitState _get_runtime_unit_at_coord(Vector2I coord) =>
+    private BattleUnitState _get_runtime_unit_at_coord(Vector2I coord) =>
         _battle_session_facade.GetRuntimeUnitAtCoord(coord);
 
-    internal BattleCommand _build_wait_command() => _battle_session_facade.BuildWaitCommand();
+    private BattleCommand _build_wait_command() => _battle_session_facade.BuildWaitCommand();
 
-    internal BattleRefreshMode _issue_battle_command(BattleCommand command) =>
+    private BattleRefreshMode _issue_battle_command(BattleCommand command) =>
         _battle_session_facade.IssueBattleCommand(command);
 
-    internal Vector2I _get_default_battle_selected_coord() =>
+    private Vector2I _get_default_battle_selected_coord() =>
         _battle_session_facade.GetDefaultBattleSelectedCoord();
 
-    internal BattleUnitState _get_battle_unit_by_id(StringName unit_id) =>
+    private BattleUnitState _get_battle_unit_by_id(StringName unit_id) =>
         _battle_session_facade.GetBattleUnitById(unit_id);
 
-    internal BattleUnitState _get_battle_unit_at_coord(Vector2I coord) =>
+    private BattleUnitState _get_battle_unit_at_coord(Vector2I coord) =>
         _battle_session_facade.GetBattleUnitAtCoord(coord);
 
-    internal BattleUnitState _get_battle_active_unit() =>
+    private BattleUnitState _get_battle_active_unit() =>
         _battle_session_facade.GetBattleActiveUnit();
 
-    internal string _get_battle_active_unit_name() =>
+    private string _get_battle_active_unit_name() =>
         _battle_session_facade.GetBattleActiveUnitName();
 
-    internal string _get_battle_unit_type_label(string unit_id) =>
+    private string _get_battle_unit_type_label(string unit_id) =>
         _battle_session_facade.GetBattleUnitTypeLabel(unit_id);
 
-    internal GDictionary _count_battle_terrain_types() =>
+    private GDictionary _count_battle_terrain_types() =>
         _battle_session_facade.GetBattleTerrainCounts();
 
     private string _format_optional_text(string value) => string.IsNullOrEmpty(value) ? "无" : value;
 
-    internal void UpdateStatusInternal(string message) => _current_status_message = message;
+    private void UpdateStatusInternal(string message) => _current_status_message = message;
 
-    internal bool IsModalWindowOpenInternal() => _active_modal_kind != RuntimeModalKind.None;
+    private bool IsModalWindowOpenInternal() => _active_modal_kind != RuntimeModalKind.None;
 
-    internal bool IsBattleTimelineModalActive() =>
+    private bool IsBattleTimelineModalActive() =>
         IsBattleActive()
         && _battle_state != null
         && _battle_state.ModalStateKind != BattleModalStateKind.None;
@@ -2359,7 +2352,7 @@ public sealed partial class GameRuntimeFacade
         );
     }
 
-    internal int PersistPartyStateInternal()
+    private int PersistPartyStateInternal()
     {
         RuntimeCommitResult result = CommitRuntimeTransaction(
             new RuntimeTransaction().MarkPartyChanged(),
@@ -2368,7 +2361,7 @@ public sealed partial class GameRuntimeFacade
         return result.FirstError();
     }
 
-    internal int StagePartyStateInternal()
+    private int StagePartyStateInternal()
     {
         if (_game_session == null)
             return (int)Error.Unavailable;
@@ -2487,7 +2480,7 @@ public sealed partial class GameRuntimeFacade
         _active_modal_kind = RuntimeModalKind.GameOver;
     }
 
-    internal bool IsMainCharacterDead()
+    private bool IsMainCharacterDead()
     {
         if (_party_state == null)
             return false;
@@ -2495,7 +2488,7 @@ public sealed partial class GameRuntimeFacade
         return memberId != "" && _party_state.IsMemberDead(memberId);
     }
 
-    internal bool IsMainCharacterDeadInBattleState()
+    private bool IsMainCharacterDeadInBattleState()
     {
         if (_battle_state == null || _party_state == null)
             return false;
@@ -2588,7 +2581,7 @@ public sealed partial class GameRuntimeFacade
         return skill_id.ToString();
     }
 
-    internal string GetMemberDisplayNameInternal(StringName member_id)
+    private string GetMemberDisplayNameInternal(StringName member_id)
     {
         var memberState = _party_state != null ? _party_state.GetMemberState(member_id) : null;
         if (memberState != null && !string.IsNullOrEmpty(memberState.display_name))
@@ -2596,7 +2589,7 @@ public sealed partial class GameRuntimeFacade
         return member_id.ToString();
     }
 
-    internal string FormatFactionLabel(string faction_id) =>
+    private string FormatFactionLabel(string faction_id) =>
         faction_id switch
         {
             "" => "中立",
@@ -2606,7 +2599,7 @@ public sealed partial class GameRuntimeFacade
             _ => faction_id,
         };
 
-    internal string GetFogStateNameInternal(int fog_state)
+    private string GetFogStateNameInternal(int fog_state)
     {
         WorldMapFogStateKind fogState = WorldMapFogSystem.ToFogStateKind(fog_state);
         if (fogState == WorldMapFogStateKind.Visible)
@@ -2627,10 +2620,10 @@ public sealed partial class GameRuntimeFacade
     internal void ClearPendingBattleGenerationRequest() =>
         _pending_battle_generation_request.Clear();
 
-    internal bool IsAdjacent4(Vector2I from_coord, Vector2I to_coord) =>
+    private bool IsAdjacent4(Vector2I from_coord, Vector2I to_coord) =>
         Math.Abs(from_coord.X - to_coord.X) + Math.Abs(from_coord.Y - to_coord.Y) == 1;
 
-    internal string FormatCoordInternal(Vector2I coord) => $"({coord.X}, {coord.Y})";
+    private string FormatCoordInternal(Vector2I coord) => $"({coord.X}, {coord.Y})";
 
     private string BuildBattleResolvedLogContext(
         GDictionary battleSummary,

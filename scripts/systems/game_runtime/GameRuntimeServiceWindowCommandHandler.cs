@@ -43,6 +43,8 @@ internal sealed class StagecoachDestinationData
 
 internal sealed class GameRuntimeServiceWindowCommandHandler
 {
+    internal const string StagecoachActionId = "stagecoach:travel";
+
     private GameRuntimeSettlementCommandHandler _owner;
     private GameRuntimeSettlementWindowDataBuilder _windowDataBuilder;
     private GameRuntimeContractBoardCommandHandler _contractBoardHandler;
@@ -59,77 +61,31 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
     }
 
 
-    internal IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain()
+    internal SettlementServiceWindowData GetShopWindowDataTyped() =>
+        _owner.GetActiveShopContextTyped();
+
+    internal IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain() =>
+        GetShopWindowDataTyped().BuildSnapshotPlain();
+
+    internal SettlementServiceWindowData GetForgeWindowDataTyped()
     {
-        Dictionary<string, object> context = _windowDataBuilder.CloneActiveShopContextPlain();
-        if (context.Count == 0)
+        SettlementServiceWindowData context = _owner.GetActiveForgeContextTyped();
+        if (context.IsValid)
             return context;
-
-        var entries = new List<object>();
-        GameRuntimeSettlementWindowDataBuilder.AppendWindowEntriesPlain(entries, context, "buy_entries");
-        GameRuntimeSettlementWindowDataBuilder.AppendWindowEntriesPlain(entries, context, "sell_entries");
-        context["entries"] = entries;
-        context["summary_text"] = $"持有金币：{GameRuntimeSettlementCommandHandler.ReadPlainInt(context, "gold")}";
-        context["state_summary_text"] = GameRuntimeSettlementCommandHandler.ReadPlainString(context, "feedback_text");
-        context["action_id"] = "shop:trade";
-        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
-            SettlementPanelKind.Shop
-        );
-        context["show_member_selector"] = true;
-        context.Remove("party_state");
-        context["member_options"] = _windowDataBuilder.BuildMemberOptionsSnapshotPlain();
-        context["default_member_id"] = _owner.ResolveDefaultSettlementMemberId().ToString();
-        return context;
+        SettlementServiceWindowData shopContext = _owner.GetActiveShopContextTyped();
+        return shopContext.PanelKind == SettlementPanelKind.Forge
+            ? shopContext
+            : SettlementServiceWindowData.Empty;
     }
 
-    internal IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain()
-    {
-        Dictionary<string, object> context = _windowDataBuilder.CloneActiveForgeContextPlain();
-        if (context.Count == 0)
-        {
-            Dictionary<string, object> shopContext = _windowDataBuilder.CloneActiveShopContextPlain();
-            if (GameRuntimeSettlementWindowDataBuilder.WindowDataMatchesPanelKindPlain(shopContext, SettlementPanelKind.Forge))
-                context = shopContext;
-        }
-        context.Remove("party_state");
-        return context;
-    }
+    internal IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain() =>
+        GetForgeWindowDataTyped().BuildSnapshotPlain();
 
-    internal IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain()
-    {
-        Dictionary<string, object> context = _windowDataBuilder.CloneActiveStagecoachContextPlain();
-        if (context.Count == 0)
-            return context;
+    internal SettlementServiceWindowData GetStagecoachWindowDataTyped() =>
+        _owner.GetActiveStagecoachContextTyped();
 
-        var entries = new List<object>();
-        GameRuntimeSettlementWindowDataBuilder.AppendWindowEntriesPlain(entries, context, "destinations");
-        int gold = GameRuntimeSettlementCommandHandler.ReadPlainInt(context, "gold");
-        context["entries"] = entries;
-        context["summary_text"] = $"持有金币：{gold}";
-        context["state_summary_text"] = GameRuntimeSettlementCommandHandler.ReadPlainString(context, "feedback_text");
-        context["action_id"] = "stagecoach:travel";
-        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
-            SettlementPanelKind.Stagecoach
-        );
-        context["meta"] =
-            $"驿站：{GameRuntimeSettlementCommandHandler.ReadPlainString(context, "origin_name")}  |  金币：{gold}";
-        context["confirm_label"] = "确认出发";
-        context["cancel_label"] = "返回据点";
-        context["show_member_selector"] = true;
-        context["entry_title"] = "可选路线";
-        context["summary_title"] = "行程概况";
-        context["state_title"] = "行程状态";
-        context["cost_title"] = "行程费用";
-        context["details_title"] = "行程说明";
-        context["member_title"] = "出发成员";
-        context["empty_state_label"] = "状态：暂无路线";
-        context["empty_cost_label"] = "费用：暂无路线";
-        context["empty_details_text"] = "当前没有可用路线。";
-        context.Remove("party_state");
-        context["member_options"] = _windowDataBuilder.BuildMemberOptionsSnapshotPlain();
-        context["default_member_id"] = _owner.ResolveDefaultSettlementMemberId().ToString();
-        return context;
-    }
+    internal IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain() =>
+        GetStagecoachWindowDataTyped().BuildSnapshotPlain();
 
     internal RuntimeCommandResult CommandShopBuyTyped(
         StringName item_id,
@@ -140,13 +96,12 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         {
             return _owner.RuntimeCommandError("当前没有打开据点商店。");
         }
-        using GodotProjectionLease<GDictionary> contextLease = _owner.GetActiveShopContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
+        SettlementServiceWindowData context = _owner.GetActiveShopContextTyped();
+        if (!context.IsValid)
         {
             return _owner.RuntimeCommandError("当前商店上下文缺失。");
         }
-        string settlementId = GameRuntimeSettlementCommandHandler.ReadString(context, "settlement_id");
+        string settlementId = context.SettlementId.ToString();
         RuntimeTransaction transaction = new RuntimeTransaction()
             .MarkPartyChanged()
             .MarkWorldChanged();
@@ -157,7 +112,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         if (settlementState == null)
             return _owner.RuntimeCommandError("当前据点状态无效。");
         SettlementShopTradeResult result = _owner._shop_service.BuyTyped(
-            GameRuntimeSettlementCommandHandler.ReadString(context, "interaction_script_id"),
+            context.InteractionScriptId.ToString(),
             settlementState,
             _owner.GetWorldStep(),
             _owner._GetItemDefsTyped(),
@@ -211,16 +166,12 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         {
             return _owner.RuntimeCommandError("当前没有打开据点商店。");
         }
-        using GodotProjectionLease<GDictionary> contextLease = _owner.GetActiveShopContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
+        SettlementServiceWindowData context = _owner.GetActiveShopContextTyped();
+        if (!context.IsValid)
         {
             return _owner.RuntimeCommandError("当前商店上下文缺失。");
         }
-        string settlementId = GameRuntimeSettlementCommandHandler.ReadString(
-            context,
-            "settlement_id"
-        );
+        string settlementId = context.SettlementId.ToString();
         WorldUniqueEquipmentPoolState uniqueEquipmentPool =
             _owner.GetUniqueEquipmentPoolState();
         bool transferUniqueInstanceToShop =
@@ -232,7 +183,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         GameRuntimeSettlementCommandHandler.SettlementCommandRollbackSnapshot rollbackSnapshot =
             _owner.CaptureRollbackSnapshot(transaction);
         SettlementShopTradeResult result = _owner._shop_service.SellTyped(
-            GameRuntimeSettlementCommandHandler.ReadString(context, "interaction_script_id"),
+            context.InteractionScriptId.ToString(),
             _owner._GetItemDefsTyped(),
             _owner.GetPartyWarehouseService(),
             _owner.GetPartyState(),
@@ -287,10 +238,8 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         {
             return _owner.RuntimeCommandError("当前没有打开驿站路线窗口。");
         }
-        using GodotProjectionLease<GDictionary> contextLease =
-            _owner.GetActiveStagecoachContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
+        SettlementServiceWindowData context = _owner.GetActiveStagecoachContextTyped();
+        if (!context.IsValid)
         {
             return _owner.RuntimeCommandError("当前没有可用的驿站路线。");
         }
@@ -327,6 +276,10 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             return _owner.RuntimeCommandError("金币不足，无法启程。");
         }
         string destinationId = destination.SettlementId;
+        string originName = ResolveSettlementDisplayName(
+            context.SettlementId.ToString(),
+            "当前据点"
+        );
         using GodotProjectionLease<GDictionary> destinationRecordLease =
             _owner.GetSettlementRecordLease(destinationId);
         GDictionary destinationRecord = destinationRecordLease.Value;
@@ -353,7 +306,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             rollbackSnapshot
         );
         string message =
-            $"已从 {GameRuntimeSettlementCommandHandler.ReadString(context, "origin_name", "当前据点")} 抵达 {GameRuntimeSettlementCommandHandler.ReadString(destinationRecord, "display_name", destinationId)}，花费 {travelCost} 金。";
+            $"已从 {originName} 抵达 {GameRuntimeSettlementCommandHandler.ReadString(destinationRecord, "display_name", destinationId)}，花费 {travelCost} 金。";
         if (!persistResult.Ok)
             return _owner.RuntimeCommandPersistFailure();
         _owner.UpdateStatus(message);
@@ -393,16 +346,11 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
                 _owner._GetTraitDefsTyped(),
                 uniqueEquipmentPool
             );
-        if (buildResult.WindowDataPlain.Count == 0)
+        if (!buildResult.HasWindowData)
         {
             uniqueEquipmentPool?.RestoreFrom(uniqueEquipmentPoolCheckpoint);
             return _owner.RuntimeCommandError("无法打开商店：商店配置无效。");
         }
-        using GodotProjectionLease<GDictionary> windowDataLease =
-            buildResult.ProjectWindowDataLease(
-                "GameRuntimeServiceWindowCommandHandler.OpenShopModalTyped"
-            );
-        GDictionary windowData = windowDataLease.Value;
         if (
             buildResult.StateChanged
             && !_owner.SetActiveSettlementState(
@@ -414,9 +362,17 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             uniqueEquipmentPool?.RestoreFrom(uniqueEquipmentPoolCheckpoint);
             return _owner.RuntimeCommandError("无法打开商店：据点状态写回失败。");
         }
-        windowData["settlement_id"] = settlementId;
-        windowData["interaction_script_id"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id");
-        _owner.SetActiveShopContext(windowData);
+        _owner.SetActiveShopContext(
+            ApplyShopMemberOptions(
+                buildResult.WindowData.WithIdentity(
+                    settlementId,
+                    GameRuntimeSettlementCommandHandler.ReadString(
+                        payload,
+                        "interaction_script_id"
+                    )
+                )
+            )
+        );
         _owner.SetActiveModalKind(RuntimeModalKind.Shop);
         string message =
             $"已打开 {GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_name", "据点商店")} 的商店。";
@@ -428,7 +384,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
     {
         using GodotProjectionLease<GDictionary> settlementLease =
             _owner.GetSettlementRecordLease(settlement_id);
-        GDictionary windowData = _owner._forge_service.BuildWindowDataTyped(
+        SettlementServiceWindowData windowData = _owner._forge_service.BuildWindowDataTyped(
             GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id"),
             settlementLease.Value,
             payload,
@@ -436,18 +392,26 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             _owner.GetRecipeDefsTyped(),
             _owner.GetPartyWarehouseService()
         );
-        windowData["settlement_id"] = settlement_id;
-        windowData["interaction_script_id"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id");
-        windowData["service_payload"] = payload;
-        windowData["member_options"] = _windowDataBuilder._build_member_options();
         StringName selectedMemberId = GameRuntimeSettlementCommandHandler.ReadStringName(payload, "member_id");
         if (selectedMemberId == "")
         {
             selectedMemberId = _owner.ResolveDefaultSettlementMemberId();
         }
-        windowData["default_member_id"] = selectedMemberId.ToString();
-        windowData["selected_member_id"] = selectedMemberId.ToString();
-        _owner.SetActiveForgeContext(windowData);
+        _owner.SetActiveForgeContext(
+            windowData
+                .WithIdentity(
+                    settlement_id,
+                    GameRuntimeSettlementCommandHandler.ReadString(
+                        payload,
+                        "interaction_script_id"
+                    )
+                )
+                .WithMemberOptions(
+                    _windowDataBuilder.BuildMemberOptionData(),
+                    selectedMemberId,
+                    selectedMemberId
+                )
+        );
         _owner.SetActiveModalKind(RuntimeModalKind.Forge);
         _owner.UpdateStatus(
             $"已打开 {GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_name", "据点工坊")} 的{_resolve_forge_service_label(payload)}窗口。"
@@ -459,34 +423,77 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         using GodotProjectionLease<GDictionary> settlementLease =
             _owner.GetSettlementRecordLease(settlement_id);
         GDictionary settlement = settlementLease.Value;
+        string interactionScriptId = GameRuntimeSettlementCommandHandler.ReadString(
+            payload,
+            "interaction_script_id"
+        );
         _owner.SetActiveStagecoachContext(
-            new GDictionary
-            {
-                ["title"] = $"{GameRuntimeSettlementCommandHandler.ReadString(settlement, "display_name", "据点")} · 驿站路线",
-                ["settlement_id"] = settlement_id,
-                ["origin_name"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "display_name", "据点"),
-                ["interaction_script_id"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id"),
-                ["gold"] = _owner.GetPartyGold(),
-                ["destinations"] = _build_stagecoach_destinations(
-                    settlement,
-                    GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id")
-                ),
-                ["feedback_text"] = "选择一个已访问据点并支付路费后即可启程。",
-            }
+            BuildStagecoachWindowData(
+                settlement_id,
+                GameRuntimeSettlementCommandHandler.ReadString(settlement, "display_name", "据点"),
+                interactionScriptId,
+                _build_stagecoach_entries(settlement, interactionScriptId),
+                "选择一个已访问据点并支付路费后即可启程。"
+            )
         );
         _owner.SetActiveModalKind(RuntimeModalKind.Stagecoach);
         _owner.UpdateStatus("已打开驿站路线。");
     }
 
+    private SettlementServiceWindowData BuildStagecoachWindowData(
+        string settlementId,
+        string originName,
+        string interactionScriptId,
+        List<SettlementServiceWindowEntryData> entries,
+        string feedbackText
+    )
+    {
+        int gold = _owner.GetPartyGold();
+        return new SettlementServiceWindowData(
+            settlementId,
+            StagecoachActionId,
+            SettlementPanelKind.Stagecoach,
+            $"{originName} · 驿站路线",
+            $"驿站：{originName}  |  金币：{gold}",
+            $"持有金币：{gold}",
+            feedbackText ?? "",
+            new SettlementServiceWindowLabelsData(
+                "确认出发",
+                "返回据点",
+                "可选路线",
+                "行程概况",
+                "行程状态",
+                "行程费用",
+                "行程说明",
+                "出发成员",
+                "状态：暂无路线",
+                "费用：暂无路线",
+                "当前没有可用路线。"
+            ),
+            true,
+            interactionScriptId,
+            "",
+            "",
+            "",
+            "",
+            "",
+            entries,
+            _windowDataBuilder.BuildMemberOptionData(),
+            _owner.ResolveDefaultSettlementMemberId(),
+            _owner.ResolveDefaultSettlementMemberId(),
+            null
+        );
+    }
+
     private void _refresh_active_shop_context(string feedbackText = null)
     {
-        using GodotProjectionLease<GDictionary> contextLease = _owner.GetActiveShopContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
+        SettlementServiceWindowData context = _owner.GetActiveShopContextTyped();
+        if (!context.IsValid)
         {
             return;
         }
-        string settlementId = GameRuntimeSettlementCommandHandler.ReadString(context, "settlement_id");
+        string settlementId = context.SettlementId.ToString();
+        string interactionScriptId = context.InteractionScriptId.ToString();
         WorldMapSettlementStateData settlementState =
             _owner.GetSettlementStateData(settlementId);
         if (settlementState == null)
@@ -497,14 +504,10 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             _owner.GetUniqueEquipmentPoolState();
         WorldUniqueEquipmentPoolState uniqueEquipmentPoolCheckpoint =
             uniqueEquipmentPool?.DuplicateState();
-        string nextFeedback = feedbackText
-            ?? GameRuntimeSettlementCommandHandler.ReadString(context, "feedback_text");
+        string nextFeedback = feedbackText ?? context.StateSummaryText;
         SettlementShopWindowBuildResult buildResult =
             _owner._shop_service.BuildWindowDataTyped(
-                GameRuntimeSettlementCommandHandler.ReadString(
-                    context,
-                    "interaction_script_id"
-                ),
+                interactionScriptId,
                 settlementLease.Value,
                 settlementState,
                 _owner.GetWorldStep(),
@@ -515,16 +518,11 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
                 _owner._GetTraitDefsTyped(),
                 uniqueEquipmentPool
             );
-        if (buildResult.WindowDataPlain.Count == 0)
+        if (!buildResult.HasWindowData)
         {
             uniqueEquipmentPool?.RestoreFrom(uniqueEquipmentPoolCheckpoint);
             return;
         }
-        using GodotProjectionLease<GDictionary> nextContextLease =
-            buildResult.ProjectWindowDataLease(
-                "GameRuntimeServiceWindowCommandHandler.refresh_active_shop_context"
-            );
-        GDictionary nextContext = nextContextLease.Value;
         if (
             buildResult.StateChanged
             && !_owner.SetActiveSettlementState(
@@ -536,64 +534,81 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             uniqueEquipmentPool?.RestoreFrom(uniqueEquipmentPoolCheckpoint);
             return;
         }
-        nextContext["settlement_id"] = settlementId;
-        nextContext["interaction_script_id"] = GameRuntimeSettlementCommandHandler.ReadString(context, "interaction_script_id");
-        _owner.SetActiveShopContext(nextContext);
+        _owner.SetActiveShopContext(
+            ApplyShopMemberOptions(
+                buildResult.WindowData.WithIdentity(settlementId, interactionScriptId)
+            )
+        );
     }
+
+    private SettlementServiceWindowData ApplyShopMemberOptions(
+        SettlementServiceWindowData windowData
+    ) =>
+        windowData.WithMemberOptions(
+            _windowDataBuilder.BuildMemberOptionData(),
+            _owner.ResolveDefaultSettlementMemberId(),
+            _owner.ResolveDefaultSettlementMemberId()
+        );
 
     internal void _refresh_active_forge_context(string feedback_text = "")
     {
-        using GodotProjectionLease<GDictionary> contextLease = _owner.GetActiveForgeContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
+        SettlementServiceWindowData context = _owner.GetActiveForgeContextTyped();
+        if (!context.IsValid)
         {
             return;
         }
-        string settlementId = GameRuntimeSettlementCommandHandler.ReadString(context, "settlement_id");
-        GDictionary servicePayload = GameRuntimeSettlementCommandHandler.ReadDictionary(context, "service_payload");
-        string interactionScriptId = GameRuntimeSettlementCommandHandler.ReadString(context, "interaction_script_id");
-        if (string.IsNullOrEmpty(interactionScriptId))
-        {
-            interactionScriptId = GameRuntimeSettlementCommandHandler.ReadString(servicePayload, "interaction_script_id");
-        }
+        string settlementId = context.SettlementId.ToString();
+        string interactionScriptId = context.InteractionScriptId.ToString();
         using GodotProjectionLease<GDictionary> settlementLease =
             _owner.GetSettlementRecordLease(settlementId);
-        GDictionary nextContext = _owner._forge_service.BuildWindowDataTyped(
+        // The forge service still reads the originating service entry as a Godot dictionary
+        // (facility tags come from the world record); it is rebuilt here from the typed
+        // context's stable ids instead of being stored as a property bag.
+        SettlementServiceWindowData nextContext = _owner._forge_service.BuildWindowDataTyped(
             interactionScriptId,
             settlementLease.Value,
-            servicePayload,
+            BuildForgeServicePayload(context),
             _owner._GetItemDefsTyped(),
             _owner.GetRecipeDefsTyped(),
             _owner.GetPartyWarehouseService(),
-            !string.IsNullOrEmpty(feedback_text)
-                ? feedback_text
-                : GameRuntimeSettlementCommandHandler.ReadString(context, "feedback_text")
+            !string.IsNullOrEmpty(feedback_text) ? feedback_text : context.StateSummaryText
         );
-        nextContext["settlement_id"] = settlementId;
-        nextContext["interaction_script_id"] = interactionScriptId;
-        nextContext["service_payload"] = servicePayload;
-        nextContext["member_options"] = GameRuntimeSettlementCommandHandler.ReadArray(context, "member_options");
-        string defaultMemberId = GameRuntimeSettlementCommandHandler.ReadString(context, "default_member_id");
-        if (string.IsNullOrEmpty(defaultMemberId))
-        {
-            defaultMemberId = GameRuntimeSettlementCommandHandler.ReadString(servicePayload, "member_id");
-        }
-        nextContext["default_member_id"] = defaultMemberId;
-        string selectedMemberId = GameRuntimeSettlementCommandHandler.ReadString(context, "selected_member_id");
-        if (string.IsNullOrEmpty(selectedMemberId))
-        {
-            selectedMemberId = defaultMemberId;
-        }
-        nextContext["selected_member_id"] = selectedMemberId;
-        _owner.SetActiveForgeContext(nextContext);
+        _owner.SetActiveForgeContext(
+            nextContext
+                .WithIdentity(settlementId, interactionScriptId)
+                .WithMemberOptions(
+                    context.MemberOptions,
+                    context.DefaultMemberId,
+                    context.SelectedMemberId != (StringName)""
+                        ? context.SelectedMemberId
+                        : context.DefaultMemberId
+                )
+        );
     }
 
-    private GDictArray _build_stagecoach_destinations(
+    private static GDictionary BuildForgeServicePayload(SettlementServiceWindowData context)
+    {
+        return new GDictionary
+        {
+            ["settlement_id"] = context.SettlementId.ToString(),
+            ["action_id"] = context.ActionId.ToString(),
+            ["interaction_script_id"] = context.InteractionScriptId.ToString(),
+            ["facility_id"] = context.FacilityId.ToString(),
+            ["facility_name"] = context.FacilityName,
+            ["npc_id"] = context.NpcId.ToString(),
+            ["npc_name"] = context.NpcName,
+            ["service_type"] = context.ServiceType,
+            ["member_id"] = context.SelectedMemberId.ToString(),
+            ["default_member_id"] = context.DefaultMemberId.ToString(),
+        };
+    }
+
+    private List<SettlementServiceWindowEntryData> _build_stagecoach_entries(
         GDictionary origin_settlement,
         string interaction_script_id
     )
     {
-        var entries = new GDictArray();
+        var entries = new List<SettlementServiceWindowEntryData>();
         foreach (
             StagecoachDestinationData destination in BuildStagecoachDestinationData(
                 origin_settlement,
@@ -601,36 +616,34 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             )
         )
         {
-            entries.Add(ProjectStagecoachDestination(destination));
+            entries.Add(
+                new SettlementServiceWindowEntryData(
+                    $"travel:{destination.SettlementId}",
+                    destination.DisplayName,
+                    destination.TierName,
+                    $"{destination.TierName} {destination.DisabledReason}",
+                    destination.CanTravel ? "状态：可出发" : "状态：不可出发",
+                    $"路费 {destination.TravelCost} 金",
+                    destination.CanTravel,
+                    destination.DisabledReason,
+                    new SettlementStagecoachSelectionData(destination.SettlementId)
+                )
+            );
         }
         return entries;
     }
 
-    private static GDictionary ProjectStagecoachDestination(
-        StagecoachDestinationData destination
-    )
+    private string ResolveSettlementDisplayName(string settlementId, string fallback)
     {
-        if (destination == null)
-            return new GDictionary();
-
-        return new GDictionary
-        {
-            ["settlement_id"] = destination.SettlementId,
-            ["entry_id"] = $"travel:{destination.SettlementId}",
-            ["display_name"] = destination.DisplayName,
-            ["tier_name"] = destination.TierName,
-            ["travel_cost"] = destination.TravelCost,
-            ["can_travel"] = destination.CanTravel,
-            ["state_label"] = destination.CanTravel ? "状态：可出发" : "状态：不可出发",
-            ["cost_label"] = $"路费 {destination.TravelCost} 金",
-            ["summary_text"] = destination.TierName,
-            ["details_text"] = $"{destination.TierName} {destination.DisabledReason}",
-            ["is_enabled"] = destination.CanTravel,
-            ["target_settlement_id"] = destination.SettlementId,
-            ["disabled_reason"] = destination.DisabledReason,
-            ["coord"] = new GDictionary { ["x"] = destination.Coord.X, ["y"] = destination.Coord.Y },
-            ["interaction_script_id"] = destination.InteractionScriptId,
-        };
+        if (string.IsNullOrEmpty(settlementId))
+            return fallback;
+        using GodotProjectionLease<GDictionary> settlementLease =
+            _owner.GetSettlementRecordLease(settlementId);
+        return GameRuntimeSettlementCommandHandler.ReadString(
+            settlementLease.Value,
+            "display_name",
+            fallback
+        );
     }
 
     internal List<StagecoachDestinationData> BuildStagecoachDestinationData(
@@ -674,31 +687,12 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         return entries;
     }
 
-    private GDictionary _find_stagecoach_destination(
-        GDictionary stagecoach_context,
-        string settlement_id
-    )
-    {
-        foreach (
-            GDictionary destination in GameRuntimeSettlementCommandHandler.Dictionaries(
-                GameRuntimeSettlementCommandHandler.ReadArray(stagecoach_context, "destinations")
-            )
-        )
-        {
-            if (GameRuntimeSettlementCommandHandler.ReadString(destination, "settlement_id") == settlement_id)
-            {
-                return destination;
-            }
-        }
-        return new GDictionary();
-    }
-
     private StagecoachDestinationData ResolveStagecoachDestinationTyped(
-        GDictionary stagecoach_context,
+        SettlementServiceWindowData stagecoach_context,
         string settlement_id
     )
     {
-        string originSettlementId = GameRuntimeSettlementCommandHandler.ReadString(stagecoach_context, "settlement_id");
+        string originSettlementId = stagecoach_context.SettlementId.ToString();
         if (string.IsNullOrEmpty(originSettlementId) || string.IsNullOrEmpty(settlement_id))
         {
             return null;
@@ -710,7 +704,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         {
             return null;
         }
-        string interactionScriptId = GameRuntimeSettlementCommandHandler.ReadString(stagecoach_context, "interaction_script_id");
+        string interactionScriptId = stagecoach_context.InteractionScriptId.ToString();
         foreach (
             StagecoachDestinationData destination in BuildStagecoachDestinationData(
                 originSettlement,
@@ -765,6 +759,18 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         return interaction_script_id == "service_master_reforge"
             ? "当前没有可用重铸配方"
             : "当前没有可用锻造配方";
+    }
+
+    internal string _resolve_forge_service_label(SettlementServiceWindowData context)
+    {
+        string serviceType = (context.ServiceType ?? "").Trim();
+        if (!string.IsNullOrEmpty(serviceType))
+        {
+            return serviceType;
+        }
+        return context.InteractionScriptId.ToString().Trim() == "service_master_reforge"
+            ? "大师重铸"
+            : "锻造";
     }
 
     internal string _resolve_forge_service_label(GDictionary payload)

@@ -1319,14 +1319,17 @@ public sealed class PartyWarehouseService : IDisposable
             return true;
         }
 
-        try
+        // ReadValue() only ever yields boxed Variants out of a Godot dictionary.
+        if (rawValue is Variant variantValue)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsGodotDictionary();
-            return value != null;
-        }
-        catch
-        {
+            try
+            {
+                value = variantValue.AsGodotDictionary();
+                return value != null;
+            }
+            catch
+            {
+            }
         }
 
         value = null;

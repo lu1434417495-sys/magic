@@ -643,12 +643,14 @@ public sealed partial class GameRuntimeFacade
         return unlockedIds;
     }
 
-    internal GDictionary ResolveLowLuckSettlementEventRewards(GDictionary context)
+    internal LowLuckEventResult ResolveLowLuckSettlementEventRewards(
+        LowLuckSettlementActionInput input
+    )
     {
         var fateRuntime = _battle_runtime?.GetFateRuntime();
         if (fateRuntime == null)
-            return new GDictionary();
-        var result = fateRuntime.ResolveLowLuckSettlementEventRewards(context);
+            return null;
+        var result = fateRuntime.ResolveLowLuckSettlementEventRewards(input);
         if (_character_management != null)
             _party_state = _character_management.GetPartyState();
         return result;

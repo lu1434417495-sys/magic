@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_character_info_window_fate_regression : LifecycleTestSceneTree
 {
@@ -17,9 +15,9 @@ public partial class run_character_info_window_fate_regression : LifecycleTestSc
         try
         {
             await TestCharacterInfoWindowRendersFateSectionHappyPath();
-            await TestCharacterInfoWindowRejectsBadSectionSchema();
-            await TestCharacterInfoWindowRejectsBadFatePayload();
-            await TestCharacterInfoWindowRejectsStringNameStringFields();
+            await TestCharacterInfoWindowRendersUpperBoundFateHints();
+            await TestCharacterInfoWindowHidesOnEmptyContext();
+            await TestCharacterInfoWindowSkipsDuplicateFateSection();
         }
         catch (System.Exception exception)
         {
@@ -43,264 +41,173 @@ public partial class run_character_info_window_fate_regression : LifecycleTestSc
     {
         CharacterInfoWindow window = await CreateWindow();
         window.ShowCharacter(
-            new GDictionary
-            {
-                ["display_name"] = "黑冠见证者",
-                ["meta_label"] = "战斗单位  |  玩家前排",
-                ["sections"] = new GArray
-                {
-                    new GDictionary
-                    {
-                        ["title"] = "基础概览",
-                        ["entries"] = new GArray
-                        {
-                            new GDictionary { ["label"] = "职业", ["value"] = "见厄者" },
-                        },
-                    },
-                },
-                ["fate"] = new GDictionary
-                {
-                    ["hidden_luck_at_birth"] = 7,
-                    ["faith_luck_bonus"] = -13,
-                    ["effective_luck"] = -6,
-                    ["fortune_marked"] = 1,
-                    ["doom_marked"] = 1,
-                    ["doom_authority"] = 4,
-                    ["has_misfortune"] = true,
-                },
-                ["status_label"] = "战斗单位",
-            }
+            new GameRuntimeCharacterInfoContext(
+                GameRuntimeCharacterInfoSource.Battle,
+                "黑冠见证者",
+                "战斗单位  |  玩家前排",
+                "战斗单位",
+                BaseSections(),
+                unitId: "unit_1",
+                fate: new GameRuntimeCharacterInfoFate(
+                    hiddenLuckAtBirth: 7,
+                    faithLuckBonus: -13,
+                    fortuneMarked: 1,
+                    doomMarked: 1,
+                    doomAuthority: 4
+                )
+            )
         );
         await ProcessFrames(1);
 
-        _test.Eq(window.sections_container.GetChildCount(), 2, "显式 sections + fate payload 应渲染为两个段落。");
+        _test.True(window.Visible, "完整 typed context 应打开人物信息窗。");
+        _test.Eq(window.title_label.Text, "黑冠见证者", "typed context 的 display_name 应直接渲染。");
+        _test.Eq(window.sections_container.GetChildCount(), 2, "显式 sections + fate 应渲染为两个段落。");
         List<string> renderedTexts = CollectLabelTexts(window.sections_container);
-        AssertHas(renderedTexts, "命运", "happy path 应追加命运段落标题。");
-        AssertHas(renderedTexts, "生来暗运：", "happy path 应渲染生来暗运标签。");
-        AssertHas(renderedTexts, "+7", "happy path 应按原值显示 hidden_luck_at_birth=+7。");
-        AssertHas(renderedTexts, "信仰赐运：", "happy path 应渲染信仰赐运标签。");
-        AssertHas(renderedTexts, "-13", "happy path 应渲染 faith_luck_bonus。");
-        AssertHas(renderedTexts, "有效运势：", "happy path 应渲染有效运势标签。");
-        AssertHas(renderedTexts, "-6", "happy path 应渲染 effective_luck=-6。");
-        AssertHas(renderedTexts, "1（已获福印）", "happy path 应渲染 fortune_marked。");
-        AssertHas(renderedTexts, "1（已见黑兆）", "happy path 应渲染 doom_marked。");
-        AssertHas(renderedTexts, "厄权：", "已入 Misfortune 时应显示 doom_authority 标签。");
-        AssertHas(renderedTexts, "4 级", "已入 Misfortune 时应显示 doom_authority 值。");
+        AssertHas(renderedTexts, "命运", "typed fate 应追加命运段落标题。");
+        AssertHas(renderedTexts, "生来暗运：", "应渲染生来暗运标签。");
+        AssertHas(renderedTexts, "+7", "应按原值显示 HiddenLuckAtBirth=+7。");
+        AssertHas(renderedTexts, "信仰赐运：", "应渲染信仰赐运标签。");
+        AssertHas(renderedTexts, "-13", "应渲染 FaithLuckBonus。");
+        AssertHas(renderedTexts, "有效运势：", "应渲染有效运势标签。");
+        AssertHas(renderedTexts, "-6", "EffectiveLuck 应由 typed owner 截断到 -6 下限。");
+        AssertHas(renderedTexts, "1（已获福印）", "应渲染 FortuneMarked。");
+        AssertHas(renderedTexts, "1（已见黑兆）", "应渲染 DoomMarked。");
+        AssertHas(renderedTexts, "厄权：", "DoomAuthority > 0 时应显示厄权标签。");
+        AssertHas(renderedTexts, "4 级", "DoomAuthority > 0 时应显示厄权值。");
         AssertHas(
             renderedTexts,
             "生来暗运已处于极端正运档，界面会按原值保留该刻印。",
-            "hidden_luck_at_birth=+7 时应给出极端正运提示。"
+            "HiddenLuckAtBirth=+7 时应给出极端正运提示。"
         );
         AssertHas(
             renderedTexts,
             "有效运势已压到 -6 下限：大失败区间会扩到 1-3；若处于劣势，命运的怜悯仍只回拉一档暴击门。",
-            "effective_luck=-6 时应给出下限提示。"
+            "EffectiveLuck=-6 时应给出下限提示。"
         );
 
         await DisposeNode(window);
     }
 
-    private async Task TestCharacterInfoWindowRejectsBadSectionSchema()
+    private async Task TestCharacterInfoWindowRendersUpperBoundFateHints()
     {
         CharacterInfoWindow window = await CreateWindow();
-
-        GDictionary missingSections = MakeValidCharacterInfoPayload();
-        missingSections.Remove("sections");
-        window.ShowCharacter(missingSections);
-        await ProcessFrames(1);
-        _test.False(window.Visible, "缺少 sections 的人物信息 payload 应拒绝。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "缺少 sections 时不应渲染默认 section。");
-
-        window.ShowCharacter(MakeValidCharacterInfoPayload(new GDictionary { ["type_label"] = "世界 NPC" }));
-        await ProcessFrames(1);
-        _test.False(window.Visible, "含旧 type_label 的人物信息 payload 应拒绝。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "旧 top-level 字段不应被忽略后继续渲染。");
-
         window.ShowCharacter(
-            MakeValidCharacterInfoPayload(
-                new GDictionary
-                {
-                    ["sections"] = new GArray
-                    {
-                        new GDictionary
-                        {
-                            ["title"] = "旧段落",
-                            ["entries"] = new GArray { new GDictionary { ["text"] = "正式 text entry。" } },
-                            ["body"] = "旧 body 字段。",
-                            ["rows"] = new GArray { new GDictionary { ["text"] = "旧 rows 字段。" } },
-                            ["lines"] = new GArray { "旧 lines 字段。" },
-                        },
-                    },
-                }
+            new GameRuntimeCharacterInfoContext(
+                GameRuntimeCharacterInfoSource.Battle,
+                "福印旅人",
+                "战斗单位",
+                "战斗单位",
+                BaseSections(),
+                fate: new GameRuntimeCharacterInfoFate(
+                    hiddenLuckAtBirth: -6,
+                    faithLuckBonus: 13,
+                    fortuneMarked: 0,
+                    doomMarked: 0,
+                    doomAuthority: 0
+                )
             )
         );
         await ProcessFrames(1);
-        _test.False(window.Visible, "section 含旧 body/rows/lines 字段时应拒绝整份 payload。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "旧 body/rows/lines 字段不应被忽略后继续渲染。");
 
-        window.ShowCharacter(
-            MakeValidCharacterInfoPayload(
-                new GDictionary
-                {
-                    ["sections"] = new GArray
-                    {
-                        new GDictionary
-                        {
-                            ["title"] = "装备摘要",
-                            ["entries"] = new GArray { new GDictionary { ["value"] = "塔盾" } },
-                        },
-                    },
-                }
-            )
+        List<string> renderedTexts = CollectLabelTexts(window.sections_container);
+        AssertHas(renderedTexts, "+7", "EffectiveLuck 应由 typed owner 截断到 +7 上限。");
+        AssertHas(renderedTexts, "0（未获福印）", "FortuneMarked=0 应显示未获福印。");
+        AssertHas(renderedTexts, "0（未见黑兆）", "DoomMarked=0 应显示未见黑兆。");
+        _test.False(
+            renderedTexts.Contains("厄权："),
+            "DoomAuthority=0 时不应显示厄权条目。"
         );
-        await ProcessFrames(1);
-        _test.False(window.Visible, "value-only entry 不属于当前 schema，应拒绝整份 payload。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "value-only entry 不应被转换成 text entry。");
-
-        window.ShowCharacter(
-            MakeValidCharacterInfoPayload(
-                new GDictionary
-                {
-                    ["sections"] = new GArray
-                    {
-                        new GDictionary
-                        {
-                            ["title"] = "基础概览",
-                            ["entries"] = new GArray
-                            {
-                                new GDictionary
-                                {
-                                    ["label"] = "职业",
-                                    ["value"] = "旅人",
-                                    ["text"] = "旧混合条目。",
-                                },
-                            },
-                        },
-                    },
-                }
-            )
+        AssertHas(
+            renderedTexts,
+            "生来暗运已压到最深坏运档，这类角色更容易撞进命运事件的极端分支。",
+            "HiddenLuckAtBirth=-6 时应给出最深坏运提示。"
         );
-        await ProcessFrames(1);
-        _test.False(window.Visible, "entry 只能是 {label,value} 或 {text}，混合字段应拒绝。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "混合 entry 不应按 label/value 局部渲染。");
+        AssertHas(
+            renderedTexts,
+            "有效运势已到 +7 上限：高位大成功威胁区会吃满，但随机掉落仍只按 +5 结算。",
+            "EffectiveLuck=+7 时应给出上限提示。"
+        );
 
         await DisposeNode(window);
     }
 
-    private async Task TestCharacterInfoWindowRejectsBadFatePayload()
+    private async Task TestCharacterInfoWindowHidesOnEmptyContext()
     {
         CharacterInfoWindow window = await CreateWindow();
 
-        window.ShowCharacter(MakeValidCharacterInfoPayload(new GDictionary { ["fate"] = default(Variant) }));
+        window.ShowCharacter(null);
         await ProcessFrames(1);
-        _test.False(window.Visible, "显式 null fate payload 应拒绝整个人物信息 payload。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "显式 null fate 不应被当成缺省 fate 渲染基础 section。");
+        _test.False(window.Visible, "null context 应关闭人物信息窗。");
+        _test.Eq(window.sections_container.GetChildCount(), 0, "null context 不应渲染任何 section。");
 
         window.ShowCharacter(
-            new GDictionary
-            {
-                ["display_name"] = "未命名旅人",
-                ["meta_label"] = "战斗单位",
-                ["sections"] = BaseSections(),
-                ["fate"] = new GDictionary { ["hidden_luck_at_birth"] = -6 },
-                ["status_label"] = "",
-            }
+            new GameRuntimeCharacterInfoContext(
+                GameRuntimeCharacterInfoSource.World,
+                "无段落旅人",
+                "世界 NPC",
+                "可见提示单位",
+                System.Array.Empty<GameRuntimeCharacterInfoSection>()
+            )
         );
         await ProcessFrames(1);
-        _test.False(window.Visible, "缺字段 fate payload 应拒绝整个人物信息 payload。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "缺字段 fate payload 不应保留基础 section。");
+        _test.False(window.Visible, "无 section 的 context 应关闭人物信息窗。");
+        _test.Eq(window.sections_container.GetChildCount(), 0, "无 section 时不应渲染默认 section。");
 
         window.ShowCharacter(
-            new GDictionary
-            {
-                ["display_name"] = "字符串运势旅人",
-                ["meta_label"] = "战斗单位",
-                ["sections"] = BaseSections(),
-                ["fate"] = new GDictionary
+            new GameRuntimeCharacterInfoContext(
+                GameRuntimeCharacterInfoSource.World,
+                "   ",
+                "世界 NPC",
+                "可见提示单位",
+                BaseSections()
+            )
+        );
+        await ProcessFrames(1);
+        _test.False(window.Visible, "空白 display_name 的 context 应关闭人物信息窗。");
+        _test.Eq(window.sections_container.GetChildCount(), 0, "空白 display_name 不应继续渲染 section。");
+
+        await DisposeNode(window);
+    }
+
+    private async Task TestCharacterInfoWindowSkipsDuplicateFateSection()
+    {
+        CharacterInfoWindow window = await CreateWindow();
+        window.ShowCharacter(
+            new GameRuntimeCharacterInfoContext(
+                GameRuntimeCharacterInfoSource.Battle,
+                "双命运旅人",
+                "战斗单位",
+                "战斗单位",
+                new[]
                 {
-                    ["hidden_luck_at_birth"] = -6,
-                    ["faith_luck_bonus"] = 0,
-                    ["effective_luck"] = "-6",
-                    ["fortune_marked"] = 0,
-                    ["doom_marked"] = 0,
-                    ["doom_authority"] = 0,
-                    ["has_misfortune"] = false,
+                    new GameRuntimeCharacterInfoSection(
+                        "命运",
+                        new[] { GameRuntimeCharacterInfoEntry.Pair("生来暗运", "+1") }
+                    ),
                 },
-                ["status_label"] = "",
-            }
-        );
-        await ProcessFrames(1);
-        _test.False(window.Visible, "错类型 fate payload 不应被字符串转 int 后展示。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "错类型 fate payload 不应渲染任何 section。");
-
-        await DisposeNode(window);
-    }
-
-    private async Task TestCharacterInfoWindowRejectsStringNameStringFields()
-    {
-        CharacterInfoWindow window = await CreateWindow();
-
-        window.ShowCharacter(
-            MakeValidCharacterInfoPayload(new GDictionary { ["display_name"] = new StringName("字符串名旅人") })
-        );
-        await ProcessFrames(1);
-        _test.False(window.Visible, "StringName display_name 不应被窗口当成正式字符串渲染。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "StringName display_name 不应继续渲染 section。");
-
-        window.ShowCharacter(
-            MakeValidCharacterInfoPayload(
-                new GDictionary
-                {
-                    ["sections"] = new GArray
-                    {
-                        new GDictionary
-                        {
-                            ["title"] = new StringName("基础概览"),
-                            ["entries"] = new GArray
-                            {
-                                new GDictionary { ["label"] = new StringName("职业"), ["value"] = "旅人" },
-                            },
-                        },
-                    },
-                }
+                fate: new GameRuntimeCharacterInfoFate(1, 0, 0, 0, 0)
             )
         );
         await ProcessFrames(1);
-        _test.False(window.Visible, "StringName section/title 字段不应被窗口当成正式字符串渲染。");
-        _test.Eq(window.sections_container.GetChildCount(), 0, "StringName section/title 字段不应继续渲染 section。");
+
+        _test.True(window.Visible, "已自带命运段落的 context 仍应正常展示。");
+        _test.Eq(
+            window.sections_container.GetChildCount(),
+            1,
+            "context 已含命运段落时不应再追加第二个命运段落。"
+        );
 
         await DisposeNode(window);
     }
 
-    private static GDictionary MakeValidCharacterInfoPayload(GDictionary overrides = null)
+    private static IReadOnlyList<GameRuntimeCharacterInfoSection> BaseSections()
     {
-        GDictionary data = new()
+        return new[]
         {
-            ["display_name"] = "严格旅人",
-            ["meta_label"] = "战斗单位",
-            ["sections"] = BaseSections(),
-            ["status_label"] = "",
-        };
-        if (overrides != null)
-        {
-            foreach (Variant key in overrides.Keys)
-                data[key] = overrides[key];
-        }
-        return data;
-    }
-
-    private static GArray BaseSections()
-    {
-        return new GArray
-        {
-            new GDictionary
-            {
-                ["title"] = "基础概览",
-                ["entries"] = new GArray
-                {
-                    new GDictionary { ["label"] = "职业", ["value"] = "旅人" },
-                },
-            },
+            new GameRuntimeCharacterInfoSection(
+                "基础概览",
+                new[] { GameRuntimeCharacterInfoEntry.Pair("职业", "见厄者") }
+            ),
         };
     }
 

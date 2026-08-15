@@ -85,7 +85,8 @@ WorldMapSystem / SettlementWindow / ShopWindow
 ## 窗口与 modal 所有权
 
 - `SettlementWindow` 展示据点名、tier、服务 NPC 和 action buttons；不计算服务规则。
-- 商店、铁匠、驿站、任务板共用 `ShopWindow` 风格 modal 时，handler 构建不同 window data context；铁匠确认使用专用 `ForgeActionRequest` C# 事件，其他窗口继续使用各自现有提交协议。
+- 商店、铁匠、驿站、任务板共用 `ShopWindow`：四者的窗口输入与 active modal context 都是同一个 immutable typed DTO `SettlementServiceWindowData`（replace-whole 更新，rollback snapshot 直接借用旧引用），不再是 plain property bag。
+- 四个面板的提交都是 typed C# 事件：`ShopActionRequested` / `ContractActionRequested` / `ForgeActionRequested` / `StagecoachActionRequested`，只携带稳定 id（item/instance、quest、recipe、target settlement）。价格、库存、quest state、配方与路线由 runtime 在提交时按 id 重查，不信任窗口展示值。
 - active modal kind 由 runtime 持有；打开服务 modal 时应关闭 settlement action feedback 的冲突状态。
 - 窗口关闭只清空 active modal/context，不回滚已提交服务。
 
@@ -140,7 +141,7 @@ godot --headless -s res://tests/world_map/ui/run_settlement_shop_window_schema_r
 
 facade 显式适配器可以访问 concrete runtime/session/service owner，但这些 owner 不跨 port。主 handler 继续决定事务捕获/提交/回滚时机、action dispatch 与反馈；四个子处理器只调用主 handler 的语义方法，不读取 port。
 
-handler 不应缓存可变 `GDictionary` 作为长期真相；active UI context 使用 detached plain CLR graph，只有同步 Godot/UI 边界才能创建 Request-domain projection lease。每次执行服务前仍须从 runtime/context 重新解析 active settlement 和服务 entry。
+handler 不应缓存可变 `GDictionary` 作为长期真相；active UI context 使用 detached immutable typed DTO（据点总览 `SettlementOverviewWindowData`、四个服务面板 `SettlementServiceWindowData`），窗口链路直接传 DTO，不再创建 projection lease；headless `IReadOnlyDictionary<string, object>` 快照由 DTO 的 `BuildSnapshotPlain()` 单向投影。每次执行服务前仍须从 runtime/context 重新解析 active settlement 和服务 entry。
 
 ## 实现级补充：window data 构建
 
@@ -243,61 +244,112 @@ contract board 只展示 typed QuestDef 中 provider/settlement 条件匹配的�
 
 ### `scripts/systems/game_runtime/GameRuntimeSettlementCommandHandler.cs`
 
-- `public partial class GameRuntimeSettlementCommandHandler : RefCounted`
-- `private sealed class SettlementActionValidationResult`
-- `internal static SettlementActionValidationResult Success(GDictionary serviceEntry = null) =>`
-- `internal static SettlementActionValidationResult Failure(string message) =>`
-- `internal GDictionary ToDictionary()`
-- `private sealed class ContractBoardQuestData`
-- `private sealed class SettlementServiceEntryResolution`
-- `internal static SettlementServiceEntryResolution Missing() => new(null, false, "");`
-- `private sealed class StagecoachDestinationData`
-- `internal GDictionary ToDictionary() =>`
+- `public sealed class GameRuntimeSettlementCommandHandler : IDisposable`
+- `public GameRuntimeSettlementCommandHandler()`
 - `internal SettlementPersistResult(int partyError, int worldError, int playerError)`
-- `internal GDictionary ToDictionary() =>`
-- `internal void SetupRuntime(GameRuntimeFacade runtime)`
-- `public new void Dispose()`
+- `internal sealed class SettlementCommandRollbackSnapshot`
+- `internal SettlementCommandRollbackSnapshot(`
+- `internal void SetupRuntime(IGameRuntimeSettlementCommandPort runtimePort)`
+- `public void Dispose()`
 - `internal void DisposeRuntime()`
-- `internal GDictionary GetSettlementWindowData(string settlement_id = "")`
-- `internal GDictionary GetShopWindowData()`
-- `internal GDictionary GetContractBoardWindowData()`
-- `internal GDictionary GetForgeWindowData()`
-- `internal GDictionary GetStagecoachWindowData()`
+- `internal QuestAcceptContext _build_quest_accept_context()`
+- `internal SettlementServiceWindowData GetShopWindowDataTyped() =>`
+- `internal SettlementServiceWindowData GetContractBoardWindowDataTyped() =>`
+- `internal SettlementServiceWindowData GetForgeWindowDataTyped() =>`
+- `internal SettlementServiceWindowData GetStagecoachWindowDataTyped() =>`
+- `internal SettlementOverviewWindowData GetSettlementOverviewWindowData(`
+- `internal IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(`
+- `internal IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain() =>`
+- `internal IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain() =>`
+- `internal NpcQuestOfferWindowData GetActiveNpcQuestOfferContextTyped() =>`
+- `internal IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain() =>`
+- `internal IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain() =>`
+- `internal IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain() =>`
+- `internal IReadOnlyDictionary<string, object> GetBountyBoardWindowDataSnapshotPlain() =>`
+- `internal BountyBoardWindowData GetActiveBountyBoardContextTyped() =>`
+- `internal void SetActiveBountyBoardContext(BountyBoardWindowData data) =>`
+- `internal void ClearActiveBountyBoardContext() =>`
+- `internal RuntimeCommandResult CommandShopBuyTyped(`
+- `internal RuntimeCommandResult CommandShopSellTyped(`
+- `internal RuntimeCommandResult CommandExecuteContractBoardActionRuntimeTyped(`
+- `internal RuntimeCommandResult CommandExecuteShopActionRuntimeTyped(`
+- `internal RuntimeCommandResult CommandStagecoachTravelTyped(`
+- `internal RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(`
+- `internal RuntimeCommandResult CommandExecuteForgeActionRuntimeTyped(`
+- `internal RuntimeCommandResult ExecuteSettlementAction(`
+- `internal void OnSettlementActionRequested(`
+- `internal void OnSettlementActionRequested(SettlementActionRequest request)`
 - `internal void OnSettlementWindowClosed()`
 - `internal void OnShopWindowClosed()`
 - `internal void OnContractBoardWindowClosed()`
+- `internal void OnBountyBoardWindowClosed()`
+- `internal void OnNpcQuestOfferWindowClosed()`
 - `internal void OnForgeWindowClosed()`
 - `internal void OnStagecoachWindowClosed()`
 - `internal string ResolveCommandSettlementId()`
+- `internal StringName ResolveDefaultSettlementMemberId()`
+- `internal SettlementServiceResult ExecuteSettlementActionTyped(`
+- `internal static IReadOnlyList<object> ReadPlainList(`
+- `internal static string ReadPlainString(`
+- `internal static int ReadPlainInt(`
+- `internal static Dictionary<string, object> EmptyPlainDictionary() =>`
 - `internal GDictionary RestorePartyResources(float restore_ratio, bool restore_full)`
+- `internal void _mark_settlement_visited(string settlement_id)`
+- `internal bool IsSettlementVisited(string settlementId) =>`
+- `internal SettlementCommandRollbackSnapshot CaptureRollbackSnapshot(`
+- `internal void RestoreRollbackSnapshotForFailure(`
+- `internal SettlementPersistResult PersistChangesTyped(`
+- `internal bool _has_runtime()`
 - `internal GDictionary CommandOk(string message = "")`
+- `internal RuntimeCommandResult RuntimeCommandOk(string message = "")`
 - `internal GDictionary CommandError(string message)`
+- `internal RuntimeCommandResult RuntimeCommandError(string message)`
+- `internal RuntimeCommandResult RuntimeCommandPersistFailure()`
 - `internal bool IsBattleActive()`
 - `internal void UpdateStatus(string message)`
 - `internal string GetActiveSettlementId()`
 - `internal void SetActiveSettlementId(string settlement_id)`
 - `internal void SetSettlementFeedbackText(string feedback_text)`
 - `internal string GetSettlementFeedbackText()`
-- `internal GDictionary GetSelectedSettlement()`
+- `internal WorldMapSettlementData GetSelectedSettlementData() =>`
 - `internal PartyState GetPartyState()`
 - `internal int GetPartyGold()`
-- `internal GDictionary GetSettlementRecord(string settlement_id)`
-- `internal GArray GetAllSettlementRecords()`
-- `internal GDictionary GetSettlementState(string settlement_id)`
-- `internal WorldMapSettlementStateData GetSettlementStateData(string settlement_id)`
-- `internal bool SetActiveSettlementState(string settlement_id, WorldMapSettlementStateData settlement_state)`
+- `internal GodotProjectionLease<GDictionary> GetSettlementRecordLease(string settlement_id) =>`
+- `internal GodotProjectionLease<GArray> GetAllSettlementRecordsLease() =>`
+- `internal WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>`
+- `internal WorldUniqueEquipmentPoolState GetUniqueEquipmentPoolState() =>`
+- `internal bool IsUniqueWorldEquipmentItem(StringName itemId) =>`
+- `internal bool SetActiveSettlementState(`
 - `internal PartyWarehouseService GetPartyWarehouseService()`
+- `internal IReadOnlyDictionary<StringName, ItemDefinition> _GetItemDefsTyped()`
+- `internal IReadOnlyDictionary<StringName, TraitDefinition> _GetTraitDefsTyped()`
 - `internal string GetItemDisplayName(StringName item_id)`
-- `internal IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped()`
-- `internal IReadOnlyDictionary<StringName, QuestDef> GetQuestDefsTyped()`
+- `internal IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped()`
+- `internal IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped()`
+- `internal QuestDefinition GetQuestDefinition(StringName questId) =>`
+- `internal RuntimeCommandResult CommandAcceptQuestTyped(`
+- `internal RuntimeCommandResult CommandClaimQuestTyped(StringName questId) =>`
+- `internal RuntimeCommandResult CommandSubmitQuestItemTyped(`
+- `internal BountyBoardWindowData GetActiveBountyBoardData() =>`
+- `internal void SetActiveBountyBoardRuntimeContext(BountyBoardWindowData data) =>`
+- `internal void ClearActiveBountyBoardRuntimeContext() =>`
+- `internal NpcQuestOfferWindowData GetActiveNpcQuestOfferData() =>`
+- `internal IReadOnlyDictionary<string, object> GetSettlementRecordSnapshotPlain(`
+- `internal SettlementServiceWindowData GetActiveShopContextTyped() =>`
+- `internal SettlementServiceWindowData GetActiveContractBoardContextTyped() =>`
+- `internal SettlementServiceWindowData GetActiveForgeContextTyped() =>`
+- `internal SettlementServiceWindowData GetActiveStagecoachContextTyped() =>`
+- `internal void NotifyMisfortuneGuidanceOfForgeResult(`
+- `internal static SettlementSubmissionSource ReadSubmissionSource(GDictionary payload)`
 - `internal AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id)`
 - `internal string GetMemberDisplayName(StringName member_id)`
 - `internal void OpenPartyWarehouseWindow(string entry_label)`
+- `internal void EnqueuePendingCharacterRewardsTyped(`
+- `internal void RecordMemberAchievementEvent(`
 - `internal void SyncPartyStateFromCharacterManagement()`
 - `internal int PersistPartyState()`
 - `internal int PersistWorldData()`
 - `internal int PersistPlayerCoord()`
-- `internal WorldMapFogSystem GetFogSystem()`
 - `internal bool IsSettlementVisibleToPlayer(GDictionary settlement)`
 - `internal string GetPlayerFactionId()`
 - `internal void AdvanceWorldTimeBySteps(int delta_steps)`
@@ -309,48 +361,68 @@ contract board 只展示 typed QuestDef 中 provider/settlement 条件匹配的�
 - `internal RuntimeModalKind GetActiveModalKind()`
 - `internal void SetActiveModalKind(RuntimeModalKind modalKind)`
 - `internal bool PresentPendingRewardIfReady()`
-- `internal void SetActiveShopContext(GDictionary context)`
-- `internal void SetActiveContractBoardContext(GDictionary context)`
-- `internal void SetActiveForgeContext(GDictionary context)`
+- `internal void SetActiveShopContext(SettlementServiceWindowData context)`
+- `internal void SetActiveContractBoardContext(SettlementServiceWindowData context)`
+- `internal void SetActiveNpcQuestOfferContext(NpcQuestOfferWindowData data)`
+- `internal void SetActiveForgeContext(SettlementServiceWindowData context)`
 - `internal void ClearActiveShopContext()`
 - `internal void ClearActiveContractBoardContext()`
+- `internal void ClearActiveNpcQuestOfferContext()`
 - `internal void ClearActiveForgeContext()`
-- `internal GDictionary GetActiveShopContext()`
-- `internal GDictionary GetActiveContractBoardContext()`
-- `internal GDictionary GetActiveForgeContext()`
-- `internal void SetActiveStagecoachContext(GDictionary context)`
+- `internal void SetActiveStagecoachContext(SettlementServiceWindowData context)`
 - `internal void ClearActiveStagecoachContext()`
-- `internal GDictionary GetActiveStagecoachContext()`
+- `internal static IEnumerable<GDictionary> Dictionaries(GArray values)`
+- `internal static string ReadString(GDictionary data, string key, string fallback = "")`
+- `internal static Variant ReadVariant(GDictionary data, string key)`
+- `internal static bool ReadBool(GDictionary data, string key, bool fallback = false)`
+- `internal static GArray ReadArray(GDictionary data, string key)`
+- `internal static GDictionary ReadDictionary(GDictionary data, string key)`
+- `internal static Vector2I ReadVector2I(`
+- `internal static StringName ReadStringName(GDictionary data, string key)`
 
 ### `scripts/systems/settlement/SettlementServiceResult.cs`
 
 - `public sealed class SettlementServiceResult`
 - `public SettlementServiceResult SetInventoryDelta(GDictionary value)`
+- `internal SettlementServiceResult SetPendingCharacterRewardsTyped(`
+- `internal SettlementServiceResult SetQuestProgressEventsTyped(`
 - `public SettlementServiceResult SetServiceSideEffects(GDictionary effects)`
-- `public GDictionary ToDictionary()`
+- `internal SettlementServiceResultPayloadEntry(string key, object value)`
+- `internal object Value => RuntimePlainPayload.CloneValue(_value);`
+- `internal SettlementServiceResultPayloadEntry Duplicate() => new(Key, _value);`
 
 ### `scripts/systems/settlement/SettlementShopService.cs`
 
-- `public partial class SettlementShopService : RefCounted`
-- `public new void Dispose()`
+- `public sealed class SettlementShopService : IDisposable`
+- `private sealed record ShopDefinition(`
+- `private sealed record ShopStateResolution(`
+- `internal void SetUniqueOfferRollRangeForTesting(Func<int, int, int> rollRange) =>`
+- `public void Dispose()`
+- `public SettlementShopWindowBuildResult BuildWindowDataTyped(`
+- `public SettlementShopTradeResult BuyTyped(`
+- `public SettlementShopTradeResult SellTyped(`
 
 ### `scripts/systems/settlement/SettlementForgeService.cs`
 
-- `public partial class SettlementForgeService : RefCounted`
-- `public new void Dispose()`
+- `public sealed class SettlementForgeService : System.IDisposable`
+- `public void Dispose()`
 - `private sealed class RecipeItemValidationResult`
 - `public static RecipeItemValidationResult Success() => new(true, "");`
 - `public static RecipeItemValidationResult Failed(string message) => new(false, message);`
 - `public bool IsSupportedInteraction(string interaction_script_id)`
+- `public bool HasAvailableRecipeTyped(`
+- `internal SettlementServiceResult ExecuteRecipeResultTyped(`
+- `internal SettlementServiceWindowData BuildWindowDataTyped(`
 
 ### `scripts/systems/settlement/SettlementResearchService.cs`
 
-- `public partial class SettlementResearchService : RefCounted`
-- `private sealed class ResearchMemberAvailability`
-- `internal GDictionary ToDictionary() =>`
+- `public class SettlementResearchService`
 - `public bool IsSupportedInteraction(string interaction_script_id)`
+- `internal SettlementServiceMetadata BuildServiceMetadataTyped(`
+- `internal SettlementServiceResult ExecuteTyped(`
 
 ### `scripts/systems/settlement/SettlementServiceMetadata.cs`
 
 - `internal sealed class SettlementServiceMetadata`
-- `internal GDictionary ToDictionary()`
+- `internal SettlementServiceMetadata(`
+- `internal List<SettlementResearchMemberAvailability> CloneResearchMemberAvailability() =>`

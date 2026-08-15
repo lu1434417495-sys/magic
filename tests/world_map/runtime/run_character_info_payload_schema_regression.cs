@@ -1,7 +1,5 @@
 using System.Threading.Tasks;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_character_info_payload_schema_regression : LifecycleTestSceneTree
 {
@@ -15,7 +13,7 @@ public partial class run_character_info_payload_schema_regression : LifecycleTes
     {
         try
         {
-            await TestRuntimeCharacterInfoPayloadAllowsRuntimeIdentityKeys();
+            await TestRuntimeCharacterInfoContextRendersRuntimeIdentityFields();
             await TestEquipmentTooltipEntryRendersAsHoverTooltip();
         }
         catch (System.Exception exception)
@@ -28,39 +26,37 @@ public partial class run_character_info_payload_schema_regression : LifecycleTes
         }
     }
 
-    private async Task TestRuntimeCharacterInfoPayloadAllowsRuntimeIdentityKeys()
+    private async Task TestRuntimeCharacterInfoContextRendersRuntimeIdentityFields()
     {
         CharacterInfoWindow window = CharacterInfoWindowScene.Instantiate<CharacterInfoWindow>();
         Root.AddChild(window);
         await ToSignal(this, SignalName.ProcessFrame);
 
         window.ShowCharacter(
-            new GDictionary
-            {
-                ["source"] = "battle",
-                ["unit_id"] = "unit_1",
-                ["member_id"] = "hero",
-                ["display_name"] = "Hero",
-                ["meta_label"] = "战斗单位",
-                ["status_label"] = "玩家",
-                ["sections"] = new GArray
+            new GameRuntimeCharacterInfoContext(
+                GameRuntimeCharacterInfoSource.Battle,
+                "Hero",
+                "战斗单位",
+                "玩家",
+                new[]
                 {
-                    new GDictionary
-                    {
-                        ["title"] = "基础概览",
-                        ["entries"] = new GArray
-                        {
-                            new GDictionary { ["label"] = "职业", ["value"] = "战士" },
-                        },
-                    },
+                    new GameRuntimeCharacterInfoSection(
+                        "基础概览",
+                        new[] { GameRuntimeCharacterInfoEntry.Pair("职业", "战士") }
+                    ),
                 },
-            }
+                unitId: "unit_1",
+                memberId: "hero"
+            )
         );
         await ToSignal(this, SignalName.ProcessFrame);
 
-        _test.True(window.Visible, "runtime character info payload with source/unit_id/member_id should be accepted.");
-        _test.Eq(window.title_label.Text, "Hero", "runtime payload display_name should render.");
-        _test.Eq(window.sections_container.GetChildCount(), 1, "runtime payload sections should render.");
+        _test.True(window.Visible, "带 source/unit_id/member_id 的 typed context 应被窗口接受。");
+        _test.Eq(window.title_label.Text, "Hero", "typed context 的 display_name 应渲染。");
+        _test.Eq(window.meta_label.Text, "战斗单位", "typed context 的 meta_label 应渲染。");
+        _test.Eq(window.status_label.Text, "玩家", "typed context 的 status_label 应渲染。");
+        _test.True(window.status_block.Visible, "非空 status_label 应展开状态块。");
+        _test.Eq(window.sections_container.GetChildCount(), 1, "typed context 的 sections 应渲染。");
 
         window.QueueFree();
         await ToSignal(this, SignalName.ProcessFrame);
@@ -74,37 +70,34 @@ public partial class run_character_info_payload_schema_regression : LifecycleTes
 
         const string tooltipText = "【屠龙】对 dragon 额外3D6火焰。";
         window.ShowCharacter(
-            new GDictionary
-            {
-                ["source"] = "battle",
-                ["unit_id"] = "unit_1",
-                ["display_name"] = "Hero",
-                ["meta_label"] = "战斗单位",
-                ["status_label"] = "玩家",
-                ["sections"] = new GArray
+            new GameRuntimeCharacterInfoContext(
+                GameRuntimeCharacterInfoSource.Battle,
+                "Hero",
+                "战斗单位",
+                "玩家",
+                new[]
                 {
-                    new GDictionary
-                    {
-                        ["title"] = "装备",
-                        ["entries"] = new GArray
+                    new GameRuntimeCharacterInfoSection(
+                        "装备",
+                        new[]
                         {
-                            new GDictionary
-                            {
-                                ["label"] = "主手",
-                                ["value"] = "龙骨断剑 ⓘ",
-                                ["tooltip"] = tooltipText,
-                            },
-                        },
-                    },
+                            GameRuntimeCharacterInfoEntry.Pair(
+                                "主手",
+                                "龙骨断剑 ⓘ",
+                                tooltipText
+                            ),
+                        }
+                    ),
                 },
-            }
+                unitId: "unit_1"
+            )
         );
         await ToSignal(this, SignalName.ProcessFrame);
 
         _test.Eq(
             window.sections_container.GetChildCount(),
             1,
-            "带 tooltip 的装备条目所在 section 应被接受并渲染，不应被严格解析丢弃。"
+            "带 tooltip 的装备条目所在 section 应被渲染。"
         );
         _test.True(
             FindTooltipText(window.sections_container, tooltipText),

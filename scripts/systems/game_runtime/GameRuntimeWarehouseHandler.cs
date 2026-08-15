@@ -29,24 +29,21 @@ public sealed class GameRuntimeWarehouseHandler
         _port = null;
     }
 
-    internal Dictionary GetWarehouseWindowData()
+    internal WarehouseWindowData GetWarehouseWindowDataTyped()
     {
         if (!HasRuntime())
-            return new Dictionary();
+            return null;
         WarehouseCommandContextSnapshot context = CaptureContext();
         if (!context.HasParty || !context.WarehouseReady)
-            return new Dictionary();
+            return null;
         return BuildWarehouseWindowData();
     }
 
     internal System.Collections.Generic.IReadOnlyDictionary<string, object> GetWarehouseWindowDataSnapshotPlain()
     {
-        if (!HasRuntime())
-            return new PlainDictionary(StringComparer.Ordinal);
-        WarehouseCommandContextSnapshot context = CaptureContext();
-        if (!context.HasParty || !context.WarehouseReady)
-            return new PlainDictionary(StringComparer.Ordinal);
-        return BuildWarehouseWindowDataSnapshotPlain();
+        WarehouseWindowData windowData = GetWarehouseWindowDataTyped();
+        return windowData?.BuildSnapshotPlain()
+            ?? new PlainDictionary(StringComparer.Ordinal);
     }
 
     internal RuntimeCommandResult CommandOpenPartyWarehouseTyped()
@@ -323,80 +320,11 @@ public sealed class GameRuntimeWarehouseHandler
         }
     }
 
-    private Dictionary BuildWarehouseWindowData()
+    private WarehouseWindowData BuildWarehouseWindowData()
     {
         WarehouseWindowSnapshot snapshot = _port.CaptureWarehouseWindowSnapshot();
         if (!snapshot.Available)
-            return new Dictionary();
-        var inventoryEntries = new Godot.Collections.Array();
-        foreach (WarehouseInventoryEntrySnapshot entry in snapshot.Entries)
-        {
-            inventoryEntries.Add(BuildWarehouseInventoryEntry(entry));
-        }
-        var targetMembers = new Godot.Collections.Array();
-        foreach (WarehouseTargetMemberSnapshot member in snapshot.TargetMembers)
-        {
-            targetMembers.Add(
-                new Dictionary
-                {
-                    ["member_id"] = member.MemberId.ToString(),
-                    ["display_name"] = member.DisplayName,
-                    ["roster_role"] = member.RosterRole,
-                }
-            );
-        }
-
-        var summaryText = string.Format(
-            "容量 {0} 格  |  已用 {1} 格  |  空余 {2} 格",
-            snapshot.TotalCapacity,
-            snapshot.UsedSlots,
-            snapshot.FreeSlots
-        );
-        var statusText =
-            "当前版本支持查看、丢弃和让指定角色使用技能书。非装备物品会优先补满同类堆栈，装备则按实例独立占格。";
-        if (snapshot.IsOverCapacity)
-            statusText = string.Format(
-                "仓库当前超容 {0} 格。已存物品不会被删除，但此时不能继续新增条目，只能整理和移除。",
-                snapshot.UsedSlots - snapshot.TotalCapacity
-            );
-
-        return new Dictionary
-        {
-            ["title"] = "共享仓库",
-            ["meta"] = string.Format(
-                "入口：{0}  |  规则：全队共享、按堆栈/实例占格、不计重量。",
-                snapshot.EntryLabel
-            ),
-            ["summary_text"] = summaryText,
-            ["status_text"] = statusText,
-            ["target_members"] = targetMembers,
-            ["default_target_member_id"] = snapshot.DefaultTargetMemberId.ToString(),
-            ["entries"] = inventoryEntries,
-        };
-    }
-
-    private System.Collections.Generic.IReadOnlyDictionary<string, object> BuildWarehouseWindowDataSnapshotPlain()
-    {
-        WarehouseWindowSnapshot snapshot = _port.CaptureWarehouseWindowSnapshot();
-        if (!snapshot.Available)
-            return new PlainDictionary(StringComparer.Ordinal);
-        var inventoryEntries = new PlainList();
-        foreach (WarehouseInventoryEntrySnapshot entry in snapshot.Entries)
-        {
-            inventoryEntries.Add(BuildWarehouseInventoryEntrySnapshotPlain(entry));
-        }
-        var targetMembers = new PlainList();
-        foreach (WarehouseTargetMemberSnapshot member in snapshot.TargetMembers)
-        {
-            targetMembers.Add(
-                new PlainDictionary(StringComparer.Ordinal)
-                {
-                    ["member_id"] = member.MemberId.ToString(),
-                    ["display_name"] = member.DisplayName,
-                    ["roster_role"] = member.RosterRole,
-                }
-            );
-        }
+            return null;
 
         string summaryText = string.Format(
             "容量 {0} 格  |  已用 {1} 格  |  空余 {2} 格",
@@ -414,83 +342,16 @@ public sealed class GameRuntimeWarehouseHandler
             );
         }
 
-        return new PlainDictionary(StringComparer.Ordinal)
-        {
-            ["title"] = "共享仓库",
-            ["meta"] = string.Format(
+        return new WarehouseWindowData(
+            "共享仓库",
+            string.Format(
                 "入口：{0}  |  规则：全队共享、按堆栈/实例占格、不计重量。",
                 snapshot.EntryLabel
             ),
-            ["summary_text"] = summaryText,
-            ["status_text"] = statusText,
-            ["target_members"] = targetMembers,
-            ["default_target_member_id"] = snapshot.DefaultTargetMemberId.ToString(),
-            ["entries"] = inventoryEntries,
-        };
-    }
-
-    private static Dictionary BuildWarehouseInventoryEntry(
-        WarehouseInventoryEntrySnapshot entry
-    )
-    {
-        if (entry == null)
-            return new Dictionary();
-
-        var result = new Dictionary
-        {
-            ["item_id"] = entry.ItemId.ToString(),
-            ["display_name"] = entry.DisplayName,
-            ["description"] = entry.Description,
-            ["icon"] = entry.Icon,
-            ["quantity"] = entry.Quantity,
-            ["total_quantity"] = entry.TotalQuantity,
-            ["is_stackable"] = entry.IsStackable,
-            ["stack_limit"] = entry.StackLimit,
-            ["item_category"] = entry.ItemCategory.ToString(),
-            ["is_skill_book"] = entry.IsSkillBook,
-            ["granted_skill_id"] = entry.GrantedSkillId.ToString(),
-            ["granted_skill_name"] = entry.GrantedSkillName,
-            ["storage_mode"] = entry.StorageMode.ToString(),
-        };
-        if (entry.HasEquipmentInstance)
-        {
-            result["instance_id"] = entry.InstanceId.ToString();
-            result["rarity"] = entry.Rarity;
-            result["current_durability"] = entry.CurrentDurability;
-        }
-        return result;
-    }
-
-    private static System.Collections.Generic.IReadOnlyDictionary<string, object>
-        BuildWarehouseInventoryEntrySnapshotPlain(
-            WarehouseInventoryEntrySnapshot entry
-        )
-    {
-        if (entry == null)
-            return new PlainDictionary(StringComparer.Ordinal);
-        var result = new PlainDictionary(StringComparer.Ordinal)
-        {
-            ["item_id"] = entry.ItemId.ToString(),
-            ["display_name"] = entry.DisplayName,
-            ["description"] = entry.Description,
-            ["icon"] = entry.Icon,
-            ["quantity"] = entry.Quantity,
-            ["total_quantity"] = entry.TotalQuantity,
-            ["is_stackable"] = entry.IsStackable,
-            ["stack_limit"] = entry.StackLimit,
-            ["item_category"] = entry.ItemCategory.ToString(),
-            ["is_skill_book"] = entry.IsSkillBook,
-            ["granted_skill_id"] = entry.GrantedSkillId.ToString(),
-            ["granted_skill_name"] = entry.GrantedSkillName,
-            ["storage_mode"] = entry.StorageMode.ToString(),
-        };
-        if (entry.HasEquipmentInstance)
-        {
-            result["instance_id"] = entry.InstanceId.ToString();
-            result["rarity"] = entry.Rarity;
-            result["current_durability"] = entry.CurrentDurability;
-        }
-        return result;
+            summaryText,
+            statusText,
+            snapshot
+        );
     }
 
     private static string BuildDiscardFailureMessage(WarehouseDiscardMutationResult result)

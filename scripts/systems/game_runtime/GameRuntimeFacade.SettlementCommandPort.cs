@@ -111,9 +111,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSettlementCommandPor
             summaryText
         );
 
-    GDictionary IGameRuntimeSettlementStatePort.ResolveLowLuckSettlementEventRewards(
-        GDictionary context
-    ) => ResolveLowLuckSettlementEventRewards(context);
+    LowLuckEventResult IGameRuntimeSettlementStatePort.ResolveLowLuckSettlementEventRewards(
+        LowLuckSettlementActionInput input
+    ) => ResolveLowLuckSettlementEventRewards(input);
 
     QuestProgressApplyResultData
         IGameRuntimeSettlementStatePort.ApplyQuestProgressEventsToPartyTyped(
@@ -205,11 +205,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSettlementCommandPor
     bool IGameRuntimeSettlementModalPort.PresentPendingRewardIfReady() =>
         PresentPendingRewardIfReady();
 
-    void IGameRuntimeSettlementModalPort.SetActiveShopContext(GDictionary context) =>
-        SetActiveShopContext(context);
+    void IGameRuntimeSettlementModalPort.SetActiveShopContext(
+        SettlementServiceWindowData context
+    ) => SetActiveShopContext(context);
 
-    void IGameRuntimeSettlementModalPort.SetActiveContractBoardContext(GDictionary context) =>
-        SetActiveContractBoardContext(context);
+    void IGameRuntimeSettlementModalPort.SetActiveContractBoardContext(
+        SettlementServiceWindowData context
+    ) => SetActiveContractBoardContext(context);
 
     void IGameRuntimeSettlementModalPort.SetActiveNpcQuestOfferContext(
         NpcQuestOfferWindowData data
@@ -219,27 +221,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSettlementCommandPor
         BountyBoardWindowData data
     ) => SetActiveBountyBoardContext(data);
 
-    void IGameRuntimeSettlementModalPort.SetActiveForgeContext(GDictionary context) =>
-        SetActiveForgeContext(context);
+    void IGameRuntimeSettlementModalPort.SetActiveForgeContext(
+        SettlementServiceWindowData context
+    ) => SetActiveForgeContext(context);
 
-    void IGameRuntimeSettlementModalPort.SetActiveStagecoachContext(GDictionary context) =>
-        SetActiveStagecoachContext(context);
-
-    void IGameRuntimeSettlementModalPort.SetActiveShopContextPlain(
-        IReadOnlyDictionary<string, object> context
-    ) => SetActiveShopContextPlain(context);
-
-    void IGameRuntimeSettlementModalPort.SetActiveContractBoardContextPlain(
-        IReadOnlyDictionary<string, object> context
-    ) => SetActiveContractBoardContextPlain(context);
-
-    void IGameRuntimeSettlementModalPort.SetActiveForgeContextPlain(
-        IReadOnlyDictionary<string, object> context
-    ) => SetActiveForgeContextPlain(context);
-
-    void IGameRuntimeSettlementModalPort.SetActiveStagecoachContextPlain(
-        IReadOnlyDictionary<string, object> context
-    ) => SetActiveStagecoachContextPlain(context);
+    void IGameRuntimeSettlementModalPort.SetActiveStagecoachContext(
+        SettlementServiceWindowData context
+    ) => SetActiveStagecoachContext(context);
 
     void IGameRuntimeSettlementModalPort.ClearActiveShopContext() =>
         ClearActiveShopContext();
@@ -259,37 +247,19 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSettlementCommandPor
     void IGameRuntimeSettlementModalPort.ClearActiveStagecoachContext() =>
         ClearActiveStagecoachContext();
 
-    GodotProjectionLease<GDictionary>
-        IGameRuntimeSettlementModalPort.GetActiveShopContextLease() =>
-        GetActiveShopContextLease();
+    SettlementServiceWindowData
+        IGameRuntimeSettlementModalPort.GetActiveShopContext() => GetActiveShopContext();
 
-    GodotProjectionLease<GDictionary>
-        IGameRuntimeSettlementModalPort.GetActiveContractBoardContextLease() =>
-        GetActiveContractBoardContextLease();
+    SettlementServiceWindowData
+        IGameRuntimeSettlementModalPort.GetActiveContractBoardContext() =>
+        GetActiveContractBoardContext();
 
-    GodotProjectionLease<GDictionary>
-        IGameRuntimeSettlementModalPort.GetActiveForgeContextLease() =>
-        GetActiveForgeContextLease();
+    SettlementServiceWindowData
+        IGameRuntimeSettlementModalPort.GetActiveForgeContext() => GetActiveForgeContext();
 
-    GodotProjectionLease<GDictionary>
-        IGameRuntimeSettlementModalPort.GetActiveStagecoachContextLease() =>
-        GetActiveStagecoachContextLease();
-
-    IReadOnlyDictionary<string, object>
-        IGameRuntimeSettlementModalPort.GetActiveShopContextPlain() =>
-        GetActiveShopContextPlain();
-
-    IReadOnlyDictionary<string, object>
-        IGameRuntimeSettlementModalPort.GetActiveContractBoardContextPlain() =>
-        GetActiveContractBoardContextPlain();
-
-    IReadOnlyDictionary<string, object>
-        IGameRuntimeSettlementModalPort.GetActiveForgeContextPlain() =>
-        GetActiveForgeContextPlain();
-
-    IReadOnlyDictionary<string, object>
-        IGameRuntimeSettlementModalPort.GetActiveStagecoachContextPlain() =>
-        GetActiveStagecoachContextPlain();
+    SettlementServiceWindowData
+        IGameRuntimeSettlementModalPort.GetActiveStagecoachContext() =>
+        GetActiveStagecoachContext();
 
     NpcQuestOfferWindowData IGameRuntimeSettlementModalPort.GetActiveNpcQuestOfferData() =>
         GetActiveNpcQuestOfferData();

@@ -21,11 +21,13 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         _serviceWindowHandler = serviceWindowHandler;
     }
 
-    internal GDictionary GetSettlementWindowData(string settlement_id = "")
+    internal SettlementOverviewWindowData BuildSettlementOverviewWindowData(
+        string settlement_id = ""
+    )
     {
         if (!_owner._has_runtime())
         {
-            return new GDictionary();
+            return null;
         }
         string targetId = !string.IsNullOrEmpty(settlement_id)
             ? settlement_id
@@ -35,28 +37,191 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         GDictionary settlement = settlementLease.Value;
         if (settlement.Count == 0)
         {
-            return new GDictionary();
+            return null;
         }
         WorldMapSettlementStateData settlementState =
             _owner.GetSettlementStateData(targetId);
         if (settlementState == null)
-            return new GDictionary();
-        return new GDictionary
+            return null;
+
+        return new SettlementOverviewWindowData(
+            GameRuntimeSettlementCommandHandler.ReadString(settlement, "settlement_id").Trim(),
+            GameRuntimeSettlementCommandHandler.ReadString(settlement, "display_name").Trim(),
+            GameRuntimeSettlementCommandHandler.ReadString(settlement, "tier_name").Trim(),
+            GameRuntimeSettlementCommandHandler.ReadString(settlement, "faction_id").Trim(),
+            GameRuntimeSettlementCommandHandler.ReadString(settlement, "country_id").Trim(),
+            _build_settlement_window_feedback_text(),
+            _build_settlement_state_summary(settlementState),
+            _read_footprint_size(settlement),
+            _owner.ResolveDefaultSettlementMemberId(),
+            BuildMemberOptionData(),
+            _build_facility_entry_data(settlement),
+            _build_resident_entry_data(settlement),
+            _build_service_entry_data(settlement)
+        );
+    }
+
+    private static Vector2I _read_footprint_size(GDictionary settlement)
+    {
+        Variant value = GameRuntimeSettlementCommandHandler.ReadVariant(
+            settlement,
+            "footprint_size"
+        );
+        Vector2I footprintSize =
+            value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : Vector2I.One;
+        return new Vector2I(Mathf.Max(footprintSize.X, 1), Mathf.Max(footprintSize.Y, 1));
+    }
+
+    private List<SettlementFacilityEntryData> _build_facility_entry_data(GDictionary settlement)
+    {
+        var facilities = new List<SettlementFacilityEntryData>();
+        foreach (
+            GDictionary facility in GameRuntimeSettlementCommandHandler.Dictionaries(
+                GameRuntimeSettlementCommandHandler.ReadArray(settlement, "facilities")
+            )
+        )
         {
-            ["settlement_id"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "settlement_id"),
-            ["display_name"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "display_name"),
-            ["tier_name"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "tier_name"),
-            ["footprint_size"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "footprint_size"),
-            ["faction_id"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "faction_id"),
-            ["country_id"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "country_id"),
-            ["facilities"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "facilities"),
-            ["available_services"] = _build_service_entries(settlement),
-            ["service_npcs"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "service_npcs"),
-            ["member_options"] = _build_member_options(),
-            ["default_member_id"] = _owner.ResolveDefaultSettlementMemberId().ToString(),
-            ["state_summary_text"] = _build_settlement_state_summary(settlementState),
-            ["feedback_text"] = _build_settlement_window_feedback_text(),
-        };
+            facilities.Add(
+                new SettlementFacilityEntryData(
+                    GameRuntimeSettlementCommandHandler.ReadString(facility, "facility_id").Trim(),
+                    GameRuntimeSettlementCommandHandler.ReadString(facility, "display_name").Trim(),
+                    GameRuntimeSettlementCommandHandler.ReadString(facility, "slot_tag").Trim(),
+                    GameRuntimeSettlementCommandHandler
+                        .ReadString(facility, "interaction_type")
+                        .Trim()
+                )
+            );
+        }
+        return facilities;
+    }
+
+    private List<SettlementResidentEntryData> _build_resident_entry_data(GDictionary settlement)
+    {
+        var residents = new List<SettlementResidentEntryData>();
+        foreach (
+            GDictionary npc in GameRuntimeSettlementCommandHandler.Dictionaries(
+                GameRuntimeSettlementCommandHandler.ReadArray(settlement, "service_npcs")
+            )
+        )
+        {
+            residents.Add(
+                new SettlementResidentEntryData(
+                    GameRuntimeSettlementCommandHandler.ReadString(npc, "npc_id").Trim(),
+                    GameRuntimeSettlementCommandHandler.ReadString(npc, "display_name").Trim(),
+                    GameRuntimeSettlementCommandHandler.ReadString(npc, "service_type").Trim(),
+                    GameRuntimeSettlementCommandHandler.ReadString(npc, "facility_name").Trim()
+                )
+            );
+        }
+        return residents;
+    }
+
+    private List<SettlementServiceEntryData> _build_service_entry_data(GDictionary settlement)
+    {
+        var entries = new List<SettlementServiceEntryData>();
+        foreach (
+            GDictionary serviceData in GameRuntimeSettlementCommandHandler.Dictionaries(
+                GameRuntimeSettlementCommandHandler.ReadArray(settlement, "available_services")
+            )
+        )
+        {
+            SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
+                settlement,
+                serviceData
+            );
+            string disabledReason = metadata.DisabledReason.Trim();
+            entries.Add(
+                new SettlementServiceEntryData(
+                    GameRuntimeSettlementCommandHandler.ReadString(serviceData, "action_id").Trim(),
+                    GameRuntimeSettlementCommandHandler
+                        .ReadString(serviceData, "facility_id")
+                        .Trim(),
+                    GameRuntimeSettlementCommandHandler
+                        .ReadString(serviceData, "facility_name")
+                        .Trim(),
+                    GameRuntimeSettlementCommandHandler.ReadString(serviceData, "npc_id").Trim(),
+                    GameRuntimeSettlementCommandHandler.ReadString(serviceData, "npc_name").Trim(),
+                    GameRuntimeSettlementCommandHandler
+                        .ReadString(serviceData, "service_type")
+                        .Trim(),
+                    GameRuntimeSettlementCommandHandler
+                        .ReadString(serviceData, "interaction_script_id")
+                        .Trim(),
+                    metadata.CostLabel.Trim(),
+                    _build_service_state_label(metadata.IsEnabled, disabledReason),
+                    _build_service_summary_text(serviceData),
+                    metadata.IsEnabled,
+                    disabledReason,
+                    _resolve_service_panel_kind(serviceData),
+                    _build_member_availability_data(metadata)
+                )
+            );
+        }
+        return entries;
+    }
+
+    private static List<KeyValuePair<StringName, SettlementMemberAvailabilityData>>
+        _build_member_availability_data(SettlementServiceMetadata metadata)
+    {
+        var result = new List<KeyValuePair<StringName, SettlementMemberAvailabilityData>>();
+        foreach (
+            SettlementResearchMemberAvailability availability
+            in metadata.CloneResearchMemberAvailability()
+        )
+        {
+            if (availability == null || availability.MemberId == "")
+                continue;
+            result.Add(
+                new KeyValuePair<StringName, SettlementMemberAvailabilityData>(
+                    availability.MemberId,
+                    new SettlementMemberAvailabilityData(
+                        availability.IsEnabled,
+                        (availability.DisabledReason ?? "").Trim()
+                    )
+                )
+            );
+        }
+        return result;
+    }
+
+    internal List<SettlementMemberOptionData> BuildMemberOptionData()
+    {
+        var options = new List<SettlementMemberOptionData>();
+        PartyState partyState = _owner.GetPartyState();
+        if (partyState == null)
+            return options;
+
+        var seenMemberIds = new HashSet<StringName>();
+        foreach (StringName memberId in partyState.active_member_ids)
+            _append_member_option_data(options, seenMemberIds, partyState, memberId, "上阵");
+        foreach (StringName memberId in partyState.reserve_member_ids)
+            _append_member_option_data(options, seenMemberIds, partyState, memberId, "替补");
+        return options;
+    }
+
+    private void _append_member_option_data(
+        List<SettlementMemberOptionData> options,
+        HashSet<StringName> seenMemberIds,
+        PartyState partyState,
+        StringName memberId,
+        string rosterRole
+    )
+    {
+        if (memberId == "" || !seenMemberIds.Add(memberId))
+            return;
+        PartyMemberState memberState = partyState.GetMemberState(memberId);
+        if (memberState == null)
+            return;
+        options.Add(
+            new SettlementMemberOptionData(
+                memberId,
+                _owner.GetMemberDisplayName(memberId),
+                rosterRole,
+                partyState.leader_member_id == memberId,
+                memberState.current_hp,
+                memberState.current_mp
+            )
+        );
     }
 
     internal IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
@@ -84,36 +249,6 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
             ["country_id"] = GameRuntimeSettlementCommandHandler.ReadPlainString(settlement, "country_id"),
             ["services"] = BuildSettlementServiceIdentityFactsPlain(settlement),
         };
-    }
-
-    private GDictArray _build_service_entries(GDictionary settlement)
-    {
-        var entries = new GDictArray();
-        foreach (
-            GDictionary sourceService in GameRuntimeSettlementCommandHandler.Dictionaries(
-                GameRuntimeSettlementCommandHandler.ReadArray(settlement, "available_services")
-            )
-        )
-        {
-            GDictionary serviceData = sourceService;
-            SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
-                settlement,
-                serviceData
-            );
-            SettlementServiceMetadataProjection.ApplyToServiceData(serviceData, metadata);
-            bool isEnabled = metadata.IsEnabled;
-            string disabledReason = metadata.DisabledReason.Trim();
-            serviceData["state_label"] = _build_service_state_label(isEnabled, disabledReason);
-            serviceData["summary_text"] = _build_service_summary_text(serviceData);
-            SettlementPanelKind panelKind = _resolve_service_panel_kind(serviceData);
-            string panelKindText = SettlementPanelKinds.ToPayloadValue(panelKind);
-            if (!string.IsNullOrEmpty(panelKindText))
-            {
-                serviceData["panel_kind"] = panelKindText;
-            }
-            entries.Add(serviceData);
-        }
-        return entries;
     }
 
     internal string _build_service_state_label(bool is_enabled, string disabled_reason)
@@ -269,66 +404,6 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         return "点击服务继续，或切换成员后再操作。";
     }
 
-    internal GDictArray _build_member_options()
-    {
-        var options = new GDictArray();
-        PartyState partyState = _owner.GetPartyState();
-        if (partyState == null)
-        {
-            return options;
-        }
-        var seenMemberIds = new GDictionary();
-        foreach (StringName memberId in partyState.active_member_ids)
-        {
-            if (
-                memberId == ""
-                || seenMemberIds.ContainsKey(memberId)
-                || partyState.GetMemberState(memberId) == null
-            )
-            {
-                continue;
-            }
-            seenMemberIds[memberId] = true;
-            options.Add(_build_member_option(partyState, memberId, "上阵"));
-        }
-        foreach (StringName memberId in partyState.reserve_member_ids)
-        {
-            if (
-                memberId == ""
-                || seenMemberIds.ContainsKey(memberId)
-                || partyState.GetMemberState(memberId) == null
-            )
-            {
-                continue;
-            }
-            seenMemberIds[memberId] = true;
-            options.Add(_build_member_option(partyState, memberId, "替补"));
-        }
-        return options;
-    }
-
-    private GDictionary _build_member_option(
-        PartyState party_state,
-        StringName member_id,
-        string roster_role
-    )
-    {
-        PartyMemberState memberState = party_state.GetMemberState(member_id);
-        if (memberState == null)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["member_id"] = member_id.ToString(),
-            ["display_name"] = _owner.GetMemberDisplayName(member_id),
-            ["roster_role"] = roster_role,
-            ["is_leader"] = party_state.leader_member_id == member_id,
-            ["current_hp"] = memberState.current_hp,
-            ["current_mp"] = memberState.current_mp,
-        };
-    }
-
     private IReadOnlyDictionary<string, object> GetSettlementRecordSnapshotPlain(
         string settlementId
     )
@@ -362,104 +437,4 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         return entries;
     }
 
-    internal IReadOnlyList<object> BuildMemberOptionsSnapshotPlain()
-    {
-        var options = new List<object>();
-        PartyState partyState = _owner.GetPartyState();
-        if (partyState == null)
-            return options;
-
-        var seenMemberIds = new HashSet<StringName>();
-        foreach (StringName memberId in partyState.active_member_ids)
-        {
-            if (
-                memberId == ""
-                || !seenMemberIds.Add(memberId)
-                || partyState.GetMemberState(memberId) == null
-            )
-            {
-                continue;
-            }
-            options.Add(BuildMemberOptionSnapshotPlain(partyState, memberId, "上阵"));
-        }
-        foreach (StringName memberId in partyState.reserve_member_ids)
-        {
-            if (
-                memberId == ""
-                || !seenMemberIds.Add(memberId)
-                || partyState.GetMemberState(memberId) == null
-            )
-            {
-                continue;
-            }
-            options.Add(BuildMemberOptionSnapshotPlain(partyState, memberId, "替补"));
-        }
-        return options;
-    }
-
-    private IReadOnlyDictionary<string, object> BuildMemberOptionSnapshotPlain(
-        PartyState partyState,
-        StringName memberId,
-        string rosterRole
-    )
-    {
-        PartyMemberState memberState = partyState.GetMemberState(memberId);
-        if (memberState == null)
-            return GameRuntimeSettlementCommandHandler.EmptyPlainDictionary();
-        return new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["member_id"] = memberId.ToString(),
-            ["display_name"] = _owner.GetMemberDisplayName(memberId),
-            ["roster_role"] = rosterRole,
-            ["is_leader"] = partyState.leader_member_id == memberId,
-            ["current_hp"] = memberState.current_hp,
-            ["current_mp"] = memberState.current_mp,
-        };
-    }
-
-    internal static void AppendWindowEntriesPlain(
-        List<object> target,
-        IReadOnlyDictionary<string, object> context,
-        string key
-    )
-    {
-        foreach (object rawEntry in GameRuntimeSettlementCommandHandler.ReadPlainList(context, key))
-        {
-            if (rawEntry is not IReadOnlyDictionary<string, object> entry)
-                continue;
-            Dictionary<string, object> copy = RuntimePlainPayload.CloneDictionary(entry);
-            if (!copy.ContainsKey("is_enabled"))
-                copy["is_enabled"] = false;
-            target.Add(copy);
-        }
-    }
-
-    internal Dictionary<string, object> CloneActiveShopContextPlain() =>
-        _owner._has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(_owner.GetActiveShopContextPlain())
-            : new Dictionary<string, object>(StringComparer.Ordinal);
-
-    internal Dictionary<string, object> CloneActiveContractBoardContextPlain() =>
-        _owner._has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(_owner.GetActiveContractBoardContextPlain())
-            : new Dictionary<string, object>(StringComparer.Ordinal);
-
-    internal Dictionary<string, object> CloneActiveForgeContextPlain() =>
-        _owner._has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(_owner.GetActiveForgeContextPlain())
-            : new Dictionary<string, object>(StringComparer.Ordinal);
-
-    internal Dictionary<string, object> CloneActiveStagecoachContextPlain() =>
-        _owner._has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(_owner.GetActiveStagecoachContextPlain())
-            : new Dictionary<string, object>(StringComparer.Ordinal);
-
-    internal static bool WindowDataMatchesPanelKindPlain(
-        IReadOnlyDictionary<string, object> context,
-        SettlementPanelKind panelKind
-    )
-    {
-        return GameRuntimeSettlementCommandHandler.ReadPlainString(context, "panel_kind")
-            == SettlementPanelKinds.ToPayloadValue(panelKind);
-    }
 }

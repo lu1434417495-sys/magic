@@ -174,7 +174,7 @@ public partial class run_quest_accept_encounter_binding_regression : LifecycleTe
         try
         {
             runtime._grid_system.Setup(new Vector2I(8, 8), Vector2I.One);
-            runtime._player_coord = new Vector2I(4, 4);
+            runtime.SetupForTestFixture(playerCoord: new Vector2I(4, 4));
             runtime._world_map_data_context.BindRootWorldData(WorldRuntimeData.Empty());
             runtime.SetBattleEncounterDefinitionForTests(
                 new BattleEncounterDefinition(
@@ -239,7 +239,7 @@ public partial class run_quest_accept_encounter_binding_regression : LifecycleTe
         try
         {
             runtime._grid_system.Setup(new Vector2I(8, 8), Vector2I.One);
-            runtime._player_coord = new Vector2I(4, 4);
+            runtime.SetupForTestFixture(playerCoord: new Vector2I(4, 4));
             runtime._world_map_data_context.BindRootWorldData(WorldRuntimeData.Empty());
             runtime.SetBattleEncounterDefinitionForTests(
                 new BattleEncounterDefinition(

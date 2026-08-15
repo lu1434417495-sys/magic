@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_runtime_reward_flow_handler_regression : LifecycleTestSceneTree
 {
@@ -61,9 +60,10 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             RuntimeCommandResult closeResult =
                 runtime.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "command_close_active_modal() 应委托给 reward handler。");
-            using GodotProjectionLease<GDictionary> characterInfoLease =
-                runtime.GetCharacterInfoContextLease();
-            _test.Eq(characterInfoLease.Value.Count, 0, "character_info 关闭应清空人物信息上下文。");
+            _test.True(
+                runtime.GetCharacterInfoContextTyped() == null,
+                "character_info 关闭应清空人物信息上下文。"
+            );
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "character_info 关闭后应清空 modal。");
             _test.Eq(runtime.GetStatusText(), "已关闭人物信息窗。", "character_info 关闭应刷新状态文案。");
         }
@@ -182,17 +182,10 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             );
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Promotion);
 
-            using (
-                GodotProjectionLease<GDictionary> promotionLease =
-                    runtime.GetCharacterInfoContextLease()
-            )
-            {
-                _test.Eq(
-                    promotionLease.Value.Count,
-                    0,
-                    "promotion 覆盖 character_info 时应清空隐藏的人物信息上下文。"
-                );
-            }
+            _test.True(
+                runtime.GetCharacterInfoContextTyped() == null,
+                "promotion 覆盖 character_info 时应清空隐藏的人物信息上下文。"
+            );
             _test.Eq(
                 runtime.GetActiveModalKind(),
                 RuntimeModalKind.Promotion,
@@ -207,17 +200,10 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             );
             runtime.ClearResolvedBattleRuntimeContext();
 
-            using (
-                GodotProjectionLease<GDictionary> resolutionLease =
-                    runtime.GetCharacterInfoContextLease()
-            )
-            {
-                _test.Eq(
-                    resolutionLease.Value.Count,
-                    0,
-                    "battle resolution 应清空仍打开的人物信息上下文。"
-                );
-            }
+            _test.True(
+                runtime.GetCharacterInfoContextTyped() == null,
+                "battle resolution 应清空仍打开的人物信息上下文。"
+            );
             _test.Eq(
                 runtime.GetActiveModalKind(),
                 RuntimeModalKind.None,
@@ -267,10 +253,10 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState)
     {
-        var runtime = new GameRuntimeFacade
-        {
-            _party_state = partyState,
-        };
+        var runtime = new GameRuntimeFacade();
+        runtime.SetupForTestFixture(
+            partyState: partyState
+        );
         runtime._settlement_command_handler.SetupRuntime(runtime);
         runtime._warehouse_handler.Setup(runtime);
         runtime._party_command_handler.Setup(runtime);

@@ -308,11 +308,13 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
         );
         GameRuntimeFacade runtime = new()
         {
-            _game_session = gameSession,
-            _party_state = partyState,
             _party_warehouse_service = warehouseService,
             _equipment_drop_service = new EquipmentDropService(),
         };
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState
+        );
         runtime._battle_loot_commit_service.Setup(runtime);
         return new LootCommitFixture(runtime, gameSession, runtime._battle_loot_commit_service, partyState);
     }

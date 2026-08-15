@@ -31,7 +31,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
         {
             RuntimeCommandResult openResult = runtime.CommandOpenPartyTyped();
             _test.True(openResult.Ok, $"command_open_party() 应委托给正式 party handler。message={openResult.Message}");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Party, "facade 打开队伍管理后应切换到 party modal。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Party, "facade 打开队伍管理后应切换到 party modal。");
             _test.Eq(runtime.GetPartySelectedMemberId().ToString(), "hero", "facade 打开队伍管理后应默认选中上阵第一人。");
 
             RuntimeCommandResult selectResult =
@@ -40,8 +40,8 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
             _test.Eq(runtime.GetPartySelectedMemberId().ToString(), "mage", "facade 选中队员后应同步选中成员。");
 
             runtime._party_command_handler.OnPartyManagementWindowClosed();
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.None, "OnPartyManagementWindowClosed() 应委托 handler 关闭 party modal。");
-            _test.Eq(runtime._current_status_message, "已关闭队伍管理窗口。", "关闭队伍窗口应刷新正式状态文案。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "OnPartyManagementWindowClosed() 应委托 handler 关闭 party modal。");
+            _test.Eq(runtime.GetStatusText(), "已关闭队伍管理窗口。", "关闭队伍窗口应刷新正式状态文案。");
         }
         finally
         {
@@ -86,11 +86,11 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
                 "编成变更后 CharacterManagement 应继续绑定 canonical PartyState。"
             );
             _test.True(
-                runtime._current_status_message.EndsWith(
+                runtime.GetStatusText().EndsWith(
                     "但队伍状态持久化失败。",
                     StringComparison.Ordinal
                 ),
-                $"编成变更仍应尝试正式持久化，并仅在状态中告警。status={runtime._current_status_message}"
+                $"编成变更仍应尝试正式持久化，并仅在状态中告警。status={runtime.GetStatusText()}"
             );
 
             RuntimeCommandResult mainCharacterReserveResult =
@@ -176,11 +176,11 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
                 "装备成功后应在持久化前选中对应成员。"
             );
             _test.True(
-                runtime._current_status_message.Contains(
+                runtime.GetStatusText().Contains(
                     "但队伍状态持久化失败。",
                     StringComparison.Ordinal
                 ),
-                $"持久化失败应只追加状态告警。status={runtime._current_status_message}"
+                $"持久化失败应只追加状态告警。status={runtime.GetStatusText()}"
             );
         }
         finally
@@ -199,9 +199,11 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
 
         GameRuntimeFacade runtime = new()
         {
-            _party_state = partyState,
             _generation_definition = TestWorldGenerationDefinitionFactory.Load(TestConfigPath),
         };
+        runtime.SetupForTestFixture(
+            partyState: partyState
+        );
         runtime._world_map_data_context.active_generation_definition =
             runtime._generation_definition;
         runtime._character_management.setup(

@@ -74,7 +74,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             _test.True(openResult.Ok, "驿站回滚测试前置：应能打开驿站路线。");
             fixture.GameSession.fail_payload_write = true;
 
-            int goldBefore = runtime._party_state.GetGold();
+            int goldBefore = runtime.GetPartyState().GetGold();
             Vector2I playerCoordBefore = runtime.GetPlayerCoord();
             _test.False(
                 runtime._fog_system.IsExplored(new Vector2I(7, 7), "player"),
@@ -85,7 +85,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
 
             _test.False(result.Ok, "驿站持久化失败时命令应返回失败。");
-            _test.Eq(runtime._party_state.gold, goldBefore, "驿站失败后金币应回滚。");
+            _test.Eq(runtime.GetPartyState().gold, goldBefore, "驿站失败后金币应回滚。");
             _test.Eq(runtime.GetPlayerCoord(), playerCoordBefore, "驿站失败后玩家坐标应回滚。");
             _test.False(
                 runtime._fog_system.IsExplored(new Vector2I(7, 7), "player"),
@@ -110,7 +110,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 "驿站持久化失败后在 service modal 返回时世界地图不应显示玩家。"
             );
             _test.Eq(
-                runtime._active_modal_kind,
+                runtime.GetActiveModalKind(),
                 RuntimeModalKind.Stagecoach,
                 "驿站持久化失败后应回到 stagecoach modal。"
             );
@@ -242,7 +242,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             _test.True(openResult.Ok, "商店购买回滚测试前置：应能打开商店。");
             fixture.GameSession.fail_payload_write = true;
 
-            int goldBefore = runtime._party_state.GetGold();
+            int goldBefore = runtime.GetPartyState().GetGold();
             int herbCountBefore = fixture.WarehouseService.CountItem("healing_herb");
             WorldMapSettlementStateData settlementStateBefore =
                 runtime.GetSettlementStateData("spring_village_01");
@@ -256,7 +256,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 handler.CommandShopBuyTyped("healing_herb", 1);
 
             _test.False(result.Ok, "购买持久化失败时命令应返回失败。");
-            _test.Eq(runtime._party_state.GetGold(), goldBefore, "购买失败后金币应回滚。");
+            _test.Eq(runtime.GetPartyState().GetGold(), goldBefore, "购买失败后金币应回滚。");
             _test.Eq(
                 fixture.WarehouseService.CountItem("healing_herb"),
                 herbCountBefore,
@@ -354,14 +354,14 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             _test.True(openResult.Ok, "商店出售回滚测试前置：应能打开商店。");
             fixture.GameSession.fail_payload_write = true;
 
-            int goldBefore = runtime._party_state.GetGold();
+            int goldBefore = runtime.GetPartyState().GetGold();
             int rationCountBefore = fixture.WarehouseService.CountItem("travel_ration");
 
             RuntimeCommandResult result =
                 handler.CommandShopSellTyped("travel_ration", 1);
 
             _test.False(result.Ok, "出售持久化失败时命令应返回失败。");
-            _test.Eq(runtime._party_state.GetGold(), goldBefore, "出售失败后金币应回滚。");
+            _test.Eq(runtime.GetPartyState().GetGold(), goldBefore, "出售失败后金币应回滚。");
             _test.Eq(
                 fixture.WarehouseService.CountItem("travel_ration"),
                 rationCountBefore,
@@ -394,12 +394,12 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         {
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
-            PartyMemberState hero = runtime._party_state.GetMemberState("hero");
+            PartyMemberState hero = runtime.GetPartyState().GetMemberState("hero");
             hero.current_hp = 10;
-            runtime._character_management.SetPartyState(runtime._party_state);
+            runtime._character_management.SetPartyState(runtime.GetPartyState());
             fixture.GameSession.fail_payload_write = true;
 
-            int goldBefore = runtime._party_state.GetGold();
+            int goldBefore = runtime.GetPartyState().GetGold();
             int hpBefore = hero.current_hp;
             int worldStepBefore = runtime.GetWorldStep();
 
@@ -410,9 +410,9 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 );
 
             _test.False(result.Ok, "据点服务持久化失败时命令应返回失败。");
-            _test.Eq(runtime._party_state.GetGold(), goldBefore, "据点服务失败后金币应回滚。");
+            _test.Eq(runtime.GetPartyState().GetGold(), goldBefore, "据点服务失败后金币应回滚。");
             _test.Eq(
-                runtime._party_state.GetMemberState("hero").current_hp,
+                runtime.GetPartyState().GetMemberState("hero").current_hp,
                 hpBefore,
                 "据点服务失败后成员生命应回滚。"
             );
@@ -448,8 +448,8 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
             var warehouseQuest = new QuestState { quest_id = "contract_warehouse_visit" };
             warehouseQuest.MarkAccepted(runtime.GetWorldStep());
-            runtime._party_state.SetActiveQuestState(warehouseQuest);
-            runtime._character_management.SetPartyState(runtime._party_state);
+            runtime.GetPartyState().SetActiveQuestState(warehouseQuest);
+            runtime._character_management.SetPartyState(runtime.GetPartyState());
 
             using GodotProjectionLease<GDictionary> runtimeStateBeforeLease =
                 fixture.GameSession.CaptureRuntimeStateLease();
@@ -464,16 +464,16 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
             _test.False(result.Ok, "仓储动作持久化失败时命令应返回失败。");
             _test.False(
-                runtime._party_state.HasClaimableQuest("contract_warehouse_visit"),
+                runtime.GetPartyState().HasClaimableQuest("contract_warehouse_visit"),
                 "仓储动作持久化失败后 quest progress 不应提交到队伍状态。"
             );
             _test.Eq(
-                runtime._active_modal_kind,
+                runtime.GetActiveModalKind(),
                 RuntimeModalKind.Settlement,
                 "仓储动作持久化失败后不应打开共享仓库 modal。"
             );
             _test.Eq(
-                runtime._active_warehouse_entry_label,
+                runtime.GetActiveWarehouseEntryLabel(),
                 "",
                 "仓储动作持久化失败后不应记录仓库入口标签。"
             );
@@ -517,9 +517,9 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         {
             var rumorQuest = new QuestState { quest_id = "contract_rumor_visit" };
             rumorQuest.MarkAccepted(fixture.Runtime.GetWorldStep());
-            fixture.Runtime._party_state.SetActiveQuestState(rumorQuest);
+            fixture.Runtime.GetPartyState().SetActiveQuestState(rumorQuest);
             fixture.Runtime._character_management.SetPartyState(
-                fixture.Runtime._party_state
+                fixture.Runtime.GetPartyState()
             );
             fixture.GameSession.fail_payload_write = true;
 
@@ -531,7 +531,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
             _test.False(result.Ok, "world-only rumor 持久化失败时命令应返回失败。");
             _test.False(
-                fixture.Runtime._party_state.HasClaimableQuest("contract_rumor_visit"),
+                fixture.Runtime.GetPartyState().HasClaimableQuest("contract_rumor_visit"),
                 "world-only 服务附带的 quest side effect 必须纳入 party rollback scope。"
             );
         }
@@ -823,13 +823,15 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
         var runtime = new GameRuntimeFacade
         {
-            _game_session = gameSession,
-            _party_state = partyState,
-            _player_coord = Vector2I.Zero,
-            _selected_coord = Vector2I.Zero,
-            _player_faction_id = "player",
             _generation_definition = gameSession._generation_definition,
         };
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState,
+            playerCoord: Vector2I.Zero,
+            selectedCoord: Vector2I.Zero,
+            playerFactionId: "player"
+        );
         runtime.SetActiveSettlementId(DictString(settlements[0], "settlement_id", ""));
         runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
@@ -1050,7 +1052,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
     )
     {
         if (windowData == null
-            || !windowData.TryGetValue("buy_entries", out object rawEntries)
+            || !windowData.TryGetValue("entries", out object rawEntries)
             || rawEntries is not IReadOnlyList<object> entries)
         {
             return -1;
@@ -1059,6 +1061,14 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         {
             if (rawEntry is not IReadOnlyDictionary<string, object> entry)
                 continue;
+            if (!string.Equals(
+                    GameRuntimeSettlementCommandHandler.ReadPlainString(entry, "shop_action"),
+                    "buy",
+                    StringComparison.Ordinal
+                ))
+            {
+                continue;
+            }
             if (!string.Equals(
                     GameRuntimeSettlementCommandHandler.ReadPlainString(entry, "item_id"),
                     itemId,

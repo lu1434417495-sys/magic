@@ -1098,6 +1098,17 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     public PartyState GetPartyState() => _party_state;
 
+    /// 事务回滚专用：直接还原运行时状态，且刻意 **不** 调用 SetPartyState/SetPlayerCoord —
+    /// 那两者会 MarkRuntimeStateDirty，而回滚的目标正是回到已提交的干净态。
+    /// 传 null 表示该范围不参与本次回滚。之前由 RuntimeTransaction 直接写字段完成。
+    internal void RestoreRuntimeStateForRollback(PartyState partyState, Vector2I? playerCoord)
+    {
+        if (partyState != null)
+            _party_state = partyState;
+        if (playerCoord.HasValue)
+            _player_coord = playerCoord.Value;
+    }
+
     public int SetPartyState(PartyState party_state)
     {
         if (ReferenceEquals(_party_state, party_state))

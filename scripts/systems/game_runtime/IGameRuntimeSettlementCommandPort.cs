@@ -48,7 +48,9 @@ internal interface IGameRuntimeSettlementStatePort
         IReadOnlyList<PendingCharacterRewardEntry> entries,
         string summaryText
     );
-    GDictionary ResolveLowLuckSettlementEventRewards(GDictionary context);
+    LowLuckEventResult ResolveLowLuckSettlementEventRewards(
+        LowLuckSettlementActionInput input
+    );
     QuestProgressApplyResultData ApplyQuestProgressEventsToPartyTyped(
         IEnumerable<QuestProgressService.QuestProgressEventData> eventOptions,
         string sourceDomain
@@ -101,30 +103,22 @@ internal interface IGameRuntimeSettlementModalPort
     RuntimeModalKind GetActiveModalKind();
     void SetActiveModalKind(RuntimeModalKind modalKind);
     bool PresentPendingRewardIfReady();
-    void SetActiveShopContext(GDictionary context);
-    void SetActiveContractBoardContext(GDictionary context);
+    void SetActiveShopContext(SettlementServiceWindowData context);
+    void SetActiveContractBoardContext(SettlementServiceWindowData context);
     void SetActiveNpcQuestOfferContext(NpcQuestOfferWindowData data);
     void SetActiveBountyBoardContext(BountyBoardWindowData data);
-    void SetActiveForgeContext(GDictionary context);
-    void SetActiveStagecoachContext(GDictionary context);
-    void SetActiveShopContextPlain(IReadOnlyDictionary<string, object> context);
-    void SetActiveContractBoardContextPlain(IReadOnlyDictionary<string, object> context);
-    void SetActiveForgeContextPlain(IReadOnlyDictionary<string, object> context);
-    void SetActiveStagecoachContextPlain(IReadOnlyDictionary<string, object> context);
+    void SetActiveForgeContext(SettlementServiceWindowData context);
+    void SetActiveStagecoachContext(SettlementServiceWindowData context);
     void ClearActiveShopContext();
     void ClearActiveContractBoardContext();
     void ClearActiveNpcQuestOfferContext();
     void ClearActiveBountyBoardContext();
     void ClearActiveForgeContext();
     void ClearActiveStagecoachContext();
-    GodotProjectionLease<GDictionary> GetActiveShopContextLease();
-    GodotProjectionLease<GDictionary> GetActiveContractBoardContextLease();
-    GodotProjectionLease<GDictionary> GetActiveForgeContextLease();
-    GodotProjectionLease<GDictionary> GetActiveStagecoachContextLease();
-    IReadOnlyDictionary<string, object> GetActiveShopContextPlain();
-    IReadOnlyDictionary<string, object> GetActiveContractBoardContextPlain();
-    IReadOnlyDictionary<string, object> GetActiveForgeContextPlain();
-    IReadOnlyDictionary<string, object> GetActiveStagecoachContextPlain();
+    SettlementServiceWindowData GetActiveShopContext();
+    SettlementServiceWindowData GetActiveContractBoardContext();
+    SettlementServiceWindowData GetActiveForgeContext();
+    SettlementServiceWindowData GetActiveStagecoachContext();
     NpcQuestOfferWindowData GetActiveNpcQuestOfferData();
     BountyBoardWindowData GetActiveBountyBoardData();
 }

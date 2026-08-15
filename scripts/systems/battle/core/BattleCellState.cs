@@ -862,44 +862,6 @@ public partial class BattleCellState
         return false;
     }
 
-    private static bool TryGetExactValue(GDictionary data, object key, out object value)
-    {
-        if (data == null || key == null)
-        {
-            value = null;
-            return false;
-        }
-        try
-        {
-            dynamic dynamicKey = key;
-            if (data.ContainsKey(dynamicKey))
-            {
-                value = data[dynamicKey];
-                return true;
-            }
-        }
-        catch
-        {
-        }
-        if (key is Vector2I coordKey && data.ContainsKey(coordKey))
-        {
-            value = data[coordKey];
-            return true;
-        }
-        else if (key is string stringKey && data.ContainsKey(stringKey))
-        {
-            value = data[stringKey];
-            return true;
-        }
-        else if (key is StringName stringNameKey && data.ContainsKey(stringNameKey))
-        {
-            value = data[stringNameKey];
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
     private static bool TryRawArray(object rawValue, out GArray values)
     {
         if (rawValue is Variant variantValue)

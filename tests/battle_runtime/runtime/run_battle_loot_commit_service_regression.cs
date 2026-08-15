@@ -276,14 +276,14 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 "确认前 battle modal_state 应保持在 start_confirm。"
             );
             _test.Eq(
-                fixture.Facade._battle_runtime.GetState().timeline.current_tu,
+                fixture.Facade.GetBattleRuntime().GetState().timeline.current_tu,
                 0,
                 "确认前 TU 应从 0 开始。"
             );
 
             fixture.Facade.advance(2);
             _test.Eq(
-                fixture.Facade._battle_runtime.GetState().timeline.current_tu,
+                fixture.Facade.GetBattleRuntime().GetState().timeline.current_tu,
                 0,
                 "未确认开始战斗前，TU 不应增长。"
             );
@@ -311,7 +311,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 fixture.Facade.CommandBattleTickTyped(1);
             _test.True(tickResult.Ok, "确认后 battle tick 应成功。");
             _test.Eq(
-                fixture.Facade._battle_runtime.GetState().timeline.current_tu,
+                fixture.Facade.GetBattleRuntime().GetState().timeline.current_tu,
                 5,
                 "确认后 battle tick 1 秒应推进 5 TU。"
             );
@@ -433,11 +433,13 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
         );
         GameRuntimeFacade runtime = new()
         {
-            _game_session = gameSession,
-            _party_state = partyState,
             _party_warehouse_service = warehouseService,
             _equipment_drop_service = new EquipmentDropService(),
         };
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState
+        );
         runtime._battle_loot_commit_service.Setup(runtime);
         return new RuntimeFixture(runtime, gameSession, runtime._battle_loot_commit_service, partyState);
     }
@@ -623,7 +625,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
 
     private static void MarkActiveBattleAsPlayerVictory(GameRuntimeFacade facade)
     {
-        BattleState runtimeState = facade?._battle_runtime?.GetState();
+        BattleState runtimeState = facade?.GetBattleRuntime()?.GetState();
         if (runtimeState == null || runtimeState.IsEmpty())
             return;
 
@@ -643,7 +645,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             if (enemyUnit == null || !enemyUnit.IsAlive())
                 continue;
             enemyUnit.MarkDead();
-            facade._battle_runtime._loot_resolver.CollectDefeatedUnitLoot(
+            facade.GetBattleRuntime()._loot_resolver.CollectDefeatedUnitLoot(
                 enemyUnit,
                 defaultKiller
             );

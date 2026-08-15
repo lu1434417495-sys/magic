@@ -20,7 +20,8 @@ GameContentCatalog(typed skill/profession/achievement/quest/item/identity)
 GameRuntimeFacade sidecars
   -> PartyManagementWindow / PromotionChoiceWindow / MasteryRewardWindow
   -> IGameRuntimeCharacterInfoQuery -> GameRuntimeCharacterInfoBuilder
-    -> GameRuntimeCharacterInfoContext -> plain snapshot / Request lease -> CharacterInfoWindow
+    -> GameRuntimeCharacterInfoContext -> CharacterInfoWindow（typed 直达）
+    -> GameRuntimeCharacterInfoContext -> BuildSnapshotPlain() -> headless snapshot
 ```
 
 `PartyState` 是运行期真相源；content catalog 只提供只读定义。不要把角色运行态塞回 content catalog。
@@ -103,7 +104,9 @@ Achievement progress 应根据 typed event 更新，并把 reward 交给统一 r
 
 `GameRuntimeFacade` 只持有 nullable、私有的 `GameRuntimeCharacterInfoContext`。该 context 在打开世界 NPC 或战斗单位信息窗时一次性构造，保存 detached 的 source、显示名、meta/status label、section/entry 以及可选 fate；不得持有 `BattleUnitState`、`WorldMapNpcData`、runtime/query owner 或 Godot collection。`GameRuntimeCharacterInfoBuilder` 只经弱引用 `IGameRuntimeCharacterInfoQuery` 读取所需事实，并直接产出 typed section/entry/fate。
 
-长期 owner 内不保存 `Dictionary<string, object>`、`Godot.Collections.Dictionary` 或 `Variant` 图。headless snapshot 由 context 生成 detached plain C# graph；Godot Dictionary 只在 `GetCharacterInfoContextLease()` 的同步 Request-domain 投影中创建，`WorldMapSystem` 调用 `CharacterInfoWindow.ShowCharacter(...)` 后立即释放 lease。当前 payload 继续保持 `{display_name, meta_label, sections, status_label, source}`，战斗路径按原条件追加 `unit_id` 和 `fate`；空 tooltip、空 identity id 和空 fate 不输出对应键。
+长期 owner 内不保存 `Dictionary<string, object>`、`Godot.Collections.Dictionary` 或 `Variant` 图。窗口输入是 typed 直达：`WorldMapSystem` 经 `WorldMapRuntimeProxy.GetCharacterInfoContextTyped()` 把 context 本体交给 `CharacterInfoWindow.ShowCharacter(...)`，渲染链上不再有 Godot Dictionary 投影，也没有 UI 私有 schema parser；无 context 时传 `null`，窗口关闭。命运段落由窗口从 `GameRuntimeCharacterInfoFate` 现场格式化，属于展示层，不进入 plain snapshot。
+
+headless snapshot 仍由 context 的 `BuildSnapshotPlain()` 单向生成 detached plain C# graph，payload 继续保持 `{display_name, meta_label, sections, status_label, source}`，战斗路径按原条件追加 `unit_id` 和 `fate`；空 tooltip、空 identity id 和空 fate 不输出对应键。plain snapshot 不得反向作为窗口输入。
 
 context 在 runtime setup/dispose、成功进入或返回子地图、人物信息窗正常关闭，以及通过统一 sidecar modal port 离开 CharacterInfo 时清空；当前异步路径包含战斗自动推进触发 promotion，battle resolution 也会在清理战斗上下文时显式丢弃人物 context，避免已被新 modal 覆盖的 context 继续隐藏存活。正常关闭顺序必须保持 `context = null -> modal = None -> 更新状态 -> PresentPendingRewardIfReady()`，以保证待领奖励能在人物窗关闭后立即接续展示。世界 NPC 的 `service_type` / `facility_name` 在 `WorldMapNpcData.FromDictionary(...)` 时按正式 String payload 一次读取；`StringName` 不作为兼容输入。
 

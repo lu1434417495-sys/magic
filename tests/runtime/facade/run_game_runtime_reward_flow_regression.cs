@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_game_runtime_reward_flow_regression : LifecycleTestSceneTree
@@ -120,9 +119,10 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
             RuntimeCommandResult closeResult =
                 handler.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "关闭人物信息窗应成功。");
-            using GodotProjectionLease<GDictionary> characterInfoLease =
-                runtime.GetCharacterInfoContextLease();
-            _test.Eq(characterInfoLease.Value.Count, 0, "关闭人物信息窗后上下文应清空。");
+            _test.True(
+                runtime.GetCharacterInfoContextTyped() == null,
+                "关闭人物信息窗后上下文应清空。"
+            );
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "关闭人物信息窗后应继续展示待领奖励。");
         }
         finally
@@ -150,10 +150,10 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState)
     {
-        GameRuntimeFacade runtime = new()
-        {
-            _party_state = partyState,
-        };
+        GameRuntimeFacade runtime = new();
+        runtime.SetupForTestFixture(
+            partyState: partyState
+        );
         runtime._character_management.setup(
             partyState,
             BuildSkillDefinitions(),

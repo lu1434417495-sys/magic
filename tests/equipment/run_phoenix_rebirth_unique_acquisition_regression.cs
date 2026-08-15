@@ -843,7 +843,7 @@ public partial class run_phoenix_rebirth_unique_acquisition_regression : Lifecyc
     {
         if (
             window == null
-            || !window.TryGetValue("buy_entries", out object rawEntries)
+            || !window.TryGetValue("entries", out object rawEntries)
             || rawEntries is not IEnumerable<object> entries
         )
         {
@@ -852,6 +852,11 @@ public partial class run_phoenix_rebirth_unique_acquisition_regression : Lifecyc
         foreach (object rawEntry in entries)
         {
             if (rawEntry is not IReadOnlyDictionary<string, object> entry)
+                continue;
+            string shopAction = entry.TryGetValue("shop_action", out object rawShopAction)
+                ? rawShopAction?.ToString() ?? ""
+                : "";
+            if (shopAction != "buy")
                 continue;
             string entryItemId = entry.TryGetValue("item_id", out object rawItemId)
                 ? rawItemId?.ToString() ?? ""

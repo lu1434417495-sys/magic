@@ -110,8 +110,10 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
                 "资源采集回滚测试前置：session world 应与 active world 一致。"
             );
 
-            context.Facade._pending_harvest_coord = coord;
-            context.Facade._active_modal_kind = RuntimeModalKind.ResourceHarvestConfirm;
+            context.Facade.SetupForTestFixture(
+                activeModalKind: RuntimeModalKind.ResourceHarvestConfirm,
+                pendingHarvestCoord: coord
+            );
             context.GameSession.fail_payload_write = true;
 
             RuntimeCommandResult result =
