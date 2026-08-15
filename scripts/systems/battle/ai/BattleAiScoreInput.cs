@@ -27,6 +27,14 @@ public sealed class BattleAiScoreInput
     public StringName random_chain_pool_refresh_policy { get; set; } = "";
     public StringName random_chain_score_estimate_policy { get; set; } = "";
     public int effective_target_count { get; set; } = 0;
+
+    /// <summary>
+    /// Target slots the command occupies that the preview shows landing nothing. Skills that bill
+    /// resources per slot already pay for these through resource_cost_score; on aggregate
+    /// multi-target skills padding is free, so without this the AI cannot tell a lean group from
+    /// one carrying dead targets.
+    /// </summary>
+    public int wasted_target_slot_count { get; set; } = 0;
     public int enemy_target_count { get; set; } = 0;
     public int ally_target_count { get; set; } = 0;
     public int estimated_damage { get; set; } = 0;
@@ -271,6 +279,7 @@ public sealed class BattleAiScoreInput
             ["random_chain_pool_refresh_policy"] = random_chain_pool_refresh_policy.ToString(),
             ["random_chain_score_estimate_policy"] = random_chain_score_estimate_policy.ToString(),
             ["effective_target_count"] = effective_target_count,
+            ["wasted_target_slot_count"] = wasted_target_slot_count,
             ["enemy_target_count"] = enemy_target_count,
             ["ally_target_count"] = ally_target_count,
             ["estimated_damage"] = estimated_damage,
@@ -477,6 +486,11 @@ public sealed class BattleAiScoreInput
             random_chain_score_estimate_policy
         );
         AppendNamedValueFingerprint(builder, "effective_target_count", effective_target_count);
+        AppendNamedValueFingerprint(
+            builder,
+            "wasted_target_slot_count",
+            wasted_target_slot_count
+        );
         AppendNamedValueFingerprint(builder, "enemy_target_count", enemy_target_count);
         AppendNamedValueFingerprint(builder, "ally_target_count", ally_target_count);
         AppendNamedValueFingerprint(builder, "estimated_damage", estimated_damage);

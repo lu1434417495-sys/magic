@@ -91,6 +91,8 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             }
 
             TestBarrierBlockedCandidateDoesNotConsumePoolLimit();
+            TestNonContiguousTargetPairIsReachable();
+            TestSeparableSkillPicksTopPayoffTargets();
             TestOrderedTargetSlotsEnumerateRepeatedTargetsAndScoreActualCost();
         }
         catch (Exception exception)
@@ -211,11 +213,353 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             CommandContainsTargetUnitId(command, validTarget.unit_id),
             "the later barrier-valid target should enter after the blocked pool prefix"
         );
+        // The fully blocked pair {blockedA, blockedB} must not consume the group budget and win.
+        // Which single blocked target pads the winning pair is not asserted: combination
+        // enumeration makes {blockedA, valid} reachable alongside {blockedB, valid}, and the score
+        // model rates them identically because both land exactly one effective target.
         _test.True(
-            !CommandContainsTargetUnitId(command, blockedTargetA.unit_id),
-            "the first fully blocked candidate group should not consume the canonical group limit"
+            !CommandContainsTargetUnitId(command, blockedTargetA.unit_id)
+                || !CommandContainsTargetUnitId(command, blockedTargetB.unit_id),
+            "the fully blocked candidate group should not consume the canonical group limit"
         );
     }
+
+    private void TestNonContiguousTargetPairIsReachable()
+    {
+        StringName skillId = "non_contiguous_probe";
+        var source = _runtimeScope.OwnWrapper(
+            BuildUnit("non_contiguous_actor", "hostile", new Vector2I(0, 0)),
+            "non-contiguous-source"
+        );
+        // Nearest-first pool order is [first, skipped, third, last]. Only the first and third are
+        // effective, so the best pair is non-contiguous and a sliding window can never build it.
+        var firstTarget = _runtimeScope.OwnWrapper(
+            BuildUnit("non_contiguous_first", "player", new Vector2I(1, 0)),
+            "non-contiguous-first"
+        );
+        var skippedTarget = _runtimeScope.OwnWrapper(
+            BuildUnit("non_contiguous_skipped", "player", new Vector2I(2, 0)),
+            "non-contiguous-skipped"
+        );
+        var thirdTarget = _runtimeScope.OwnWrapper(
+            BuildUnit("non_contiguous_third", "player", new Vector2I(3, 0)),
+            "non-contiguous-third"
+        );
+        var lastTarget = _runtimeScope.OwnWrapper(
+            BuildUnit("non_contiguous_last", "player", new Vector2I(4, 0)),
+            "non-contiguous-last"
+        );
+        source.AddKnownActiveSkill(skillId);
+        source.SetKnownSkillLevelTyped(skillId, 1);
+
+        BattleState state = _runtimeScope.OwnWrapper(
+            new BattleState
+            {
+                battle_id = "multi_unit_non_contiguous_pair",
+                phase = "unit_acting",
+                map_size = new Vector2I(8, 2),
+                active_unit_id = source.unit_id,
+                timeline = new BattleTimelineState(),
+            },
+            "non-contiguous-state"
+        );
+        state.SetUnit(source);
+        state.SetUnit(firstTarget);
+        state.SetUnit(skippedTarget);
+        state.SetUnit(thirdTarget);
+        state.SetUnit(lastTarget);
+        var barrier = new BattleBarrierInstanceState
+        {
+            BarrierInstanceId = "non_contiguous_field",
+            ProfileId = "prismatic_sphere",
+            RemainingTu = 40,
+        };
+        barrier.SetLayers(
+            new[]
+            {
+                new BattleBarrierLayerState
+                {
+                    LayerId = "indigo",
+                    DisplayName = "Indigo",
+                    Order = 6,
+                },
+            }
+        );
+        state.PutLayeredBarrierField(barrier.BarrierInstanceId, barrier);
+
+        var context = new BattleAiContext
+        {
+            state = state,
+            unit_state = source,
+            grid_service = new BattleGridService(),
+            skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
+            // Only the non-contiguous pair lands anything. Every other pair previews as
+            // fully blocked, so the evaluator can only produce a command if enumeration
+            // actually builds {first, third}.
+            preview_command_callback = command =>
+            {
+                var preview = new BattlePreview { allowed = true };
+                if (
+                    CommandContainsTargetUnitId(command, firstTarget.unit_id)
+                    && CommandContainsTargetUnitId(command, thirdTarget.unit_id)
+                )
+                {
+                    preview.AddTargetUnitId(firstTarget.unit_id);
+                    preview.AddTargetUnitId(thirdTarget.unit_id);
+                }
+                return preview;
+            },
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skillId] = BuildMultiUnitSkill(skillId, 2, 2),
+            }
+        );
+        var action = new UseMultiUnitSkillActionDefinition(
+            "non_contiguous_action",
+            "test",
+            BattleAiActionIntent.Positioning,
+            new[] { skillId },
+            "nearest_enemy",
+            0,
+            6,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit),
+            4,
+            12
+        );
+
+        BattleAiDecision decision = new BattleAiMultiUnitSkillEvaluator().Evaluate(action, context);
+        BattleCommand command = decision?.command;
+        _test.True(command != null, "a non-contiguous target pair should still produce a command");
+        if (command == null)
+            return;
+        _test.Eq(
+            command.TargetUnitIdsTyped.Count,
+            2,
+            "min_target_count=2 should preserve a legal command shape"
+        );
+        var chosenIds = new List<string>();
+        foreach (StringName targetId in command.TargetUnitIdsTyped)
+            chosenIds.Add(targetId.ToString());
+        _test.Eq(
+            string.Join(",", chosenIds),
+            $"{firstTarget.unit_id},{thirdTarget.unit_id}",
+            "the two effective targets are not adjacent in the pool, so only combination "
+                + "enumeration can pair them; a sliding window caps out at one effective target"
+        );
+    }
+
+    private void TestSeparableSkillPicksTopPayoffTargets()
+    {
+        RunTopPayoffScenario("damage", expectSeparable: true, idPrefix: "separable");
+        // A coupling effect kind is not on the allow-list, so the same board must fall back to
+        // enumeration - whose group budget runs out before the best pair.
+        RunTopPayoffScenario("chain_damage", expectSeparable: false, idPrefix: "coupled");
+    }
+
+    private void RunTopPayoffScenario(string effectType, bool expectSeparable, string idPrefix)
+    {
+        StringName skillId = $"{idPrefix}_probe";
+        var source = _runtimeScope.OwnWrapper(
+            BuildUnit($"{idPrefix}_actor", "hostile", new Vector2I(0, 0)),
+            $"{idPrefix}-source"
+        );
+        // Six targets in nearest-first order, with the only two worthwhile ones last. Pairs are
+        // C(6,2)=15 but the group budget is 12, so lexicographic combination enumeration stops
+        // before reaching {index 4, index 5}. Ranking by payoff finds it directly.
+        var poor0 = _runtimeScope.OwnWrapper(
+            BuildUnit($"{idPrefix}_poor_0", "player", new Vector2I(1, 0)),
+            $"{idPrefix}-poor-0"
+        );
+        var poor1 = _runtimeScope.OwnWrapper(
+            BuildUnit($"{idPrefix}_poor_1", "player", new Vector2I(2, 0)),
+            $"{idPrefix}-poor-1"
+        );
+        var poor2 = _runtimeScope.OwnWrapper(
+            BuildUnit($"{idPrefix}_poor_2", "player", new Vector2I(3, 0)),
+            $"{idPrefix}-poor-2"
+        );
+        var poor3 = _runtimeScope.OwnWrapper(
+            BuildUnit($"{idPrefix}_poor_3", "player", new Vector2I(4, 0)),
+            $"{idPrefix}-poor-3"
+        );
+        var goodA = _runtimeScope.OwnWrapper(
+            BuildUnit($"{idPrefix}_good_a", "player", new Vector2I(5, 0)),
+            $"{idPrefix}-good-a"
+        );
+        var goodB = _runtimeScope.OwnWrapper(
+            BuildUnit($"{idPrefix}_good_b", "player", new Vector2I(6, 0)),
+            $"{idPrefix}-good-b"
+        );
+        source.AddKnownActiveSkill(skillId);
+        source.SetKnownSkillLevelTyped(skillId, 1);
+
+        BattleState state = _runtimeScope.OwnWrapper(
+            new BattleState
+            {
+                battle_id = $"multi_unit_{idPrefix}_top_k",
+                phase = "unit_acting",
+                map_size = new Vector2I(8, 2),
+                active_unit_id = source.unit_id,
+                timeline = new BattleTimelineState(),
+            },
+            $"{idPrefix}-state"
+        );
+        state.SetUnit(source);
+        state.SetUnit(poor0);
+        state.SetUnit(poor1);
+        state.SetUnit(poor2);
+        state.SetUnit(poor3);
+        state.SetUnit(goodA);
+        state.SetUnit(goodB);
+
+        using var scoreService = new BattleAiScoreService();
+        var context = new BattleAiContext
+        {
+            state = state,
+            unit_state = source,
+            grid_service = new BattleGridService(),
+            skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skillId] = BuildMultiUnitSkill(
+                    skillId,
+                    2,
+                    2,
+                    withDamageEffect: true,
+                    effectType: effectType
+                ),
+            }
+        );
+        context.skill_score_input_callback = (
+            aiContext,
+            skillDefinition,
+            command,
+            preview,
+            effects,
+            metadata,
+            facts
+        ) =>
+        {
+            if (command != null && preview != null)
+            {
+                bool hitsOnlyGoodTargets =
+                    !CommandContainsTargetUnitId(command, poor0.unit_id)
+                    && !CommandContainsTargetUnitId(command, poor1.unit_id)
+                    && !CommandContainsTargetUnitId(command, poor2.unit_id)
+                    && !CommandContainsTargetUnitId(command, poor3.unit_id);
+                preview.hit_preview = BuildHitPreview(hitsOnlyGoodTargets ? 95 : 5);
+            }
+            return scoreService.BuildSkillScoreInput(
+                aiContext,
+                skillDefinition,
+                command,
+                preview,
+                effects,
+                metadata,
+                facts
+            );
+        };
+
+        var action = new UseMultiUnitSkillActionDefinition(
+            $"{idPrefix}_action",
+            "test",
+            BattleAiActionIntent.Positioning,
+            new[] { skillId },
+            "nearest_enemy",
+            0,
+            6,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit),
+            6,
+            12
+        );
+
+        BattleAiDecision decision = new BattleAiMultiUnitSkillEvaluator().Evaluate(action, context);
+        BattleCommand command2 = decision?.command;
+        _test.True(command2 != null, "a separable multi-unit skill should produce a command");
+        if (command2 == null)
+            return;
+        bool pickedBestPair =
+            CommandContainsTargetUnitId(command2, goodA.unit_id)
+            && CommandContainsTargetUnitId(command2, goodB.unit_id);
+        _test.Eq(
+            pickedBestPair,
+            expectSeparable,
+            expectSeparable
+                ? "ranking by payoff should reach the best pair even though it sits past the "
+                    + "point where combination enumeration exhausts its group budget"
+                : "a coupling effect kind must not be treated as separable; enumeration cannot "
+                    + "reach this pair, and silently taking the top-k path would hide that"
+        );
+        _test.Eq(
+            command2.TargetUnitIdsTyped.Count,
+            2,
+            "min and max target count are both two"
+        );
+    }
+
+    private static CombatEffectDefinition BuildDamageEffect(string effectType = "damage") =>
+        new(
+            effectType: effectType,
+            effectTargetTeamFilter: "enemy",
+            statusId: default,
+            saveFailureStatusId: default,
+            terrainEffectId: default,
+            terrainReplaceTo: default,
+            heightDelta: 0,
+            requiresWeapon: false,
+            addWeaponDice: false,
+            preventRepeatTarget: false,
+            forcedMoveMode: default,
+            minSkillLevel: 0,
+            maxSkillLevel: -1,
+            damageTag: default,
+            damageRatioPercent: 100,
+            preResistanceDamageMultiplier: 1.0,
+            bonusCondition: default,
+            hpRatioThresholdPercent: 0,
+            damageCategory: default,
+            drBypassTag: default,
+            diceCount: 2,
+            diceSides: 6,
+            diceBonus: 0,
+            bonusDamageDiceCount: 0,
+            bonusDamageDiceSides: 0,
+            bonusDamageDiceBonus: 0,
+            saveDc: 0,
+            saveDcMode: default,
+            saveDcSourceAbility: default,
+            saveAbility: default,
+            savePartialOnSuccess: false,
+            saveTag: default,
+            thresholdBaseValue: 0,
+            thresholdLevelAnchor: 0,
+            thresholdLevelBonusPerDelta: 0,
+            thresholdMaxHpRatioPercent: 0,
+            thresholdCapMaxHpRatioPercent: 0,
+            soulFractureDurationTu: 0,
+            healMultiplierPercent: 0,
+            shieldGainMultiplierPercent: 0,
+            appliedStatusDurationTu: 0,
+            durationTu: 0,
+            tickIntervalTu: 0,
+            effectTags: Array.Empty<StringName>()
+        );
+
+    private static AttackPreviewData BuildHitPreview(int successRate) =>
+        new()
+        {
+            Stages = new List<AttackPreviewStage>
+            {
+                new(successRate, successRate, successRate, 0, 0, ""),
+            },
+            HitRatePercent = successRate,
+            SuccessRatePercent = successRate,
+            BaseHitRatePercent = successRate,
+        };
 
     private void TestOrderedTargetSlotsEnumerateRepeatedTargetsAndScoreActualCost()
     {
@@ -385,7 +729,9 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
     private static SkillDefinition BuildMultiUnitSkill(
         StringName skillId,
         int minTargetCount = 2,
-        int maxTargetCount = 2
+        int maxTargetCount = 2,
+        bool withDamageEffect = false,
+        string effectType = "damage"
     )
     {
         var castVariant = new CombatCastVariantDefinition(
@@ -397,7 +743,9 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             "single",
             1,
             Array.Empty<StringName>(),
-            Array.Empty<CombatEffectDefinition>(),
+            withDamageEffect
+                ? new[] { BuildDamageEffect(effectType) }
+                : Array.Empty<CombatEffectDefinition>(),
             new Dictionary<string, object>()
         );
         return new SkillDefinition(

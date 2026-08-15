@@ -594,6 +594,7 @@ public sealed class BattleSimTraceSummaryBuilder
             MpCost = ReadPlainInt(score, "mp_cost"),
             AuraCost = ReadPlainInt(score, "aura_cost"),
             MoveCost = ReadPlainInt(score, "move_cost"),
+            WastedTargetSlotCount = ReadPlainInt(score, "wasted_target_slot_count"),
             EstimatedFriendlyFireTargetCount = ReadPlainInt(
                 score,
                 "estimated_friendly_fire_target_count"
@@ -673,6 +674,7 @@ public sealed class BattleSimTraceSummaryBuilder
             MpCost = score.mp_cost,
             AuraCost = score.aura_cost,
             MoveCost = score.move_cost,
+            WastedTargetSlotCount = score.wasted_target_slot_count,
             EstimatedFriendlyFireTargetCount = score.estimated_friendly_fire_target_count,
             EstimatedFriendlyFireDamage = score.estimated_friendly_fire_damage,
             EstimatedFriendlyLethalTargetCount = score.estimated_friendly_lethal_target_count,
@@ -1285,6 +1287,7 @@ public sealed class BattleSimTraceSummaryBuilder
 
         // Tie-breakers the decision engine applies ahead of total_score, plus the payoff and
         // cost dimensions a low-token summary needs to explain why a candidate actually won.
+        public int WastedTargetSlotCount { get; set; }
         public int EstimatedFriendlyFireTargetCount { get; set; }
         public int EstimatedFriendlyFireDamage { get; set; }
         public int EstimatedFriendlyLethalTargetCount { get; set; }
@@ -1364,6 +1367,7 @@ public sealed class BattleSimTraceSummaryBuilder
                 ("mp_cost", MpCost),
                 ("aura_cost", AuraCost),
                 ("move_cost", MoveCost),
+                ("wasted_target_slot_count", WastedTargetSlotCount),
                 ("estimated_friendly_fire_target_count", EstimatedFriendlyFireTargetCount),
                 ("estimated_friendly_fire_damage", EstimatedFriendlyFireDamage),
                 ("estimated_friendly_lethal_target_count", EstimatedFriendlyLethalTargetCount),

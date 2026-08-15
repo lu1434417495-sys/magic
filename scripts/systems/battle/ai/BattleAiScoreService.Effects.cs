@@ -1277,8 +1277,31 @@ public partial class BattleAiScoreService
                 }
                 else
                 {
+                    int marginalControlBasisPoints =
+                        EstimateAggregateRefreshStatusMarginalControlBasisPoints(
+                            sourceUnit,
+                            targetUnit,
+                            effectDefinition,
+                            statusId
+                        );
+                    if (marginalControlBasisPoints <= 0)
+                    {
+                        continue;
+                    }
                     metrics.IsEmpty = false;
-                    metrics.HarmfulControlCount += hitCount;
+                    if (marginalControlBasisPoints >= 10000)
+                    {
+                        metrics.HarmfulControlCount += hitCount;
+                    }
+                    else
+                    {
+                        metrics.HarmfulControlProbabilityBasisPoints = (int)Math.Clamp(
+                            (long)metrics.HarmfulControlProbabilityBasisPoints
+                                + (long)marginalControlBasisPoints * hitCount,
+                            0L,
+                            int.MaxValue
+                        );
+                    }
                 }
             }
             else if (effectKind == BattleEffectKind.ForcedMove)
@@ -1420,6 +1443,67 @@ public partial class BattleAiScoreService
             }
         }
         return metrics;
+    }
+
+    private static int EstimateAggregateRefreshStatusMarginalControlBasisPoints(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        StringName statusId
+    )
+    {
+        if (targetUnit == null || effectDefinition == null || statusId == "")
+        {
+            return 0;
+        }
+        BattleStatusEffectState existingStatus = targetUnit.GetStatusEffect(statusId);
+        if (existingStatus == null)
+        {
+            return 10000;
+        }
+        BattleStatusSemantic semantic = BattleStatusSemanticTable.GetSemantic(statusId);
+        if (
+            !semantic.Defined
+            || semantic.StackingScope != BattleStatusStackingScope.Aggregate
+            || semantic.StackMode != BattleStatusSemanticTable.STACK_REFRESH
+        )
+        {
+            return 10000;
+        }
+        BattleStatusEffectState mergedStatus = BattleStatusSemanticTable.MergeStatus(
+            effectDefinition,
+            sourceUnit?.unit_id ?? new StringName(""),
+            existingStatus,
+            statusId
+        );
+        if (mergedStatus == null)
+        {
+            return 0;
+        }
+        if (
+            mergedStatus.power > existingStatus.power
+            || mergedStatus.stacks > existingStatus.stacks
+        )
+        {
+            return 10000;
+        }
+        int incomingDurationTu = Math.Max(effectDefinition.DurationTu, 0);
+        int existingDurationTu = existingStatus.duration;
+        int mergedDurationTu = mergedStatus.duration;
+        if (
+            incomingDurationTu <= 0
+            || existingDurationTu < 0
+            || mergedDurationTu <= existingDurationTu
+        )
+        {
+            return 0;
+        }
+        int extensionTu = mergedDurationTu - Math.Max(existingDurationTu, 0);
+        return (int)Math.Clamp(
+            (long)extensionTu * 10000L / incomingDurationTu,
+            0L,
+            10000L
+        );
     }
 
     private static bool WouldAddSourceScopedStatusContribution(

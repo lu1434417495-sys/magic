@@ -19,6 +19,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             TestChainSkillScoresFriendlyBounceRisk();
             TestDamageScoreUsesFormalResistanceAndShieldRules();
             TestWeightedSaveFailureControlUsesExpectedProbability();
+            TestAggregateRefreshControlScoresOnlyMarginalDuration();
             TestEquipmentDurabilityScoreFavorsArmoredTargetWithoutFilteringUnarmoredTarget();
             TestWillPenetrateShieldBonusCondition();
             TestMultiHitDamageScoreConsumesPreviewShieldSequentially();
@@ -162,6 +163,131 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         _test.True(
             lowWillScore.hit_payoff_score > highWillScore.hit_payoff_score,
             $"其他条件相近时，AI应通过正式豁免概率更偏好低意志目标。low={lowWillScore.hit_payoff_score} high={highWillScore.hit_payoff_score}"
+        );
+    }
+
+    private void TestAggregateRefreshControlScoresOnlyMarginalDuration()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_aggregate_refresh_control",
+            new Vector2I(7, 4)
+        );
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/mage_frost_bolt.tres",
+            "battle_ai_aggregate_refresh_control"
+        );
+        fixture.AddSkill(skill);
+
+        BattleUnitState actor = BuildUnit(
+            "aggregate_refresh_actor",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        actor.AddKnownActiveSkill(skill.SkillId);
+        actor.SetKnownSkillLevelTyped(skill.SkillId, 3);
+        BattleUnitState target = BuildUnit(
+            "aggregate_refresh_target",
+            "player",
+            new Vector2I(3, 1)
+        );
+        fixture.AddUnit(actor);
+        fixture.AddUnit(target);
+
+        IReadOnlyList<CombatEffectDefinition> effects = ActiveEffectsAtLevel(
+            skill.CombatProfile.EffectDefinitions,
+            3
+        );
+        BattleCommand command = BuildCommand(
+            actor,
+            skill.SkillId,
+            target.GetAnchorCoord(),
+            target
+        );
+        BattlePreview preview = BuildPreview(target);
+        Dictionary<string, object> positionMetadata = BuildPositionMetadata(target, 0, 4);
+        BattleAiScoreInput freshScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            command,
+            preview,
+            effects,
+            positionMetadata
+        );
+
+        target.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "slow",
+                duration = 30,
+                power = 1,
+                stacks = 1,
+            }
+        );
+        BattleAiScoreInput extensionScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            command,
+            preview,
+            effects,
+            positionMetadata
+        );
+
+        target.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "slow",
+                duration = 60,
+                power = 1,
+                stacks = 1,
+            }
+        );
+        BattleAiScoreInput redundantScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(actor),
+            skill,
+            command,
+            preview,
+            effects,
+            positionMetadata
+        );
+
+        _test.True(
+            freshScore != null && extensionScore != null && redundantScore != null,
+            "AI应为三种缓速存量状态生成评分输入。"
+        );
+        if (freshScore == null || extensionScore == null || redundantScore == null)
+            return;
+        _test.Eq(freshScore.estimated_control_count, 1, "首次施加60TU缓速应计一次完整控制。" );
+        _test.Eq(
+            freshScore.estimated_control_probability_basis_points,
+            0,
+            "确定性的首次缓速不应伪装成概率控制。"
+        );
+        _test.Eq(extensionScore.estimated_control_count, 0, "30TU刷新至60TU不得再计完整控制。" );
+        _test.Eq(
+            extensionScore.estimated_control_probability_basis_points,
+            5000,
+            "只新增30TU时应按本次60TU持续时间的一半估值。"
+        );
+        _test.Eq(redundantScore.estimated_control_count, 0, "同为60TU的重复刷新不得计完整控制。" );
+        _test.Eq(
+            redundantScore.estimated_control_probability_basis_points,
+            0,
+            "未延长的刷新不得获得边际控制概率。"
+        );
+        _test.Eq(
+            freshScore.estimated_damage,
+            extensionScore.estimated_damage,
+            "已有缓速不应改变霜击术的伤害估值。"
+        );
+        _test.Eq(
+            extensionScore.estimated_damage,
+            redundantScore.estimated_damage,
+            "冗余缓速不应改变霜击术的伤害估值。"
+        );
+        _test.True(
+            freshScore.hit_payoff_score > extensionScore.hit_payoff_score
+                && extensionScore.hit_payoff_score > redundantScore.hit_payoff_score,
+            $"控制边际收益应严格递减。fresh={freshScore.hit_payoff_score} extension={extensionScore.hit_payoff_score} redundant={redundantScore.hit_payoff_score}"
         );
     }
 

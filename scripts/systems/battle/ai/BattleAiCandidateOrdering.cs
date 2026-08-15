@@ -16,6 +16,7 @@ internal sealed class BattleAiCandidateFacts
     public int TotalScore;
     public int HitPayoffScore;
     public int EffectiveTargetCount;
+    public int WastedTargetSlotCount;
     public int ResourceCostScore;
     public int ScoreBucketPriority;
     public int TargetCount;
@@ -57,6 +58,7 @@ internal static class BattleAiCandidateOrdering
             TotalScore = scoreInput.total_score,
             HitPayoffScore = scoreInput.hit_payoff_score,
             EffectiveTargetCount = scoreInput.effective_target_count,
+            WastedTargetSlotCount = scoreInput.wasted_target_slot_count,
             ResourceCostScore = scoreInput.resource_cost_score,
             ScoreBucketPriority = scoreInput.score_bucket_priority,
             TargetCount = scoreInput.target_count,
@@ -168,6 +170,10 @@ internal static class BattleAiCandidateOrdering
             {
                 return candidate.EffectiveTargetCount > bestCandidate.EffectiveTargetCount;
             }
+            if (candidate.WastedTargetSlotCount != bestCandidate.WastedTargetSlotCount)
+            {
+                return candidate.WastedTargetSlotCount < bestCandidate.WastedTargetSlotCount;
+            }
             int lethalNonfatalRiskComparison = CompareNonfatalPostActionSurvivalRisk(
                 candidate,
                 bestCandidate
@@ -197,6 +203,12 @@ internal static class BattleAiCandidateOrdering
         if (candidate.EffectiveTargetCount != bestCandidate.EffectiveTargetCount)
         {
             return candidate.EffectiveTargetCount > bestCandidate.EffectiveTargetCount;
+        }
+        // A slot the preview shows landing nothing is never worth having. Skills that bill per
+        // slot already pay via resource_cost_score; on aggregate skills this is the only signal.
+        if (candidate.WastedTargetSlotCount != bestCandidate.WastedTargetSlotCount)
+        {
+            return candidate.WastedTargetSlotCount < bestCandidate.WastedTargetSlotCount;
         }
         if (candidate.TargetCount != bestCandidate.TargetCount)
         {

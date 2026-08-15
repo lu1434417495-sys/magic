@@ -86,8 +86,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             AssertLegacyTraceReference(trace, payload);
             AssertFingerprint(
                 payload,
-                12992,
-                "ed96cea4799e18285b8bd7401c7f8a17396b8b216dd4e665fd185a55e1dd2be3",
+                13021,
+                "c95f565549d9e280b18908f103f41da109c9dc1a4f3293c45276492701300d7b",
                 "full AI trace payload"
             );
             AssertDictionaryKeysAreStrings(payload, "trace");
@@ -706,8 +706,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 lease.Value,
-                10360,
-                "f094e0549afe6374cb9bf76f3e9c1fda08e30383234f7d749dd7d47b6c13b00f",
+                10389,
+                "a298a7ef42069d683a784e9e7786353e361e276ee6c2e03a628c616636ffed2f",
                 "full standalone AI score payload"
             );
         }
@@ -928,10 +928,11 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 3,
                 "status save bonus map"
             );
+            // 2026-08-15 行动节奏敏捷派生：action_threshold 默认值 120 -> 40，payload 短 1 字符。
             AssertFingerprint(
                 lease.Value,
-                2126,
-                "50524c863288c6e1ecc9681567b15f5ca085cd3eee4f97320d2e521f228deb83",
+                2125,
+                "431a5edd92b1c8d5db9fa6a53dc573c7ed17883a7fe21fb070f21f237099c3a5",
                 "full real unit snapshot payload"
             );
         }
@@ -988,10 +989,11 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 0,
                 "Successful simulation runs must expose an empty start failure payload."
             );
+            // 同上：action_threshold 默认值 120 -> 40。
             AssertFingerprint(
                 reportLease.Value,
-                17247,
-                "15bf9f381169130cfcc22f0ad17effcc6ff962487cb18e0c84538d17ec837d8c",
+                17275,
+                "c2f07c448a791c1d6e7bae24fd1f69a66a28b1cad28b26d269900b752720a9ce",
                 "full simulation report payload"
             );
         }
@@ -1044,8 +1046,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 summaryLease.Value,
-                7038,
-                "31ea47ff123248ee839121a6e5a93fc906a98afdae99b823802ebfd857c4958e",
+                7096,
+                "50a9c222a42af056703fc56c8784599503bee2dc1fca4aecf8a5399f97970dbb",
                 "full compact trace summary payload"
             );
         }

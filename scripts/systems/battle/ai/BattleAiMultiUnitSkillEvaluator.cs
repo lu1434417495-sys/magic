@@ -6,6 +6,35 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 {
     private static readonly StringName EmptyStringName = "";
 
+    /// <summary>
+    /// Hard ceiling on enumerated target groups, independent of the authored candidate_group_limit.
+    /// Combination enumeration is exponential in pool size, and the layered-barrier path defers
+    /// both the pool limit and the group limit to the canonical preview.
+    /// </summary>
+    private const int MaxEnumeratedTargetGroups = 256;
+
+    /// <summary>
+    /// Effect kinds whose outcome on a target depends on that target alone. This is an allow-list
+    /// on purpose: a kind that is missing here only costs enumeration, while a coupling kind
+    /// wrongly treated as independent silently degrades target choice with nothing to notice.
+    /// Anything that moves units, chains between them, repeats off a whole-cast preview, counts
+    /// kills across the group, or writes the board is deliberately absent.
+    /// </summary>
+    private static readonly HashSet<BattleEffectKind> SeparableEffectKinds =
+        new()
+        {
+            BattleEffectKind.Damage,
+            BattleEffectKind.Heal,
+            BattleEffectKind.HealFatal,
+            BattleEffectKind.StaminaRestore,
+            BattleEffectKind.Shield,
+            BattleEffectKind.Status,
+            BattleEffectKind.ApplyStatus,
+            BattleEffectKind.EraseStatus,
+            BattleEffectKind.CleanseHarmful,
+            BattleEffectKind.EquipmentDurabilityDamage,
+        };
+
     private readonly BattleAiTypedActionHelper _helper = new();
 
     internal BattleAiDecision Evaluate(
@@ -327,37 +356,58 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
             );
             return groups;
         }
-        for (int count = maxCount; count >= minCount; count--)
+        IReadOnlyList<CombatEffectDefinition> castEffectDefinitions =
+            _helper.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                skillEntry?.SkillLevel ?? skillLevel
+            );
+        if (IsSeparableTargetSelection(context, skillDefinition, castEffectDefinitions))
         {
+            AppendTopKTargetGroups(
+                groups,
+                seen,
+                context,
+                skillEntry,
+                skillDefinition,
+                castVariant,
+                pool,
+                castEffectDefinitions,
+                minCount,
+                maxCount
+            );
+            return groups;
+        }
+
+        // Even when the caller defers the authored group limit to the canonical preview, full
+        // combination enumeration is 2^pool; the pool limit is deferred on that same path, so an
+        // absolute ceiling is the only thing standing between a layered-barrier field and a
+        // combinatorial blow-up.
+        int groupBudget = deferGroupLimitUntilCanonicalPreview
+            ? MaxEnumeratedTargetGroups
+            : Mathf.Min(action.CandidateGroupLimit, MaxEnumeratedTargetGroups);
+        // Every target count gets a share of the budget, so a two-target combination stays
+        // reachable even when the larger counts could exhaust the budget on their own.
+        int remainingCounts = maxCount - minCount + 1;
+        for (int count = maxCount; count >= minCount; count--, remainingCounts--)
+        {
+            if (groups.Count >= groupBudget)
+                return groups;
+            int countBudget = Mathf.Min(
+                groups.Count + Mathf.Max((groupBudget - groups.Count) / Mathf.Max(remainingCounts, 1), 1),
+                groupBudget
+            );
             if (count == 1)
             {
                 foreach (BattleUnitState target in pool)
                 {
                     AppendTargetGroup(groups, seen, new List<BattleUnitState> { target });
-                    if (
-                        !deferGroupLimitUntilCanonicalPreview
-                        && groups.Count >= action.CandidateGroupLimit
-                    )
-                    {
-                        return groups;
-                    }
+                    if (groups.Count >= countBudget)
+                        break;
                 }
                 continue;
             }
-            for (int startIndex = 0; startIndex <= pool.Count - count; startIndex++)
-            {
-                var targetGroup = new List<BattleUnitState>();
-                for (int offset = 0; offset < count; offset++)
-                    targetGroup.Add(pool[startIndex + offset]);
-                AppendTargetGroup(groups, seen, targetGroup);
-                if (
-                    !deferGroupLimitUntilCanonicalPreview
-                    && groups.Count >= action.CandidateGroupLimit
-                )
-                {
-                    return groups;
-                }
-            }
+            AppendCombinationGroups(groups, seen, pool, count, countBudget);
         }
         return groups;
     }
@@ -455,6 +505,206 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
 
     private static bool HasLayeredBarrier(BattleAiContext context) =>
         context?.state?.LayeredBarrierFieldCount > 0;
+
+    /// <summary>
+    /// Whether a group's value is the sum of its members' values. When it is, the best group of
+    /// size k is simply the k highest-scoring targets, so enumerating combinations is wasted work
+    /// and top-k is both cheaper and exactly optimal. Everything listed here breaks that
+    /// assumption by making one target's outcome depend on which others share the cast; the
+    /// predicate is deliberately conservative, since guessing separable wrongly silently degrades
+    /// target choice while guessing non-separable only costs enumeration.
+    /// </summary>
+    private static bool IsSeparableTargetSelection(
+        BattleAiContext context,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        // Barrier layers absorb across the whole cast, so who gets through depends on the set.
+        if (HasLayeredBarrier(context))
+            return false;
+        // Ordered slots repeat targets and bill per slot; they have their own enumeration path.
+        if (BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition))
+            return false;
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
+            return false;
+        // Damage falls off by the target's index in the sequence.
+        if (
+            combatProfile.DirectionalPiercing != null
+            || combatProfile.LineThroughAttack != null
+            || combatProfile.SequentialLineHit != null
+        )
+        {
+            return false;
+        }
+        // Special resolution profiles (meteor swarm and friends) resolve the set as a unit.
+        if (combatProfile.SpecialResolutionProfileId != EmptyStringName)
+            return false;
+        if (effectDefinitions == null || effectDefinitions.Count == 0)
+            return false;
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
+        {
+            if (effectDefinition == null)
+                return false;
+            // MaxAffectedTargets keeps only the lowest-HP N of the group, so adding a target can
+            // push another out of the effect entirely.
+            if (effectDefinition.MaxAffectedTargets > 0)
+                return false;
+            if (!SeparableEffectKinds.Contains(effectDefinition.EffectKind))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Top-k groups for a separable skill: rank each pool target by the payoff it contributes on
+    /// its own, then take the k best for every legal k. Exactly optimal per size, and it builds
+    /// one group per size instead of C(pool, k).
+    /// </summary>
+    private void AppendTopKTargetGroups(
+        List<List<BattleUnitState>> groups,
+        HashSet<string> seen,
+        BattleAiContext context,
+        BattleAvailableSkillEntry skillEntry,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        IReadOnlyList<BattleUnitState> pool,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        int minCount,
+        int maxCount
+    )
+    {
+        List<BattleUnitState> ranked = RankSeparableTargets(
+            context,
+            skillEntry,
+            skillDefinition,
+            castVariant,
+            pool,
+            effectDefinitions
+        );
+        for (int count = maxCount; count >= minCount; count--)
+        {
+            if (count > ranked.Count)
+                continue;
+            var targetGroup = new List<BattleUnitState>(count);
+            for (int index = 0; index < count; index++)
+                targetGroup.Add(ranked[index]);
+            AppendTargetGroup(groups, seen, targetGroup);
+        }
+    }
+
+    /// <summary>
+    /// Pool targets ordered by their standalone payoff, best first. The single-target score input
+    /// is a ranking probe, never a command we issue, so it is fine to build one even for skills
+    /// whose min_target_count is above one. Ties keep the incoming pool order, which is the
+    /// action's own target selector ordering.
+    /// </summary>
+    private List<BattleUnitState> RankSeparableTargets(
+        BattleAiContext context,
+        BattleAvailableSkillEntry skillEntry,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        IReadOnlyList<BattleUnitState> pool,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        var scored = new List<(BattleUnitState Target, int Payoff, int PoolIndex)>(pool.Count);
+        for (int poolIndex = 0; poolIndex < pool.Count; poolIndex++)
+        {
+            BattleUnitState target = pool[poolIndex];
+            var singleGroup = new List<BattleUnitState> { target };
+            BattleCommand probeCommand = BuildMultiUnitSkillCommand(
+                context,
+                skillEntry,
+                castVariant,
+                singleGroup
+            );
+            BattlePreview probePreview = BuildFastUnitSkillPreview(
+                context,
+                skillDefinition,
+                probeCommand
+            );
+            // int.MinValue means the preview says this target lands nothing, which is the only
+            // reason to drop it. A missing score input means scoring is unavailable, not that the
+            // target is useless, so those rank neutrally and keep the pool's selector order.
+            int payoff = int.MinValue;
+            if (probePreview?.allowed == true && probePreview.TargetUnitIdsTyped.Count > 0)
+            {
+                payoff = 0;
+                // Straight to the score service: the ranking probe only reads hit_payoff_score,
+                // which does not depend on the action's bucket or intent metadata.
+                BattleAiScoreInput probeScore = context.BuildSkillScoreInputTyped(
+                    skillDefinition,
+                    probeCommand,
+                    probePreview,
+                    effectDefinitions,
+                    null
+                );
+                // hit_payoff_score is the part of total_score that varies per target; the rest is
+                // either constant for the cast or a function of slot count alone.
+                if (probeScore != null)
+                    payoff = probeScore.hit_payoff_score;
+            }
+            scored.Add((target, payoff, poolIndex));
+        }
+        scored.Sort(
+            (left, right) =>
+            {
+                if (left.Payoff != right.Payoff)
+                    return right.Payoff.CompareTo(left.Payoff);
+                return left.PoolIndex.CompareTo(right.PoolIndex);
+            }
+        );
+        var ranked = new List<BattleUnitState>(scored.Count);
+        foreach ((BattleUnitState target, int payoff, int _) in scored)
+        {
+            // A target that previews as landing nothing can only ever pad the group.
+            if (payoff == int.MinValue)
+                continue;
+            ranked.Add(target);
+        }
+        return ranked;
+    }
+
+    /// <summary>
+    /// Index combinations of <paramref name="count"/> targets in lexicographic order. The pool is
+    /// already sorted by target priority, so the first combinations are the highest-priority ones
+    /// and truncation degrades gracefully. Contiguous windows used to make pairs like
+    /// (top target, third target) unreachable no matter how well they scored.
+    /// </summary>
+    private static void AppendCombinationGroups(
+        List<List<BattleUnitState>> groups,
+        HashSet<string> seen,
+        IReadOnlyList<BattleUnitState> pool,
+        int count,
+        int countBudget
+    )
+    {
+        if (count > pool.Count)
+            return;
+        var indices = new int[count];
+        for (int slot = 0; slot < count; slot++)
+            indices[slot] = slot;
+        while (true)
+        {
+            var targetGroup = new List<BattleUnitState>(count);
+            for (int slot = 0; slot < count; slot++)
+                targetGroup.Add(pool[indices[slot]]);
+            AppendTargetGroup(groups, seen, targetGroup);
+            if (groups.Count >= countBudget)
+                return;
+
+            int advanceSlot = count - 1;
+            while (advanceSlot >= 0 && indices[advanceSlot] == pool.Count - count + advanceSlot)
+                advanceSlot--;
+            if (advanceSlot < 0)
+                return;
+            indices[advanceSlot]++;
+            for (int slot = advanceSlot + 1; slot < count; slot++)
+                indices[slot] = indices[slot - 1] + 1;
+        }
+    }
 
     private static void AppendTargetGroup(
         List<List<BattleUnitState>> groups,

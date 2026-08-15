@@ -429,6 +429,13 @@ public sealed partial class BattleAiScoreService : IDisposable
                 scoreMetadata.Position,
                 effectiveEffectDefinitions
             );
+        // Must run after PopulateHitMetrics: that rewrites target_unit_ids/target_count to the
+        // planned targets, so anything the command still occupies beyond them is a dead slot.
+        // Ground/AoE commands carry coords rather than unit ids, hence the clamp at zero.
+        scoreInput.wasted_target_slot_count = Math.Max(
+            (command?.TargetUnitIdsTyped.Count ?? 0) - scoreInput.target_count,
+            0
+        );
         scoreInput.total_score =
             ResolveActionBaseScore(scoreInput.action_kind, scoreMetadata)
             + scoreInput.hit_payoff_score
