@@ -16,6 +16,7 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
     {
         TestStartingEquipmentMatchesSelectedRandomSkillThroughCreateNewSave();
         TestMpStartingSkillGrantsBasicMeditationAndRandomManaPool();
+        TestFrostBoltRandomStartTierAndAffordableLevelCost();
 
         RequestTestExit(_test.Finish("GameSession random start skill regression"));
     }
@@ -176,6 +177,44 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
 
             AssertManaPoolRoll(skillDefinitions, arcaneMissile, 0);
             AssertManaPoolRoll(skillDefinitions, arcaneMissile, 40);
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestFrostBoltRandomStartTierAndAffordableLevelCost()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
+            _test.True(
+                skillDefinitions.TryGetValue(
+                    "mage_frost_bolt",
+                    out SkillDefinition frostBolt
+                ),
+                "随机起始等级回归前置：应加载霜击术定义。"
+            );
+            if (frostBolt == null)
+                return;
+
+            _test.Eq(
+                frostBolt.LearnSourceKind,
+                SkillLearnSourceKind.Book,
+                "霜击术应继续作为书籍来源技能参与随机起始候选。"
+            );
+            int initialLevel = gameSession.ResolveRandomStartSkillInitialLevel(frostBolt);
+            _test.Eq(initialLevel, 3, "advanced 成长档的霜击术随机起始等级应为3级。" );
+            CombatSkillResourceCosts initialCosts = BattleTargetSlotCostRules.Resolve(
+                frostBolt.CombatProfile,
+                initialLevel,
+                1
+            );
+            _test.Eq(initialCosts.ApCost, 1, "随机起始霜击术应保持1 AP消耗。" );
+            _test.Eq(initialCosts.MpCost, 20, "随机起始3级霜击术应采用已解锁的20 MP消耗。" );
         }
         finally
         {
