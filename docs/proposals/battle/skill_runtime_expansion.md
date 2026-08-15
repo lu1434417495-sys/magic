@@ -59,6 +59,23 @@
 - **技能级 `roll_disposition` 字段是否需要**：当前状态/装备能力驱动已覆盖设计意图，默认结论是不需要；若未来出现"技能固有优势"内容（不依赖状态），再评估新增字段
 - **攻击预览的优势标签**：HUD 已有劣势文案与 save 的 `save_advantage_state`，普通攻击预览的"需 X+ · 优势"展示尚未补；如补齐，与 R1 的 `situational_sources[]` 合并展示
 
+### R4. 格级障碍物（已拍板要做，独立于 R1）
+
+**设计决定（2026-08-16）**：
+
+- 战场需要“石头”这类**占一整格**的障碍物；玩家心智单位是格，边特征（墙）不承载这个语义
+- 障碍物**只阻断站位与通行，不阻断视线**——远程/法术可以越过石头攻击；视线阻断仍专属边特征 `wall`
+- 掩体不走障碍物路线（已由 R1 的森林格承载），障碍物不提供 AC 加成
+
+**实现边界**：
+
+- 障碍物不是单位、不是边特征：`BattleCellState` 需要新增 typed 障碍字段（现有 `occupant_unit_id` 只认单位，`prop_ids` 只是渲染标记，规则层不得读 `prop_ids`）
+- 必须接入的通行/站位判定面：`BattleGridService` / `BattleEdgeService` 寻路与 traversable、多格 footprint 放置、强制位移（击退/拉拽/风推）、冲锋路径、传送/交换/跳斩落点校验、AI 路径树与移动评分——障碍物格对这些入口视同不可站
+- 展示走现有 prop 链路（`battle_board_prop.tscn`），由障碍字段同步渲染，不反向驱动规则
+- 内容由 `BattleTerrainGenerator` 在地图模板中摆放；技能造/拆障碍物留待后续评估，不在首期范围
+
+**验收**：障碍格不可进入/不可落点/不可穿越；视线与命中完全不受障碍物影响；AI 路径绕开障碍格；存档 schema 兼容（不升 `SAVE_VERSION`，缺失字段按无障碍处理）
+
 ## 集成边界
 
 - 可改：`BattleHitResolver`、`BattleAttackCheckPolicyService`、`BattleGridService`、`BattlePreview` / HUD adapter、`BattleAiScoreService`、新增情境规则文件与对应 `tests/battle_runtime/rules/` 回归
