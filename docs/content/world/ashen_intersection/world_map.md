@@ -261,7 +261,7 @@
    - 黑魂原型：Soul Arrow
    - 当前体系替换：`single / range 5 / 伤害 100% / mp 1`
    - 建议落点：`咒术`
-   - 可直接映射到 [skill_runtime_expansion.md](../../../proposals/battle/skill_runtime_expansion.md) 中法师技能目录的 `mage_arcane_missile` 轻单体版
+   - 可直接映射到现有技能资源 `data/configs/skills/mage_arcane_missile.tres` 的轻单体版
 
 6. `强灵魂箭`
    - 黑魂原型：Great Soul Arrow
