@@ -2,7 +2,7 @@
 
 > **状态**：设计提案（未实施，不含代码或资源改动）
 > **版本**：v1.1（2026-08-16）
-> **前置决定**：不生成中间 `.tres`；内容 JSON 不引入加载器引用语法，也不直接保存 Godot 路径。
+> **前置决定**：不生成中间 `.tres`；内容 JSON 不引入加载器引用语法，也不保存配置路径、内容路径或 Godot 资产路径。
 
 ---
 
@@ -17,13 +17,14 @@
 
 - C# 类名或脚本路径；
 - `res://`、`uid://`；
+- world generation config 等配置路径；
 - 内容文件路径；
 - 用于指示加载行为的特殊引用对象；
 - 可由内容作者选择 CLR/Godot 运行时类型的字段。
 
 因此，本方案明确不采用 `$type`、`$import`、`$ref`、`$asset` 一类语法。它们会让 JSON 重新承担 Resource 图、文件图或类型图的职责，只是换了一种文本格式，并未解除耦合。把引擎路径直接写成普通字符串同样不接受；它只隐藏了加载指令，没有消除路径依赖。
 
-本方案也不再承诺“下游零改动”。格式平移域可以复用现有投影入口；涉及路径身份、引擎资产或存档身份的域，必须显式改造成稳定 ID 链路。
+本方案也不再承诺“下游零改动”。格式平移域可以复用现有投影入口；当前仍以路径充当身份的配置、引擎资产或存档链路，必须显式改造成稳定 ID 链路。
 
 ## 2. 当前问题与事实边界
 
@@ -74,7 +75,7 @@
 
 ## 3. 目标
 
-1. 内容 JSON 不依赖 C# 类名、Godot 脚本路径、资源路径或文件布局。
+1. 内容 JSON 不保存 C# 类名、Godot 脚本路径、配置路径、资源路径、内容路径或文件布局；配置选择一律使用稳定配置 ID。
 2. JSON 只包含稳定的领域数据、领域 ID 和资产 ID。
 3. 用一套简单、确定、可独立测试的文件内模板规则减少重复。
 4. 迁移期复用现有 validator 和 `*Definition.FromResource`，避免同时重写全部投影。
@@ -191,7 +192,7 @@ Texture2D / PackedScene / AudioStream / ...
 - battle scene catalog；
 - content audio catalog。
 
-每个目录项包含稳定 `asset_id` 和一个类型明确的 Godot 资产属性。原始 `res://` 或 UID 只存在于这些 Godot 原生目录及场景内部，不进入内容 JSON、Definition、snapshot 或存档。
+每个目录项包含稳定 `asset_id` 和一个类型明确的 Godot 资产属性。底层 `.tres` 序列化出的 Godot 引用只存在于这些原生目录及场景内部，它是引擎管理的 typed reference，不是内容作者填写的路径配置；它不得进入内容 JSON、Definition、snapshot 或存档。
 
 资产目录需要：
 
@@ -273,12 +274,13 @@ Enemy JSON.battle_sprite_asset_id
 现有“一路径一 Resource”的 `LoadCanonical<T>` 不适合多实例文件。建议新增类型化批次接口：
 
 ```csharp
-ContentEntryBatch<TDef> LoadDirectory<TDef>(
+ContentEntryBatch<TDef> LoadDomain<TDef>(
     JsonContentDomainDescriptor<TDef> domain,
-    string directoryPath,
     ContentImportScope importScope)
     where TDef : Resource;
 ```
+
+扫描目录和 seed 等发现规则属于代码侧 domain descriptor，不是文档字段，也不由 entry 覆盖。
 
 `ContentEntryBatch<TDef>` 是急切构建的只读批次；每项至少包含：
 
@@ -290,7 +292,7 @@ ContentEntryBatch<TDef> LoadDirectory<TDef>(
 
 迁移期同一域可由聚合 source 同时读取 `.tres` 与 `.json`，但必须统一做 entry ID 冲突检查。一个域完成后删除该域的旧 source 分支，避免永久双通道。
 
-seed 驱动、单文件路径驱动和目录扫描域不能强行套用同一个无参目录接口。每个 domain descriptor 必须声明发现策略；world 等路径身份域留到专门阶段处理。
+seed 驱动、当前按单文件路径驱动和目录扫描的域不能强行套用同一发现策略。每个 domain descriptor 必须在代码侧声明发现策略；当前仍以路径充当身份的 world 域留到专门阶段处理。
 
 ### 7.2 Binder
 
@@ -338,7 +340,7 @@ JSON 绑定产生的是没有 `ResourcePath` 的 Resource 对象图，不能沿�
 | texture/scene/audio 路径 | 稳定资产 ID | EngineAssetCatalog + consumer | 打包后可解析、类型正确 |
 | barrier layer Resource 引用 | layer ID | barrier registry | 顺序、重复、缺失和投影语义 |
 | special profile ResourcePath | profile ID | profile registry | preview/execution/AI 同一解析 |
-| world generation config path | generation config ID | world/save owner | 保存、恢复、子地图和旧存档决策 |
+| world generation config path | `generation_config_id` | world/save owner | 保存、恢复、子地图和旧存档决策 |
 | family template | 当前 JSON 文件内 template 名 | JsonTemplateMerger | 环、未知模板、确定合并 |
 
 “稳定 ID”与通用引用 DSL 的区别是：ID 属于一个明确领域，并由该领域的 registry、validator 和版本契约解释；它不能指向任意文件、任意 JSON 节点或任意对象类型。
@@ -448,14 +450,16 @@ JSON 绑定产生的是没有 `ResourcePath` 的 Resource 对象图，不能沿�
 
 ### 阶段 6：world 与存档身份
 
-当前存档保存 `generation_config_path`，恢复逻辑按 canonical path 匹配，mounted submap 也传播相关路径。world 不能随其他内容域一起机械迁移。
+当前存档保存 `generation_config_path`，恢复逻辑按 canonical path 匹配，mounted submap 也传播相关路径。它们是必须消除的现状，不是新格式可以保留的设计。world 不能随其他内容域一起机械迁移。
+
+world JSON 的目标字段固定为 `generation_config_id`；world definition、mounted submap、session 和新存档也只能传播该 ID。配置文件路径只由代码侧发现策略使用，不进入 JSON 或新存档。
 
 在实施前必须由用户明确选择：
 
 1. **不兼容升级**：保存 schema 版本提升，旧存档明确拒绝并给出错误；
 2. **批准一次性迁移**：提供受控的 path-to-ID 映射和迁移测试。
 
-未经确认不实现路径别名、双查找或静默 fallback。决策完成前，world 配置保持现状。
+未经确认不实现路径别名、双查找或静默 fallback。决策完成前不生成 world JSON，现有 `.tres` 和旧存档链保持现状；这只是延后该域迁移，不是允许目标文档继续保存路径。
 
 ### 阶段 7：可选的 Def POCO 化
 
@@ -481,7 +485,7 @@ JSON 绑定产生的是没有 `ResourcePath` 的 Resource 对象图，不能沿�
 
 只有以下决策会改变总体路线：
 
-1. world/save 阶段选择明确不兼容，还是批准一次性迁移；
+1. world/save 阶段对旧存档选择明确不兼容，还是批准一次性 path-to-ID 迁移；目标 JSON 和新存档均固定使用 ID；
 2. EngineAssetCatalog 的 Godot 原生承载形式与拆分粒度；
 3. 首个实际导出预设及 smoke test 目标平台。
 
