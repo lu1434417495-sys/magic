@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Magic 项目架构 UML 图（签名级 · 按当前代码重绘 · 2026-07-26）</title>
+<title>Magic 项目架构 UML 图（签名级图 2026-07-26 · 计量与结论复核 2026-08-14）</title>
 <!-- 本地 vendored 依赖（离线可用），加载失败时回退 CDN -->
 <script src="vendor/mermaid.min.js"></script>
 <script>window.mermaid || document.write('<script src="https:\/\/cdn.jsdelivr.net\/npm\/mermaid@10.9.1\/dist\/mermaid.min.js"><\/script>')</script>
@@ -166,23 +166,27 @@
 <body>
 
 <header>
-  <h1>Magic 项目架构 UML 图 <span style="font-size:15px;color:var(--muted)">签名级 · 按当前实际代码重绘 · 2026-07-26</span></h1>
+  <h1>Magic 项目架构 UML 图 <span style="font-size:15px;color:var(--muted)">签名级结构图 2026-07-26 绘 · 计量与结论 2026-08-14 复核</span></h1>
   <div class="sub">
-    数据源：工作区 @ <code>ff2c2f65</code> 全量静态分析 —— 全部 24 张图的类名、字段类型、方法签名（含参数/返回类型）、接口成员、
-    Setup 接线与 signal 路由均逐文件核对源码原文。可见性记号：<code>+</code> public、<code>~</code> internal、<code>-</code> private、<code>#</code> protected；
+    <b>两层数据源，请分别对待：</b>
+    <b>①结构层</b>——24 张图的类名、字段类型、方法签名（含参数/返回类型）、接口成员、Setup 接线与 signal 路由，
+    绘于 2026-07-26 工作区 @ <code>ff2c2f65</code>，逐文件核对源码原文；本次<b>未</b>逐图重验，仅修正下方“本次复核范围”列出的项。
+    <b>②计量与结论层</b>——顶部指标、总量画像、末尾差异表，重测于 2026-08-14 工作区 @ <code>6545d837</code>（距绘图 83 个提交）。
+    可见性记号：<code>+</code> public、<code>~</code> internal、<code>-</code> private、<code>#</code> protected；
     泛型以 <code>~T~</code> 表示（mermaid 语法约束）；<code>$</code> 后缀 = static。
   </div>
   <div class="stats">
-    <div class="stat"><div class="num">992 / 302,881</div><div class="lbl">scripts/ .cs 文件数 / 总行数</div></div>
-    <div class="stat"><div class="num bad">52.9%</div><div class="lbl">battle 域占比（405 文件 / 160,170 行）</div></div>
-    <div class="stat"><div class="num">502 / 200,181</div><div class="lbl">tests/ .cs 文件数 / 行数（≈0.66:1）</div></div>
-    <div class="stat"><div class="num bad">0</div><div class="lbl">namespace 声明（全部全局命名空间）</div></div>
+    <div class="stat"><div class="num">1,079 / 361,352</div><div class="lbl">scripts/ .cs 文件数 / 总行数（+8.8% / +19.3%）</div></div>
+    <div class="stat"><div class="num bad">54.1%</div><div class="lbl">battle 域占比（457 文件 / 195,535 行）↑52.9%</div></div>
+    <div class="stat"><div class="num">549 / 251,536</div><div class="lbl">tests/ .cs 文件数 / 行数（≈0.70:1）</div></div>
+    <div class="stat"><div class="num good">0</div><div class="lbl">越层豁免 baseline entries（禁则零例外）</div></div>
     <div class="stat"><div class="num good">10 层 / 5 禁则</div><div class="lbl">layer_rules.json + Roslyn analyzer 编译期强制</div></div>
-    <div class="stat"><div class="num">13 / 19 / 13</div><div class="lbl">facade port 接口 / 内容 Registry / AI evaluator</div></div>
+    <div class="stat"><div class="num">13 / 20 / 14</div><div class="lbl">facade port 接口 / 内容 Registry / AI evaluator</div></div>
   </div>
 </header>
 
 <nav>
+  <a href="#revision">08-14复核</a>
   <a href="#overview">画像</a>
   <a href="#d1">①分层</a><a href="#d2">②生命周期</a><a href="#d3">③内容宿主</a><a href="#d4">④内容族</a>
   <a href="#d5">⑤持久化</a><a href="#d6">⑥world</a><a href="#d7">⑦facade端口</a><a href="#d8">⑧facade组合</a>
@@ -195,20 +199,60 @@
 
 <main>
 
+<section id="revision">
+  <h2>2026-08-14 复核记录 <span class="tag">工作区 @ 6545d837 · 距上次绘图 83 个提交</span></h2>
+
+  <div class="callout danger">
+    <b>纠正一个持续误导的结论：C# 的 <code>namespace</code> 不提供任何访问控制。</b>
+    C# 只有 <code>public</code> / <code>internal</code>（<b>程序集</b>范围）/ <code>private</code> / <code>protected</code> / <code>file</code>（文件范围），
+    <b>不存在 namespace 级别的可见性</b>。给 <code>battle/rules/</code> 加上 <code>namespace Magic.Battle.Rules</code> 之后，
+    <code>player/</code> 那边写个 <code>using</code> 照样编译通过——一条越层边都拦不住。
+    因此旧版评审（<code>architecture_review_2026-07-19.md</code>）P0-1 用“<code>namespace</code> 声明数 = 0”作为“无边界强制”的证据，
+    <b>度量的是一个与边界无关的量</b>，其原始建议“引入 namespace 让越层边编译失败”在语言语义上不成立。
+    本页顶部原有的“namespace 声明 = 0”指标卡已据此撤下，换为真正有强制力的指标（baseline 豁免数）。
+    命名空间数<b>至今仍为 0</b>，但这个事实不构成架构问题；真正的边界由下面的 analyzer 承担。
+    要让 <code>internal</code> 恢复语义则需拆程序集——当前 <code>magic.csproj</code> 是单个 Godot 游戏程序集
+    （<code>Godot.NET.Sdk/4.6.2</code>，<code>RootNamespace=Magic</code>），685 个 internal 类 / 774 个 public 类中
+    <code>internal</code> 实际等于“全项目可见”，该项仍待单独评估。
+  </div>
+
+  <div class="callout ok">
+    <b>边界强制已落地且零豁免。</b>
+    <code>magic.csproj</code> 以 <code>OutputItemType="Analyzer"</code> 挂载 <code>Magic.ArchitectureAnalyzers</code>，
+    配 <code>layer_rules.json</code> + <code>layer_baseline.json</code> 两个 <code>AdditionalFiles</code>：10 层、5 条 denyRules、
+    <code>pathMappings</code> 精确到单文件、<code>symbolOverrides</code> 可按符号纠正归属。
+    <code>MAGICARCH001</code>（越层依赖）/<code>002</code>（partial 跨层）/<code>003</code>（未分类源文件）/<code>900</code>（配置错误）
+    全部为 <code>DiagnosticSeverity.Error</code>，违反即编译失败；<code>layer_baseline.json</code> 的
+    <code>entries</code> 为 <b>空数组</b>——当前无任何历史豁免，即旧评审图⑥ 的 6 条越层边已全部清零。
+  </div>
+
+  <div class="callout info">
+    <b>本次复核范围（未做的事同样重要）。</b>
+    <b>已重测：</b>顶部 6 个指标、总量画像全表、末尾差异表、以及下列因数值漂移而就地修正的图注——
+    图①（Registry 19→20）、图⑩（<code>BattleUnitState</code> 3431+571→3527+563 行）、图⑪（module 7→8 partial）、
+    图⑭（<code>BattleEquipmentAbilityRuntimeService</code> 2226→3611 行、9→10 resolver）、图⑯（13→14 evaluator）。
+    <b>未重测：</b>24 张图的<b>签名级</b>内容（字段类型、方法参数/返回类型、接口成员、Setup 接线、signal 路由）
+    仍是 2026-07-26 @ <code>ff2c2f65</code> 的快照，本次<b>未</b>逐一重验。83 个提交之后，
+    引用具体签名前请对照源码确认。
+  </div>
+</section>
+
 <section id="overview">
-  <h2>总量画像 <span class="tag">2026-07-26 实测</span></h2>
+  <h2>总量画像 <span class="tag">2026-08-14 实测 @ 6545d837</span></h2>
   <table>
-    <tr><th>区域</th><th>文件数</th><th>行数</th><th>占比</th><th>层归属（layer_rules.json）</th></tr>
-    <tr><td><code>scripts/systems/battle</code></td><td>405</td><td>160,170</td><td><b>52.9%</b></td><td>runtime→application；ai/rules/terrain/fate→domain_runtime；core+_interop→domain_state；presentation→presentation；sim→tooling</td></tr>
-    <tr><td>├ runtime/ · ai/ · core/+_interop · 其余</td><td>108 · 61 · 117 · 119</td><td>55,275 · 34,240 · 28,030 · 42,625</td><td></td><td></td></tr>
-    <tr><td><code>scripts/player</code></td><td>237</td><td>42,759</td><td>14.1%</td><td>content_authoring / content_definition / domain_state</td></tr>
-    <tr><td><code>scripts/systems/game_runtime</code></td><td>71</td><td>30,499</td><td>10.1%</td><td>application（facade/proxy/WorldMapSystem 列 composition）</td></tr>
-    <tr><td><code>scripts/ui</code></td><td>37</td><td>17,072</td><td>5.6%</td><td>presentation</td></tr>
-    <tr><td><code>scripts/systems/progression</code></td><td>49</td><td>14,660</td><td>4.8%</td><td>domain_runtime（CharacterManagementModule 列 composition）</td></tr>
-    <tr><td><code>scripts/systems/world</code> / <code>settlement</code></td><td>32 + 19</td><td>9,183 + 3,392</td><td>4.2%</td><td>domain_runtime（*Data/*State→domain_state，*Definition→content_definition）</td></tr>
-    <tr><td><code>scripts/enemies</code></td><td>58</td><td>7,100</td><td>2.3%</td><td>content_authoring + content_definition</td></tr>
-    <tr><td>persistence / content / platform / lifecycle / inventory / attributes / fate</td><td>89</td><td>18,046</td><td>6.0%</td><td>infrastructure / domain_runtime / content_authoring</td></tr>
-    <tr><td><code>scripts/utils</code></td><td class="good">0</td><td class="good">0</td><td class="good">已清空</td><td>e7644ed2 杂物已迁回各域 owner</td></tr>
+    <tr><th>区域</th><th>文件数</th><th>行数</th><th>占比</th><th>较 07-26</th><th>层归属（layer_rules.json）</th></tr>
+    <tr><td><code>scripts/systems/battle</code></td><td>457</td><td>195,535</td><td><b>54.11%</b></td><td class="warn-t">+52 / +35,365</td><td>runtime→application；ai/rules/terrain/fate→domain_runtime；core+_interop→domain_state；presentation→presentation；sim→tooling</td></tr>
+    <tr><td>├ runtime/ · ai/ · core/+_interop · 其余</td><td>119 · 69 · 131 · 138</td><td>67,963 · 40,785 · 33,075 · 53,712</td><td>18.8% · 11.3% · 9.2% · 14.9%</td><td class="warn-t">runtime +12,688<br>ai +6,545</td><td></td></tr>
+    <tr><td><code>scripts/player</code></td><td>258</td><td>52,583</td><td>14.55%</td><td>+21 / +9,824</td><td>content_authoring / content_definition / domain_state</td></tr>
+    <tr><td><code>scripts/systems/game_runtime</code></td><td>71</td><td>34,636</td><td>9.59%</td><td>0 / +4,137</td><td>application（facade/proxy/WorldMapSystem 列 composition）</td></tr>
+    <tr><td><code>scripts/ui</code></td><td>37</td><td>18,877</td><td>5.22%</td><td>0 / +1,805</td><td>presentation</td></tr>
+    <tr><td><code>scripts/systems/progression</code></td><td>49</td><td>16,317</td><td>4.52%</td><td>0 / +1,657</td><td>domain_runtime（CharacterManagementModule 列 composition）</td></tr>
+    <tr><td><code>scripts/systems/world</code> / <code>settlement</code></td><td>33 + 19</td><td>10,362 + 3,919</td><td>3.95%</td><td>+1 / +1,706</td><td>domain_runtime（*Data/*State→domain_state，*Definition→content_definition）</td></tr>
+    <tr><td><code>scripts/enemies</code></td><td>61</td><td>8,153</td><td>2.26%</td><td>+3 / +1,053</td><td>content_authoring + content_definition</td></tr>
+    <tr><td>persistence / content / platform / lifecycle / inventory / attributes / fate</td><td>93</td><td>20,542</td><td>5.68%</td><td>+4 / +2,496</td><td>infrastructure / domain_runtime / content_authoring</td></tr>
+    <tr><td><code>scripts/dev_tools</code></td><td>1</td><td>428</td><td>0.12%</td><td>—</td><td>tooling（<code>AiTraceRecorder</code> 单列 infrastructure）</td></tr>
+    <tr><td><code>scripts/utils</code></td><td class="good">0</td><td class="good">0</td><td class="good">已清空</td><td class="good">保持</td><td>e7644ed2 杂物已迁回各域 owner</td></tr>
+    <tr><td><b>合计</b></td><td><b>1,079</b></td><td><b>361,352</b></td><td><b>100%</b></td><td><b>+87 / +58,471</b></td><td>逐文件计量，无未归类残余</td></tr>
   </table>
 </section>
 
@@ -218,7 +262,7 @@
   <div class="diagram"><pre class="mermaid">
 flowchart TB
     subgraph CA["content_authoring · .tres Resource + Registry"]
-        CA1["SkillDef / ItemDef / TraitDef / EnemyTemplateDef<br/>19 个 *ContentRegistry<br/>scripts/player · scripts/enemies"]
+        CA1["SkillDef / ItemDef / TraitDef / EnemyTemplateDef<br/>20 个 *ContentRegistry<br/>scripts/player · scripts/enemies"]
     end
     subgraph CD["content_definition · frozen 运行时定义"]
         CD1["SkillDefinition / ItemDefinition / TraitDefinition<br/>EnemyTemplateDefinition / EnemyAiBrainDefinition<br/>ContentSnapshot · BattleAttackRollModifierSpec"]
@@ -1132,7 +1176,7 @@ classDiagram
     class BattleUnitReadView
 
     class BattleUnitState {
-        &lt;&lt;public partial×2 · 3431+571 行>>
+        &lt;&lt;public partial×2 · 3527+563 行 @08-14>>
         +unit_id / source_member_id / enemy_template_id
         +display_name / faction_id / control_mode
         +ai_brain_id / ai_state_id / encounter_actor_id
@@ -1204,7 +1248,7 @@ classDiagram
 </section>
 
 <section id="d11">
-  <h2>图 ⑪ BattleRuntimeModule 接线全景 <span class="tag">7 partial · 组合容器 · 7 borrower 全展开</span></h2>
+  <h2>图 ⑪ BattleRuntimeModule 接线全景 <span class="tag">绘图时 7 partial · 08-14 已 8 个 · 7 borrower 全展开</span></h2>
   <p class="desc"><code>setup()</code> 14 个可选参数注入 7 族内容索引 + gateway；<code>FinishSetup()</code> 依次 Setup 全部服务。两个组合容器：<code>BattleRuntimeServices</code>（9 个 owner-local 服务）与 <code>BattleRuntimeModuleBorrowerSet</code>（7 个 borrower，正序 Setup / 逆序 DisposeRuntime / CaptureTopology）。</p>
   <div class="diagram"><pre class="mermaid">
 classDiagram
@@ -1517,14 +1561,15 @@ classDiagram
 </section>
 
 <section id="d14">
-  <h2>图 ⑭ 装备能力运行时 <span class="tag">runtime · 9 resolver 全展开 + 端口属性</span></h2>
-  <p class="desc"><code>BattleEquipmentAbilityRuntimeService</code>（2226 行）是事件入口编排 + roll gate；9 个 resolver 在 <code>Setup</code> 中互相注入（真实类型与互注参数均已核对）。3 个端口属性把 rules 层接口转发到对应 resolver。</p>
+  <h2>图 ⑭ 装备能力运行时 <span class="tag">runtime · 绘图时 9 resolver · 08-14 已 10 个</span></h2>
+  <p class="desc"><code>BattleEquipmentAbilityRuntimeService</code> 是事件入口编排 + roll gate；resolver 在 <code>Setup</code> 中互相注入（真实类型与互注参数为 07-26 核对结果）。3 个端口属性把 rules 层接口转发到对应 resolver。
+  <b class="warn-t">08-14 体量回潮：主文件 2226 → 3,611 行（+62%），已是全项目最大单文件</b>——拆出的 resolver 全部仍在，是主文件自身重新长大，见末尾差异表。</p>
   <div class="diagram"><pre class="mermaid">
 classDiagram
     direction TB
 
     class BattleEquipmentAbilityRuntimeService {
-        &lt;&lt;internal sealed : IBattleEquipmentCombatReactionSink · 2226 行>>
+        &lt;&lt;internal sealed : IBattleEquipmentCombatReactionSink · 3611 行 @08-14>>
         -BattleRuntimeModule _runtime（强引用）
         -BattleDamageResolver _damageResolver
         ~Setup(BattleRuntimeModule, BattleDamageResolver)
@@ -1659,7 +1704,7 @@ classDiagram
 </section>
 
 <section id="d16">
-  <h2>图 ⑯ AI 决策链 <span class="tag">13 evaluator 全展开 · 签名级</span></h2>
+  <h2>图 ⑯ AI 决策链 <span class="tag">绘图时 13 evaluator · 08-14 已 14 个</span></h2>
   <p class="desc"><code>BattleAiDecisionEngine.EvaluateEntry</code> 按 <code>EnemyAiActionKind switch</code> 强转 <code>EnemyAiActionDefinition</code> 子类并调对应 evaluator 的 <code>Evaluate</code>；objective evaluator 在 brain 解析之前运行。共享逻辑在两个 static 工具类。</p>
   <div class="diagram"><pre class="mermaid">
 classDiagram
@@ -2508,31 +2553,40 @@ flowchart LR
 </section>
 
 <section id="delta">
-  <h2>与 2026-07-19 旧版评审的差异 <span class="tag">22 个重构提交之后</span></h2>
+  <h2>与 2026-07-19 旧版评审的差异 <span class="tag">07-26 首测（22 个重构提交后）+ 08-14 复核（再 83 个提交后）</span></h2>
   <table>
-    <tr><th>旧评审条目</th><th>当前现状（2026-07-26 实测）</th><th>对应图</th></tr>
-    <tr><td>BattleUnitState 2797 行 god object（P2-9）</td><td class="good">19 个 typed substate 组合（e4b5b003），行数 40~432 不等，图⑩全展开；主类 3431+571 行但状态访问经 substate 间接</td><td>⑩</td></tr>
-    <tr><td>BattleAiMutationGuard 3208~3438 行（P3-14）</td><td class="good">189 行核心 + 快照模型 4 文件（755/1529/1571/222 行）；执行路径 #if MAGIC_AI_MUTATION_DIAGNOSTICS 排除出 Release</td><td>⑯</td></tr>
-    <tr><td>GameRuntimeFacade 7 partial / ~5316 行，sidecar 回指 facade 本体</td><td>16 partial；13 个 port 接口为唯一能力面（成员全景见图⑦），12 个 sidecar 只持 WeakReference~Port~；字段仍 internal</td><td>⑦⑧</td></tr>
-    <tr><td>无边界强制：全局命名空间，越层编译期不可见（P0-1）</td><td class="good">layer_rules.json + Roslyn analyzer + baseline 编译期强制 10 层 5 禁则（c42c5845）；命名空间仍为 0 但新增越层边编译失败</td><td>①</td></tr>
-    <tr><td>违规 1：PartyState → PendingCharacterReward(systems/progression)</td><td class="good">已消除，PendingCharacterReward 纯化；player 全目录无 systems 服务引用</td><td>⑲</td></tr>
-    <tr><td>违规 2：CombatEffectDef → BattleAttackRollModifierSpec(battle/core)</td><td class="warn-t">降级存续：spec 移至 content/skills；16 个 player 文件仍引用 battle/_interop 值对象枚举（显式划层放行）</td><td>④</td></tr>
-    <tr><td>违规 3：DamageResolver ⇄ EquipmentAbilityRuntimeService 循环</td><td class="good">已解并细化为 3 个窄接口（2 Query + 1 Sink），实现者为 _attackModifierResolver 与主服务自身</td><td>⑬⑭</td></tr>
-    <tr><td>违规 4/5：registry → AttributeService；Builder → utils validator</td><td class="good">scripts/utils 已清空（e7644ed2）；ContentRules 族承载规则常量</td><td>④</td></tr>
-    <tr><td>AI evaluator 12 个无公共接口（图 5）</td><td>13 个（新增 Objective evaluator 513 行，brain 解析前执行），仍无公共基类；共享逻辑下沉 4 个 static 工具类</td><td>⑯</td></tr>
-    <tr><td>序列化散布 ~15 个 State 类（P3-17）</td><td>仍在（101 处 ToDictionary / 49 文件）；改善：SaveSchemaVersions 唯一权威 + WorldRuntimeSaveSchema 键名集中（534cb334）</td><td>⑤</td></tr>
-    <tr><td>BattleRuntimeModule 服务接线 ×3 重复（P2-12）</td><td class="warn-t">FinishSetup 单链 + BattleRuntimeModuleBorrowerSet 集中 7 个 borrower 生命周期；~40 个 internal 服务字段 hub 形态未变</td><td>⑪</td></tr>
-    <tr><td>WorldMapRuntimeProxy 740 行宽 pass-through（P2-13）</td><td>746 行：查询面 ~55 方法 + 命令面 ~42 方法统一包装 RuntimeCommandResult 并回推渲染，定位明确</td><td>⑧</td></tr>
+    <tr><th>旧评审条目（07-19 md）</th><th>2026-07-26 实测</th><th>2026-08-14 复核 @6545d837</th><th>图</th></tr>
+    <tr><td>BattleUnitState 2797 行 god object（P2-9）</td><td class="good">19 个 typed substate 组合（e4b5b003），行数 40~432 不等；主类 3431+571 行但状态访问经 substate 间接</td><td class="warn-t">substate 结构保持 19 个；主类继续长到 <b>3527+563 行</b>。物理拆分稳定，god object 的<b>结构</b>问题未动</td><td>⑩</td></tr>
+    <tr><td>BattleAiMutationGuard 3208~3438 行（P3-14）</td><td class="good">189 行核心 + 快照模型 4 文件；#if MAGIC_AI_MUTATION_DIAGNOSTICS 排除出 Release</td><td class="good">保持 189 行；<code>#if</code> 闸门仍在（<code>BattleAiService.cs:93</code> 唯一启用点）。<b>本条可关闭</b></td><td>⑯</td></tr>
+    <tr><td>GameRuntimeFacade 7 partial / ~5316 行，sidecar 回指 facade 本体</td><td>16 partial；13 个 port 接口为唯一能力面，12 个 sidecar 只持 WeakReference~Port~；字段仍 internal</td><td class="good"><b>16→18 partial / 合计 7,914 行</b>。port 面保持 13 个未扩散。<b>暴露面须按种类拆读</b>：字段数较评审时 ~75 本就是下降的，真正的大开门在 internal <b>方法</b>。<br><b>2026-08-14 已整改</b>：internal 声明 344→<b>266</b>，其中字段 52→<b>23</b>、方法 287→<b>238</b>。做法：①71 个零外部引用成员直接转 private；②<code>RuntimeTransaction</code> 唯一的 production 字段读改走 <code>CaptureRootWorldSnapshot()</code>/<code>BindRootWorldData()</code>/<code>ActiveGameSession</code>，并把它对 <code>GameSession</code> 的裸字段写收进 <code>RestoreRuntimeStateForRollback()</code>；③测试对 9 个状态字段的 175 处读取改走 <code>IGameRuntimeSnapshotSource</code> 既有 getter，夹具构造收敛为单一 <code>SetupForTestFixture()</code>。全套件 469/470</td><td>⑦⑧</td></tr>
+    <tr><td>无边界强制：全局命名空间，越层编译期不可见（P0-1）</td><td class="good">layer_rules.json + Roslyn analyzer + baseline 编译期强制 10 层 5 禁则（c42c5845）</td><td class="good">保持；<code>layer_baseline.json</code> <code>entries</code> 仍为<b>空数组</b>（零豁免）。<b>注意原条目的证据是错的</b>：C# namespace 无访问控制，见顶部纠正</td><td>①</td></tr>
+    <tr><td>违规 1：PartyState → PendingCharacterReward(systems/progression)</td><td class="good">已消除，PendingCharacterReward 纯化</td><td class="good">保持；<code>systems/progression/</code> 下仅余两个孤儿 <code>.uid</code>，无 <code>.cs</code>。<b>可关闭</b></td><td>⑲</td></tr>
+    <tr><td>违规 2：CombatEffectDef → BattleAttackRollModifierSpec(battle/core)</td><td class="warn-t">降级存续：spec 移至 content/skills；16 个 player 文件仍引用 battle/_interop</td><td class="good"><b>应判已解</b>：spec 现属 <code>content/skills</code>→content_definition，<code>CombatEffectDef</code> 属 content_authoring，authoring→definition 不在任何 denyRule 内；_interop 引用面降至 14 文件且显式划层。空 baseline 是机械证明</td><td>④</td></tr>
+    <tr><td>违规 3：DamageResolver ⇄ EquipmentAbilityRuntimeService 循环</td><td class="good">已解并细化为 3 个窄接口（2 Query + 1 Sink）</td><td class="good">保持：<code>IBattleEquipmentDamageQuery</code> / <code>IBattleEquipmentAttackCheckQuery</code> / <code>IBattleEquipmentCombatReactionSink</code> 均在。<b>可关闭</b>（注意 07-19 md 写的接口名 <code>IBattleEquipmentAbilityReactionService</code> 已不存在，按名检索会扑空）</td><td>⑬⑭</td></tr>
+    <tr><td>违规 4/5：registry → AttributeService；Builder → utils validator</td><td class="good">scripts/utils 已清空（e7644ed2）</td><td class="good">保持 0 个 .cs；<code>WorldMapContentValidator</code>/<code>WorldPresetRegistry</code> 稳定在 <code>systems/content/world/</code>。<b>可关闭</b></td><td>④</td></tr>
+    <tr><td>AI evaluator 12 个无公共接口（图 5）</td><td>13 个（新增 Objective evaluator），仍无公共基类；共享逻辑下沉 4 个 static 工具类</td><td class="warn-t"><b>14 个</b>，仍无公共基类/接口（全部 <code>internal sealed class</code> 独立声明）；<code>IBattleAiScoreContext</code> 只约束打分上下文，不约束 evaluator 本身</td><td>⑯</td></tr>
+    <tr><td>序列化散布 ~15 个 State 类（P3-17）</td><td>仍在（101 处 ToDictionary / 49 文件）</td><td class="warn-t">继续扩散：<b>125 处 To/FromDictionary 方法声明 / 74 个文件</b>（同口径：方法声明数，不含 LINQ 调用）。<code>PartyState.SaveSnapshot</code> 780→<b>846 行</b></td><td>⑤</td></tr>
+    <tr><td>BattleRuntimeModule 服务接线 ×3 重复（P2-12）</td><td class="warn-t">FinishSetup 单链 + BorrowerSet 集中 7 个 borrower；~40 个 internal 服务字段 hub 形态未变</td><td class="warn-t">生产路径确为 <code>FinishSetup</code> 单链（L432）；但同一段 Setup 序列仍被复制 3 份——<code>_ensure_sidecars_ready()</code>(L1533) 整段复制，<code>ConfigureDamageResolverForTests</code>(L1687)/<code>ConfigureHitResolverForTests</code>(L1735) 各复制子集，<b>4 处需同步</b>。另：这两个 <code>public *ForTests</code> 钩子常驻 production</td><td>⑪</td></tr>
+    <tr><td>WorldMapRuntimeProxy 740 行宽 pass-through（P2-13）</td><td>746 行：查询面 ~55 + 命令面 ~42 方法，定位明确</td><td class="good">746 行，一行未变。已定性为“有职责的包装层”，<b>可关闭</b></td><td>⑧</td></tr>
+    <tr><td class="warn-t"><b>新增（07-26 后出现，旧评审无此条）</b></td><td>—</td><td class="warn-t"><b>拆分回潮</b>：<code>BattleEquipmentAbilityRuntimeService</code> 2,226→<b>3,611 行（+62%）</b>，已回到其 07-19 拆分前水位（7,472 行）的 48%，并成为全项目最大单文件；拆出的 10 个 resolver 全部仍在，是主文件自身重新长大。Top10 大文件中 battle 占 6 个，并新进 <code>SkillDefinition</code> 3,513 / <code>SkillCombatProfileValidator</code> 3,104 / <code>GameRuntimeBattleSelection</code> 3,057</td><td>⑭</td></tr>
   </table>
   <div class="callout info">
-    <b>总体格局（2026-07-26）</b>：P0 的"无边界强制"与"循环依赖"已闭环；越层边仅剩 _interop 值对象面且被显式划层管理。剩余主债：① 两个 composition hub 的 internal 字段大开门与两阶段构造（facade 16 partial / module 7 partial）；② battle 域占比继续上升（51% → 52.9%）；③ State 自描述序列化散布 49 文件；④ 13 evaluator 仍无公共接口，facade 端口成员数仍很宽（SnapshotSource 74 / SettlementCommandPort ~90）。
+    <b>总体格局（2026-08-14 复核）</b>：<b>边界侧已经赢了</b>——P0 的“无边界强制”“循环依赖”与图⑥ 全部 6 条越层边均已闭环，且由空 baseline 的 analyzer 机械保证不回潮；07-19 md 的 17 条问题清单中 <b>7 条可正式关闭</b>（1 边界强制 / 4 循环依赖 / 6 越层边 / 11 Def 常量重复 / 13 proxy 定性 / 14 诊断体量 / 15 utils 抽屉），2 条部分收敛（7 modal 表示 / 8 字典往返），<b>8 条仍开放</b>（2/3/5/9/10/12/16/17，其中 10 已定性为「不修」）。
+    <b>剩余债务全部在“层内”，analyzer 按定义抓不到</b>：① 两个 composition hub 的 internal 暴露面与两阶段构造（<code>setup()</code> 仍 14 参）——<b>两个 hub 的问题形状完全不同，已据此分别处理</b>：facade 的生产侧封装本就基本干净（52 个字段里仅 4 个被 production 外部读），<b>2026-08-14 已整改到字段 23 / 方法 238</b>，剩余为 collaborator 对象与 238 个 internal 方法（其中 177 个被 <code>WorldMapRuntimeProxy</code>、<code>SettlementCommandHandler</code> 等既定协作者调用，应逐步归入对应 port）；<b>module 则完全不同</b>——50 个字段里 <b>39 个</b>被 production 外部读、分布在 <b>61 个文件</b>，且字段几乎全是<b>服务引用</b>（<code>_layered_barrier_service</code> 被 16 个文件读、<code>_skill_resolution_rules</code> 10 个），是真正的 service locator，改可见性无效。<br>
+    <b>2026-08-14 已启动按消费者逐个解耦，并建立防回潮机制</b>：首个消费者 <code>BattleTimelineDriver</code> 完成——它原持 <code>WeakReference&lt;BattleRuntimeModule&gt;</code> 穿透 hub 取 19 个成员（6 服务 + 12 方法 + state），现改为只依赖 <code>IBattleTimelineRuntimePort</code>（22 个<b>行为</b>成员，不暴露服务对象），由 <code>BattleTimelineBridgeService</code>（一个 <code>BattleRuntimeModuleBorrower</code>）实现，与既有 <code>IBattleContingencyRuntimePort</code> 同一套模式。
+    <b>关键是那道棘轮</b>：新增 <code>battle_runtime_isolated</code> 层 + <code>battle-isolated-to-hub</code> 禁则，已解耦的消费者<b>再引用 <code>BattleRuntimeModule</code> 即编译失败</b>（已实测验证）——针对的正是本页记录过的回潮失败模式。后续每解耦一个消费者，只需把文件加进该层的 pathMappings。<br>
+    该禁则当场逼出一处真实残留：<code>BattleDefeatHandlingOptions</code> 这个纯数据值对象声明在 <code>BattleRuntimeModule.cs</code> 内因而被归为 composition，已下移至 <code>battle/core/</code>（domain_state），与其字段类型 <code>BattleKillProvenance</code> 同层。全套件 470/470——注意 <code>layer_rules.json</code> 把 hub 显式划入 composition，其宽接触面<b>按设计合法</b>，门禁结构上无法报警；② battle 域占比继续上升（51% → 52.9% → <b>54.1%</b>）；③ State 自描述序列化扩散到 74 文件；④ 14 evaluator 仍无公共接口，facade 端口成员仍宽（SnapshotSource 65 / SettlementCommandPort ~100）；⑤ 已拆分文件出现体量回潮，说明“拆文件”不等于“拆职责”。
+    <b>下一步性价比最高的仍是建议 3（收敛 facade 字段可见性 internal → private + 明确方法）</b>——它是唯一既没被 analyzer 覆盖、又持续恶化的一项。
   </div>
 </section>
 
 </main>
 
 <footer>
-  生成时间 2026-07-26 · 数据源：工作区 @ ff2c2f65 签名级静态分析（scripts/ 992 个 .cs / 302,881 行；tests/ 502 个 .cs / 200,181 行）· 前版评审：docs/reviews/architecture_review_2026-07-19.md（时点记录）
+  结构图生成 2026-07-26 @ ff2c2f65（签名级静态分析；scripts/ 992 个 .cs / 302,881 行）·
+  计量与结论复核 2026-08-14 @ 6545d837（scripts/ 1,079 个 .cs / 361,352 行；tests/ 549 个 .cs / 251,536 行）——
+  24 张图的签名级内容未在本次重验，引用前请对照源码 ·
+  前版评审：docs/reviews/architecture_review_2026-07-19.md（时点记录，其 P0-1 的 namespace 证据已被本页顶部纠正）
 </footer>
 
 <button class="back-top" id="backTop" title="返回顶部">↑</button>

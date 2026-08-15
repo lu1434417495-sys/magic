@@ -8,6 +8,11 @@
 > **2026-07-20 修正记录**：评审后两天内完成 6 个超大文件拆分（合计 30,010 → 11,574 行，-61%，新增 27 个职责类）+ `BattleDamageResolver ⇄ BattleEquipmentAbilityRuntimeService` 循环依赖经 `IBattleEquipmentAbilityReactionService` 接口解耦 + SaveVersion 双真相源收敛 + 1 个 flaky 测试修复。全套件 394/394 全绿（`run_regression_suite.py --jobs auto`，3.5 分钟并发）。相关问题/建议条目已就地标注，图 ③④⑥ 与统计数据已更新为拆分后现状。
 >
 > **2026-07-21 路线修正**：普通反射/正则扫描不能充当完整依赖门禁，后续改用路径型 Roslyn analyzer；42 个空 partial 是 Godot 资源脚本锚点，不删除；runtime 业务提交已统一经 `RuntimeTransaction`。正文保留审计时证据，执行路线以链接提案为准。
+>
+> **⚠ 2026-08-14 纠错 + 状态复核**：本文档已被 [`architecture_review_2026-07-19.html`](architecture_review_2026-07-19.html) 取代（该页含 24 张签名级 UML 图 + 08-14 复核）。引用本文前必读两点：
+>
+> 1. **P0-1 的证据是错的。C# 的 `namespace` 不提供任何访问控制** —— 语言只有 `public` / `internal`（**程序集**范围）/ `private` / `protected` / `file`（文件范围），不存在 namespace 级可见性。加上 `namespace` 之后，越层方写个 `using` 照样编译通过。所以「`namespace` 声明数 = 0」度量的是与边界无关的量，建议 1 原始形态（引入 namespace 让越层边编译失败）在语言语义上不成立。**实际落地的是路径型 Roslyn analyzer**（`tools/architecture/Magic.ArchitectureAnalyzers` + `layer_rules.json`，10 层 5 禁则，`MAGICARCH001/002/003/900` 均为 `Error`，`layer_baseline.json` 的 `entries` 为空数组即零豁免）。要让 `internal` 恢复语义仍需拆程序集，当前是单个 Godot 游戏程序集。
+> 2. **17 条问题清单的 08-14 状态：6 条可关闭（1、4、6、11、14、15），2 条部分收敛（7、8），9 条仍成立（2、3、5、9、10、12、13、16、17）。** 图 6 的 6 条越层边**已全部清零**（违规 2 亦已解：`BattleAttackRollModifierSpec` 迁至 `systems/content/skills/` 归 content_definition，authoring→definition 是合法边）。注意本文（及 html 旧版）多处提到的接口名 **`IBattleEquipmentAbilityReactionService` 已不存在**，实际实现是三个更窄的端口 `IBattleEquipmentDamageQuery` / `IBattleEquipmentAttackCheckQuery` / `IBattleEquipmentCombatReactionSink`，按旧名检索会扑空。逐条依据见 html 版末尾差异表。
 
 ---
 
@@ -347,7 +352,7 @@ flowchart TB
 
 | # | 问题 | 证据 |
 |---|---|---|
-| 1 | **无命名空间 / 无程序集边界**：829 个类全局命名空间，分层纯靠目录约定，越层依赖编译期不可见 | `namespace` 声明数 = 0 |
+| 1 | ~~**无命名空间 / 无程序集边界**：829 个类全局命名空间，分层纯靠目录约定，越层依赖编译期不可见~~ ✓ 已解 2026-07-26（Roslyn analyzer 10 层 5 禁则，baseline 零豁免）。**且原证据无效**：C# 没有 namespace 级访问控制，`namespace` 数与边界强制无关，详见顶部 08-14 纠错。剩余待评估项只有「拆程序集以恢复 `internal` 语义」 | ~~`namespace` 声明数 = 0~~ → `layer_rules.json` + `layer_baseline.json`（`entries: []`） |
 | 2 | **两个 god hub**：`BattleRuntimeModule`（5 个 partial、合计约 5003 行、约 40 个服务）与 `GameRuntimeFacade`（7 个 partial、合计约 5316 行、约 75 个 internal 字段）承担大量接线，服务经 hub 互访 | 图 3、图 4 |
 | 3 | **战斗域体量失衡**：battle 占全项目 51% 代码（143k 行），Top15 大文件中 11 个在 battle | 总量画像表 |
 | 4 | ~~**明确循环依赖**~~ ✓ 已解 2026-07-20（`IBattleEquipmentAbilityReactionService` 接口解耦，见下）；剩余 `ContingencySystem → module.ExecuteAutoCast → Orchestrator` 回环 | 图 4 |
@@ -399,7 +404,7 @@ flowchart TB
 
 | 优先级 | 建议 | 预期收益 |
 |---|---|---|
-| 1 | ~~引入 namespace / 使用普通反射或正则作为完整依赖门禁~~。2026-07-21 当前复核改为：路径型 Roslyn analyzer 检查签名与方法体符号，精确 baseline 禁止新增边；`tools/architecture_checks.py` 只保留为源码气味扫描器。程序集拆分另行评估 | 让新增越层边直接使 build/CI 失败 |
+| 1 | ~~引入 namespace / 使用普通反射或正则作为完整依赖门禁~~ —— **注意 namespace 一路本就无效**（C# 无 namespace 级可见性，加了也拦不住任何越层边）。2026-07-21 改为路径型 Roslyn analyzer，**2026-07-26 已落地并零豁免**：`Magic.ArchitectureAnalyzers` 挂 `OutputItemType="Analyzer"`，10 层 5 禁则，`MAGICARCH001/002/003/900` 均 `Error`。程序集拆分另行评估 | ✓ 已完成：新增越层边直接编译失败 |
 | 2 | ~~**解 `DamageResolver ⇄ EquipmentAbilityRuntimeService` 循环**~~ ✓ 已完成 2026-07-20（`IBattleEquipmentAbilityReactionService` 接口，12 成员全覆盖；DTO 下移 core/） | P0 循环依赖已消除 |
 | 3 | **收敛 `GameRuntimeFacade` 字段可见性**：internal → private + 明确方法；窗口上下文 Dictionary 抽为 typed modal context 对象 | 恢复封装；消除双 modal 表示 |
 | 4 | ~~**删除 42 个空 partial 壳**~~。2026-07-21 当前复核否决：这些文件是 53 个正式 `.tres` 的脚本路径锚点，必须保留 | 避免破坏 Godot 资源加载 |
