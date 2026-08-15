@@ -665,7 +665,6 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             cognition_kind = "sapient",
             enemy_count = 1,
             body_size = BattleUnitState.BodySizeMedium,
-            action_threshold = BattleUnitState.DefaultActionThreshold,
             attack_equipment_item_id = attackEquipmentItemId,
             skill_ids = new GStringNameArray(),
             base_attribute_overrides = new GDictionary

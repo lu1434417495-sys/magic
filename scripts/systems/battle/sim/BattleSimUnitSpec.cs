@@ -42,7 +42,8 @@ public partial class BattleSimUnitSpec : Resource
         AttributeContentRules.DeflectionBonus,
     };
 
-    private const int DefaultCharacterActionThreshold = 30;
+    private const int DefaultCharacterActionThreshold =
+        AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD;
     private const int InitialHpBase = 14;
 
     [Export]

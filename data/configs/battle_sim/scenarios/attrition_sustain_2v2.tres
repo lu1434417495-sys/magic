@@ -15,7 +15,6 @@ coord = Vector2i(10, 3)
 current_hp = 80
 current_stamina = 8
 current_ap = 2
-action_threshold = 110
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -49,7 +48,6 @@ coord = Vector2i(11, 5)
 current_hp = 80
 current_stamina = 8
 current_ap = 2
-action_threshold = 110
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -83,7 +81,6 @@ coord = Vector2i(3, 3)
 current_hp = 80
 current_stamina = 8
 current_ap = 2
-action_threshold = 110
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -117,7 +114,6 @@ coord = Vector2i(2, 5)
 current_hp = 80
 current_stamina = 8
 current_ap = 2
-action_threshold = 110
 base_attributes = {
 "strength": 14,
 "agility": 12,

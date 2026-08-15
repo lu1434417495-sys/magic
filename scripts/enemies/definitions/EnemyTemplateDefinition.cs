@@ -91,7 +91,6 @@ internal sealed class EnemyTemplateDefinition
         int bodySize,
         int creatureLevel,
         int hitDieSides,
-        int actionThreshold,
         BattleCognitionKind cognitionKind,
         IReadOnlyList<StringName> tags,
         IReadOnlyList<StringName> saveAdvantageTags,
@@ -124,7 +123,6 @@ internal sealed class EnemyTemplateDefinition
         BodySize = bodySize;
         CreatureLevel = creatureLevel;
         HitDieSides = hitDieSides;
-        ActionThreshold = actionThreshold;
         CognitionKind = cognitionKind;
         Tags = EnemyDefinitionCollections.FreezeList(tags);
         SaveAdvantageTags = EnemyDefinitionCollections.FreezeList(saveAdvantageTags);
@@ -157,7 +155,6 @@ internal sealed class EnemyTemplateDefinition
     internal int BodySize { get; }
     internal int CreatureLevel { get; }
     internal int HitDieSides { get; }
-    internal int ActionThreshold { get; }
     internal BattleCognitionKind CognitionKind { get; }
     internal IReadOnlyList<StringName> Tags { get; }
     internal IReadOnlyList<StringName> SaveAdvantageTags { get; }
@@ -256,7 +253,6 @@ internal sealed class EnemyTemplateDefinition
             source.body_size,
             source.creature_level,
             source.hit_die_sides,
-            source.action_threshold,
             BattleCognitionContentRules.ToKind(
                 source.cognition_kind
             ),

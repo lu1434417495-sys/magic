@@ -55,9 +55,6 @@ public partial class EnemyTemplateDef : Resource
     public int hit_die_sides { get; set; } = 8;
 
     [Export]
-    public int action_threshold { get; set; } = BattleUnitState.DefaultActionThreshold;
-
-    [Export]
     public StringName cognition_kind { get; set; } = "";
 
     [Export]
@@ -342,12 +339,6 @@ public partial class EnemyTemplateDef : Resource
         )
             errors.Add(
                 $"Enemy template {template_id} hit_die_sides must be one of 4, 6, 8, 10, 12, 20; got {hit_die_sides}."
-            );
-        if (action_threshold <= 0)
-            errors.Add($"Enemy template {template_id} action_threshold must be > 0.");
-        else if (action_threshold % 5 != 0)
-            errors.Add(
-                $"Enemy template {template_id} action_threshold must be a multiple of 5 TU."
             );
         BattleCognitionKind cognitionKind =
             BattleCognitionContentRules.ToKind(cognition_kind);

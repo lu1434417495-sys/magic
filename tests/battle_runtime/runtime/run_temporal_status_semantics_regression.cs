@@ -225,6 +225,11 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         Fixture fixture = BuildFixture();
         BattleUnitState slowUnit = fixture.AddUnit("slow_unit", "enemy", new Vector2I(1, 1));
         BattleUnitState controlUnit = fixture.AddUnit("fast_unit", "enemy", new Vector2I(2, 2));
+        // 本用例考的是速率轴的余数累加，不是阈值跨越：显式钉一个高于累计进度的阈值，
+        // 免得单位在观测期内触发行动把进度清掉。早期这里依赖默认阈值 120 的隐含前提，
+        // 行动节奏敏捷派生把默认值降到 40 之后该前提不再成立。
+        slowUnit.SetActionThresholdTyped(600);
+        controlUnit.SetActionThresholdTyped(600);
         ApplyTimeSlow(slowUnit, 600);
 
         fixture.Step(5);

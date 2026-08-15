@@ -12,7 +12,6 @@ control_mode = &"manual"
 coord = Vector2i(4, 2)
 current_hp = 80
 current_ap = 2
-action_threshold = 120
 base_attributes = {
 "strength": 10,
 "agility": 10,
@@ -36,7 +35,6 @@ control_mode = &"manual"
 coord = Vector2i(5, 2)
 current_hp = 80
 current_ap = 2
-action_threshold = 120
 base_attributes = {
 "strength": 10,
 "agility": 10,
@@ -64,7 +62,6 @@ current_hp = 60
 current_mp = 20
 current_stamina = 20
 current_ap = 2
-action_threshold = 120
 base_attributes = {
 "strength": 10,
 "agility": 12,

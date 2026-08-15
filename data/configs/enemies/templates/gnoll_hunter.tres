@@ -27,7 +27,6 @@ initial_state_id = &"engage"
 enemy_count = 2
 creature_level = 2
 hit_die_sides = 8
-action_threshold = 30
 cognition_kind = &"sapient"
 tags = Array[StringName]([&"humanoid", &"gnoll"])
 attack_equipment_item_id = &"militia_axe"

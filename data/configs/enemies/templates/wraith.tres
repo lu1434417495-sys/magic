@@ -18,7 +18,6 @@ brain_id = &"ranged_controller"
 initial_state_id = &"pressure"
 creature_level = 6
 hit_die_sides = 6
-action_threshold = 35
 cognition_kind = &"sapient"
 tags = Array[StringName]([&"undead", &"wraith", &"incorporeal", &"beast"])
 save_immunity_tags = Array[StringName]([&"sleep", &"charm", &"poison", &"frightened"])

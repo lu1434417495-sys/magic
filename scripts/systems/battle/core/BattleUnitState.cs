@@ -47,7 +47,10 @@ public partial class BattleUnitState
     };
 
     internal const int DefaultMovePointsPerTurn = 2;
-    internal const int DefaultActionThreshold = 120;
+    // 与 AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD 同尺度。
+    // 早期这里是 120、角色侧是 30，两套尺度并存；行动节奏敏捷派生提案统一到 40。
+    internal const int DefaultActionThreshold =
+        AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD;
     internal const int BodySizeTiny = 1;
     internal const int BodySizeSmall = 1;
     internal const int BodySizeMedium = 2;

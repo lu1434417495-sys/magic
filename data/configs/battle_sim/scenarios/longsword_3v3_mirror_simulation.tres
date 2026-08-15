@@ -17,7 +17,6 @@ current_hp = 36
 current_stamina = 120
 current_ap = 2
 current_move_points = 2
-action_threshold = 120
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -72,7 +71,6 @@ current_hp = 36
 current_stamina = 120
 current_ap = 2
 current_move_points = 2
-action_threshold = 120
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -127,7 +125,6 @@ current_hp = 36
 current_stamina = 120
 current_ap = 2
 current_move_points = 2
-action_threshold = 120
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -182,7 +179,6 @@ current_hp = 36
 current_stamina = 120
 current_ap = 2
 current_move_points = 2
-action_threshold = 120
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -237,7 +233,6 @@ current_hp = 36
 current_stamina = 120
 current_ap = 2
 current_move_points = 2
-action_threshold = 120
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -292,7 +287,6 @@ current_hp = 36
 current_stamina = 120
 current_ap = 2
 current_move_points = 2
-action_threshold = 120
 base_attributes = {
 "strength": 14,
 "agility": 12,

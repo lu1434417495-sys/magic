@@ -20,7 +20,6 @@ brain_id = &"frontline_bulwark"
 initial_state_id = &"engage"
 creature_level = 4
 hit_die_sides = 10
-action_threshold = 50
 cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 save_advantage_tags = Array[StringName]([&"charm", &"constitution"])

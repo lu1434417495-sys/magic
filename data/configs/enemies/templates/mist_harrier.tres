@@ -18,7 +18,6 @@ brain_id = &"ranged_suppressor"
 initial_state_id = &"pressure"
 creature_level = 5
 hit_die_sides = 8
-action_threshold = 30
 cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"mist", &"harrier", &"magical_beast"])
 save_advantage_tags = Array[StringName]([&"illusion"])

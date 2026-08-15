@@ -27,7 +27,6 @@ initial_state_id = &"engage"
 enemy_count = 2
 creature_level = 1
 hit_die_sides = 6
-action_threshold = 30
 cognition_kind = &"sapient"
 tags = Array[StringName]([&"humanoid", &"goblinoid"])
 save_disadvantage_tags = Array[StringName]([&"frightened"])

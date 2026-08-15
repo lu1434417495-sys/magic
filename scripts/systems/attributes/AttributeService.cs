@@ -68,8 +68,13 @@ public sealed class AttributeService
     internal static readonly StringName SPELL_PROFICIENCY_BONUS =
         AttributeSnapshot.ToStringName(AttributeSnapshotIdKind.SpellProficiencyBonus);
 
-    internal const int DEFAULT_CHARACTER_ACTION_THRESHOLD = 30;
-    private const int ACTION_THRESHOLD_GRANULARITY = 5;
+    // 行动节奏相关常量与派生表由 ActionCadenceContentRules 单一持有（content_definition 层），
+    // 这里只做转发，避免运行时与内容校验各写一份而漂移。
+    internal const int DEFAULT_CHARACTER_ACTION_THRESHOLD =
+        ActionCadenceContentRules.BaseActionThresholdTu;
+    private const int ACTION_THRESHOLD_GRANULARITY =
+        ActionCadenceContentRules.ActionThresholdGranularityTu;
+
     internal const int BASE_ARMOR_CLASS = 8;
 
     internal static readonly StringName[] RESOURCE_ATTRIBUTE_IDS =
@@ -259,6 +264,10 @@ public sealed class AttributeService
             else if (attributeId == ARMOR_CLASS)
             {
                 derivedValue = CalculateBaseArmorClass(resolvedBaseValues, modifierEntries);
+            }
+            else if (attributeId == ACTION_THRESHOLD)
+            {
+                derivedValue = CalculateBaseActionThreshold(resolvedBaseValues);
             }
             else if (attributeId == ARMOR_MAX_DEX_BONUS)
             {
@@ -788,6 +797,30 @@ public sealed class AttributeService
             cappedAgilityModifier = maxDexBonus;
         return BASE_ARMOR_CLASS + cappedAgilityModifier + ResolvePersistentAcComponentTotal();
     }
+
+    // 行动阈值优先取 custom_stats 的显式值；未显式配置时按 agility 调整值查派生表。
+    // 与 CalculateBaseArmorClass 同构：都读 resolvedBaseValues，即已叠加装备修正后的敏捷。
+    private int CalculateBaseActionThreshold(
+        Dictionary<StringName, int> resolvedBaseValues
+    )
+    {
+        var unitBaseAttributes = GetUnitBaseAttributes();
+        if (
+            unitBaseAttributes != null
+            && unitBaseAttributes.custom_stats.ContainsKey(ACTION_THRESHOLD)
+        )
+            return unitBaseAttributes.GetAttributeValue(ACTION_THRESHOLD);
+
+        int agility = GetDictInt(
+            resolvedBaseValues,
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+            0
+        );
+        return ResolveActionThresholdForAgilityModifier(CalculateScoreModifier(agility));
+    }
+
+    internal static int ResolveActionThresholdForAgilityModifier(int agilityModifier) =>
+        ActionCadenceContentRules.ResolveActionThreshold(agilityModifier);
 
     private int ResolvePersistentAcComponentTotal()
     {

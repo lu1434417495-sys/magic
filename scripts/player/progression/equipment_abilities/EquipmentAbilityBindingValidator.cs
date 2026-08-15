@@ -425,6 +425,22 @@ internal sealed class EquipmentAbilityBindingValidator
                     "temporal progress modifier rates must be positive percentages"
                 );
             }
+            else if (
+                modifier.success_rate_percent
+                    > ActionCadenceContentRules.MaxTemporalProgressRatePercent
+                || modifier.failure_rate_percent
+                    > ActionCadenceContentRules.MaxTemporalProgressRatePercent
+            )
+            {
+                // 超过上限会让最快阈值的单位在单 step 内跨两次阈值，吞掉一次行动。
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_TEMPORAL_PROGRESS_MODIFIER_RATE_TOO_HIGH",
+                    modifierPath,
+                    $"temporal progress modifier rates must not exceed "
+                        + $"{ActionCadenceContentRules.MaxTemporalProgressRatePercent}%"
+                );
+            }
         }
     }
 

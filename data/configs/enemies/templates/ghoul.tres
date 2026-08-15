@@ -18,7 +18,6 @@ brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 creature_level = 4
 hit_die_sides = 8
-action_threshold = 30
 cognition_kind = &"sapient"
 tags = Array[StringName]([&"undead", &"ghoul", &"beast", &"claw"])
 save_immunity_tags = Array[StringName]([&"sleep", &"charm", &"poison"])

@@ -310,9 +310,11 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
                 "damage source unit snapshot"
             );
             AssertDamageNestedSchema(lease.Value);
+            // 2026-08-15 行动节奏敏捷派生：payload 含两个单位的 action_threshold，
+            // 默认值 120 -> 40，各短 1 字符。
             AssertGolden(
                 lease.Value,
-                "5617:a1f02ffc6e97203d289288009cde95e0810e2fe562e3998c18d23a065727bb22",
+                "5615:982a6fd20fcf858397929d0a3f32ebf01164cc20db631832a15938482c7fa876",
                 "damage result fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);

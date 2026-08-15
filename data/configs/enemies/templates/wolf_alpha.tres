@@ -20,7 +20,6 @@ brain_id = &"pack_leader"
 initial_state_id = &"hunt"
 creature_level = 4
 hit_die_sides = 10
-action_threshold = 30
 cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 save_advantage_tags = Array[StringName]([&"charm"])

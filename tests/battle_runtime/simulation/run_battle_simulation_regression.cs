@@ -267,7 +267,11 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
             coord = coord,
             current_hp = 60,
             current_mp = 20,
-            current_stamina = 30,
+            // 体力池必须显著高于 archer_suppressive_fire 的实际消耗（1 级 = 30），
+            // 否则 AI 的体力储备评分会把这个技能一直压下去，baseline 断言就永远失败。
+            // 这里曾经是 30：该技能早期只要 2 点体力，内容 rework 之后涨到 32/30，
+            // 而 fixture 没跟着改，等于让 AI 花光整个池子放一个技能。
+            current_stamina = 90,
             current_ap = 2,
             skill_ids = new GArray { "archer_suppressive_fire", "archer_pinning_shot" },
             skill_level_map = new GDictionary
@@ -290,14 +294,18 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
                     ["flat_bonus"] = 0,
                 },
                 ["weapon_uses_two_hands"] = true,
-                ["weapon_physical_damage_tag"] = "piercing",
+                // 必须是 DamageTagContentRules 认识的规范名（physical_pierce），
+                // 不是 "piercing"。写错会让 GetUnitWeaponPhysicalDamageTag 返回空串，
+                // 于是所有 use_weapon_physical_damage_tag 的效果都退化成 invalid_damage_tag，
+                // AI 评不出伤害就不会再选 archer_suppressive_fire。
+                ["weapon_physical_damage_tag"] = "physical_pierce",
             },
             base_attributes = BuildBaseAttributes(10, 12, 12, 14, 10, 10),
             attribute_overrides = new GDictionary
             {
                 ["hp_max"] = 60,
                 ["mp_max"] = 20,
-                ["stamina_max"] = 30,
+                ["stamina_max"] = 90,
                 ["action_points"] = 2,
                 ["attack_bonus"] = 6,
                 ["armor_ac_bonus"] = 5,

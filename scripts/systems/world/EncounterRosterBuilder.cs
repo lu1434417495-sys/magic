@@ -773,11 +773,6 @@ public sealed class EncounterRosterBuilder : IDisposable
                         : new StringName("engage"),
                 ai_blackboard = new BattleAiBlackboard(),
             };
-            unitState.SetActionThresholdTyped(
-                template != null
-                    ? template.ActionThreshold
-                    : BattleUnitState.DefaultActionThreshold
-            );
             unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.BodySize : 1, 1));
             unitState.SetBaseCognitionKindTyped(
                 template?.CognitionKind
@@ -820,6 +815,14 @@ public sealed class EncounterRosterBuilder : IDisposable
                 unitState.GetEquipmentView()
             );
             var snapshot = unitState.attribute_snapshot as AttributeSnapshot;
+            // 行动阈值单一真源：与角色一样由 agility 派生，模板不再配置 action_threshold。
+            unitState.SetActionThresholdTyped(
+                snapshot != null
+                    && snapshot.HasValue(AttributeService.ACTION_THRESHOLD)
+                    && snapshot.GetValue(AttributeService.ACTION_THRESHOLD) > 0
+                    ? snapshot.GetValue(AttributeService.ACTION_THRESHOLD)
+                    : BattleUnitState.DefaultActionThreshold
+            );
             unitState.SetCombatResources(
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0,
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) : 0,

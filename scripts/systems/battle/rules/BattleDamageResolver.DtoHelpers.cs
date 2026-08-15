@@ -374,14 +374,18 @@ public partial class BattleDamageResolver
         );
     }
 
-    private static GDictionary BuildInvalidDamageTagDiagnostic(
+    // 诊断条目会进 diagnostics 这个 plain payload，最终被 AI trace 的
+    // RuntimePlainPayload.CloneValue 深拷贝。那里只认托管容器：GDictionary 会被当成
+    // IEnumerable 展开成 KeyValuePair<Variant, Variant> 然后抛 unsupported value type。
+    // 所以这里必须是 Dictionary<string, object>，不能是 GDictionary。
+    private static Dictionary<string, object> BuildInvalidDamageTagDiagnostic(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition,
         DamageOutcomeResult damageOutcome
     )
     {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["error_code"] = "invalid_damage_tag",
             ["reason"] = damageOutcome.Reason,

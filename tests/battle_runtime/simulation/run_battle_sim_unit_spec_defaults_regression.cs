@@ -54,10 +54,16 @@ public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTes
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.STAMINA_MAX), 110, "BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生体力。");
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ACTION_POINTS), 2, "BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生 AP。");
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 11, "BattleSimUnitSpec 有 base_attributes 时 AC 应来自正式 AttributeService。");
+        // agility 16 -> 调整值 +3 -> 派生表第二档 30 TU；不再是基数 40。
         _test.Eq(
             unitState.GetActionThresholdTyped(),
-            AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD,
-            "BattleSimUnitSpec 有 base_attributes 时 action_threshold 应来自正式属性快照。"
+            ActionCadenceContentRules.ResolveActionThreshold(3),
+            "BattleSimUnitSpec 有 base_attributes 时 action_threshold 应按 agility 调整值派生。"
+        );
+        _test.Eq(
+            unitState.GetActionThresholdTyped(),
+            30,
+            "agility 16（调整值 +3）应落在派生表的 30 TU 档。"
         );
     }
 

@@ -16,7 +16,6 @@ current_hp = 44
 current_mp = 1000
 current_stamina = 20
 current_ap = 2
-action_threshold = 120
 unlocked_combat_resource_ids = Array[StringName]([&"mp"])
 base_attributes = {
 "strength": 8,
@@ -52,7 +51,6 @@ coord = Vector2i(14, 2)
 current_hp = 150
 current_stamina = 5
 current_ap = 2
-action_threshold = 110
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -86,7 +84,6 @@ coord = Vector2i(14, 5)
 current_hp = 150
 current_stamina = 5
 current_ap = 2
-action_threshold = 110
 base_attributes = {
 "strength": 14,
 "agility": 12,

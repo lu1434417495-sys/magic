@@ -20,7 +20,6 @@ brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 creature_level = 0
 hit_die_sides = 8
-action_threshold = 35
 cognition_kind = &"instinctive"
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
 save_advantage_tags = Array[StringName]([&"charm"])

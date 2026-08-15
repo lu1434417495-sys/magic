@@ -241,7 +241,6 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
             display_name = "投影首领",
             enemy_count = 1,
             body_size = BattleUnitState.BodySizeMedium,
-            action_threshold = BattleUnitState.DefaultActionThreshold,
             cognition_kind = "sapient",
             target_rank = "boss",
         };
@@ -251,7 +250,6 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
             display_name = "投影护卫",
             enemy_count = 1,
             body_size = BattleUnitState.BodySizeMedium,
-            action_threshold = BattleUnitState.DefaultActionThreshold,
             cognition_kind = "sapient",
         };
         var itemDefinitions = new Dictionary<StringName, ItemDefinition>();

@@ -16,7 +16,6 @@ current_hp = 48
 current_stamina = 120
 current_ap = 2
 current_move_points = 2
-action_threshold = 110
 base_attributes = {
 "strength": 14,
 "agility": 12,
@@ -73,7 +72,6 @@ current_mp = 20
 current_stamina = 120
 current_ap = 2
 current_move_points = 2
-action_threshold = 120
 base_attributes = {
 "strength": 10,
 "agility": 12,

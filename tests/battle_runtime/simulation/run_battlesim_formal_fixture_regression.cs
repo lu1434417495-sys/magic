@@ -273,7 +273,16 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
             _test.False(baseAttributes.custom_stats.ContainsKey(AttributeService.ToStringName(AttributeIdKind.ActionThreshold)), $"6v12 不应显式写入 action_threshold：{memberId}");
             AttributeService attributeService = new();
             attributeService.Setup(memberState.progression);
-            _test.Eq(attributeService.GetTotalValue(AttributeService.ToStringName(AttributeIdKind.ActionThreshold)), AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD, $"6v12 应回落到角色默认 action_threshold：{memberId}");
+            // fixture 的 agility 是逐成员掷出来的，所以期望值不是某个固定常量，
+            // 而是该成员 agility 调整值对应的派生档位；这条断言的守卫点仍然是
+            // "fixture 没有绕过属性系统写死阈值"（上一行），不是某个具体数字。
+            int agility = baseAttributes.GetAttributeValue(
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)
+            );
+            int expectedThreshold = ActionCadenceContentRules.ResolveActionThreshold(
+                AttributeSnapshot.CalculateScoreModifier(agility)
+            );
+            _test.Eq(attributeService.GetTotalValue(AttributeService.ToStringName(AttributeIdKind.ActionThreshold)), expectedThreshold, $"6v12 的 action_threshold 应由 agility 派生：{memberId}（agility={agility}）");
         }
     }
 
