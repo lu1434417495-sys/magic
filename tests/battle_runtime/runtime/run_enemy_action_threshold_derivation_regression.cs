@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // 敌人行动阈值单一真源回归。
-// 设计来源：docs/proposals/battle/action_cadence_agility_derivation.md §3.7 / §7 决策 10
+// 设计来源：docs/design/battle/action_cadence.md §二
 //
 // 改前 EncounterRosterBuilder 直接把模板的 action_threshold 字段写进单位，绕过 AttributeSnapshot；
 // 40 个模板手写阈值与自己写的 agility 冲突（pearson = -0.788），等于同一个意图被计价两次。

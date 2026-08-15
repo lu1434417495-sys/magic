@@ -1,7 +1,7 @@
 using Godot;
 
 // FLOOR 与引擎断点的绑定回归。
-// 设计来源：docs/proposals/battle/action_cadence_agility_derivation.md §3.3 / §3.5
+// 设计来源：docs/design/battle/action_cadence.md §四
 //
 // AdvanceAndConsumeThresholds 在单 step 内跨过两次阈值时只产出一次 ready，多余那次行动被吞。
 // 断点通式 rate >= (100 * threshold + 1) / tu_per_tick，因此属性派生可达的最快阈值

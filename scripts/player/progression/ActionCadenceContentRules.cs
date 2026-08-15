@@ -1,7 +1,7 @@
 using Godot;
 
 // 行动节奏的内容规则：agility_modifier -> action_threshold 派生表，以及由它推导出的内容侧约束。
-// 设计来源：docs/proposals/battle/action_cadence_agility_derivation.md
+// 设计来源：docs/design/battle/action_cadence.md
 //
 // 本类属于 content_definition 层：运行时（AttributeService / BattleTemporalStatusService）与
 // 内容校验（EquipmentAbilityBindingValidator）都从这里取值，避免两侧各自写一份常量而漂移。

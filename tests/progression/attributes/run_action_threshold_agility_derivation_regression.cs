@@ -2,7 +2,7 @@ using System;
 using Godot;
 
 // 行动阈值 agility 派生表的规范回归。
-// 设计来源：docs/proposals/battle/action_cadence_agility_derivation.md
+// 设计来源：docs/design/battle/action_cadence.md
 //
 // 表是规范产物、公式是生成器；本用例逐点比对二者，任何手改表值都会在这里失败。
 public partial class run_action_threshold_agility_derivation_regression : LifecycleTestSceneTree

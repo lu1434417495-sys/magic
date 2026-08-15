@@ -2,10 +2,10 @@ using System;
 using Godot;
 
 // 行动阈值派生曲线的设计性质回归。
-// 设计来源：docs/proposals/battle/action_cadence_agility_derivation.md §3.4 / §3.5
+// 设计来源：docs/design/battle/action_cadence.md §一
 //
 // 上一条回归保证“表 == 生成器”，这条保证“生成器给出的形状仍是设计要的那个”：
-// 慢侧二次加速惩罚、快侧平方根递减收益、以及 §3.5 记录的末档回升幅度。
+// 慢侧二次加速惩罚、快侧平方根递减收益、以及 末档回升幅度。
 // 调 BASE / FLOOR / 换掉 m^2 或 sqrt(m) 都会在这里失败。
 public partial class run_action_threshold_curve_property_regression : LifecycleTestSceneTree
 {
@@ -68,7 +68,7 @@ public partial class run_action_threshold_curve_property_regression : LifecycleT
         );
     }
 
-    // 快侧 sqrt(m)：首点一枝独秀，随后压进窄带；§3.5 记录末档回升但仍低于首点。
+    // 快侧 sqrt(m)：首点一枝独秀，随后压进窄带；末档回升但仍低于首点。
     private void TestFastSideValuePerCostShape()
     {
         (int Entry, int Cost)[] bands =
@@ -102,7 +102,7 @@ public partial class run_action_threshold_curve_property_regression : LifecycleT
             "价值/成本在第 2->3 档之间应继续递减。"
         );
 
-        // §3.5 已知性质：档位成本线性增长追不上 Δf 的几何增长，后段回升。
+        // 已知性质：档位成本线性增长追不上 Δf 的几何增长，后段回升。
         // 允许回升，但末档不得超过首点——超过说明曲线形状已经变质。
         _test.True(
             valuePerCost[^1] < valuePerCost[0],
@@ -110,7 +110,7 @@ public partial class run_action_threshold_curve_property_regression : LifecycleT
         );
         _test.True(
             Math.Abs(valuePerCost[^1] - 0.1212) < 0.001,
-            $"末档价值/成本应约为 0.121（§3.5 记录值），实际 {valuePerCost[^1]:F4}。"
+            $"末档价值/成本应约为 0.121（已知性质），实际 {valuePerCost[^1]:F4}。"
         );
     }
 

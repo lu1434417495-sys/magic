@@ -2,16 +2,16 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 // TU 计价系统对行动阈值的不变性回归。
-// 设计来源：docs/proposals/battle/action_cadence_agility_derivation.md §4 / §5.1-A / §5.1-B
+// 设计来源：docs/design/battle/action_cadence.md §五
 //
 // P2 实测的核心结论：一场长度 L 的战斗里，技能施放次数（L/cooldown）、状态覆盖时长（duration）、
 // 体力回复总量（L × 每 TU 回复）全都不随行动阈值变化，**只有行动次数 L/T 变化**。
 // 敏捷买到的是填充行动，不是技能强度或续航强度——这条用例把这个定位钉住。
 //
-// 会让它失败的改动，正是会推翻 §4 定位的那些：
+// 会让它失败的改动，正是会推翻 §五 定位的那些：
 //   - 把体力回复从「按 TU」改成「按行动次数」→ 高敏 build 会开始体力卡死；
 //   - 把冷却从绝对 TU 改成按行动次数计价 → 敏捷会变成爆发属性；
-//   - 改动基数 BASE 使主流冷却不再整除 → §3.2 的零内容迁移前提失效。
+//   - 改动基数 BASE 使主流冷却不再整除 → §三 的零内容迁移前提失效。
 public partial class run_action_cadence_tu_invariance_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
@@ -83,7 +83,7 @@ public partial class run_action_cadence_tu_invariance_regression : LifecycleTest
 
         // 冷却计价单位：BattleUnitCooldownState.AdvanceTo 按流逝 TU 递减，不按行动次数。
         // 这是「冷却的绝对施放次数与阈值无关」的机制根据；若哪天改成按行动次数计价，
-        // 敏捷就会从续航属性变成爆发属性（§4），这条会失败。
+        // 敏捷就会从续航属性变成爆发属性（§五），这条会失败。
         StringName skillId = "cadence_probe_skill";
         var cooldowns = new BattleUnitCooldownState();
         cooldowns.Set(skillId, cooldownTu);
@@ -109,7 +109,7 @@ public partial class run_action_cadence_tu_invariance_regression : LifecycleTest
         _test.Eq(slowActions, 26, "1200 TU / 45 TU 应为 26 次行动。");
 
         // 施放次数受量化影响：实际循环是 ceil(cooldown / threshold) * threshold。
-        // 基数档上 80 TU 冷却零等待，相邻档会有等待——这是量化轴的固有代价（§5.1-A）。
+        // 基数档上 80 TU 冷却零等待，相邻档会有等待——这是量化轴的固有代价（§三）。
         _test.Eq(
             CooldownCycleTu(cooldownTu, Base),
             cooldownTu,
@@ -121,7 +121,7 @@ public partial class run_action_cadence_tu_invariance_regression : LifecycleTest
         );
     }
 
-    // §3.2 的零内容迁移前提：主流冷却在基数上正好落在整数次行动。
+    // §三 的零内容迁移前提：主流冷却在基数上正好落在整数次行动。
     private void TestMainstreamCooldownsDivideTheBase()
     {
         int[] mainstreamCooldowns = { 40, 80, 120, 160 };
@@ -131,7 +131,7 @@ public partial class run_action_cadence_tu_invariance_regression : LifecycleTest
             _test.Eq(
                 cooldown % Base,
                 0,
-                $"主流冷却 {cooldown} TU 必须被基数 {Base} 整除，否则 §3.2 的零内容迁移前提失效。"
+                $"主流冷却 {cooldown} TU 必须被基数 {Base} 整除，否则 §三 的零内容迁移前提失效。"
             );
             _test.Eq(
                 CooldownCycleTu(cooldown, Base),
