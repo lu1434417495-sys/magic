@@ -407,16 +407,16 @@ JSON 绑定产生的是没有 `ResourcePath` 的 Resource 对象图，不能沿�
 复现口径：
 
 - 测量机：AMD Ryzen 9 5950X（16 核 / 32 线程）、128 GiB 内存、Windows 10 19045；Godot `4.6.2.stable.mono`、.NET SDK `8.0.421`、默认 Debug 构建；
-- 源态：`HEAD 07c3bd37b8e2c991356b9771c57ee248a35084c1` 上当时的本地 dirty checkout；这是本机时点基线，不是 clean checkout、CI 或跨机器基准；
-- 入口：先执行 `dotnet build magic.csproj`，再以全新进程运行 `godot --headless -s res://tests/runtime/validation/run_non_ai_content_snapshot_regression.cs`；
+- 源态：从 `edeea358d7b0b5af38299086feea48a858ab2a2c` 创建的 isolated clean detached worktree；测量前 tracked 状态为空，该 commit 包含 `9b21c09b`；
+- 初始化与入口：在全新 worktree 先执行 `dotnet build magic.csproj`，再运行一次 `godot --headless --editor --quit --path .` 并确认 exit 0，以生成该 worktree 自己的 Godot import cache；随后构建临时探针，并以全新进程运行 `godot --headless -s res://tests/runtime/validation/run_non_ai_content_snapshot_regression.cs`。省略 editor import 会使 tracked 图片因缺少 `.godot/imported` 而无法由 `ResourceLoader` 载入；
 - 边界：环境变量门控的临时探针只包围 `ProcessContentHost.BuildAndSeal()`；wall time 使用 `Stopwatch.GetTimestamp()` / `Stopwatch.GetElapsedTime()`，托管分配分别使用 `GC.GetAllocatedBytesForCurrentThread()` 与 `GC.GetTotalAllocatedBytes(precise: true)` 的前后差值；不强制 GC，测量后撤销探针；
 - 采样：1 次方法校验 / 热身后采集 10 个新进程样本，全部纳入统计；聚合取中位数，min–max 只描述抖动，不人为剔除离群值。
 
 | 指标 | 10 次中位数 | min–max |
 |---|---:|---:|
-| `BuildAndSeal()` wall time | `3136.094 ms` | `3024.974–5480.996 ms` |
-| 当前线程托管分配 | `160,748,328 B`（`153.302 MiB`） | `160,710,712–160,803,968 B` |
-| 进程托管总分配 | `160,756,004 B`（`153.309 MiB`） | `160,736,896–160,805,528 B` |
+| `BuildAndSeal()` wall time | `2841.742 ms` | `2757.786–2911.314 ms` |
+| 当前线程托管分配 | `158,009,892 B`（`150.690 MiB`） | `158,004,304–158,012,872 B` |
+| 进程托管总分配 | `158,011,476 B`（`150.691 MiB`） | `158,005,888–158,014,456 B` |
 
 10 个正式样本均构建并发布完整 snapshot，报告 `1296` 个 canonical roots、snapshot epoch `1`，且 focused runner PASS。
 
