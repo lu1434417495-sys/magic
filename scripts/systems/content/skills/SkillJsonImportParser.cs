@@ -22,6 +22,17 @@ internal static class SkillJsonImportRules
     internal const string InvalidEffectPayload = "skill.dto.effect_payload.invalid";
     internal const string SkillIdMismatch = "skill.dto.combat_profile.skill_id_mismatch";
     internal const string EmptyLevelOverride = "skill.dto.level_override.empty";
+    internal const string DuplicateLevelKey = "skill.dto.level_key.duplicate";
+    internal const string DuplicateDescriptionVariableKey =
+        "skill.dto.level_description_variable.duplicate";
+    internal const string UnknownPendingCastBindingMode =
+        "skill.dto.level_override.pending_cast_binding_mode.unknown";
+    internal const string UnknownAttackResolutionMode =
+        "skill.dto.level_override.attack_resolution_mode.unknown";
+    internal const string UnknownAttackDefenseMode =
+        "skill.dto.level_override.attack_defense_mode.unknown";
+    internal const string UnknownLevelOverrideAreaPattern =
+        "skill.dto.level_override.area_pattern.unknown";
 }
 
 internal static class SkillJsonImportParser
@@ -132,6 +143,33 @@ internal static class SkillJsonImportParser
             }
         }
 
+        var levelDescriptionConfigs = new SortedDictionary<int, SkillDescriptionVariables>();
+        if (dto.LevelDescriptionConfigs == null)
+        {
+            diagnostics.Add(Required(context, "/level_description_configs"));
+        }
+        else
+        {
+            foreach (
+                KeyValuePair<string, IReadOnlyDictionary<string, string>> pair in dto.LevelDescriptionConfigs
+            )
+            {
+                string escapedKey = EscapePointerToken(pair.Key ?? "");
+                string pointer = $"/level_description_configs/{escapedKey}";
+                if (!TryParseCanonicalLevel(pair.Key, out int level) || level > maxLevel)
+                {
+                    AddRangeDiagnostic(context, pointer, diagnostics);
+                    continue;
+                }
+                if (pair.Value == null)
+                {
+                    diagnostics.Add(Required(context, pointer));
+                    continue;
+                }
+                levelDescriptionConfigs.Add(level, new SkillDescriptionVariables(pair.Value));
+            }
+        }
+
         CombatSkillImportModel? combatProfile = null;
         if (dto.CombatProfile != null)
         {
@@ -156,6 +194,8 @@ internal static class SkillJsonImportParser
                 maxLevel,
                 learnSource,
                 tags,
+                dto.LevelDescriptionTemplate,
+                levelDescriptionConfigs,
                 combatProfile
             )
         );
@@ -275,7 +315,7 @@ internal static class SkillJsonImportParser
             }
         }
 
-        var overrides = new SortedDictionary<int, SkillLevelOverrideImportModel>();
+        var overrides = new SortedDictionary<int, CombatSkillLevelOverrideImportModel>();
         if (dto.LevelOverrides == null)
         {
             diagnostics.Add(Required(context, "/combat_profile/level_overrides"));
@@ -302,8 +342,175 @@ internal static class SkillJsonImportParser
                 int beforeOverride = diagnostics.Count;
                 ValidateOptionalNonNegative(overrideDto.ApCost, context, $"{pointer}/ap_cost", diagnostics);
                 ValidateOptionalNonNegative(overrideDto.MpCost, context, $"{pointer}/mp_cost", diagnostics);
+                ValidateOptionalNonNegative(
+                    overrideDto.StaminaCost,
+                    context,
+                    $"{pointer}/stamina_cost",
+                    diagnostics
+                );
+                ValidateOptionalNonNegative(
+                    overrideDto.MpCostPerTargetSlot,
+                    context,
+                    $"{pointer}/mp_cost_per_target_slot",
+                    diagnostics
+                );
+                ValidateOptionalNonNegative(
+                    overrideDto.StaminaCostPerTargetSlot,
+                    context,
+                    $"{pointer}/stamina_cost_per_target_slot",
+                    diagnostics
+                );
+                ValidateOptionalNonNegative(
+                    overrideDto.AuraCost,
+                    context,
+                    $"{pointer}/aura_cost",
+                    diagnostics
+                );
                 ValidateOptionalNonNegative(overrideDto.CooldownTu, context, $"{pointer}/cooldown_tu", diagnostics);
-                if (overrideDto.ApCost == null && overrideDto.MpCost == null && overrideDto.CooldownTu == null)
+                ValidateOptionalNonNegative(
+                    overrideDto.CastingTimeTu,
+                    context,
+                    $"{pointer}/casting_time_tu",
+                    diagnostics
+                );
+                ValidateOptionalNonNegative(
+                    overrideDto.CastingMaintenanceDc,
+                    context,
+                    $"{pointer}/casting_maintenance_dc",
+                    diagnostics
+                );
+                ValidateOptionalNonNegative(
+                    overrideDto.CastingSpellControlDc,
+                    context,
+                    $"{pointer}/casting_spell_control_dc",
+                    diagnostics
+                );
+                ValidateOptionalNonNegative(
+                    overrideDto.AreaValue,
+                    context,
+                    $"{pointer}/area_value",
+                    diagnostics
+                );
+                ValidateOptionalNonNegative(
+                    overrideDto.RangeValue,
+                    context,
+                    $"{pointer}/range_value",
+                    diagnostics
+                );
+                ValidateOptionalPositive(
+                    overrideDto.MaxTargetCount,
+                    context,
+                    $"{pointer}/max_target_count",
+                    diagnostics
+                );
+                ValidateOptionalPositive(
+                    overrideDto.RandomChainAttackCount,
+                    context,
+                    $"{pointer}/random_chain_attack_count",
+                    diagnostics
+                );
+
+                PendingCastBindingModeKind? pendingCastBindingMode = null;
+                if (overrideDto.PendingCastBindingMode != null)
+                {
+                    if (
+                        SkillJsonImportValueRules.TryParsePendingCastBindingMode(
+                            overrideDto.PendingCastBindingMode,
+                            out PendingCastBindingModeKind parsedPendingCastBindingMode
+                        )
+                    )
+                    {
+                        pendingCastBindingMode = parsedPendingCastBindingMode;
+                    }
+                    else
+                    {
+                        diagnostics.Add(
+                            Diagnostic(
+                                SkillJsonImportRules.UnknownPendingCastBindingMode,
+                                "Pending cast binding mode is not registered by the skill import contract.",
+                                context,
+                                $"{pointer}/pending_cast_binding_mode"
+                            )
+                        );
+                    }
+                }
+
+                CombatSkillLevelOverrideAttackResolutionMode? attackResolutionMode = null;
+                if (overrideDto.AttackResolutionMode != null)
+                {
+                    if (
+                        SkillJsonImportValueRules.TryParseLevelOverrideAttackResolutionMode(
+                            overrideDto.AttackResolutionMode,
+                            out CombatSkillLevelOverrideAttackResolutionMode parsedAttackResolutionMode
+                        )
+                    )
+                    {
+                        attackResolutionMode = parsedAttackResolutionMode;
+                    }
+                    else
+                    {
+                        diagnostics.Add(
+                            Diagnostic(
+                                SkillJsonImportRules.UnknownAttackResolutionMode,
+                                "Attack resolution mode is not registered by the skill import contract.",
+                                context,
+                                $"{pointer}/attack_resolution_mode"
+                            )
+                        );
+                    }
+                }
+
+                CombatSkillLevelOverrideAttackDefenseMode? attackDefenseMode = null;
+                if (overrideDto.AttackDefenseMode != null)
+                {
+                    if (
+                        SkillJsonImportValueRules.TryParseLevelOverrideAttackDefenseMode(
+                            overrideDto.AttackDefenseMode,
+                            out CombatSkillLevelOverrideAttackDefenseMode parsedAttackDefenseMode
+                        )
+                    )
+                    {
+                        attackDefenseMode = parsedAttackDefenseMode;
+                    }
+                    else
+                    {
+                        diagnostics.Add(
+                            Diagnostic(
+                                SkillJsonImportRules.UnknownAttackDefenseMode,
+                                "Attack defense mode is not registered by the skill import contract.",
+                                context,
+                                $"{pointer}/attack_defense_mode"
+                            )
+                        );
+                    }
+                }
+
+                CombatSkillLevelOverrideAreaPattern? overrideAreaPattern = null;
+                if (overrideDto.AreaPattern != null)
+                {
+                    if (
+                        SkillJsonImportValueRules.TryParseLevelOverrideAreaPattern(
+                            overrideDto.AreaPattern,
+                            out CombatSkillLevelOverrideAreaPattern parsedAreaPattern
+                        )
+                    )
+                    {
+                        overrideAreaPattern = parsedAreaPattern;
+                    }
+                    else
+                    {
+                        diagnostics.Add(
+                            Diagnostic(
+                                SkillJsonImportRules.UnknownLevelOverrideAreaPattern,
+                                "Level override area pattern is not registered by the skill import contract.",
+                                context,
+                                $"{pointer}/area_pattern"
+                            )
+                        );
+                    }
+                }
+
+                if (!HasAnyLevelOverrideValue(overrideDto))
                 {
                     diagnostics.Add(
                         Diagnostic(
@@ -318,11 +525,26 @@ internal static class SkillJsonImportParser
                 {
                     overrides.Add(
                         level,
-                        new SkillLevelOverrideImportModel(
-                            level,
-                            overrideDto.ApCost,
-                            overrideDto.MpCost,
-                            overrideDto.CooldownTu
+                        new CombatSkillLevelOverrideImportModel(
+                            apCost: overrideDto.ApCost,
+                            mpCost: overrideDto.MpCost,
+                            staminaCost: overrideDto.StaminaCost,
+                            mpCostPerTargetSlot: overrideDto.MpCostPerTargetSlot,
+                            staminaCostPerTargetSlot: overrideDto.StaminaCostPerTargetSlot,
+                            auraCost: overrideDto.AuraCost,
+                            cooldownTu: overrideDto.CooldownTu,
+                            castingTimeTu: overrideDto.CastingTimeTu,
+                            castingMaintenanceDc: overrideDto.CastingMaintenanceDc,
+                            castingSpellControlDc: overrideDto.CastingSpellControlDc,
+                            pendingCastBindingMode: pendingCastBindingMode,
+                            attackRollBonus: overrideDto.AttackRollBonus,
+                            attackResolutionMode: attackResolutionMode,
+                            attackDefenseMode: attackDefenseMode,
+                            areaValue: overrideDto.AreaValue,
+                            rangeValue: overrideDto.RangeValue,
+                            areaPattern: overrideAreaPattern,
+                            maxTargetCount: overrideDto.MaxTargetCount,
+                            randomChainAttackCount: overrideDto.RandomChainAttackCount
                         )
                     );
                 }
@@ -541,12 +763,62 @@ internal static class SkillJsonImportParser
                 return missing;
             missing = FindExplicitNull(
                 root,
-                new[] { "description", "skill_type", "max_level", "learn_source", "tags" },
+                new[]
+                {
+                    "description", "skill_type", "max_level", "learn_source", "tags",
+                    "level_description_template", "level_description_configs",
+                },
                 context,
                 ""
             );
             if (missing != null)
                 return missing;
+
+            if (
+                root.TryGetProperty(
+                    "level_description_configs",
+                    out JsonElement descriptionConfigs
+                )
+                && descriptionConfigs.ValueKind == JsonValueKind.Object
+            )
+            {
+                missing = FindDuplicateCanonicalLevelKey(
+                    descriptionConfigs,
+                    context,
+                    "/level_description_configs"
+                );
+                if (missing != null)
+                    return missing;
+                foreach (JsonProperty levelConfig in descriptionConfigs.EnumerateObject())
+                {
+                    string levelPointer =
+                        $"/level_description_configs/{EscapePointerToken(levelConfig.Name)}";
+                    if (levelConfig.Value.ValueKind == JsonValueKind.Null)
+                        return Required(context, levelPointer);
+                    if (levelConfig.Value.ValueKind != JsonValueKind.Object)
+                        continue;
+                    var seenVariableKeys = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (JsonProperty variable in levelConfig.Value.EnumerateObject())
+                    {
+                        if (!seenVariableKeys.Add(variable.Name))
+                        {
+                            return Diagnostic(
+                                SkillJsonImportRules.DuplicateDescriptionVariableKey,
+                                "A level description variable key must be unique within its level config.",
+                                context,
+                                $"{levelPointer}/{EscapePointerToken(variable.Name)}"
+                            );
+                        }
+                        if (variable.Value.ValueKind == JsonValueKind.Null)
+                        {
+                            return Required(
+                                context,
+                                $"{levelPointer}/{EscapePointerToken(variable.Name)}"
+                            );
+                        }
+                    }
+                }
+            }
 
             if (
                 !root.TryGetProperty("combat_profile", out JsonElement combat)
@@ -640,15 +912,36 @@ internal static class SkillJsonImportParser
                 && overrides.ValueKind == JsonValueKind.Object
             )
             {
+                missing = FindDuplicateCanonicalLevelKey(
+                    overrides,
+                    context,
+                    "/combat_profile/level_overrides"
+                );
+                if (missing != null)
+                    return missing;
                 foreach (JsonProperty levelOverride in overrides.EnumerateObject())
                 {
+                    string levelPointer =
+                        $"/combat_profile/level_overrides/{EscapePointerToken(levelOverride.Name)}";
+                    if (levelOverride.Value.ValueKind == JsonValueKind.Null)
+                        return Required(context, levelPointer);
                     if (levelOverride.Value.ValueKind != JsonValueKind.Object)
                         continue;
                     missing = FindExplicitNull(
                         levelOverride.Value,
-                        new[] { "ap_cost", "mp_cost", "cooldown_tu" },
+                        new[]
+                        {
+                            "ap_cost", "mp_cost", "stamina_cost",
+                            "mp_cost_per_target_slot", "stamina_cost_per_target_slot",
+                            "aura_cost", "cooldown_tu", "casting_time_tu",
+                            "casting_maintenance_dc", "casting_spell_control_dc",
+                            "pending_cast_binding_mode", "attack_roll_bonus",
+                            "attack_resolution_mode", "attack_defense_mode", "area_value",
+                            "range_value", "area_pattern", "max_target_count",
+                            "random_chain_attack_count",
+                        },
                         context,
-                        $"/combat_profile/level_overrides/{EscapePointerToken(levelOverride.Name)}"
+                        levelPointer
                     );
                     if (missing != null)
                         return missing;
@@ -660,6 +953,31 @@ internal static class SkillJsonImportParser
             return null;
         }
 
+        return null;
+    }
+
+    private static ContentJsonDiagnostic? FindDuplicateCanonicalLevelKey(
+        JsonElement value,
+        JsonContentEntryContext context,
+        string parentPointer
+    )
+    {
+        var seenLevels = new HashSet<int>();
+        foreach (JsonProperty property in value.EnumerateObject())
+        {
+            if (
+                TryParseCanonicalLevel(property.Name, out int level)
+                && !seenLevels.Add(level)
+            )
+            {
+                return Diagnostic(
+                    SkillJsonImportRules.DuplicateLevelKey,
+                    "A canonical skill level key must be unique within its map.",
+                    context,
+                    $"{parentPointer}/{EscapePointerToken(property.Name)}"
+                );
+            }
+        }
         return null;
     }
 
@@ -769,6 +1087,38 @@ internal static class SkillJsonImportParser
         if (value < 0)
             AddRangeDiagnostic(context, pointer, diagnostics);
     }
+
+    private static void ValidateOptionalPositive(
+        int? value,
+        JsonContentEntryContext context,
+        string pointer,
+        List<ContentJsonDiagnostic> diagnostics
+    )
+    {
+        if (value.HasValue && value.Value <= 0)
+            AddRangeDiagnostic(context, pointer, diagnostics);
+    }
+
+    private static bool HasAnyLevelOverrideValue(SkillLevelOverrideJsonDto value) =>
+        value.ApCost != null
+        || value.MpCost != null
+        || value.StaminaCost != null
+        || value.MpCostPerTargetSlot != null
+        || value.StaminaCostPerTargetSlot != null
+        || value.AuraCost != null
+        || value.CooldownTu != null
+        || value.CastingTimeTu != null
+        || value.CastingMaintenanceDc != null
+        || value.CastingSpellControlDc != null
+        || value.PendingCastBindingMode != null
+        || value.AttackRollBonus != null
+        || value.AttackResolutionMode != null
+        || value.AttackDefenseMode != null
+        || value.AreaValue != null
+        || value.RangeValue != null
+        || value.AreaPattern != null
+        || value.MaxTargetCount != null
+        || value.RandomChainAttackCount != null;
 
     private static void AddRangeDiagnostic(
         JsonContentEntryContext context,

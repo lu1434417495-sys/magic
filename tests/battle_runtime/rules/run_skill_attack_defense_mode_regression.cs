@@ -170,12 +170,11 @@ public partial class run_skill_attack_defense_mode_regression : LifecycleTestSce
         SkillDefinition skill = BuildSkill(
             "level_probe",
             "normal",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>
+            new Dictionary<int, CombatSkillLevelOverrideImportModel>
             {
-                [2] = new Dictionary<string, object>
-                {
-                    ["attack_defense_mode"] = "touch",
-                },
+                [2] = new CombatSkillLevelOverrideImportModel(
+                    attackDefenseMode: CombatSkillLevelOverrideAttackDefenseMode.Touch
+                ),
             }
         );
 
@@ -292,7 +291,7 @@ public partial class run_skill_attack_defense_mode_regression : LifecycleTestSce
     private static SkillDefinition BuildSkill(
         StringName skillId,
         StringName attackDefenseMode,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides = null
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> levelOverrides = null
     )
     {
         return TestSkillDefinitionProjection.BuildSkill(

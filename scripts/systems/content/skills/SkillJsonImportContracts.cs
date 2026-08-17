@@ -268,6 +268,78 @@ internal static class SkillJsonImportValueRules
         }
     }
 
+    internal static bool TryParsePendingCastBindingMode(
+        string? value,
+        out PendingCastBindingModeKind result
+    )
+    {
+        switch (value)
+        {
+            case "soft_anchor": result = PendingCastBindingModeKind.SoftAnchor; return true;
+            case "hard_anchor": result = PendingCastBindingModeKind.HardAnchor; return true;
+            case "ground_bind": result = PendingCastBindingModeKind.GroundBind; return true;
+            default:
+                result = default;
+                return false;
+        }
+    }
+
+    internal static bool TryParseLevelOverrideAttackResolutionMode(
+        string? value,
+        out CombatSkillLevelOverrideAttackResolutionMode result
+    )
+    {
+        switch (value)
+        {
+            case "auto": result = CombatSkillLevelOverrideAttackResolutionMode.Auto; return true;
+            case "direct_effect": result = CombatSkillLevelOverrideAttackResolutionMode.DirectEffect; return true;
+            case "fate_attack": result = CombatSkillLevelOverrideAttackResolutionMode.FateAttack; return true;
+            case "force_hit_no_crit": result = CombatSkillLevelOverrideAttackResolutionMode.ForceHitNoCrit; return true;
+            default:
+                result = default;
+                return false;
+        }
+    }
+
+    internal static bool TryParseLevelOverrideAttackDefenseMode(
+        string? value,
+        out CombatSkillLevelOverrideAttackDefenseMode result
+    )
+    {
+        switch (value)
+        {
+            case "normal": result = CombatSkillLevelOverrideAttackDefenseMode.Normal; return true;
+            case "touch": result = CombatSkillLevelOverrideAttackDefenseMode.Touch; return true;
+            case "flat_footed": result = CombatSkillLevelOverrideAttackDefenseMode.FlatFooted; return true;
+            default:
+                result = default;
+                return false;
+        }
+    }
+
+    internal static bool TryParseLevelOverrideAreaPattern(
+        string? value,
+        out CombatSkillLevelOverrideAreaPattern result
+    )
+    {
+        switch (value)
+        {
+            case "single": result = CombatSkillLevelOverrideAreaPattern.Single; return true;
+            case "self": result = CombatSkillLevelOverrideAreaPattern.Self; return true;
+            case "diamond": result = CombatSkillLevelOverrideAreaPattern.Diamond; return true;
+            case "square": result = CombatSkillLevelOverrideAreaPattern.Square; return true;
+            case "radius": result = CombatSkillLevelOverrideAreaPattern.Radius; return true;
+            case "cross": result = CombatSkillLevelOverrideAreaPattern.Cross; return true;
+            case "line": result = CombatSkillLevelOverrideAreaPattern.Line; return true;
+            case "cone": result = CombatSkillLevelOverrideAreaPattern.Cone; return true;
+            case "narrow_cone": result = CombatSkillLevelOverrideAreaPattern.NarrowCone; return true;
+            case "front_arc": result = CombatSkillLevelOverrideAreaPattern.FrontArc; return true;
+            default:
+                result = default;
+                return false;
+        }
+    }
+
     internal static bool TryParseEffectKind(
         string? value,
         out CombatEffectImportKind result
@@ -286,12 +358,16 @@ internal sealed class SkillImportModel
         int maxLevel,
         SkillImportLearnSource learnSource,
         IEnumerable<SkillImportIdentifier> tags,
+        string levelDescriptionTemplate,
+        IEnumerable<KeyValuePair<int, SkillDescriptionVariables>> levelDescriptionConfigs,
         CombatSkillImportModel? combatProfile
     )
     {
         ArgumentNullException.ThrowIfNull(displayName);
         ArgumentNullException.ThrowIfNull(description);
         ArgumentNullException.ThrowIfNull(tags);
+        ArgumentNullException.ThrowIfNull(levelDescriptionTemplate);
+        ArgumentNullException.ThrowIfNull(levelDescriptionConfigs);
 
         SkillId = skillId;
         DisplayName = displayName;
@@ -301,6 +377,16 @@ internal sealed class SkillImportModel
         LearnSource = learnSource;
         Tags = new ReadOnlyCollection<SkillImportIdentifier>(
             new List<SkillImportIdentifier>(tags)
+        );
+        LevelDescriptionTemplate = levelDescriptionTemplate;
+        var levelDescriptionCopy = new SortedDictionary<int, SkillDescriptionVariables>();
+        foreach (KeyValuePair<int, SkillDescriptionVariables> pair in levelDescriptionConfigs)
+        {
+            ArgumentNullException.ThrowIfNull(pair.Value);
+            levelDescriptionCopy.Add(pair.Key, pair.Value);
+        }
+        LevelDescriptionConfigs = new ReadOnlyDictionary<int, SkillDescriptionVariables>(
+            levelDescriptionCopy
         );
         CombatProfile = combatProfile;
     }
@@ -312,6 +398,8 @@ internal sealed class SkillImportModel
     internal int MaxLevel { get; }
     internal SkillImportLearnSource LearnSource { get; }
     internal IReadOnlyList<SkillImportIdentifier> Tags { get; }
+    internal string LevelDescriptionTemplate { get; }
+    internal IReadOnlyDictionary<int, SkillDescriptionVariables> LevelDescriptionConfigs { get; }
     internal CombatSkillImportModel? CombatProfile { get; }
 }
 
@@ -328,7 +416,7 @@ internal sealed class CombatSkillImportModel
         int mpCost,
         int cooldownTu,
         IEnumerable<CombatEffectImportModel> effectDefs,
-        IEnumerable<KeyValuePair<int, SkillLevelOverrideImportModel>> levelOverrides
+        IEnumerable<KeyValuePair<int, CombatSkillLevelOverrideImportModel>> levelOverrides
     )
     {
         ArgumentNullException.ThrowIfNull(effectDefs);
@@ -346,10 +434,13 @@ internal sealed class CombatSkillImportModel
         EffectDefs = new ReadOnlyCollection<CombatEffectImportModel>(
             new List<CombatEffectImportModel>(effectDefs)
         );
-        var levelOverrideCopy = new SortedDictionary<int, SkillLevelOverrideImportModel>();
-        foreach (KeyValuePair<int, SkillLevelOverrideImportModel> pair in levelOverrides)
+        var levelOverrideCopy = new SortedDictionary<int, CombatSkillLevelOverrideImportModel>();
+        foreach (KeyValuePair<int, CombatSkillLevelOverrideImportModel> pair in levelOverrides)
+        {
+            ArgumentNullException.ThrowIfNull(pair.Value);
             levelOverrideCopy.Add(pair.Key, pair.Value);
-        LevelOverrides = new ReadOnlyDictionary<int, SkillLevelOverrideImportModel>(
+        }
+        LevelOverrides = new ReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel>(
             levelOverrideCopy
         );
     }
@@ -364,7 +455,7 @@ internal sealed class CombatSkillImportModel
     internal int MpCost { get; }
     internal int CooldownTu { get; }
     internal IReadOnlyList<CombatEffectImportModel> EffectDefs { get; }
-    internal IReadOnlyDictionary<int, SkillLevelOverrideImportModel> LevelOverrides { get; }
+    internal IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> LevelOverrides { get; }
 }
 
 internal sealed class CombatEffectImportModel
@@ -403,27 +494,6 @@ internal sealed class CombatEffectImportModel
     internal ICombatEffectPayloadImportModel Payload { get; }
 }
 
-internal sealed class SkillLevelOverrideImportModel
-{
-    internal SkillLevelOverrideImportModel(
-        int level,
-        int? apCost,
-        int? mpCost,
-        int? cooldownTu
-    )
-    {
-        Level = level;
-        ApCost = apCost;
-        MpCost = mpCost;
-        CooldownTu = cooldownTu;
-    }
-
-    internal int Level { get; }
-    internal int? ApCost { get; }
-    internal int? MpCost { get; }
-    internal int? CooldownTu { get; }
-}
-
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class SkillJsonDto
 {
@@ -431,6 +501,8 @@ internal sealed class SkillJsonDto
     private string? _skillType;
     private string? _learnSource;
     private IReadOnlyList<string>? _tags;
+    private string? _levelDescriptionTemplate;
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? _levelDescriptionConfigs;
 
     [JsonPropertyName("skill_id")]
     [JsonRequired]
@@ -455,8 +527,27 @@ internal sealed class SkillJsonDto
     [JsonPropertyName("tags")]
     public IReadOnlyList<string> Tags { get => _tags ?? Array.Empty<string>(); init => _tags = value; }
 
+    [JsonPropertyName("level_description_template")]
+    public string LevelDescriptionTemplate
+    {
+        get => _levelDescriptionTemplate ?? "";
+        init => _levelDescriptionTemplate = value;
+    }
+
+    [JsonPropertyName("level_description_configs")]
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> LevelDescriptionConfigs
+    {
+        get => _levelDescriptionConfigs ?? EmptyLevelDescriptionConfigs;
+        init => _levelDescriptionConfigs = value;
+    }
+
     [JsonPropertyName("combat_profile")]
     public CombatSkillJsonDto? CombatProfile { get; init; }
+
+    private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> EmptyLevelDescriptionConfigs { get; } =
+        new ReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>(
+            new Dictionary<string, IReadOnlyDictionary<string, string>>()
+        );
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -590,8 +681,56 @@ internal sealed class SkillLevelOverrideJsonDto
     [JsonPropertyName("mp_cost")]
     public int? MpCost { get; init; }
 
+    [JsonPropertyName("stamina_cost")]
+    public int? StaminaCost { get; init; }
+
+    [JsonPropertyName("mp_cost_per_target_slot")]
+    public int? MpCostPerTargetSlot { get; init; }
+
+    [JsonPropertyName("stamina_cost_per_target_slot")]
+    public int? StaminaCostPerTargetSlot { get; init; }
+
+    [JsonPropertyName("aura_cost")]
+    public int? AuraCost { get; init; }
+
     [JsonPropertyName("cooldown_tu")]
     public int? CooldownTu { get; init; }
+
+    [JsonPropertyName("casting_time_tu")]
+    public int? CastingTimeTu { get; init; }
+
+    [JsonPropertyName("casting_maintenance_dc")]
+    public int? CastingMaintenanceDc { get; init; }
+
+    [JsonPropertyName("casting_spell_control_dc")]
+    public int? CastingSpellControlDc { get; init; }
+
+    [JsonPropertyName("pending_cast_binding_mode")]
+    public string? PendingCastBindingMode { get; init; }
+
+    [JsonPropertyName("attack_roll_bonus")]
+    public int? AttackRollBonus { get; init; }
+
+    [JsonPropertyName("attack_resolution_mode")]
+    public string? AttackResolutionMode { get; init; }
+
+    [JsonPropertyName("attack_defense_mode")]
+    public string? AttackDefenseMode { get; init; }
+
+    [JsonPropertyName("area_value")]
+    public int? AreaValue { get; init; }
+
+    [JsonPropertyName("range_value")]
+    public int? RangeValue { get; init; }
+
+    [JsonPropertyName("area_pattern")]
+    public string? AreaPattern { get; init; }
+
+    [JsonPropertyName("max_target_count")]
+    public int? MaxTargetCount { get; init; }
+
+    [JsonPropertyName("random_chain_attack_count")]
+    public int? RandomChainAttackCount { get; init; }
 }
 
 [JsonSourceGenerationOptions(

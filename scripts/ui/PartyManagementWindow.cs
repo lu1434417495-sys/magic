@@ -883,7 +883,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         var lines = new List<string>();
         if (skillDefinition?.CombatProfile == null)
             return lines;
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> overrides =
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> overrides =
             skillDefinition.CombatProfile.LevelOverrides;
         if (overrides.Count == 0)
             return lines;
@@ -894,38 +894,16 @@ public partial class PartyManagementWindow : ModalWindowShell
         {
             if (level <= skillLevel)
                 continue;
-            if (!overrides.TryGetValue(level, out IReadOnlyDictionary<string, object> data))
+            if (!overrides.TryGetValue(level, out CombatSkillLevelOverrideImportModel data))
                 continue;
             var parts = new List<string>();
-            foreach (
-                string costKey in new[]
-                {
-                    "ap_cost",
-                    "mp_cost",
-                    "stamina_cost",
-                    "mp_cost_per_target_slot",
-                    "stamina_cost_per_target_slot",
-                    "aura_cost",
-                    "cooldown_tu",
-                }
-            )
-            {
-                if (!data.TryGetValue(costKey, out object costValue))
-                    continue;
-                string label = costKey switch
-                {
-                    "ap_cost" => "AP",
-                    "mp_cost" => "MP",
-                    "stamina_cost" => "体力",
-                    "mp_cost_per_target_slot" => "单槽MP",
-                    "stamina_cost_per_target_slot" => "单槽体力",
-                    "aura_cost" => "斗气",
-                    "cooldown_tu" => "冷却",
-                    _ => "",
-                };
-                if (TryReadPlainInt(costValue, out int resolvedCost))
-                    parts.Add($"{label}→{resolvedCost}");
-            }
+            AddLevelOverridePreviewPart(parts, "AP", data.ApCost);
+            AddLevelOverridePreviewPart(parts, "MP", data.MpCost);
+            AddLevelOverridePreviewPart(parts, "体力", data.StaminaCost);
+            AddLevelOverridePreviewPart(parts, "单槽MP", data.MpCostPerTargetSlot);
+            AddLevelOverridePreviewPart(parts, "单槽体力", data.StaminaCostPerTargetSlot);
+            AddLevelOverridePreviewPart(parts, "斗气", data.AuraCost);
+            AddLevelOverridePreviewPart(parts, "冷却", data.CooldownTu);
             if (parts.Count > 0)
                 nextLevels.Add($"Lv.{level}：{string.Join("，", parts)}");
         }
@@ -934,32 +912,14 @@ public partial class PartyManagementWindow : ModalWindowShell
         return lines;
     }
 
-    private static bool TryReadPlainInt(object value, out int result)
+    private static void AddLevelOverridePreviewPart(
+        List<string> parts,
+        string label,
+        int? value
+    )
     {
-        switch (value)
-        {
-            case byte byteValue:
-                result = byteValue;
-                return true;
-            case short shortValue:
-                result = shortValue;
-                return true;
-            case int intValue:
-                result = intValue;
-                return true;
-            case long longValue when longValue >= int.MinValue && longValue <= int.MaxValue:
-                result = (int)longValue;
-                return true;
-            case float floatValue when floatValue >= int.MinValue && floatValue <= int.MaxValue:
-                result = (int)floatValue;
-                return true;
-            case double doubleValue when doubleValue >= int.MinValue && doubleValue <= int.MaxValue:
-                result = (int)doubleValue;
-                return true;
-            default:
-                result = 0;
-                return false;
-        }
+        if (value.HasValue)
+            parts.Add($"{label}→{value.Value}");
     }
 
     private List<string> _build_profession_detail_lines(UnitProgress progression)

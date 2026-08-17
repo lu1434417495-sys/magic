@@ -27,6 +27,9 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         TestStrictDictionaryAndPackedValueRejection();
         TestSyntheticIllegalObjectAndCycleRejection();
         TestResourceDefaultsAreEffectiveWithoutWritingBack();
+        TestResourceLevelOverrideProjectionRules();
+        TestResourceDescriptionVariablesRequireStrings();
+        TestFormalFlawReadOverrideMigrationPreservesEffectiveBehavior();
         TestFingerprintAndLevelDescriptionRemainStable();
 
         RequestTestExit(_test.Finish("Skill definition plain value graph regression"));
@@ -190,14 +193,23 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             ["number"] = 4,
             ["nested"] = nestedList,
         };
-        var levelSource = new Dictionary<int, IReadOnlyDictionary<string, object>>
+        var descriptionSource = new Dictionary<string, string>
         {
-            [1] = valueSource,
+            ["number"] = "4",
+            ["text"] = "original",
+        };
+        var descriptionLevels = new Dictionary<int, SkillDescriptionVariables>
+        {
+            [1] = new SkillDescriptionVariables(descriptionSource),
+        };
+        var levelOverrides = new Dictionary<int, CombatSkillLevelOverrideImportModel>
+        {
+            [1] = new CombatSkillLevelOverrideImportModel(apCost: 4),
         };
 
         SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
             "plain_graph_skill",
-            levelDescriptionConfigs: levelSource
+            levelDescriptionConfigs: descriptionLevels
         );
         ContingencyAutomationDefinition contingency =
             TestSkillDefinitionProjection.BuildContingencyAutomation(
@@ -205,7 +217,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             );
         CombatSkillDefinition combat = TestSkillDefinitionProjection.BuildCombatProfile(
             "plain_graph_skill",
-            levelOverrides: levelSource
+            levelOverrides: levelOverrides
         );
         CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
             "status",
@@ -221,11 +233,21 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         valueSource["number"] = 99;
         nestedList[0] = 88;
         ((Dictionary<string, object>)nestedList[1])["inner"] = "changed";
-        levelSource[1] = new Dictionary<string, object> { ["number"] = -1 };
+        descriptionSource["number"] = "99";
+        descriptionLevels[1] = new SkillDescriptionVariables();
+        levelOverrides[1] = new CombatSkillLevelOverrideImportModel(apCost: 99);
 
-        AssertFrozenGraph(skill.LevelDescriptionConfigs[1], "SkillDefinition");
+        _test.Eq(
+            skill.LevelDescriptionConfigs[1]["number"],
+            "4",
+            "SkillDefinition should defensively copy typed description variables."
+        );
         AssertFrozenGraph(contingency.AllowedParameterBindings, "ContingencyAutomationDefinition");
-        AssertFrozenGraph(combat.LevelOverrides[1], "CombatSkillDefinition");
+        _test.Eq(
+            combat.LevelOverrides[1].ApCost ?? -1,
+            4,
+            "CombatSkillDefinition should freeze the typed level override map."
+        );
         AssertFrozenGraph(effect.Parameters, "CombatEffectDefinition");
         AssertFrozenGraph(castVariant.Parameters, "CombatCastVariantDefinition");
 
@@ -480,18 +502,270 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         }
     }
 
+    private void TestResourceLevelOverrideProjectionRules()
+    {
+        using (
+            var resetScope = new NativeLeaseScope(
+                "skill-level-override-reset",
+                LifetimeDomain.Request
+            )
+        )
+        {
+            GDictionary levelOne = resetScope.Own(
+                new GDictionary
+                {
+                    ["attack_resolution_mode"] = "direct_effect",
+                    ["attack_defense_mode"] = "flat_footed",
+                },
+                "skill-level-override-reset-one"
+            );
+            GDictionary levelTwo = resetScope.Own(
+                new GDictionary
+                {
+                    ["attack_resolution_mode"] = "",
+                    ["attack_defense_mode"] = "",
+                },
+                "skill-level-override-reset-two"
+            );
+            GDictionary overrides = resetScope.Own(
+                new GDictionary { [1] = levelOne, [2] = levelTwo },
+                "skill-level-override-reset-map"
+            );
+            CombatSkillDef combatResource = resetScope.Own(
+                new CombatSkillDef
+                {
+                    skill_id = "level_override_reset",
+                    attack_resolution_mode = "fate_attack",
+                    attack_defense_mode = "touch",
+                    level_overrides = overrides,
+                },
+                "skill-level-override-reset-combat"
+            );
+            SkillDef skillResource = resetScope.Own(
+                new SkillDef
+                {
+                    skill_id = "level_override_reset",
+                    combat_profile = combatResource,
+                },
+                "skill-level-override-reset-skill"
+            );
+
+            CombatSkillDefinition combat = SkillDefinition.FromResource(skillResource).CombatProfile;
+            _test.Eq(
+                combat.GetEffectiveAttackResolutionMode(0),
+                CombatSkillAttackResolutionMode.FateAttack,
+                "Before the first override, attack resolution should use the authored base mode."
+            );
+            _test.Eq(
+                combat.GetEffectiveAttackDefenseMode(0),
+                CombatSkillAttackDefenseMode.Touch,
+                "Before the first override, attack defense should use the authored base mode."
+            );
+            _test.Eq(
+                combat.GetEffectiveAttackResolutionMode(1),
+                CombatSkillAttackResolutionMode.DirectEffect,
+                "A present non-empty attack resolution override should apply at its level."
+            );
+            _test.Eq(
+                combat.GetEffectiveAttackDefenseMode(1),
+                CombatSkillAttackDefenseMode.FlatFooted,
+                "A present non-empty attack defense override should apply at its level."
+            );
+            _test.Eq(
+                combat.GetEffectiveAttackResolutionMode(2),
+                CombatSkillAttackResolutionMode.Auto,
+                "An explicit empty attack resolution override should reset to Auto."
+            );
+            _test.Eq(
+                combat.GetEffectiveAttackDefenseMode(2),
+                CombatSkillAttackDefenseMode.Normal,
+                "An explicit empty attack defense override should reset to Normal."
+            );
+            _test.Eq(
+                combat.GetEffectiveAttackResolutionMode(3),
+                CombatSkillAttackResolutionMode.Auto,
+                "The explicit attack resolution reset should remain present at later levels."
+            );
+            _test.Eq(
+                combat.GetEffectiveAttackDefenseMode(3),
+                CombatSkillAttackDefenseMode.Normal,
+                "The explicit attack defense reset should remain present at later levels."
+            );
+        }
+
+        AssertInvalidLevelOverrideProjection(
+            "unknown_override_field",
+            1,
+            "future_field",
+            1,
+            "skill.unknown_override_field.combat_profile.level_overrides[1].future_field",
+            "Unknown Resource level override fields must fail closed."
+        );
+        AssertInvalidLevelOverrideProjection(
+            "overflow_override_value",
+            1,
+            "ap_cost",
+            (long)int.MaxValue + 1L,
+            "skill.overflow_override_value.combat_profile.level_overrides[1].ap_cost",
+            "Resource level override integers outside Int32 must fail explicitly."
+        );
+        AssertInvalidLevelOverrideProjection(
+            "overflow_override_level",
+            (long)int.MaxValue + 1L,
+            "ap_cost",
+            1,
+            "skill.overflow_override_level.combat_profile.level_overrides",
+            "Resource level keys outside Int32 must fail explicitly."
+        );
+    }
+
+    private void AssertInvalidLevelOverrideProjection(
+        string skillId,
+        Variant level,
+        string field,
+        Variant value,
+        string expectedPath,
+        string message
+    )
+    {
+        using var scope = new NativeLeaseScope(
+            $"skill-level-override-invalid-{skillId}",
+            LifetimeDomain.Request
+        );
+        GDictionary levelOverride = scope.Own(
+            new GDictionary { [field] = value },
+            $"skill-level-override-invalid-{skillId}-entry"
+        );
+        GDictionary overrides = scope.Own(
+            new GDictionary { [level] = levelOverride },
+            $"skill-level-override-invalid-{skillId}-map"
+        );
+        CombatSkillDef combatResource = scope.Own(
+            new CombatSkillDef { skill_id = skillId, level_overrides = overrides },
+            $"skill-level-override-invalid-{skillId}-combat"
+        );
+        SkillDef skillResource = scope.Own(
+            new SkillDef { skill_id = skillId, combat_profile = combatResource },
+            $"skill-level-override-invalid-{skillId}-skill"
+        );
+        AssertInvalidDataPath(
+            () => SkillDefinition.FromResource(skillResource),
+            expectedPath,
+            message
+        );
+    }
+
+    private void TestResourceDescriptionVariablesRequireStrings()
+    {
+        AssertInvalidDescriptionVariable(
+            "description_string_name",
+            Variant.From(new StringName("named_value")),
+            "StringName"
+        );
+        AssertInvalidDescriptionVariable("description_int", Variant.From(4), "Int");
+        AssertInvalidDescriptionVariable("description_float", Variant.From(4.5), "Float");
+        AssertInvalidDescriptionVariable("description_bool", Variant.From(true), "Bool");
+    }
+
+    private void AssertInvalidDescriptionVariable(
+        string skillId,
+        Variant value,
+        string typeLabel
+    )
+    {
+        using var scope = new NativeLeaseScope(
+            $"skill-description-variable-{skillId}",
+            LifetimeDomain.Request
+        );
+        GDictionary config = scope.Own(
+            new GDictionary { ["power"] = value },
+            $"skill-description-variable-{skillId}-config"
+        );
+        GDictionary configs = scope.Own(
+            new GDictionary { ["0"] = config },
+            $"skill-description-variable-{skillId}-configs"
+        );
+        SkillDef skillResource = scope.Own(
+            new SkillDef
+            {
+                skill_id = skillId,
+                level_description_configs = configs,
+            },
+            $"skill-description-variable-{skillId}-skill"
+        );
+        AssertInvalidDataPath(
+            () => SkillDefinition.FromResource(skillResource),
+            $"skill.{skillId}.level_description_configs.0.power",
+            $"Resource description variable {typeLabel} values must be rejected."
+        );
+    }
+
+    private void TestFormalFlawReadOverrideMigrationPreservesEffectiveBehavior()
+    {
+        using var loader = new TestContentResourceLoader();
+        SkillDef resource = loader.LoadCanonical<SkillDef>(
+            "res://data/configs/skills/warrior_flaw_read.tres"
+        );
+        SkillDefinition skill = SkillDefinition.FromResource(resource);
+        CombatSkillDefinition combat = skill.CombatProfile;
+
+        _test.True(combat != null, "Flaw Read should retain its combat profile.");
+        if (combat == null)
+            return;
+        _test.True(
+            combat.LevelOverrides.Keys.SequenceEqual(new[] { 3 }),
+            "Flaw Read should retain only its supported stamina override."
+        );
+        _test.Eq(
+            combat.GetEffectiveResourceCostValues(2).StaminaCost,
+            22,
+            "Flaw Read should retain its base stamina cost before level 3."
+        );
+        _test.Eq(
+            combat.GetEffectiveResourceCostValues(3).StaminaCost,
+            16,
+            "Flaw Read should apply its supported stamina override at level 3."
+        );
+        _test.Eq(
+            combat.GetEffectiveResourceCostValues(4).StaminaCost,
+            16,
+            "Removing inert level-4 fields must not change the carried stamina override."
+        );
+        _test.Eq(
+            combat.EffectDefinitions.Count,
+            1,
+            "Flaw Read should retain its authored status effect."
+        );
+        if (combat.EffectDefinitions.Count == 1)
+        {
+            _test.Eq(
+                combat.EffectDefinitions[0].StatusId,
+                new StringName("hex_of_frailty"),
+                "Flaw Read should retain the status ID authored on the effect itself."
+            );
+            _test.Eq(
+                combat.EffectDefinitions[0].Power,
+                0,
+                "Removing the never-consumed power override must preserve effective effect power."
+            );
+        }
+    }
+
     private void TestFingerprintAndLevelDescriptionRemainStable()
     {
-        var config = new Dictionary<string, object>
+        var config = new Dictionary<string, string>
         {
-            ["power"] = 4,
-            ["status"] = new StringName("burning"),
+            ["power"] = "4",
+            ["status"] = "burning",
         };
         SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
             "plain_graph_description",
             levelDescriptionTemplate: "伤害{power}，状态{status}",
             levelDescriptionConfigs:
-                new Dictionary<int, IReadOnlyDictionary<string, object>> { [0] = config }
+                new Dictionary<int, SkillDescriptionVariables>
+                {
+                    [0] = new SkillDescriptionVariables(config),
+                }
         );
 
         string fingerprintBefore = BuildFingerprint(skill.LevelDescriptionConfigs[0]);
@@ -505,8 +779,8 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             );
         }
 
-        config["power"] = 99;
-        config["status"] = new StringName("changed");
+        config["power"] = "99";
+        config["status"] = "changed";
 
         string fingerprintAfter = BuildFingerprint(skill.LevelDescriptionConfigs[0]);
         string descriptionAfter;
@@ -624,6 +898,21 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
                 {
                     builder.Append(key).Append(':');
                     AppendFingerprint(builder, dictionary[key]);
+                    builder.Append(';');
+                }
+                builder.Append('}');
+                return;
+            case IReadOnlyDictionary<string, string> stringDictionary:
+                builder.Append('{');
+                foreach (
+                    string key in stringDictionary.Keys.OrderBy(
+                        key => key,
+                        StringComparer.Ordinal
+                    )
+                )
+                {
+                    builder.Append(key).Append(':');
+                    AppendFingerprint(builder, stringDictionary[key]);
                     builder.Append(';');
                 }
                 builder.Append('}');

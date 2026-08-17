@@ -2340,12 +2340,11 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 maxHitsPerTarget: 1,
                 randomChainContinueOnMiss: true,
                 deliveryCategories: new[] { new StringName("spell") },
-                levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, object>>
+                levelOverrides: new Dictionary<int, CombatSkillLevelOverrideImportModel>
                 {
-                    [1] = new Dictionary<string, object>
-                    {
-                        ["random_chain_attack_count"] = 1,
-                    },
+                    [1] = new CombatSkillLevelOverrideImportModel(
+                        randomChainAttackCount: 1
+                    ),
                 }
             )
         );

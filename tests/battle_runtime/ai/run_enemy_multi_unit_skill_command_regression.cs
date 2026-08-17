@@ -777,7 +777,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             "",
             Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             new CombatSkillDefinition(
                 skillId,
                 "unit",
@@ -798,7 +798,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
                 0,
                 "",
                 0,
-                new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+                new Dictionary<int, CombatSkillLevelOverrideImportModel>(),
                 "",
                 "",
                 "",

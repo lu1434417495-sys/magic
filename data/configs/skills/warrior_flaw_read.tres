@@ -24,9 +24,6 @@ attack_roll_bonus = 0
 level_overrides = {
 	3: {
 		"stamina_cost": 16
-	},
-	4: {
-		"power": 2, "status_id": "hex_of_frailty"
 	}
 }
 mastery_trigger_mode = &"skill_damage_dice_max"

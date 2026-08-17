@@ -161,7 +161,7 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
     }

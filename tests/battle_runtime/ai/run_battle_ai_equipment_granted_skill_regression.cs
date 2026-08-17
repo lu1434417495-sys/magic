@@ -484,9 +484,9 @@ public partial class run_battle_ai_equipment_granted_skill_regression : Lifecycl
                 targetTeamFilter: "enemy",
                 rangePattern: "fixed",
                 rangeValue: 4,
-                levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, object>>
+                levelOverrides: new Dictionary<int, CombatSkillLevelOverrideImportModel>
                 {
-                    [2] = new Dictionary<string, object> { ["range_value"] = 5 },
+                    [2] = new CombatSkillLevelOverrideImportModel(rangeValue: 5),
                 }
             )
         );

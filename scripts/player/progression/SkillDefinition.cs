@@ -37,10 +37,8 @@ public sealed class SkillDefinition
         System.Array.Empty<AttributeModifierDefinition>();
     private static readonly IReadOnlyDictionary<StringName, int> EmptyStringNameIntMap =
         new ReadOnlyDictionary<StringName, int>(new Dictionary<StringName, int>());
-    private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> EmptyLevelDescriptionConfigs =
-        new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(
-            new Dictionary<int, IReadOnlyDictionary<string, object>>()
-        );
+    private static readonly IReadOnlyDictionary<int, SkillDescriptionVariables> EmptyLevelDescriptionConfigs =
+        SkillTypedLevelValueMaps.Freeze<SkillDescriptionVariables>(null);
 
     public SkillDefinition(
         StringName skillId,
@@ -71,7 +69,7 @@ public sealed class SkillDefinition
         StringName practiceTier,
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers,
         string levelDescriptionTemplate,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs,
+        IReadOnlyDictionary<int, SkillDescriptionVariables> levelDescriptionConfigs,
         CombatSkillDefinition combatProfile,
         ContingencyAutomationDefinition contingencyAutomationProfile = null
     )
@@ -116,10 +114,7 @@ public sealed class SkillDefinition
         PracticeTier = practiceTier;
         AttributeModifiers = SkillDefinitionCollectionFreeze.List(attributeModifiers);
         LevelDescriptionTemplate = levelDescriptionTemplate ?? "";
-        LevelDescriptionConfigs = FreezeLevelValueMap(
-            levelDescriptionConfigs,
-            "SkillDefinition.LevelDescriptionConfigs"
-        );
+        LevelDescriptionConfigs = SkillTypedLevelValueMaps.Freeze(levelDescriptionConfigs);
         CombatProfile = combatProfile;
         ContingencyAutomationProfile = contingencyAutomationProfile;
     }
@@ -152,7 +147,7 @@ public sealed class SkillDefinition
     public StringName PracticeTier { get; }
     public IReadOnlyList<AttributeModifierDefinition> AttributeModifiers { get; }
     public string LevelDescriptionTemplate { get; }
-    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> LevelDescriptionConfigs { get; }
+    public IReadOnlyDictionary<int, SkillDescriptionVariables> LevelDescriptionConfigs { get; }
     public CombatSkillDefinition CombatProfile { get; }
     public ContingencyAutomationDefinition ContingencyAutomationProfile { get; }
     internal SkillTypeKind SkillTypeKind => SkillContentRules.ToSkillType(SkillType);
@@ -269,7 +264,7 @@ public sealed class SkillDefinition
             ProjectAttributeModifiers(source.AttributeModifiersTyped),
             source.level_description_template,
             ProjectLevelDescriptionConfigs(
-                source.LevelDescriptionConfigsProjectionBorrowed,
+                source.LevelDescriptionConfigEntriesTyped,
                 $"{skillPath}.level_description_configs"
             ),
             CombatSkillDefinition.FromResource(
@@ -345,69 +340,57 @@ public sealed class SkillDefinition
             : EmptyAttributeModifiers;
     }
 
-    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> ProjectLevelDescriptionConfigs(
-        Godot.Collections.Dictionary source,
+    private static IReadOnlyDictionary<int, SkillDescriptionVariables> ProjectLevelDescriptionConfigs(
+        IReadOnlyList<SkillDef.LevelDescriptionConfigEntryData> source,
         string path
     )
     {
         if (source == null || source.Count == 0)
             return EmptyLevelDescriptionConfigs;
-        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>(source.Count);
-        int keyIndex = 0;
-        foreach (Variant rawKey in source.Keys)
+        var result = new SortedDictionary<int, SkillDescriptionVariables>();
+        foreach (SkillDef.LevelDescriptionConfigEntryData entry in source)
         {
-            if (rawKey.VariantType != Variant.Type.String)
-            {
+            if (!entry.KeyIsStrictString || !entry.HasParsedLevelKey)
                 throw new System.IO.InvalidDataException(
-                    $"Content dictionary at '{path}' requires string level keys; key[{keyIndex}] has {rawKey.VariantType}."
+                    $"Content dictionary key at '{path}.{entry.DisplayKey}' must be a canonical non-negative integer string."
                 );
-            }
-            string key = rawKey.AsString();
-            if (!int.TryParse(key, out int level))
-            {
+            int level = entry.Level;
+            if (level < 0)
                 throw new System.IO.InvalidDataException(
-                    $"Content dictionary key at '{path}.{key}' must be an integer level."
+                    $"Content dictionary key at '{path}.{level}' must be a non-negative level."
                 );
-            }
+            if (!entry.ValueIsDictionary)
+                throw new System.IO.InvalidDataException(
+                    $"Content value at '{path}.{level}' must be a Dictionary."
+                );
             if (result.ContainsKey(level))
-            {
                 throw new System.IO.InvalidDataException(
                     $"Content dictionary at '{path}' contains duplicate normalized level key '{level}'."
                 );
-            }
-            Variant rawValue = source[rawKey];
-            if (rawValue.VariantType != Variant.Type.Dictionary)
+            var variables = new SortedDictionary<string, string>(System.StringComparer.Ordinal);
+            if (entry.ConfigValues != null)
             {
-                throw new System.IO.InvalidDataException(
-                    $"Content value at '{path}.{key}' must be a Dictionary, got {rawValue.VariantType}."
-                );
+                foreach ((string key, Variant rawValue) in entry.ConfigValues)
+                    variables[key] = ProjectDescriptionVariable(
+                        rawValue,
+                        $"{path}.{level}.{key}"
+                    );
             }
-            using Godot.Collections.Dictionary config = rawValue.AsGodotDictionary();
-            result[level] = ContentValueNormalizer.NormalizeDictionary(
-                config,
-                $"{path}.{key}"
-            );
-            keyIndex++;
+            result.Add(level, new SkillDescriptionVariables(variables));
         }
-        return new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result);
+        return SkillTypedLevelValueMaps.Freeze(result);
     }
 
-    internal static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> FreezeLevelValueMap(
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> values,
+    private static string ProjectDescriptionVariable(
+        Variant value,
         string path
     )
     {
-        if (values == null || values.Count == 0)
-            return EmptyLevelDescriptionConfigs;
-        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>(values.Count);
-        foreach ((int level, IReadOnlyDictionary<string, object> config) in values)
-        {
-            result[level] = ContentValueNormalizer.NormalizeDictionary(
-                config,
-                $"{path}[{level}]"
-            );
-        }
-        return new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result);
+        if (value.VariantType == Variant.Type.String)
+            return value.AsString();
+        throw new System.IO.InvalidDataException(
+            $"Content description variable at '{path}' must be a string, got {value.VariantType}."
+        );
     }
 }
 
@@ -770,10 +753,8 @@ public sealed class CombatSkillDefinition
         System.Array.Empty<CombatEffectDefinition>();
     private static readonly IReadOnlyList<CombatCastVariantDefinition> EmptyCastVariants =
         System.Array.Empty<CombatCastVariantDefinition>();
-    private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> EmptyLevelOverrides =
-        new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(
-            new Dictionary<int, IReadOnlyDictionary<string, object>>()
-        );
+    private static readonly IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> EmptyLevelOverrides =
+        SkillTypedLevelValueMaps.Freeze<CombatSkillLevelOverrideImportModel>(null);
 
     public CombatSkillDefinition(
         StringName skillId,
@@ -795,7 +776,7 @@ public sealed class CombatSkillDefinition
         int attackRollBonus,
         StringName attackResolutionMode,
         int auraCost,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides,
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> levelOverrides,
         StringName masteryTriggerMode,
         StringName masteryAmountMode,
         StringName spellFateMode,
@@ -979,7 +960,7 @@ public sealed class CombatSkillDefinition
     public CombatLineThroughAttackDefinition LineThroughAttack { get; }
     public CombatSequentialLineHitDefinition SequentialLineHit { get; }
     public int AuraCost { get; }
-    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> LevelOverrides { get; }
+    public IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> LevelOverrides { get; }
     public StringName MasteryTriggerMode { get; }
     public StringName MasteryAmountMode { get; }
     public int MasteryBaseAmount { get; }
@@ -1041,23 +1022,33 @@ public sealed class CombatSkillDefinition
         CombatSkillContentRules.ToAttackResolutionMode(AttackResolutionMode);
     internal CombatSkillAttackResolutionMode GetEffectiveAttackResolutionMode(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
-        return overrides != null
-            && overrides.TryGetValue("attack_resolution_mode", out object rawValue)
-            && TryReadStringName(rawValue, out StringName value)
-            ? CombatSkillContentRules.ToAttackResolutionMode(value)
-            : AttackResolutionModeKind;
+        return BuildLevelOverride(skillLevel)?.AttackResolutionMode switch
+        {
+            CombatSkillLevelOverrideAttackResolutionMode.Auto =>
+                CombatSkillAttackResolutionMode.Auto,
+            CombatSkillLevelOverrideAttackResolutionMode.DirectEffect =>
+                CombatSkillAttackResolutionMode.DirectEffect,
+            CombatSkillLevelOverrideAttackResolutionMode.FateAttack =>
+                CombatSkillAttackResolutionMode.FateAttack,
+            CombatSkillLevelOverrideAttackResolutionMode.ForceHitNoCrit =>
+                CombatSkillAttackResolutionMode.ForceHitNoCrit,
+            _ => AttackResolutionModeKind,
+        };
     }
     internal CombatSkillAttackDefenseMode AttackDefenseModeKind =>
         CombatSkillContentRules.ToAttackDefenseMode(AttackDefenseMode);
     internal CombatSkillAttackDefenseMode GetEffectiveAttackDefenseMode(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
-        return overrides != null
-            && overrides.TryGetValue("attack_defense_mode", out object rawValue)
-            && TryReadStringName(rawValue, out StringName value)
-            ? CombatSkillContentRules.ToAttackDefenseMode(value)
-            : AttackDefenseModeKind;
+        return BuildLevelOverride(skillLevel)?.AttackDefenseMode switch
+        {
+            CombatSkillLevelOverrideAttackDefenseMode.Normal =>
+                CombatSkillAttackDefenseMode.Normal,
+            CombatSkillLevelOverrideAttackDefenseMode.Touch =>
+                CombatSkillAttackDefenseMode.Touch,
+            CombatSkillLevelOverrideAttackDefenseMode.FlatFooted =>
+                CombatSkillAttackDefenseMode.FlatFooted,
+            _ => AttackDefenseModeKind,
+        };
     }
     internal CombatProjectileKind ProjectileKindTyped =>
         CombatProjectileContentRules.ToProjectileKind(ProjectileKind);
@@ -1072,85 +1063,52 @@ public sealed class CombatSkillDefinition
 
     public CombatSkillResourceCosts GetEffectiveResourceCostValues(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
+        CombatSkillLevelOverrideImportModel overrides = BuildLevelOverride(skillLevel);
         return new CombatSkillResourceCosts(
-            TryReadIntOverride(overrides, "ap_cost", out int effectiveApCost)
-                ? effectiveApCost
-                : ApCost,
-            TryReadIntOverride(overrides, "mp_cost", out int effectiveMpCost)
-                ? effectiveMpCost
-                : MpCost,
-            TryReadIntOverride(overrides, "stamina_cost", out int effectiveStaminaCost)
-                ? effectiveStaminaCost
-                : StaminaCost,
-            TryReadIntOverride(overrides, "aura_cost", out int effectiveAuraCost)
-                ? effectiveAuraCost
-                : AuraCost,
-            TryReadIntOverride(overrides, "cooldown_tu", out int effectiveCooldownTu)
-                ? effectiveCooldownTu
-                : CooldownTu
+            overrides?.ApCost ?? ApCost,
+            overrides?.MpCost ?? MpCost,
+            overrides?.StaminaCost ?? StaminaCost,
+            overrides?.AuraCost ?? AuraCost,
+            overrides?.CooldownTu ?? CooldownTu
         );
     }
 
     public int GetEffectiveMpCostPerTargetSlot(int skillLevel) =>
-        ReadIntOverride(
-            BuildLevelOverride(skillLevel),
-            "mp_cost_per_target_slot",
-            MpCostPerTargetSlot
-        );
+        BuildLevelOverride(skillLevel)?.MpCostPerTargetSlot ?? MpCostPerTargetSlot;
 
     public int GetEffectiveStaminaCostPerTargetSlot(int skillLevel) =>
-        ReadIntOverride(
-            BuildLevelOverride(skillLevel),
-            "stamina_cost_per_target_slot",
-            StaminaCostPerTargetSlot
-        );
+        BuildLevelOverride(skillLevel)?.StaminaCostPerTargetSlot ?? StaminaCostPerTargetSlot;
 
     public int GetEffectiveAttackRollBonus(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "attack_roll_bonus", AttackRollBonus);
+        BuildLevelOverride(skillLevel)?.AttackRollBonus ?? AttackRollBonus;
 
     public int GetEffectiveCastingTimeTu(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "casting_time_tu", CastingTimeTu);
+        BuildLevelOverride(skillLevel)?.CastingTimeTu ?? CastingTimeTu;
 
     public int GetEffectiveCastingMaintenanceDc(int skillLevel) =>
-        ReadIntOverride(
-            BuildLevelOverride(skillLevel),
-            "casting_maintenance_dc",
-            CastingMaintenanceDc
-        );
+        BuildLevelOverride(skillLevel)?.CastingMaintenanceDc ?? CastingMaintenanceDc;
 
     public int GetEffectiveCastingSpellControlDc(int skillLevel) =>
-        ReadIntOverride(
-            BuildLevelOverride(skillLevel),
-            "casting_spell_control_dc",
-            CastingSpellControlDc
-        );
+        BuildLevelOverride(skillLevel)?.CastingSpellControlDc ?? CastingSpellControlDc;
 
     public PendingCastBindingModeKind GetEffectivePendingCastBindingMode(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
-        return overrides != null
-            && overrides.TryGetValue("pending_cast_binding_mode", out object rawValue)
-            && TryReadStringName(rawValue, out StringName value)
-            ? BattleTypedNames.ToPendingCastBindingMode(value)
-            : PendingCastBindingModeKind;
+        return BuildLevelOverride(skillLevel)?.PendingCastBindingMode
+            ?? PendingCastBindingModeKind;
     }
 
     public StringName GetEffectiveAreaPattern(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
-        return overrides != null
-            && overrides.TryGetValue("area_pattern", out object rawValue)
-            && TryReadStringName(rawValue, out StringName value)
-            ? value
-            : AreaPattern;
+        CombatSkillLevelOverrideAreaPattern? areaPattern =
+            BuildLevelOverride(skillLevel)?.AreaPattern;
+        return areaPattern.HasValue ? ToAreaPatternName(areaPattern.Value) : AreaPattern;
     }
 
     public int GetEffectiveAreaValue(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "area_value", AreaValue);
+        BuildLevelOverride(skillLevel)?.AreaValue ?? AreaValue;
 
     public int GetEffectiveRangeValue(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "range_value", RangeValue);
+        BuildLevelOverride(skillLevel)?.RangeValue ?? RangeValue;
 
     public int GetEffectiveRangeValue(int skillLevel, int movePointCapacity)
     {
@@ -1162,14 +1120,10 @@ public sealed class CombatSkillDefinition
     }
 
     public int GetEffectiveMaxTargetCount(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "max_target_count", MaxTargetCount);
+        BuildLevelOverride(skillLevel)?.MaxTargetCount ?? MaxTargetCount;
 
     public int GetEffectiveRandomChainAttackCount(int skillLevel) =>
-        ReadIntOverride(
-            BuildLevelOverride(skillLevel),
-            "random_chain_attack_count",
-            RandomChainAttackCount
-        );
+        BuildLevelOverride(skillLevel)?.RandomChainAttackCount ?? RandomChainAttackCount;
 
     public bool HasCastingTime(int skillLevel) => GetEffectiveCastingTimeTu(skillLevel) > 0;
 
@@ -1475,69 +1429,33 @@ public sealed class CombatSkillDefinition
         );
     }
 
-    private IReadOnlyDictionary<string, object> BuildLevelOverride(int skillLevel)
+    private CombatSkillLevelOverrideImportModel BuildLevelOverride(int skillLevel)
     {
         if (LevelOverrides.Count == 0)
-            return ContentValueNormalizer.NormalizeDictionary(
-                (IReadOnlyDictionary<string, object>)null,
-                "CombatSkillDefinition.LevelOverrides"
-            );
-        var merged = new Dictionary<string, object>();
-        var eligible = new List<int>();
-        foreach (int level in LevelOverrides.Keys)
+            return null;
+        CombatSkillLevelOverrideImportModel merged = null;
+        foreach ((int level, CombatSkillLevelOverrideImportModel levelOverride) in LevelOverrides)
         {
-            if (level >= 0 && level <= skillLevel)
-                eligible.Add(level);
+            if (level < 0)
+                continue;
+            if (level > skillLevel)
+                break;
+            merged = merged == null ? levelOverride : merged.Overlay(levelOverride);
         }
-        eligible.Sort();
-        foreach (int level in eligible)
-        {
-            foreach ((string key, object value) in LevelOverrides[level])
-                merged[key] = value;
-        }
-        return new ReadOnlyDictionary<string, object>(merged);
+        return merged;
     }
 
-    private static int ReadIntOverride(
-        IReadOnlyDictionary<string, object> overrides,
-        string key,
-        int fallback
-    )
-    {
-        return TryReadIntOverride(overrides, key, out int value) ? value : fallback;
-    }
-
-    private static bool TryReadIntOverride(
-        IReadOnlyDictionary<string, object> overrides,
-        string key,
-        out int value
-    )
-    {
-        if (overrides != null && overrides.TryGetValue(key, out object rawValue))
-        {
-            if (TryReadIntValue(rawValue, out value))
-            {
-                return true;
-            }
-        }
-        value = 0;
-        return false;
-    }
-
-    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> ProjectLevelOverrides(
+    private static IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> ProjectLevelOverrides(
         Godot.Collections.Dictionary source,
         string path
     )
     {
         if (source == null || source.Count == 0)
             return EmptyLevelOverrides;
-        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>();
+        var result = new SortedDictionary<int, CombatSkillLevelOverrideImportModel>();
         foreach (Variant rawKey in source.Keys)
         {
-            if (!TryReadLevelKey(rawKey, out int level))
-                throw new System.IO.InvalidDataException(
-                    $"Content dictionary key at '{path}' must be an integral level, got {rawKey.VariantType}."
-                );
+            int level = ReadLevelKey(rawKey, path);
             Variant rawValue = source[rawKey];
             if (rawValue.VariantType != Variant.Type.Dictionary)
                 throw new System.IO.InvalidDataException(
@@ -1548,75 +1466,268 @@ public sealed class CombatSkillDefinition
                     $"Content dictionary at '{path}' contains duplicate normalized level key '{level}'."
                 );
             using Godot.Collections.Dictionary dictionary = rawValue.AsGodotDictionary();
-            result[level] = ContentValueNormalizer.NormalizeDictionary(
-                dictionary,
-                $"{path}[{level}]"
+            string levelPath = $"{path}[{level}]";
+            ValidateLevelOverrideFields(dictionary, levelPath);
+            result[level] = new CombatSkillLevelOverrideImportModel(
+                apCost: ReadOptionalInt(dictionary, "ap_cost", levelPath),
+                mpCost: ReadOptionalInt(dictionary, "mp_cost", levelPath),
+                staminaCost: ReadOptionalInt(dictionary, "stamina_cost", levelPath),
+                mpCostPerTargetSlot: ReadOptionalInt(
+                    dictionary,
+                    "mp_cost_per_target_slot",
+                    levelPath
+                ),
+                staminaCostPerTargetSlot: ReadOptionalInt(
+                    dictionary,
+                    "stamina_cost_per_target_slot",
+                    levelPath
+                ),
+                auraCost: ReadOptionalInt(dictionary, "aura_cost", levelPath),
+                cooldownTu: ReadOptionalInt(dictionary, "cooldown_tu", levelPath),
+                castingTimeTu: ReadOptionalInt(dictionary, "casting_time_tu", levelPath),
+                castingMaintenanceDc: ReadOptionalInt(
+                    dictionary,
+                    "casting_maintenance_dc",
+                    levelPath
+                ),
+                castingSpellControlDc: ReadOptionalInt(
+                    dictionary,
+                    "casting_spell_control_dc",
+                    levelPath
+                ),
+                pendingCastBindingMode: ReadPendingCastBindingMode(dictionary, levelPath),
+                attackRollBonus: ReadOptionalInt(
+                    dictionary,
+                    "attack_roll_bonus",
+                    levelPath
+                ),
+                attackResolutionMode: ReadAttackResolutionMode(dictionary, levelPath),
+                attackDefenseMode: ReadAttackDefenseMode(dictionary, levelPath),
+                areaValue: ReadOptionalInt(dictionary, "area_value", levelPath),
+                rangeValue: ReadOptionalInt(dictionary, "range_value", levelPath),
+                areaPattern: ReadAreaPattern(dictionary, levelPath),
+                maxTargetCount: ReadOptionalInt(dictionary, "max_target_count", levelPath),
+                randomChainAttackCount: ReadOptionalInt(
+                    dictionary,
+                    "random_chain_attack_count",
+                    levelPath
+                )
             );
         }
-        return result.Count > 0
-            ? new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result)
-            : EmptyLevelOverrides;
+        return result.Count > 0 ? SkillTypedLevelValueMaps.Freeze(result) : EmptyLevelOverrides;
     }
 
-    private static bool TryReadLevelKey(Variant rawKey, out int level)
+    private static int ReadLevelKey(Variant rawKey, string path)
     {
         if (rawKey.VariantType == Variant.Type.Int)
         {
-            level = rawKey.AsInt32();
-            return true;
+            long rawLevel = rawKey.AsInt64();
+            if (rawLevel < int.MinValue || rawLevel > int.MaxValue)
+                throw new System.IO.InvalidDataException(
+                    $"Content dictionary key at '{path}' must fit in an Int32, got {rawLevel}."
+                );
+            return (int)rawLevel;
         }
         if (rawKey.VariantType == Variant.Type.Float)
         {
             double rawLevel = rawKey.AsDouble();
-            int normalized = (int)System.Math.Floor(rawLevel);
-            if (Mathf.IsEqualApprox((float)rawLevel, normalized))
+            double floored = System.Math.Floor(rawLevel);
+            if (
+                floored >= int.MinValue
+                && floored <= int.MaxValue
+                && Mathf.IsEqualApprox((float)rawLevel, (float)floored)
+            )
             {
-                level = normalized;
-                return true;
+                return (int)floored;
             }
         }
-        level = 0;
-        return false;
+        throw new System.IO.InvalidDataException(
+            $"Content dictionary key at '{path}' must be an integral Int32 level, got {rawKey.VariantType}."
+        );
     }
 
-    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> FreezeLevelOverrides(
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> values
-    ) => SkillDefinition.FreezeLevelValueMap(values, "CombatSkillDefinition.LevelOverrides");
-
-    private static bool TryReadIntValue(object value, out int result)
+    private static void ValidateLevelOverrideFields(
+        Godot.Collections.Dictionary source,
+        string path
+    )
     {
-        if (value is long longValue && longValue >= int.MinValue && longValue <= int.MaxValue)
+        foreach (Variant rawKey in source.Keys)
         {
-            result = (int)longValue;
-            return true;
+            if (rawKey.VariantType != Variant.Type.String)
+                throw new System.IO.InvalidDataException(
+                    $"Content dictionary key at '{path}' must be a String, got {rawKey.VariantType}."
+                );
+            string key = rawKey.AsString();
+            if (!IsSupportedLevelOverrideField(key))
+                throw new System.IO.InvalidDataException(
+                    $"Content field at '{path}.{key}' is not a supported level override."
+                );
         }
-        if (
-            value is double doubleValue
-            && doubleValue >= int.MinValue
-            && doubleValue <= int.MaxValue
-        )
-        {
-            result = (int)doubleValue;
-            return true;
-        }
-        result = 0;
-        return false;
     }
 
-    private static bool TryReadStringName(object value, out StringName result)
+    private static bool IsSupportedLevelOverrideField(string key)
     {
-        if (value is StringName stringName)
+        return key switch
         {
-            result = stringName;
-            return true;
-        }
-        if (value is string text)
+            "ap_cost" or "mp_cost" or "stamina_cost"
+            or "mp_cost_per_target_slot" or "stamina_cost_per_target_slot"
+            or "aura_cost" or "cooldown_tu" or "casting_time_tu"
+            or "casting_maintenance_dc" or "casting_spell_control_dc"
+            or "pending_cast_binding_mode" or "attack_roll_bonus"
+            or "attack_resolution_mode" or "attack_defense_mode"
+            or "area_value" or "range_value" or "area_pattern"
+            or "max_target_count" or "random_chain_attack_count" => true,
+            _ => false,
+        };
+    }
+
+    private static IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> FreezeLevelOverrides(
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> values
+    ) => SkillTypedLevelValueMaps.Freeze(values);
+
+    private static int? ReadOptionalInt(
+        Godot.Collections.Dictionary source,
+        string key,
+        string path
+    )
+    {
+        if (!source.ContainsKey(key))
+            return null;
+        Variant value = source[key];
+        if (value.VariantType == Variant.Type.Int)
         {
-            result = new StringName(text);
-            return true;
+            long rawValue = value.AsInt64();
+            if (rawValue < int.MinValue || rawValue > int.MaxValue)
+                throw new System.IO.InvalidDataException(
+                    $"Content value at '{path}.{key}' must fit in an Int32, got {rawValue}."
+                );
+            return (int)rawValue;
         }
-        result = default;
-        return false;
+        throw new System.IO.InvalidDataException(
+            $"Content value at '{path}.{key}' must be an int, got {value.VariantType}."
+        );
+    }
+
+    private static bool TryReadOptionalName(
+        Godot.Collections.Dictionary source,
+        string key,
+        string path,
+        out string value
+    )
+    {
+        if (!source.ContainsKey(key))
+        {
+            value = "";
+            return false;
+        }
+        Variant rawValue = source[key];
+        value = rawValue.VariantType switch
+        {
+            Variant.Type.String => rawValue.AsString(),
+            Variant.Type.StringName => rawValue.AsStringName().ToString(),
+            _ => throw new System.IO.InvalidDataException(
+                $"Content value at '{path}.{key}' must be a string, got {rawValue.VariantType}."
+            ),
+        };
+        return true;
+    }
+
+    private static PendingCastBindingModeKind? ReadPendingCastBindingMode(
+        Godot.Collections.Dictionary source,
+        string path
+    )
+    {
+        if (!TryReadOptionalName(source, "pending_cast_binding_mode", path, out string value))
+            return null;
+        return value switch
+        {
+            "soft_anchor" => PendingCastBindingModeKind.SoftAnchor,
+            "hard_anchor" => PendingCastBindingModeKind.HardAnchor,
+            "ground_bind" => PendingCastBindingModeKind.GroundBind,
+            _ => throw UnsupportedOverrideValue(path, "pending_cast_binding_mode", value),
+        };
+    }
+
+    private static CombatSkillLevelOverrideAttackResolutionMode? ReadAttackResolutionMode(
+        Godot.Collections.Dictionary source,
+        string path
+    )
+    {
+        if (!TryReadOptionalName(source, "attack_resolution_mode", path, out string value))
+            return null;
+        return value switch
+        {
+            "" => CombatSkillLevelOverrideAttackResolutionMode.Auto,
+            "auto" => CombatSkillLevelOverrideAttackResolutionMode.Auto,
+            "direct_effect" => CombatSkillLevelOverrideAttackResolutionMode.DirectEffect,
+            "fate_attack" => CombatSkillLevelOverrideAttackResolutionMode.FateAttack,
+            "force_hit_no_crit" => CombatSkillLevelOverrideAttackResolutionMode.ForceHitNoCrit,
+            _ => throw UnsupportedOverrideValue(path, "attack_resolution_mode", value),
+        };
+    }
+
+    private static CombatSkillLevelOverrideAttackDefenseMode? ReadAttackDefenseMode(
+        Godot.Collections.Dictionary source,
+        string path
+    )
+    {
+        if (!TryReadOptionalName(source, "attack_defense_mode", path, out string value))
+            return null;
+        return value switch
+        {
+            "" => CombatSkillLevelOverrideAttackDefenseMode.Normal,
+            "normal" => CombatSkillLevelOverrideAttackDefenseMode.Normal,
+            "touch" => CombatSkillLevelOverrideAttackDefenseMode.Touch,
+            "flat_footed" => CombatSkillLevelOverrideAttackDefenseMode.FlatFooted,
+            _ => throw UnsupportedOverrideValue(path, "attack_defense_mode", value),
+        };
+    }
+
+    private static CombatSkillLevelOverrideAreaPattern? ReadAreaPattern(
+        Godot.Collections.Dictionary source,
+        string path
+    )
+    {
+        if (!TryReadOptionalName(source, "area_pattern", path, out string value))
+            return null;
+        return value switch
+        {
+            "single" => CombatSkillLevelOverrideAreaPattern.Single,
+            "self" => CombatSkillLevelOverrideAreaPattern.Self,
+            "diamond" => CombatSkillLevelOverrideAreaPattern.Diamond,
+            "square" => CombatSkillLevelOverrideAreaPattern.Square,
+            "radius" => CombatSkillLevelOverrideAreaPattern.Radius,
+            "cross" => CombatSkillLevelOverrideAreaPattern.Cross,
+            "line" => CombatSkillLevelOverrideAreaPattern.Line,
+            "cone" => CombatSkillLevelOverrideAreaPattern.Cone,
+            "narrow_cone" => CombatSkillLevelOverrideAreaPattern.NarrowCone,
+            "front_arc" => CombatSkillLevelOverrideAreaPattern.FrontArc,
+            _ => throw UnsupportedOverrideValue(path, "area_pattern", value),
+        };
+    }
+
+    private static System.IO.InvalidDataException UnsupportedOverrideValue(
+        string path,
+        string key,
+        string value
+    ) => new($"Content value at '{path}.{key}' is unsupported: '{value}'.");
+
+    private static StringName ToAreaPatternName(CombatSkillLevelOverrideAreaPattern value)
+    {
+        return value switch
+        {
+            CombatSkillLevelOverrideAreaPattern.Single => "single",
+            CombatSkillLevelOverrideAreaPattern.Self => "self",
+            CombatSkillLevelOverrideAreaPattern.Diamond => "diamond",
+            CombatSkillLevelOverrideAreaPattern.Square => "square",
+            CombatSkillLevelOverrideAreaPattern.Radius => "radius",
+            CombatSkillLevelOverrideAreaPattern.Cross => "cross",
+            CombatSkillLevelOverrideAreaPattern.Line => "line",
+            CombatSkillLevelOverrideAreaPattern.Cone => "cone",
+            CombatSkillLevelOverrideAreaPattern.NarrowCone => "narrow_cone",
+            CombatSkillLevelOverrideAreaPattern.FrontArc => "front_arc",
+            _ => "",
+        };
     }
 
     private static IReadOnlyList<int> CopyIntArray(int[] values)

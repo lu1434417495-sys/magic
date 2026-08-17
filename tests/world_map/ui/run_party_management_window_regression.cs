@@ -405,12 +405,13 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "消耗 {ap_cost} AP，最大 {dynamic_max_level}；{custom_text}",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>
+            new Dictionary<int, SkillDescriptionVariables>
             {
-                [1] = new Dictionary<string, object>
+                [1] = new SkillDescriptionVariables(
+                    new Dictionary<string, string>
                 {
                     ["custom_text"] = "快照文本",
-                },
+                }),
             },
             BuildWindowCombatDefinition(skillId)
         );
@@ -438,13 +439,9 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             0,
             "",
             0,
-            new Dictionary<int, IReadOnlyDictionary<string, object>>
+            new Dictionary<int, CombatSkillLevelOverrideImportModel>
             {
-                [2] = new Dictionary<string, object>
-                {
-                    ["ap_cost"] = 5,
-                    ["cooldown_tu"] = 20,
-                },
+                [2] = new CombatSkillLevelOverrideImportModel(apCost: 5, cooldownTu: 20),
             },
             "",
             "",

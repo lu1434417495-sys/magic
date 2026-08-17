@@ -525,7 +525,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null,
             automation
         );

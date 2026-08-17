@@ -783,15 +783,11 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         SkillDefinition snapshotSkill = TestSkillDefinitionProjection.BuildSkill(
             "snapshot_skill",
-            levelDescriptionConfigs: new Dictionary<
-                int,
-                IReadOnlyDictionary<string, object>
-            >
+            levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>
             {
-                [1] = new Dictionary<string, object>
-                {
-                    ["variant_probe"] = "plain-boundary",
-                },
+                [1] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["variant_probe"] = "plain-boundary" }
+                ),
             }
         );
         fixture.Context.SetSkillDefinitions(

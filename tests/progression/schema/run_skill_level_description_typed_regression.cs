@@ -255,7 +255,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
     private static SkillDefinition BuildSkillDefinition(
         StringName skillId,
         string levelDescriptionTemplate,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs = null,
+        IReadOnlyDictionary<int, SkillDescriptionVariables> levelDescriptionConfigs = null,
         CombatSkillDefinition combatProfile = null
     )
     {
@@ -289,7 +289,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
             attributeModifiers: System.Array.Empty<AttributeModifierDefinition>(),
             levelDescriptionTemplate: levelDescriptionTemplate,
             levelDescriptionConfigs: levelDescriptionConfigs
-                ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+                ?? new Dictionary<int, SkillDescriptionVariables>(),
             combatProfile: combatProfile
         );
     }
@@ -319,7 +319,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
             attackRollBonus: 0,
             attackResolutionMode: "",
             auraCost: 0,
-            levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            levelOverrides: new Dictionary<int, CombatSkillLevelOverrideImportModel>(),
             masteryTriggerMode: "",
             masteryAmountMode: "",
             spellFateMode: "",

@@ -196,7 +196,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
         return result;

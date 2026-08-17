@@ -267,7 +267,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
     }

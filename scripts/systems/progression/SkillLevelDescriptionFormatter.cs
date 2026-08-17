@@ -123,6 +123,22 @@ public static class SkillLevelDescriptionFormatter
         }
     }
 
+    private static void MergePlainMap(
+        Dictionary<string, object> target,
+        SkillDescriptionVariables source,
+        bool overwrite
+    )
+    {
+        if (source == null)
+            return;
+        foreach ((string key, string value) in source)
+        {
+            if (!overwrite && target.ContainsKey(key))
+                continue;
+            target[key] = value;
+        }
+    }
+
     private static bool _is_optional_value_visible(Dictionary<string, object> config, string key)
     {
         object value = config[key];

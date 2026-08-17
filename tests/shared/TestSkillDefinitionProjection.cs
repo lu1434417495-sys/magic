@@ -49,7 +49,7 @@ internal static class TestSkillDefinitionProjection
         StringName practiceTier = default,
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers = null,
         string levelDescriptionTemplate = "",
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs = null,
+        IReadOnlyDictionary<int, SkillDescriptionVariables> levelDescriptionConfigs = null,
         ContingencyAutomationDefinition contingencyAutomationProfile = null
     )
     {
@@ -84,7 +84,7 @@ internal static class TestSkillDefinitionProjection
                 ?? System.Array.Empty<AttributeModifierDefinition>(),
             levelDescriptionTemplate: levelDescriptionTemplate ?? "",
             levelDescriptionConfigs: levelDescriptionConfigs
-                ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+                ?? new Dictionary<int, SkillDescriptionVariables>(),
             combatProfile: combatProfile,
             contingencyAutomationProfile: contingencyAutomationProfile
         );
@@ -141,7 +141,7 @@ internal static class TestSkillDefinitionProjection
         IReadOnlyList<CombatCastVariantDefinition> castVariants = null,
         IReadOnlyList<StringName> requiredWeaponFamilies = null,
         IReadOnlyList<StringName> deliveryCategories = null,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides = null,
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> levelOverrides = null,
         StringName masteryTriggerMode = default,
         StringName masteryAmountMode = default,
         StringName projectileKind = default,
@@ -169,7 +169,8 @@ internal static class TestSkillDefinitionProjection
             attackRollBonus: attackRollBonus,
             attackResolutionMode: DefaultName(attackResolutionMode, ""),
             auraCost: auraCost,
-            levelOverrides: levelOverrides ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            levelOverrides: levelOverrides
+                ?? new Dictionary<int, CombatSkillLevelOverrideImportModel>(),
             masteryTriggerMode: masteryTriggerMode,
             masteryAmountMode: masteryAmountMode,
             spellFateMode: default,

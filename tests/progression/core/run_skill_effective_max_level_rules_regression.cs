@@ -153,7 +153,7 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
             practiceTier: "",
             attributeModifiers: System.Array.Empty<AttributeModifierDefinition>(),
             levelDescriptionTemplate: "",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>(),
             combatProfile: null
         );
     }

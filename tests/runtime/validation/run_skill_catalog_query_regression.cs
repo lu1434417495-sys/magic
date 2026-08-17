@@ -523,25 +523,24 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
 
     private static GameSession CreateSyntheticCatalogSession()
     {
-        var levelOverrides = new Dictionary<int, IReadOnlyDictionary<string, object>>
+        var levelOverrides = new Dictionary<int, CombatSkillLevelOverrideImportModel>
         {
-            [3] = new Dictionary<string, object>
-            {
-                ["ap_cost"] = 3,
-                ["mp_cost"] = 20,
-                ["stamina_cost"] = 6,
-                ["aura_cost"] = 7,
-                ["cooldown_tu"] = 40,
-                ["attack_roll_bonus"] = 4,
-                ["range_value"] = 5,
-                ["area_value"] = 2,
-                ["max_target_count"] = 4,
-                ["area_pattern"] = new StringName("radius"),
-                ["casting_time_tu"] = 7,
-                ["casting_maintenance_dc"] = 11,
-                ["casting_spell_control_dc"] = 13,
-                ["pending_cast_binding_mode"] = new StringName("ground_bind"),
-            },
+            [3] = new CombatSkillLevelOverrideImportModel(
+                apCost: 3,
+                mpCost: 20,
+                staminaCost: 6,
+                auraCost: 7,
+                cooldownTu: 40,
+                castingTimeTu: 7,
+                castingMaintenanceDc: 11,
+                castingSpellControlDc: 13,
+                pendingCastBindingMode: PendingCastBindingModeKind.GroundBind,
+                attackRollBonus: 4,
+                areaValue: 2,
+                rangeValue: 5,
+                areaPattern: CombatSkillLevelOverrideAreaPattern.Radius,
+                maxTargetCount: 4
+            ),
         };
         CombatSkillDefinition combatProfile = TestSkillDefinitionProjection.BuildCombatProfile(
             SyntheticSkillId,

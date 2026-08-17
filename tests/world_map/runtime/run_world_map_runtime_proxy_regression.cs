@@ -532,7 +532,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             "",
             Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
         return result;

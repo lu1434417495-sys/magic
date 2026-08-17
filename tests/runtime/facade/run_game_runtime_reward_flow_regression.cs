@@ -252,7 +252,7 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
     }
