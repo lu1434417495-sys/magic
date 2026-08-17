@@ -1644,17 +1644,6 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} combat_profile uses unsupported area_direction_mode {combatProfile.area_direction_mode}."
             );
-        if (
-            combatProfile.spell_critical_mp_refund_percent < 0
-            || combatProfile.spell_critical_mp_refund_percent > 100
-        )
-            errors.Add(
-                $"Skill {skillId} combat_profile spell_critical_mp_refund_percent must be between 0 and 100."
-            );
-        if (combatProfile.fumble_protection_extra_mp_percent < 0)
-            errors.Add(
-                $"Skill {skillId} combat_profile fumble_protection_extra_mp_percent must be >= 0."
-            );
         foreach (int protectionValue in combatProfile.fumble_protection_curve)
         {
             if (protectionValue < 0)
