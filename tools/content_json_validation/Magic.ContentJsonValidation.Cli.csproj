@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Linked T0.1-T0.4 sources predate project-wide nullable annotations. New CLI files opt in. -->
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>Magic.ContentJsonValidation.Cli</RootNamespace>
+    <AssemblyName>Magic.ContentJsonValidation.Cli</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="ContentJsonCliFileSystemSourceReader.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonDocumentContracts.cs" Link="Shared/ContentJsonDocumentContracts.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonDocumentLoader.cs" Link="Shared/ContentJsonDocumentLoader.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonTemplateMerger.cs" Link="Shared/ContentJsonTemplateMerger.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentImportBatch.cs" Link="Shared/ContentImportBatch.cs" />
+    <Compile Include="../../scripts/systems/content/json/JsonContentDomainDescriptor.cs" Link="Shared/JsonContentDomainDescriptor.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonStrictDtoParser.cs" Link="Shared/ContentJsonStrictDtoParser.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonOfflineValidation.cs" Link="Shared/ContentJsonOfflineValidation.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonSchemaContracts.cs" Link="Shared/ContentJsonSchemaContracts.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonSchemaSampleDomain.cs" Link="Shared/ContentJsonSchemaSampleDomain.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonOfflineValidationSampleDomain.cs" Link="Shared/ContentJsonOfflineValidationSampleDomain.cs" />
+  </ItemGroup>
+</Project>
