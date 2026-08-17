@@ -79,8 +79,7 @@ internal sealed class GearSetContentRegistry : IDisposable
 
     private void ScanDirectory(string directoryPath)
     {
-        string globalizedPath = ProjectSettings.GlobalizePath(directoryPath);
-        if (!DirAccess.DirExistsAbsolute(globalizedPath))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
             return;
 
         DirAccess directory = DirAccess.Open(directoryPath);

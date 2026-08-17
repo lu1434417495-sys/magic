@@ -63,7 +63,7 @@ internal class BattleSpecialProfileRegistry : IValidatableRegistry, System.IDisp
         );
         bool hasSpecialSkills = specialProfileIdBySkillId.Count > 0;
 
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(_manifestDirectory)))
+        if (!DirAccess.DirExistsAbsolute(_manifestDirectory))
         {
             if (hasSpecialSkills)
             {

@@ -70,7 +70,7 @@ public class BarrierContentRegistry : System.IDisposable
 
     private void _scan_directory(string directoryPath)
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
         {
             _validation_errors.Add($"BarrierContentRegistry could not find {directoryPath}.");
             return;

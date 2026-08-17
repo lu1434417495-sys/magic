@@ -112,7 +112,7 @@ public class ItemContentRegistry : System.IDisposable
 
     private void ScanTemplateDirectory(string directoryPath)
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
             return;
 
         DirAccess directory = DirAccess.Open(directoryPath);
@@ -213,7 +213,7 @@ public class ItemContentRegistry : System.IDisposable
 
     private void ScanDirectory(string directoryPath)
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
         {
             _validationErrors.Add($"ItemContentRegistry could not find {directoryPath}.");
             return;

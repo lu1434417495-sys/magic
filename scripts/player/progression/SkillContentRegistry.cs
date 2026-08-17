@@ -138,7 +138,7 @@ public class SkillContentRegistry : System.IDisposable
 
     private void ScanDirectory(string directoryPath)
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
         {
             _validationErrors.Add($"SkillContentRegistry could not find {directoryPath}.");
             return;

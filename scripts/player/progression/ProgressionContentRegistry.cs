@@ -666,8 +666,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private IReadOnlyList<EquipmentAbilityContentPackDef> LoadEquipmentAbilityContentPacks()
     {
         var packs = new List<EquipmentAbilityContentPackDef>();
-        string globalPath = ProjectSettings.GlobalizePath(EquipmentAbilityConfigDirectory);
-        if (!DirAccess.DirExistsAbsolute(globalPath))
+        if (!DirAccess.DirExistsAbsolute(EquipmentAbilityConfigDirectory))
             return packs;
 
         ScanEquipmentAbilityContentDirectory(EquipmentAbilityConfigDirectory, packs);

@@ -28,8 +28,7 @@ internal sealed class ContingencyTemplateContentRegistry
         _templateDefs.Clear();
         _validationErrors.Clear();
 
-        string globalPath = ProjectSettings.GlobalizePath(directoryPath);
-        if (!DirAccess.DirExistsAbsolute(globalPath))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
         {
             _validationErrors.Add(
                 $"ContingencyTemplateContentRegistry could not find {directoryPath}."

@@ -80,7 +80,7 @@ public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
 
     private void _scan_directory(string directoryPath)
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
         {
             _validation_errors.Add($"RecipeContentRegistry could not find {directoryPath}.");
             return;

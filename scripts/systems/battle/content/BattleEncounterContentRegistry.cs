@@ -596,8 +596,7 @@ internal sealed class BattleEncounterContentRegistry : IDisposable
 
     private void AppendCompletenessErrors()
     {
-        string absoluteDirectory = ProjectSettings.GlobalizePath(EncounterDirectory);
-        if (!DirAccess.DirExistsAbsolute(absoluteDirectory))
+        if (!DirAccess.DirExistsAbsolute(EncounterDirectory))
         {
             _validationErrors.Add(
                 $"Battle encounter content directory {EncounterDirectory} does not exist."

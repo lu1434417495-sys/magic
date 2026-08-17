@@ -114,7 +114,7 @@ public class ProfessionContentRegistry : System.IDisposable
 
     private void ScanDirectory(string directoryPath)
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
         {
             _validationErrors.Add($"ProfessionContentRegistry could not find {directoryPath}.");
             return;

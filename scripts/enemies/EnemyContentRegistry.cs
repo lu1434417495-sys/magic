@@ -311,7 +311,7 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         string seedColName
     )
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(dirPath)))
+        if (!DirAccess.DirExistsAbsolute(dirPath))
         {
             errors.Add($"Enemy content seed completeness could not find {dirPath}.");
             return;
@@ -369,7 +369,7 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         string scanLabel
     )
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(dirPath)))
+        if (!DirAccess.DirExistsAbsolute(dirPath))
         {
             _validation_errors.Add($"{scanLabel} could not find {dirPath}.");
             return;

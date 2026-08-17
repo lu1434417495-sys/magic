@@ -27,8 +27,7 @@ internal sealed class QuestContentRegistry
         _questDefs.Clear();
         _validationErrors.Clear();
 
-        string globalPath = ProjectSettings.GlobalizePath(directoryPath);
-        if (!DirAccess.DirExistsAbsolute(globalPath))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
         {
             _validationErrors.Add($"QuestContentRegistry could not find {directoryPath}.");
             return;

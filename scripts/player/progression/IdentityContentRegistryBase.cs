@@ -103,9 +103,7 @@ public class IdentityContentRegistryBase : System.IDisposable
 
     protected void _scan_directory(string directoryPath)
     {
-        var globalizedPath = ProjectSettings.GlobalizePath(directoryPath);
-
-        if (!DirAccess.DirExistsAbsolute(globalizedPath))
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
         {
             _validation_errors.Add($"{_registry_label} could not find {directoryPath}.");
 
