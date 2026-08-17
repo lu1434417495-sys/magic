@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/content/assets/EngineAssetCatalogDef.cs" id="1_catalog"]
+[ext_resource type="Script" path="res://scripts/systems/content/assets/EngineTextureAssetEntryDef.cs" id="2_texture"]
+[ext_resource type="Script" path="res://scripts/systems/content/assets/EngineSceneAssetEntryDef.cs" id="3_scene"]
+[ext_resource type="Script" path="res://scripts/systems/content/assets/EngineAudioAssetEntryDef.cs" id="4_audio"]
+[ext_resource type="Script" path="res://scripts/systems/content/assets/EngineShaderAssetEntryDef.cs" id="5_shader"]
+
+[sub_resource type="Resource" id="SceneEntry_missing"]
+script = ExtResource("3_scene")
+asset_id = &"test.missing_target"
+
+[resource]
+script = ExtResource("1_catalog")
+texture_assets = Array[ExtResource("2_texture")]([])
+scene_assets = Array[ExtResource("3_scene")]([SubResource("SceneEntry_missing")])
+audio_assets = Array[ExtResource("4_audio")]([])
+shader_assets = Array[ExtResource("5_shader")]([])

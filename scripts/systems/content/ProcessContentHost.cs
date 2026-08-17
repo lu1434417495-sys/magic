@@ -179,6 +179,7 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         if (!_acceptingLoads)
             throw new InvalidOperationException("Process content cannot build after quiescing begins.");
 
+        EngineAssetCatalogBootstrap.LoadAndPublish(EngineAssets);
         var baselinePaths = new HashSet<string>(_roots.Keys, StringComparer.Ordinal);
         long candidateEpoch = Interlocked.Read(ref _lastPublishedEpoch) + 1;
         return _publication.BuildAndSeal(
