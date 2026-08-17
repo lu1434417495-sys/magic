@@ -126,7 +126,9 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/content/IContentResourceLoader.cs`
   - `scripts/systems/content/EngineAssetResolver.cs`
   - `scripts/systems/content/assets/*.cs`
+  - `scripts/systems/content/json/*.cs`
   - `data/configs/engine_assets/*.tres`
+  - `data/schemas/content/*.schema.json`
   - `scripts/systems/content/GameRoot.cs`
   - `scripts/systems/content/GameContentCatalog.cs`
   - `scripts/systems/content/skills/*.cs`
@@ -718,6 +720,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-19 自动化回归与截图辅助
 
 - 文件：
+  - `magic.code-workspace`
   - `.github/workflows/ci.yml`
   - `tests/run_regression_suite.py`
   - `tests/tooling/test_run_regression_suite.py`
@@ -742,13 +745,16 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tests/progression/**/*`
   - `tests/runtime/**/*`
   - `tests/runtime/validation/run_engine_asset_catalog_regression.cs`
+  - `tests/runtime/validation/run_content_json_schema_export_regression.cs`
   - `tests/text_runtime/**/*`
   - `tests/world_map/**/*`
   - `scripts/dev_tools/*.cs`
+  - `scripts/tools/run_content_json_schema_export.cs`
   - `tools/*.py`
   - `tools/*.gd`
   - `tools/architecture/**`
 - 负责：headless 回归、application E2E、contract 验证、fixture、截图/签名辅助。
+- content JSON schema 作者工具边界：exporter 只反射代码侧 DTO metadata 与 closed-kind spec，生成每域受版本控制的 canonical schema；routine regression 对重新生成结果与 tracked schema 做 byte-exact check，`magic.code-workspace` 只通过 glob 关联内容文件与 schema。该工具不是 runtime JSON binder，也不拥有内容导入或业务校验。
 - application E2E 边界：`tests/e2e` 从 `project.godot` 的正式 main scene 启动，键盘/action 经 `Input.ParseInputEvent`、指针经 `Viewport.PushInput`，不直接调用 UI callback 或 gameplay command。`run_e2e_suite.py` 串行编排独立 Godot 进程，为每个 scenario group 创建隔离的 XDG/AppData；建档与冷启动加载只在同组共享该临时 `user://`。只有显式声明 seed 且通过隔离目录校验的 scenario 才能在 main scene 启动前启用 `TrueRandomSeedService` 的 internal 确定性测试流；该 seam 只固定随机序列，不注入命令或强制结果，未启用时 production 仍走无锁 crypto 路径。普通 `run_regression_suite.py` 明确排除 E2E，退出仍复用 `LifecycleTestSceneTree` 到 coordinator 的正式 shutdown pipeline。
 - 边界：`TestHarness.Finish(...)` 只冻结断言并生成 `TestResult`；C# runner 统一继承 `LifecycleTestSceneTree`，先由 `TestResourceOwnership.Close()` 关闭当前测试显式拥有的 authored/pathless fixture wrapper，再由 `TestExitCoordinator` 把结果提交给 `ApplicationLifetimeCoordinator`，owner teardown、production finalizer barrier 与最终退出均由同一 shutdown pipeline 负责。`TestExitCoordinator` 等待首个 process frame 或首次异步提交失败时，会把异常转换为 exit code `1` 的失败 `TestResult`；提交失败只经同一 coordinator 重试一次，不创建直接 `Quit` 或旁路 shutdown。`LifecycleMeasurementBarrier` 只服务同进程 soak 的周期量测，不替代 process shutdown barrier。外层 `run_regression_suite.py --lifecycle-correctness` 拥有 post-exit correctness 判定：保留调用者的发现、筛选、并发与超时设置，为每个子进程强制 strict/trace，并把 GodotSharp fatal marker 或 shutdown report 的非零 `legacy_debt` 独立于普通输出错误判为失败；unsafe/resource 输出保持可见，不设宽泛 shutdown-log 豁免。当前 `run_runtime_lifecycle_boundary_regression.cs` 只验证已加载 runtime service 的 typed CLR/Godot 边界、实际 autoload 与 process snapshot 绑定、lifecycle audit 计数，以及 Request/Battle/SceneTree projection lease/native scope 关闭后回到调用前活动向量；它不读取源码、workflow 或文件/token 清单，也不以测试 PASS 宣称全仓唯一调用者。原 cleanup 源码扫描 runner 已删除。确定性 lifecycle soak 单进程执行 110 周期，记录逐周期 owner/root/lease 完整向量、activity 增量与 managed/private memory 统计。CI 只运行一次 `--lifecycle-correctness` strict full suite。GodotSharp 生命周期或退出顺序改动必须同时读取 lifecycle architecture spec、`LifecycleTestSceneTree`、`TestExitCoordinator`、`LifecycleMeasurementBarrier`、runtime lifecycle 行为回归、runner tooling regression 与 CI 接线。fixture 只验证业务 runtime 时优先用 definition/CLR builder；需要验证 authored schema 时由 `TestResourceOwnership` 明确拥有 Resource；一般 path-backed fixture 经 `TestContentResourceLoader` 以 `CacheMode.IgnoreDeep` 加载并在 loader/registry 作用域关闭，world fixture 复用 `TestWorldGenerationDefinitionFactory`。正式 `SkillDef` fixture 经 `TestSkillDefinitionProjection` 以 `CacheMode.IgnoreDeep` 加载、登记 borrowed content 并立即投影为 `SkillDefinition`，不把 raw authored Resource 传入业务服务。
 - engine-asset catalog 回归边界：正式 bootstrap root 与测试 catalog fixture 都通过被测 `EngineAssetResolver` 以 `CacheMode.IgnoreDeep` 加载和锚定；fixture 必须实际反序列化四类 typed array，并在 resolver dispose 后恢复 process-root、violation 与 legacy-debt 基线。catalog 校验既覆盖拒绝 partial ID index，也覆盖 snapshot projection 失败不破坏已经完整发布且独立拥有的 engine-asset index。
