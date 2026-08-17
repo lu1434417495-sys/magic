@@ -400,6 +400,28 @@ JSON 绑定产生的是没有 `ResourcePath` 的 Resource 对象图，不能沿�
 - 旧 `.tres` 加载分支已从该域删除；
 - 未经用户确认没有新增兼容别名或 fallback。
 
+### 9.4 `.tres` 冷启动性能基线
+
+为判断 JSON 载入是否增加完整内容启动成本，迁移前必须保留同机、同入口的 `.tres` 对照。当前基线于 `2026-08-18` 记录。
+
+复现口径：
+
+- 测量机：AMD Ryzen 9 5950X（16 核 / 32 线程）、128 GiB 内存、Windows 10 19045；Godot `4.6.2.stable.mono`、.NET SDK `8.0.421`、默认 Debug 构建；
+- 源态：`HEAD 07c3bd37b8e2c991356b9771c57ee248a35084c1` 上当时的本地 dirty checkout；这是本机时点基线，不是 clean checkout、CI 或跨机器基准；
+- 入口：先执行 `dotnet build magic.csproj`，再以全新进程运行 `godot --headless -s res://tests/runtime/validation/run_non_ai_content_snapshot_regression.cs`；
+- 边界：环境变量门控的临时探针只包围 `ProcessContentHost.BuildAndSeal()`；wall time 使用 `Stopwatch.GetTimestamp()` / `Stopwatch.GetElapsedTime()`，托管分配分别使用 `GC.GetAllocatedBytesForCurrentThread()` 与 `GC.GetTotalAllocatedBytes(precise: true)` 的前后差值；不强制 GC，测量后撤销探针；
+- 采样：1 次方法校验 / 热身后采集 10 个新进程样本，全部纳入统计；聚合取中位数，min–max 只描述抖动，不人为剔除离群值。
+
+| 指标 | 10 次中位数 | min–max |
+|---|---:|---:|
+| `BuildAndSeal()` wall time | `3136.094 ms` | `3024.974–5480.996 ms` |
+| 当前线程托管分配 | `160,748,328 B`（`153.302 MiB`） | `160,710,712–160,803,968 B` |
+| 进程托管总分配 | `160,756,004 B`（`153.309 MiB`） | `160,736,896–160,805,528 B` |
+
+10 个正式样本均构建并发布完整 snapshot，报告 `1296` 个 canonical roots、snapshot epoch `1`，且 focused runner PASS。
+
+分配口径只覆盖 CLR 托管分配，不代表 Godot native allocation、峰值 working set 或完整进程启动内存。阶段 0 技能试点和后续各域复测必须保持同一机器、构建配置、入口、探针边界及聚合规则；只报告新中位数相对该 `.tres` 中位数的变化率 `(new - tres) / tres`。若内容数量或 `ContentSnapshotBuilder` 职责变化，应先重跑同源态 `.tres` 对照或明确归一化范围。
+
 ## 10. 分阶段实施
 
 ### 阶段 0：基础设施与高覆盖技能试点
