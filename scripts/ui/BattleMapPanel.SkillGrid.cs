@@ -290,7 +290,10 @@ public partial class BattleMapPanel
         string path = $"{SKILL_ICON_DIR}{icon_key}.png";
         Texture2D texture = null;
         if (ResourceLoader.Exists(path, "Texture2D"))
-            texture = EngineAssetAccess.ResolveBorrowed<Texture2D>(this, path);
+        {
+            texture = EngineAssetAccess
+                .ResolveAuthoredContentPathBorrowedDuringMigration<Texture2D>(this, path);
+        }
         _skill_icon_cache[icon_key] = texture;
         return texture;
     }
@@ -300,7 +303,7 @@ public partial class BattleMapPanel
         if (_skill_icon_grayscale_material?.Shader != null)
             return _skill_icon_grayscale_material;
         if (ResourceLoader.Exists(SKILL_ICON_GRAYSCALE_SHADER, "Shader")
-            && EngineAssetAccess.ResolveBorrowed<Shader>(
+            && EngineAssetAccess.ResolveCodeAssetBorrowed<Shader>(
                 this,
                 SKILL_ICON_GRAYSCALE_SHADER
             ) is Shader shader)

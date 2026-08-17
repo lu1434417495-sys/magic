@@ -619,7 +619,9 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         LifecycleAuditSnapshot prePanelBaseline =
             LifecycleAuditRegistry.Shared.CaptureSnapshot();
         const string panelScenePath = "res://scenes/ui/battle_map_panel.tscn";
-        PackedScene scene = EngineAssetAccess.ResolveBorrowed<PackedScene>(panelScenePath);
+        PackedScene scene = EngineAssetAccess.ResolveCodeAssetBorrowed<PackedScene>(
+            panelScenePath
+        );
         BattleMapPanel panel = scene.Instantiate<BattleMapPanel>();
         Root.AddChild(panel);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);

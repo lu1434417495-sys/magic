@@ -181,7 +181,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
     private async Task<PartyManagementWindow> CreatePartyWindow()
     {
         var window = EngineAssetAccess
-            .ResolveBorrowed<PackedScene>(PartyManagementWindowScenePath)
+            .ResolveCodeAssetBorrowed<PackedScene>(PartyManagementWindowScenePath)
             .Instantiate<PartyManagementWindow>();
         Root.AddChild(window);
         await ProcessFrames(1);
@@ -190,7 +190,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
 
     private async Task<ContingencySetupWindow> CreateContingencyWindow()
     {
-        PackedScene scene = EngineAssetAccess.ResolveBorrowed<PackedScene>(
+        PackedScene scene = EngineAssetAccess.ResolveCodeAssetBorrowed<PackedScene>(
             ContingencySetupWindowScenePath
         );
         _test.True(scene != null, "Contingency setup scene should exist.");

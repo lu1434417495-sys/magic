@@ -158,7 +158,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
                 "snapshot projection failure leaves the independently owned catalog index whole"
             );
             _test.True(
-                resolver.ResolveCatalogBorrowed<PackedScene>(ValidSceneId) != null,
+                resolver.ResolveContentAssetBorrowed<PackedScene>(ValidSceneId) != null,
                 "snapshot projection failure does not invalidate the published catalog lookup"
             );
         }
@@ -200,8 +200,8 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         _test.True(catalog.shader_assets != null, "typed shader array is deserialized");
         _test.Eq(resolver.PublishedAssetCount, 1, "valid catalog publishes one asset ID");
 
-        PackedScene first = resolver.ResolveCatalogBorrowed<PackedScene>(ValidSceneId);
-        PackedScene repeated = resolver.ResolveCatalogBorrowed<PackedScene>(ValidSceneId);
+        PackedScene first = resolver.ResolveContentAssetBorrowed<PackedScene>(ValidSceneId);
+        PackedScene repeated = resolver.ResolveContentAssetBorrowed<PackedScene>(ValidSceneId);
         _test.True(
             ReferenceEquals(first, repeated),
             "asset ID lookup returns the same borrowed typed Resource"
@@ -212,24 +212,24 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         );
         _test.True(
             Throws<InvalidOperationException>(() =>
-                resolver.ResolveCatalogBorrowed<Texture2D>(ValidSceneId)
+                resolver.ResolveContentAssetBorrowed<Texture2D>(ValidSceneId)
             ),
             "requesting a registered asset with the wrong Resource type is rejected"
         );
         _test.True(
             Throws<System.Collections.Generic.KeyNotFoundException>(() =>
-                resolver.ResolveCatalogBorrowed<PackedScene>("test.unknown")
+                resolver.ResolveContentAssetBorrowed<PackedScene>("test.unknown")
             ),
             "unknown asset IDs are rejected"
         );
         _test.True(
             Throws<ArgumentException>(() =>
-                resolver.ResolveCatalogBorrowed<PackedScene>(default)
+                resolver.ResolveContentAssetBorrowed<PackedScene>(default)
             ),
             "empty required asset IDs are rejected"
         );
         _test.True(
-            resolver.ResolveCatalogBorrowed<PackedScene>(default, optional: true) == null,
+            resolver.ResolveContentAssetBorrowed<PackedScene>(default, optional: true) == null,
             "empty asset IDs return null only through the explicit optional lookup"
         );
 
@@ -237,13 +237,13 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         _test.True(
             ReferenceEquals(
                 first,
-                resolver.ResolveCatalogBorrowed<PackedScene>(ValidSceneId)
+                resolver.ResolveContentAssetBorrowed<PackedScene>(ValidSceneId)
             ),
             "published asset ID lookup remains available after quiesce"
         );
         _test.True(
             Throws<InvalidOperationException>(() =>
-                resolver.ResolveBorrowed<PackedScene>(
+                resolver.ResolveCodeAssetBorrowed<PackedScene>(
                     "res://scenes/main/login_screen.tscn"
                 )
             ),
@@ -257,7 +257,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         _test.False(resolver.HasPublishedCatalog, "shutdown invalidates catalog publication");
         _test.True(
             Throws<ObjectDisposedException>(() =>
-                resolver.ResolveCatalogBorrowed<PackedScene>(ValidSceneId)
+                resolver.ResolveContentAssetBorrowed<PackedScene>(ValidSceneId)
             ),
             "shutdown rejects later asset ID lookup"
         );

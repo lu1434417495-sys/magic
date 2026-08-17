@@ -1322,7 +1322,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (contingency_setup_window == null)
         {
             contingency_setup_window = EngineAssetAccess
-                .ResolveBorrowed<PackedScene>(this, ContingencySetupWindowScenePath)
+                .ResolveCodeAssetBorrowed<PackedScene>(
+                    this,
+                    ContingencySetupWindowScenePath
+                )
                 .Instantiate<ContingencySetupWindow>();
             contingency_setup_window.Name = "ContingencySetupWindow";
             AddChild(contingency_setup_window);

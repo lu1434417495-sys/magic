@@ -1102,7 +1102,7 @@ public partial class BattleMapPanel : Control
         _map_subviewport.AddChild(_battle_background_rect);
 
         Node boardInstance = EngineAssetAccess
-            .ResolveBorrowed<PackedScene>(this, BATTLE_BOARD_SCENE_PATH)
+            .ResolveCodeAssetBorrowed<PackedScene>(this, BATTLE_BOARD_SCENE_PATH)
             .Instantiate();
         _battle_board = boardInstance as BattleBoard2D;
         if (_battle_board == null)
@@ -1367,7 +1367,7 @@ public partial class BattleMapPanel : Control
     }
 
     internal static PackedScene BattleBoardSceneForTest() =>
-        EngineAssetAccess.ResolveBorrowed<PackedScene>(BATTLE_BOARD_SCENE_PATH);
+        EngineAssetAccess.ResolveCodeAssetBorrowed<PackedScene>(BATTLE_BOARD_SCENE_PATH);
 
     private static List<Vector2I> CloneVector2IList(IEnumerable<Vector2I> source) =>
         source != null ? new List<Vector2I>(source) : new List<Vector2I>();

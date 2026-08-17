@@ -357,7 +357,8 @@ public partial class PartyWarehouseWindow : ModalWindowShell
             || !ResourceLoader.Exists(icon_path, "Texture2D")
         )
             return null;
-        return EngineAssetAccess.ResolveBorrowed<Texture2D>(this, icon_path);
+        return EngineAssetAccess
+            .ResolveAuthoredContentPathBorrowedDuringMigration<Texture2D>(this, icon_path);
     }
 
     private void _on_stack_selected(int index)

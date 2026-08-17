@@ -96,10 +96,10 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
             );
         }
 
-        PackedScene firstScene = host.EngineAssets.ResolveBorrowed<PackedScene>(
+        PackedScene firstScene = host.EngineAssets.ResolveCodeAssetBorrowed<PackedScene>(
             "res://scenes/main/login_screen.tscn"
         );
-        PackedScene repeatedScene = host.EngineAssets.ResolveBorrowed<PackedScene>(
+        PackedScene repeatedScene = host.EngineAssets.ResolveCodeAssetBorrowed<PackedScene>(
             "res://scenes/main/./login_screen.tscn"
         );
         _test.True(

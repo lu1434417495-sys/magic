@@ -832,7 +832,9 @@ public sealed class BattleBoardController : IDisposable
     private Texture2D _resolve_unit_sprite_texture(BattleBoardUnitSnapshot unitState)
     {
         string path = unitState?.BattleSpriteTexturePath ?? "";
-        return string.IsNullOrEmpty(path) ? null : _load_texture_from_png(path);
+        return string.IsNullOrEmpty(path)
+            ? null
+            : _load_authored_content_texture_from_png_during_migration(path);
     }
 
     // 贴图缩放后的可见高度(像素,token 本地坐标)。与 _attach_unit_sprite_visuals 的
@@ -1456,7 +1458,7 @@ public sealed class BattleBoardController : IDisposable
     )
     {
         Node propInstance = EngineAssetAccess
-            .ResolveBorrowed<PackedScene>(BattleBoardPropScenePath)
+            .ResolveCodeAssetBorrowed<PackedScene>(BattleBoardPropScenePath)
             .Instantiate();
         BattleBoardProp propNode = propInstance as BattleBoardProp;
         if (propNode == null)
@@ -1602,7 +1604,9 @@ public sealed class BattleBoardController : IDisposable
             var textures = new List<Texture2D>();
             foreach (string fileName in sourceSpec.Files)
             {
-                Texture2D texture = _load_texture_from_png($"{tileDir}/{fileName}");
+                Texture2D texture = _load_code_owned_texture_from_png(
+                    $"{tileDir}/{fileName}"
+                );
                 if (texture == null)
                 {
                     GameLog.Error($"BattleBoardController 缺少地形贴图：{tileDir}/{fileName}.", "ui.battle.missing_tile_texture", "ui");
@@ -1695,8 +1699,12 @@ public sealed class BattleBoardController : IDisposable
         if (_texture_cache.TryGetValue(cacheKey, out Texture2D cachedTexture))
             return cachedTexture;
         Texture2D baseTexture =
-            _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
-            ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
+            _load_code_owned_texture_from_png(
+                $"{tileDir}/{render_profile.GetPrimaryLandFile()}"
+            )
+            ?? _load_code_owned_texture_from_png(
+                $"{tileDir}/{render_profile.GetSelectedMarkerFile()}"
+            );
         if (baseTexture == null)
             return _build_diamond_texture(
                 ACTIVE_SELECTED_MARKER_COLOR,
@@ -1741,8 +1749,12 @@ public sealed class BattleBoardController : IDisposable
         if (_texture_cache.TryGetValue(cacheKey, out Texture2D cachedTexture))
             return cachedTexture;
         Texture2D baseTexture =
-            _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
-            ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
+            _load_code_owned_texture_from_png(
+                $"{tileDir}/{render_profile.GetPrimaryLandFile()}"
+            )
+            ?? _load_code_owned_texture_from_png(
+                $"{tileDir}/{render_profile.GetSelectedMarkerFile()}"
+            );
         if (baseTexture == null)
             return _build_diamond_texture(
                 MOVE_REACHABLE_MARKER_COLOR_LIGHT,
@@ -1779,7 +1791,24 @@ public sealed class BattleBoardController : IDisposable
         return generatedTexture;
     }
 
-    internal Texture2D _load_texture_from_png(string path)
+    internal Texture2D _load_code_owned_texture_from_png(string codeOwnedPath) =>
+        _load_texture_from_png(
+            codeOwnedPath,
+            EngineAssetAccess.ResolveCodeAssetBorrowed<Texture2D>
+        );
+
+    private Texture2D _load_authored_content_texture_from_png_during_migration(
+        string authoredContentPath
+    ) =>
+        _load_texture_from_png(
+            authoredContentPath,
+            EngineAssetAccess.ResolveAuthoredContentPathBorrowedDuringMigration<Texture2D>
+        );
+
+    private Texture2D _load_texture_from_png(
+        string path,
+        Func<string, Texture2D> resolvePathBackedTexture
+    )
     {
         if (string.IsNullOrEmpty(path))
             return null;
@@ -1787,7 +1816,7 @@ public sealed class BattleBoardController : IDisposable
             return cachedTexture;
         Texture2D texture = null;
         if (ResourceLoader.Exists(path, "Texture2D"))
-            texture = EngineAssetAccess.ResolveBorrowed<Texture2D>(path);
+            texture = resolvePathBackedTexture(path);
         if (texture == null && FileAccess.FileExists(path))
         {
             var image = OwnRenderResource(new Image(), $"image_loader:{path}");

@@ -466,7 +466,9 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
 
         try
         {
-            Texture2D directTexture = controller._load_texture_from_png(directPngPath);
+            Texture2D directTexture = controller._load_code_owned_texture_from_png(
+                directPngPath
+            );
             _test.True(
                 directTexture != null
                     && string.IsNullOrEmpty(directTexture.ResourcePath)

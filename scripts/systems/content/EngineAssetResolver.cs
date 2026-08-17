@@ -27,7 +27,7 @@ internal sealed class EngineAssetResolver : IDisposable
     internal EngineAssetCatalogDef LoadAndPublishCatalogBorrowed(string catalogPath)
     {
         ThrowIfLoadUnavailable();
-        string canonicalPath = ContentPathCanonicalizer.Canonicalize(catalogPath);
+        string canonicalPath = CanonicalizeResPath(catalogPath, nameof(catalogPath));
         if (_catalogRoot != null)
         {
             if (!string.Equals(_catalogCanonicalPath, canonicalPath, StringComparison.Ordinal))
@@ -72,7 +72,7 @@ internal sealed class EngineAssetResolver : IDisposable
         return loaded;
     }
 
-    internal T ResolveCatalogBorrowed<T>(StringName assetId, bool optional = false)
+    internal T ResolveContentAssetBorrowed<T>(StringName assetId, bool optional = false)
         where T : Resource
     {
         ThrowIfDisposed();
@@ -81,6 +81,13 @@ internal sealed class EngineAssetResolver : IDisposable
             if (optional)
                 return null;
             throw new ArgumentException("Engine asset ID is required.", nameof(assetId));
+        }
+        if (IsPathLikeAssetId(assetId))
+        {
+            throw new ArgumentException(
+                $"Engine asset ID must not be a resource path: {assetId}.",
+                nameof(assetId)
+            );
         }
         if (!_catalogPublished)
         {
@@ -103,11 +110,33 @@ internal sealed class EngineAssetResolver : IDisposable
         return typed;
     }
 
-    internal T ResolveBorrowed<T>(string resourcePath)
+    internal T ResolveCodeAssetBorrowed<T>(string codeOwnedPath)
         where T : Resource
     {
         ThrowIfLoadUnavailable();
-        string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+        string canonicalPath = CanonicalizeResPath(codeOwnedPath, nameof(codeOwnedPath));
+        return ResolveCanonicalPathBorrowed<T>(canonicalPath);
+    }
+
+    // Delete this seam as the item, skill, and enemy domains migrate their authored
+    // presentation paths to engine-asset catalog IDs. New code-owned callers must use
+    // ResolveCodeAssetBorrowed instead.
+    internal T ResolveAuthoredContentPathBorrowedDuringMigration<T>(
+        string authoredContentPath
+    )
+        where T : Resource
+    {
+        ThrowIfLoadUnavailable();
+        string canonicalPath = CanonicalizeResPath(
+            authoredContentPath,
+            nameof(authoredContentPath)
+        );
+        return ResolveCanonicalPathBorrowed<T>(canonicalPath);
+    }
+
+    private T ResolveCanonicalPathBorrowed<T>(string canonicalPath)
+        where T : Resource
+    {
         if (_assets.TryGetValue(canonicalPath, out Resource existing))
         {
             return existing is T typed
@@ -352,6 +381,27 @@ internal sealed class EngineAssetResolver : IDisposable
 
     private static bool IsEmptyAssetId(StringName assetId) =>
         assetId == null || string.IsNullOrWhiteSpace(assetId.ToString());
+
+    private static bool IsPathLikeAssetId(StringName assetId)
+    {
+        string value = assetId.ToString();
+        return value.Contains("://", StringComparison.Ordinal)
+            || value.Contains('/')
+            || value.Contains('\\');
+    }
+
+    private static string CanonicalizeResPath(string resourcePath, string parameterName)
+    {
+        string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+        if (!canonicalPath.StartsWith("res://", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"Engine asset paths must use the res:// scheme: {resourcePath}.",
+                parameterName
+            );
+        }
+        return canonicalPath;
+    }
 
     private void ThrowIfLoadUnavailable()
     {

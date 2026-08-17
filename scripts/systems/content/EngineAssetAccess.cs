@@ -7,11 +7,45 @@ using Godot;
 /// </summary>
 internal static class EngineAssetAccess
 {
-    internal static T ResolveBorrowed<T>(Node context, string resourcePath)
-        where T : Resource => ResolveResolver(context).ResolveBorrowed<T>(resourcePath);
+    internal static T ResolveContentAssetBorrowed<T>(
+        Node context,
+        StringName assetId,
+        bool optional = false
+    )
+        where T : Resource =>
+        ResolveResolver(context).ResolveContentAssetBorrowed<T>(assetId, optional);
 
-    internal static T ResolveBorrowed<T>(string resourcePath)
-        where T : Resource => ResolveResolver(null).ResolveBorrowed<T>(resourcePath);
+    internal static T ResolveContentAssetBorrowed<T>(
+        StringName assetId,
+        bool optional = false
+    )
+        where T : Resource =>
+        ResolveResolver(null).ResolveContentAssetBorrowed<T>(assetId, optional);
+
+    internal static T ResolveCodeAssetBorrowed<T>(Node context, string codeOwnedPath)
+        where T : Resource =>
+        ResolveResolver(context).ResolveCodeAssetBorrowed<T>(codeOwnedPath);
+
+    internal static T ResolveCodeAssetBorrowed<T>(string codeOwnedPath)
+        where T : Resource =>
+        ResolveResolver(null).ResolveCodeAssetBorrowed<T>(codeOwnedPath);
+
+    // Delete these two overloads with the item, skill, and enemy authored-path
+    // migrations. They are not a compatibility alias for code-owned paths.
+    internal static T ResolveAuthoredContentPathBorrowedDuringMigration<T>(
+        Node context,
+        string authoredContentPath
+    )
+        where T : Resource =>
+        ResolveResolver(context)
+            .ResolveAuthoredContentPathBorrowedDuringMigration<T>(authoredContentPath);
+
+    internal static T ResolveAuthoredContentPathBorrowedDuringMigration<T>(
+        string authoredContentPath
+    )
+        where T : Resource =>
+        ResolveResolver(null)
+            .ResolveAuthoredContentPathBorrowedDuringMigration<T>(authoredContentPath);
 
     private static EngineAssetResolver ResolveResolver(Node context)
     {
