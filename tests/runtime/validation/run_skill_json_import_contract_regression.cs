@@ -75,7 +75,10 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
                 + "\"target_team_filter\":\"self\",\"range_value\":0,"
                 + "\"area_pattern\":\"self\",\"ap_cost\":2,\"mp_cost\":60,"
                 + "\"cooldown_tu\":20,"
-                + "\"effect_defs\":[{\"effect_type\":\"layered_barrier\"}],"
+                + "\"effect_defs\":[{\"effect_type\":\"layered_barrier\","
+                + "\"payload\":{\"area_pattern\":\"diamond\","
+                + "\"profile_id\":\"prismatic_red_ward\","
+                + "\"radius_cells\":1,\"save_dc\":16}}],"
                 + "\"level_overrides\":{\"3\":{\"cooldown_tu\":15}}"
                 + "}}"
         );
@@ -181,6 +184,9 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             "{\"skill_id\":\"mage_focus\",\"display_name\":\"Focus\","
                 + "\"combat_profile\":{\"skill_id\":\"mage_focus\","
                 + "\"effect_defs\":[{\"effect_type\":\"layered_barrier\","
+                + "\"payload\":{\"area_pattern\":\"diamond\","
+                + "\"profile_id\":\"prismatic_red_ward\","
+                + "\"radius_cells\":1,\"save_dc\":16},"
                 + "\"unexpected\":true}]}}"
         );
 
@@ -240,7 +246,8 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             "unknown_effect",
             "{\"skill_id\":\"mage_focus\",\"display_name\":\"Focus\","
                 + "\"combat_profile\":{\"skill_id\":\"mage_focus\","
-                + "\"effect_defs\":[{\"effect_type\":\"future_effect\"}]}}"
+                + "\"effect_defs\":[{\"effect_type\":\"future_effect\","
+                + "\"payload\":{}}]}}"
         );
 
         AssertSingleFailure(
@@ -272,9 +279,25 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
     {
         SkillImportIdentifier.TryCreate("mage_copy", out SkillImportIdentifier skillId);
         SkillImportIdentifier.TryCreate("mage", out SkillImportIdentifier tag);
+        SkillImportIdentifier.TryCreate(
+            "prismatic_red_ward",
+            out SkillImportIdentifier profileId
+        );
         var effects = new List<CombatEffectImportModel>
         {
-            new(CombatEffectImportKind.LayeredBarrier, 0, -1, 0, 0),
+            new(
+                CombatEffectImportKind.LayeredBarrier,
+                0,
+                -1,
+                0,
+                0,
+                new LayeredBarrierEffectPayloadImportModel(
+                    CombatSkillImportAreaPattern.Diamond,
+                    profileId,
+                    1,
+                    16
+                )
+            ),
         };
         var overrides = new List<KeyValuePair<int, SkillLevelOverrideImportModel>>
         {
@@ -321,6 +344,7 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             typeof(SkillImportModel),
             typeof(CombatSkillImportModel),
             typeof(CombatEffectImportModel),
+            typeof(LayeredBarrierEffectPayloadImportModel),
             typeof(SkillLevelOverrideImportModel),
         };
         foreach (Type modelType in modelTypes)

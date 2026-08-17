@@ -82,6 +82,63 @@ internal enum CombatEffectImportKind
     LayeredBarrier,
 }
 
+internal interface ICombatEffectPayloadImportModel { }
+
+internal sealed class LayeredBarrierEffectPayloadImportModel
+    : ICombatEffectPayloadImportModel
+{
+    internal LayeredBarrierEffectPayloadImportModel(
+        CombatSkillImportAreaPattern areaPattern,
+        SkillImportIdentifier profileId,
+        int radiusCells,
+        int saveDc
+    )
+    {
+        AreaPattern = areaPattern;
+        ProfileId = profileId;
+        RadiusCells = radiusCells;
+        SaveDc = saveDc;
+    }
+
+    internal CombatSkillImportAreaPattern AreaPattern { get; }
+    internal SkillImportIdentifier ProfileId { get; }
+    internal int RadiusCells { get; }
+    internal int SaveDc { get; }
+}
+
+internal static class CombatEffectImportClosedSpec
+{
+    internal const string LayeredBarrierKindValue = "layered_barrier";
+
+    internal static IReadOnlyList<string> LayeredBarrierRequiredPayloadPropertyNames { get; } =
+        new ReadOnlyCollection<string>(
+            new[] { "area_pattern", "profile_id", "radius_cells", "save_dc" }
+        );
+
+    internal static bool TryParseKind(string? value, out CombatEffectImportKind result)
+    {
+        if (string.Equals(value, LayeredBarrierKindValue, StringComparison.Ordinal))
+        {
+            result = CombatEffectImportKind.LayeredBarrier;
+            return true;
+        }
+
+        result = default;
+        return false;
+    }
+
+    internal static bool IsPayloadCompatible(
+        CombatEffectImportKind kind,
+        ICombatEffectPayloadImportModel payload
+    ) =>
+        kind switch
+        {
+            CombatEffectImportKind.LayeredBarrier =>
+                payload is LayeredBarrierEffectPayloadImportModel,
+            _ => false,
+        };
+}
+
 internal static class SkillJsonImportValueRules
 {
     internal static bool IsSnakeCaseId(string? value)
@@ -214,17 +271,7 @@ internal static class SkillJsonImportValueRules
     internal static bool TryParseEffectKind(
         string? value,
         out CombatEffectImportKind result
-    )
-    {
-        if (string.Equals(value, "layered_barrier", StringComparison.Ordinal))
-        {
-            result = CombatEffectImportKind.LayeredBarrier;
-            return true;
-        }
-
-        result = default;
-        return false;
-    }
+    ) => CombatEffectImportClosedSpec.TryParseKind(value, out result);
 
     private static bool IsLowerAscii(char value) => value is >= 'a' and <= 'z';
 }
@@ -327,14 +374,25 @@ internal sealed class CombatEffectImportModel
         int minSkillLevel,
         int maxSkillLevel,
         int power,
-        int durationTu
+        int durationTu,
+        ICombatEffectPayloadImportModel payload
     )
     {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (!CombatEffectImportClosedSpec.IsPayloadCompatible(kind, payload))
+        {
+            throw new ArgumentException(
+                "Combat effect kind and typed payload are incompatible.",
+                nameof(payload)
+            );
+        }
+
         Kind = kind;
         MinSkillLevel = minSkillLevel;
         MaxSkillLevel = maxSkillLevel;
         Power = power;
         DurationTu = durationTu;
+        Payload = payload;
     }
 
     internal CombatEffectImportKind Kind { get; }
@@ -342,6 +400,7 @@ internal sealed class CombatEffectImportModel
     internal int MaxSkillLevel { get; }
     internal int Power { get; }
     internal int DurationTu { get; }
+    internal ICombatEffectPayloadImportModel Payload { get; }
 }
 
 internal sealed class SkillLevelOverrideImportModel
@@ -459,6 +518,7 @@ internal sealed class CombatSkillJsonDto
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+[ContentJsonSchemaClosedKind(typeof(SkillCombatEffectClosedKindSchemaSpec))]
 internal sealed class CombatEffectJsonDto
 {
     [JsonPropertyName("effect_type")]
@@ -476,6 +536,49 @@ internal sealed class CombatEffectJsonDto
 
     [JsonPropertyName("duration_tu")]
     public int? DurationTu { get; init; }
+
+    [JsonPropertyName("payload")]
+    [JsonRequired]
+    // Schema carrier only. System.Text.Json materializes it as JsonElement and
+    // SkillJsonImportParser.Parse consumes it synchronously; neither type may escape.
+    public object Payload { get; init; } = null!;
+}
+
+internal sealed class SkillCombatEffectClosedKindSchemaSpec
+    : IContentJsonSchemaClosedKindSpec
+{
+    public string DiscriminatorPropertyName => "effect_type";
+    public string PayloadPropertyName => "payload";
+    public IReadOnlyList<ContentJsonSchemaClosedKindBranch> Branches { get; } =
+        Array.AsReadOnly(
+            new[]
+            {
+                new ContentJsonSchemaClosedKindBranch(
+                    CombatEffectImportClosedSpec.LayeredBarrierKindValue,
+                    typeof(LayeredBarrierEffectPayloadJsonDto)
+                ),
+            }
+        );
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class LayeredBarrierEffectPayloadJsonDto
+{
+    [JsonPropertyName("area_pattern")]
+    [JsonRequired]
+    public string AreaPattern { get; init; } = null!;
+
+    [JsonPropertyName("profile_id")]
+    [JsonRequired]
+    public string ProfileId { get; init; } = null!;
+
+    [JsonPropertyName("radius_cells")]
+    [JsonRequired]
+    public int RadiusCells { get; init; }
+
+    [JsonPropertyName("save_dc")]
+    [JsonRequired]
+    public int SaveDc { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -498,5 +601,6 @@ internal sealed class SkillLevelOverrideJsonDto
 [JsonSerializable(typeof(SkillJsonDto))]
 [JsonSerializable(typeof(CombatSkillJsonDto))]
 [JsonSerializable(typeof(CombatEffectJsonDto))]
+[JsonSerializable(typeof(LayeredBarrierEffectPayloadJsonDto))]
 [JsonSerializable(typeof(SkillLevelOverrideJsonDto))]
 internal partial class SkillJsonImportSerializerContext : JsonSerializerContext { }

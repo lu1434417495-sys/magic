@@ -18,12 +18,19 @@ internal static class SkillJsonImportRules
     internal const string UnknownRangePattern = "skill.dto.range_pattern.unknown";
     internal const string UnknownAreaPattern = "skill.dto.area_pattern.unknown";
     internal const string UnknownEffectKind = "skill.dto.effect_type.unknown";
+    internal const string MissingEffectPayload = "skill.dto.effect_payload.required";
+    internal const string InvalidEffectPayload = "skill.dto.effect_payload.invalid";
     internal const string SkillIdMismatch = "skill.dto.combat_profile.skill_id_mismatch";
     internal const string EmptyLevelOverride = "skill.dto.level_override.empty";
 }
 
 internal static class SkillJsonImportParser
 {
+    /// <summary>
+    /// Synchronous sealed import boundary. Domain registration and authoring tools must register
+    /// SkillImportModel as TDto, bind parsing to this method, and use an identity normalize stage;
+    /// parser-only DTOs and their object/JsonElement carrier must never be exposed as a registration API.
+    /// </summary>
     internal static ContentImportStageResult<SkillImportModel> Parse(
         JsonContentEntryContext context,
         string json
@@ -35,7 +42,7 @@ internal static class SkillJsonImportParser
             : ContentImportStageResult<SkillImportModel>.Failure(dtoResult.Diagnostics);
     }
 
-    internal static ContentImportStageResult<SkillJsonDto> ParseDto(
+    private static ContentImportStageResult<SkillJsonDto> ParseDto(
         JsonContentEntryContext context,
         string json
     )
@@ -55,7 +62,7 @@ internal static class SkillJsonImportParser
         );
     }
 
-    internal static ContentImportStageResult<SkillImportModel> Normalize(
+    private static ContentImportStageResult<SkillImportModel> Normalize(
         JsonContentEntryContext context,
         SkillJsonDto dto
     )
@@ -359,7 +366,13 @@ internal static class SkillJsonImportParser
         int maxSkillLevel = dto.MaxSkillLevel ?? -1;
         int power = dto.Power ?? 0;
         int durationTu = dto.DurationTu ?? 0;
-        if (!SkillJsonImportValueRules.TryParseEffectKind(dto.EffectType, out CombatEffectImportKind kind))
+        ICombatEffectPayloadImportModel? payload = null;
+        if (
+            !SkillJsonImportValueRules.TryParseEffectKind(
+                dto.EffectType,
+                out CombatEffectImportKind kind
+            )
+        )
         {
             diagnostics.Add(
                 Diagnostic(
@@ -370,6 +383,10 @@ internal static class SkillJsonImportParser
                 )
             );
         }
+        else
+        {
+            payload = NormalizeEffectPayload(context, dto, kind, index, diagnostics);
+        }
 
         ValidateNonNegative(minSkillLevel, context, $"{pointer}/min_skill_level", diagnostics);
         if (maxSkillLevel < -1)
@@ -377,13 +394,128 @@ internal static class SkillJsonImportParser
         ValidateNonNegative(power, context, $"{pointer}/power", diagnostics);
         ValidateNonNegative(durationTu, context, $"{pointer}/duration_tu", diagnostics);
 
-        return diagnostics.Count == startingErrorCount
+        return diagnostics.Count == startingErrorCount && payload != null
             ? new CombatEffectImportModel(
                 kind,
                 minSkillLevel,
                 maxSkillLevel,
                 power,
-                durationTu
+                durationTu,
+                payload
+            )
+            : null;
+    }
+
+    private static ICombatEffectPayloadImportModel? NormalizeEffectPayload(
+        JsonContentEntryContext context,
+        CombatEffectJsonDto dto,
+        CombatEffectImportKind kind,
+        int effectIndex,
+        List<ContentJsonDiagnostic> diagnostics
+    )
+    {
+        string payloadPointer = $"/combat_profile/effect_defs/{effectIndex}/payload";
+        if (dto.Payload is not JsonElement payload)
+        {
+            diagnostics.Add(
+                Diagnostic(
+                    SkillJsonImportRules.InvalidEffectPayload,
+                    "Registered combat effect payload must be a JSON value consumed by the parser.",
+                    context,
+                    payloadPointer
+                )
+            );
+            return null;
+        }
+
+        return kind switch
+        {
+            CombatEffectImportKind.LayeredBarrier => NormalizeLayeredBarrierPayload(
+                context,
+                payload,
+                payloadPointer,
+                diagnostics
+            ),
+            _ => throw new InvalidOperationException(
+                $"Combat effect kind '{kind}' has no registered typed payload parser."
+            ),
+        };
+    }
+
+    private static LayeredBarrierEffectPayloadImportModel? NormalizeLayeredBarrierPayload(
+        JsonContentEntryContext context,
+        JsonElement payload,
+        string payloadPointer,
+        List<ContentJsonDiagnostic> diagnostics
+    )
+    {
+        if (payload.ValueKind == JsonValueKind.Object)
+        {
+            ContentJsonDiagnostic? missing = FindMissing(
+                payload,
+                CombatEffectImportClosedSpec.LayeredBarrierRequiredPayloadPropertyNames,
+                context,
+                payloadPointer
+            );
+            if (missing != null)
+            {
+                diagnostics.Add(missing);
+                return null;
+            }
+        }
+
+        var payloadContext = new JsonContentEntryContext(
+            context.DomainId,
+            context.EntryId,
+            context.SourceLabel,
+            $"{context.JsonPointer}{payloadPointer}"
+        );
+        ContentImportStageResult<LayeredBarrierEffectPayloadJsonDto> parsed =
+            ContentJsonStrictDtoParser.Parse(
+                payloadContext,
+                payload.GetRawText(),
+                SkillJsonImportSerializerContext.Default.LayeredBarrierEffectPayloadJsonDto,
+                SkillJsonImportRules.InvalidEffectPayload
+            );
+        if (!parsed.HasValue)
+        {
+            diagnostics.AddRange(parsed.Diagnostics);
+            return null;
+        }
+
+        int startingErrorCount = diagnostics.Count;
+        LayeredBarrierEffectPayloadJsonDto value = parsed.Value;
+        if (
+            !SkillJsonImportValueRules.TryParseAreaPattern(
+                value.AreaPattern,
+                out CombatSkillImportAreaPattern areaPattern
+            )
+        )
+        {
+            diagnostics.Add(
+                Diagnostic(
+                    SkillJsonImportRules.UnknownAreaPattern,
+                    "Layered barrier area pattern is not registered by the skill import contract.",
+                    context,
+                    $"{payloadPointer}/area_pattern"
+                )
+            );
+        }
+
+        TryIdentifier(
+            value.ProfileId,
+            context,
+            $"{payloadPointer}/profile_id",
+            diagnostics,
+            out SkillImportIdentifier profileId
+        );
+
+        return diagnostics.Count == startingErrorCount
+            ? new LayeredBarrierEffectPayloadImportModel(
+                areaPattern,
+                profileId,
+                value.RadiusCells,
+                value.SaveDc
             )
             : null;
     }
@@ -467,6 +599,26 @@ internal static class SkillJsonImportParser
                         );
                         if (missing != null)
                             return missing;
+                        if (
+                            effect.TryGetProperty("effect_type", out JsonElement effectType)
+                            && effectType.ValueKind == JsonValueKind.String
+                            && SkillJsonImportValueRules.TryParseEffectKind(
+                                effectType.GetString(),
+                                out _
+                            )
+                            && (
+                                !effect.TryGetProperty("payload", out JsonElement payload)
+                                || payload.ValueKind == JsonValueKind.Null
+                            )
+                        )
+                        {
+                            return Diagnostic(
+                                SkillJsonImportRules.MissingEffectPayload,
+                                "Registered combat effect kind requires a typed payload object.",
+                                context,
+                                $"/combat_profile/effect_defs/{index}/payload"
+                            );
+                        }
                         missing = FindExplicitNull(
                             effect,
                             new[]
