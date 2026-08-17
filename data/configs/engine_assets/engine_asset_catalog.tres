@@ -1,14 +1,32 @@
-[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineAssetCatalogDef.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineTextureAssetEntryDef.cs" id="2_texture"]
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineSceneAssetEntryDef.cs" id="3_scene"]
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineAudioAssetEntryDef.cs" id="4_audio"]
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineShaderAssetEntryDef.cs" id="5_shader"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/terrain/canyon/marker_preview.png" id="6_marker_preview"]
+[ext_resource type="PackedScene" path="res://scenes/common/battle_board_prop.tscn" id="7_battle_board_prop"]
+[ext_resource type="Shader" path="res://assets/shaders/skill_icon_grayscale.gdshader" id="8_skill_icon_grayscale"]
+
+[sub_resource type="Resource" id="TextureEntry_marker_preview"]
+script = ExtResource("2_texture")
+asset_id = &"battle.terrain.marker_preview"
+texture = ExtResource("6_marker_preview")
+
+[sub_resource type="Resource" id="SceneEntry_battle_board_prop"]
+script = ExtResource("3_scene")
+asset_id = &"battle.board.prop_scene"
+scene = ExtResource("7_battle_board_prop")
+
+[sub_resource type="Resource" id="ShaderEntry_skill_icon_grayscale"]
+script = ExtResource("5_shader")
+asset_id = &"ui.skill_icon.grayscale_shader"
+shader = ExtResource("8_skill_icon_grayscale")
 
 [resource]
 script = ExtResource("1_catalog")
-texture_assets = Array[ExtResource("2_texture")]([])
-scene_assets = Array[ExtResource("3_scene")]([])
+texture_assets = Array[ExtResource("2_texture")]([SubResource("TextureEntry_marker_preview")])
+scene_assets = Array[ExtResource("3_scene")]([SubResource("SceneEntry_battle_board_prop")])
 audio_assets = Array[ExtResource("4_audio")]([])
-shader_assets = Array[ExtResource("5_shader")]([])
+shader_assets = Array[ExtResource("5_shader")]([SubResource("ShaderEntry_skill_icon_grayscale")])

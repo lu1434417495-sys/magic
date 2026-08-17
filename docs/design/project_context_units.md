@@ -720,13 +720,16 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-19 自动化回归与截图辅助
 
 - 文件：
+  - `magic.sln`
   - `magic.code-workspace`
+  - `export_presets.cfg`
   - `.github/workflows/ci.yml`
   - `tests/run_regression_suite.py`
   - `tests/tooling/test_run_regression_suite.py`
   - `tests/run_e2e_suite.py`
   - `tests/tooling/test_run_e2e_suite.py`
   - `tests/e2e/**/*`
+  - `tests/export/**/*`
   - `tests/shared/*`
   - `tests/shared/LifecycleTestSceneTree.cs`
   - `tests/shared/TestExitCoordinator.cs`
@@ -762,6 +765,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 慢例 fixture 边界：同一 runner 内反复构建独立业务 runtime、但只读正式静态内容时，在 coordinator `_Ready()` 完成后的首个 `ProcessFrame` 借用进程级 immutable `ContentSnapshot`，不为每个 case 重建 content registry；runner 使用强类型 C# 事件的一次性回调，不使用字符串 deferred method dispatch。每个 case 仍独立创建并释放 `PartyState`、`CharacterManagementModule`、`BattleRuntimeModule` 与 battle state，不能共享可变运行态换取速度。
 - 输出协议边界：C# runner、benchmark、capture 和交互工具不直接调用 `GD.Print*` / `GD.Push*` 或散落的 `Console.Write*`。断言与结构化诊断走 `GameLog`；PASS/FAIL、shutdown report、外层 runner marker、交互式 REPL 等要求原样保留或供机器解析的行统一走 `ConsoleProcessOutput`，其文本不进入 session sink，也不受结构化日志格式或等级过滤影响。
 - 性能回归边界：performance baseline/benchmark 是 opt-in 诊断入口，不进入 routine full suite；正式比较必须区分完整战斗基线与 bounded diagnostic，不能用 iteration-budget 提前结束的样本覆盖 formal baseline。
+- Windows 导出 smoke 边界：受版本控制的 `export_presets.cfg` 显式包含没有 `.import` sidecar 的 JSON 非资源文件；`tests/export` 只从真实 Windows Desktop 导出 EXE/PCK 启动，工作目录与源码树隔离，并验证 production typed engine-asset catalog root、其引用资产和预期失败退出码。官方 release template 不开放 editor-only `--script`/scene override，因此 runner 只在临时导出目录生成 `override.cfg`，把 main scene 与两个 autoload 指向 test-only owner，不修改 production project/lifecycle；导出二进制与 override 只存在于系统临时目录，不进入版本控制。
 - 适合：补回归、跑局部验证、定位改动影响面。
 - 邻接单元：按业务域补 CU-10、CU-12、CU-15、CU-17、CU-18、CU-21。
 

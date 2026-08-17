@@ -6,6 +6,12 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
     private const string FixtureRoot =
         "res://tests/runtime/fixtures/engine_asset_catalog/";
     private static readonly StringName ValidSceneId = "test.login_scene";
+    private static readonly StringName ProductionTextureId =
+        "battle.terrain.marker_preview";
+    private static readonly StringName ProductionSceneId =
+        "battle.board.prop_scene";
+    private static readonly StringName ProductionShaderId =
+        "ui.skill_icon.grayscale_shader";
 
     private readonly TestHarness _test = new();
 
@@ -47,20 +53,46 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
             "process content host publishes the bootstrap engine asset catalog before tests run"
         );
         _test.True(
-            catalog.texture_assets != null && catalog.texture_assets.Count == 0,
-            "production bootstrap deserializes the explicit typed texture array"
+            catalog.texture_assets != null && catalog.texture_assets.Count == 1,
+            "production bootstrap deserializes the typed texture entry"
         );
         _test.True(
-            catalog.scene_assets != null && catalog.scene_assets.Count == 0,
-            "production bootstrap deserializes the explicit typed scene array"
+            catalog.scene_assets != null && catalog.scene_assets.Count == 1,
+            "production bootstrap deserializes the typed scene entry"
         );
         _test.True(
             catalog.audio_assets != null && catalog.audio_assets.Count == 0,
             "production bootstrap deserializes the explicit typed audio array"
         );
         _test.True(
-            catalog.shader_assets != null && catalog.shader_assets.Count == 0,
-            "production bootstrap deserializes the explicit typed shader array"
+            catalog.shader_assets != null && catalog.shader_assets.Count == 1,
+            "production bootstrap deserializes the typed shader entry"
+        );
+        _test.Eq(
+            resolver.PublishedAssetCount,
+            3,
+            "production bootstrap publishes its three real engine assets"
+        );
+        _test.True(
+            ReferenceEquals(
+                resolver.ResolveContentAssetBorrowed<Texture2D>(ProductionTextureId),
+                catalog.texture_assets[0].texture
+            ),
+            "production texture ID resolves the catalog-owned borrowed target"
+        );
+        _test.True(
+            ReferenceEquals(
+                resolver.ResolveContentAssetBorrowed<PackedScene>(ProductionSceneId),
+                catalog.scene_assets[0].scene
+            ),
+            "production scene ID resolves the catalog-owned borrowed target"
+        );
+        _test.True(
+            ReferenceEquals(
+                resolver.ResolveContentAssetBorrowed<Shader>(ProductionShaderId),
+                catalog.shader_assets[0].shader
+            ),
+            "production shader ID resolves the catalog-owned borrowed target"
         );
     }
 
