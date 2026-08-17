@@ -2,7 +2,7 @@ using System;
 using System.Text.Json;
 using Godot;
 
-public partial class run_windows_export_smoke : Node
+public partial class windows_export_smoke_runner : Node
 {
     private const string ProbePath =
         "res://data/configs/engine_assets/export_smoke_probe.json";
