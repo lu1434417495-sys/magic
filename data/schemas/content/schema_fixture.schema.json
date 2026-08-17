@@ -57,6 +57,43 @@
         "payload"
       ]
     },
+    "ContentJsonSchemaSampleActionDto__partial": {
+      "description": "Closed action union. The kind spec supplies stable discriminator values and payload DTO types; branch fields remain reflected from this DTO.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContentJsonSchemaSampleActionDto__partial__counter"
+        },
+        {
+          "$ref": "#/$defs/ContentJsonSchemaSampleActionDto__partial__message"
+        }
+      ]
+    },
+    "ContentJsonSchemaSampleActionDto__partial__counter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "counter"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContentJsonSchemaSampleCounterPayloadDto__partial"
+        }
+      }
+    },
+    "ContentJsonSchemaSampleActionDto__partial__message": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "message"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContentJsonSchemaSampleMessagePayloadDto__partial"
+        }
+      }
+    },
     "ContentJsonSchemaSampleCounterPayloadDto": {
       "type": "object",
       "additionalProperties": false,
@@ -79,6 +116,25 @@
         "amount"
       ]
     },
+    "ContentJsonSchemaSampleCounterPayloadDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "integer"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
     "ContentJsonSchemaSampleDocumentDto": {
       "description": "Strict document envelope for the schema-exporter fixture domain.",
       "type": "object",
@@ -92,7 +148,7 @@
         "entries": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ContentJsonSchemaSampleEntryDto"
+            "$ref": "#/$defs/ContentJsonSchemaSampleEntryDto__authoring_fixture_id_template_with_ContentJsonTemplateReferenceSchemaDto"
           },
           "description": "Concrete entries in source order; C# required metadata makes this key required."
         },
@@ -109,7 +165,7 @@
         "templates": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/ContentJsonSchemaSampleTemplateDto"
+            "$ref": "#/$defs/ContentJsonSchemaSampleEntryDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
           },
           "description": "File-local partial templates keyed by template name."
         }
@@ -165,6 +221,10 @@
           ],
           "description": "Stable business string supplied by a code-side closed value provider."
         },
+        "settings": {
+          "$ref": "#/$defs/ContentJsonSchemaSampleSettingsDto",
+          "description": "Optional nested object used to prove recursive partial template schemas."
+        },
         "tags": {
           "type": "array",
           "items": {
@@ -179,6 +239,141 @@
         "mode",
         "quality",
         "tags"
+      ]
+    },
+    "ContentJsonSchemaSampleEntryDto__authoring_fixture_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Concrete fixture entry demonstrating names, required fields, arrays, nullability, enums, stable business strings, and closed-kind payloads.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ContentJsonSchemaSampleEntryDto"
+        },
+        {
+          "$ref": "#/$defs/ContentJsonSchemaSampleEntryDto__templated_fixture_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "ContentJsonSchemaSampleEntryDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Concrete fixture entry demonstrating names, required fields, arrays, nullability, enums, stable business strings, and closed-kind payloads.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ContentJsonSchemaSampleActionDto__partial"
+        },
+        "display_name": {
+          "type": "string",
+          "description": "C# required metadata makes this property required without JsonRequired."
+        },
+        "fixture_id": {
+          "type": "string",
+          "description": "Stable entry identifier."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "Manual",
+            "Automatic"
+          ]
+        },
+        "optional_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Nullable but optional; when present, null is legal."
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "common",
+            "rare",
+            "legendary"
+          ],
+          "description": "Stable business string supplied by a code-side closed value provider."
+        },
+        "settings": {
+          "$ref": "#/$defs/ContentJsonSchemaSampleSettingsDto__partial",
+          "description": "Optional nested object used to prove recursive partial template schemas."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "ContentJsonSchemaSampleEntryDto__templated_fixture_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Concrete fixture entry demonstrating names, required fields, arrays, nullability, enums, stable business strings, and closed-kind payloads.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ContentJsonSchemaSampleActionDto__partial"
+        },
+        "display_name": {
+          "type": "string",
+          "description": "C# required metadata makes this property required without JsonRequired."
+        },
+        "fixture_id": {
+          "type": "string",
+          "description": "Stable entry identifier."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "Manual",
+            "Automatic"
+          ]
+        },
+        "optional_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Nullable but optional; when present, null is legal."
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "common",
+            "rare",
+            "legendary"
+          ],
+          "description": "Stable business string supplied by a code-side closed value provider."
+        },
+        "settings": {
+          "$ref": "#/$defs/ContentJsonSchemaSampleSettingsDto__partial",
+          "description": "Optional nested object used to prove recursive partial template schemas."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "fixture_id",
+        "template"
       ]
     },
     "ContentJsonSchemaSampleMessagePayloadDto": {
@@ -206,51 +401,111 @@
         "text"
       ]
     },
-    "ContentJsonSchemaSampleTemplateDto": {
-      "description": "Partial template shape for the sample entry. Missing keys inherit nothing by themselves; merge semantics remain owned by ContentJsonTemplateMerger.",
+    "ContentJsonSchemaSampleMessagePayloadDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "ContentJsonSchemaSampleOptionDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "ContentJsonSchemaSampleOptionDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "ContentJsonSchemaSampleSettingsDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ContentJsonSchemaSampleOptionDto"
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentJsonSchemaSampleStepDto"
+          }
+        }
+      },
+      "required": [
+        "label",
+        "options",
+        "steps"
+      ]
+    },
+    "ContentJsonSchemaSampleSettingsDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ContentJsonSchemaSampleOptionDto__partial"
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentJsonSchemaSampleStepDto"
+          }
+        }
+      }
+    },
+    "ContentJsonSchemaSampleStepDto": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "action": {
           "$ref": "#/$defs/ContentJsonSchemaSampleActionDto"
         },
-        "display_name": {
-          "type": "string",
-          "description": "Optional display name override; if present it cannot be null."
-        },
-        "mode": {
-          "type": "string",
-          "enum": [
-            "Manual",
-            "Automatic"
-          ]
-        },
-        "optional_note": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Explicitly nullable sample field."
-        },
-        "quality": {
-          "type": "string",
-          "enum": [
-            "common",
-            "rare",
-            "legendary"
-          ]
-        },
-        "tags": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "name": {
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "action",
+        "name"
+      ]
     }
   }
 }

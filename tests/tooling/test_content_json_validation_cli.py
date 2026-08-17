@@ -41,6 +41,16 @@ def valid_entry(entry_id="valid", **overrides):
     return entry
 
 
+def skill_document(entries, templates=None):
+    return {
+        "schema": 1,
+        "domain": "skills",
+        "family": "pilot",
+        "templates": templates or {},
+        "entries": entries,
+    }
+
+
 class ContentJsonValidationCliTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -113,6 +123,42 @@ class ContentJsonValidationCliTests(unittest.TestCase):
             "}\n",
         )
 
+    def test_multilevel_templates_deep_merge_direct_closed_kind_fragments(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_path = Path(temporary_directory) / "template_chain.json"
+            self.write_json(
+                input_path,
+                document(
+                    [
+                        {
+                            "template": "counter_payload",
+                            "fixture_id": "chained",
+                            "display_name": "Chained fixture",
+                        }
+                    ],
+                    templates={
+                        "base": {
+                            "mode": "Manual",
+                            "quality": "common",
+                            "tags": ["fixture"],
+                            "action": {"kind": "counter"},
+                        },
+                        "counter_payload": {
+                            "template": "base",
+                            "action": {"payload": {"amount": 2}},
+                        },
+                    },
+                ),
+            )
+
+            completed = self.run_cli(input_path)
+
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["validated_entry_count"], 1)
+        self.assertEqual(payload["diagnostic_count"], 0)
+
     def test_domain_directory_aggregates_entry_errors_and_exits_one_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             input_directory = Path(temporary_directory)
@@ -182,6 +228,93 @@ class ContentJsonValidationCliTests(unittest.TestCase):
         self.assertEqual(payload["domain"], "missing_domain")
         self.assertEqual(payload["diagnostics"][0]["rule_id"], "content.json.cli.unknown_domain")
         self.assertNotIn("stack", completed.stdout.lower())
+
+    def test_skill_domain_invalid_field_reports_exact_machine_location(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_path = Path(temporary_directory) / "skill_bad.json"
+            self.write_json(
+                input_path,
+                skill_document(
+                    [
+                        {
+                            "skill_id": "mage_focus",
+                            "display_name": "Focus",
+                            "skill_typo": "active",
+                        }
+                    ]
+                ),
+            )
+
+            completed = self.run_cli(input_path, domain="skills")
+
+        self.assertEqual(completed.returncode, 1, completed.stdout + completed.stderr)
+        self.assertEqual(completed.stderr, "")
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["domain"], "skills")
+        self.assertEqual(payload["diagnostic_count"], 1)
+        self.assertEqual(
+            (
+                payload["diagnostics"][0]["rule_id"],
+                payload["diagnostics"][0]["source_label"],
+                payload["diagnostics"][0]["json_pointer"],
+            ),
+            (
+                "skill.dto.invalid_entry",
+                "skill_bad.json#mage_focus",
+                "/entries/0/skill_typo",
+            ),
+        )
+
+    def test_skill_domain_accepts_template_and_current_layered_barrier_pilot(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            input_path = Path(temporary_directory) / "skill_valid.json"
+            self.write_json(
+                input_path,
+                skill_document(
+                    [
+                        {
+                            "template": "ward",
+                            "skill_id": "mage_prismatic_red_ward",
+                            "display_name": "Prismatic Red Ward",
+                        }
+                    ],
+                    templates={
+                        "ward_base": {
+                            "max_level": 5,
+                            "combat_profile": {
+                                "skill_id": "mage_prismatic_red_ward",
+                                "target_team_filter": "self",
+                                "range_value": 0,
+                                "area_pattern": "self",
+                            },
+                        },
+                        "ward": {
+                            "template": "ward_base",
+                            "combat_profile": {
+                                "effect_defs": [
+                                    {
+                                        "effect_type": "layered_barrier",
+                                        "payload": {
+                                            "area_pattern": "diamond",
+                                            "profile_id": "prismatic_red_ward",
+                                            "radius_cells": 1,
+                                            "save_dc": 16,
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    },
+                ),
+            )
+
+            completed = self.run_cli(input_path, domain="skills")
+
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["validated_entry_count"], 1)
+        self.assertEqual(payload["diagnostic_count"], 0)
 
     def test_godot_virtual_path_is_rejected_before_host_file_io(self):
         completed = self.run_cli("res://data/configs/json/schema_fixture")

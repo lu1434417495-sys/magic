@@ -25,6 +25,7 @@ internal static class ContentJsonSchemaCatalog
                     contentFileMatch:
                         "/data/configs/json/schema_fixture/**/*.json"
                 ),
+                SkillContentJsonAuthoringDomain.SchemaRegistration,
             }
         );
 
@@ -67,44 +68,24 @@ internal sealed class ContentJsonSchemaSampleDocumentDto
 
     [JsonPropertyName("templates")]
     [JsonRequired]
+    [ContentJsonSchemaPartialObjectValues(typeof(ContentJsonTemplateReferenceSchemaDto))]
     [Description("File-local partial templates keyed by template name.")]
-    public IReadOnlyDictionary<string, ContentJsonSchemaSampleTemplateDto> Templates
+    public IReadOnlyDictionary<string, ContentJsonSchemaSampleEntryDto> Templates
     {
         get;
         init;
-    } = new ReadOnlyDictionary<string, ContentJsonSchemaSampleTemplateDto>(
-        new Dictionary<string, ContentJsonSchemaSampleTemplateDto>()
+    } = new ReadOnlyDictionary<string, ContentJsonSchemaSampleEntryDto>(
+        new Dictionary<string, ContentJsonSchemaSampleEntryDto>()
     );
 
     [JsonPropertyName("entries")]
+    [ContentJsonSchemaEntryControlMembers(
+        typeof(ContentJsonTemplateReferenceSchemaDto),
+        "fixture_id",
+        "template"
+    )]
     [Description("Concrete entries in source order; C# required metadata makes this key required.")]
     public required IReadOnlyList<ContentJsonSchemaSampleEntryDto> Entries { get; init; }
-}
-
-[Description("Partial template shape for the sample entry. Missing keys inherit nothing by themselves; merge semantics remain owned by ContentJsonTemplateMerger.")]
-[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed class ContentJsonSchemaSampleTemplateDto
-{
-    [JsonPropertyName("display_name")]
-    [Description("Optional display name override; if present it cannot be null.")]
-    public string DisplayName { get; init; } = "";
-
-    [JsonPropertyName("mode")]
-    public ContentJsonSchemaSampleMode Mode { get; init; }
-
-    [JsonPropertyName("quality")]
-    [ContentJsonSchemaStableStringValues(typeof(ContentJsonSchemaSampleQualityValues))]
-    public string Quality { get; init; } = "";
-
-    [JsonPropertyName("tags")]
-    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
-
-    [JsonPropertyName("optional_note")]
-    [Description("Explicitly nullable sample field.")]
-    public string? OptionalNote { get; init; }
-
-    [JsonPropertyName("action")]
-    public ContentJsonSchemaSampleActionDto Action { get; init; } = null!;
 }
 
 [Description("Concrete fixture entry demonstrating names, required fields, arrays, nullability, enums, stable business strings, and closed-kind payloads.")]
@@ -137,6 +118,51 @@ internal sealed class ContentJsonSchemaSampleEntryDto
     [JsonPropertyName("optional_note")]
     [Description("Nullable but optional; when present, null is legal.")]
     public string? OptionalNote { get; init; }
+
+    [JsonPropertyName("action")]
+    [JsonRequired]
+    public ContentJsonSchemaSampleActionDto Action { get; init; } = null!;
+
+    [JsonPropertyName("settings")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    [Description("Optional nested object used to prove recursive partial template schemas.")]
+    public ContentJsonSchemaSampleSettingsDto? Settings { get; init; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class ContentJsonSchemaSampleSettingsDto
+{
+    [JsonPropertyName("label")]
+    [JsonRequired]
+    public string Label { get; init; } = "";
+
+    [JsonPropertyName("options")]
+    [JsonRequired]
+    public IReadOnlyDictionary<string, ContentJsonSchemaSampleOptionDto> Options { get; init; } =
+        new ReadOnlyDictionary<string, ContentJsonSchemaSampleOptionDto>(
+            new Dictionary<string, ContentJsonSchemaSampleOptionDto>()
+        );
+
+    [JsonPropertyName("steps")]
+    [JsonRequired]
+    public IReadOnlyList<ContentJsonSchemaSampleStepDto> Steps { get; init; } =
+        Array.Empty<ContentJsonSchemaSampleStepDto>();
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class ContentJsonSchemaSampleOptionDto
+{
+    [JsonPropertyName("value")]
+    [JsonRequired]
+    public string Value { get; init; } = "";
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class ContentJsonSchemaSampleStepDto
+{
+    [JsonPropertyName("name")]
+    [JsonRequired]
+    public string Name { get; init; } = "";
 
     [JsonPropertyName("action")]
     [JsonRequired]

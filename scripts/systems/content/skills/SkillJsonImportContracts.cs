@@ -348,6 +348,82 @@ internal static class SkillJsonImportValueRules
     private static bool IsLowerAscii(char value) => value is >= 'a' and <= 'z';
 }
 
+internal sealed class SkillTypeSchemaValues : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } =
+        Array.AsReadOnly(new[] { "active", "passive" });
+}
+
+internal sealed class SkillLearnSourceSchemaValues : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } = Array.AsReadOnly(
+        new[]
+        {
+            "book", "innate", "internal", "player", "profession", "race", "subrace",
+            "ascension", "bloodline",
+        }
+    );
+}
+
+internal sealed class SkillTargetModeSchemaValues : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } =
+        Array.AsReadOnly(new[] { "unit", "ground" });
+}
+
+internal sealed class SkillTargetTeamFilterSchemaValues
+    : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } =
+        Array.AsReadOnly(new[] { "self", "ally", "enemy", "any" });
+}
+
+internal sealed class SkillRangePatternSchemaValues : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } =
+        Array.AsReadOnly(new[] { "single", "diamond", "square", "line" });
+}
+
+internal sealed class SkillAreaPatternSchemaValues : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } =
+        Array.AsReadOnly(new[] { "single", "self", "diamond", "square", "line" });
+}
+
+internal sealed class SkillPendingCastBindingModeSchemaValues
+    : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } =
+        Array.AsReadOnly(new[] { "soft_anchor", "hard_anchor", "ground_bind" });
+}
+
+internal sealed class SkillAttackResolutionModeSchemaValues
+    : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } = Array.AsReadOnly(
+        new[] { "auto", "direct_effect", "fate_attack", "force_hit_no_crit" }
+    );
+}
+
+internal sealed class SkillAttackDefenseModeSchemaValues
+    : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } =
+        Array.AsReadOnly(new[] { "normal", "touch", "flat_footed" });
+}
+
+internal sealed class SkillLevelOverrideAreaPatternSchemaValues
+    : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } = Array.AsReadOnly(
+        new[]
+        {
+            "single", "self", "diamond", "square", "radius", "cross", "line", "cone",
+            "narrow_cone", "front_arc",
+        }
+    );
+}
+
 internal sealed class SkillImportModel
 {
     internal SkillImportModel(
@@ -516,12 +592,15 @@ internal sealed class SkillJsonDto
     public string Description { get => _description ?? ""; init => _description = value; }
 
     [JsonPropertyName("skill_type")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillTypeSchemaValues))]
     public string SkillType { get => _skillType ?? "active"; init => _skillType = value; }
 
     [JsonPropertyName("max_level")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? MaxLevel { get; init; }
 
     [JsonPropertyName("learn_source")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillLearnSourceSchemaValues))]
     public string LearnSource { get => _learnSource ?? "book"; init => _learnSource = value; }
 
     [JsonPropertyName("tags")]
@@ -565,27 +644,35 @@ internal sealed class CombatSkillJsonDto
     public string SkillId { get; init; } = null!;
 
     [JsonPropertyName("target_mode")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillTargetModeSchemaValues))]
     public string TargetMode { get => _targetMode ?? "unit"; init => _targetMode = value; }
 
     [JsonPropertyName("target_team_filter")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillTargetTeamFilterSchemaValues))]
     public string TargetTeamFilter { get => _targetTeamFilter ?? "enemy"; init => _targetTeamFilter = value; }
 
     [JsonPropertyName("range_pattern")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillRangePatternSchemaValues))]
     public string RangePattern { get => _rangePattern ?? "single"; init => _rangePattern = value; }
 
     [JsonPropertyName("range_value")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? RangeValue { get; init; }
 
     [JsonPropertyName("area_pattern")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillAreaPatternSchemaValues))]
     public string AreaPattern { get => _areaPattern ?? "single"; init => _areaPattern = value; }
 
     [JsonPropertyName("ap_cost")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? ApCost { get; init; }
 
     [JsonPropertyName("mp_cost")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? MpCost { get; init; }
 
     [JsonPropertyName("cooldown_tu")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? CooldownTu { get; init; }
 
     [JsonPropertyName("effect_defs")]
@@ -617,15 +704,19 @@ internal sealed class CombatEffectJsonDto
     public string EffectType { get; init; } = null!;
 
     [JsonPropertyName("min_skill_level")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? MinSkillLevel { get; init; }
 
     [JsonPropertyName("max_skill_level")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? MaxSkillLevel { get; init; }
 
     [JsonPropertyName("power")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? Power { get; init; }
 
     [JsonPropertyName("duration_tu")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? DurationTu { get; init; }
 
     [JsonPropertyName("payload")]
@@ -657,6 +748,7 @@ internal sealed class LayeredBarrierEffectPayloadJsonDto
 {
     [JsonPropertyName("area_pattern")]
     [JsonRequired]
+    [ContentJsonSchemaStableStringValues(typeof(SkillAreaPatternSchemaValues))]
     public string AreaPattern { get; init; } = null!;
 
     [JsonPropertyName("profile_id")]
@@ -676,60 +768,83 @@ internal sealed class LayeredBarrierEffectPayloadJsonDto
 internal sealed class SkillLevelOverrideJsonDto
 {
     [JsonPropertyName("ap_cost")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? ApCost { get; init; }
 
     [JsonPropertyName("mp_cost")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? MpCost { get; init; }
 
     [JsonPropertyName("stamina_cost")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? StaminaCost { get; init; }
 
     [JsonPropertyName("mp_cost_per_target_slot")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? MpCostPerTargetSlot { get; init; }
 
     [JsonPropertyName("stamina_cost_per_target_slot")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? StaminaCostPerTargetSlot { get; init; }
 
     [JsonPropertyName("aura_cost")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? AuraCost { get; init; }
 
     [JsonPropertyName("cooldown_tu")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? CooldownTu { get; init; }
 
     [JsonPropertyName("casting_time_tu")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? CastingTimeTu { get; init; }
 
     [JsonPropertyName("casting_maintenance_dc")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? CastingMaintenanceDc { get; init; }
 
     [JsonPropertyName("casting_spell_control_dc")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? CastingSpellControlDc { get; init; }
 
     [JsonPropertyName("pending_cast_binding_mode")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillPendingCastBindingModeSchemaValues))]
+    [ContentJsonSchemaDisallowExplicitNull]
     public string? PendingCastBindingMode { get; init; }
 
     [JsonPropertyName("attack_roll_bonus")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? AttackRollBonus { get; init; }
 
     [JsonPropertyName("attack_resolution_mode")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillAttackResolutionModeSchemaValues))]
+    [ContentJsonSchemaDisallowExplicitNull]
     public string? AttackResolutionMode { get; init; }
 
     [JsonPropertyName("attack_defense_mode")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillAttackDefenseModeSchemaValues))]
+    [ContentJsonSchemaDisallowExplicitNull]
     public string? AttackDefenseMode { get; init; }
 
     [JsonPropertyName("area_value")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? AreaValue { get; init; }
 
     [JsonPropertyName("range_value")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? RangeValue { get; init; }
 
     [JsonPropertyName("area_pattern")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillLevelOverrideAreaPatternSchemaValues))]
+    [ContentJsonSchemaDisallowExplicitNull]
     public string? AreaPattern { get; init; }
 
     [JsonPropertyName("max_target_count")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? MaxTargetCount { get; init; }
 
     [JsonPropertyName("random_chain_attack_count")]
+    [ContentJsonSchemaDisallowExplicitNull]
     public int? RandomChainAttackCount { get; init; }
 }
 

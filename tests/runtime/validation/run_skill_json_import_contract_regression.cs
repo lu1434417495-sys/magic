@@ -238,6 +238,18 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             "/entries/7/skill_id",
             "null required skill_id"
         );
+
+        ContentImportStageResult<SkillImportModel> nullOptionalCarrier = Parse(
+            "null_max_level",
+            "{\"skill_id\":\"mage_focus\",\"display_name\":\"Focus\","
+                + "\"max_level\":null}"
+        );
+        AssertSingleFailure(
+            nullOptionalCarrier,
+            SkillJsonImportRules.RequiredMember,
+            "/entries/7/max_level",
+            "explicit null optional numeric carrier"
+        );
     }
 
     private void TestNestedUnknownMemberIsRejectedAtExactPointer()

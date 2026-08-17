@@ -12,6 +12,7 @@ Build and run from the repository root:
 ```powershell
 dotnet build tools/content_json_validation/Magic.ContentJsonValidation.Cli.csproj
 dotnet .tmp/content_json_validation/bin/Debug/net8.0/Magic.ContentJsonValidation.Cli.dll --domain schema_fixture --input data/configs/json/schema_fixture --format json
+dotnet .tmp/content_json_validation/bin/Debug/net8.0/Magic.ContentJsonValidation.Cli.dll --domain skills --input path/to/skill.json --format json
 ```
 
 `--input` accepts one host-filesystem `.json` file or a directory whose direct `.json` children
@@ -27,3 +28,7 @@ Future migrated domains register one `ContentJsonOfflineValidationDomain<TDto,TI
 `JsonTypeInfo<TDto>` parse delegate, its typed import normalizer, and its domain-local validator.
 The CLI does not reflectively discover DTOs, perform cross-domain checks, or build a runtime
 snapshot.
+
+The `skills` registration currently describes the stage-1a pilot import contract only: the
+committed top-level/combat/level fields and the `layered_barrier` effect payload. Its schema and
+CLI coverage intentionally do not claim that every production `.tres` skill shape has migrated.

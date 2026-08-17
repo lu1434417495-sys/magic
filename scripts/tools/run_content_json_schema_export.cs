@@ -1,9 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Godot;
 
 public partial class run_content_json_schema_export : SceneTree
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true
+    );
+
     public override void _Initialize()
     {
         int exitCode;
@@ -102,7 +108,25 @@ public partial class run_content_json_schema_export : SceneTree
                     + FileAccess.GetOpenError()
             );
         }
-        return file.GetAsText(skipCr: false);
+        long length = (long)file.GetLength();
+        byte[] bytes = file.GetBuffer(length);
+        if (bytes.LongLength != length)
+        {
+            throw new InvalidOperationException(
+                $"Could not read all bytes from tracked schema '{path}'."
+            );
+        }
+        try
+        {
+            return StrictUtf8.GetString(bytes);
+        }
+        catch (DecoderFallbackException exception)
+        {
+            throw new FormatException(
+                $"Tracked schema '{path}' is not valid UTF-8.",
+                exception
+            );
+        }
     }
 
     private static void WriteSchema(string path, string content)
@@ -126,9 +150,10 @@ public partial class run_content_json_schema_export : SceneTree
                 $"Could not open schema '{path}' for writing: {FileAccess.GetOpenError()}"
             );
         }
-        file.StoreString(content);
+        byte[] bytes = StrictUtf8.GetBytes(content);
+        file.StoreBuffer(bytes);
         file.Flush();
-        if (file.GetError() != Error.Ok)
+        if (file.GetError() != Error.Ok || (long)file.GetLength() != bytes.LongLength)
             throw new InvalidOperationException($"Failed to write complete schema '{path}'.");
     }
 }

@@ -15,10 +15,18 @@ using System.Text.Unicode;
 internal sealed class ContentJsonSchemaExporter
 {
     private const string SchemaDraft = "https://json-schema.org/draft/2020-12/schema";
+    internal const string NonBlankStringPattern = @"\S";
     private readonly NullabilityInfoContext _nullability = new();
     private readonly SortedDictionary<string, JsonObject> _definitions =
         new(StringComparer.Ordinal);
     private readonly Dictionary<Type, string> _definitionKeys = new();
+    private readonly Dictionary<
+        (Type Entry, Type Control, string EntryId, string TemplateControl),
+        string
+    > _entryControlDefinitionKeys = new();
+    private readonly Dictionary<Type, string> _partialDefinitionKeys = new();
+    private readonly Dictionary<(Type Entry, Type Control), string>
+        _partialControlDefinitionKeys = new();
     private readonly Dictionary<string, string> _definitionOwners =
         new(StringComparer.Ordinal);
 
@@ -27,6 +35,9 @@ internal sealed class ContentJsonSchemaExporter
         ArgumentNullException.ThrowIfNull(registration);
         _definitions.Clear();
         _definitionKeys.Clear();
+        _entryControlDefinitionKeys.Clear();
+        _partialDefinitionKeys.Clear();
+        _partialControlDefinitionKeys.Clear();
         _definitionOwners.Clear();
 
         JsonObject documentReference = BuildObjectReference(registration.DocumentDtoType);
@@ -229,33 +240,820 @@ internal sealed class ContentJsonSchemaExporter
         return schema;
     }
 
+    private JsonObject BuildPartialClosedKindDefinition(
+        Type type,
+        ContentJsonSchemaClosedKindAttribute attribute,
+        string definitionKey
+    )
+    {
+        IContentJsonSchemaClosedKindSpec spec = CreateProvider<IContentJsonSchemaClosedKindSpec>(
+            attribute.SpecType,
+            $"closed-kind DTO '{DisplayType(type)}'"
+        );
+        IReadOnlyList<SerializableProperty> properties = GetSerializableProperties(type);
+        SerializableProperty discriminator = RequireProperty(
+            type,
+            properties,
+            spec.DiscriminatorPropertyName,
+            "discriminator"
+        );
+        SerializableProperty payload = RequireProperty(
+            type,
+            properties,
+            spec.PayloadPropertyName,
+            "payload"
+        );
+        if (!discriminator.IsRequired || !payload.IsRequired)
+        {
+            throw new InvalidOperationException(
+                $"Closed-kind DTO '{DisplayType(type)}' discriminator and payload properties "
+                    + "must both be required."
+            );
+        }
+        ValidateClosedKindCarrierProperties(type, discriminator, payload);
+
+        IReadOnlyList<ContentJsonSchemaClosedKindBranch> branches = ValidateBranches(type, spec);
+        var anyOf = new JsonArray();
+        foreach (ContentJsonSchemaClosedKindBranch branch in branches)
+        {
+            string branchKey =
+                $"{definitionKey}__{SanitizeDefinitionKey(branch.Kind)}";
+            ReserveDefinitionKey(
+                branchKey,
+                $"partial closed-kind branch '{DisplayType(type)}:{branch.Kind}'"
+            );
+            _definitions[branchKey] = BuildPartialClosedKindBranchDefinition(
+                type,
+                properties,
+                discriminator.JsonName,
+                payload.JsonName,
+                branch
+            );
+            anyOf.Add(
+                new JsonObject
+                {
+                    ["$ref"] = $"#/$defs/{EscapeJsonPointer(branchKey)}",
+                }
+            );
+        }
+
+        var schema = new JsonObject();
+        AddDescription(schema, type.GetCustomAttribute<DescriptionAttribute>()?.Description);
+        schema["anyOf"] = anyOf;
+        return schema;
+    }
+
+    private JsonObject BuildPartialClosedKindBranchDefinition(
+        Type ownerType,
+        IReadOnlyList<SerializableProperty> properties,
+        string discriminatorName,
+        string payloadName,
+        ContentJsonSchemaClosedKindBranch branch
+    )
+    {
+        var schema = new JsonObject
+        {
+            ["type"] = "object",
+            ["additionalProperties"] = AllowsUnmappedMembers(ownerType),
+        };
+        var propertySchemas = new JsonObject();
+        foreach (SerializableProperty property in properties)
+        {
+            if (property.JsonName == discriminatorName)
+            {
+                propertySchemas[property.JsonName] = new JsonObject
+                {
+                    ["type"] = "string",
+                    ["const"] = branch.Kind,
+                };
+            }
+            else if (property.JsonName == payloadName)
+            {
+                string payloadKey = EnsurePartialDefinition(branch.PayloadDtoType);
+                propertySchemas[property.JsonName] = new JsonObject
+                {
+                    ["$ref"] = $"#/$defs/{EscapeJsonPointer(payloadKey)}",
+                };
+            }
+            else
+            {
+                propertySchemas[property.JsonName] = BuildPartialPropertySchema(property);
+            }
+        }
+        schema["properties"] = propertySchemas;
+        return schema;
+    }
+
     private JsonObject BuildPropertySchema(SerializableProperty property)
     {
         NullabilityInfo nullability = _nullability.Create(property.Property);
-        JsonObject schema = BuildValueSchema(
+        ContentJsonSchemaEntryControlMembersAttribute entryControl =
+            property.Property.GetCustomAttribute<ContentJsonSchemaEntryControlMembersAttribute>();
+        ContentJsonSchemaPartialObjectValuesAttribute partialObjectValues =
+            property.Property.GetCustomAttribute<ContentJsonSchemaPartialObjectValuesAttribute>();
+        ContentJsonSchemaDisallowExplicitNullAttribute disallowExplicitNull =
+            property.Property.GetCustomAttribute<ContentJsonSchemaDisallowExplicitNullAttribute>();
+        int schemaShapeAttributeCount = (entryControl != null ? 1 : 0)
+            + (partialObjectValues != null ? 1 : 0)
+            + (disallowExplicitNull != null ? 1 : 0);
+        if (schemaShapeAttributeCount > 1)
+        {
+            throw new InvalidOperationException(
+                $"JSON Schema property '{property.Property.DeclaringType?.Name}."
+                    + $"{property.Property.Name}' cannot combine multiple schema-only shape "
+                    + "metadata attributes."
+            );
+        }
+
+        JsonObject schema = entryControl != null
+            ? BuildEntryControlCollectionSchema(property.Property, nullability, entryControl)
+            : partialObjectValues != null
+                ? BuildPartialObjectValuesSchema(
+                    property.Property,
+                    nullability,
+                    partialObjectValues
+                )
+            : disallowExplicitNull != null
+                ? BuildExplicitNonNullPropertySchema(property.Property, nullability)
+                : BuildValueSchema(
+                    property.Property.PropertyType,
+                    nullability,
+                    property.Property
+                );
+        AddDescription(schema, property.Description);
+        ApplyPropertyConst(schema, property.Property);
+        ApplyPropertyStringConstraints(schema, property.Property);
+        return schema;
+    }
+
+    private JsonObject BuildPartialObjectValuesSchema(
+        PropertyInfo property,
+        NullabilityInfo nullability,
+        ContentJsonSchemaPartialObjectValuesAttribute attribute
+    )
+    {
+        if (!TryGetDictionaryValueType(property.PropertyType, out Type valueType))
+        {
+            throw new InvalidOperationException(
+                $"Partial-object-values schema metadata on '{property.DeclaringType?.Name}."
+                    + $"{property.Name}' requires a string-keyed dictionary property."
+            );
+        }
+        NullabilityInfo valueNullability = RequireGenericNullability(
+            nullability,
+            1,
+            property,
+            "dictionary value"
+        );
+        if (
+            valueType.IsValueType
+            || valueType == typeof(string)
+            || valueNullability.ReadState != NullabilityState.NotNull
+        )
+        {
+            throw new InvalidOperationException(
+                $"Partial-object-values schema metadata on '{property.DeclaringType?.Name}."
+                    + $"{property.Name}' requires non-null class DTO dictionary values."
+            );
+        }
+
+        string partialDefinitionKey = attribute.RootControlDtoType == null
+            ? EnsurePartialDefinition(valueType)
+            : EnsurePartialControlDefinition(
+                valueType,
+                attribute.RootControlDtoType
+            );
+        var dictionarySchema = new JsonObject
+        {
+            ["type"] = "object",
+            ["additionalProperties"] = new JsonObject
+            {
+                ["$ref"] = $"#/$defs/{EscapeJsonPointer(partialDefinitionKey)}",
+            },
+        };
+
+        if (property.PropertyType.IsValueType)
+            return dictionarySchema;
+        if (nullability.ReadState == NullabilityState.Unknown)
+        {
+            throw new InvalidOperationException(
+                $"Reference property '{property.DeclaringType?.Name}.{property.Name}' has unknown "
+                    + "nullable metadata. Enable nullable annotations for the DTO file and declare "
+                    + "the property as nullable or non-nullable explicitly."
+            );
+        }
+        return nullability.ReadState == NullabilityState.Nullable
+            ? WrapNullable(dictionarySchema)
+            : dictionarySchema;
+    }
+
+    private string EnsurePartialDefinition(Type type)
+    {
+        if (_partialDefinitionKeys.TryGetValue(type, out string existingKey))
+            return existingKey;
+        if (!type.IsClass || type == typeof(string) || type.IsGenericTypeDefinition)
+        {
+            throw new InvalidOperationException(
+                $"Partial JSON Schema DTO '{DisplayType(type)}' must be a closed class type."
+            );
+        }
+        string key = SanitizeDefinitionKey($"{type.Name}__partial");
+        ReserveDefinitionKey(key, $"partial DTO '{DisplayType(type)}'");
+        _partialDefinitionKeys.Add(type, key);
+        _definitions[key] = new JsonObject();
+        ContentJsonSchemaClosedKindAttribute closedKind =
+            type.GetCustomAttribute<ContentJsonSchemaClosedKindAttribute>();
+        _definitions[key] = closedKind == null
+            ? BuildPartialObjectDefinition(type)
+            : BuildPartialClosedKindDefinition(type, closedKind, key);
+        return key;
+    }
+
+    private JsonObject BuildPartialObjectDefinition(Type type)
+    {
+        IReadOnlyList<SerializableProperty> properties = GetSerializableProperties(type);
+        var schema = new JsonObject();
+        AddDescription(schema, type.GetCustomAttribute<DescriptionAttribute>()?.Description);
+        schema["type"] = "object";
+        schema["additionalProperties"] = AllowsUnmappedMembers(type);
+
+        var propertySchemas = new JsonObject();
+        foreach (SerializableProperty property in properties)
+            propertySchemas[property.JsonName] = BuildPartialPropertySchema(property);
+        schema["properties"] = propertySchemas;
+        return schema;
+    }
+
+    private JsonObject BuildPartialPropertySchema(SerializableProperty property)
+    {
+        if (
+            property.Property.GetCustomAttribute<ContentJsonSchemaEntryControlMembersAttribute>()
+                != null
+            || property.Property.GetCustomAttribute<ContentJsonSchemaPartialObjectValuesAttribute>()
+                != null
+        )
+        {
+            throw new InvalidOperationException(
+                $"Recursive partial DTO '{property.Property.DeclaringType?.Name}."
+                    + $"{property.Property.Name}' cannot contain document-level schema metadata."
+            );
+        }
+
+        NullabilityInfo nullability = _nullability.Create(property.Property);
+        bool disallowExplicitNull =
+            property.Property.GetCustomAttribute<ContentJsonSchemaDisallowExplicitNullAttribute>()
+                != null;
+        JsonObject schema = BuildPartialValueSchema(
             property.Property.PropertyType,
             nullability,
-            property.Property
+            property.Property,
+            disallowExplicitNull
         );
         AddDescription(schema, property.Description);
+        ApplyPropertyConst(schema, property.Property);
+        ApplyPropertyStringConstraints(schema, property.Property);
+        return schema;
+    }
 
-        ContentJsonSchemaConstAttribute constant =
-            property.Property.GetCustomAttribute<ContentJsonSchemaConstAttribute>();
-        if (constant != null)
+    private void ApplyPropertyStringConstraints(JsonObject schema, PropertyInfo property)
+    {
+        if (property.GetCustomAttribute<ContentJsonSchemaNonBlankStringAttribute>() == null)
+            return;
+
+        NullabilityInfo nullability = _nullability.Create(property);
+        if (
+            property.PropertyType != typeof(string)
+            || nullability.ReadState != NullabilityState.NotNull
+        )
         {
-            schema["const"] = constant.Value switch
+            throw new InvalidOperationException(
+                $"ContentJsonSchemaNonBlankString on '{property.DeclaringType?.Name}."
+                    + $"{property.Name}' requires a non-nullable string carrier."
+            );
+        }
+        schema["pattern"] = NonBlankStringPattern;
+    }
+
+    private static void ApplyPropertyConst(JsonObject schema, PropertyInfo property)
+    {
+        ContentJsonSchemaConstAttribute constant =
+            property.GetCustomAttribute<ContentJsonSchemaConstAttribute>();
+        if (constant == null)
+            return;
+
+        schema["const"] = constant.Value switch
+        {
+            string text => JsonValue.Create(text),
+            int number => JsonValue.Create(number),
+            long number => JsonValue.Create(number),
+            bool flag => JsonValue.Create(flag),
+            _ => throw new InvalidOperationException(
+                $"JSON Schema const on '{property.DeclaringType?.Name}.{property.Name}' has "
+                    + $"unsupported CLR type '{constant.Value.GetType().Name}'."
+            ),
+        };
+    }
+
+    private JsonObject BuildPartialValueSchema(
+        Type type,
+        NullabilityInfo nullability,
+        PropertyInfo declaringProperty,
+        bool disallowExplicitNull
+    )
+    {
+        Type nullableValueType = Nullable.GetUnderlyingType(type);
+        if (nullableValueType != null)
+        {
+            JsonObject valueSchema = BuildPartialNonNullableValueSchema(
+                nullableValueType,
+                nullability,
+                declaringProperty
+            );
+            return disallowExplicitNull ? valueSchema : WrapNullable(valueSchema);
+        }
+
+        if (!type.IsValueType)
+        {
+            if (nullability.ReadState == NullabilityState.Unknown)
             {
-                string text => JsonValue.Create(text),
-                int number => JsonValue.Create(number),
-                long number => JsonValue.Create(number),
-                bool flag => JsonValue.Create(flag),
-                _ => throw new InvalidOperationException(
-                    $"JSON Schema const on '{property.Property.DeclaringType?.Name}."
-                        + $"{property.Property.Name}' has unsupported CLR type "
-                        + $"'{constant.Value.GetType().Name}'."
+                throw new InvalidOperationException(
+                    $"Reference property '{declaringProperty?.DeclaringType?.Name}."
+                        + $"{declaringProperty?.Name}' has unknown nullable metadata. Enable "
+                        + "nullable annotations for the DTO file and declare the property as "
+                        + "nullable or non-nullable explicitly."
+                );
+            }
+            if (disallowExplicitNull && nullability.ReadState != NullabilityState.Nullable)
+            {
+                throw new InvalidOperationException(
+                    $"ContentJsonSchemaDisallowExplicitNull on "
+                        + $"'{declaringProperty?.DeclaringType?.Name}."
+                        + $"{declaringProperty?.Name}' requires a nullable CLR carrier whose "
+                        + "missing value remains optional in JSON."
+                );
+            }
+
+            JsonObject valueSchema = BuildPartialNonNullableValueSchema(
+                type,
+                nullability,
+                declaringProperty
+            );
+            return nullability.ReadState == NullabilityState.Nullable
+                && !disallowExplicitNull
+                ? WrapNullable(valueSchema)
+                : valueSchema;
+        }
+
+        if (disallowExplicitNull)
+        {
+            throw new InvalidOperationException(
+                $"ContentJsonSchemaDisallowExplicitNull on "
+                    + $"'{declaringProperty?.DeclaringType?.Name}."
+                    + $"{declaringProperty?.Name}' requires a nullable CLR carrier whose missing "
+                    + "value remains optional in JSON."
+            );
+        }
+        return BuildPartialNonNullableValueSchema(type, nullability, declaringProperty);
+    }
+
+    private JsonObject BuildPartialNonNullableValueSchema(
+        Type type,
+        NullabilityInfo nullability,
+        PropertyInfo declaringProperty
+    )
+    {
+        ContentJsonSchemaStableStringValuesAttribute stableStrings =
+            declaringProperty?.GetCustomAttribute<ContentJsonSchemaStableStringValuesAttribute>()
+            ?? type.GetCustomAttribute<ContentJsonSchemaStableStringValuesAttribute>();
+        if (stableStrings != null)
+            return BuildStableStringSchema(stableStrings, declaringProperty, type);
+
+        if (
+            type == typeof(string)
+            || type == typeof(char)
+            || type == typeof(bool)
+            || type.IsPrimitive
+            || type == typeof(decimal)
+            || type.IsEnum
+        )
+        {
+            return BuildNonNullableValueSchema(type, nullability, declaringProperty);
+        }
+
+        if (TryGetDictionaryValueType(type, out Type dictionaryValueType))
+        {
+            NullabilityInfo valueNullability = RequireGenericNullability(
+                nullability,
+                1,
+                declaringProperty,
+                "dictionary value"
+            );
+            return new JsonObject
+            {
+                ["type"] = "object",
+                ["additionalProperties"] = BuildPartialValueSchema(
+                    dictionaryValueType,
+                    valueNullability,
+                    declaringProperty,
+                    disallowExplicitNull: false
                 ),
             };
         }
+
+        if (TryGetArrayElementType(type, out Type elementType))
+        {
+            NullabilityInfo elementNullability = type.IsArray
+                ? nullability.ElementType
+                : RequireGenericNullability(
+                    nullability,
+                    0,
+                    declaringProperty,
+                    "array element"
+                );
+            if (elementNullability == null)
+            {
+                throw new InvalidOperationException(
+                    $"Array property '{declaringProperty?.DeclaringType?.Name}."
+                        + $"{declaringProperty?.Name}' has no element nullability metadata."
+                );
+            }
+            return new JsonObject
+            {
+                ["type"] = "array",
+                ["items"] = BuildValueSchema(elementType, elementNullability, declaringProperty),
+            };
+        }
+
+        if (!type.IsClass)
+        {
+            throw new InvalidOperationException(
+                $"JSON Schema exporter does not support partial value type "
+                    + $"'{DisplayType(type)}'."
+            );
+        }
+        string definitionKey = EnsurePartialDefinition(type);
+        return new JsonObject
+        {
+            ["$ref"] = $"#/$defs/{EscapeJsonPointer(definitionKey)}",
+        };
+    }
+
+    private JsonObject BuildExplicitNonNullPropertySchema(
+        PropertyInfo property,
+        NullabilityInfo nullability
+    )
+    {
+        Type propertyType = property.PropertyType;
+        Type nullableValueType = Nullable.GetUnderlyingType(propertyType);
+        if (nullableValueType != null)
+            return BuildNonNullableValueSchema(nullableValueType, nullability, property);
+
+        if (!propertyType.IsValueType && nullability.ReadState == NullabilityState.Nullable)
+            return BuildNonNullableValueSchema(propertyType, nullability, property);
+
+        throw new InvalidOperationException(
+            $"ContentJsonSchemaDisallowExplicitNull on '{property.DeclaringType?.Name}."
+                + $"{property.Name}' requires a nullable CLR carrier whose missing value remains "
+                + "optional in JSON."
+        );
+    }
+
+    private JsonObject BuildEntryControlCollectionSchema(
+        PropertyInfo property,
+        NullabilityInfo nullability,
+        ContentJsonSchemaEntryControlMembersAttribute attribute
+    )
+    {
+        if (!TryGetArrayElementType(property.PropertyType, out Type entryType))
+        {
+            throw new InvalidOperationException(
+                $"Entry-control schema metadata on '{property.DeclaringType?.Name}."
+                    + $"{property.Name}' requires an array or list property."
+            );
+        }
+
+        NullabilityInfo elementNullability = property.PropertyType.IsArray
+            ? nullability.ElementType
+            : RequireGenericNullability(nullability, 0, property, "array element");
+        if (
+            elementNullability == null
+            || elementNullability.ReadState != NullabilityState.NotNull
+        )
+        {
+            throw new InvalidOperationException(
+                $"Entry-control schema metadata on '{property.DeclaringType?.Name}."
+                    + $"{property.Name}' requires non-null entry elements."
+            );
+        }
+
+        string definitionKey = EnsureEntryControlDefinition(entryType, attribute);
+        var arraySchema = new JsonObject
+        {
+            ["type"] = "array",
+            ["items"] = new JsonObject
+            {
+                ["$ref"] = $"#/$defs/{EscapeJsonPointer(definitionKey)}",
+            },
+        };
+
+        if (property.PropertyType.IsValueType)
+            return arraySchema;
+        if (nullability.ReadState == NullabilityState.Unknown)
+        {
+            throw new InvalidOperationException(
+                $"Reference property '{property.DeclaringType?.Name}.{property.Name}' has unknown "
+                    + "nullable metadata. Enable nullable annotations for the DTO file and declare "
+                    + "the property as nullable or non-nullable explicitly."
+            );
+        }
+        return nullability.ReadState == NullabilityState.Nullable
+            ? WrapNullable(arraySchema)
+            : arraySchema;
+    }
+
+    private string EnsureEntryControlDefinition(
+        Type entryType,
+        ContentJsonSchemaEntryControlMembersAttribute attribute
+    )
+    {
+        Type controlType = attribute.ControlDtoType;
+        var identity = (
+            Entry: entryType,
+            Control: controlType,
+            EntryId: attribute.EntryIdPropertyName,
+            TemplateControl: attribute.TemplateControlPropertyName
+        );
+        if (_entryControlDefinitionKeys.TryGetValue(identity, out string existingKey))
+            return existingKey;
+        if (
+            !entryType.IsClass
+            || entryType == typeof(string)
+            || !controlType.IsClass
+            || controlType == typeof(string)
+        )
+        {
+            throw new InvalidOperationException(
+                "Entry-control schema composition requires closed class DTO types."
+            );
+        }
+        if (AllowsUnmappedMembers(entryType) || AllowsUnmappedMembers(controlType))
+        {
+            throw new InvalidOperationException(
+                $"Entry-control schema composition for '{DisplayType(entryType)}' and "
+                    + $"'{DisplayType(controlType)}' requires both DTOs to disallow unmapped members."
+            );
+        }
+
+        IReadOnlyList<SerializableProperty> entryProperties = GetSerializableProperties(entryType);
+        IReadOnlyList<SerializableProperty> controlProperties =
+            GetSerializableProperties(controlType);
+        if (
+            string.Equals(
+                attribute.EntryIdPropertyName,
+                attribute.TemplateControlPropertyName,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new InvalidOperationException(
+                "Entry-control schema entry ID and template control property names must differ."
+            );
+        }
+        SerializableProperty entryId = entryProperties.SingleOrDefault(property =>
+            property.JsonName == attribute.EntryIdPropertyName
+        )
+            ?? throw new InvalidOperationException(
+                $"Entry-control schema composition for '{DisplayType(entryType)}' has no entry ID "
+                    + $"property named '{attribute.EntryIdPropertyName}'."
+            );
+        SerializableProperty templateControl = controlProperties.SingleOrDefault(property =>
+            property.JsonName == attribute.TemplateControlPropertyName
+        )
+            ?? throw new InvalidOperationException(
+                $"Entry-control schema composition for '{DisplayType(controlType)}' has no "
+                    + $"template control property named '{attribute.TemplateControlPropertyName}'."
+            );
+        ValidateEntryControlStringCarrier(entryType, entryId, "entry ID");
+        ValidateEntryControlStringCarrier(controlType, templateControl, "template control");
+        if (
+            templateControl.Property.GetCustomAttribute<ContentJsonSchemaNonBlankStringAttribute>()
+                == null
+        )
+        {
+            throw new InvalidOperationException(
+                $"Entry-control schema template control property '{DisplayType(controlType)}."
+                    + $"{templateControl.Property.Name}' must declare "
+                    + $"{nameof(ContentJsonSchemaNonBlankStringAttribute)}."
+            );
+        }
+
+        string metadataKey = SanitizeDefinitionKey(
+            $"{attribute.EntryIdPropertyName}_{attribute.TemplateControlPropertyName}"
+        );
+        string key = SanitizeDefinitionKey(
+            $"{entryType.Name}__authoring_{metadataKey}_with_{controlType.Name}"
+        );
+        ReserveDefinitionKey(
+            key,
+            $"entry-control composition '{DisplayType(entryType)}+{DisplayType(controlType)}' "
+                + $"using '{attribute.EntryIdPropertyName}'/'{attribute.TemplateControlPropertyName}'"
+        );
+        _entryControlDefinitionKeys.Add(identity, key);
+        _definitions[key] = new JsonObject();
+        _definitions[key] = BuildEntryControlDefinition(entryType, controlType, attribute);
+        return key;
+    }
+
+    private void ValidateEntryControlStringCarrier(
+        Type ownerType,
+        SerializableProperty property,
+        string role
+    )
+    {
+        NullabilityInfo nullability = _nullability.Create(property.Property);
+        if (
+            property.Property.PropertyType != typeof(string)
+            || nullability.ReadState != NullabilityState.NotNull
+        )
+        {
+            throw new InvalidOperationException(
+                $"Entry-control schema {role} property '{DisplayType(ownerType)}."
+                    + $"{property.Property.Name}' must be a non-nullable string carrier."
+            );
+        }
+    }
+
+    private string EnsurePartialControlDefinition(Type entryType, Type controlType)
+    {
+        var pair = (Entry: entryType, Control: controlType);
+        if (_partialControlDefinitionKeys.TryGetValue(pair, out string existingKey))
+            return existingKey;
+        if (
+            !entryType.IsClass
+            || entryType == typeof(string)
+            || !controlType.IsClass
+            || controlType == typeof(string)
+        )
+        {
+            throw new InvalidOperationException(
+                "Partial-control schema composition requires closed class DTO types."
+            );
+        }
+        if (entryType.GetCustomAttribute<ContentJsonSchemaClosedKindAttribute>() != null)
+        {
+            throw new InvalidOperationException(
+                $"Partial-control schema composition does not support a closed-kind root DTO "
+                    + $"'{DisplayType(entryType)}'."
+            );
+        }
+        if (AllowsUnmappedMembers(entryType) || AllowsUnmappedMembers(controlType))
+        {
+            throw new InvalidOperationException(
+                $"Partial-control schema composition for '{DisplayType(entryType)}' and "
+                    + $"'{DisplayType(controlType)}' requires both DTOs to disallow unmapped members."
+            );
+        }
+
+        string key = SanitizeDefinitionKey(
+            $"{entryType.Name}__partial_with_{controlType.Name}"
+        );
+        ReserveDefinitionKey(
+            key,
+            $"partial-control composition '{DisplayType(entryType)}+{DisplayType(controlType)}'"
+        );
+        _partialControlDefinitionKeys.Add(pair, key);
+        _definitions[key] = new JsonObject();
+        _definitions[key] = BuildPartialControlDefinition(entryType, controlType);
+        return key;
+    }
+
+    private JsonObject BuildPartialControlDefinition(Type entryType, Type controlType)
+    {
+        IReadOnlyList<SerializableProperty> entryProperties = GetSerializableProperties(entryType);
+        IReadOnlyList<SerializableProperty> controlProperties =
+            GetSerializableProperties(controlType);
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (SerializableProperty property in entryProperties.Concat(controlProperties))
+        {
+            if (!names.Add(property.JsonName))
+            {
+                throw new InvalidOperationException(
+                    $"Partial-control schema composition for '{DisplayType(entryType)}' and "
+                        + $"'{DisplayType(controlType)}' duplicates JSON property "
+                        + $"'{property.JsonName}'."
+                );
+            }
+        }
+
+        var schema = new JsonObject();
+        AddDescription(
+            schema,
+            entryType.GetCustomAttribute<DescriptionAttribute>()?.Description
+        );
+        schema["type"] = "object";
+        schema["additionalProperties"] = false;
+        var propertySchemas = new JsonObject();
+        foreach (SerializableProperty property in entryProperties)
+            propertySchemas[property.JsonName] = BuildPartialPropertySchema(property);
+
+        var required = new JsonArray();
+        foreach (SerializableProperty property in controlProperties)
+        {
+            propertySchemas[property.JsonName] = BuildPropertySchema(property);
+            if (property.IsRequired)
+                required.Add(property.JsonName);
+        }
+        schema["properties"] = propertySchemas;
+        if (required.Count > 0)
+            schema["required"] = required;
+        return schema;
+    }
+
+    private JsonObject BuildEntryControlDefinition(
+        Type entryType,
+        Type controlType,
+        ContentJsonSchemaEntryControlMembersAttribute attribute
+    )
+    {
+        string fullEntryKey = EnsureDefinition(entryType);
+        string metadataKey = SanitizeDefinitionKey(
+            $"{attribute.EntryIdPropertyName}_{attribute.TemplateControlPropertyName}"
+        );
+        string templatedEntryKey = SanitizeDefinitionKey(
+            $"{entryType.Name}__templated_{metadataKey}_with_{controlType.Name}"
+        );
+        ReserveDefinitionKey(
+            templatedEntryKey,
+            $"templated entry composition '{DisplayType(entryType)}+{DisplayType(controlType)}' "
+                + $"using '{attribute.EntryIdPropertyName}'/'{attribute.TemplateControlPropertyName}'"
+        );
+        _definitions[templatedEntryKey] = BuildTemplatedEntryControlDefinition(
+            entryType,
+            controlType,
+            attribute
+        );
+
+        var schema = new JsonObject();
+        AddDescription(
+            schema,
+            entryType.GetCustomAttribute<DescriptionAttribute>()?.Description
+        );
+        schema["oneOf"] = new JsonArray(
+            new JsonObject
+            {
+                ["$ref"] = $"#/$defs/{EscapeJsonPointer(fullEntryKey)}",
+            },
+            new JsonObject
+            {
+                ["$ref"] = $"#/$defs/{EscapeJsonPointer(templatedEntryKey)}",
+            }
+        );
+        return schema;
+    }
+
+    private JsonObject BuildTemplatedEntryControlDefinition(
+        Type entryType,
+        Type controlType,
+        ContentJsonSchemaEntryControlMembersAttribute attribute
+    )
+    {
+        IReadOnlyList<SerializableProperty> entryProperties = GetSerializableProperties(entryType);
+        IReadOnlyList<SerializableProperty> controlProperties =
+            GetSerializableProperties(controlType);
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (
+            SerializableProperty property in entryProperties.Concat(controlProperties)
+        )
+        {
+            if (!names.Add(property.JsonName))
+            {
+                throw new InvalidOperationException(
+                    $"Entry-control schema composition for '{DisplayType(entryType)}' and "
+                        + $"'{DisplayType(controlType)}' duplicates JSON property "
+                        + $"'{property.JsonName}'."
+                );
+            }
+        }
+
+        var schema = new JsonObject();
+        AddDescription(
+            schema,
+            entryType.GetCustomAttribute<DescriptionAttribute>()?.Description
+        );
+        schema["type"] = "object";
+        schema["additionalProperties"] = false;
+        var propertySchemas = new JsonObject();
+        foreach (SerializableProperty property in entryProperties)
+            propertySchemas[property.JsonName] = BuildPartialPropertySchema(property);
+        foreach (SerializableProperty property in controlProperties)
+        {
+            propertySchemas[property.JsonName] = BuildPropertySchema(property);
+        }
+        schema["properties"] = propertySchemas;
+        schema["required"] = new JsonArray(
+            attribute.EntryIdPropertyName,
+            attribute.TemplateControlPropertyName
+        );
         return schema;
     }
 

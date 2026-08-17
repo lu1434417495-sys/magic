@@ -13,6 +13,7 @@ internal static class ContentJsonOfflineValidationCatalog
             new IContentJsonOfflineValidationDomain[]
             {
                 ContentJsonOfflineValidationSampleDomain.Create(),
+                SkillContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
             }
         );
 

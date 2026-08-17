@@ -19,13 +19,6 @@ internal enum BattleCommandKind
     CancelCast,
 }
 
-public enum PendingCastBindingModeKind
-{
-    SoftAnchor = 0,
-    HardAnchor,
-    GroundBind,
-}
-
 internal enum PendingCastRefundPolicy
 {
     None = 0,

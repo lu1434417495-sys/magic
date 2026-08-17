@@ -1,5 +1,9 @@
+#nullable enable
+
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 [AttributeUsage(AttributeTargets.Property)]
 internal sealed class ContentJsonSchemaConstAttribute : Attribute
@@ -23,6 +27,51 @@ internal sealed class ContentJsonSchemaStableStringValuesAttribute : Attribute
     internal Type ProviderType { get; }
 }
 
+[AttributeUsage(AttributeTargets.Property)]
+internal sealed class ContentJsonSchemaDisallowExplicitNullAttribute : Attribute { }
+
+[AttributeUsage(AttributeTargets.Property)]
+internal sealed class ContentJsonSchemaNonBlankStringAttribute : Attribute { }
+
+[AttributeUsage(AttributeTargets.Property)]
+internal sealed class ContentJsonSchemaEntryControlMembersAttribute : Attribute
+{
+    internal ContentJsonSchemaEntryControlMembersAttribute(
+        Type controlDtoType,
+        string entryIdPropertyName,
+        string templateControlPropertyName
+    )
+    {
+        ControlDtoType = controlDtoType ?? throw new ArgumentNullException(nameof(controlDtoType));
+        if (string.IsNullOrWhiteSpace(entryIdPropertyName))
+            throw new ArgumentException("Entry ID property name is required.", nameof(entryIdPropertyName));
+        if (string.IsNullOrWhiteSpace(templateControlPropertyName))
+        {
+            throw new ArgumentException(
+                "Template control property name is required.",
+                nameof(templateControlPropertyName)
+            );
+        }
+        EntryIdPropertyName = entryIdPropertyName;
+        TemplateControlPropertyName = templateControlPropertyName;
+    }
+
+    internal Type ControlDtoType { get; }
+    internal string EntryIdPropertyName { get; }
+    internal string TemplateControlPropertyName { get; }
+}
+
+[AttributeUsage(AttributeTargets.Property)]
+internal sealed class ContentJsonSchemaPartialObjectValuesAttribute : Attribute
+{
+    internal ContentJsonSchemaPartialObjectValuesAttribute(Type? rootControlDtoType = null)
+    {
+        RootControlDtoType = rootControlDtoType;
+    }
+
+    internal Type? RootControlDtoType { get; }
+}
+
 internal interface IContentJsonSchemaStableStringValues
 {
     IReadOnlyList<string> Values { get; }
@@ -44,6 +93,18 @@ internal interface IContentJsonSchemaClosedKindSpec
     string DiscriminatorPropertyName { get; }
     string PayloadPropertyName { get; }
     IReadOnlyList<ContentJsonSchemaClosedKindBranch> Branches { get; }
+}
+
+[Description(
+    "Schema-only file-local template selector composed into authoring entries before the strict DTO parse stage."
+)]
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class ContentJsonTemplateReferenceSchemaDto
+{
+    [JsonPropertyName("template")]
+    [ContentJsonSchemaNonBlankString]
+    [Description("Optional file-local template identifier consumed and removed by the template merger.")]
+    public string Template { get; init; } = "";
 }
 
 internal sealed record ContentJsonSchemaClosedKindBranch(string Kind, Type PayloadDtoType);

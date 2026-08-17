@@ -24,5 +24,10 @@
     <Compile Include="../../scripts/systems/content/json/ContentJsonSchemaContracts.cs" Link="Shared/ContentJsonSchemaContracts.cs" />
     <Compile Include="../../scripts/systems/content/json/ContentJsonSchemaSampleDomain.cs" Link="Shared/ContentJsonSchemaSampleDomain.cs" />
     <Compile Include="../../scripts/systems/content/json/ContentJsonOfflineValidationSampleDomain.cs" Link="Shared/ContentJsonOfflineValidationSampleDomain.cs" />
+    <Compile Include="../../scripts/systems/content/skills/PendingCastBindingModeKind.cs" Link="Shared/PendingCastBindingModeKind.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillTypedLevelValueModels.cs" Link="Shared/SkillTypedLevelValueModels.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillJsonImportContracts.cs" Link="Shared/SkillJsonImportContracts.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillJsonImportParser.cs" Link="Shared/SkillJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillContentJsonAuthoringDomain.cs" Link="Shared/SkillContentJsonAuthoringDomain.cs" />
   </ItemGroup>
 </Project>

@@ -3,12 +3,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Godot;
 
 public partial class run_content_json_schema_export_regression : LifecycleTestSceneTree
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true
+    );
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -16,6 +22,11 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
         try
         {
             TestGeneratedSchemaReflectsDtoMetadata();
+            TestEntryControlMembersAreSchemaOnly();
+            TestRecursivePartialTemplatesPreserveReplaceOnlyArrays();
+            TestOptionalNullableCarrierCanDisallowExplicitNull();
+            TestSkillPilotSchemaReflectsCurrentImportContract();
+            TestSkillSchemaValueProvidersMatchParserEnums();
             TestTrackedSchemaIsByteExact();
             TestGenerationIsDeterministicAndDtoChangesProduceDrift();
             TestUnknownReferenceNullabilityFailsClosed();
@@ -68,7 +79,17 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             "code-side const metadata should constrain the domain"
         );
 
-        JsonElement entrySchema = Definition(root, nameof(ContentJsonSchemaSampleEntryDto));
+        JsonElement entryAuthoringSchema = ReferencedDefinition(
+            root,
+            documentSchema.GetProperty("properties")
+                .GetProperty("entries")
+                .GetProperty("items")
+        );
+        JsonElement entrySchema = EntryAuthoringBranch(
+            root,
+            entryAuthoringSchema,
+            templated: false
+        );
         AssertRequired(entrySchema, "fixture_id", "JsonRequired entry field should be required");
         AssertRequired(
             entrySchema,
@@ -83,6 +104,10 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
         _test.False(
             entryProperties.TryGetProperty("FixtureId", out _),
             "CLR property names must not leak into the schema"
+        );
+        _test.False(
+            entryProperties.TryGetProperty("template", out _),
+            "non-templated authoring entries should remain the strict full DTO"
         );
 
         JsonElement tags = entryProperties.GetProperty("tags");
@@ -144,24 +169,587 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
         );
     }
 
-    private void TestTrackedSchemaIsByteExact()
+    private void TestEntryControlMembersAreSchemaOnly()
     {
         ContentJsonSchemaDomainRegistration registration =
             ContentJsonSchemaCatalog.Require("schema_fixture");
         string generated = new ContentJsonSchemaExporter().Export(registration);
-        using FileAccess file = FileAccess.Open(
-            registration.TrackedSchemaPath,
-            FileAccess.ModeFlags.Read
+        using JsonDocument document = JsonDocument.Parse(generated);
+        JsonElement root = document.RootElement;
+        JsonElement documentSchema = Definition(root, nameof(ContentJsonSchemaSampleDocumentDto));
+        JsonElement entryAuthoringSchema = ReferencedDefinition(
+            root,
+            documentSchema.GetProperty("properties")
+                .GetProperty("entries")
+                .GetProperty("items")
         );
-        _test.True(file != null, "tracked schema should exist at the registered Godot path");
-        if (file == null)
-            return;
+        _test.Eq(
+            entryAuthoringSchema.GetProperty("oneOf").GetArrayLength(),
+            2,
+            "authoring entries should separate full and templated raw shapes"
+        );
+        JsonElement fullEntry = EntryAuthoringBranch(
+            root,
+            entryAuthoringSchema,
+            templated: false
+        );
+        JsonElement templatedEntry = EntryAuthoringBranch(
+            root,
+            entryAuthoringSchema,
+            templated: true
+        );
 
-        string tracked = file.GetAsText(skipCr: false);
-        _test.True(
-            string.Equals(generated, tracked, StringComparison.Ordinal),
-            "regenerated schema must match the tracked artifact byte-for-byte"
+        _test.False(
+            typeof(ContentJsonSchemaSampleEntryDto).GetProperties().Any(property =>
+                string.Equals(property.Name, "Template", StringComparison.Ordinal)
+            ),
+            "schema-only template control metadata must not pollute the strict post-merge DTO"
         );
+        _test.True(
+            templatedEntry.GetProperty("properties")
+                .TryGetProperty("template", out JsonElement template),
+            "templated raw entry branch should expose template"
+        );
+        _test.Eq(
+            template.GetProperty("type").GetString(),
+            "string",
+            "template control member should remain a non-null string when present"
+        );
+        string templatePattern = template.GetProperty("pattern").GetString() ?? "";
+        _test.Eq(
+            templatePattern,
+            ContentJsonSchemaExporter.NonBlankStringPattern,
+            "template control should export the shared non-blank pattern"
+        );
+        _test.False(
+            Regex.IsMatch("", templatePattern) || Regex.IsMatch(" \t", templatePattern),
+            "template control pattern should reject empty and whitespace-only identifiers"
+        );
+        _test.True(
+            Regex.IsMatch("base", templatePattern),
+            "template control pattern should accept a normal parent template identifier"
+        );
+        AssertRequired(
+            templatedEntry,
+            "fixture_id",
+            "templated raw entries must retain the pre-merge source identity"
+        );
+        AssertRequired(
+            templatedEntry,
+            "template",
+            "the partial authoring branch must be selected only by an explicit template"
+        );
+        _test.False(
+            templatedEntry.GetProperty("required").EnumerateArray().Any(item =>
+                item.GetString() == "display_name"
+            ),
+            "templated raw entries may inherit ordinary required DTO members"
+        );
+        _test.False(
+            fullEntry.GetProperty("properties").TryGetProperty("template", out _),
+            "the full branch should reject template through strict additionalProperties"
+        );
+        AssertRequired(
+            fullEntry,
+            "display_name",
+            "a partial raw entry without template must fall back to the full DTO branch"
+        );
+
+        JsonElement partialAction = ReferencedDefinition(
+            root,
+            templatedEntry.GetProperty("properties").GetProperty("action")
+        );
+        JsonElement partialCounterAction = partialAction.GetProperty("anyOf")
+            .EnumerateArray()
+            .Select(branch => ReferencedDefinition(root, branch))
+            .Single(branch =>
+                branch.GetProperty("properties")
+                    .GetProperty("kind")
+                    .GetProperty("const")
+                    .GetString() == "counter"
+            );
+        _test.False(
+            partialCounterAction.TryGetProperty("required", out _),
+            "templated raw entries should accept payload-only direct closed-kind fragments"
+        );
+
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaMissingEntryIdMetadataDocumentDto),
+            "has no entry ID property",
+            "entry-control metadata should fail closed when the named entry ID is absent"
+        );
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaWrongEntryIdCarrierDocumentDto),
+            "entry ID property",
+            "entry-control metadata should require a non-null string entry ID carrier"
+        );
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaWrongTemplateCarrierDocumentDto),
+            "template control property",
+            "entry-control metadata should require a non-null string template carrier"
+        );
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaMissingTemplateNonBlankDocumentDto),
+            nameof(ContentJsonSchemaNonBlankStringAttribute),
+            "entry-control metadata should require an explicit non-blank template selector"
+        );
+    }
+
+    private void TestOptionalNullableCarrierCanDisallowExplicitNull()
+    {
+        var registration = new ContentJsonSchemaDomainRegistration(
+            "explicit_null_probe",
+            1,
+            typeof(ContentJsonSchemaExplicitNullProbeDto),
+            "Explicit null probe",
+            "Regression-only nullable-carrier schema metadata.",
+            "res://data/schemas/content/explicit_null_probe.schema.json",
+            "/data/configs/json/explicit_null_probe/**/*.json"
+        );
+        string generated = new ContentJsonSchemaExporter().Export(registration);
+        using JsonDocument document = JsonDocument.Parse(generated);
+        JsonElement properties = Definition(
+            document.RootElement,
+            nameof(ContentJsonSchemaExplicitNullProbeDto)
+        ).GetProperty("properties");
+
+        JsonElement absentOnly = properties.GetProperty("absent_only");
+        _test.Eq(
+            absentOnly.GetProperty("type").GetString(),
+            "integer",
+            "schema-only explicit-null metadata should keep a nullable carrier optional but non-null"
+        );
+        _test.False(
+            absentOnly.TryGetProperty("anyOf", out _),
+            "explicit-null-forbidden carrier should not export a null branch"
+        );
+        JsonElement nullable = properties.GetProperty("nullable");
+        _test.True(
+            nullable.GetProperty("anyOf").EnumerateArray().Any(item =>
+                item.TryGetProperty("type", out JsonElement type)
+                && type.GetString() == "null"
+            ),
+            "ordinary nullable schema behavior must remain unchanged"
+        );
+
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaInvalidExplicitNullProbeDto),
+            "requires a nullable CLR carrier",
+            "explicit-null metadata on a non-nullable carrier must fail closed"
+        );
+    }
+
+    private void TestRecursivePartialTemplatesPreserveReplaceOnlyArrays()
+    {
+        ContentJsonSchemaDomainRegistration registration =
+            ContentJsonSchemaCatalog.Require("schema_fixture");
+        string generated = new ContentJsonSchemaExporter().Export(registration);
+        using JsonDocument document = JsonDocument.Parse(generated);
+        JsonElement root = document.RootElement;
+        JsonElement documentSchema = Definition(root, nameof(ContentJsonSchemaSampleDocumentDto));
+        JsonElement partialEntry = ReferencedDefinition(
+            root,
+            documentSchema.GetProperty("properties")
+                .GetProperty("templates")
+                .GetProperty("additionalProperties")
+        );
+        _test.False(
+            partialEntry.TryGetProperty("required", out _),
+            "template root should be a partial view of the same entry DTO"
+        );
+        _test.True(
+            partialEntry.GetProperty("properties").TryGetProperty("template", out _),
+            "template roots should compose the schema-only parent-template selector"
+        );
+
+        JsonElement partialAction = ReferencedDefinition(
+            root,
+            partialEntry.GetProperty("properties").GetProperty("action")
+        );
+        _test.False(
+            partialAction.TryGetProperty("oneOf", out _),
+            "direct closed-kind template objects must not use exclusive full branches"
+        );
+        _test.Eq(
+            partialAction.GetProperty("anyOf").GetArrayLength(),
+            2,
+            "direct closed-kind template objects should expose all partial kind branches"
+        );
+        JsonElement partialCounterAction = partialAction.GetProperty("anyOf")
+            .EnumerateArray()
+            .Select(branch => ReferencedDefinition(root, branch))
+            .Single(branch =>
+                branch.GetProperty("properties")
+                    .GetProperty("kind")
+                    .GetProperty("const")
+                    .GetString() == "counter"
+            );
+        _test.False(
+            partialCounterAction.TryGetProperty("required", out _),
+            "a direct closed-kind template branch should allow kind-only or payload-only layers"
+        );
+        JsonElement partialCounterPayload = ReferencedDefinition(
+            root,
+            partialCounterAction.GetProperty("properties").GetProperty("payload")
+        );
+        _test.False(
+            partialCounterPayload.TryGetProperty("required", out _),
+            "direct closed-kind payload objects should recursively support deep-merge fragments"
+        );
+
+        JsonElement partialSettings = ReferencedDefinition(
+            root,
+            partialEntry.GetProperty("properties").GetProperty("settings")
+        );
+        _test.False(
+            partialSettings.TryGetProperty("required", out _),
+            "nested template objects should recursively remove required members"
+        );
+
+        JsonElement partialOption = ReferencedDefinition(
+            root,
+            partialSettings.GetProperty("properties")
+                .GetProperty("options")
+                .GetProperty("additionalProperties")
+        );
+        _test.False(
+            partialOption.TryGetProperty("required", out _),
+            "dictionary object values should remain recursive partial template views"
+        );
+
+        JsonElement fullStep = ReferencedDefinition(
+            root,
+            partialSettings.GetProperty("properties")
+                .GetProperty("steps")
+                .GetProperty("items")
+        );
+        AssertRequired(
+            fullStep,
+            "name",
+            "replace-only array elements should keep their full DTO requirements"
+        );
+        AssertRequired(
+            fullStep,
+            "action",
+            "replace-only array elements should keep nested closed-kind values complete"
+        );
+        JsonElement fullAction = ReferencedDefinition(
+            root,
+            fullStep.GetProperty("properties").GetProperty("action")
+        );
+        _test.True(
+            fullAction.GetProperty("oneOf").GetArrayLength() > 0,
+            "closed-kind payloads reached through replace-only arrays should remain full unions"
+        );
+        _test.False(
+            fullAction.TryGetProperty("anyOf", out _),
+            "replace-only array elements must not receive partial closed-kind branches"
+        );
+    }
+
+    private void TestSkillPilotSchemaReflectsCurrentImportContract()
+    {
+        ContentJsonSchemaDomainRegistration registration =
+            ContentJsonSchemaCatalog.Require(SkillContentJsonAuthoringDomain.DomainId);
+        string generated = new ContentJsonSchemaExporter().Export(registration);
+        using JsonDocument document = JsonDocument.Parse(generated);
+        JsonElement root = document.RootElement;
+        JsonElement documentSchema = Definition(root, nameof(SkillJsonDocumentDto));
+        _test.Eq(
+            documentSchema.GetProperty("properties").GetProperty("domain").GetProperty("const").GetString(),
+            "skills",
+            "skill schema document should lock the registered domain"
+        );
+
+        JsonElement entryAuthoring = ReferencedDefinition(
+            root,
+            documentSchema.GetProperty("properties")
+                .GetProperty("entries")
+                .GetProperty("items")
+        );
+        JsonElement entry = EntryAuthoringBranch(root, entryAuthoring, templated: false);
+        JsonElement templatedEntry = EntryAuthoringBranch(
+            root,
+            entryAuthoring,
+            templated: true
+        );
+        AssertRequired(entry, "skill_id", "skill entry should require its stable ID");
+        AssertRequired(entry, "display_name", "skill entry should require its display name");
+        _test.True(
+            templatedEntry.GetProperty("properties").TryGetProperty("template", out _),
+            "templated skill entries should expose only the schema-side template selector"
+        );
+        AssertRequired(
+            templatedEntry,
+            "skill_id",
+            "templated skill entries must preserve their raw pre-merge identity"
+        );
+        AssertRequired(
+            templatedEntry,
+            "template",
+            "templated skill entries should require the authoring control member"
+        );
+        _test.False(
+            templatedEntry.GetProperty("required").EnumerateArray().Any(item =>
+                item.GetString() == "display_name"
+            ),
+            "templated skill entries may inherit display_name from their template chain"
+        );
+        AssertEnumValues(
+            entry.GetProperty("properties").GetProperty("skill_type"),
+            "active",
+            "passive"
+        );
+        _test.Eq(
+            entry.GetProperty("properties").GetProperty("max_level").GetProperty("type").GetString(),
+            "integer",
+            "skill max_level should be optional but explicit-null-forbidden"
+        );
+
+        JsonElement combat = ReferencedDefinition(
+            root,
+            NonNullBranch(entry.GetProperty("properties").GetProperty("combat_profile"))
+        );
+        AssertEnumValues(
+            combat.GetProperty("properties").GetProperty("target_team_filter"),
+            "self",
+            "ally",
+            "enemy",
+            "any"
+        );
+        JsonElement effect = ReferencedDefinition(
+            root,
+            combat.GetProperty("properties")
+                .GetProperty("effect_defs")
+                .GetProperty("items")
+        );
+        _test.Eq(
+            effect.GetProperty("oneOf").GetArrayLength(),
+            1,
+            "stage-1a skill schema should truthfully expose only the layered_barrier pilot kind"
+        );
+        JsonElement layeredBranch = ReferencedDefinition(
+            root,
+            effect.GetProperty("oneOf").EnumerateArray().Single()
+        );
+        _test.Eq(
+            layeredBranch.GetProperty("properties").GetProperty("effect_type").GetProperty("const").GetString(),
+            "layered_barrier",
+            "pilot closed-kind branch should lock its wire discriminator"
+        );
+        JsonElement payload = ReferencedDefinition(
+            root,
+            layeredBranch.GetProperty("properties").GetProperty("payload")
+        );
+        AssertRequired(payload, "profile_id", "layered barrier payload should require profile_id");
+        AssertEnumValues(
+            payload.GetProperty("properties").GetProperty("area_pattern"),
+            "single",
+            "self",
+            "diamond",
+            "square",
+            "line"
+        );
+
+        JsonElement partialEntry = ReferencedDefinition(
+            root,
+            documentSchema.GetProperty("properties")
+                .GetProperty("templates")
+                .GetProperty("additionalProperties")
+        );
+        _test.False(
+            partialEntry.TryGetProperty("required", out _),
+            "skill templates should reuse a recursive partial view of SkillJsonDto"
+        );
+        _test.True(
+            partialEntry.GetProperty("properties").TryGetProperty("template", out _),
+            "skill template roots should support parent-template chaining"
+        );
+        JsonElement partialCombat = ReferencedDefinition(
+            root,
+            NonNullBranch(
+                partialEntry.GetProperty("properties").GetProperty("combat_profile")
+            )
+        );
+        _test.False(
+            partialCombat.TryGetProperty("required", out _),
+            "nested skill combat template objects should remain partial"
+        );
+        JsonElement partialOverride = ReferencedDefinition(
+            root,
+            partialCombat.GetProperty("properties")
+                .GetProperty("level_overrides")
+                .GetProperty("additionalProperties")
+        );
+        JsonElement pendingMode = partialOverride.GetProperty("properties")
+            .GetProperty("pending_cast_binding_mode");
+        _test.False(
+            pendingMode.TryGetProperty("anyOf", out _),
+            "optional override carriers should remain explicit-null-forbidden in templates"
+        );
+        AssertEnumValues(
+            pendingMode,
+            "soft_anchor",
+            "hard_anchor",
+            "ground_bind"
+        );
+
+        Type templateValueType = typeof(SkillJsonDocumentDto).GetProperty("Templates")!
+            .PropertyType.GetGenericArguments()[1];
+        Type entryValueType = typeof(SkillJsonDocumentDto).GetProperty("Entries")!
+            .PropertyType.GetGenericArguments()[0];
+        _test.Eq(
+            templateValueType,
+            entryValueType,
+            "skill templates and entries must derive from the same DTO instead of a duplicate field list"
+        );
+    }
+
+    private void TestSkillSchemaValueProvidersMatchParserEnums()
+    {
+        AssertSkillSchemaProviderParity<SkillImportType>(
+            new SkillTypeSchemaValues(),
+            SkillJsonImportValueRules.TryParseSkillType,
+            "skill_type"
+        );
+        AssertSkillSchemaProviderParity<SkillImportLearnSource>(
+            new SkillLearnSourceSchemaValues(),
+            SkillJsonImportValueRules.TryParseLearnSource,
+            "learn_source"
+        );
+        AssertSkillSchemaProviderParity<CombatSkillImportTargetMode>(
+            new SkillTargetModeSchemaValues(),
+            SkillJsonImportValueRules.TryParseTargetMode,
+            "target_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatSkillImportTargetTeamFilter>(
+            new SkillTargetTeamFilterSchemaValues(),
+            SkillJsonImportValueRules.TryParseTargetTeamFilter,
+            "target_team_filter"
+        );
+        AssertSkillSchemaProviderParity<CombatSkillImportRangePattern>(
+            new SkillRangePatternSchemaValues(),
+            SkillJsonImportValueRules.TryParseRangePattern,
+            "range_pattern"
+        );
+        AssertSkillSchemaProviderParity<CombatSkillImportAreaPattern>(
+            new SkillAreaPatternSchemaValues(),
+            SkillJsonImportValueRules.TryParseAreaPattern,
+            "area_pattern"
+        );
+        AssertSkillSchemaProviderParity<PendingCastBindingModeKind>(
+            new SkillPendingCastBindingModeSchemaValues(),
+            SkillJsonImportValueRules.TryParsePendingCastBindingMode,
+            "pending_cast_binding_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatSkillLevelOverrideAttackResolutionMode>(
+            new SkillAttackResolutionModeSchemaValues(),
+            SkillJsonImportValueRules.TryParseLevelOverrideAttackResolutionMode,
+            "level_override.attack_resolution_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatSkillLevelOverrideAttackDefenseMode>(
+            new SkillAttackDefenseModeSchemaValues(),
+            SkillJsonImportValueRules.TryParseLevelOverrideAttackDefenseMode,
+            "level_override.attack_defense_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatSkillLevelOverrideAreaPattern>(
+            new SkillLevelOverrideAreaPatternSchemaValues(),
+            SkillJsonImportValueRules.TryParseLevelOverrideAreaPattern,
+            "level_override.area_pattern"
+        );
+    }
+
+    private void AssertSkillSchemaProviderParity<TEnum>(
+        IContentJsonSchemaStableStringValues provider,
+        TryParseSkillSchemaValue<TEnum> parser,
+        string fieldLabel
+    )
+        where TEnum : struct, Enum
+    {
+        IReadOnlyList<string> values = provider.Values;
+        _test.Eq(
+            values.Distinct(StringComparer.Ordinal).Count(),
+            values.Count,
+            $"{fieldLabel} schema values should not contain duplicate wire strings"
+        );
+
+        var parsedValues = new HashSet<TEnum>();
+        foreach (string value in values)
+        {
+            bool parsed = parser(value, out TEnum result);
+            _test.True(parsed, $"{fieldLabel} schema value '{value}' should parse successfully");
+            if (!parsed)
+                continue;
+            _test.True(
+                parsedValues.Add(result),
+                $"{fieldLabel} schema values should map one-to-one onto enum members"
+            );
+        }
+
+        TEnum[] expected = Enum.GetValues<TEnum>();
+        _test.Eq(
+            parsedValues.Count,
+            expected.Length,
+            $"{fieldLabel} parsed schema values should cover the complete enum"
+        );
+        foreach (TEnum expectedValue in expected)
+        {
+            _test.True(
+                parsedValues.Contains(expectedValue),
+                $"{fieldLabel} schema values should cover enum member {expectedValue}"
+            );
+        }
+    }
+
+    private void TestTrackedSchemaIsByteExact()
+    {
+        var exporter = new ContentJsonSchemaExporter();
+        foreach (
+            ContentJsonSchemaDomainRegistration registration in ContentJsonSchemaCatalog.All
+        )
+        {
+            string generated = exporter.Export(registration);
+            using FileAccess file = FileAccess.Open(
+                registration.TrackedSchemaPath,
+                FileAccess.ModeFlags.Read
+            );
+            _test.True(
+                file != null,
+                $"tracked schema should exist for domain {registration.DomainId}"
+            );
+            if (file == null)
+                continue;
+
+            long trackedLength = (long)file.GetLength();
+            byte[] trackedBytes = file.GetBuffer(trackedLength);
+            _test.Eq(
+                trackedBytes.LongLength,
+                trackedLength,
+                $"tracked schema bytes should be read completely for domain {registration.DomainId}"
+            );
+            string tracked = StrictUtf8.GetString(trackedBytes);
+            byte[] generatedBytes = StrictUtf8.GetBytes(generated);
+            _test.True(
+                string.Equals(generated, tracked, StringComparison.Ordinal),
+                $"regenerated schema text must exactly match domain {registration.DomainId}"
+            );
+            _test.True(
+                generatedBytes.SequenceEqual(trackedBytes),
+                $"regenerated schema raw UTF-8 bytes must exactly match domain {registration.DomainId}"
+            );
+            _test.True(
+                trackedBytes.Length > 0 && trackedBytes[^1] == (byte)'\n',
+                $"tracked schema should end in exactly one LF for domain {registration.DomainId}"
+            );
+            _test.False(
+                trackedBytes.Length > 1 && trackedBytes[^2] == (byte)'\n',
+                $"tracked schema should not end in duplicate LF bytes for domain {registration.DomainId}"
+            );
+            _test.False(
+                trackedBytes.Contains((byte)'\r'),
+                $"tracked schema should not contain CR bytes for domain {registration.DomainId}"
+            );
+        }
     }
 
     private void TestGenerationIsDeterministicAndDtoChangesProduceDrift()
@@ -254,8 +842,6 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
 
     private void TestWorkspaceAssociationMatchesRegistration()
     {
-        ContentJsonSchemaDomainRegistration registration =
-            ContentJsonSchemaCatalog.Require("schema_fixture");
         using FileAccess file = FileAccess.Open("res://magic.code-workspace", FileAccess.ModeFlags.Read);
         _test.True(file != null, "tracked workspace schema association should exist");
         if (file == null)
@@ -265,25 +851,30 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
         JsonElement schemas = workspace.RootElement
             .GetProperty("settings")
             .GetProperty("json.schemas");
-        JsonElement association = schemas.EnumerateArray().SingleOrDefault(candidate =>
-            candidate.GetProperty("fileMatch").EnumerateArray().Any(match =>
-                match.GetString() == registration.ContentFileMatch
-            )
-        );
-        _test.True(
-            association.ValueKind == JsonValueKind.Object,
-            "workspace fileMatch should consume the registered sample-domain glob"
-        );
-        if (association.ValueKind != JsonValueKind.Object)
-            return;
+        foreach (
+            ContentJsonSchemaDomainRegistration registration in ContentJsonSchemaCatalog.All
+        )
+        {
+            JsonElement association = schemas.EnumerateArray().SingleOrDefault(candidate =>
+                candidate.GetProperty("fileMatch").EnumerateArray().Any(match =>
+                    match.GetString() == registration.ContentFileMatch
+                )
+            );
+            _test.True(
+                association.ValueKind == JsonValueKind.Object,
+                $"workspace fileMatch should consume registered domain {registration.DomainId}"
+            );
+            if (association.ValueKind != JsonValueKind.Object)
+                continue;
 
-        string expectedRelativeSchemaPath =
-            "./" + registration.TrackedSchemaPath["res://".Length..];
-        _test.Eq(
-            association.GetProperty("url").GetString(),
-            expectedRelativeSchemaPath,
-            "workspace schema URL should match the registered tracked schema path"
-        );
+            string expectedRelativeSchemaPath =
+                "./" + registration.TrackedSchemaPath["res://".Length..];
+            _test.Eq(
+                association.GetProperty("url").GetString(),
+                expectedRelativeSchemaPath,
+                $"workspace schema URL should match registered domain {registration.DomainId}"
+            );
+        }
     }
 
     private void ExpectExportFailure(Type documentDtoType, string fragment, string message)
@@ -336,12 +927,147 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
     private static JsonElement Definition(JsonElement root, string name) =>
         root.GetProperty("$defs").GetProperty(name);
 
+    private static JsonElement ReferencedDefinition(JsonElement root, JsonElement reference)
+    {
+        const string prefix = "#/$defs/";
+        string value = reference.GetProperty("$ref").GetString() ?? "";
+        if (!value.StartsWith(prefix, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Unexpected schema reference '{value}'.");
+        return Definition(root, value[prefix.Length..].Replace("~1", "/").Replace("~0", "~"));
+    }
+
+    private static JsonElement EntryAuthoringBranch(
+        JsonElement root,
+        JsonElement authoringSchema,
+        bool templated
+    ) => authoringSchema.GetProperty("oneOf")
+        .EnumerateArray()
+        .Select(branch => ReferencedDefinition(root, branch))
+        .Single(branch =>
+            branch.GetProperty("properties").TryGetProperty("template", out _) == templated
+        );
+
+    private static JsonElement NonNullBranch(JsonElement nullableSchema) =>
+        nullableSchema.GetProperty("anyOf").EnumerateArray().Single(item =>
+            item.TryGetProperty("$ref", out _)
+        );
+
+    private delegate bool TryParseSkillSchemaValue<TEnum>(string? value, out TEnum result)
+        where TEnum : struct, Enum;
+
     [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
     private sealed class ContentJsonSchemaDriftProbeDto
     {
         [JsonPropertyName("changed_field")]
         [JsonRequired]
         public string ChangedField { get; init; } = "";
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaExplicitNullProbeDto
+    {
+        [JsonPropertyName("absent_only")]
+        [ContentJsonSchemaDisallowExplicitNull]
+        public int? AbsentOnly { get; init; }
+
+        [JsonPropertyName("nullable")]
+        public int? Nullable { get; init; }
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaInvalidExplicitNullProbeDto
+    {
+        [JsonPropertyName("value")]
+        [ContentJsonSchemaDisallowExplicitNull]
+        public int Value { get; init; }
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaMissingEntryIdMetadataDocumentDto
+    {
+        [JsonPropertyName("entries")]
+        [ContentJsonSchemaEntryControlMembers(
+            typeof(ContentJsonSchemaValidTemplateControlDto),
+            "missing_id",
+            "template"
+        )]
+        public IReadOnlyList<ContentJsonSchemaValidEntryControlDto> Entries { get; init; } =
+            Array.Empty<ContentJsonSchemaValidEntryControlDto>();
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaWrongEntryIdCarrierDocumentDto
+    {
+        [JsonPropertyName("entries")]
+        [ContentJsonSchemaEntryControlMembers(
+            typeof(ContentJsonSchemaValidTemplateControlDto),
+            "entry_id",
+            "template"
+        )]
+        public IReadOnlyList<ContentJsonSchemaWrongEntryIdCarrierDto> Entries { get; init; } =
+            Array.Empty<ContentJsonSchemaWrongEntryIdCarrierDto>();
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaWrongTemplateCarrierDocumentDto
+    {
+        [JsonPropertyName("entries")]
+        [ContentJsonSchemaEntryControlMembers(
+            typeof(ContentJsonSchemaWrongTemplateCarrierDto),
+            "entry_id",
+            "template"
+        )]
+        public IReadOnlyList<ContentJsonSchemaValidEntryControlDto> Entries { get; init; } =
+            Array.Empty<ContentJsonSchemaValidEntryControlDto>();
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaMissingTemplateNonBlankDocumentDto
+    {
+        [JsonPropertyName("entries")]
+        [ContentJsonSchemaEntryControlMembers(
+            typeof(ContentJsonSchemaMissingNonBlankTemplateControlDto),
+            "entry_id",
+            "template"
+        )]
+        public IReadOnlyList<ContentJsonSchemaValidEntryControlDto> Entries { get; init; } =
+            Array.Empty<ContentJsonSchemaValidEntryControlDto>();
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaValidEntryControlDto
+    {
+        [JsonPropertyName("entry_id")]
+        public string EntryId { get; init; } = "";
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaWrongEntryIdCarrierDto
+    {
+        [JsonPropertyName("entry_id")]
+        public int EntryId { get; init; }
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaValidTemplateControlDto
+    {
+        [JsonPropertyName("template")]
+        [ContentJsonSchemaNonBlankString]
+        public string Template { get; init; } = "";
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaMissingNonBlankTemplateControlDto
+    {
+        [JsonPropertyName("template")]
+        public string Template { get; init; } = "";
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaWrongTemplateCarrierDto
+    {
+        [JsonPropertyName("template")]
+        public int Template { get; init; }
     }
 
     private enum ContentJsonSchemaExpectedWireEnum

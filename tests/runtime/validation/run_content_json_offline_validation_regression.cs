@@ -12,6 +12,7 @@ public partial class run_content_json_offline_validation_regression : LifecycleT
         {
             TestRegisteredPipelineMergesAndValidatesWithoutSnapshot();
             TestEntryDiagnosticsAggregateWithStableProvenanceAndFailClosedPublication();
+            TestSkillPilotDomainUsesSealedParserWithStableProvenance();
             TestJsonAndNdjsonProtocolsAreByteStable();
         }
         catch (Exception exception)
@@ -35,10 +36,11 @@ public partial class run_content_json_offline_validation_regression : LifecycleT
                     templates:
                         "{\"base\":{\"mode\":\"Manual\",\"quality\":\"common\","
                         + "\"tags\":[\"fixture\"],\"optional_note\":null,"
-                        + "\"action\":{\"kind\":\"counter\",\"payload\":{\"amount\":2}}}}",
+                        + "\"action\":{\"kind\":\"counter\"}}}",
                     entries:
                         "[{\"template\":\"base\",\"fixture_id\":\"valid\","
-                        + "\"display_name\":\"Visible fixture\"}]"
+                        + "\"display_name\":\"Visible fixture\","
+                        + "\"action\":{\"payload\":{\"amount\":2}}}]"
                 )
             )
         );
@@ -48,7 +50,10 @@ public partial class run_content_json_offline_validation_regression : LifecycleT
             reader
         );
 
-        _test.True(report.Success, "valid fixture domain should pass the offline pipeline");
+        _test.True(
+            report.Success,
+            "deep-merged direct closed-kind fragments should pass the offline pipeline"
+        );
         _test.Eq(report.ValidatedEntryCount, 1, "one expanded import should be validated");
         _test.Eq(report.Diagnostics.Count, 0, "valid fixture should emit no diagnostics");
         _test.Eq(reader.CallCount, 1, "offline registration should reuse one descriptor pipeline");
@@ -203,6 +208,42 @@ public partial class run_content_json_offline_validation_regression : LifecycleT
             ContentJsonOfflineValidationProtocol.FormatNdjson(failed),
             ContentJsonOfflineValidationProtocol.FormatNdjson(failed),
             "repeated NDJSON formatting should be deterministic"
+        );
+    }
+
+    private void TestSkillPilotDomainUsesSealedParserWithStableProvenance()
+    {
+        IContentJsonOfflineValidationDomain domain =
+            ContentJsonOfflineValidationCatalog.Require("skills");
+        var reader = new FakeSourceReader(
+            new ContentJsonSourceText(
+                "res://fixtures/skills/pilot_bad.json",
+                "{\"schema\":1,\"domain\":\"skills\",\"family\":\"pilot\","
+                    + "\"templates\":{\"base\":{\"skill_type\":\"active\"}},"
+                    + "\"entries\":[{\"template\":\"base\","
+                    + "\"skill_id\":\"mage_focus\",\"display_name\":\"Focus\","
+                    + "\"combat_profile\":{\"skill_id\":\"mage_focus\","
+                    + "\"mp_cost\":-1}}]}"
+            )
+        );
+
+        ContentJsonOfflineValidationReport report = domain.Validate(
+            "res://fixtures/skills",
+            reader
+        );
+
+        _test.False(report.Success, "invalid skill JSON should fail the offline pilot domain");
+        _test.Eq(report.Diagnostics.Count, 1, "invalid skill should emit one stable diagnostic");
+        _test.Eq(
+            report.ValidatedEntryCount,
+            0,
+            "invalid skill sibling publication should remain fail closed"
+        );
+        AssertDiagnostic(
+            report,
+            SkillJsonImportRules.NumberOutOfRange,
+            "pilot_bad.json#mage_focus",
+            "/entries/0/combat_profile/mp_cost"
         );
     }
 
