@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:magic:content-schema:skills:v1",
-  "title": "Magic skill JSON authoring schema (stage 1a pilot)",
-  "description": "Current stage-1a skill import contract. It covers the committed pilot fields and the layered_barrier effect payload only; it is not the final full-skill-domain schema.",
+  "title": "Magic skill JSON authoring schema",
+  "description": "Current full skill import contract, including combat profiles, nested effects, and closed typed payload variants.",
   "$ref": "#/$defs/SkillJsonDocumentDto",
   "$defs": {
     "AttributeModifierJsonDto": {
