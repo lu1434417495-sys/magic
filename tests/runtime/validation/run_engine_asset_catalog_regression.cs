@@ -8,6 +8,8 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
     private static readonly StringName ValidSceneId = "test.login_scene";
     private static readonly StringName ProductionTextureId =
         "battle.terrain.marker_preview";
+    private static readonly StringName ProductionSkillIconId =
+        "archer_aimed_shot";
     private static readonly StringName ProductionSceneId =
         "battle.board.prop_scene";
     private static readonly StringName ProductionShaderId =
@@ -53,8 +55,8 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
             "process content host publishes the bootstrap engine asset catalog before tests run"
         );
         _test.True(
-            catalog.texture_assets != null && catalog.texture_assets.Count == 1,
-            "production bootstrap deserializes the typed texture entry"
+            catalog.texture_assets != null && catalog.texture_assets.Count == 24,
+            "production bootstrap deserializes all typed texture entries"
         );
         _test.True(
             catalog.scene_assets != null && catalog.scene_assets.Count == 1,
@@ -70,8 +72,8 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         );
         _test.Eq(
             resolver.PublishedAssetCount,
-            3,
-            "production bootstrap publishes its three real engine assets"
+            26,
+            "production bootstrap publishes its 26 real engine assets"
         );
         _test.True(
             ReferenceEquals(
@@ -79,6 +81,16 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
                 catalog.texture_assets[0].texture
             ),
             "production texture ID resolves the catalog-owned borrowed target"
+        );
+        _test.True(
+            catalog.texture_assets[1].asset_id == ProductionSkillIconId
+                && ReferenceEquals(
+                    resolver.ResolveContentAssetBorrowed<Texture2D>(
+                        ProductionSkillIconId
+                    ),
+                    catalog.texture_assets[1].texture
+                ),
+            "production skill icon ID resolves its catalog-owned borrowed texture"
         );
         _test.True(
             ReferenceEquals(

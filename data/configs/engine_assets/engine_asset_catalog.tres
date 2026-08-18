@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=58 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineAssetCatalogDef.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineTextureAssetEntryDef.cs" id="2_texture"]
@@ -8,6 +8,29 @@
 [ext_resource type="Texture2D" path="res://assets/main/battle/terrain/canyon/marker_preview.png" id="6_marker_preview"]
 [ext_resource type="PackedScene" path="res://scenes/common/battle_board_prop.tscn" id="7_battle_board_prop"]
 [ext_resource type="Shader" path="res://assets/shaders/skill_icon_grayscale.gdshader" id="8_skill_icon_grayscale"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/archer_aimed_shot.png" id="9_archer_aimed_shot"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/archer_armor_piercer.png" id="10_archer_armor_piercer"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/archer_arrow_rain.png" id="11_archer_arrow_rain"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/archer_multishot.png" id="12_archer_multishot"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/archer_pinning_shot.png" id="13_archer_pinning_shot"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/basic_attack.png" id="14_basic_attack"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/mage_banshee_wail.png" id="15_mage_banshee_wail"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/mage_blink.png" id="16_mage_blink"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/mage_dimension_swap.png" id="17_mage_dimension_swap"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/mage_force_lance.png" id="18_mage_force_lance"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/mage_fossil_to_mud.png" id="19_mage_fossil_to_mud"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/saint_blade_combo.png" id="20_saint_blade_combo"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/vajra_body.png" id="21_vajra_body"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_aura_slash.png" id="22_warrior_aura_slash"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_battle_recovery.png" id="23_warrior_battle_recovery"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_combo_strike.png" id="24_warrior_combo_strike"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_heavy_strike.png" id="25_warrior_heavy_strike"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_last_stand.png" id="26_warrior_last_stand"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_shield_bash.png" id="27_warrior_shield_bash"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_spin_slash.png" id="28_warrior_spin_slash"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_sweeping_slash.png" id="29_warrior_sweeping_slash"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_war_cry.png" id="30_warrior_war_cry"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/skills/warrior_whirlwind_slash.png" id="31_warrior_whirlwind_slash"]
 
 [sub_resource type="Resource" id="TextureEntry_marker_preview"]
 script = ExtResource("2_texture")
@@ -24,9 +47,124 @@ script = ExtResource("5_shader")
 asset_id = &"ui.skill_icon.grayscale_shader"
 shader = ExtResource("8_skill_icon_grayscale")
 
+[sub_resource type="Resource" id="TextureEntry_archer_aimed_shot"]
+script = ExtResource("2_texture")
+asset_id = &"archer_aimed_shot"
+texture = ExtResource("9_archer_aimed_shot")
+
+[sub_resource type="Resource" id="TextureEntry_archer_armor_piercer"]
+script = ExtResource("2_texture")
+asset_id = &"archer_armor_piercer"
+texture = ExtResource("10_archer_armor_piercer")
+
+[sub_resource type="Resource" id="TextureEntry_archer_arrow_rain"]
+script = ExtResource("2_texture")
+asset_id = &"archer_arrow_rain"
+texture = ExtResource("11_archer_arrow_rain")
+
+[sub_resource type="Resource" id="TextureEntry_archer_multishot"]
+script = ExtResource("2_texture")
+asset_id = &"archer_multishot"
+texture = ExtResource("12_archer_multishot")
+
+[sub_resource type="Resource" id="TextureEntry_archer_pinning_shot"]
+script = ExtResource("2_texture")
+asset_id = &"archer_pinning_shot"
+texture = ExtResource("13_archer_pinning_shot")
+
+[sub_resource type="Resource" id="TextureEntry_basic_attack"]
+script = ExtResource("2_texture")
+asset_id = &"basic_attack"
+texture = ExtResource("14_basic_attack")
+
+[sub_resource type="Resource" id="TextureEntry_mage_banshee_wail"]
+script = ExtResource("2_texture")
+asset_id = &"mage_banshee_wail"
+texture = ExtResource("15_mage_banshee_wail")
+
+[sub_resource type="Resource" id="TextureEntry_mage_blink"]
+script = ExtResource("2_texture")
+asset_id = &"mage_blink"
+texture = ExtResource("16_mage_blink")
+
+[sub_resource type="Resource" id="TextureEntry_mage_dimension_swap"]
+script = ExtResource("2_texture")
+asset_id = &"mage_dimension_swap"
+texture = ExtResource("17_mage_dimension_swap")
+
+[sub_resource type="Resource" id="TextureEntry_mage_force_lance"]
+script = ExtResource("2_texture")
+asset_id = &"mage_force_lance"
+texture = ExtResource("18_mage_force_lance")
+
+[sub_resource type="Resource" id="TextureEntry_mage_fossil_to_mud"]
+script = ExtResource("2_texture")
+asset_id = &"mage_fossil_to_mud"
+texture = ExtResource("19_mage_fossil_to_mud")
+
+[sub_resource type="Resource" id="TextureEntry_saint_blade_combo"]
+script = ExtResource("2_texture")
+asset_id = &"saint_blade_combo"
+texture = ExtResource("20_saint_blade_combo")
+
+[sub_resource type="Resource" id="TextureEntry_vajra_body"]
+script = ExtResource("2_texture")
+asset_id = &"vajra_body"
+texture = ExtResource("21_vajra_body")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_aura_slash"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_aura_slash"
+texture = ExtResource("22_warrior_aura_slash")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_battle_recovery"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_battle_recovery"
+texture = ExtResource("23_warrior_battle_recovery")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_combo_strike"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_combo_strike"
+texture = ExtResource("24_warrior_combo_strike")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_heavy_strike"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_heavy_strike"
+texture = ExtResource("25_warrior_heavy_strike")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_last_stand"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_last_stand"
+texture = ExtResource("26_warrior_last_stand")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_shield_bash"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_shield_bash"
+texture = ExtResource("27_warrior_shield_bash")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_spin_slash"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_spin_slash"
+texture = ExtResource("28_warrior_spin_slash")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_sweeping_slash"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_sweeping_slash"
+texture = ExtResource("29_warrior_sweeping_slash")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_war_cry"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_war_cry"
+texture = ExtResource("30_warrior_war_cry")
+
+[sub_resource type="Resource" id="TextureEntry_warrior_whirlwind_slash"]
+script = ExtResource("2_texture")
+asset_id = &"warrior_whirlwind_slash"
+texture = ExtResource("31_warrior_whirlwind_slash")
+
 [resource]
 script = ExtResource("1_catalog")
-texture_assets = Array[ExtResource("2_texture")]([SubResource("TextureEntry_marker_preview")])
+texture_assets = Array[ExtResource("2_texture")]([SubResource("TextureEntry_marker_preview"), SubResource("TextureEntry_archer_aimed_shot"), SubResource("TextureEntry_archer_armor_piercer"), SubResource("TextureEntry_archer_arrow_rain"), SubResource("TextureEntry_archer_multishot"), SubResource("TextureEntry_archer_pinning_shot"), SubResource("TextureEntry_basic_attack"), SubResource("TextureEntry_mage_banshee_wail"), SubResource("TextureEntry_mage_blink"), SubResource("TextureEntry_mage_dimension_swap"), SubResource("TextureEntry_mage_force_lance"), SubResource("TextureEntry_mage_fossil_to_mud"), SubResource("TextureEntry_saint_blade_combo"), SubResource("TextureEntry_vajra_body"), SubResource("TextureEntry_warrior_aura_slash"), SubResource("TextureEntry_warrior_battle_recovery"), SubResource("TextureEntry_warrior_combo_strike"), SubResource("TextureEntry_warrior_heavy_strike"), SubResource("TextureEntry_warrior_last_stand"), SubResource("TextureEntry_warrior_shield_bash"), SubResource("TextureEntry_warrior_spin_slash"), SubResource("TextureEntry_warrior_sweeping_slash"), SubResource("TextureEntry_warrior_war_cry"), SubResource("TextureEntry_warrior_whirlwind_slash")])
 scene_assets = Array[ExtResource("3_scene")]([SubResource("SceneEntry_battle_board_prop")])
 audio_assets = Array[ExtResource("4_audio")]([])
 shader_assets = Array[ExtResource("5_shader")]([SubResource("ShaderEntry_skill_icon_grayscale")])

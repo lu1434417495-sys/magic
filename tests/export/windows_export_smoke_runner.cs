@@ -12,6 +12,8 @@ public partial class windows_export_smoke_runner : Node
 
     private static readonly StringName TextureAssetId =
         "battle.terrain.marker_preview";
+    private static readonly StringName SkillIconAssetId =
+        "archer_aimed_shot";
     private static readonly StringName SceneAssetId =
         "battle.board.prop_scene";
     private static readonly StringName ShaderAssetId =
@@ -138,17 +140,20 @@ public partial class windows_export_smoke_runner : Node
             Texture2D texture = resolver.ResolveContentAssetBorrowed<Texture2D>(
                 TextureAssetId
             );
+            Texture2D skillIcon = resolver.ResolveContentAssetBorrowed<Texture2D>(
+                SkillIconAssetId
+            );
             PackedScene scene = resolver.ResolveContentAssetBorrowed<PackedScene>(
                 SceneAssetId
             );
             Shader shader = resolver.ResolveContentAssetBorrowed<Shader>(ShaderAssetId);
-            if (texture == null || scene == null || shader == null)
+            if (texture == null || skillIcon == null || scene == null || shader == null)
             {
                 throw new InvalidOperationException(
                     "Production catalog returned a missing typed borrowed asset."
                 );
             }
-            if (resolver.PublishedAssetCount != 3)
+            if (resolver.PublishedAssetCount != 26)
             {
                 throw new InvalidOperationException(
                     "Production catalog published an unexpected asset count: "
