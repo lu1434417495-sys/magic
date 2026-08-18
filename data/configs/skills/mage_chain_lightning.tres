@@ -12,11 +12,13 @@ effect_type = &"damage"
 max_skill_level = 0
 damage_tag = &"lightning"
 effect_target_team_filter = &"any"
+save_failure_status_id = &"shocked"
 save_dc_mode = &"caster_spell"
 save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"chain_lightning"
+duration_tu = 40
 dice_count = 4
 dice_sides = 6
 
@@ -27,42 +29,51 @@ min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"lightning"
 effect_target_team_filter = &"any"
+save_failure_status_id = &"shocked"
+save_dc_bonus = 1
 save_dc_mode = &"caster_spell"
 save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"chain_lightning"
-dice_count = 5
+duration_tu = 40
+dice_count = 4
 dice_sides = 6
 
 [sub_resource type="Resource" id="Damage_l3"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
 min_skill_level = 3
-max_skill_level = 4
+max_skill_level = 5
 damage_tag = &"lightning"
 effect_target_team_filter = &"any"
+save_failure_status_id = &"shocked"
+save_dc_bonus = 1
 save_dc_mode = &"caster_spell"
 save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"chain_lightning"
-dice_count = 6
+duration_tu = 60
+dice_count = 5
 dice_sides = 6
 
-[sub_resource type="Resource" id="Damage_l5"]
+[sub_resource type="Resource" id="Damage_l6"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
-min_skill_level = 5
+min_skill_level = 6
 max_skill_level = 6
 damage_tag = &"lightning"
 effect_target_team_filter = &"any"
+save_failure_status_id = &"shocked"
+save_dc_bonus = 2
 save_dc_mode = &"caster_spell"
 save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"chain_lightning"
-dice_count = 7
+duration_tu = 60
+dice_count = 5
 dice_sides = 6
 
 [sub_resource type="Resource" id="Damage_l7"]
@@ -71,45 +82,104 @@ effect_type = &"damage"
 min_skill_level = 7
 damage_tag = &"lightning"
 effect_target_team_filter = &"any"
+save_failure_status_id = &"shocked"
+save_dc_bonus = 2
 save_dc_mode = &"caster_spell"
 save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"chain_lightning"
-dice_count = 8
+duration_tu = 80
+dice_count = 6
 dice_sides = 6
 
-[sub_resource type="Resource" id="Shock"]
-script = ExtResource("1_effect")
-effect_type = &"status"
-power = 1
-status_id = &"shocked"
-save_dc_mode = &"caster_spell"
-save_dc_source_ability = &"intelligence"
-save_ability = &"constitution"
-save_tag = &"chain_lightning"
-duration_tu = 60
-
-[sub_resource type="Resource" id="Chain"]
+[sub_resource type="Resource" id="Chain_l0"]
 script = ExtResource("1_effect")
 effect_type = &"chain_damage"
+max_skill_level = 0
 effect_target_team_filter = &"any"
 prevent_repeat_target = true
-params = {
-"base_chain_radius": 1,
-"bonus_terrain_effect_id": "wet",
-"wet_chain_radius": 2
-}
+chain_base_hop_range = 1
+chain_conductive_hop_range = 2
+chain_max_total_targets = 0
+chain_conductive_status_ids = Array[StringName]([&"shocked"])
+chain_conductive_terrain_effect_ids = Array[StringName]([&"wet"])
+chain_backlash_hop_range_bonus = 1
+
+[sub_resource type="Resource" id="Chain_l1"]
+script = ExtResource("1_effect")
+effect_type = &"chain_damage"
+min_skill_level = 1
+max_skill_level = 4
+effect_target_team_filter = &"any"
+prevent_repeat_target = true
+chain_base_hop_range = 1
+chain_conductive_hop_range = 2
+chain_max_total_targets = 0
+chain_conductive_status_ids = Array[StringName]([&"shocked"])
+chain_conductive_terrain_effect_ids = Array[StringName]([&"wet"])
+chain_backlash_hop_range_bonus = 1
+
+[sub_resource type="Resource" id="Chain_l5"]
+script = ExtResource("1_effect")
+effect_type = &"chain_damage"
+min_skill_level = 5
+max_skill_level = 5
+effect_target_team_filter = &"any"
+prevent_repeat_target = true
+chain_base_hop_range = 1
+chain_conductive_hop_range = 2
+chain_max_total_targets = 0
+chain_conductive_status_ids = Array[StringName]([&"shocked"])
+chain_conductive_terrain_effect_ids = Array[StringName]([&"wet"])
+chain_backlash_hop_range_bonus = 1
+
+[sub_resource type="Resource" id="Chain_l6"]
+script = ExtResource("1_effect")
+effect_type = &"chain_damage"
+min_skill_level = 6
+max_skill_level = 6
+effect_target_team_filter = &"any"
+prevent_repeat_target = true
+chain_base_hop_range = 1
+chain_conductive_hop_range = 2
+chain_max_total_targets = 0
+chain_conductive_status_ids = Array[StringName]([&"shocked"])
+chain_conductive_terrain_effect_ids = Array[StringName]([&"wet"])
+chain_backlash_hop_range_bonus = 1
+
+[sub_resource type="Resource" id="Chain_l7"]
+script = ExtResource("1_effect")
+effect_type = &"chain_damage"
+min_skill_level = 7
+effect_target_team_filter = &"any"
+prevent_repeat_target = true
+chain_base_hop_range = 1
+chain_conductive_hop_range = 2
+chain_max_total_targets = 0
+chain_conductive_status_ids = Array[StringName]([&"shocked"])
+chain_conductive_terrain_effect_ids = Array[StringName]([&"wet"])
+chain_backlash_hop_range_bonus = 1
 
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_chain_lightning"
 delivery_categories = Array[StringName]([&"spell"])
+projectile_kind = &"magical"
 target_team_filter = &"enemy"
 range_value = 5
-ap_cost = 1
-mp_cost = 120
-cooldown_tu = 60
+ap_cost = 2
+mp_cost = 180
+stamina_cost = 0
+cooldown_tu = 160
+level_overrides = {
+2: {
+"mp_cost": 160
+},
+4: {
+"cooldown_tu": 100
+}
+}
 target_selection_mode = &"single_unit"
 spell_fate_mode = &"control_roll"
 spell_critical_mode = &"mp_refund"
@@ -117,14 +187,14 @@ spell_critical_mp_refund_percent = 50
 fumble_protection_curve = PackedInt32Array(0, 0, 0, 1, 1, 2, 2, 3)
 fumble_protection_extra_mp_percent = 100
 ai_tags = Array[StringName]([&"chain", &"aoe", &"setup"])
-effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage_l0"), SubResource("Damage_l1"), SubResource("Damage_l3"), SubResource("Damage_l5"), SubResource("Damage_l7"), SubResource("Shock"), SubResource("Chain")])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage_l0"), SubResource("Damage_l1"), SubResource("Damage_l3"), SubResource("Damage_l6"), SubResource("Damage_l7"), SubResource("Chain_l0"), SubResource("Chain_l1"), SubResource("Chain_l5"), SubResource("Chain_l6"), SubResource("Chain_l7")])
 
 [resource]
 script = ExtResource("3_skill")
 skill_id = &"mage_chain_lightning"
 display_name = "链式闪击"
 icon_id = &"mage_chain_lightning"
-description = "锁定一个敌人的进阶雷系法术。以首个目标为中心，对1格内所有单位分别造成相同的雷电伤害并附加感电，不分敌我；首个目标位于湿地时，连锁范围扩大至2格。"
+description = "锁定射程5内一名敌人，以其为主目标释放链式雷电；即使没有可连锁目标也可以施放。雷电从每个已命中的单位继续跳向跳距内最近、尚未命中的存活单位，不分敌我且可能跳回施法者，不设目标数量上限，直到没有合法目标。单位在施法前已感电或站在湿地上时，从该单位发出的跳跃使用导电跳距；本次施法新施加的感电不会延长同一次连锁。每个目标分别进行敏捷豁免，技能成长会额外提高豁免DC；失败承受全额雷电伤害并感电，成功承受一半伤害且不感电。任一跳被魔法屏障阻挡时，剩余连锁停止。受保护的大失败额外消耗至多等于本次已支付法力的剩余法力、跳过全部效果且不返还已支付的AP、法力和冷却；保护次数耗尽后的大失败触发反噬，使每跳距离+1。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
@@ -135,31 +205,95 @@ attribute_growth_progress = {
 "perception": 20,
 "willpower": 50
 }
-level_description_template = "射程{range_value}，锁定一个敌人；以首个目标为中心，对{base_chain_radius}格内所有单位分别造成{dmg}雷电伤害（{damage_save_text}），并分别进行{shocked_save_ability_label}豁免；失败则附加{shocked_display_name}（{shocked_duration_tu}TU，强度{shocked_power}）。不分敌我；首个目标位于湿地时，连锁范围扩大至{wet_chain_radius}格。消耗{ap_cost}AP/{mp_cost}法力，冷却{cooldown_tu}TU"
+level_description_template = "射程5，锁定1名敌人（没有可连锁目标也可施放）；雷电逐跳选择最近的未命中存活单位，不设目标数量上限，基础/导电跳距为{base_hop}/{conductive_hop}格。每个目标敏捷豁免（{save_dc_text}）：失败承受{dmg}雷电伤害并感电{shock_duration}TU，成功承受一半伤害且不感电。连锁不分敌我且可能命中施法者；屏障阻断任一跳时停止剩余连锁。{fumble_text}消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
-"dmg": "4D6"
+"ap": "2",
+"base_hop": "1",
+"conductive_hop": "2",
+"cooldown": "160",
+"dmg": "4D6",
+"fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离+1。",
+"mp": "180",
+"save_dc_text": "豁免DC无额外加值",
+"shock_duration": "40"
 },
 "1": {
-"dmg": "5D6"
+"ap": "2",
+"base_hop": "1",
+"conductive_hop": "2",
+"cooldown": "160",
+"dmg": "4D6",
+"fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离+1。",
+"mp": "180",
+"save_dc_text": "豁免DC额外+1",
+"shock_duration": "40"
 },
 "2": {
-"dmg": "5D6"
+"ap": "2",
+"base_hop": "1",
+"conductive_hop": "2",
+"cooldown": "160",
+"dmg": "4D6",
+"fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离+1。",
+"mp": "160",
+"save_dc_text": "豁免DC额外+1",
+"shock_duration": "40"
 },
 "3": {
-"dmg": "6D6"
+"ap": "2",
+"base_hop": "1",
+"conductive_hop": "2",
+"cooldown": "160",
+"dmg": "5D6",
+"fumble_text": "本场有1次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+"mp": "160",
+"save_dc_text": "豁免DC额外+1",
+"shock_duration": "60"
 },
 "4": {
-"dmg": "6D6"
+"ap": "2",
+"base_hop": "1",
+"conductive_hop": "2",
+"cooldown": "100",
+"dmg": "5D6",
+"fumble_text": "本场有1次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+"mp": "160",
+"save_dc_text": "豁免DC额外+1",
+"shock_duration": "60"
 },
 "5": {
-"dmg": "7D6"
+"ap": "2",
+"base_hop": "1",
+"conductive_hop": "2",
+"cooldown": "100",
+"dmg": "5D6",
+"fumble_text": "本场有2次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+"mp": "160",
+"save_dc_text": "豁免DC额外+1",
+"shock_duration": "60"
 },
 "6": {
-"dmg": "7D6"
+"ap": "2",
+"base_hop": "1",
+"conductive_hop": "2",
+"cooldown": "100",
+"dmg": "5D6",
+"fumble_text": "本场有2次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+"mp": "160",
+"save_dc_text": "豁免DC额外+2",
+"shock_duration": "60"
 },
 "7": {
-"dmg": "8D6"
+"ap": "2",
+"base_hop": "1",
+"conductive_hop": "2",
+"cooldown": "100",
+"dmg": "6D6",
+"fumble_text": "本场有3次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+"mp": "160",
+"save_dc_text": "豁免DC额外+2",
+"shock_duration": "80"
 }
 }
 combat_profile = SubResource("Combat")

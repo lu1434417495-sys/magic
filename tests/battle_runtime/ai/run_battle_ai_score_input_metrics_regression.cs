@@ -710,7 +710,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             "player",
             new Vector2I(4, 2)
         );
-        BattleUnitState ally = BuildUnit("friendly_chain_ally", "hostile", new Vector2I(5, 3));
+        BattleUnitState ally = BuildUnit("friendly_chain_ally", "hostile", new Vector2I(4, 3));
         BattleUnitState outsideEnemy = BuildUnit(
             "friendly_chain_outside_enemy",
             "player",
@@ -732,7 +732,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             fixture.BuildContext(mage),
             skill,
             BuildCommand(mage, skill.SkillId, target.GetAnchorCoord(), target),
-            BuildPreview(target),
+            BuildChainPreview(target, secondaryEnemy, ally),
             new[] { skill.CombatProfile.EffectDefinitions[0], skill.CombatProfile.EffectDefinitions[1] },
             BuildPositionMetadata(target, 4, 5)
         );
@@ -2304,8 +2304,55 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             "chain_damage",
             effectTargetTeamFilter: "any",
             preventRepeatTarget: true,
-            parameters: new Dictionary<string, object> { ["base_chain_radius"] = radius }
+            chainDamage: new CombatChainDamageDefinition(
+                radius,
+                radius,
+                maxTotalTargets: 3,
+                backlashHopRangeBonus: 1
+            )
         );
+
+    private static BattlePreview BuildChainPreview(
+        BattleUnitState primary,
+        BattleUnitState firstSecondary,
+        BattleUnitState secondSecondary
+    )
+    {
+        BattlePreview preview = BuildPreview(primary, firstSecondary, secondSecondary);
+        preview.SetChainDamagePreview(
+            new BattleChainDamagePreviewData(
+                primary.unit_id,
+                new BattleChainDamagePreviewHopData[]
+                {
+                    new(
+                        1,
+                        primary.unit_id,
+                        primary.GetAnchorCoord(),
+                        firstSecondary.unit_id,
+                        firstSecondary.GetAnchorCoord(),
+                        1,
+                        1,
+                        false,
+                        false
+                    ),
+                    new(
+                        2,
+                        firstSecondary.unit_id,
+                        firstSecondary.GetAnchorCoord(),
+                        secondSecondary.unit_id,
+                        secondSecondary.GetAnchorCoord(),
+                        1,
+                        1,
+                        false,
+                        false
+                    ),
+                },
+                Array.Empty<BattleChainDamagePreviewHopData>(),
+                ""
+            )
+        );
+        return preview;
+    }
 
     private static SkillDefinition BuildLayeredBarrierSkill(
         StringName skillId,

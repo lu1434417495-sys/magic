@@ -212,6 +212,8 @@ public static class SkillLevelDescriptionFormatter
                 if (ed.ForcedMoveDistance > 0)
                     _set_if_missing(config, "forced_move_distance", ed.ForcedMoveDistance);
             }
+            else if (effectKind == BattleEffectKind.ChainDamage)
+                _merge_chain_damage_typed_fields(config, ed.ChainDamage);
         }
     }
 
@@ -325,6 +327,34 @@ public static class SkillLevelDescriptionFormatter
             _set_if_missing(config, $"{statusId}_power", ed.Power);
         _merge_save_fields(config, "status", ed);
         _merge_save_fields(config, statusId, ed);
+    }
+
+    private static void _merge_chain_damage_typed_fields(
+        Dictionary<string, object> config,
+        CombatChainDamageDefinition chain
+    )
+    {
+        if (chain == null)
+            return;
+        _set_if_missing(config, "chain_base_hop_range", chain.BaseHopRange);
+        _set_if_missing(
+            config,
+            "chain_conductive_hop_range",
+            chain.ConductiveHopRange
+        );
+        if (chain.HasTargetLimit)
+            _set_if_missing(
+                config,
+                "chain_max_total_targets",
+                chain.MaxTotalTargets
+            );
+        else
+            _set_if_missing(config, "chain_max_total_targets", "不限");
+        _set_if_missing(
+            config,
+            "chain_backlash_hop_range_bonus",
+            chain.BacklashHopRangeBonus
+        );
     }
 
     private static void _merge_save_fields(

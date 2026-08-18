@@ -44,6 +44,9 @@ internal sealed class SkillCombatProfileValidator
             { "allow_repeat_hits_across_steps", "allow_repeat_hits_across_steps" },
             { "prevent_repeat_target", "prevent_repeat_target" },
             { "save_dc_bonus", "save_dc_bonus" },
+            { "base_chain_radius", "chain_base_hop_range" },
+            { "wet_chain_radius", "chain_conductive_hop_range" },
+            { "bonus_terrain_effect_id", "chain_conductive_terrain_effect_ids" },
             { "stop_on_miss", "stop_on_miss" },
             { "stop_on_target_down", "stop_on_target_down" },
             { "fixed_attack_count", "fixed_attack_count" },
@@ -760,6 +763,12 @@ internal sealed class SkillCombatProfileValidator
                 $"combat_profile.effect_defs[{effectIndex}]",
                 skillDef
             );
+        AppendChainDamageLevelWindowValidationErrors(
+            errors,
+            skillId,
+            combatProfile.effect_defs,
+            "combat_profile.effect_defs"
+        );
 
         if (
             combatProfile.passive_effect_defs != null
@@ -864,6 +873,12 @@ internal sealed class SkillCombatProfileValidator
                     $"combat_profile.cast_variants[{optionIndex}].effect_defs[{effectIndex}]",
                     skillDef
                 );
+            AppendChainDamageLevelWindowValidationErrors(
+                errors,
+                skillId,
+                castVariant.effect_defs,
+                $"combat_profile.cast_variants[{optionIndex}].effect_defs"
+            );
         }
 
         AppendSourceRetreatProfileValidationErrors(
@@ -1923,6 +1938,7 @@ internal sealed class SkillCombatProfileValidator
         _executeEffectValidator.AppendSaveBonusByTagValidationErrors(errors, skillId, effectDef, contextLabel);
         _executeEffectValidator.AppendTemporalStatusEffectValidationErrors(errors, skillId, effectDef, contextLabel);
         AppendTypedEffectParamValidationErrors(errors, skillId, effectDef, contextLabel);
+        AppendChainDamageValidationErrors(errors, skillId, effectDef, contextLabel);
         AppendAttributeScaledDiceValidationErrors(errors, skillId, effectDef, contextLabel);
         if (
             effectKind == BattleEffectKind.FixedRepeatAttack
@@ -2926,6 +2942,102 @@ internal sealed class SkillCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} effect {contextLabel} params.{migratedParam.Key} is unsupported; use CombatEffectDef.{migratedParam.Value}."
                 );
+        }
+    }
+
+    private void AppendChainDamageValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        bool hasChainFields =
+            effectDef.chain_base_hop_range != 0
+            || effectDef.chain_conductive_hop_range != 0
+            || effectDef.chain_max_total_targets != 0
+            || effectDef.chain_backlash_hop_range_bonus != 0
+            || effectDef.chain_conductive_status_ids.Count > 0
+            || effectDef.chain_conductive_terrain_effect_ids.Count > 0;
+        if (effectDef.EffectKind != BattleEffectKind.ChainDamage)
+        {
+            if (hasChainFields)
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel} chain fields are only supported on chain_damage effects."
+                );
+            return;
+        }
+
+        if (effectDef.chain_base_hop_range < 1)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} chain_base_hop_range must be >= 1."
+            );
+        if (
+            effectDef.chain_conductive_hop_range
+            < effectDef.chain_base_hop_range
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} chain_conductive_hop_range must be >= chain_base_hop_range."
+            );
+        if (
+            effectDef.chain_max_total_targets < 0
+            || effectDef.chain_max_total_targets == 1
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} chain_max_total_targets must be 0 for unlimited or >= 2."
+            );
+        if (effectDef.chain_backlash_hop_range_bonus < 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} chain_backlash_hop_range_bonus must be >= 0."
+            );
+        if (!effectDef.prevent_repeat_target)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} chain_damage requires prevent_repeat_target=true."
+            );
+
+        AppendUniqueStringNameArrayValidationErrors(
+            errors,
+            skillId,
+            $"effect {contextLabel} chain_conductive_status_ids",
+            effectDef.chain_conductive_status_ids
+        );
+        AppendUniqueStringNameArrayValidationErrors(
+            errors,
+            skillId,
+            $"effect {contextLabel} chain_conductive_terrain_effect_ids",
+            effectDef.chain_conductive_terrain_effect_ids
+        );
+    }
+
+    private static void AppendChainDamageLevelWindowValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        Array<CombatEffectDef> effectDefs,
+        string contextLabel
+    )
+    {
+        var chainEffects = new System.Collections.Generic.List<CombatEffectDef>();
+        foreach (CombatEffectDef effectDef in effectDefs)
+        {
+            if (effectDef?.EffectKind == BattleEffectKind.ChainDamage)
+                chainEffects.Add(effectDef);
+        }
+        if (chainEffects.Count == 0)
+            return;
+
+        for (int leftIndex = 0; leftIndex < chainEffects.Count; leftIndex++)
+        {
+            CombatEffectDef left = chainEffects[leftIndex];
+            int leftMax = left.max_skill_level < 0 ? int.MaxValue : left.max_skill_level;
+            for (int rightIndex = leftIndex + 1; rightIndex < chainEffects.Count; rightIndex++)
+            {
+                CombatEffectDef right = chainEffects[rightIndex];
+                int rightMax = right.max_skill_level < 0 ? int.MaxValue : right.max_skill_level;
+                if (left.min_skill_level <= rightMax && right.min_skill_level <= leftMax)
+                    errors.Add(
+                        $"Skill {skillId} {contextLabel} chain_damage level windows must not overlap."
+                    );
+            }
         }
     }
 

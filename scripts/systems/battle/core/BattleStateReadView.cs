@@ -447,4 +447,21 @@ internal readonly struct BattleCellReadView
     internal int MoveCost => _cell?.move_cost ?? 0;
     internal StringName BaseTerrain => _cell?.base_terrain ?? "";
     internal StringName OccupantUnitId => _cell?.occupant_unit_id ?? "";
+
+    internal bool HasTerrainEffect(StringName effectId)
+    {
+        if (_cell == null || effectId == "")
+            return false;
+        if (_cell.terrain_effect_ids?.Contains(effectId) == true)
+            return true;
+        foreach (
+            BattleTerrainEffectState effectState in _cell.timed_terrain_effects
+                ?? new List<BattleTerrainEffectState>()
+        )
+        {
+            if (effectState?.effect_id == effectId)
+                return true;
+        }
+        return false;
+    }
 }

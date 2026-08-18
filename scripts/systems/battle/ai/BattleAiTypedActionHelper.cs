@@ -72,6 +72,7 @@ internal sealed class BattleAiTypedActionHelper
                 is BattleEffectKind.VaultBehindTarget
                     or BattleEffectKind.SourceRetreat
                     or BattleEffectKind.PositionSwap
+                    or BattleEffectKind.ChainDamage
                 || effect?.ForcedMoveModeKind == BattleForcedMoveMode.AirbornePull
             )
                 return true;
@@ -87,6 +88,7 @@ internal sealed class BattleAiTypedActionHelper
                     is BattleEffectKind.VaultBehindTarget
                         or BattleEffectKind.SourceRetreat
                         or BattleEffectKind.PositionSwap
+                        or BattleEffectKind.ChainDamage
                     || effect?.ForcedMoveModeKind == BattleForcedMoveMode.AirbornePull
                 )
                     return true;

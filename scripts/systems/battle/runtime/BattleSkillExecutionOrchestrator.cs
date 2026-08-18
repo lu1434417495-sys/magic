@@ -145,36 +145,37 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleUnitState source_unit,
         BattleUnitState primary_target,
         SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        BattlePreparedChainDamage preparedChain,
         AttackEffectResolutionResult primaryResolution,
         BattleEventBatch batch,
         string skill_subject,
-        BattleSpellControlResult spell_control_context = default,
         CombatCastVariantDefinition castVariantDefinition = null
     ) =>
         _chainDamageService._apply_chain_damage_effects(
             source_unit,
             primary_target,
             skillDefinition,
-            effectDefinitions,
+            preparedChain,
             primaryResolution,
             batch,
             skill_subject,
-            spell_control_context,
             castVariantDefinition
         );
 
-    internal bool _is_within_chain_radius(
-        BattleUnitState primary_target,
-        BattleUnitState candidate,
-        int max_radius
-    ) => _chainDamageService._is_within_chain_radius(primary_target, candidate, max_radius);
-
-    internal List<Vector2I> _get_line_coords(Vector2I from, Vector2I to) =>
-        _chainDamageService._get_line_coords(from, to);
-
-    internal bool _is_chain_path_clear(BattleUnitState source_unit, BattleUnitState target_unit) =>
-        _chainDamageService._is_chain_path_clear(source_unit, target_unit);
+    internal BattlePreparedChainDamage BuildPreparedChainPreviewPlan(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView primaryTarget,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        bool backlashTriggered
+    ) =>
+        _chainDamageService.BuildPreparedPreviewPlan(
+            sourceUnit,
+            primaryTarget,
+            skillDefinition,
+            effectDefinitions,
+            backlashTriggered
+        );
 
     // ============================================================
     // 委托 _runtime 的薄包装
@@ -2202,6 +2203,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return barrierResult.Applied;
         }
+        BattlePreparedChainDamage preparedChain = _chainDamageService.BuildPreparedPlan(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            effectDefinitions,
+            spell_control_context.BacklashTriggered
+        );
         StringName sourceEventId = Runtime?.AllocateContingencySourceEventId("unit_spell") ?? "";
         Runtime?.EmitContingencySpellAffected(
             active_unit,
@@ -2392,11 +2400,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             active_unit,
             target_unit,
             skillDefinition,
-            effectDefinitions,
+            preparedChain,
             damageResult,
             batch,
             skillSubject,
-            spell_control_context,
             castVariantDefinition
         );
         foreach (string customLine in effectResolution.CustomLogLines)

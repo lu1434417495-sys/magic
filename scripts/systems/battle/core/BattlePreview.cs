@@ -33,6 +33,7 @@ public class BattlePreview
     private BattleForcedMovePreviewData _forcedMovePreview;
     private BattlePositionSwapPreviewData _positionSwapPreview;
     private BattleRangedWeaponReactionPreviewData _rangedWeaponReactionPreview;
+    private BattleChainDamagePreviewData _chainDamagePreview;
 
     public bool allowed { get; set; } = false;
     public ReadOnlyCollection<string> log_lines => _logLinesView;
@@ -102,6 +103,8 @@ public class BattlePreview
         _positionSwapPreview?.Clone();
     internal BattleRangedWeaponReactionPreviewData RangedWeaponReactionPreviewTyped =>
         _rangedWeaponReactionPreview;
+    internal BattleChainDamagePreviewData ChainDamagePreviewTyped =>
+        _chainDamagePreview;
 
     public BattlePreview()
     {
@@ -273,6 +276,11 @@ public class BattlePreview
     )
     {
         _rangedWeaponReactionPreview = preview;
+    }
+
+    internal void SetChainDamagePreview(BattleChainDamagePreviewData preview)
+    {
+        _chainDamagePreview = preview;
     }
 
     internal void AddStatusContributionPreview(

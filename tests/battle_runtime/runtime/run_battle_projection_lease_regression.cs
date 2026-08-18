@@ -159,7 +159,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             );
             AssertOrder(
                 lease.Value,
-                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,source_advance_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,status_contribution_previews,fate_preview,save_branch_preview,equipment_ability_preview,terrain_contact_preview,shield_preview,equipment_durability_preview,forced_move_preview,position_swap_preview,ranged_weapon_reaction_preview,special_profile_gate_result,special_profile_preview_facts",
+                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,source_advance_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,status_contribution_previews,fate_preview,save_branch_preview,equipment_ability_preview,terrain_contact_preview,shield_preview,equipment_durability_preview,forced_move_preview,position_swap_preview,ranged_weapon_reaction_preview,chain_damage_preview,special_profile_gate_result,special_profile_preview_facts",
                 "preview"
             );
             using GDictionary shieldPreview =
@@ -200,7 +200,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             AssertPreviewNestedSchema(lease.Value);
             AssertGolden(
                 lease.Value,
-                "2365:5e26135b1c11c2b9a723f693bb0037b844796a57a7f9a1be7a69f42dc0334309",
+                "2909:a1923069a30f945199214137584bbf550c2c042a255cb7a39cb257e5d7b40443",
                 "preview fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);
@@ -577,6 +577,34 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             "kind,branch,save_tag,save_ability,save_dc,save_advantage_state,save_success_chance_basis_points,hit_chance_basis_points,threshold,current_hp,max_hp,failure_branch_text,success_branch_text,summary_text,variant_id,details",
             "preview save branch with residual"
         );
+        using GDictionary chain = root["chain_damage_preview"].AsGodotDictionary();
+        AssertOrder(
+            chain,
+            "primary_target_unit_id,normal_reached_target_count,summary_text,normal_hops,backlash_hops",
+            "preview chain damage facts"
+        );
+        _test.Eq(
+            chain["primary_target_unit_id"].VariantType,
+            Variant.Type.StringName,
+            "Chain preview unit ids must keep their StringName type."
+        );
+        _test.Eq(
+            chain["normal_reached_target_count"].AsInt32(),
+            2,
+            "Chain preview reached count must include the primary and unblocked normal hop."
+        );
+        using GArray normalHops = chain["normal_hops"].AsGodotArray();
+        using GArray backlashHops = chain["backlash_hops"].AsGodotArray();
+        _test.Eq(normalHops.Count, 1, "Chain preview golden must include a normal hop.");
+        _test.Eq(backlashHops.Count, 1, "Chain preview golden must include a backlash hop.");
+        using GDictionary normalHop = normalHops[0].AsGodotDictionary();
+        using GDictionary backlashHop = backlashHops[0].AsGodotDictionary();
+        const string hopOrder =
+            "hop_index,origin_unit_id,origin_coord,target_unit_id,target_coord,distance,outgoing_range,origin_was_conductive,blocked";
+        AssertOrder(normalHop, hopOrder, "preview normal chain hop");
+        AssertOrder(backlashHop, hopOrder, "preview backlash chain hop");
+        _test.False(normalHop["blocked"].AsBool(), "Normal chain golden hop must be reachable.");
+        _test.True(backlashHop["blocked"].AsBool(), "Backlash chain golden must exercise a blocked hop.");
     }
 
     private void AssertDamageNestedSchema(GDictionary root)
@@ -810,6 +838,40 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
                     },
                 },
             }
+        );
+        preview.SetChainDamagePreview(
+            new BattleChainDamagePreviewData(
+                "unit_a",
+                new BattleChainDamagePreviewHopData[]
+                {
+                    new(
+                        1,
+                        "unit_a",
+                        new Vector2I(2, 3),
+                        "unit_b",
+                        new Vector2I(3, 3),
+                        1,
+                        1,
+                        false,
+                        false
+                    ),
+                },
+                new BattleChainDamagePreviewHopData[]
+                {
+                    new(
+                        1,
+                        "unit_a",
+                        new Vector2I(2, 3),
+                        "unit_c",
+                        new Vector2I(4, 3),
+                        2,
+                        2,
+                        true,
+                        true
+                    ),
+                },
+                "unit_a → unit_b"
+            )
         );
         preview.special_profile_gate_result.DebugDetails["labels"] =
             new List<string> { "fixture" };

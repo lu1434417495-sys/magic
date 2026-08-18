@@ -408,6 +408,33 @@ internal class BattleBarrierService
         );
     }
 
+    internal BattleBarrierInteractionResult PreviewSkillBarrierInteractionBetweenCoordsResult(
+        BattleUnitReadView sourceUnit,
+        Vector2I effectOriginCoord,
+        BattleUnitReadView targetUnit,
+        Vector2I effectTargetCoord,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        BattleBarrierPreviewSession previewSession = null,
+        CombatCastVariantDefinition castVariantDefinition = null
+    )
+    {
+        if (!sourceUnit.IsValid || !targetUnit.IsValid)
+            return new BattleBarrierInteractionResult(false, false);
+        return _ResolveProjectedEffectBarrierInteractionResult(
+            sourceUnit.UnsafeUnitForReadOnlyRules,
+            effectOriginCoord,
+            effectTargetCoord,
+            targetUnit.DisplayName,
+            skillDefinition,
+            effectDefinitions,
+            batch: null,
+            commit: false,
+            previewSession: previewSession,
+            castVariantDefinition: castVariantDefinition
+        );
+    }
+
     internal BattleBarrierPreviewSession BeginSkillBarrierPreviewSession()
     {
         IReadOnlyList<StringName> orderedBarrierKeys = _SortedBarrierKeys();
@@ -436,6 +463,32 @@ internal class BattleBarrierService
             sourceUnit,
             effectOriginCoord,
             targetUnit.GetAnchorCoord(),
+            targetUnit.display_name,
+            skillDefinition,
+            effectDefinitions,
+            batch,
+            commit: true,
+            castVariantDefinition: castVariantDefinition
+        );
+    }
+
+    internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionBetweenCoordsResult(
+        BattleUnitState sourceUnit,
+        Vector2I effectOriginCoord,
+        BattleUnitState targetUnit,
+        Vector2I effectTargetCoord,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        BattleEventBatch batch,
+        CombatCastVariantDefinition castVariantDefinition = null
+    )
+    {
+        if (sourceUnit == null || targetUnit == null)
+            return new BattleBarrierInteractionResult(false, false);
+        return _ResolveProjectedEffectBarrierInteractionResult(
+            sourceUnit,
+            effectOriginCoord,
+            effectTargetCoord,
             targetUnit.display_name,
             skillDefinition,
             effectDefinitions,

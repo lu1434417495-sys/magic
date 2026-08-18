@@ -294,6 +294,7 @@ internal sealed class BattleSkillPreviewService
         var previewTargetUnits = new List<BattleUnitReadView>();
         var previewTargetUnitIds = new List<StringName>();
         var barrierBlockLines = new List<string>();
+        BattleBarrierPreviewSession deterministicBarrierPreviewSession = null;
         IReadOnlyList<CombatEffectDefinition> previewEffectDefinitions =
             Array.Empty<CombatEffectDefinition>();
         bool hasDeterministicTargets = validation.TargetUnits.Count > 0;
@@ -320,7 +321,7 @@ internal sealed class BattleSkillPreviewService
                 Runtime?.GetLayeredBarrierService();
             if (hasDeterministicTargets)
             {
-                BattleBarrierPreviewSession barrierPreviewSession =
+                deterministicBarrierPreviewSession =
                     layeredBarrierService?.BeginSkillBarrierPreviewSession();
                 if (BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition))
                 {
@@ -349,7 +350,7 @@ internal sealed class BattleSkillPreviewService
                                 targetUnit,
                                 skillDefinition,
                                 targetEffects,
-                                barrierPreviewSession,
+                                deterministicBarrierPreviewSession,
                                 castVariantDefinition
                             ) ?? new BattleBarrierInteractionResult(false, false);
                         if (barrierResult.Blocked)
@@ -392,7 +393,7 @@ internal sealed class BattleSkillPreviewService
                                 targetUnit,
                                 skillDefinition,
                                 targetEffects,
-                                barrierPreviewSession,
+                                deterministicBarrierPreviewSession,
                                 castVariantDefinition
                             ) ?? new BattleBarrierInteractionResult(false, false);
                         if (barrierResult.Blocked)
@@ -486,6 +487,27 @@ internal sealed class BattleSkillPreviewService
                 }
             }
         }
+        BattleChainDamagePreviewData chainDamagePreview = null;
+        if (
+            validation.Allowed
+            && hasDeterministicTargets
+            && validation.TargetUnits.Count == 1
+            && previewTargetUnitIds.Contains(validation.TargetUnits[0].UnitId)
+        )
+        {
+            chainDamagePreview = BuildChainDamagePreview(
+                active_unit,
+                validation.TargetUnits[0],
+                skillDefinition,
+                castVariantDefinition,
+                previewEffectDefinitions,
+                deterministicBarrierPreviewSession,
+                previewTargetUnits,
+                previewTargetUnitIds,
+                barrierBlockLines
+            );
+        }
+        preview.SetChainDamagePreview(chainDamagePreview);
         bool hasPreviewImpactTargets = previewTargetUnits.Count > 0;
         IReadOnlyList<Vector2I> previewCoords = validation.PreviewCoords;
         if (
@@ -661,6 +683,8 @@ internal sealed class BattleSkillPreviewService
             {
                 preview.AddLogLine(rangedWeaponReactionPreview.SummaryText);
             }
+            if (preview.ChainDamagePreviewTyped is BattleChainDamagePreviewData chainPreview)
+                preview.AddLogLine(chainPreview.SummaryText);
             foreach (
                 BattleStatusContributionPreviewData statusPreview
                 in preview.StatusContributionPreviewsTyped
@@ -753,6 +777,192 @@ internal sealed class BattleSkillPreviewService
         preview.AddLogLine(
             string.IsNullOrEmpty(validation.Message) ? "技能或目标无效。" : validation.Message
         );
+    }
+
+    private BattleChainDamagePreviewData BuildChainDamagePreview(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView primaryTarget,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        BattleBarrierPreviewSession normalBarrierSession,
+        List<BattleUnitReadView> previewTargetUnits,
+        List<StringName> previewTargetUnitIds,
+        List<string> barrierBlockLines
+    )
+    {
+        BattlePreparedChainDamage normalPrepared =
+            _owner.BuildPreparedChainPreviewPlan(
+                sourceUnit,
+                primaryTarget,
+                skillDefinition,
+                effectDefinitions,
+                backlashTriggered: false
+            );
+        if (!normalPrepared.IsConfigured)
+            return null;
+        BattleLayeredBarrierService barrierService = Runtime?.GetLayeredBarrierService();
+        BattleStateReadView state = _owner.RtState()?.AsReadView() ?? default;
+        List<BattleChainDamagePreviewHopData> normalHops = BuildChainPreviewHops(
+            normalPrepared,
+            sourceUnit,
+            skillDefinition,
+            castVariantDefinition,
+            normalBarrierSession,
+            barrierService,
+            state,
+            previewTargetUnits,
+            previewTargetUnitIds,
+            barrierBlockLines
+        );
+
+        BattlePreparedChainDamage backlashPrepared =
+            _owner.BuildPreparedChainPreviewPlan(
+                sourceUnit,
+                primaryTarget,
+                skillDefinition,
+                effectDefinitions,
+                backlashTriggered: true
+            );
+        var backlashHops = new List<BattleChainDamagePreviewHopData>();
+        if (backlashPrepared.IsConfigured)
+        {
+            BattleBarrierPreviewSession backlashBarrierSession =
+                barrierService?.BeginSkillBarrierPreviewSession();
+            BattleBarrierInteractionResult primaryBarrier =
+                barrierService?.PreviewSkillBarrierInteractionResult(
+                    sourceUnit,
+                    primaryTarget,
+                    skillDefinition,
+                    effectDefinitions,
+                    backlashBarrierSession,
+                    castVariantDefinition
+                ) ?? new BattleBarrierInteractionResult(false, false);
+            if (!primaryBarrier.Blocked)
+            {
+                backlashHops = BuildChainPreviewHops(
+                    backlashPrepared,
+                    sourceUnit,
+                    skillDefinition,
+                    castVariantDefinition,
+                    backlashBarrierSession,
+                    barrierService,
+                    state,
+                    previewTargetUnits: null,
+                    previewTargetUnitIds: null,
+                    barrierBlockLines: null
+                );
+            }
+        }
+
+        string normalRoute = BuildChainRouteLabel(
+            state,
+            primaryTarget,
+            normalHops
+        );
+        string backlashRoute = BuildChainRouteLabel(
+            state,
+            primaryTarget,
+            backlashHops
+        );
+        string summary = $"普通连锁路线：{normalRoute}。";
+        if (!string.Equals(normalRoute, backlashRoute, StringComparison.Ordinal))
+            summary += $" 未受保护的大失败反噬潜在路线：{backlashRoute}。";
+        return new BattleChainDamagePreviewData(
+            primaryTarget.UnitId,
+            normalHops,
+            backlashHops,
+            summary
+        );
+    }
+
+    private static List<BattleChainDamagePreviewHopData> BuildChainPreviewHops(
+        BattlePreparedChainDamage prepared,
+        BattleUnitReadView sourceUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleBarrierPreviewSession barrierSession,
+        BattleLayeredBarrierService barrierService,
+        BattleStateReadView state,
+        List<BattleUnitReadView> previewTargetUnits,
+        List<StringName> previewTargetUnitIds,
+        List<string> barrierBlockLines
+    )
+    {
+        var result = new List<BattleChainDamagePreviewHopData>();
+        foreach (BattleChainDamageHopPlan hop in prepared.Plan.Hops)
+        {
+            BattleUnitReadView targetUnit = state.GetAliveUnit(hop.TargetUnitId);
+            if (!targetUnit.IsValid)
+                break;
+            BattleBarrierInteractionResult barrierResult =
+                barrierService?.PreviewSkillBarrierInteractionBetweenCoordsResult(
+                    sourceUnit,
+                    hop.OriginCoord,
+                    targetUnit,
+                    hop.TargetCoord,
+                    skillDefinition,
+                    prepared.TargetEffects,
+                    barrierSession,
+                    castVariantDefinition
+                ) ?? new BattleBarrierInteractionResult(false, false);
+            result.Add(
+                new BattleChainDamagePreviewHopData(
+                    hop.HopIndex,
+                    hop.OriginUnitId,
+                    hop.OriginCoord,
+                    hop.TargetUnitId,
+                    hop.TargetCoord,
+                    hop.Distance,
+                    hop.OutgoingRange,
+                    hop.OriginWasConductive,
+                    barrierResult.Blocked
+                )
+            );
+            if (barrierResult.Blocked)
+            {
+                if (
+                    barrierBlockLines != null
+                    && !string.IsNullOrEmpty(barrierResult.PreviewText)
+                )
+                    barrierBlockLines.Add(barrierResult.PreviewText);
+                break;
+            }
+            if (previewTargetUnitIds != null && !previewTargetUnitIds.Contains(targetUnit.UnitId))
+            {
+                previewTargetUnits?.Add(targetUnit);
+                previewTargetUnitIds.Add(targetUnit.UnitId);
+            }
+        }
+        return result;
+    }
+
+    private static string BuildChainRouteLabel(
+        BattleStateReadView state,
+        BattleUnitReadView primaryTarget,
+        IReadOnlyList<BattleChainDamagePreviewHopData> hops
+    )
+    {
+        var labels = new List<string>
+        {
+            string.IsNullOrEmpty(primaryTarget.DisplayName)
+                ? primaryTarget.UnitId.ToString()
+                : primaryTarget.DisplayName,
+        };
+        foreach (
+            BattleChainDamagePreviewHopData hop in hops
+                ?? Array.Empty<BattleChainDamagePreviewHopData>()
+        )
+        {
+            BattleUnitReadView target = state.GetUnit(hop.TargetUnitId);
+            string label = target.IsValid && !string.IsNullOrEmpty(target.DisplayName)
+                ? target.DisplayName
+                : hop.TargetUnitId.ToString();
+            labels.Add(hop.Blocked ? $"{label}（被屏障阻断）" : label);
+            if (hop.Blocked)
+                break;
+        }
+        return string.Join(" → ", labels);
     }
 
     private void AppendPositionSwapPreview(

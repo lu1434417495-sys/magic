@@ -188,7 +188,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
     {
         SkillDefinition skill = BuildSkillDefinition(
             "typed_level_description_effect_params_skill",
-            "连锁半径{base_chain_radius}，湿地{wet_chain_radius}",
+            "基础跳距{chain_base_hop_range}，导电跳距{chain_conductive_hop_range}，目标上限{chain_max_total_targets}",
             combatProfile: BuildCombatProfile(
                 "typed_level_description_effect_params_skill",
                 new CombatEffectDefinition(
@@ -236,19 +236,22 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
                     durationTu: 0,
                     tickIntervalTu: 0,
                     effectTags: System.Array.Empty<StringName>(),
-                    parameters: new Dictionary<string, object>
-                    {
-                        ["base_chain_radius"] = 1,
-                        ["wet_chain_radius"] = 2,
-                    }
+                    chainDamage: new CombatChainDamageDefinition(
+                        baseHopRange: 1,
+                        conductiveHopRange: 2,
+                        maxTotalTargets: 0,
+                        conductiveStatusIds: new StringName[] { "shocked" },
+                        conductiveTerrainEffectIds: new StringName[] { "wet" },
+                        backlashHopRangeBonus: 1
+                    )
                 )
             )
         );
 
         _test.Eq(
             SkillLevelDescriptionFormatter.BuildLevelDescription(skill, 0, new GDictionary()),
-            "连锁半径1，湿地2",
-            "formatter 应从纯 SkillDefinition effect parameters 渲染描述。"
+            "基础跳距1，导电跳距2，目标上限不限",
+            "formatter 应从纯 SkillDefinition typed chain_damage 定义渲染无限目标描述。"
         );
     }
 

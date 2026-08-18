@@ -59,9 +59,28 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
             return;
 
         _test.Eq(combat.RangeValue, 5, "链式闪击描述输入应保留射程。");
-        _test.Eq(combat.ApCost, 1, "链式闪击描述输入应保留 AP 消耗。");
-        _test.Eq(combat.MpCost, 120, "链式闪击描述输入应保留 MP 消耗。");
-        _test.Eq(combat.CooldownTu, 60, "链式闪击描述输入应保留冷却。");
+        _test.Eq(combat.ApCost, 2, "链式闪击描述输入应保留 AP 消耗。");
+        _test.Eq(combat.MpCost, 180, "链式闪击描述输入应保留 MP 消耗。");
+        _test.Eq(combat.CooldownTu, 160, "链式闪击描述输入应保留冷却。");
+        CombatSkillResourceCosts level2Costs = combat.GetEffectiveResourceCostValues(2);
+        CombatSkillResourceCosts level4Costs = combat.GetEffectiveResourceCostValues(4);
+        _test.Eq(level2Costs.MpCost, 160, "2级起法力消耗应降为160。");
+        _test.Eq(level2Costs.CooldownTu, 160, "2级冷却仍应为160TU。");
+        _test.Eq(level4Costs.MpCost, 160, "4级应保留160法力消耗。");
+        _test.Eq(level4Costs.CooldownTu, 100, "4级起冷却应降为100TU。");
+        int[] expectedProtection = { 0, 0, 0, 1, 1, 2, 2, 3 };
+        for (int level = 0; level < expectedProtection.Length; level++)
+            _test.Eq(
+                combat.GetFumbleProtectionLimit(level),
+                expectedProtection[level],
+                $"{level}级大失败保护次数应保留批准曲线。"
+            );
+        _test.Eq(combat.FumbleProtectionExtraMpPercent, 100, "受保护大失败应额外消耗本次已支付MP的100%。");
+        _test.Eq(
+            combat.ProjectileKind,
+            new StringName("magical"),
+            "链式闪击应显式声明为魔法投射物。"
+        );
         _test.Eq(
             combat.TargetSelectionMode,
             new StringName("single_unit"),
@@ -73,9 +92,16 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
             "链式闪击的首目标必须是敌人。"
         );
         _test.True(
-            level0Description.Contains("1格内所有单位")
-                && level0Description.Contains("扩大至2格"),
-            "链式闪击等级描述应明确首目标中心范围、无差别连锁与湿地扩张。"
+            level0Description.Contains("没有可连锁目标也可施放")
+                && level0Description.Contains("不设目标数量上限")
+                && level0Description.Contains("屏障阻断")
+                && level0Description.Contains("豁免DC无额外加值"),
+            "链式闪击0级描述应明确单目标合法、无限连锁、屏障中止与DC基线。"
+        );
+        _test.True(
+            level7Description.Contains("豁免DC额外+2")
+                && level7Description.Contains("成功承受一半伤害"),
+            "链式闪击7级描述应明确累计DC加值且保留成功豁免半伤。"
         );
 
         CombatEffectDefinition level0Damage = FindEffect(combat, "damage", 0);
@@ -88,21 +114,16 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
             _test.Eq(level0Damage.DiceSides, 6, "链式闪击 0 级伤害骰面应来自 typed effect。");
             _test.Eq(level0Damage.SaveAbility, new StringName("agility"), "链式闪击伤害豁免属性应来自 typed effect。");
             _test.True(level0Damage.SavePartialOnSuccess, "链式闪击伤害 effect 应标记成功豁免减半。");
+            _test.Eq(level0Damage.SaveFailureStatusId, new StringName("shocked"), "链式闪击应在敏捷豁免失败分支施加感电。");
+            _test.Eq(level0Damage.DurationTu, 40, "0级感电持续时间应由伤害失败分支定义。");
+            _test.Eq(level0Damage.SaveDcBonus, 0, "0级不应获得额外豁免DC加值。");
         }
         if (level7Damage != null)
         {
-            _test.Eq(level7Damage.DiceCount, 8, "链式闪击 7 级伤害骰数量应来自 typed effect。");
+            _test.Eq(level7Damage.DiceCount, 6, "链式闪击 7 级伤害骰数量应来自 typed effect。");
             _test.Eq(level7Damage.DiceSides, 6, "链式闪击 7 级伤害骰面应来自 typed effect。");
-        }
-
-        CombatEffectDefinition shock = FindEffect(combat, "status", 0);
-        _test.True(shock != null, "链式闪击应存在感电 status effect。");
-        if (shock != null)
-        {
-            _test.Eq(shock.StatusId, new StringName("shocked"), "链式闪击 status effect 应保留正式状态 id。");
-            _test.Eq(shock.SaveAbility, new StringName("constitution"), "链式闪击感电豁免属性应来自 typed effect。");
-            _test.Eq(shock.DurationTu, 60, "链式闪击感电持续时间应来自 typed effect。");
-            _test.Eq(shock.Power, 1, "链式闪击感电强度应来自 typed effect。");
+            _test.Eq(level7Damage.DurationTu, 80, "7级感电持续时间应由伤害失败分支定义。");
+            _test.Eq(level7Damage.SaveDcBonus, 2, "7级应获得累计+2豁免DC加值。");
         }
 
         CombatEffectDefinition chain = FindEffect(combat, "chain_damage", 0);
@@ -115,10 +136,16 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
                 "链式闪击的后续连锁应同时影响敌人与友军。"
             );
             _test.True(chain.PreventRepeatTarget, "链式闪击范围内每个单位最多结算一次。");
-            _test.Eq(chain.GetStringNameParamTyped("bonus_terrain_effect_id"), new StringName("wet"), "链式闪击连锁地形加成应来自 typed params。");
-            _test.Eq(chain.GetIntParamTyped("base_chain_radius"), 1, "链式闪击基础连锁范围应来自 typed params。");
-            _test.Eq(chain.GetIntParamTyped("wet_chain_radius"), 2, "链式闪击湿地连锁范围应来自 typed params。");
+            _test.True(chain.ChainDamage != null, "链式闪击应投影 immutable typed 连锁定义。");
+            _test.Eq(chain.ChainDamage?.BaseHopRange ?? 0, 1, "0级基础跳距应来自 typed 定义。");
+            _test.Eq(chain.ChainDamage?.ConductiveHopRange ?? 0, 2, "0级导电跳距应来自 typed 定义。");
+            _test.False(chain.ChainDamage?.HasTargetLimit ?? true, "0级链式闪击不应设置目标数量上限。");
+            _test.Eq(chain.ChainDamage?.BacklashHopRangeBonus ?? 0, 1, "反噬应使每跳范围+1。");
         }
+        CombatEffectDefinition level7Chain = FindEffect(combat, "chain_damage", 7);
+        _test.Eq(level7Chain?.ChainDamage?.BaseHopRange ?? 0, 1, "7级基础跳距应保持1格。");
+        _test.Eq(level7Chain?.ChainDamage?.ConductiveHopRange ?? 0, 2, "7级导电跳距应限制为2格。");
+        _test.False(level7Chain?.ChainDamage?.HasTargetLimit ?? true, "7级链式闪击仍不应设置目标数量上限。");
     }
 
     private void TestAimedShotDescriptionMatchesImplementedHighAccuracyContract()

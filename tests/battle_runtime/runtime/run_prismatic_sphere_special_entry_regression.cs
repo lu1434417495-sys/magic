@@ -448,10 +448,11 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             "chain_damage",
             effectTargetTeamFilter: "enemy",
             preventRepeatTarget: true,
-            parameters: new Dictionary<string, object>
-            {
-                ["base_chain_radius"] = 1,
-            }
+            chainDamage: new CombatChainDamageDefinition(
+                baseHopRange: 1,
+                conductiveHopRange: 1,
+                maxTotalTargets: 3
+            )
         );
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,

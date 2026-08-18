@@ -300,6 +300,7 @@ internal static class TestSkillDefinitionProjection
         int fixedAttackCount = 0,
         bool stopOnMiss = true,
         int forcedMoveMaxTargetBodySize = 0,
+        CombatChainDamageDefinition chainDamage = null,
         int saveDcBonus = 0
     )
     {
@@ -401,6 +402,7 @@ internal static class TestSkillDefinitionProjection
             fixedAttackCount: fixedAttackCount,
             stopOnMiss: stopOnMiss,
             forcedMoveMaxTargetBodySize: forcedMoveMaxTargetBodySize,
+            chainDamage: chainDamage,
             saveDcBonus: saveDcBonus
         );
     }

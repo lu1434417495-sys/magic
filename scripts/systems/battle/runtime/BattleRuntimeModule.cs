@@ -2486,34 +2486,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return _skill_orchestrator._unit_stands_on_terrain_effect(unit_state, terrain_effect_id);
     }
 
-    internal bool _is_within_chain_radius(
-        BattleUnitState primary_target,
-        BattleUnitState candidate,
-        int max_radius
-    )
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_within_chain_radius(primary_target, candidate, max_radius);
-    }
-
-    internal bool _is_chain_height_valid(BattleUnitState from_unit, BattleUnitState to_unit)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_chain_path_clear(from_unit, to_unit);
-    }
-
-    internal List<Vector2I> _get_line_coords(Vector2I from, Vector2I to)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._get_line_coords(from, to);
-    }
-
-    internal bool _is_chain_path_clear(BattleUnitState source_unit, BattleUnitState target_unit)
-    {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_chain_path_clear(source_unit, target_unit);
-    }
-
     internal string _get_unit_skill_target_validation_message(
         BattleUnitState active_unit,
         BattleUnitState target_unit,

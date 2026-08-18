@@ -156,6 +156,11 @@ internal static class BattlePreviewProjection
             preview.RangedWeaponReactionPreviewTyped,
             "BattlePreviewProjection.ranged_weapon_reaction_preview"
         );
+        target["chain_damage_preview"] = WriteChainDamagePreview(
+            lease,
+            preview.ChainDamagePreviewTyped,
+            "BattlePreviewProjection.chain_damage_preview"
+        );
         target["special_profile_gate_result"] = WriteSpecialProfileGate(
             lease,
             preview.special_profile_gate_result,
@@ -166,6 +171,63 @@ internal static class BattlePreviewProjection
             preview.special_profile_preview_facts,
             "BattlePreviewProjection.special_profile_preview_facts"
         );
+    }
+
+    private static GDictionary WriteChainDamagePreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleChainDamagePreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null)
+            return result;
+        result["primary_target_unit_id"] = preview.PrimaryTargetUnitId;
+        result["normal_reached_target_count"] = preview.NormalReachedTargetCount;
+        result["summary_text"] = preview.SummaryText;
+        result["normal_hops"] = WriteChainDamageHops(
+            lease,
+            preview.NormalHops,
+            $"{reason}.normal_hops"
+        );
+        result["backlash_hops"] = WriteChainDamageHops(
+            lease,
+            preview.BacklashHops,
+            $"{reason}.backlash_hops"
+        );
+        return result;
+    }
+
+    private static GArray WriteChainDamageHops<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<BattleChainDamagePreviewHopData> hops,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        foreach (
+            BattleChainDamagePreviewHopData hop in hops
+                ?? Array.Empty<BattleChainDamagePreviewHopData>()
+        )
+        {
+            GDictionary entry = lease.Own(
+                new GDictionary(),
+                $"{reason}[{result.Count}]"
+            );
+            entry["hop_index"] = hop.HopIndex;
+            entry["origin_unit_id"] = hop.OriginUnitId;
+            entry["origin_coord"] = hop.OriginCoord;
+            entry["target_unit_id"] = hop.TargetUnitId;
+            entry["target_coord"] = hop.TargetCoord;
+            entry["distance"] = hop.Distance;
+            entry["outgoing_range"] = hop.OutgoingRange;
+            entry["origin_was_conductive"] = hop.OriginWasConductive;
+            entry["blocked"] = hop.Blocked;
+            result.Add(entry);
+        }
+        return result;
     }
 
     private static GDictionary WriteRangedWeaponReactionPreview<TLeaseRoot>(
