@@ -13,6 +13,7 @@ internal sealed class DamageResolutionContext
     public bool AttackSuccess { get; }
     public bool SecondaryHitSuccess { get; }
     public bool ForcedMoveApplied { get; }
+    internal BattleDamageOriginKind DamageOriginKind { get; }
     public StringName SkillId { get; }
     public int SourceSkillLevel { get; }
     public IReadOnlyList<int> SaveRollOverrides { get; }
@@ -41,7 +42,8 @@ internal sealed class DamageResolutionContext
         bool isPreview = false,
         bool isDetachedPreview = false,
         int detachedPreviewDepth = 0,
-        bool forcedMoveApplied = false
+        bool forcedMoveApplied = false,
+        BattleDamageOriginKind damageOriginKind = BattleDamageOriginKind.Unknown
     )
     {
         DamageRollMode = damageRollMode == "" ? DefaultDamageRollMode : damageRollMode;
@@ -61,6 +63,7 @@ internal sealed class DamageResolutionContext
         DetachedPreviewDepth = Math.Max(detachedPreviewDepth, 0);
         DamageApplicationHookBatch = damageApplicationHookBatch;
         DamageApplicationHookOrigin = damageApplicationHookOrigin ?? BattleEffectOrigin.PlayerCommand();
+        DamageOriginKind = damageOriginKind;
     }
 
     public static DamageResolutionContext Empty() =>
@@ -149,7 +152,8 @@ internal sealed class DamageResolutionContext
             IsPreview,
             IsDetachedPreview,
             DetachedPreviewDepth,
-            ForcedMoveApplied
+            ForcedMoveApplied,
+            DamageOriginKind
         );
     }
 
@@ -172,7 +176,8 @@ internal sealed class DamageResolutionContext
             IsPreview,
             IsDetachedPreview,
             DetachedPreviewDepth,
-            ForcedMoveApplied
+            ForcedMoveApplied,
+            DamageOriginKind
         );
     }
 
@@ -198,7 +203,8 @@ internal sealed class DamageResolutionContext
             IsPreview,
             IsDetachedPreview,
             DetachedPreviewDepth,
-            ForcedMoveApplied
+            ForcedMoveApplied,
+            DamageOriginKind
         );
     }
 
@@ -220,7 +226,8 @@ internal sealed class DamageResolutionContext
             IsPreview,
             IsDetachedPreview,
             DetachedPreviewDepth,
-            ForcedMoveApplied
+            ForcedMoveApplied,
+            DamageOriginKind
         );
     }
 
@@ -245,7 +252,8 @@ internal sealed class DamageResolutionContext
             IsPreview,
             IsDetachedPreview,
             DetachedPreviewDepth,
-            ForcedMoveApplied
+            ForcedMoveApplied,
+            DamageOriginKind
         );
     }
 
@@ -267,7 +275,8 @@ internal sealed class DamageResolutionContext
             true,
             IsDetachedPreview,
             DetachedPreviewDepth,
-            ForcedMoveApplied
+            ForcedMoveApplied,
+            DamageOriginKind
         );
     }
 
@@ -289,7 +298,8 @@ internal sealed class DamageResolutionContext
             true,
             true,
             DetachedPreviewDepth,
-            ForcedMoveApplied
+            ForcedMoveApplied,
+            DamageOriginKind
         );
     }
 
@@ -311,7 +321,8 @@ internal sealed class DamageResolutionContext
             true,
             true,
             Math.Max(detachedPreviewDepth, 0),
-            ForcedMoveApplied
+            ForcedMoveApplied,
+            DamageOriginKind
         );
     }
 
@@ -333,7 +344,33 @@ internal sealed class DamageResolutionContext
             IsPreview,
             IsDetachedPreview,
             DetachedPreviewDepth,
-            forcedMoveApplied
+            forcedMoveApplied,
+            DamageOriginKind
+        );
+    }
+
+    internal DamageResolutionContext WithDamageOriginKind(
+        BattleDamageOriginKind damageOriginKind
+    )
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            damageOriginKind
         );
     }
 
