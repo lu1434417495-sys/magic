@@ -85,6 +85,9 @@ public partial class CombatSkillDef : Resource
     }
 
     [Export]
+    public Godot.Collections.Array<StringName> excluded_target_creature_type_tags { get; set; } = new();
+
+    [Export]
     public StringName range_pattern { get; set; } = "single";
 
     [Export]

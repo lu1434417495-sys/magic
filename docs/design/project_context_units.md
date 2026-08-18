@@ -472,6 +472,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/content/skills/SkillContentJsonAuthoringDomain.cs`
   - `scripts/player/progression/CombatRangedWeaponReactionDef.cs`
   - `scripts/player/progression/SkillDefinition.cs`
+  - `scripts/player/progression/CombatChainDamageDefinition.cs`
   - `scripts/systems/content/skills/CombatDirectionalPiercingDefinition.cs`
   - `scripts/systems/content/skills/CombatApproachAttackDefinition.cs`
   - `data/configs/skills/*.tres`

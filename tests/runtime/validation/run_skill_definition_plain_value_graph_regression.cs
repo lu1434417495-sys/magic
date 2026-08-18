@@ -23,6 +23,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         TestAllowedGodotValuesBecomePlainFrozenValues();
         TestMathAllowlistProjectionRoundTrip();
         TestAllDefinitionGraphsDefensivelyDeepFreezeSyntheticInput();
+        TestTypedSkillResourceFieldsProjectToFrozenPlainGraph();
         TestMalformedGodotValuesReportFullSkillPaths();
         TestStrictDictionaryAndPackedValueRejection();
         TestSyntheticIllegalObjectAndCycleRejection();
@@ -272,6 +273,317 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             listMutationRejected = true;
         }
         _test.True(listMutationRejected, "Nested normalized lists must reject mutation.");
+    }
+
+    private void TestTypedSkillResourceFieldsProjectToFrozenPlainGraph()
+    {
+        using var scope = new NativeLeaseScope(
+            "skill-typed-resource-projection",
+            LifetimeDomain.Request
+        );
+        GArray chainStatusIdsOwner = scope.Own(
+            new GArray { new StringName("shocked") },
+            "skill-typed-resource-chain-status-ids"
+        );
+        var chainStatusIds = new Godot.Collections.Array<StringName>(chainStatusIdsOwner);
+        GArray chainTerrainIdsOwner = scope.Own(
+            new GArray { new StringName("wet") },
+            "skill-typed-resource-chain-terrain-ids"
+        );
+        var chainTerrainIds = new Godot.Collections.Array<StringName>(chainTerrainIdsOwner);
+        GArray successorSaveTagsOwner = scope.Own(
+            new GArray { new StringName("sleep") },
+            "skill-typed-resource-successor-save-tags"
+        );
+        var successorSaveTags = new Godot.Collections.Array<StringName>(
+            successorSaveTagsOwner
+        );
+        GArray excludedCreatureTagsOwner = scope.Own(
+            new GArray { new StringName("undead"), new StringName("construct") },
+            "skill-typed-resource-excluded-creature-tags"
+        );
+        var excludedCreatureTags = new Godot.Collections.Array<StringName>(
+            excludedCreatureTagsOwner
+        );
+
+        CombatEffectDef chainResource = scope.Own(
+            new CombatEffectDef
+            {
+                effect_type = "chain_damage",
+                chain_base_hop_range = 2,
+                chain_conductive_hop_range = 4,
+                chain_max_total_targets = 5,
+                chain_conductive_status_ids = chainStatusIds,
+                chain_conductive_terrain_effect_ids = chainTerrainIds,
+                chain_backlash_hop_range_bonus = 1,
+            },
+            "skill-typed-resource-chain-effect"
+        );
+        CombatEffectDef saveResource = scope.Own(
+            new CombatEffectDef
+            {
+                effect_type = "damage",
+                save_dc_mode = "caster_spell",
+                save_dc_bonus = 3,
+            },
+            "skill-typed-resource-save-effect"
+        );
+        CombatEffectDef statusResource = scope.Own(
+            new CombatEffectDef
+            {
+                effect_type = "status",
+                status_id = "sleeping",
+                skip_turn = true,
+                break_on_positive_damage = true,
+                on_removed_status_id = "wakeful",
+                on_removed_status_save_immunity_tags = successorSaveTags,
+                on_removed_status_undispellable = true,
+                on_removed_status_consume_after_normal_turn = true,
+            },
+            "skill-typed-resource-status-effect"
+        );
+        CombatEffectDef defaultResource = scope.Own(
+            new CombatEffectDef { effect_type = "damage" },
+            "skill-typed-resource-default-effect"
+        );
+        GArray effectDefsOwner = scope.Own(
+            new GArray(),
+            "skill-typed-resource-effect-defs"
+        );
+        var effectDefs = new Godot.Collections.Array<CombatEffectDef>(effectDefsOwner)
+        {
+            chainResource,
+            saveResource,
+            statusResource,
+            defaultResource,
+        };
+        CombatSkillDef combatResource = scope.Own(
+            new CombatSkillDef
+            {
+                skill_id = "typed_projection_probe",
+                excluded_target_creature_type_tags = excludedCreatureTags,
+                effect_defs = effectDefs,
+            },
+            "skill-typed-resource-combat"
+        );
+        SkillDef skillResource = scope.Own(
+            new SkillDef
+            {
+                skill_id = "typed_projection_probe",
+                combat_profile = combatResource,
+            },
+            "skill-typed-resource-skill"
+        );
+
+        SkillDefinition skill = SkillDefinition.FromResource(skillResource);
+        CombatSkillDefinition combat = skill.CombatProfile;
+        _test.True(combat != null, "Typed Resource probe should project a combat definition.");
+        if (combat == null)
+            return;
+        _test.Eq(combat.EffectDefinitions.Count, 4, "All synthetic effects should project.");
+        if (combat.EffectDefinitions.Count != 4)
+            return;
+
+        CombatEffectDefinition chain = combat.EffectDefinitions[0];
+        CombatEffectDefinition save = combat.EffectDefinitions[1];
+        CombatEffectDefinition status = combat.EffectDefinitions[2];
+        CombatEffectDefinition defaultEffect = combat.EffectDefinitions[3];
+        CombatChainDamageDefinition chainDamage = chain.ChainDamage;
+
+        _test.True(chainDamage != null, "chain_damage should project a typed chain definition.");
+        if (chainDamage == null)
+            return;
+        _test.Eq(chainDamage.BaseHopRange, 2, "Chain base hop range should project exactly.");
+        _test.Eq(
+            chainDamage.ConductiveHopRange,
+            4,
+            "Chain conductive hop range should project exactly."
+        );
+        _test.Eq(chainDamage.MaxTotalTargets, 5, "Chain target limit should project exactly.");
+        _test.Eq(
+            chainDamage.BacklashHopRangeBonus,
+            1,
+            "Chain backlash range bonus should project exactly."
+        );
+        _test.True(
+            chainDamage.ConductiveStatusIds.SequenceEqual(new StringName[] { "shocked" }),
+            "Chain conductive status ids should project exactly."
+        );
+        _test.True(
+            chainDamage.ConductiveTerrainEffectIds.SequenceEqual(new StringName[] { "wet" }),
+            "Chain conductive terrain ids should project exactly."
+        );
+        _test.Eq(save.SaveDcBonus, 3, "Authored save DC bonus should project exactly.");
+        _test.True(status.SkipTurn, "Status skip-turn behavior should project.");
+        _test.True(
+            status.BreakOnPositiveDamage,
+            "Status positive-damage removal behavior should project."
+        );
+        _test.Eq(
+            status.OnRemovedStatusId,
+            new StringName("wakeful"),
+            "Status successor id should project exactly."
+        );
+        _test.True(
+            status.OnRemovedStatusSaveImmunityTags.SequenceEqual(
+                new StringName[] { "sleep" }
+            ),
+            "Status successor save tags should project exactly."
+        );
+        _test.True(
+            status.OnRemovedStatusUndispellable,
+            "Status successor undispellable flag should project."
+        );
+        _test.True(
+            status.OnRemovedStatusConsumeAfterNormalTurn,
+            "Status successor normal-turn consumption should project."
+        );
+        _test.True(
+            combat.ExcludedTargetCreatureTypeTags.SequenceEqual(
+                new StringName[] { "undead", "construct" }
+            ),
+            "Excluded target creature tags should project in authored order."
+        );
+        _test.True(
+            defaultEffect.ChainDamage == null,
+            "A non-chain effect should keep the optional chain definition null."
+        );
+        _test.Eq(defaultEffect.SaveDcBonus, 0, "Default save DC bonus should remain zero.");
+        _test.False(defaultEffect.SkipTurn, "Default status skip-turn flag should remain false.");
+        _test.False(
+            defaultEffect.BreakOnPositiveDamage,
+            "Default positive-damage removal flag should remain false."
+        );
+        _test.False(
+            defaultEffect.OnRemovedStatusUndispellable,
+            "Default successor undispellable flag should remain false."
+        );
+        _test.False(
+            defaultEffect.OnRemovedStatusConsumeAfterNormalTurn,
+            "Default successor consumption flag should remain false."
+        );
+        _test.Eq(
+            defaultEffect.OnRemovedStatusId,
+            new StringName(""),
+            "Default successor status id should remain empty."
+        );
+        _test.Eq(
+            defaultEffect.OnRemovedStatusSaveImmunityTags.Count,
+            0,
+            "Default successor save-tag list should remain empty."
+        );
+
+        chainStatusIds.Add("mutated_status");
+        chainTerrainIds.Clear();
+        successorSaveTags[0] = "mutated_save_tag";
+        excludedCreatureTags.Clear();
+        _test.True(
+            chainDamage.ConductiveStatusIds.SequenceEqual(new StringName[] { "shocked" }),
+            "Mutating the authored chain status array must not change the definition."
+        );
+        _test.True(
+            chainDamage.ConductiveTerrainEffectIds.SequenceEqual(new StringName[] { "wet" }),
+            "Mutating the authored chain terrain array must not change the definition."
+        );
+        _test.True(
+            status.OnRemovedStatusSaveImmunityTags.SequenceEqual(
+                new StringName[] { "sleep" }
+            ),
+            "Mutating the authored successor save tags must not change the definition."
+        );
+        _test.True(
+            combat.ExcludedTargetCreatureTypeTags.SequenceEqual(
+                new StringName[] { "undead", "construct" }
+            ),
+            "Mutating authored excluded creature tags must not change the definition."
+        );
+        _test.True(
+            combat
+                .WithStaminaCost(combat.StaminaCost + 1)
+                .ExcludedTargetCreatureTypeTags.SequenceEqual(
+                    combat.ExcludedTargetCreatureTypeTags
+                ),
+            "WithStaminaCost should preserve excluded target creature tags."
+        );
+        _test.True(
+            combat
+                .WithArea("circle", 2)
+                .ExcludedTargetCreatureTypeTags.SequenceEqual(
+                    combat.ExcludedTargetCreatureTypeTags
+                ),
+            "WithArea should preserve excluded target creature tags."
+        );
+
+        foreach (CombatEffectDefinition effect in new[] { chain, save, status, defaultEffect })
+        {
+            AssertTypedEffectFieldsEqual(
+                effect,
+                effect.WithEffectType(effect.EffectType),
+                "WithEffectType"
+            );
+            AssertTypedEffectFieldsEqual(
+                effect,
+                effect.WithPreResistanceDamageMultiplier(0.75d),
+                "WithPreResistanceDamageMultiplier"
+            );
+        }
+
+        AssertStringNameListRejectsMutation(
+            chainDamage.ConductiveStatusIds,
+            "Chain conductive status ids"
+        );
+        AssertStringNameListRejectsMutation(
+            chainDamage.ConductiveTerrainEffectIds,
+            "Chain conductive terrain ids"
+        );
+        AssertNoResourceOrGodotCollection(
+            skill,
+            "SkillDefinition"
+        );
+        AssertNoResourceOrGodotCollection(
+            combat,
+            "SkillDefinition.CombatProfile"
+        );
+        AssertNoResourceOrGodotCollection(
+            combat.EffectDefinitions,
+            "CombatSkillDefinition.EffectDefinitions"
+        );
+        AssertNoResourceOrGodotCollection(
+            chain,
+            "CombatSkillDefinition.EffectDefinitions[0]"
+        );
+        AssertNoResourceOrGodotCollection(
+            save,
+            "CombatSkillDefinition.EffectDefinitions[1]"
+        );
+        AssertNoResourceOrGodotCollection(
+            status,
+            "CombatSkillDefinition.EffectDefinitions[2]"
+        );
+        AssertNoResourceOrGodotCollection(
+            defaultEffect,
+            "CombatSkillDefinition.EffectDefinitions[3]"
+        );
+        AssertNoResourceOrGodotCollection(
+            combat.ExcludedTargetCreatureTypeTags,
+            "CombatSkillDefinition.ExcludedTargetCreatureTypeTags"
+        );
+        AssertNoResourceOrGodotCollection(
+            chainDamage,
+            "CombatEffectDefinition.ChainDamage"
+        );
+        AssertNoResourceOrGodotCollection(
+            chainDamage.ConductiveStatusIds,
+            "CombatChainDamageDefinition.ConductiveStatusIds"
+        );
+        AssertNoResourceOrGodotCollection(
+            chainDamage.ConductiveTerrainEffectIds,
+            "CombatChainDamageDefinition.ConductiveTerrainEffectIds"
+        );
+        AssertNoResourceOrGodotCollection(
+            status.OnRemovedStatusSaveImmunityTags,
+            "CombatEffectDefinition.OnRemovedStatusSaveImmunityTags"
+        );
     }
 
     private void TestMalformedGodotValuesReportFullSkillPaths()
@@ -820,6 +1132,117 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
                 && Equals(nested["inner"], "original"),
             $"{ownerLabel} should recursively copy and freeze nested list/map values."
         );
+    }
+
+    private void AssertTypedEffectFieldsEqual(
+        CombatEffectDefinition expected,
+        CombatEffectDefinition actual,
+        string cloneMethod
+    )
+    {
+        _test.True(actual != null, $"{cloneMethod} should return an effect definition.");
+        if (actual == null)
+            return;
+        _test.True(
+            ChainDamageEquals(actual.ChainDamage, expected.ChainDamage),
+            $"{cloneMethod} should preserve the typed chain definition."
+        );
+        _test.Eq(
+            actual.SaveDcBonus,
+            expected.SaveDcBonus,
+            $"{cloneMethod} should preserve the save DC bonus."
+        );
+        _test.Eq(
+            actual.SkipTurn,
+            expected.SkipTurn,
+            $"{cloneMethod} should preserve the skip-turn flag."
+        );
+        _test.Eq(
+            actual.BreakOnPositiveDamage,
+            expected.BreakOnPositiveDamage,
+            $"{cloneMethod} should preserve the positive-damage removal flag."
+        );
+        _test.Eq(
+            actual.OnRemovedStatusId,
+            expected.OnRemovedStatusId,
+            $"{cloneMethod} should preserve the successor status id."
+        );
+        _test.True(
+            actual.OnRemovedStatusSaveImmunityTags.SequenceEqual(
+                expected.OnRemovedStatusSaveImmunityTags
+            ),
+            $"{cloneMethod} should preserve successor save-immunity tags."
+        );
+        _test.Eq(
+            actual.OnRemovedStatusUndispellable,
+            expected.OnRemovedStatusUndispellable,
+            $"{cloneMethod} should preserve the successor undispellable flag."
+        );
+        _test.Eq(
+            actual.OnRemovedStatusConsumeAfterNormalTurn,
+            expected.OnRemovedStatusConsumeAfterNormalTurn,
+            $"{cloneMethod} should preserve normal-turn successor consumption."
+        );
+    }
+
+    private static bool ChainDamageEquals(
+        CombatChainDamageDefinition left,
+        CombatChainDamageDefinition right
+    )
+    {
+        if (ReferenceEquals(left, right))
+            return true;
+        return left != null
+            && right != null
+            && left.BaseHopRange == right.BaseHopRange
+            && left.ConductiveHopRange == right.ConductiveHopRange
+            && left.MaxTotalTargets == right.MaxTotalTargets
+            && left.BacklashHopRangeBonus == right.BacklashHopRangeBonus
+            && left.ConductiveStatusIds.SequenceEqual(right.ConductiveStatusIds)
+            && left.ConductiveTerrainEffectIds.SequenceEqual(
+                right.ConductiveTerrainEffectIds
+            );
+    }
+
+    private void AssertStringNameListRejectsMutation(
+        IReadOnlyList<StringName> values,
+        string label
+    )
+    {
+        bool mutationRejected = values is not IList<StringName>;
+        if (values is IList<StringName> mutableValues)
+        {
+            try
+            {
+                mutableValues.Add("forbidden_mutation");
+            }
+            catch (NotSupportedException)
+            {
+                mutationRejected = true;
+            }
+        }
+        _test.True(mutationRejected, $"{label} should reject collection mutation.");
+    }
+
+    private void AssertNoResourceOrGodotCollection(object value, string path)
+    {
+        _test.False(value is Resource, $"{path} must not retain a Resource instance.");
+        _test.False(
+            value?.GetType().Namespace?.StartsWith(
+                "Godot.Collections",
+                StringComparison.Ordinal
+            ) == true,
+            $"{path} must not retain a Godot collection wrapper."
+        );
+        if (value is IEnumerable values && value is not string)
+        {
+            int index = 0;
+            foreach (object child in values)
+            {
+                AssertNoResourceOrGodotCollection(child, $"{path}[{index}]");
+                index++;
+            }
+        }
     }
 
     private void AssertMathValuesEqual(

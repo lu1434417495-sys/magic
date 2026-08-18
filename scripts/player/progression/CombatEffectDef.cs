@@ -236,6 +236,27 @@ public partial class CombatEffectDef : Resource
     public bool prevent_repeat_target { get; set; } = true;
 
     [Export]
+    public int chain_base_hop_range { get; set; }
+
+    [Export]
+    public int chain_conductive_hop_range { get; set; }
+
+    [Export]
+    // Zero means the route has no authored target-count limit.
+    public int chain_max_total_targets { get; set; }
+
+    [Export]
+    public Godot.Collections.Array<StringName> chain_conductive_status_ids { get; set; } =
+        new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> chain_conductive_terrain_effect_ids { get; set; } =
+        new();
+
+    [Export]
+    public int chain_backlash_hop_range_bonus { get; set; }
+
+    [Export]
     public bool stop_on_miss { get; set; } = true;
 
     [Export]
@@ -496,6 +517,9 @@ public partial class CombatEffectDef : Resource
     public int save_dc { get; set; }
 
     [Export]
+    public int save_dc_bonus { get; set; }
+
+    [Export]
     public StringName save_dc_mode { get; set; } = "static";
 
     internal BattleSaveDcMode SaveDcModeKind
@@ -563,6 +587,25 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public bool lock_crit { get; set; }
+
+    [Export]
+    public bool skip_turn { get; set; }
+
+    [Export]
+    public bool break_on_positive_damage { get; set; }
+
+    [Export]
+    public StringName on_removed_status_id { get; set; } = "";
+
+    [Export]
+    public Godot.Collections.Array<StringName> on_removed_status_save_immunity_tags { get; set; } =
+        new();
+
+    [Export]
+    public bool on_removed_status_undispellable { get; set; }
+
+    [Export]
+    public bool on_removed_status_consume_after_normal_turn { get; set; }
 
     [Export]
     public int save_bonus { get; set; }

@@ -831,7 +831,8 @@ public sealed class CombatSkillDefinition
         CombatSequentialLineHitDefinition sequentialLineHit = null,
         StringName unitTargetResolutionMode = default,
         int mpCostPerTargetSlot = 0,
-        int staminaCostPerTargetSlot = 0
+        int staminaCostPerTargetSlot = 0,
+        IReadOnlyList<StringName> excludedTargetCreatureTypeTags = null
     )
     {
         SkillId = skillId;
@@ -923,6 +924,9 @@ public sealed class CombatSkillDefinition
         UnitTargetResolutionMode = unitTargetResolutionMode;
         MpCostPerTargetSlot = mpCostPerTargetSlot;
         StaminaCostPerTargetSlot = staminaCostPerTargetSlot;
+        ExcludedTargetCreatureTypeTags = SkillDefinitionCollectionFreeze.List(
+            excludedTargetCreatureTypeTags
+        );
     }
 
     public StringName SkillId { get; }
@@ -999,6 +1003,7 @@ public sealed class CombatSkillDefinition
     public IReadOnlyList<StringName> RequiredWeaponTypeIds { get; }
     public IReadOnlyList<StringName> ExcludedWeaponFamilies { get; }
     public IReadOnlyList<StringName> ExcludedWeaponTypeIds { get; }
+    public IReadOnlyList<StringName> ExcludedTargetCreatureTypeTags { get; }
     public bool RequiresEquippedShield { get; }
     public int MasteryLowHpBonusMultiplier { get; }
     public int MasteryLowHpThresholdPercent { get; }
@@ -1205,7 +1210,8 @@ public sealed class CombatSkillDefinition
             SequentialLineHit,
             UnitTargetResolutionMode,
             MpCostPerTargetSlot,
-            StaminaCostPerTargetSlot
+            StaminaCostPerTargetSlot,
+            ExcludedTargetCreatureTypeTags
         );
 
     internal CombatSkillDefinition WithArea(StringName areaPattern, int areaValue) =>
@@ -1284,7 +1290,8 @@ public sealed class CombatSkillDefinition
             SequentialLineHit,
             UnitTargetResolutionMode,
             MpCostPerTargetSlot,
-            StaminaCostPerTargetSlot
+            StaminaCostPerTargetSlot,
+            ExcludedTargetCreatureTypeTags
         );
 
     public int GetFumbleProtectionLimit(int skillLevel)
@@ -1407,7 +1414,8 @@ public sealed class CombatSkillDefinition
             ),
             source.unit_target_resolution_mode,
             source.mp_cost_per_target_slot,
-            source.stamina_cost_per_target_slot
+            source.stamina_cost_per_target_slot,
+            CopyStringNameArray(source.excluded_target_creature_type_tags)
         );
     }
 
@@ -2380,7 +2388,15 @@ public sealed class CombatEffectDefinition
         int followUpDamageMultiplierPercent = 100,
         IReadOnlyList<int> followUpAttackRollBonusCurve = null,
         int forcedMoveMaxTargetBodySize = 0,
-        IReadOnlyList<CombatWeightedStatusOutcomeDefinition> saveFailureStatusOutcomes = null
+        IReadOnlyList<CombatWeightedStatusOutcomeDefinition> saveFailureStatusOutcomes = null,
+        CombatChainDamageDefinition chainDamage = null,
+        int saveDcBonus = 0,
+        bool skipTurn = false,
+        bool breakOnPositiveDamage = false,
+        StringName onRemovedStatusId = default,
+        IReadOnlyList<StringName> onRemovedStatusSaveImmunityTags = null,
+        bool onRemovedStatusUndispellable = false,
+        bool onRemovedStatusConsumeAfterNormalTurn = false
     )
     {
         EffectType = effectType;
@@ -2410,6 +2426,7 @@ public sealed class CombatEffectDefinition
         RequiresWeapon = requiresWeapon;
         AddWeaponDice = addWeaponDice;
         PreventRepeatTarget = preventRepeatTarget;
+        ChainDamage = chainDamage;
         ForcedMoveMode = forcedMoveMode;
         MinSkillLevel = minSkillLevel;
         MaxSkillLevel = maxSkillLevel;
@@ -2450,6 +2467,7 @@ public sealed class CombatEffectDefinition
         SourceBoundWeaponBonusDamageDiceBonus = sourceBoundWeaponBonusDamageDiceBonus;
         ChargeTrapImmunityMinSkillLevel = chargeTrapImmunityMinSkillLevel;
         SaveDc = saveDc;
+        SaveDcBonus = System.Math.Max(saveDcBonus, 0);
         SaveDcMode = saveDcMode;
         SaveDcSourceAbility = saveDcSourceAbility;
         SaveAbility = saveAbility;
@@ -2572,6 +2590,14 @@ public sealed class CombatEffectDefinition
         LockGuard = lockGuard;
         LockDodgeBonus = lockDodgeBonus;
         LockCrit = lockCrit;
+        SkipTurn = skipTurn;
+        BreakOnPositiveDamage = breakOnPositiveDamage;
+        OnRemovedStatusId = ProgressionDataUtils.to_string_name(onRemovedStatusId);
+        OnRemovedStatusSaveImmunityTags = SkillDefinitionCollectionFreeze.List(
+            onRemovedStatusSaveImmunityTags
+        );
+        OnRemovedStatusUndispellable = onRemovedStatusUndispellable;
+        OnRemovedStatusConsumeAfterNormalTurn = onRemovedStatusConsumeAfterNormalTurn;
         SaveBonus = saveBonus;
         ControlSaveBonus = controlSaveBonus;
         PassiveReduction = passiveReduction;
@@ -2628,6 +2654,7 @@ public sealed class CombatEffectDefinition
     public bool RequiresWeapon { get; }
     public bool AddWeaponDice { get; }
     public bool PreventRepeatTarget { get; }
+    public CombatChainDamageDefinition ChainDamage { get; }
     public StringName ForcedMoveMode { get; }
     public int MinSkillLevel { get; }
     public int MaxSkillLevel { get; }
@@ -2666,6 +2693,7 @@ public sealed class CombatEffectDefinition
     public int SourceBoundWeaponBonusDamageDiceBonus { get; }
     public int ChargeTrapImmunityMinSkillLevel { get; }
     public int SaveDc { get; }
+    public int SaveDcBonus { get; }
     public StringName SaveDcMode { get; }
     public StringName SaveDcSourceAbility { get; }
     public StringName SaveAbility { get; }
@@ -2773,6 +2801,12 @@ public sealed class CombatEffectDefinition
     public bool LockGuard { get; }
     public bool LockDodgeBonus { get; }
     public bool LockCrit { get; }
+    public bool SkipTurn { get; }
+    public bool BreakOnPositiveDamage { get; }
+    public StringName OnRemovedStatusId { get; }
+    public IReadOnlyList<StringName> OnRemovedStatusSaveImmunityTags { get; }
+    public bool OnRemovedStatusUndispellable { get; }
+    public bool OnRemovedStatusConsumeAfterNormalTurn { get; }
     public int SaveBonus { get; }
     public int ControlSaveBonus { get; }
     public int PassiveReduction { get; }
@@ -3137,7 +3171,16 @@ public sealed class CombatEffectDefinition
             followUpDamageMultiplierPercent: FollowUpDamageMultiplierPercent,
             followUpAttackRollBonusCurve: FollowUpAttackRollBonusCurve,
             forcedMoveMaxTargetBodySize: ForcedMoveMaxTargetBodySize,
-            saveFailureStatusOutcomes: SaveFailureStatusOutcomes
+            saveFailureStatusOutcomes: SaveFailureStatusOutcomes,
+            chainDamage: ChainDamage,
+            saveDcBonus: SaveDcBonus,
+            skipTurn: SkipTurn,
+            breakOnPositiveDamage: BreakOnPositiveDamage,
+            onRemovedStatusId: OnRemovedStatusId,
+            onRemovedStatusSaveImmunityTags: OnRemovedStatusSaveImmunityTags,
+            onRemovedStatusUndispellable: OnRemovedStatusUndispellable,
+            onRemovedStatusConsumeAfterNormalTurn:
+                OnRemovedStatusConsumeAfterNormalTurn
         );
     }
 
@@ -3336,7 +3379,16 @@ public sealed class CombatEffectDefinition
             followUpDamageMultiplierPercent: FollowUpDamageMultiplierPercent,
             followUpAttackRollBonusCurve: FollowUpAttackRollBonusCurve,
             forcedMoveMaxTargetBodySize: ForcedMoveMaxTargetBodySize,
-            saveFailureStatusOutcomes: SaveFailureStatusOutcomes
+            saveFailureStatusOutcomes: SaveFailureStatusOutcomes,
+            chainDamage: ChainDamage,
+            saveDcBonus: SaveDcBonus,
+            skipTurn: SkipTurn,
+            breakOnPositiveDamage: BreakOnPositiveDamage,
+            onRemovedStatusId: OnRemovedStatusId,
+            onRemovedStatusSaveImmunityTags: OnRemovedStatusSaveImmunityTags,
+            onRemovedStatusUndispellable: OnRemovedStatusUndispellable,
+            onRemovedStatusConsumeAfterNormalTurn:
+                OnRemovedStatusConsumeAfterNormalTurn
         );
     }
 
@@ -3555,7 +3607,30 @@ public sealed class CombatEffectDefinition
                             source.save_failure_status_outcomes,
                             $"{path}.save_failure_status_outcomes"
                         )
-                        : System.Array.Empty<CombatWeightedStatusOutcomeDefinition>()
+                        : System.Array.Empty<CombatWeightedStatusOutcomeDefinition>(),
+                chainDamage:
+                    source.EffectKind == BattleEffectKind.ChainDamage
+                        ? new CombatChainDamageDefinition(
+                            source.chain_base_hop_range,
+                            source.chain_conductive_hop_range,
+                            source.chain_max_total_targets,
+                            CopyStringNameArray(source.chain_conductive_status_ids),
+                            CopyStringNameArray(
+                                source.chain_conductive_terrain_effect_ids
+                            ),
+                            source.chain_backlash_hop_range_bonus
+                        )
+                        : null,
+                saveDcBonus: source.save_dc_bonus,
+                skipTurn: source.skip_turn,
+                breakOnPositiveDamage: source.break_on_positive_damage,
+                onRemovedStatusId: source.on_removed_status_id,
+                onRemovedStatusSaveImmunityTags:
+                    CopyStringNameArray(source.on_removed_status_save_immunity_tags),
+                onRemovedStatusUndispellable:
+                    source.on_removed_status_undispellable,
+                onRemovedStatusConsumeAfterNormalTurn:
+                    source.on_removed_status_consume_after_normal_turn
             );
     }
 
