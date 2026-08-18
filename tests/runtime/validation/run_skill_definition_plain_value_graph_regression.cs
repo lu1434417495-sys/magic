@@ -797,9 +797,9 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             SkillDefinition definition = SkillDefinition.FromResource(rawSkill);
             _test.True(definition != null, "Default probe should project a SkillDefinition.");
             _test.Eq(
-                definition?.IconId ?? default,
-                new StringName("default_probe"),
-                "Missing icon_id should use skill_id in the typed projection."
+                definition?.IconId?.ToString() ?? "",
+                "",
+                "Missing icon_id should remain empty in the typed projection."
             );
             _test.Eq(
                 definition?.CombatProfile?.SkillId ?? default,

@@ -92,32 +92,74 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         new(StringComparer.Ordinal);
     private readonly Func<IContentResourceLoader, long, ContentSnapshotBuildArtifact> _build;
     private readonly ContentSnapshotPublication _publication = new();
+    private readonly bool _ownsEngineAssets;
+    private readonly bool _publishesProcessEpoch;
     private bool _acceptingLoads = true;
     private bool _disposed;
 
     internal ProcessContentHost(
         Func<IContentResourceLoader, long, ContentSnapshotBuildArtifact> build = null
     )
+        : this(
+            build,
+            engineAssets: null,
+            claimProcessHost: true,
+            ownsEngineAssets: true,
+            publishesProcessEpoch: true
+        )
     {
-        lock (ProcessHostSync)
+    }
+
+    private ProcessContentHost(
+        Func<IContentResourceLoader, long, ContentSnapshotBuildArtifact> build,
+        EngineAssetResolver engineAssets,
+        bool claimProcessHost,
+        bool ownsEngineAssets,
+        bool publishesProcessEpoch
+    )
+    {
+        if (claimProcessHost)
         {
-            if (_processHostCreated)
+            lock (ProcessHostSync)
             {
-                throw new InvalidOperationException(
-                    "Only one raw ProcessContentHost may be created in a Godot process. "
-                        + "Use a pure managed synthetic ContentSnapshot for isolated tests."
-                );
+                if (_processHostCreated)
+                {
+                    throw new InvalidOperationException(
+                        "Only one raw ProcessContentHost may be created in a Godot process. "
+                            + "Use a pure managed synthetic ContentSnapshot for isolated tests."
+                    );
+                }
+                _processHostCreated = true;
             }
-            _processHostCreated = true;
         }
 
         _build = build ?? BuildDefaultSnapshot;
-        EngineAssets = new EngineAssetResolver();
+        EngineAssets = engineAssets ?? new EngineAssetResolver();
+        _ownsEngineAssets = ownsEngineAssets;
+        _publishesProcessEpoch = publishesProcessEpoch;
+    }
+
+    internal static ProcessContentHost CreateSyntheticPublicationProbeForTest(
+        Func<IContentResourceLoader, long, ContentSnapshotBuildArtifact> build,
+        EngineAssetResolver borrowedEngineAssets
+    )
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        ArgumentNullException.ThrowIfNull(borrowedEngineAssets);
+        return new ProcessContentHost(
+            build,
+            borrowedEngineAssets,
+            claimProcessHost: false,
+            ownsEngineAssets: false,
+            publishesProcessEpoch: false
+        );
     }
 
     internal long Epoch => _publication.Epoch;
     internal bool IsSealed => _publication.IsSealed;
+    internal bool HasSnapshot => _publication.HasSnapshot;
     internal int CanonicalRootCount => _roots.Count;
+    internal int RollbackAttemptCountForTest { get; private set; }
     internal EngineAssetResolver EngineAssets { get; }
     public T LoadCanonical<T>(string resourcePath)
         where T : Resource
@@ -184,11 +226,28 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         long candidateEpoch = Interlocked.Read(ref _lastPublishedEpoch) + 1;
         return _publication.BuildAndSeal(
             candidateEpoch,
-            () => _build(this, candidateEpoch),
+            () => ValidateSkillIconAssetsForPublication(
+                _build(this, candidateEpoch),
+                EngineAssets
+            ),
             () => RollBackAttemptRoots(baselinePaths),
-            epoch => Interlocked.Exchange(ref _lastPublishedEpoch, epoch),
-            epoch => LifecycleAuditRegistry.Shared.SetActiveContentSnapshotEpoch(epoch)
+            PublishProcessEpochIfOwned,
+            SetActiveProcessEpochIfOwned
         );
+    }
+
+    internal static ContentSnapshotBuildArtifact ValidateSkillIconAssetsForPublication(
+        ContentSnapshotBuildArtifact artifact,
+        EngineAssetResolver engineAssets
+    )
+    {
+        if (artifact?.Snapshot == null)
+            return artifact;
+        SkillIconAssetCatalogValidator.ThrowIfInvalid(
+            artifact.Snapshot.Skills,
+            engineAssets
+        );
+        return artifact;
     }
 
     internal ContentSnapshot GetSnapshot()
@@ -247,7 +306,8 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         if (_disposed)
             return;
         _acceptingLoads = false;
-        EngineAssets.Quiesce();
+        if (_ownsEngineAssets)
+            EngineAssets.Quiesce();
     }
 
     internal void ReleaseSnapshot()
@@ -264,7 +324,8 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         }
 
         _publication.Release();
-        LifecycleAuditRegistry.Shared.ClearActiveContentSnapshotEpoch();
+        if (_publishesProcessEpoch)
+            LifecycleAuditRegistry.Shared.ClearActiveContentSnapshotEpoch();
     }
 
     public void Dispose()
@@ -275,7 +336,8 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         ReleaseSnapshot();
         _disposed = true;
         _acceptingLoads = false;
-        EngineAssets.Dispose();
+        if (_ownsEngineAssets)
+            EngineAssets.Dispose();
         foreach (string canonicalPath in _roots.Keys)
             LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(canonicalPath);
         _roots.Clear();
@@ -299,6 +361,7 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
 
     private void RollBackAttemptRoots(HashSet<string> baselinePaths)
     {
+        RollbackAttemptCountForTest++;
         string[] createdPaths = _roots.Keys
             .Where(path => !baselinePaths.Contains(path))
             .ToArray();
@@ -307,6 +370,18 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
             _roots.Remove(canonicalPath);
             LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(canonicalPath);
         }
+    }
+
+    private void PublishProcessEpochIfOwned(long epoch)
+    {
+        if (_publishesProcessEpoch)
+            Interlocked.Exchange(ref _lastPublishedEpoch, epoch);
+    }
+
+    private void SetActiveProcessEpochIfOwned(long epoch)
+    {
+        if (_publishesProcessEpoch)
+            LifecycleAuditRegistry.Shared.SetActiveContentSnapshotEpoch(epoch);
     }
 
     private void ThrowIfDisposed()

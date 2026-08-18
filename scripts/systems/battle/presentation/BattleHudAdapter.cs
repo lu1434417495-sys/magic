@@ -878,7 +878,7 @@ public sealed class BattleHudAdapter : IDisposable
                 StringName skillId = entry.EntryRef.SkillId;
                 SkillDefinition skillDefinition = entry.SkillDefinition;
                 string displayName = GetSkillDisplayName(skillDefinition, skillId);
-                string iconKey = GetSkillIconKey(skillDefinition, skillId);
+                string iconKey = GetSkillIconKey(skillDefinition);
                 Color accentColor = BuildSkillColor(iconKey, displayName);
                 SkillSlotState slotState = BuildSkillSlotState(activeUnit, skillDefinition, skillId);
                 string description =
@@ -1733,12 +1733,11 @@ public sealed class BattleHudAdapter : IDisposable
         return skillId.ToString();
     }
 
-    private static string GetSkillIconKey(SkillDefinition skillDefinition, StringName skillId)
-    {
-        if (skillDefinition != null && !IsEmpty(skillDefinition.IconId))
-            return skillDefinition.IconId.ToString();
-        return skillId.ToString();
-    }
+    private static string GetSkillIconKey(SkillDefinition skillDefinition) =>
+        skillDefinition?.IconId?.ToString() ?? "";
+
+    internal static string GetSkillIconKeyForTest(SkillDefinition skillDefinition) =>
+        GetSkillIconKey(skillDefinition);
 
     private IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitions()
     {

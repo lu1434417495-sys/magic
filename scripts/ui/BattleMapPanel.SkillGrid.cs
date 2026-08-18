@@ -5,8 +5,6 @@ using Godot;
 
 public partial class BattleMapPanel
 {
-    private const string SKILL_ICON_DIR = "res://assets/main/battle/skills/";
-    private const string SKILL_ICON_FALLBACK_KEY = "warrior_whirlwind_slash";
     private const string SKILL_ICON_GRAYSCALE_SHADER =
         "res://assets/shaders/skill_icon_grayscale.gdshader";
     private static readonly Color SKILL_ICON_DISABLED_MODULATE = new(0.62f, 0.62f, 0.62f, 0.85f);
@@ -232,8 +230,7 @@ public partial class BattleMapPanel
         }
 
         string iconKey = slot?.IconKey ?? "";
-        Texture2D texture = _resolve_skill_icon(iconKey)
-            ?? _resolve_skill_icon(SKILL_ICON_FALLBACK_KEY);
+        Texture2D texture = _resolve_skill_icon(iconKey);
         if (texture != null)
         {
             var icon = new TextureRect
@@ -287,13 +284,10 @@ public partial class BattleMapPanel
             return null;
         if (_skill_icon_cache.TryGetValue(icon_key, out Texture2D cachedTexture))
             return cachedTexture;
-        string path = $"{SKILL_ICON_DIR}{icon_key}.png";
-        Texture2D texture = null;
-        if (ResourceLoader.Exists(path, "Texture2D"))
-        {
-            texture = EngineAssetAccess
-                .ResolveAuthoredContentPathBorrowedDuringMigration<Texture2D>(this, path);
-        }
+        Texture2D texture = EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(
+            this,
+            icon_key
+        );
         _skill_icon_cache[icon_key] = texture;
         return texture;
     }

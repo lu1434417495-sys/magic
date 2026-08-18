@@ -11,8 +11,8 @@
 
 | 层 | 当前 owner | 职责 |
 |---|---|---|
-| Authoring | `SkillDef`、`CombatSkillDef`、`CombatEffectDef`、`CombatWeightedStatusOutcomeDef`、`CombatCastVariantDef`、`CombatWindupDef`、`CombatSpellReactionDef`、`CombatRangedWeaponReactionDef`、`CombatDirectionalPiercingDef`、`CombatLineThroughAttackDef`、`data/configs/skills/*.tres` | 声明技能、目标、目标生物类型排除、范围、地面布置合法性、基础/逐目标槽位消耗、单位目标解析模式、攻击所对抗的 AC 模式、typed effects、typed 连锁跳距/导电条件/可选目标上限、豁免失败加权状态池、投射物种类、可选蓄力曲线、主动施法反应、远程武器受击反应、方向贯穿、穿身攻击与地形接触参数 |
-| 校验与投影 | `SkillContentRegistry`（加载/索引/编排 + 技能级校验）、`SkillCombatProfileValidator` / `SkillDamageEffectValidator` / `SkillExecuteEffectValidator`（加载期分区校验器）、`CombatSkillContentRules`、`CombatUnitTargetResolutionContentRules`、`CombatLineThroughAttackContentRules`、`CombatTerrainContactModeRules`、`CombatProjectileContentRules`、`SkillDefinition`、`CombatEffectDefinition`、`CombatChainDamageDefinition`、`CombatWeightedStatusOutcomeDefinition`、`CombatSpellReactionDefinition`、`CombatRangedWeaponReactionDefinition`、`CombatDirectionalPiercingDefinition`、`CombatLineThroughAttackDefinition`、`BattleAttackRollModifierSpec` | 加载期校验并发布 immutable definition graph；单位目标解析模式与逐槽位费用、typed 连锁、地面布置与移动接触、攻击防御模式、投射物种类、攻击检定修正、豁免失败加权状态池、主动施法反应、远程武器受击反应、方向贯穿、穿身攻击和效果目标最低认知均以 typed content-definition 契约随投影使用 |
+| Authoring | `SkillDef`、`CombatSkillDef`、`CombatEffectDef`、`CombatWeightedStatusOutcomeDef`、`CombatCastVariantDef`、`CombatWindupDef`、`CombatSpellReactionDef`、`CombatRangedWeaponReactionDef`、`CombatDirectionalPiercingDef`、`CombatLineThroughAttackDef`、`data/configs/skills/*.tres` | 声明技能、可选 engine-asset catalog 图标 ID、目标、目标生物类型排除、范围、地面布置合法性、基础/逐目标槽位消耗、单位目标解析模式、攻击所对抗的 AC 模式、typed effects、typed 连锁跳距/导电条件/可选目标上限、豁免失败加权状态池、投射物种类、可选蓄力曲线、主动施法反应、远程武器受击反应、方向贯穿、穿身攻击与地形接触参数 |
+| 校验与投影 | `SkillContentRegistry`（加载/索引/编排 + 技能级校验）、`SkillCombatProfileValidator` / `SkillDamageEffectValidator` / `SkillExecuteEffectValidator`（加载期分区校验器）、`SkillIconAssetCatalogValidator`（snapshot publication 前的跨域资产校验）、`CombatSkillContentRules`、`CombatUnitTargetResolutionContentRules`、`CombatLineThroughAttackContentRules`、`CombatTerrainContactModeRules`、`CombatProjectileContentRules`、`SkillDefinition`、`CombatEffectDefinition`、`CombatChainDamageDefinition`、`CombatWeightedStatusOutcomeDefinition`、`CombatSpellReactionDefinition`、`CombatRangedWeaponReactionDefinition`、`CombatDirectionalPiercingDefinition`、`CombatLineThroughAttackDefinition`、`BattleAttackRollModifierSpec` | 加载期校验并发布 immutable definition graph；空图标 ID 保持为空，非空 ID 必须解析为 catalog `Texture2D`；单位目标解析模式与逐槽位费用、typed 连锁、地面布置与移动接触、攻击防御模式、投射物种类、攻击检定修正、豁免失败加权状态池、主动施法反应、远程武器受击反应、方向贯穿、穿身攻击和效果目标最低认知均以 typed content-definition 契约随投影使用 |
 | 战斗可用性 | `BattleSkillAvailabilityService`、`BattleSkillEntryRef`、`BattleSkillEntryIds` | 合并已学技能、装备授予技能和 scoped auto-cast 入口 |
 | 成长与建卡资源支持 | `ProgressionService`、`RandomStartingSkillResourceSupportService`、`EncounterRosterBuilder`、`GameSession.CharacterCreation` | 以 `BattleTargetSlotCostRules` 的最低一槽费用识别逐槽位耗蓝/耗体力技能，负责资源解锁、随机起始法力配套、遭遇单位资源投影与起始技能强度分层；随机书技能候选排除起始等级实际 MP 消耗超过 40 的技能，成功选中后法力池不得低于该消耗 |
 | 命令与预览 | `BattleCommand`、`BattlePreview` / `BattleChainDamagePreviewData` / `BattleForcedMovePreviewData` / `BattleStatusContributionPreviewData` / `BattleRangedWeaponReactionPreviewData`、`BattleRuntimeModule.PreviewCommand(...)`、`BattleGroundSkillValidationService`、`BattleSkillCreatureTypeTargetRules`、`BattleChainDamageRules`、`BattleWindPushRules`、`BattleWindupRules`、`BattleSourceRetreatRules`、`BattleApproachAttackRules`、`BattleDirectionalPiercingRules`、`BattleLineThroughAttackRules` | 校验 entry、资源、目标阵营与目标生物类型、完整空地/通行/视线布置、冻结连锁路线及逐跳屏障结果、蓄力挡位、强风逐目标失败分支、主动后撤、踏步攻击路径、贯穿方向、穿身路径和当前 battle state，并返回只读 preview |
@@ -39,6 +39,7 @@ SkillDef Resource
 ## 实现约束
 
 - Authoring Resource 只在内容构建边界存在；battle runtime、AI 和 UI 消费 `SkillDefinition` 与 battle-local state。
+- `SkillDef.icon_id` 只表示 engine-asset catalog ID，不是文件名、资源路径或 `skill_id` alias。`SkillDefinition.FromResource` 原样保留空 ID；process snapshot 发布前要求所有非空 ID 已登记为 `Texture2D`。`BattleHudAdapter` 原样投影该 ID，`BattleMapPanel.SkillGrid` 只经 typed asset-ID resolver 借用纹理；空 ID 显示技能短名 glyph，unknown 非空 ID fail closed，不拼路径或借其他技能图标兜底。
 - `chain_damage` 的基础/导电跳距、可选的总目标上限、导电状态/地形集合与反噬跳距加值只允许写在 `CombatEffectDef.chain_*` typed 字段，并投影到 immutable `CombatChainDamageDefinition`；`chain_max_total_targets = 0` 表示不限制目标数量，正数只能为包含主目标在内且不小于 2 的有限上限。旧 `params.base_chain_radius/wet_chain_radius/bonus_terrain_effect_id` 由内容校验直接拒绝。`BattleChainDamageRules` 在主目标效果前按“最近距离、目标 anchor Y/X、unit id”冻结不重复路线，多格单位再稳定选择最近坐标对；不限目标时最多访问当前战场的全部合法存活单位，因此仍有限终止。每个节点只读取施法前状态/地形，本次新施加的状态不改变当前路线。正常施法没有最少次要目标门槛。canonical preview 与 execution 共享路线，逐跳从上一节点检查 layered barrier，任一跳阻断即停止剩余连锁；AI 必须消费 canonical preview 的实际目标和 `BattleChainDamagePreviewData`，不能复制连锁算法。
 - `BattleAttackRollModifierSpec` 归 `scripts/systems/content/skills/`，只提供字段、typed 枚举映射、克隆和字典编解码；筛选、叠加与最终生效仍归 battle rules/runtime，不回灌进内容契约。
 - 地面机关的合法布置由 `CombatSkillDef.ground_effect_require_full_area/empty/traversable` 与 `requires_los` 显式声明；`BattleGroundSkillValidationService` 对 preview 和 commit 共用同一面积、占用、footprint、layered barrier 与阻挡 LOS 边校验。`area_direction_mode = target_vector_perpendicular` 只旋转通用 line area 的方向，不按技能 id 推断。
@@ -97,6 +98,9 @@ SkillDef Resource
 ## 代表性回归
 
 - `tests/runtime/validation/run_barrier_skill_content_validation_regression.cs`
+- `tests/runtime/validation/run_skill_icon_asset_catalog_validator_regression.cs`
+- `tests/runtime/validation/run_skill_definition_plain_value_graph_regression.cs`
+- `tests/battle_runtime/presentation/run_battle_hud_typed_projection_regression.cs`
 - `tests/battle_runtime/rules/run_battle_range_service_contract_regression.cs`
 - `tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs`
 - `tests/battle_runtime/runtime/run_equipment_ability_preview_integrity_regression.cs`

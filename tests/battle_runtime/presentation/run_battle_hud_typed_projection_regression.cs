@@ -38,6 +38,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         try
         {
             TestFixedProjectionSchemaAndMutationIsolation();
+            TestSkillIconKeysDoNotFallbackToSkillIds();
             TestAdapterReadsStayManaged();
             TestBossObjectiveAdapterProjection();
             TestInterceptObjectiveAdapterProjection();
@@ -49,6 +50,47 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             _test.Fail($"Unhandled exception: {exception}");
         }
         RequestTestExit(_test.Finish("Battle HUD typed projection regression"));
+    }
+
+    private void TestSkillIconKeysDoNotFallbackToSkillIds()
+    {
+        using var scope = new NativeLeaseScope(
+            "battle-hud-skill-icon-keys",
+            LifetimeDomain.Request
+        );
+        SkillDef emptyRaw = scope.Own(
+            new SkillDef
+            {
+                skill_id = "empty_icon_probe",
+                display_name = "空图标",
+                icon_id = "",
+            },
+            "battle-hud-empty-icon-probe"
+        );
+        SkillDef unknownRaw = scope.Own(
+            new SkillDef
+            {
+                skill_id = "unknown_icon_probe",
+                display_name = "未知图标",
+                icon_id = "test.skill_icon.unknown",
+            },
+            "battle-hud-unknown-icon-probe"
+        );
+
+        _test.Eq(
+            BattleHudAdapter.GetSkillIconKeyForTest(
+                SkillDefinition.FromResource(emptyRaw)
+            ),
+            "",
+            "HUD projection should preserve an empty icon ID instead of substituting skill_id"
+        );
+        _test.Eq(
+            BattleHudAdapter.GetSkillIconKeyForTest(
+                SkillDefinition.FromResource(unknownRaw)
+            ),
+            "test.skill_icon.unknown",
+            "HUD projection should preserve a non-empty asset ID without rewriting it"
+        );
     }
 
     private void TestFixedProjectionSchemaAndMutationIsolation()
@@ -628,6 +670,60 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         LifecycleAuditSnapshot readyBaseline =
             LifecycleAuditRegistry.Shared.CaptureSnapshot();
 
+        Texture2D catalogIcon = panel.ResolveSkillIconForTest(
+            "warrior_whirlwind_slash"
+        );
+        _test.True(catalogIcon != null, "registered skill icon asset ID should resolve a Texture2D.");
+        _test.True(
+            ReferenceEquals(
+                catalogIcon,
+                EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(
+                    panel,
+                    "warrior_whirlwind_slash"
+                )
+            ),
+            "skill grid should borrow the catalog-owned texture for a non-empty icon ID"
+        );
+        _test.True(
+            panel.ResolveSkillIconForTest("") == null,
+            "empty icon ID should remain empty and select the short-name glyph path"
+        );
+        _test.True(
+            Throws<System.Collections.Generic.KeyNotFoundException>(() =>
+                panel.ResolveSkillIconForTest("test.skill_icon.unknown")
+            ),
+            "unknown non-empty icon ID should fail without a path, skill-id, or whirlwind fallback"
+        );
+
+        var emptyIconSlot = new BattleHudSkillSlotSnapshot(
+            index: 0,
+            isEmpty: false,
+            skillEntryId: "known:empty_icon_skill",
+            skillId: "empty_icon_skill",
+            displayName: "空图技能",
+            shortName: "空图",
+            iconKey: "",
+            hotkey: "1",
+            footerText: "READY",
+            accentColor: Colors.Orange,
+            accentDark: Colors.DarkOrange,
+            edgeColor: Colors.Gold
+        );
+        panel._apply_snapshot(
+            BuildHudSnapshot(
+                Array.Empty<BattleHudQueueEntrySnapshot>(),
+                new[] { emptyIconSlot },
+                Array.Empty<string>(),
+                Array.Empty<BattleHudEquipmentSlotSnapshot>(),
+                Array.Empty<BattleHudBackpackEntrySnapshot>(),
+                BattlePresentationPayload.Empty
+            )
+        );
+        _test.True(
+            FindLabelByText(panel.skill_grid, "空图") != null,
+            "empty icon ID should render the skill short-name glyph"
+        );
+
         var disabledSlot = new BattleHudSkillSlotSnapshot(
             index: 0,
             isEmpty: false,
@@ -679,7 +775,14 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         _test.True(panel.HasPresentationLeaseForTest(), "panel should create one scene-lifetime presentation lease.");
         _test.True(GodotWrapperOwnershipRegistry.IsOwnedTransient(material), "pathless ShaderMaterial should be lease-owned.");
         _test.True(GodotWrapperOwnershipRegistry.IsBorrowedStaticContent(shader), "path-backed Shader should be registered borrowed.");
-        _test.True(GodotWrapperOwnershipRegistry.IsBorrowedStaticContent(texture), "path-backed Texture2D should be registered borrowed.");
+        _test.True(
+            ReferenceEquals(texture, catalogIcon),
+            "disabled skill icon should retain the catalog-owned borrowed Texture2D"
+        );
+        _test.False(
+            GodotWrapperOwnershipRegistry.IsBorrowedStaticContent(texture),
+            "catalog child Texture2D should not be registered as an independent path-backed root"
+        );
 
         LifecycleAuditSnapshot active = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         _test.Eq(active.ActiveLeaseCount, readyBaseline.ActiveLeaseCount + 1, "panel presentation lease should be audited.");
@@ -723,6 +826,35 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
                 return found;
         }
         return null;
+    }
+
+    private static Label FindLabelByText(Node root, string text)
+    {
+        if (root == null)
+            return null;
+        if (root is Label label && string.Equals(label.Text, text, StringComparison.Ordinal))
+            return label;
+        foreach (Node child in root.GetChildren())
+        {
+            Label found = FindLabelByText(child, text);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
     }
 
     private static BattleHudSnapshot BuildHudSnapshot(

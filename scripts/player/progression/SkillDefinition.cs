@@ -237,7 +237,7 @@ public sealed class SkillDefinition
         return new SkillDefinition(
             source.skill_id,
             source.display_name,
-            source.icon_id == "" && source.skill_id != "" ? source.skill_id : source.icon_id,
+            source.icon_id,
             source.description,
             source.skill_type,
             source.max_level,

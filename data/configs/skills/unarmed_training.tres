@@ -6,7 +6,7 @@
 script = ExtResource("1_skill")
 skill_id = &"unarmed_training"
 display_name = "徒手训练"
-icon_id = &"unarmed_training"
+icon_id = &""
 description = "通过徒手或天生武器的高质量攻击积累熟练度。"
 skill_type = &"passive"
 max_level = 5

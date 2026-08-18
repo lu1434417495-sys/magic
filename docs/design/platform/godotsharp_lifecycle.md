@@ -255,6 +255,7 @@ load/validate/project 和进程运行期何时必须保持可达，但不声称�
 - 同一路径重复请求返回同一个 canonical root；
 - root 只能在 host 的 load/validate/project 阶段访问，不能进入 runtime service/state；
 - raw Resource 不允许被 normalization 或 merge 修改；
+- engine-asset catalog 发布后、content snapshot 提交前，`SkillIconAssetCatalogValidator` 在同一 publication project 中验证每个非空 `SkillDefinition.IconId` 可借用为 `Texture2D`；失败走 root rollback，且不得设置 snapshot、epoch 或 sealed 状态；
 - host 初始化完成后进入 sealed 状态，V1 禁止在 active session 中 reload/register；
 - process shutdown 时先释放 content snapshot/session borrower，再清 canonical root map，让 managed
   wrapper 在 Godot 仍存活时通过正常 finalizer/engine tracker 解除绑定；不直接 Dispose cached root。
@@ -262,9 +263,9 @@ load/validate/project 和进程运行期何时必须保持可达，但不声称�
 业务 definition 只保存内容 id、canonical path 或 UID，不保存 Texture、PackedScene 等 wrapper。
 引擎资产按来源分为三类：
 
-1. 通过 process service 显式加载并跨 scene 复用的 path-backed Texture、PackedScene、AudioStream、
-   Material 等，由 `ProcessContentHost.EngineAssetResolver` 以 canonical path 建立 managed borrow
-   anchor；native owner 仍是 Godot ResourceLoader/cache；
+1. 内容声明的 Texture、PackedScene、AudioStream、Shader 等只携带稳定 asset ID，并由
+   `ProcessContentHost.EngineAssetResolver` 从已发布 typed catalog 返回 borrowed Resource；代码自有资产才以
+   canonical path 建立 managed borrow anchor；native owner 均仍是 Godot ResourceLoader/cache；
 2. 由 PackedScene/exported property 随 Node graph 注入的资产由 SceneTree/native scene graph 拥有，
    项目字段只登记 `LifetimeDomain.SceneTree + ReferenceRole.Borrowed`，不 Dispose；
 3. runtime factory 创建的 pathless Image、Texture、Mesh、TileSet 等进入 `NativeLeaseScope`。
@@ -410,6 +411,7 @@ audit issue 分成 `Violation` 与 `LegacyDebt`。`Violation` 在当前阶段 st
 ApplicationLifetimeCoordinator._Ready
 → 禁用 AutoAcceptQuit
 → ProcessContentHost.Load/Validate/Project
+→ 校验 definition 中的非空 asset ID 与已发布 catalog 类型
 → seal host
 → 创建 ContentSnapshot(epoch=1)
 → GameSession 借用 snapshot 并创建 GameRoot/catalog view
@@ -741,7 +743,9 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 - `scripts/systems/content/ContentSnapshotBuilder.cs`：同步 registry 校验、typed 投影与 immutable snapshot seal；
 - `scripts/systems/content/IContentResourceLoader.cs`：production/test authored Resource 加载边界；
 - `scripts/systems/content/EngineAssetResolver.cs`：process-shared path-backed 引擎资产的 canonical
-  load/borrow 边界；
+  load 与 typed catalog asset-ID borrow 边界；
+- `scripts/systems/content/SkillIconAssetCatalogValidator.cs`：snapshot publication 前的技能图标 asset-ID/
+  `Texture2D` 跨域门禁；
 - `scripts/systems/content/ContentSnapshot.cs`：immutable typed catalog root；
 - `scripts/systems/platform/NativeLeaseScope.cs`：显式 runtime-native owner；
 - `scripts/systems/platform/GodotProjectionLease.cs`：短期 Godot projection owner；

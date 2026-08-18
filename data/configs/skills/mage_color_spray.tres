@@ -375,7 +375,7 @@ effect_defs = Array[ExtResource("1_effect")]([SubResource("Damage_l0"), SubResou
 script = ExtResource("4_skill")
 skill_id = &"mage_color_spray"
 display_name = "七色炫光"
-icon_id = &"mage_color_spray"
+icon_id = &""
 description = "选择射程内一个可见敌人，以智力法术DC迫使其进行意志（幻术）豁免。豁免成功时承受一半心灵伤害且不受控制；豁免失败时承受全额心灵伤害，并等概率随机获得一种控制：目眩（下一次实际攻击检定受到-2，4级起为-3，随后消耗）、失衡（系统中的“踉跄”；power=1，持续期间每次自身回合开始损失1AP、攻击处于劣势且无法维持待结算施法）或感电（无法反击，4级起同时无法暴击）。失衡不在4级获得额外强化。三种结果只会出现一种，重复施加刷新同名状态而不叠层。"
 max_level = 7
 non_core_max_level = 5

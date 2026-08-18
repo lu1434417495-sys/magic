@@ -6,7 +6,7 @@
 script = ExtResource("1_skill")
 skill_id = &"mage_chain_contingency"
 display_name = "连锁应急术"
-icon_id = &"mage_chain_contingency"
+icon_id = &""
 description = "预先编织触发矩阵，在危险条件满足时释放已储存的法术。"
 skill_type = &"passive"
 max_level = 9

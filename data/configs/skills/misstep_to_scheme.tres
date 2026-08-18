@@ -6,7 +6,7 @@
 script = ExtResource("1_skill")
 skill_id = &"misstep_to_scheme"
 display_name = "失手成筹"
-icon_id = &"misstep_to_scheme"
+icon_id = &""
 description = "每战第一次大失败时，额外获得 1 点 calamity。该奖励与其他大失败计数独立结算。"
 skill_type = &"passive"
 max_level = 1

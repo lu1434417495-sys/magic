@@ -6,7 +6,7 @@
 script = ExtResource("1_skill")
 skill_id = &"basic_meditation"
 display_name = "基础冥想法"
-icon_id = &"basic_meditation"
+icon_id = &""
 description = "最基础的冥想修炼法，用于感知、容纳并逐步增长法力。"
 skill_type = &"passive"
 max_level = 5

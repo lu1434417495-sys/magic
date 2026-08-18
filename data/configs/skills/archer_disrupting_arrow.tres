@@ -59,7 +59,7 @@ effect_defs = Array[ExtResource("1_effect")]([SubResource("Resource_disrupting_a
 script = ExtResource("4_skill")
 skill_id = &"archer_disrupting_arrow"
 display_name = "扰咒箭"
-icon_id = &"archer_disrupting_arrow"
+icon_id = &""
 description = "持弓进入扰咒待机，直到你的下一次行动开始或反应射击触发。期间，处于标准武器攻击有效范围内的敌人主动施放法术并提交消耗后、产生效果前，你立即以当前弓发动一次标准武器攻击。未命中或未造成生命伤害时法术照常结算；造成生命伤害时，施法者进行体质维持检定，DC=max(10，本次生命伤害/2)+技能加值，失败则法术中断，已支付消耗与冷却不返还；击倒施法者也会中断。自动施法、装备触发与应急预案不会触发扰咒箭。"
 level_description_template = "进入扰咒待机；反应射击命中并造成生命伤害时迫使施法者进行体质维持检定（DC=max(10，生命伤害/2){dc_bonus}），消耗1AP/{stamina}体力，冷却{cooldown}TU{accuracy}"
 level_description_configs = {
