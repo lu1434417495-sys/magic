@@ -17,9 +17,9 @@ internal static class SkillContentJsonAuthoringDomain
             domainId: DomainId,
             schemaVersion: SchemaVersion,
             documentDtoType: typeof(SkillJsonDocumentDto),
-            title: "Magic skill JSON authoring schema (stage 1a pilot)",
+            title: "Magic skill JSON authoring schema",
             description:
-                "Current stage-1a skill import contract. It covers the committed pilot fields and the layered_barrier effect payload only; it is not the final full-skill-domain schema.",
+                "Current full skill import contract, including combat profiles, nested effects, and closed typed payload variants.",
             trackedSchemaPath: "res://data/schemas/content/skills.schema.json",
             contentFileMatch: "/data/configs/json/skills/**/*.json"
         );
@@ -28,26 +28,51 @@ internal static class SkillContentJsonAuthoringDomain
         new[] { "/combat_profile" }
     );
 
-    internal static IContentJsonOfflineValidationDomain CreateOfflineValidationDomain() =>
-        new ContentJsonOfflineValidationDomain<SkillImportModel, SkillImportModel>(
+    internal static JsonContentDomainDescriptor<SkillImportModel, SkillImportModel>
+        CreateImportDescriptor(string sourceDirectory, IContentJsonSourceReader sourceReader) =>
+        new(
             domainId: DomainId,
             schemaVersion: SchemaVersion,
             entryIdPropertyName: EntryIdPropertyName,
-            NullabilityPolicy,
-            SkillJsonImportParser.Parse,
-            NormalizeIdentity,
-            ValidateCurrentPilotContract
+            sourceDirectory: sourceDirectory,
+            sourceReader: sourceReader,
+            nullabilityPolicy: NullabilityPolicy,
+            parseDto: SkillJsonImportParser.Parse,
+            normalizeImportModel: NormalizeIdentity,
+            validateDomainLocal: ValidateCurrentContract
         );
+
+    internal static IContentJsonOfflineValidationDomain CreateOfflineValidationDomain() =>
+        new SkillOfflineValidationDomain();
 
     private static ContentImportStageResult<SkillImportModel> NormalizeIdentity(
         JsonContentEntryContext context,
         SkillImportModel import
     ) => ContentImportStageResult<SkillImportModel>.Success(import);
 
-    private static IReadOnlyList<ContentJsonDiagnostic> ValidateCurrentPilotContract(
+    private static IReadOnlyList<ContentJsonDiagnostic> ValidateCurrentContract(
         JsonContentEntryContext context,
         SkillImportModel import
     ) => Array.Empty<ContentJsonDiagnostic>();
+
+    private sealed class SkillOfflineValidationDomain : IContentJsonOfflineValidationDomain
+    {
+        public string DomainId => SkillContentJsonAuthoringDomain.DomainId;
+
+        public ContentJsonOfflineValidationReport Validate(
+            string sourceDirectory,
+            IContentJsonSourceReader sourceReader
+        )
+        {
+            ContentImportBatch<SkillImportModel> batch =
+                CreateImportDescriptor(sourceDirectory, sourceReader).Import();
+            return new ContentJsonOfflineValidationReport(
+                DomainId,
+                batch.Entries.Count,
+                batch.Diagnostics
+            );
+        }
+    }
 }
 
 [Description(
