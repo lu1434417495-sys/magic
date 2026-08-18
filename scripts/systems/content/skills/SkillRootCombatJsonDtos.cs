@@ -11,7 +11,6 @@ internal sealed partial class SkillJsonDto
     private string? _iconId;
     private string? _dynamicMaxLevelStatId;
     private string? _unlockMode;
-    private bool? _retainSourceSkillsOnUnlock;
     private string? _coreSkillTransitionMode;
     private string? _growthTier;
     private string? _practiceTier;
@@ -41,7 +40,9 @@ internal sealed partial class SkillJsonDto
     [JsonPropertyName("attribute_requirements")] public IReadOnlyDictionary<string, int> AttributeRequirements { get => _attributeRequirements ?? EmptyIntMap; init => _attributeRequirements = value; }
     [JsonPropertyName("achievement_requirements")] public IReadOnlyList<string> AchievementRequirements { get => _achievementRequirements ?? Array.Empty<string>(); init => _achievementRequirements = value; }
     [JsonPropertyName("upgrade_source_skill_ids")] public IReadOnlyList<string> UpgradeSourceSkillIds { get => _upgradeSourceSkillIds ?? Array.Empty<string>(); init => _upgradeSourceSkillIds = value; }
-    [JsonPropertyName("retain_source_skills_on_unlock")] public bool RetainSourceSkillsOnUnlock { get => _retainSourceSkillsOnUnlock ?? true; init => _retainSourceSkillsOnUnlock = value; }
+    [JsonPropertyName("retain_source_skills_on_unlock")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public bool? RetainSourceSkillsOnUnlock { get; init; }
     [JsonPropertyName("core_skill_transition_mode")]
     [ContentJsonSchemaStableStringValues(typeof(SkillCoreTransitionSchemaValues))]
     public string CoreSkillTransitionMode { get => _coreSkillTransitionMode ?? "inherit"; init => _coreSkillTransitionMode = value; }
@@ -82,14 +83,15 @@ internal sealed class AttributeModifierJsonDto
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class ContingencyAutomationJsonDto
 {
-    private int? _minContingencySkillLevel;
     private string? _effectCategory;
     private IReadOnlyList<string>? _tags;
     private IReadOnlyList<string>? _allowedTargetResolvers;
     private IReadOnlyDictionary<string, JsonElement>? _allowedParameterBindings;
 
     [JsonPropertyName("can_be_stored_in_contingency")] public bool CanBeStoredInContingency { get; init; }
-    [JsonPropertyName("min_contingency_skill_level")] public int MinContingencySkillLevel { get => _minContingencySkillLevel ?? 1; init => _minContingencySkillLevel = value; }
+    [JsonPropertyName("min_contingency_skill_level")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MinContingencySkillLevel { get; init; }
     [JsonPropertyName("effect_category")] public string EffectCategory { get => _effectCategory ?? ""; init => _effectCategory = value; }
     [JsonPropertyName("tags")] public IReadOnlyList<string> Tags { get => _tags ?? Array.Empty<string>(); init => _tags = value; }
     [JsonPropertyName("contingency_load_override")] public int ContingencyLoadOverride { get; init; }
@@ -111,10 +113,8 @@ internal sealed partial class CombatSkillJsonDto
     private string? _attackDefenseMode;
     private string? _masteryTriggerMode;
     private string? _masteryAmountMode;
-    private int? _masteryBaseAmount;
     private string? _spellFateMode;
     private string? _spellCriticalMode;
-    private int? _fumbleProtectionExtraMpPercent;
     private string? _backlashMode;
     private string? _backlashTargetFilter;
     private string? _areaOriginMode;
@@ -123,12 +123,8 @@ internal sealed partial class CombatSkillJsonDto
     private string? _projectileKind;
     private string? _specialResolutionProfileId;
     private string? _targetSelectionMode;
-    private int? _minTargetCount;
-    private int? _maxTargetCount;
     private string? _unitTargetResolutionMode;
     private string? _selectionOrderMode;
-    private int? _masteryLowHpBonusMultiplier;
-    private int? _masteryLowHpThresholdPercent;
     private IReadOnlyList<string>? _excludedTargetCreatureTypeTags;
     private IReadOnlyList<int>? _fumbleProtectionCurve;
     private IReadOnlyList<string>? _aiTags;
@@ -180,7 +176,9 @@ internal sealed partial class CombatSkillJsonDto
     [JsonPropertyName("mastery_amount_mode")]
     [ContentJsonSchemaStableStringValues(typeof(SkillMasteryAmountSchemaValues))]
     public string MasteryAmountMode { get => _masteryAmountMode ?? "per_target_rank"; init => _masteryAmountMode = value; }
-    [JsonPropertyName("mastery_base_amount")] public int MasteryBaseAmount { get => _masteryBaseAmount ?? 1; init => _masteryBaseAmount = value; }
+    [JsonPropertyName("mastery_base_amount")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MasteryBaseAmount { get; init; }
     [JsonPropertyName("spell_fate_mode")]
     [ContentJsonSchemaStableStringValues(typeof(SkillSpellFateSchemaValues))]
     public string SpellFateMode { get => _spellFateMode ?? ""; init => _spellFateMode = value; }
@@ -189,7 +187,9 @@ internal sealed partial class CombatSkillJsonDto
     public string SpellCriticalMode { get => _spellCriticalMode ?? ""; init => _spellCriticalMode = value; }
     [JsonPropertyName("spell_critical_mp_refund_percent")] public int SpellCriticalMpRefundPercent { get; init; }
     [JsonPropertyName("fumble_protection_curve")] public IReadOnlyList<int> FumbleProtectionCurve { get => _fumbleProtectionCurve ?? Array.Empty<int>(); init => _fumbleProtectionCurve = value; }
-    [JsonPropertyName("fumble_protection_extra_mp_percent")] public int FumbleProtectionExtraMpPercent { get => _fumbleProtectionExtraMpPercent ?? 100; init => _fumbleProtectionExtraMpPercent = value; }
+    [JsonPropertyName("fumble_protection_extra_mp_percent")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? FumbleProtectionExtraMpPercent { get; init; }
     [JsonPropertyName("backlash_mode")]
     [ContentJsonSchemaStableStringValues(typeof(SkillBacklashSchemaValues))]
     public string BacklashMode { get => _backlashMode ?? ""; init => _backlashMode = value; }
@@ -214,8 +214,12 @@ internal sealed partial class CombatSkillJsonDto
     [JsonPropertyName("target_selection_mode")]
     [ContentJsonSchemaStableStringValues(typeof(SkillTargetSelectionSchemaValues))]
     public string TargetSelectionMode { get => _targetSelectionMode ?? "single_unit"; init => _targetSelectionMode = value; }
-    [JsonPropertyName("min_target_count")] public int MinTargetCount { get => _minTargetCount ?? 1; init => _minTargetCount = value; }
-    [JsonPropertyName("max_target_count")] public int MaxTargetCount { get => _maxTargetCount ?? 1; init => _maxTargetCount = value; }
+    [JsonPropertyName("min_target_count")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MinTargetCount { get; init; }
+    [JsonPropertyName("max_target_count")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MaxTargetCount { get; init; }
     [JsonPropertyName("allow_repeat_target")] public bool AllowRepeatTarget { get; init; }
     [JsonPropertyName("unit_target_resolution_mode")]
     [ContentJsonSchemaStableStringValues(typeof(SkillUnitTargetResolutionSchemaValues))]
@@ -235,21 +239,27 @@ internal sealed partial class CombatSkillJsonDto
     [JsonPropertyName("excluded_weapon_families")] public IReadOnlyList<string> ExcludedWeaponFamilies { get => _excludedWeaponFamilies ?? Array.Empty<string>(); init => _excludedWeaponFamilies = value; }
     [JsonPropertyName("excluded_weapon_type_ids")] public IReadOnlyList<string> ExcludedWeaponTypeIds { get => _excludedWeaponTypeIds ?? Array.Empty<string>(); init => _excludedWeaponTypeIds = value; }
     [JsonPropertyName("requires_equipped_shield")] public bool RequiresEquippedShield { get; init; }
-    [JsonPropertyName("mastery_low_hp_bonus_multiplier")] public int MasteryLowHpBonusMultiplier { get => _masteryLowHpBonusMultiplier ?? 1; init => _masteryLowHpBonusMultiplier = value; }
-    [JsonPropertyName("mastery_low_hp_threshold_percent")] public int MasteryLowHpThresholdPercent { get => _masteryLowHpThresholdPercent ?? 50; init => _masteryLowHpThresholdPercent = value; }
+    [JsonPropertyName("mastery_low_hp_bonus_multiplier")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MasteryLowHpBonusMultiplier { get; init; }
+    [JsonPropertyName("mastery_low_hp_threshold_percent")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MasteryLowHpThresholdPercent { get; init; }
 
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class CombatWindupJsonDto
 {
-    private int? _staminaCostPerTier;
-    private int? _weaponDicePerTier;
     private IReadOnlyList<int>? _skillLevelTierCaps;
     private IReadOnlyList<int>? _baseWeaponDiceMultipliers;
 
-    [JsonPropertyName("stamina_cost_per_tier")] public int StaminaCostPerTier { get => _staminaCostPerTier ?? 6; init => _staminaCostPerTier = value; }
-    [JsonPropertyName("weapon_dice_per_tier")] public int WeaponDicePerTier { get => _weaponDicePerTier ?? 1; init => _weaponDicePerTier = value; }
+    [JsonPropertyName("stamina_cost_per_tier")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? StaminaCostPerTier { get; init; }
+    [JsonPropertyName("weapon_dice_per_tier")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? WeaponDicePerTier { get; init; }
     [JsonPropertyName("skill_level_tier_caps")] public IReadOnlyList<int> SkillLevelTierCaps { get => _skillLevelTierCaps ?? DefaultSkillLevelTierCaps; init => _skillLevelTierCaps = value; }
     [JsonPropertyName("base_weapon_dice_multipliers")] public IReadOnlyList<int> BaseWeaponDiceMultipliers { get => _baseWeaponDiceMultipliers ?? DefaultBaseWeaponDiceMultipliers; init => _baseWeaponDiceMultipliers = value; }
 
@@ -260,23 +270,30 @@ internal sealed class CombatWindupJsonDto
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class CombatDirectionalPiercingJsonDto
 {
-    private int? _successfulHitDecayPercent;
-    private int? _minimumDamagePercent;
-    private int? _staminaFlatBase;
-    private int? _staminaRangeSquareCoefficient;
-    private int? _staminaStrengthSquareScale;
-    private int? _minimumStaminaCost;
-    private int? _maximumHeightDelta;
     private IReadOnlyList<int>? _baseDamagePercentCurve;
 
     [JsonPropertyName("base_damage_percent_curve")] public IReadOnlyList<int> BaseDamagePercentCurve { get => _baseDamagePercentCurve ?? Array.Empty<int>(); init => _baseDamagePercentCurve = value; }
-    [JsonPropertyName("successful_hit_decay_percent")] public int SuccessfulHitDecayPercent { get => _successfulHitDecayPercent ?? 20; init => _successfulHitDecayPercent = value; }
-    [JsonPropertyName("minimum_damage_percent")] public int MinimumDamagePercent { get => _minimumDamagePercent ?? 40; init => _minimumDamagePercent = value; }
-    [JsonPropertyName("stamina_flat_base")] public int StaminaFlatBase { get => _staminaFlatBase ?? 32; init => _staminaFlatBase = value; }
-    [JsonPropertyName("stamina_range_square_coefficient")] public int StaminaRangeSquareCoefficient { get => _staminaRangeSquareCoefficient ?? 1; init => _staminaRangeSquareCoefficient = value; }
-    [JsonPropertyName("stamina_strength_square_scale")] public int StaminaStrengthSquareScale { get => _staminaStrengthSquareScale ?? 100; init => _staminaStrengthSquareScale = value; }
-    [JsonPropertyName("minimum_stamina_cost")] public int MinimumStaminaCost { get => _minimumStaminaCost ?? 1; init => _minimumStaminaCost = value; }
-    [JsonPropertyName("maximum_height_delta")] public int MaximumHeightDelta { get => _maximumHeightDelta ?? 1; init => _maximumHeightDelta = value; }
+    [JsonPropertyName("successful_hit_decay_percent")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? SuccessfulHitDecayPercent { get; init; }
+    [JsonPropertyName("minimum_damage_percent")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MinimumDamagePercent { get; init; }
+    [JsonPropertyName("stamina_flat_base")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? StaminaFlatBase { get; init; }
+    [JsonPropertyName("stamina_range_square_coefficient")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? StaminaRangeSquareCoefficient { get; init; }
+    [JsonPropertyName("stamina_strength_square_scale")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? StaminaStrengthSquareScale { get; init; }
+    [JsonPropertyName("minimum_stamina_cost")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MinimumStaminaCost { get; init; }
+    [JsonPropertyName("maximum_height_delta")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MaximumHeightDelta { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -288,20 +305,24 @@ internal sealed class CombatApproachAttackJsonDto
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class CombatLineThroughAttackJsonDto
 {
-    private int? _maximumWeaponRange;
-    private int? _intermediateWeaponDiceMultiplier;
-    private int? _successfulIntermediateHitBonusWeaponDice;
-    private int? _successfulIntermediateHitAttackRollBonus;
     private IReadOnlyList<int>? _primaryWeaponDiceMultiplierCurve;
     private IReadOnlyList<int>? _primaryAttackRollBonusCurve;
     private IReadOnlyList<int>? _successfulIntermediateHitBonusCapCurve;
 
-    [JsonPropertyName("maximum_weapon_range")] public int MaximumWeaponRange { get => _maximumWeaponRange ?? 2; init => _maximumWeaponRange = value; }
-    [JsonPropertyName("intermediate_weapon_dice_multiplier")] public int IntermediateWeaponDiceMultiplier { get => _intermediateWeaponDiceMultiplier ?? 1; init => _intermediateWeaponDiceMultiplier = value; }
+    [JsonPropertyName("maximum_weapon_range")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? MaximumWeaponRange { get; init; }
+    [JsonPropertyName("intermediate_weapon_dice_multiplier")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? IntermediateWeaponDiceMultiplier { get; init; }
     [JsonPropertyName("primary_weapon_dice_multiplier_curve")] public IReadOnlyList<int> PrimaryWeaponDiceMultiplierCurve { get => _primaryWeaponDiceMultiplierCurve ?? Array.Empty<int>(); init => _primaryWeaponDiceMultiplierCurve = value; }
     [JsonPropertyName("primary_attack_roll_bonus_curve")] public IReadOnlyList<int> PrimaryAttackRollBonusCurve { get => _primaryAttackRollBonusCurve ?? Array.Empty<int>(); init => _primaryAttackRollBonusCurve = value; }
-    [JsonPropertyName("successful_intermediate_hit_bonus_weapon_dice")] public int SuccessfulIntermediateHitBonusWeaponDice { get => _successfulIntermediateHitBonusWeaponDice ?? 1; init => _successfulIntermediateHitBonusWeaponDice = value; }
-    [JsonPropertyName("successful_intermediate_hit_attack_roll_bonus")] public int SuccessfulIntermediateHitAttackRollBonus { get => _successfulIntermediateHitAttackRollBonus ?? 1; init => _successfulIntermediateHitAttackRollBonus = value; }
+    [JsonPropertyName("successful_intermediate_hit_bonus_weapon_dice")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? SuccessfulIntermediateHitBonusWeaponDice { get; init; }
+    [JsonPropertyName("successful_intermediate_hit_attack_roll_bonus")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? SuccessfulIntermediateHitAttackRollBonus { get; init; }
     [JsonPropertyName("successful_intermediate_hit_bonus_cap_curve")] public IReadOnlyList<int> SuccessfulIntermediateHitBonusCapCurve { get => _successfulIntermediateHitBonusCapCurve ?? Array.Empty<int>(); init => _successfulIntermediateHitBonusCapCurve = value; }
 }
 
@@ -326,11 +347,6 @@ internal sealed class CombatSpellReactionJsonDto
     private string? _requiredWeaponFamily;
     private string? _saveAbility;
     private string? _saveTag;
-    private int? _baseSaveDc;
-    private int? _hpDamageDivisor;
-    private bool? _requireHpDamage;
-    private bool? _consumeOnTrigger;
-    private bool? _expireOnOwnerTurnStart;
     private IReadOnlyList<int>? _attackRollBonusBySkillLevel;
     private IReadOnlyList<int>? _saveDcBonusBySkillLevel;
 
@@ -342,13 +358,23 @@ internal sealed class CombatSpellReactionJsonDto
     [ContentJsonSchemaStableStringValues(typeof(SkillSaveAbilitySchemaValues))]
     public string SaveAbility { get => _saveAbility ?? "constitution"; init => _saveAbility = value; }
     [JsonPropertyName("save_tag")] public string SaveTag { get => _saveTag ?? "spell_maintenance"; init => _saveTag = value; }
-    [JsonPropertyName("base_save_dc")] public int BaseSaveDc { get => _baseSaveDc ?? 10; init => _baseSaveDc = value; }
-    [JsonPropertyName("hp_damage_divisor")] public int HpDamageDivisor { get => _hpDamageDivisor ?? 2; init => _hpDamageDivisor = value; }
+    [JsonPropertyName("base_save_dc")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? BaseSaveDc { get; init; }
+    [JsonPropertyName("hp_damage_divisor")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? HpDamageDivisor { get; init; }
     [JsonPropertyName("attack_roll_bonus_by_skill_level")] public IReadOnlyList<int> AttackRollBonusBySkillLevel { get => _attackRollBonusBySkillLevel ?? Array.Empty<int>(); init => _attackRollBonusBySkillLevel = value; }
     [JsonPropertyName("save_dc_bonus_by_skill_level")] public IReadOnlyList<int> SaveDcBonusBySkillLevel { get => _saveDcBonusBySkillLevel ?? Array.Empty<int>(); init => _saveDcBonusBySkillLevel = value; }
-    [JsonPropertyName("require_hp_damage")] public bool RequireHpDamage { get => _requireHpDamage ?? true; init => _requireHpDamage = value; }
-    [JsonPropertyName("consume_on_trigger")] public bool ConsumeOnTrigger { get => _consumeOnTrigger ?? true; init => _consumeOnTrigger = value; }
-    [JsonPropertyName("expire_on_owner_turn_start")] public bool ExpireOnOwnerTurnStart { get => _expireOnOwnerTurnStart ?? true; init => _expireOnOwnerTurnStart = value; }
+    [JsonPropertyName("require_hp_damage")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public bool? RequireHpDamage { get; init; }
+    [JsonPropertyName("consume_on_trigger")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public bool? ConsumeOnTrigger { get; init; }
+    [JsonPropertyName("expire_on_owner_turn_start")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public bool? ExpireOnOwnerTurnStart { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -357,9 +383,6 @@ internal sealed class CombatRangedWeaponReactionJsonDto
     private string? _readinessStatusId;
     private string? _damageTag;
     private string? _attackDefenseMode;
-    private int? _consumeStatusStacks;
-    private bool? _triggerOnHit;
-    private bool? _triggerOnMiss;
     private IReadOnlyList<string>? _triggerWeaponFamilies;
     private IReadOnlyList<int>? _attackRollBonusBySkillLevel;
 
@@ -372,9 +395,15 @@ internal sealed class CombatRangedWeaponReactionJsonDto
     [ContentJsonSchemaStableStringValues(typeof(SkillAttackDefenseModeSchemaValues))]
     public string AttackDefenseMode { get => _attackDefenseMode ?? "touch"; init => _attackDefenseMode = value; }
     [JsonPropertyName("attack_roll_bonus_by_skill_level")] public IReadOnlyList<int> AttackRollBonusBySkillLevel { get => _attackRollBonusBySkillLevel ?? Array.Empty<int>(); init => _attackRollBonusBySkillLevel = value; }
-    [JsonPropertyName("consume_status_stacks")] public int ConsumeStatusStacks { get => _consumeStatusStacks ?? 1; init => _consumeStatusStacks = value; }
-    [JsonPropertyName("trigger_on_hit")] public bool TriggerOnHit { get => _triggerOnHit ?? true; init => _triggerOnHit = value; }
-    [JsonPropertyName("trigger_on_miss")] public bool TriggerOnMiss { get => _triggerOnMiss ?? true; init => _triggerOnMiss = value; }
+    [JsonPropertyName("consume_status_stacks")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? ConsumeStatusStacks { get; init; }
+    [JsonPropertyName("trigger_on_hit")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public bool? TriggerOnHit { get; init; }
+    [JsonPropertyName("trigger_on_miss")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public bool? TriggerOnMiss { get; init; }
     [JsonPropertyName("allow_critical")] public bool AllowCritical { get; init; }
 }
 
@@ -385,7 +414,6 @@ internal sealed class CombatCastVariantJsonDto
     private string? _description;
     private string? _targetMode;
     private string? _footprintPattern;
-    private int? _requiredCoordCount;
     private string? _projectileKindOverride;
     private IReadOnlyList<string>? _allowedBaseTerrains;
     private IReadOnlyList<CombatEffectJsonDto>? _effectDefs;
@@ -400,7 +428,9 @@ internal sealed class CombatCastVariantJsonDto
     [JsonPropertyName("footprint_pattern")]
     [ContentJsonSchemaStableStringValues(typeof(SkillCastFootprintSchemaValues))]
     public string FootprintPattern { get => _footprintPattern ?? "single"; init => _footprintPattern = value; }
-    [JsonPropertyName("required_coord_count")] public int RequiredCoordCount { get => _requiredCoordCount ?? 1; init => _requiredCoordCount = value; }
+    [JsonPropertyName("required_coord_count")]
+    [ContentJsonSchemaDisallowExplicitNull]
+    public int? RequiredCoordCount { get; init; }
     [JsonPropertyName("allowed_base_terrains")]
     [ContentJsonSchemaStableStringValues(typeof(SkillTerrainSchemaValues))]
     public IReadOnlyList<string> AllowedBaseTerrains { get => _allowedBaseTerrains ?? Array.Empty<string>(); init => _allowedBaseTerrains = value; }

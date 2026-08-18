@@ -26,40 +26,45 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
         string? BaselineObjectJson = null,
         string? ExpectedValueJson = null
     );
-    // Reviewed current canonical form for a minimal effect. These explicit zero/false keys are
-    // produced because the import model values differ from the effect schema's nonzero/true
-    // omission defaults; keeping the literal independent prevents a nested getter from being
-    // self-certified by the same writer under test.
+    private sealed record NonZeroDefaultResetCase(string WireName, string ResetJson);
+    // Reviewed current canonical forms for minimal effects. Keeping these literals independent
+    // prevents recursive effect getters from being self-certified by the writer under test.
     private const string CanonicalDamageEffectLiteral =
-        "{\"effect_type\":\"damage\",\"payload\":{},\"damage_ratio_percent\":0," +
-        "\"pre_resistance_damage_multiplier\":0.0,\"weapon_dice_multiplier\":0," +
-        "\"path_step_radius\":0,\"repeat_hit_status_power\":0," +
-        "\"prevent_repeat_target\":false,\"stop_on_miss\":false," +
-        "\"stop_on_target_down\":false,\"follow_up_damage_multiplier_percent\":0," +
-        "\"remove_harmful_from_allies\":false,\"remove_beneficial_from_enemies\":false," +
-        "\"min_hp_after_damage\":0,\"threshold_level_anchor\":0," +
-        "\"threshold_level_bonus_per_delta\":0,\"threshold_max_hp_ratio_percent\":0," +
-        "\"threshold_cap_max_hp_ratio_percent\":0,\"heal_multiplier_percent\":0," +
-        "\"shield_gain_multiplier_percent\":0,\"attack_roll_penalty\":0," +
-        "\"secondary_hit_dc_base\":0,\"debuff_count_threshold\":0,\"base_heal\":0," +
-        "\"heal_per_level\":0,\"con_mod_base\":0,\"con_mod_per_2_levels\":0," +
-        "\"charge_trap_immunity_min_skill_level\":0,\"jump_range_multiplier\":0," +
-        "\"upkeep_cost_multiplier\":0}";
+        "{\"effect_type\":\"damage\",\"payload\":{}}";
     private const string CanonicalHealEffectLiteral =
-        "{\"effect_type\":\"heal\",\"payload\":{},\"damage_ratio_percent\":0," +
-        "\"pre_resistance_damage_multiplier\":0.0,\"weapon_dice_multiplier\":0," +
-        "\"path_step_radius\":0,\"repeat_hit_status_power\":0," +
-        "\"prevent_repeat_target\":false,\"stop_on_miss\":false," +
-        "\"stop_on_target_down\":false,\"follow_up_damage_multiplier_percent\":0," +
-        "\"remove_harmful_from_allies\":false,\"remove_beneficial_from_enemies\":false," +
-        "\"min_hp_after_damage\":0,\"threshold_level_anchor\":0," +
-        "\"threshold_level_bonus_per_delta\":0,\"threshold_max_hp_ratio_percent\":0," +
-        "\"threshold_cap_max_hp_ratio_percent\":0,\"heal_multiplier_percent\":0," +
-        "\"shield_gain_multiplier_percent\":0,\"attack_roll_penalty\":0," +
-        "\"secondary_hit_dc_base\":0,\"debuff_count_threshold\":0,\"base_heal\":0," +
-        "\"heal_per_level\":0,\"con_mod_base\":0,\"con_mod_per_2_levels\":0," +
-        "\"charge_trap_immunity_min_skill_level\":0,\"jump_range_multiplier\":0," +
-        "\"upkeep_cost_multiplier\":0}";
+        "{\"effect_type\":\"heal\",\"payload\":{}}";
+    private static readonly IReadOnlySet<string> ReviewedNestedNonZeroDefaultFields =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            Key<ContingencyAutomationJsonDto>("min_contingency_skill_level"),
+            Key<CombatWindupJsonDto>("stamina_cost_per_tier"),
+            Key<CombatWindupJsonDto>("weapon_dice_per_tier"),
+            Key<CombatDirectionalPiercingJsonDto>("successful_hit_decay_percent"),
+            Key<CombatDirectionalPiercingJsonDto>("minimum_damage_percent"),
+            Key<CombatDirectionalPiercingJsonDto>("stamina_flat_base"),
+            Key<CombatDirectionalPiercingJsonDto>("stamina_range_square_coefficient"),
+            Key<CombatDirectionalPiercingJsonDto>("stamina_strength_square_scale"),
+            Key<CombatDirectionalPiercingJsonDto>("minimum_stamina_cost"),
+            Key<CombatDirectionalPiercingJsonDto>("maximum_height_delta"),
+            Key<CombatLineThroughAttackJsonDto>("maximum_weapon_range"),
+            Key<CombatLineThroughAttackJsonDto>("intermediate_weapon_dice_multiplier"),
+            Key<CombatLineThroughAttackJsonDto>("successful_intermediate_hit_bonus_weapon_dice"),
+            Key<CombatLineThroughAttackJsonDto>("successful_intermediate_hit_attack_roll_bonus"),
+            Key<CombatSpellReactionJsonDto>("base_save_dc"),
+            Key<CombatSpellReactionJsonDto>("hp_damage_divisor"),
+            Key<CombatSpellReactionJsonDto>("require_hp_damage"),
+            Key<CombatSpellReactionJsonDto>("consume_on_trigger"),
+            Key<CombatSpellReactionJsonDto>("expire_on_owner_turn_start"),
+            Key<CombatRangedWeaponReactionJsonDto>("consume_status_stacks"),
+            Key<CombatRangedWeaponReactionJsonDto>("trigger_on_hit"),
+            Key<CombatRangedWeaponReactionJsonDto>("trigger_on_miss"),
+            Key<CombatCastVariantJsonDto>("required_coord_count"),
+            Key<CombatDamageSegmentJsonDto>("pre_resistance_damage_multiplier"),
+            Key<CombatTargetDamageMultiplierRuleJsonDto>("multiplier_percent"),
+            Key<CombatWeightedStatusOutcomeJsonDto>("weight"),
+            Key<EquipmentDurabilityDamageEffectPayloadJsonDto>("max_damaged_items"),
+            Key<RepeatAttackUntilFailEffectPayloadJsonDto>("follow_up_cost_multiplier"),
+        };
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
@@ -69,6 +74,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
         try
         {
             TestTopLevelWireInventoriesAreExact();
+            TestTopLevelNonZeroDefaultsPreserveOmissionAndExplicitReset();
             TestNestedWireInventoriesAreExact();
             TestNestedAndPayloadGetterDefaultOracles();
             TestEffectKindsMapToExpectedPayloadShapes();
@@ -84,6 +90,152 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
         }
         RequestTestExit(_test.Finish("Skill canonical JSON schema regression"));
     }
+
+    private void TestTopLevelNonZeroDefaultsPreserveOmissionAndExplicitReset()
+    {
+        NonZeroDefaultResetCase[] rootCases =
+        {
+            new("max_level", "0"),
+            new("retain_source_skills_on_unlock", "false"),
+        };
+        NonZeroDefaultResetCase[] combatCases =
+        {
+            new("range_value", "0"),
+            new("ap_cost", "0"),
+            new("mastery_base_amount", "0"),
+            new("fumble_protection_extra_mp_percent", "0"),
+            new("min_target_count", "0"),
+            new("max_target_count", "0"),
+            new("mastery_low_hp_bonus_multiplier", "0"),
+            new("mastery_low_hp_threshold_percent", "0"),
+        };
+        NonZeroDefaultResetCase[] effectCases =
+        {
+            new("max_skill_level", "0"),
+            new("damage_ratio_percent", "0"),
+            new("pre_resistance_damage_multiplier", "0.0"),
+            new("weapon_dice_multiplier", "0"),
+            new("path_step_radius", "0"),
+            new("repeat_hit_status_power", "0"),
+            new("prevent_repeat_target", "false"),
+            new("stop_on_miss", "false"),
+            new("stop_on_target_down", "false"),
+            new("follow_up_damage_multiplier_percent", "0"),
+            new("remove_harmful_from_allies", "false"),
+            new("remove_beneficial_from_enemies", "false"),
+            new("min_hp_after_damage", "0"),
+            new("threshold_level_anchor", "0"),
+            new("threshold_level_bonus_per_delta", "0"),
+            new("threshold_max_hp_ratio_percent", "0"),
+            new("threshold_cap_max_hp_ratio_percent", "0"),
+            new("heal_multiplier_percent", "0"),
+            new("shield_gain_multiplier_percent", "0"),
+            new("attack_roll_penalty", "0"),
+            new("secondary_hit_dc_base", "0"),
+            new("debuff_count_threshold", "0"),
+            new("base_heal", "0"),
+            new("heal_per_level", "0"),
+            new("con_mod_base", "0"),
+            new("con_mod_per_2_levels", "0"),
+            new("charge_trap_immunity_min_skill_level", "0"),
+            new("jump_range_multiplier", "0"),
+            new("upkeep_cost_multiplier", "0"),
+        };
+
+        JsonElement omittedRoot = ParseWriteAndNavigate(
+            "top_level_root_defaults",
+            "{\"skill_id\":\"top_level_root_defaults\",\"display_name\":\"Defaults\"}",
+            Array.Empty<string>()
+        );
+        JsonElement omittedCombat = ParseWriteAndNavigate(
+            "top_level_combat_defaults",
+            "{\"skill_id\":\"top_level_combat_defaults\",\"display_name\":\"Defaults\",\"combat_profile\":{\"skill_id\":\"top_level_combat_defaults\"}}",
+            new[] { "combat_profile" }
+        );
+        JsonElement omittedEffect = ParseWriteAndNavigate(
+            "top_level_effect_defaults",
+            "{\"skill_id\":\"top_level_effect_defaults\",\"display_name\":\"Defaults\",\"combat_profile\":{\"skill_id\":\"top_level_effect_defaults\",\"effect_defs\":[{\"effect_type\":\"damage\",\"payload\":{}}]}}",
+            new[] { "combat_profile", "effect_defs", "0" }
+        );
+        AssertOmittedDefaults(omittedRoot, rootCases, "skill root");
+        AssertOmittedDefaults(omittedCombat, combatCases, "combat profile");
+        AssertOmittedDefaults(omittedEffect, effectCases, "combat effect");
+        _test.Eq(
+            string.Join("\n", GetObjectPropertyNames(omittedEffect)),
+            "effect_type\npayload",
+            "minimal effect canonical JSON should contain only its required discriminator and payload"
+        );
+
+        string rootResets = WriteObjectMembers(rootCases);
+        string combatResets = WriteObjectMembers(combatCases);
+        string effectResets = WriteObjectMembers(effectCases);
+        string resetJson =
+            "{\"skill_id\":\"top_level_resets\",\"display_name\":\"Resets\"," +
+            rootResets + ",\"combat_profile\":{\"skill_id\":\"top_level_resets\"," +
+            combatResets + ",\"effect_defs\":[{\"effect_type\":\"damage\",\"payload\":{}," +
+            effectResets + "}]}}";
+        JsonElement resetRoot = ParseWriteAndNavigate(
+            "top_level_resets",
+            resetJson,
+            Array.Empty<string>()
+        );
+        JsonElement resetCombat = resetRoot.GetProperty("combat_profile");
+        JsonElement resetEffect = resetCombat.GetProperty("effect_defs")[0];
+
+        int testedCount = 0;
+        testedCount += AssertExplicitResets(resetRoot, rootCases, "skill root");
+        testedCount += AssertExplicitResets(resetCombat, combatCases, "combat profile");
+        testedCount += AssertExplicitResets(resetEffect, effectCases, "combat effect");
+        _test.Eq(testedCount, 39, "reviewed top-level nonzero/true default inventory should stay at 39");
+    }
+
+    private void AssertOmittedDefaults(
+        JsonElement value,
+        IReadOnlyList<NonZeroDefaultResetCase> cases,
+        string label
+    )
+    {
+        foreach (NonZeroDefaultResetCase item in cases)
+        {
+            _test.True(
+                !value.TryGetProperty(item.WireName, out _),
+                $"{label}.{item.WireName} omission should normalize to its canonical default without expanding JSON"
+            );
+        }
+    }
+
+    private int AssertExplicitResets(
+        JsonElement value,
+        IReadOnlyList<NonZeroDefaultResetCase> cases,
+        string label
+    )
+    {
+        int count = 0;
+        foreach (NonZeroDefaultResetCase item in cases)
+        {
+            _test.True(
+                value.TryGetProperty(item.WireName, out JsonElement actual),
+                $"{label}.{item.WireName} explicit reset should be written"
+            );
+            if (value.TryGetProperty(item.WireName, out actual))
+            {
+                _test.Eq(
+                    actual.GetRawText(),
+                    item.ResetJson,
+                    $"{label}.{item.WireName} explicit reset should remain exact"
+                );
+            }
+            count += 1;
+        }
+        return count;
+    }
+
+    private static string WriteObjectMembers(
+        IReadOnlyList<NonZeroDefaultResetCase> cases
+    ) => string.Join(
+        ",",
+        cases.Select(static item => $"{JsonSerializer.Serialize(item.WireName)}:{item.ResetJson}")
+    );
 
     private void TestTopLevelWireInventoriesAreExact()
     {
@@ -141,6 +293,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
     {
         int expectedFieldCount = 0;
         int testedFieldCount = 0;
+        int testedNonZeroDefaultResetCount = 0;
         foreach (ObjectOracleCase oracle in BuildObjectOracleCases())
         {
             PropertyInfo[] properties = GetDtoWireProperties(oracle.DtoType);
@@ -194,11 +347,14 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
                     ObjectWithoutProperty(fieldBaseline, wireName),
                     $"{oracle.Label}.{wireName} mutation should affect only its own canonical key"
                 );
+                if (ReviewedNestedNonZeroDefaultFields.Contains(Key(oracle.DtoType, wireName)))
+                    testedNonZeroDefaultResetCount += 1;
                 testedFieldCount += 1;
             }
         }
         _test.Eq(testedFieldCount, expectedFieldCount, "every nested and payload DTO field must execute a getter/default oracle");
         _test.Eq(testedFieldCount, 125, "reviewed nested and payload getter/default field inventory should stay at 125");
+        _test.Eq(testedNonZeroDefaultResetCount, 28, "reviewed nested and payload nonzero/true defaults should all execute omission and explicit-reset oracles");
     }
 
     private static IReadOnlyList<ObjectOracleCase> BuildObjectOracleCases()
@@ -254,8 +410,18 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
             PayloadCase("payload_heal", typeof(HealEffectPayloadJsonDto), "heal"),
             PayloadCase("payload_equipment", typeof(EquipmentDurabilityDamageEffectPayloadJsonDto), "equipment_durability_damage",
                 Map(("target_slots", "[\"head\"]")), Set("target_slots"),
-                FieldMap(("target_slots", new FieldOracleOverride("[\"body\"]")))),
-            PayloadCase("payload_repeat", typeof(RepeatAttackUntilFailEffectPayloadJsonDto), "repeat_attack_until_fail"),
+                FieldMap(
+                    ("max_damaged_items", new FieldOracleOverride("0")),
+                    ("target_slots", new FieldOracleOverride("[\"body\"]"))
+                )),
+            PayloadCase(
+                "payload_repeat",
+                typeof(RepeatAttackUntilFailEffectPayloadJsonDto),
+                "repeat_attack_until_fail",
+                fieldOverrides: FieldMap(
+                    ("follow_up_cost_multiplier", new FieldOracleOverride("0.0"))
+                )
+            ),
             PayloadCase("payload_barrier", typeof(LayeredBarrierEffectPayloadJsonDto), "layered_barrier",
                 Map(("area_pattern", "\"radius\""), ("profile_id", "\"ward\""), ("radius_cells", "1"), ("save_dc", "10")),
                 Set("area_pattern", "profile_id", "radius_cells", "save_dc")),
@@ -354,6 +520,11 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
         params (string Key, string Value)[] entries
     ) => entries.ToDictionary(static x => x.Key, static x => x.Value, StringComparer.Ordinal);
 
+    private static string Key<TDto>(string wireName) => Key(typeof(TDto), wireName);
+
+    private static string Key(Type dtoType, string wireName) =>
+        $"{dtoType.FullName}.{wireName}";
+
     private static HashSet<string> Set(params string[] values) =>
         new(values, StringComparer.Ordinal);
 
@@ -375,8 +546,6 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
         IReadOnlyDictionary<string, string> overrides
     )
     {
-        object dto = Activator.CreateInstance(dtoType, nonPublic: true)
-            ?? throw new InvalidOperationException($"Cannot construct {dtoType.Name} default DTO.");
         var values = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (PropertyInfo property in GetDtoWireProperties(dtoType))
         {
@@ -386,10 +555,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
                 values.Add(wireName, configured);
                 continue;
             }
-            object? value = property.GetValue(dto);
-            if (ShouldIncludeDefaultBaselineValue(value))
-                values.Add(wireName, SerializeJsonValue(value!));
-            else if (property.GetCustomAttribute<JsonRequiredAttribute>() != null)
+            if (property.GetCustomAttribute<JsonRequiredAttribute>() != null)
                 throw new InvalidOperationException($"{dtoType.Name}.{wireName} requires an explicit oracle baseline.");
         }
         foreach (KeyValuePair<string, string> entry in overrides)
@@ -422,13 +588,19 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
             ?? throw new InvalidOperationException($"Cannot construct {dtoType.Name} default DTO.");
         object? defaultValue = property.GetValue(dto);
         Type type = property.PropertyType;
+        if (type == typeof(bool?))
+            return "false";
         if (type == typeof(bool))
             return (defaultValue is true ? false : true) ? "true" : "false";
-        if (type == typeof(int) || type == typeof(int?))
+        if (type == typeof(int?))
+            return "0";
+        if (type == typeof(int))
             return ((defaultValue as int? ?? 0) + 41).ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (type == typeof(long) || type == typeof(long?))
             return ((defaultValue as long? ?? 0L) + 41L).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (type == typeof(double) || type == typeof(double?))
+        if (type == typeof(double?))
+            return "0.0";
+        if (type == typeof(double))
             return ((defaultValue as double? ?? 0.0) + 1.25).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
         if (type == typeof(string))
             return JsonSerializer.Serialize(ChooseNonDefaultString(property, defaultValue as string));

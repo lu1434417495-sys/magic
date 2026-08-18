@@ -175,7 +175,7 @@ internal static class SkillRootCombatJsonNormalizer
             ContingencyAutomationJsonDto value = dto.ContingencyAutomationProfile;
             contingency = new ContingencyAutomationImportModel(
                 value.CanBeStoredInContingency,
-                value.MinContingencySkillLevel,
+                value.MinContingencySkillLevel ?? 1,
                 Name(value.EffectCategory, context, "/contingency_automation_profile/effect_category", diagnostics),
                 Names(value.Tags, context, "/contingency_automation_profile/tags", diagnostics),
                 value.ContingencyLoadOverride,
@@ -218,7 +218,7 @@ internal static class SkillRootCombatJsonNormalizer
                 attributeRequirements,
                 achievementRequirements,
                 upgradeSourceSkillIds,
-                dto.RetainSourceSkillsOnUnlock,
+                dto.RetainSourceSkillsOnUnlock ?? true,
                 coreTransitionMode,
                 masterySources,
                 growthTier,
@@ -437,12 +437,12 @@ internal static class SkillRootCombatJsonNormalizer
                 auraCost: dto.AuraCost,
                 masteryTriggerMode: masteryTriggerMode,
                 masteryAmountMode: masteryAmountMode,
-                masteryBaseAmount: dto.MasteryBaseAmount,
+                masteryBaseAmount: dto.MasteryBaseAmount ?? 1,
                 spellFateMode: spellFateMode,
                 spellCriticalMode: spellCriticalMode,
                 spellCriticalMpRefundPercent: dto.SpellCriticalMpRefundPercent,
                 fumbleProtectionCurve: dto.FumbleProtectionCurve,
-                fumbleProtectionExtraMpPercent: dto.FumbleProtectionExtraMpPercent,
+                fumbleProtectionExtraMpPercent: dto.FumbleProtectionExtraMpPercent ?? 100,
                 backlashMode: backlashMode,
                 backlashTargetFilter: backlashTargetFilter,
                 backlashOffsetRadius: dto.BacklashOffsetRadius,
@@ -455,8 +455,8 @@ internal static class SkillRootCombatJsonNormalizer
                 projectileKind: projectileKind,
                 specialResolutionProfileId: Name(dto.SpecialResolutionProfileId, context, "/combat_profile/special_resolution_profile_id", diagnostics),
                 targetSelectionMode: targetSelectionMode,
-                minTargetCount: dto.MinTargetCount,
-                maxTargetCount: dto.MaxTargetCount,
+                minTargetCount: dto.MinTargetCount ?? 1,
+                maxTargetCount: dto.MaxTargetCount ?? 1,
                 allowRepeatTarget: dto.AllowRepeatTarget,
                 unitTargetResolutionMode: unitTargetResolutionMode,
                 maxHitsPerTarget: dto.MaxHitsPerTarget,
@@ -472,8 +472,8 @@ internal static class SkillRootCombatJsonNormalizer
                 excludedWeaponFamilies: Names(dto.ExcludedWeaponFamilies, context, "/combat_profile/excluded_weapon_families", diagnostics),
                 excludedWeaponTypeIds: Names(dto.ExcludedWeaponTypeIds, context, "/combat_profile/excluded_weapon_type_ids", diagnostics),
                 requiresEquippedShield: dto.RequiresEquippedShield,
-                masteryLowHpBonusMultiplier: dto.MasteryLowHpBonusMultiplier,
-                masteryLowHpThresholdPercent: dto.MasteryLowHpThresholdPercent
+                masteryLowHpBonusMultiplier: dto.MasteryLowHpBonusMultiplier ?? 1,
+                masteryLowHpThresholdPercent: dto.MasteryLowHpThresholdPercent ?? 50
             )
             : null;
     }
@@ -566,7 +566,7 @@ internal static class SkillRootCombatJsonNormalizer
                 dto.MinSkillLevel,
                 targetMode,
                 footprintPattern,
-                dto.RequiredCoordCount,
+                dto.RequiredCoordCount ?? 1,
                 allowedBaseTerrains,
                 projectileKindOverride,
                 effects,
@@ -641,13 +641,13 @@ internal static class SkillRootCombatJsonNormalizer
     }
 
     private static CombatWindupImportModel? Windup(CombatWindupJsonDto? value) =>
-        value == null ? null : new CombatWindupImportModel(value.StaminaCostPerTier, value.WeaponDicePerTier, SkillImportCollections.Freeze(value.SkillLevelTierCaps), SkillImportCollections.Freeze(value.BaseWeaponDiceMultipliers));
+        value == null ? null : new CombatWindupImportModel(value.StaminaCostPerTier ?? 6, value.WeaponDicePerTier ?? 1, SkillImportCollections.Freeze(value.SkillLevelTierCaps), SkillImportCollections.Freeze(value.BaseWeaponDiceMultipliers));
 
     private static CombatDirectionalPiercingImportModel? Directional(CombatDirectionalPiercingJsonDto? value) =>
-        value == null ? null : new CombatDirectionalPiercingImportModel(SkillImportCollections.Freeze(value.BaseDamagePercentCurve), value.SuccessfulHitDecayPercent, value.MinimumDamagePercent, value.StaminaFlatBase, value.StaminaRangeSquareCoefficient, value.StaminaStrengthSquareScale, value.MinimumStaminaCost, value.MaximumHeightDelta);
+        value == null ? null : new CombatDirectionalPiercingImportModel(SkillImportCollections.Freeze(value.BaseDamagePercentCurve), value.SuccessfulHitDecayPercent ?? 20, value.MinimumDamagePercent ?? 40, value.StaminaFlatBase ?? 32, value.StaminaRangeSquareCoefficient ?? 1, value.StaminaStrengthSquareScale ?? 100, value.MinimumStaminaCost ?? 1, value.MaximumHeightDelta ?? 1);
 
     private static CombatLineThroughAttackImportModel? LineThrough(CombatLineThroughAttackJsonDto? value) =>
-        value == null ? null : new CombatLineThroughAttackImportModel(value.MaximumWeaponRange, value.IntermediateWeaponDiceMultiplier, SkillImportCollections.Freeze(value.PrimaryWeaponDiceMultiplierCurve), SkillImportCollections.Freeze(value.PrimaryAttackRollBonusCurve), value.SuccessfulIntermediateHitBonusWeaponDice, value.SuccessfulIntermediateHitAttackRollBonus, SkillImportCollections.Freeze(value.SuccessfulIntermediateHitBonusCapCurve));
+        value == null ? null : new CombatLineThroughAttackImportModel(value.MaximumWeaponRange ?? 2, value.IntermediateWeaponDiceMultiplier ?? 1, SkillImportCollections.Freeze(value.PrimaryWeaponDiceMultiplierCurve), SkillImportCollections.Freeze(value.PrimaryAttackRollBonusCurve), value.SuccessfulIntermediateHitBonusWeaponDice ?? 1, value.SuccessfulIntermediateHitAttackRollBonus ?? 1, SkillImportCollections.Freeze(value.SuccessfulIntermediateHitBonusCapCurve));
 
     private static CombatSequentialLineHitImportModel? Sequential(CombatSequentialLineHitJsonDto? value) =>
         value == null ? null : new CombatSequentialLineHitImportModel(SkillImportCollections.Freeze(value.MinimumPrimaryDistanceCurve), SkillImportCollections.Freeze(value.ContinuationRangeCurve), SkillImportCollections.Freeze(value.FollowUpAttackPenaltyCurve));
@@ -675,13 +675,13 @@ internal static class SkillRootCombatJsonNormalizer
             Name(value.RequiredWeaponFamily, context, "/combat_profile/spell_reaction_profile/required_weapon_family", diagnostics),
             saveAbility,
             Name(value.SaveTag, context, "/combat_profile/spell_reaction_profile/save_tag", diagnostics),
-            value.BaseSaveDc,
-            value.HpDamageDivisor,
+            value.BaseSaveDc ?? 10,
+            value.HpDamageDivisor ?? 2,
             value.AttackRollBonusBySkillLevel,
             value.SaveDcBonusBySkillLevel,
-            value.RequireHpDamage,
-            value.ConsumeOnTrigger,
-            value.ExpireOnOwnerTurnStart
+            value.RequireHpDamage ?? true,
+            value.ConsumeOnTrigger ?? true,
+            value.ExpireOnOwnerTurnStart ?? true
         );
     }
 
@@ -715,9 +715,9 @@ internal static class SkillRootCombatJsonNormalizer
             damageTag,
             attackDefenseMode,
             value.AttackRollBonusBySkillLevel,
-            value.ConsumeStatusStacks,
-            value.TriggerOnHit,
-            value.TriggerOnMiss,
+            value.ConsumeStatusStacks ?? 1,
+            value.TriggerOnHit ?? true,
+            value.TriggerOnMiss ?? true,
             value.AllowCritical
         );
     }

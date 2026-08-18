@@ -57,7 +57,7 @@ internal static partial class SkillJsonImportParser
             ValidateNonNegative(power, context, $"{pointer}/power", diagnostics);
             ValidateNonNegative(durationTu, context, $"{pointer}/duration_tu", diagnostics);
         }
-        ValidateFinite(dto.PreResistanceDamageMultiplier, context, $"{pointer}/pre_resistance_damage_multiplier", diagnostics);
+        ValidateFinite(dto.PreResistanceDamageMultiplier ?? 1.0, context, $"{pointer}/pre_resistance_damage_multiplier", diagnostics);
         ValidateFinite(dto.JumpStrScale, context, $"{pointer}/jump_str_scale", diagnostics);
         ValidateFinite(dto.JumpArcRatio, context, $"{pointer}/jump_arc_ratio", diagnostics);
 
@@ -113,9 +113,9 @@ internal static partial class SkillJsonImportParser
             DisplayName = dto.DisplayName ?? "",
             DoesNotStackWithStatusId = Name(dto.DoesNotStackWithStatusId, context, $"{pointer}/does_not_stack_with_status_id", diagnostics),
             DoesNotStackWithStatusIds = Names(dto.DoesNotStackWithStatusIds, context, $"{pointer}/does_not_stack_with_status_ids", diagnostics),
-            DamageRatioPercent = dto.DamageRatioPercent,
-            PreResistanceDamageMultiplier = dto.PreResistanceDamageMultiplier,
-            WeaponDiceMultiplier = dto.WeaponDiceMultiplier,
+            DamageRatioPercent = dto.DamageRatioPercent ?? 100,
+            PreResistanceDamageMultiplier = dto.PreResistanceDamageMultiplier ?? 1.0,
+            WeaponDiceMultiplier = dto.WeaponDiceMultiplier ?? 1,
             BonusWeaponDiceMultiplier = dto.BonusWeaponDiceMultiplier,
             DamageTag = OptionalClosed<DamageTagImportKind>(dto.DamageTag, SkillRootCombatImportValueRules.TryDamageTag, context, $"{pointer}/damage_tag", diagnostics),
             DamageTags = ClosedValues<DamageTagImportKind>(dto.DamageTags, SkillRootCombatImportValueRules.TryDamageTag, context, $"{pointer}/damage_tags", diagnostics),
@@ -146,43 +146,43 @@ internal static partial class SkillJsonImportParser
             ResolveAsWeaponAttack = dto.ResolveAsWeaponAttack,
             AllowRepeatHitsAcrossSteps = dto.AllowRepeatHitsAcrossSteps,
             PathStepAreaPattern = pathStepArea,
-            PathStepRadius = dto.PathStepRadius,
+            PathStepRadius = dto.PathStepRadius ?? 1,
             PathStepLogLabel = dto.PathStepLogLabel ?? "",
             RepeatHitStatusId = Name(dto.RepeatHitStatusId, context, $"{pointer}/repeat_hit_status_id", diagnostics),
             RepeatHitStatusThreshold = dto.RepeatHitStatusThreshold,
             RepeatHitStatusMinSkillLevel = dto.RepeatHitStatusMinSkillLevel,
-            RepeatHitStatusPower = dto.RepeatHitStatusPower,
+            RepeatHitStatusPower = dto.RepeatHitStatusPower ?? 1,
             RepeatHitStatusDurationTu = dto.RepeatHitStatusDurationTu,
             RepeatHitStatusLogTemplate = dto.RepeatHitStatusLogTemplate ?? "",
-            PreventRepeatTarget = dto.PreventRepeatTarget,
+            PreventRepeatTarget = dto.PreventRepeatTarget ?? true,
             ChainBaseHopRange = dto.ChainBaseHopRange,
             ChainConductiveHopRange = dto.ChainConductiveHopRange,
             ChainMaxTotalTargets = dto.ChainMaxTotalTargets,
             ChainConductiveStatusIds = Names(dto.ChainConductiveStatusIds, context, $"{pointer}/chain_conductive_status_ids", diagnostics),
             ChainConductiveTerrainEffectIds = Names(dto.ChainConductiveTerrainEffectIds, context, $"{pointer}/chain_conductive_terrain_effect_ids", diagnostics),
             ChainBacklashHopRangeBonus = dto.ChainBacklashHopRangeBonus,
-            StopOnMiss = dto.StopOnMiss,
-            StopOnTargetDown = dto.StopOnTargetDown,
+            StopOnMiss = dto.StopOnMiss ?? true,
+            StopOnTargetDown = dto.StopOnTargetDown ?? true,
             FixedAttackCount = dto.FixedAttackCount,
-            FollowUpDamageMultiplierPercent = dto.FollowUpDamageMultiplierPercent,
+            FollowUpDamageMultiplierPercent = dto.FollowUpDamageMultiplierPercent ?? 100,
             FollowUpAttackRollBonusCurve = dto.FollowUpAttackRollBonusCurve,
             RemoveHarmful = dto.RemoveHarmful,
-            RemoveHarmfulFromAllies = dto.RemoveHarmfulFromAllies,
+            RemoveHarmfulFromAllies = dto.RemoveHarmfulFromAllies ?? true,
             RemoveBeneficial = dto.RemoveBeneficial,
-            RemoveBeneficialFromEnemies = dto.RemoveBeneficialFromEnemies,
+            RemoveBeneficialFromEnemies = dto.RemoveBeneficialFromEnemies ?? true,
             RequireDamageApplied = dto.RequireDamageApplied,
             MaxStatusRemoved = dto.MaxStatusRemoved,
-            MinHpAfterDamage = dto.MinHpAfterDamage,
+            MinHpAfterDamage = dto.MinHpAfterDamage ?? 1,
             DeathPreventionPriority = dto.DeathPreventionPriority,
             ThresholdBaseValue = dto.ThresholdBaseValue,
-            ThresholdLevelAnchor = dto.ThresholdLevelAnchor,
-            ThresholdLevelBonusPerDelta = dto.ThresholdLevelBonusPerDelta,
-            ThresholdMaxHpRatioPercent = dto.ThresholdMaxHpRatioPercent,
-            ThresholdCapMaxHpRatioPercent = dto.ThresholdCapMaxHpRatioPercent,
+            ThresholdLevelAnchor = dto.ThresholdLevelAnchor ?? 17,
+            ThresholdLevelBonusPerDelta = dto.ThresholdLevelBonusPerDelta ?? 5,
+            ThresholdMaxHpRatioPercent = dto.ThresholdMaxHpRatioPercent ?? 20,
+            ThresholdCapMaxHpRatioPercent = dto.ThresholdCapMaxHpRatioPercent ?? 50,
             SoulFractureDurationTu = dto.SoulFractureDurationTu,
-            HealMultiplierPercent = dto.HealMultiplierPercent,
-            ShieldGainMultiplierPercent = dto.ShieldGainMultiplierPercent,
-            AttackRollPenalty = dto.AttackRollPenalty,
+            HealMultiplierPercent = dto.HealMultiplierPercent ?? 100,
+            ShieldGainMultiplierPercent = dto.ShieldGainMultiplierPercent ?? 100,
+            AttackRollPenalty = dto.AttackRollPenalty ?? -1,
             AttackRollBonus = dto.AttackRollBonus,
             AttackRollAdvantage = dto.AttackRollAdvantage,
             ConsumeOnNextAttackCheck = dto.ConsumeOnNextAttackCheck,
@@ -192,12 +192,12 @@ internal static partial class SkillJsonImportParser
             DispellableHarmfulMagic = dto.DispellableHarmfulMagic,
             DispellableBeneficialMagic = dto.DispellableBeneficialMagic,
             MitigationTier = OptionalClosed<DamageMitigationTierImportKind>(dto.MitigationTier, SkillCombatEffectValueRules.TryMitigationTier, context, $"{pointer}/mitigation_tier", diagnostics),
-            SecondaryHitDcBase = dto.SecondaryHitDcBase,
-            DebuffCountThreshold = dto.DebuffCountThreshold,
-            BaseHeal = dto.BaseHeal,
-            HealPerLevel = dto.HealPerLevel,
-            ConModBase = dto.ConModBase,
-            ConModPer2Levels = dto.ConModPer2Levels,
+            SecondaryHitDcBase = dto.SecondaryHitDcBase ?? 10,
+            DebuffCountThreshold = dto.DebuffCountThreshold ?? 3,
+            BaseHeal = dto.BaseHeal ?? 8,
+            HealPerLevel = dto.HealPerLevel ?? 4,
+            ConModBase = dto.ConModBase ?? 2,
+            ConModPer2Levels = dto.ConModPer2Levels ?? 1,
             EffectCategories = Names(dto.EffectCategories, context, $"{pointer}/effect_categories", diagnostics),
             EffectTargetTeamFilter = OptionalClosed<CombatEffectTargetTeamFilterImportKind>(dto.EffectTargetTeamFilter, SkillCombatEffectValueRules.TryEffectTargetTeamFilter, context, $"{pointer}/effect_target_team_filter", diagnostics),
             MaxAffectedTargets = dto.MaxAffectedTargets,
@@ -222,11 +222,11 @@ internal static partial class SkillJsonImportParser
             ForcedMoveMaxTargetBodySize = dto.ForcedMoveMaxTargetBodySize,
             GrappleMaxHeightGain = dto.GrappleMaxHeightGain,
             SourceRetreatDistance = dto.SourceRetreatDistance,
-            ChargeTrapImmunityMinSkillLevel = dto.ChargeTrapImmunityMinSkillLevel,
+            ChargeTrapImmunityMinSkillLevel = dto.ChargeTrapImmunityMinSkillLevel ?? -1,
             JumpBaseBudget = dto.JumpBaseBudget,
             JumpStrScale = dto.JumpStrScale,
             JumpArcRatio = dto.JumpArcRatio,
-            JumpRangeMultiplier = dto.JumpRangeMultiplier,
+            JumpRangeMultiplier = dto.JumpRangeMultiplier ?? 1,
             TickIntervalTu = dto.TickIntervalTu,
             StackBehavior = stackBehavior,
             StackLimit = dto.StackLimit,
@@ -278,7 +278,7 @@ internal static partial class SkillJsonImportParser
             UpkeepIntervalTu = dto.UpkeepIntervalTu,
             UpkeepBaseCost = dto.UpkeepBaseCost,
             UpkeepEscalationIntervalTu = dto.UpkeepEscalationIntervalTu,
-            UpkeepCostMultiplier = dto.UpkeepCostMultiplier,
+            UpkeepCostMultiplier = dto.UpkeepCostMultiplier ?? 1,
             BreakOnHardControl = dto.BreakOnHardControl,
             TerminationStatusId = Name(dto.TerminationStatusId, context, $"{pointer}/termination_status_id", diagnostics),
             TerminationStatusDurationTu = dto.TerminationStatusDurationTu,
@@ -420,7 +420,7 @@ internal static partial class SkillJsonImportParser
             }
             CombatEffectImportModel? effect = NormalizeFullCombatEffect(context, value.StatusEffect, $"{itemPointer}/status_effect", diagnostics, validateNumericRanges);
             if (effect != null)
-                result.Add(new(Name(value.OutcomeId, context, $"{itemPointer}/outcome_id", diagnostics), value.Weight, effect));
+                result.Add(new(Name(value.OutcomeId, context, $"{itemPointer}/outcome_id", diagnostics), value.Weight ?? 1, effect));
         }
         return result;
     }
@@ -445,13 +445,13 @@ internal static partial class SkillJsonImportParser
         {
             CombatDamageSegmentJsonDto value = values[index];
             string item = $"{pointer}/{index}";
-            ValidateFinite(value.PreResistanceDamageMultiplier, context, $"{item}/pre_resistance_damage_multiplier", diagnostics);
+            ValidateFinite(value.PreResistanceDamageMultiplier ?? 1.0, context, $"{item}/pre_resistance_damage_multiplier", diagnostics);
             result.Add(new(
                 OptionalClosed<DamageTagImportKind>(value.DamageTag, SkillRootCombatImportValueRules.TryDamageTag, context, $"{item}/damage_tag", diagnostics),
                 ClosedValues<DamageTagImportKind>(value.DamageTags, SkillRootCombatImportValueRules.TryDamageTag, context, $"{item}/damage_tags", diagnostics),
                 ClosedValues<DamageTagImportKind>(value.MitigationBypassDamageTags, SkillRootCombatImportValueRules.TryDamageTag, context, $"{item}/mitigation_bypass_damage_tags", diagnostics),
                 ClosedValues<DamageMitigationTierImportKind>(value.MitigationBypassTiers, SkillCombatEffectValueRules.TryMitigationTier, context, $"{item}/mitigation_bypass_tiers", diagnostics),
-                value.Power, value.DiceCount, value.DiceSides, value.DiceBonus, value.DoubleDiceOnCritical, value.PreResistanceDamageMultiplier
+                value.Power, value.DiceCount, value.DiceSides, value.DiceBonus, value.DoubleDiceOnCritical, value.PreResistanceDamageMultiplier ?? 1.0
             ));
         }
         return result;
@@ -465,7 +465,7 @@ internal static partial class SkillJsonImportParser
         {
             CombatTargetDamageMultiplierRuleJsonDto value = values[index];
             string item = $"{pointer}/{index}";
-            result.Add(new(Names(value.AnyCreatureTypeTags, context, $"{item}/any_creature_type_tags", diagnostics), Names(value.AllCreatureTypeTags, context, $"{item}/all_creature_type_tags", diagnostics), Names(value.ExcludedCreatureTypeTags, context, $"{item}/excluded_creature_type_tags", diagnostics), value.MultiplierPercent));
+            result.Add(new(Names(value.AnyCreatureTypeTags, context, $"{item}/any_creature_type_tags", diagnostics), Names(value.AllCreatureTypeTags, context, $"{item}/all_creature_type_tags", diagnostics), Names(value.ExcludedCreatureTypeTags, context, $"{item}/excluded_creature_type_tags", diagnostics), value.MultiplierPercent ?? 100));
         }
         return result;
     }
