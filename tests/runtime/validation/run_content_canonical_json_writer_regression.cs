@@ -171,6 +171,9 @@ public partial class run_content_canonical_json_writer_regression : LifecycleTes
             TestOrderedObjectMapFailuresAreFailClosed();
             TestClosedUnionUsesExplicitPerKindSchemas();
             TestClosedUnionFailuresAreFailClosed();
+            TestDeferredSchemaSupportsRecursiveObjects();
+            TestInvalidDeferredSchemasFailClosed();
+            TestProjectionAndFloatingPointDoubleSchemas();
             TestSchemaAndNumberFailuresAreFailClosed();
         }
         catch (Exception exception)
@@ -544,6 +547,308 @@ public partial class run_content_canonical_json_writer_regression : LifecycleTes
         );
     }
 
+    private void TestDeferredSchemaSupportsRecursiveObjects()
+    {
+        ContentCanonicalJsonDeferredValueSchema<SampleRecursiveNode> deferredNode =
+            ContentCanonicalJsonValue.Deferred<SampleRecursiveNode>();
+        var nodeSchema = new ContentCanonicalJsonObjectSchema<SampleRecursiveNode>(
+            ContentCanonicalJsonProperty<SampleRecursiveNode>.Required(
+                "value",
+                node => node.Value,
+                ContentCanonicalJsonValue.Int32
+            ),
+            ContentCanonicalJsonProperty<SampleRecursiveNode>.Required(
+                "next",
+                node => node.Next,
+                ContentCanonicalJsonValue.NullableReference(deferredNode)
+            )
+        );
+        deferredNode.Bind(ContentCanonicalJsonValue.Object(nodeSchema));
+
+        string json = _writer.Write(
+            new SampleRecursiveNode(1, new SampleRecursiveNode(2, null)),
+            nodeSchema,
+            indented: false
+        );
+        _test.Eq(
+            json,
+            "{\"value\":1,\"next\":{\"value\":2,\"next\":null}}",
+            "deferred schema should support recursive typed object graphs"
+        );
+    }
+
+    private void TestInvalidDeferredSchemasFailClosed()
+    {
+        ContentCanonicalJsonDeferredValueSchema<SampleRecursiveNode> unbound =
+            ContentCanonicalJsonValue.Deferred<SampleRecursiveNode>();
+        var envelopeSchema = new ContentCanonicalJsonObjectSchema<SampleRecursiveEnvelope>(
+            ContentCanonicalJsonProperty<SampleRecursiveEnvelope>.Required(
+                "node",
+                envelope => envelope.Node,
+                unbound
+            )
+        );
+        bool unboundRejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleRecursiveEnvelope(new SampleRecursiveNode(1, null)),
+                envelopeSchema
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            unboundRejected = true;
+        }
+        _test.True(unboundRejected, "unbound deferred schema should fail closed");
+
+        ContentCanonicalJsonDeferredValueSchema<int> selfReturning =
+            ContentCanonicalJsonValue.Deferred<int>();
+        bool directSelfBindingRejected = false;
+        try
+        {
+            selfReturning.Bind(selfReturning);
+        }
+        catch (ArgumentException)
+        {
+            directSelfBindingRejected = true;
+        }
+        _test.True(
+            directSelfBindingRejected,
+            "deferred schema should reject direct self-binding without progress"
+        );
+
+        ContentCanonicalJsonDeferredValueSchema<int> first =
+            ContentCanonicalJsonValue.Deferred<int>();
+        ContentCanonicalJsonDeferredValueSchema<int> second =
+            ContentCanonicalJsonValue.Deferred<int>();
+        first.Bind(second);
+        second.Bind(first);
+        var cyclicSchema = new ContentCanonicalJsonObjectSchema<SampleProjectedEnvelope>(
+            ContentCanonicalJsonProperty<SampleProjectedEnvelope>.Required(
+                "value",
+                envelope => envelope.Value.Value,
+                first
+            )
+        );
+        bool indirectCycleRejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleProjectedEnvelope(new SampleProjectedInt(7)),
+                cyclicSchema
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            indirectCycleRejected = true;
+        }
+        _test.True(
+            indirectCycleRejected,
+            "deferred schema should reject an indirect chain without progress"
+        );
+
+        ContentCanonicalJsonDeferredValueSchema<int> projectedCycle =
+            ContentCanonicalJsonValue.Deferred<int>();
+        projectedCycle.Bind(
+            ContentCanonicalJsonValue.Project<int, int>(
+                value => value,
+                projectedCycle
+            )
+        );
+        var projectedCycleSchema =
+            new ContentCanonicalJsonObjectSchema<SampleProjectedEnvelope>(
+                ContentCanonicalJsonProperty<SampleProjectedEnvelope>.Required(
+                    "value",
+                    envelope => envelope.Value.Value,
+                    projectedCycle
+                )
+            );
+        bool projectedCycleRejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleProjectedEnvelope(new SampleProjectedInt(11)),
+                projectedCycleSchema
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            projectedCycleRejected = true;
+        }
+        _test.True(
+            projectedCycleRejected,
+            "deferred schema should reject no-progress re-entry through a projection wrapper"
+        );
+
+        ContentCanonicalJsonDeferredValueSchema<SampleRecursiveNode> nullableCycle =
+            ContentCanonicalJsonValue.Deferred<SampleRecursiveNode>();
+        nullableCycle.Bind(ContentCanonicalJsonValue.NullableReference(nullableCycle));
+        var nullableCycleSchema =
+            new ContentCanonicalJsonObjectSchema<SampleRecursiveEnvelope>(
+                ContentCanonicalJsonProperty<SampleRecursiveEnvelope>.Required(
+                    "node",
+                    envelope => envelope.Node,
+                    nullableCycle
+                )
+            );
+        bool nullableCycleRejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleRecursiveEnvelope(new SampleRecursiveNode(13, null)),
+                nullableCycleSchema
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            nullableCycleRejected = true;
+        }
+        _test.True(
+            nullableCycleRejected,
+            "deferred schema should reject no-progress re-entry through a nullable wrapper"
+        );
+    }
+
+    private void TestProjectionAndFloatingPointDoubleSchemas()
+    {
+        var projectedSchema = new ContentCanonicalJsonObjectSchema<SampleProjectedEnvelope>(
+            ContentCanonicalJsonProperty<SampleProjectedEnvelope>.Required(
+                "value",
+                envelope => envelope.Value,
+                ContentCanonicalJsonValue.Project<SampleProjectedInt, int>(
+                    projected => projected.Value,
+                    ContentCanonicalJsonValue.Int32
+                )
+            )
+        );
+        _test.Eq(
+            _writer.Write(
+                new SampleProjectedEnvelope(new SampleProjectedInt(17)),
+                projectedSchema,
+                indented: false
+            ),
+            "{\"value\":17}",
+            "typed projection should write exactly through the selected value schema"
+        );
+
+        var floatingSchema = new ContentCanonicalJsonObjectSchema<SampleDoubleEnvelope>(
+            ContentCanonicalJsonProperty<SampleDoubleEnvelope>.Required(
+                "value",
+                envelope => envelope.Value,
+                ContentCanonicalJsonValue.FloatingPointDouble
+            )
+        );
+        string integralJson = _writer.Write(
+            new SampleDoubleEnvelope(1.0),
+            floatingSchema,
+            indented: false
+        );
+        using (JsonDocument integralDocument = JsonDocument.Parse(integralJson))
+        {
+            JsonElement value = integralDocument.RootElement.GetProperty("value");
+            _test.Eq(
+                value.GetRawText(),
+                "1.0",
+                "floating-point double schema should retain a floating JSON token for integral values"
+            );
+            _test.False(
+                value.TryGetInt64(out _),
+                "integral floating-point token should not round-trip as an integer token"
+            );
+            AssertDoubleBitsEqual(
+                value.GetDouble(),
+                1.0,
+                "integral floating-point double round trip"
+            );
+        }
+
+        string negativeZeroJson = _writer.Write(
+            new SampleDoubleEnvelope(-0.0),
+            floatingSchema,
+            indented: false
+        );
+        using (JsonDocument negativeZeroDocument = JsonDocument.Parse(negativeZeroJson))
+        {
+            AssertDoubleBitsEqual(
+                negativeZeroDocument.RootElement.GetProperty("value").GetDouble(),
+                -0.0,
+                "floating-point double negative-zero round trip"
+            );
+        }
+
+        var floatingBoundaries = new (double Value, string Label, bool ExpectExponent)[]
+        {
+            (double.Epsilon, "positive subnormal", true),
+            (-double.Epsilon, "negative subnormal", true),
+            (double.MaxValue, "maximum finite", true),
+            (double.MinValue, "minimum finite", true),
+            (Math.PI, "irrational", false),
+            (1.2345678901234567e200, "explicit exponent form", true),
+        };
+        foreach ((double boundary, string label, bool expectExponent) in floatingBoundaries)
+        {
+            string boundaryJson = _writer.Write(
+                new SampleDoubleEnvelope(boundary),
+                floatingSchema,
+                indented: false
+            );
+            using JsonDocument boundaryDocument = JsonDocument.Parse(boundaryJson);
+            JsonElement boundaryValue = boundaryDocument.RootElement.GetProperty("value");
+            AssertDoubleBitsEqual(
+                boundaryValue.GetDouble(),
+                boundary,
+                $"floating-point double {label} round trip"
+            );
+            if (expectExponent)
+            {
+                string rawToken = boundaryValue.GetRawText();
+                _test.True(
+                    rawToken.Contains('E') || rawToken.Contains('e'),
+                    $"floating-point double {label} should use a valid exponent token"
+                );
+            }
+        }
+
+        var existingDoubleSchema = new ContentCanonicalJsonObjectSchema<SampleDoubleEnvelope>(
+            ContentCanonicalJsonProperty<SampleDoubleEnvelope>.Required(
+                "value",
+                envelope => envelope.Value,
+                ContentCanonicalJsonValue.Double
+            )
+        );
+        _test.Eq(
+            _writer.Write(
+                new SampleDoubleEnvelope(1.0),
+                existingDoubleSchema,
+                indented: false
+            ),
+            "{\"value\":1}",
+            "existing double schema token formatting should remain unchanged"
+        );
+
+        foreach (double nonFinite in new[] { double.NaN, double.PositiveInfinity, double.NegativeInfinity })
+        {
+            bool rejected = false;
+            try
+            {
+                _writer.Write(
+                    new SampleDoubleEnvelope(nonFinite),
+                    floatingSchema,
+                    indented: false
+                );
+            }
+            catch (JsonException)
+            {
+                rejected = true;
+            }
+            _test.True(
+                rejected,
+                $"floating-point double schema should reject non-finite value '{nonFinite}'"
+            );
+        }
+    }
+
     private void AssertNonCanonicalInt32MapKeyRejected(string nonCanonicalKey)
     {
         ContentCanonicalJsonValueSchema<
@@ -879,6 +1184,16 @@ public partial class run_content_canonical_json_writer_regression : LifecycleTes
         : ISampleClosedUnionPayload;
 
     private sealed record SampleUnionEnvelope(ISampleClosedUnionPayload Payload);
+
+    private sealed record SampleRecursiveNode(int Value, SampleRecursiveNode Next);
+
+    private sealed record SampleRecursiveEnvelope(SampleRecursiveNode Node);
+
+    private readonly record struct SampleProjectedInt(int Value);
+
+    private sealed record SampleProjectedEnvelope(SampleProjectedInt Value);
+
+    private sealed record SampleDoubleEnvelope(double Value);
 
     private sealed record SampleProfile(double Resistance, string Label, bool Enabled);
 

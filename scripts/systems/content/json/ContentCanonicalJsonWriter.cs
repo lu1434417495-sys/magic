@@ -281,6 +281,89 @@ internal abstract class ContentCanonicalJsonValueSchema<T>
     internal abstract void Write(Utf8JsonWriter writer, T value);
 }
 
+internal sealed class ContentCanonicalJsonDeferredValueSchema<T>
+    : ContentCanonicalJsonValueSchema<T>
+{
+    [ThreadStatic]
+    private static HashSet<DeferredWriteFrame> _activeWrites;
+
+    private ContentCanonicalJsonValueSchema<T> _boundSchema;
+
+    internal void Bind(ContentCanonicalJsonValueSchema<T> valueSchema)
+    {
+        ArgumentNullException.ThrowIfNull(valueSchema);
+        if (_boundSchema != null)
+        {
+            throw new InvalidOperationException(
+                "Canonical JSON deferred schema is already bound."
+            );
+        }
+        if (ReferenceEquals(valueSchema, this))
+        {
+            throw new ArgumentException(
+                "Canonical JSON deferred schema cannot bind directly to itself.",
+                nameof(valueSchema)
+            );
+        }
+
+        _boundSchema = valueSchema;
+    }
+
+    internal override void Write(Utf8JsonWriter writer, T value)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        var frame = new DeferredWriteFrame(
+            this,
+            writer,
+            writer.BytesCommitted + writer.BytesPending,
+            writer.CurrentDepth
+        );
+        HashSet<DeferredWriteFrame> activeWrites =
+            _activeWrites ??= new HashSet<DeferredWriteFrame>();
+        if (!activeWrites.Add(frame))
+        {
+            throw new InvalidOperationException(
+                "Canonical JSON deferred schema re-entered without writing a JSON token."
+            );
+        }
+
+        try
+        {
+            ContentCanonicalJsonValueSchema<T> resolvedSchema = this;
+            var visited = new HashSet<ContentCanonicalJsonDeferredValueSchema<T>>();
+            while (resolvedSchema is ContentCanonicalJsonDeferredValueSchema<T> deferred)
+            {
+                if (!visited.Add(deferred))
+                {
+                    throw new InvalidOperationException(
+                        "Canonical JSON deferred schema chain makes no progress."
+                    );
+                }
+                resolvedSchema =
+                    deferred._boundSchema
+                    ?? throw new InvalidOperationException(
+                        "Canonical JSON deferred schema must be bound before writing."
+                    );
+            }
+
+            resolvedSchema.Write(writer, value);
+        }
+        finally
+        {
+            activeWrites.Remove(frame);
+            if (activeWrites.Count == 0)
+                _activeWrites = null;
+        }
+    }
+
+    private readonly record struct DeferredWriteFrame(
+        ContentCanonicalJsonDeferredValueSchema<T> Schema,
+        Utf8JsonWriter Writer,
+        long BytesWritten,
+        int Depth
+    );
+}
+
 internal static class ContentCanonicalJsonValue
 {
     internal static ContentCanonicalJsonValueSchema<string> Text { get; } =
@@ -300,6 +383,16 @@ internal static class ContentCanonicalJsonValue
 
     internal static ContentCanonicalJsonValueSchema<double> Double { get; } =
         new DoubleValueSchema();
+
+    internal static ContentCanonicalJsonValueSchema<double> FloatingPointDouble { get; } =
+        new FloatingPointDoubleValueSchema();
+
+    internal static ContentCanonicalJsonDeferredValueSchema<TValue> Deferred<TValue>() => new();
+
+    internal static ContentCanonicalJsonValueSchema<TSource> Project<TSource, TValue>(
+        Func<TSource, TValue> selector,
+        ContentCanonicalJsonValueSchema<TValue> valueSchema
+    ) => new ProjectedValueSchema<TSource, TValue>(selector, valueSchema);
 
     internal static ContentCanonicalJsonValueSchema<TValue> StableBusinessString<TValue>(
         Func<TValue, string> selector
@@ -391,6 +484,44 @@ internal static class ContentCanonicalJsonValue
                 throw new JsonException("Canonical JSON double value must be finite.");
             writer.WriteNumberValue(value);
         }
+    }
+
+    private sealed class FloatingPointDoubleValueSchema
+        : ContentCanonicalJsonValueSchema<double>
+    {
+        internal override void Write(Utf8JsonWriter writer, double value)
+        {
+            if (!double.IsFinite(value))
+            {
+                throw new JsonException(
+                    "Canonical JSON floating-point double value must be finite."
+                );
+            }
+
+            string token = value.ToString("R", CultureInfo.InvariantCulture);
+            if (!token.Contains('.') && !token.Contains('E') && !token.Contains('e'))
+                token += ".0";
+            writer.WriteRawValue(token, skipInputValidation: false);
+        }
+    }
+
+    private sealed class ProjectedValueSchema<TSource, TValue>
+        : ContentCanonicalJsonValueSchema<TSource>
+    {
+        private readonly Func<TSource, TValue> _selector;
+        private readonly ContentCanonicalJsonValueSchema<TValue> _valueSchema;
+
+        internal ProjectedValueSchema(
+            Func<TSource, TValue> selector,
+            ContentCanonicalJsonValueSchema<TValue> valueSchema
+        )
+        {
+            _selector = selector ?? throw new ArgumentNullException(nameof(selector));
+            _valueSchema = valueSchema ?? throw new ArgumentNullException(nameof(valueSchema));
+        }
+
+        internal override void Write(Utf8JsonWriter writer, TSource value) =>
+            _valueSchema.Write(writer, _selector(value));
     }
 
     private sealed class StableBusinessStringValueSchema<TValue>
