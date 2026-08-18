@@ -514,6 +514,13 @@ internal sealed class BattleTimelineDriver
             if (isAiOverride)
                 _CleanupAiTurn(activeUnit);
         }
+        if (
+            activeUnit != null
+            && activeUnit.ConsumeStatusEffectsAfterNormalTurnTyped().Count > 0
+        )
+        {
+            _AppendChangedUnitId(batch, activeUnit.unit_id);
+        }
         activeUnit?.ClearCastingTurnFlags();
         state.PhaseKind = BattlePhaseKind.TimelineRunning;
         state.active_unit_id = "";

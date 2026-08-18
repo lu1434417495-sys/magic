@@ -36,6 +36,7 @@ public static class BattleStatusSemanticTable
         "paralyzed",
         "frozen",
         "petrified",
+        "sleeping",
     };
 
     internal static readonly StringName STACK_REFRESH = "refresh",
@@ -74,6 +75,8 @@ public static class BattleStatusSemanticTable
         STATUS_POISONED = "poisoned",
         STATUS_SHOCKED = "shocked",
         STATUS_SLOW = "slow",
+        STATUS_SLEEPING = "sleeping",
+        STATUS_WAKEFUL = "wakeful",
         STATUS_SPELLWARD = "spellward",
         STATUS_SOUL_FRACTURE = "soul_fracture",
         STATUS_STAGGERED = "staggered",
@@ -139,6 +142,7 @@ public static class BattleStatusSemanticTable
         },
         [STATUS_LAST_STAND_ACTIVE] = new() { Semantic = RefreshSemantic() },
         [STATUS_TIME_REVERBERATION] = new() { Semantic = RefreshSemantic() },
+        [STATUS_WAKEFUL] = new() { Semantic = RefreshSemantic(displayLabel: "清醒") },
 
         // —— 减益 ——
         [STATUS_ARMOR_BREAK] = new() { Semantic = RefreshSemantic(), Harmful = true },
@@ -184,6 +188,7 @@ public static class BattleStatusSemanticTable
         [STATUS_REACTION_LOCK] = new() { Semantic = RefreshSemantic(displayLabel: "反应封锁"), Harmful = true, DispellableHarmful = true },
         [STATUS_FRIGHTENED] = new() { Semantic = RefreshSemantic(displayLabel: "恐惧"), Harmful = true, DispellableHarmful = true },
         [STATUS_STUNNED] = new() { Semantic = RefreshSemantic(displayLabel: "震慑"), Harmful = true, DispellableHarmful = true },
+        [STATUS_SLEEPING] = new() { Semantic = RefreshSemantic(displayLabel: "睡眠"), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
         [STATUS_MADNESS] = new()
         {
             Semantic = RefreshSemantic(
@@ -578,6 +583,16 @@ public static class BattleStatusSemanticTable
         statusEntry.lock_guard = effectDefinition.LockGuard;
         statusEntry.lock_dodge_bonus = effectDefinition.LockDodgeBonus;
         statusEntry.lock_crit = effectDefinition.LockCrit;
+        statusEntry.skip_turn = effectDefinition.SkipTurn;
+        statusEntry.break_on_positive_damage = effectDefinition.BreakOnPositiveDamage;
+        statusEntry.on_removed_status_id = effectDefinition.OnRemovedStatusId;
+        statusEntry.on_removed_status_save_immunity_tags = BuildStringNameList(
+            effectDefinition.OnRemovedStatusSaveImmunityTags
+        );
+        statusEntry.on_removed_status_undispellable =
+            effectDefinition.OnRemovedStatusUndispellable;
+        statusEntry.on_removed_status_consume_after_normal_turn =
+            effectDefinition.OnRemovedStatusConsumeAfterNormalTurn;
         statusEntry.save_bonus = effectDefinition.SaveBonus;
         statusEntry.control_save_bonus = effectDefinition.ControlSaveBonus;
         statusEntry.heal_multiplier_percent = effectDefinition.HealMultiplierPercent;

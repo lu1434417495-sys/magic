@@ -58,34 +58,6 @@ internal sealed class BattleRuntimeSkillTurnResolver
         "bloodline",
     };
 
-    private static readonly HashSet<StringName> DebuffStatusIds = new()
-    {
-        "armor_break",
-        "black_star_brand_elite",
-        "black_star_brand_normal",
-        "aftershock",
-        "burning",
-        "crown_break_blinded_eye",
-        "crown_break_broken_fang",
-        "crown_break_broken_hand",
-        "frightened",
-        "frozen",
-        "hex_of_frailty",
-        "marked",
-        "meteor_concussed",
-        "paralyzed",
-        "pinned",
-        "reaction_lock",
-        "petrified",
-        "rooted",
-        "shocked",
-        "slow",
-        "staggered",
-        "stunned",
-        "taunted",
-        "tendon_cut",
-    };
-
     private WeakReference<BattleRuntimeModule> _runtimeRef;
 
     private BattleRuntimeModule _runtime
@@ -112,6 +84,24 @@ internal sealed class BattleRuntimeSkillTurnResolver
         if (unit_state == null || !unit_state.IsAlive())
         {
             return BattleTurnControlStatusResult.Empty();
+        }
+        foreach (BattleStatusEffectState status in unit_state.GetStatusEffectsTyped())
+        {
+            if (status?.skip_turn != true || status.stacks <= 0)
+                continue;
+            unit_state.SetCurrentAp(0);
+            unit_state.SetCurrentMovePoints(0);
+            _append_changed_unit(batch, unit_state);
+            string label = BattleStatusSemanticTable.GetDisplayLabel(status);
+            _append_log(batch, $"{DisplayName(unit_state)} 处于{label}状态，无法行动。");
+            return new BattleTurnControlStatusResult(
+                true,
+                true,
+                false,
+                "",
+                false,
+                false
+            );
         }
         if (HasStatus(unit_state, STATUS_PETRIFIED))
         {
@@ -2869,7 +2859,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 return status_entry.counts_as_debuff;
             }
         }
-        return DebuffStatusIds.Contains(status_id);
+        return BattleStatusSemanticTable.IsHarmfulStatus(status_id);
     }
 
     internal bool StatusCountsAsDebuff(
@@ -2884,7 +2874,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 return status_entry.CountsAsDebuff;
             }
         }
-        return DebuffStatusIds.Contains(status_id);
+        return BattleStatusSemanticTable.IsHarmfulStatus(status_id);
     }
 
     internal bool HasCounterattackLockStatus(BattleUnitState unit_state)

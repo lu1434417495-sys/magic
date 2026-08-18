@@ -115,7 +115,8 @@ public partial class BattleDamageResolver : IDisposable
         bool LowLuckBlackStarWedgeTriggered,
         DamageDiceEventSnapshot DamageDiceEvent,
         BattleFatalInterceptPreviewResult FatalInterceptPreview = null,
-        IReadOnlyList<BattleEquipmentAbilityActionPreviewResult> EquipmentActionPreviews = null
+        IReadOnlyList<BattleEquipmentAbilityActionPreviewResult> EquipmentActionPreviews = null,
+        IReadOnlyList<StringName> RemovedStatusEffectIds = null
     )
     {
         public bool HasAppliedDamage => Damage > 0 || ShieldAbsorbed > 0;
@@ -136,7 +137,8 @@ public partial class BattleDamageResolver : IDisposable
                 LowLuckBlackStarWedgeTriggered,
                 DamageDiceEvent,
                 FatalInterceptPreview,
-                EquipmentActionPreviews
+                EquipmentActionPreviews,
+                RemovedStatusEffectIds
             );
         }
 
@@ -153,7 +155,8 @@ public partial class BattleDamageResolver : IDisposable
                 LowLuckBlackStarWedgeTriggered,
                 DamageDiceEvent,
                 preview,
-                EquipmentActionPreviews
+                EquipmentActionPreviews,
+                RemovedStatusEffectIds
             );
         }
 
@@ -170,7 +173,26 @@ public partial class BattleDamageResolver : IDisposable
                 LowLuckBlackStarWedgeTriggered,
                 DamageDiceEvent,
                 FatalInterceptPreview,
-                previews
+                previews,
+                RemovedStatusEffectIds
+            );
+        }
+
+        public AppliedDamageResult WithRemovedStatusEffectIds(
+            IReadOnlyList<StringName> removedStatusEffectIds
+        )
+        {
+            return new AppliedDamageResult(
+                Event,
+                Damage,
+                HpDamage,
+                ShieldAbsorbed,
+                ShieldBroken,
+                LowLuckBlackStarWedgeTriggered,
+                DamageDiceEvent,
+                FatalInterceptPreview,
+                EquipmentActionPreviews,
+                removedStatusEffectIds
             );
         }
     }
@@ -238,6 +260,36 @@ public partial class BattleDamageResolver : IDisposable
                 return true;
             }
             return value.VariantType == Variant.Type.Bool ? value.AsBool() : true;
+        }
+    }
+
+    private static void AppendRemovedStatusEffectIds(
+        GStringNameArray target,
+        AppliedDamageResult damageResult
+    )
+    {
+        if (target == null)
+            return;
+        foreach (
+            StringName statusId in damageResult.RemovedStatusEffectIds
+                ?? Array.Empty<StringName>()
+        )
+        {
+            AddUnique(target, statusId);
+        }
+    }
+
+    private static void AppendUniqueRemovedStatusEffectIds(
+        List<StringName> target,
+        IReadOnlyList<StringName> removedStatusEffectIds
+    )
+    {
+        if (target == null)
+            return;
+        foreach (StringName statusId in removedStatusEffectIds ?? Array.Empty<StringName>())
+        {
+            if (statusId != "" && !target.Contains(statusId))
+                target.Add(statusId);
         }
     }
 
@@ -1176,6 +1228,7 @@ public partial class BattleDamageResolver : IDisposable
             damageOutcome: ProjectDamageOutcomePayload(core.DamageOutcome),
             damageResult: ProjectAppliedDamagePayload(core.DamageResult),
             saveEstimate: core.SaveEstimate.ToPreviewSaveEstimate(),
+            removedStatusEffectIds: core.DamageResult.RemovedStatusEffectIds,
             sourcePreviewAfter: core.SourcePreview,
             targetPreviewAfter: core.TargetPreview,
             fatalInterceptPreview: core.DamageResult.FatalInterceptPreview,
@@ -1401,6 +1454,7 @@ public partial class BattleDamageResolver : IDisposable
                 totalDamage += hpDamage;
                 totalShieldAbsorbed += damageResult.ShieldAbsorbed;
                 damageEvents.Add(damageResult.Event);
+                AppendRemovedStatusEffectIds(removedStatusEffectIds, damageResult);
                 blackStarWedgeTriggered =
                     blackStarWedgeTriggered
                     || damageResult.LowLuckBlackStarWedgeTriggered;
@@ -1463,6 +1517,10 @@ public partial class BattleDamageResolver : IDisposable
                     totalDamage += extraSegmentDamageResult.Damage;
                     totalShieldAbsorbed += extraSegmentDamageResult.ShieldAbsorbed;
                     damageEvents.Add(extraSegmentDamageResult.Event);
+                    AppendRemovedStatusEffectIds(
+                        removedStatusEffectIds,
+                        extraSegmentDamageResult
+                    );
                     blackStarWedgeTriggered =
                         blackStarWedgeTriggered
                         || extraSegmentDamageResult.LowLuckBlackStarWedgeTriggered;
@@ -1505,6 +1563,10 @@ public partial class BattleDamageResolver : IDisposable
                     totalDamage += bonusWeaponDamageResult.Damage;
                     totalShieldAbsorbed += bonusWeaponDamageResult.ShieldAbsorbed;
                     damageEvents.Add(bonusWeaponDamageResult.Event);
+                    AppendRemovedStatusEffectIds(
+                        removedStatusEffectIds,
+                        bonusWeaponDamageResult
+                    );
                     blackStarWedgeTriggered =
                         blackStarWedgeTriggered
                         || bonusWeaponDamageResult.LowLuckBlackStarWedgeTriggered;
@@ -1544,6 +1606,7 @@ public partial class BattleDamageResolver : IDisposable
                     totalDamage += extraDamageResult.Damage;
                     totalShieldAbsorbed += extraDamageResult.ShieldAbsorbed;
                     damageEvents.Add(extraDamageResult.Event);
+                    AppendRemovedStatusEffectIds(removedStatusEffectIds, extraDamageResult);
                     blackStarWedgeTriggered =
                         blackStarWedgeTriggered
                         || extraDamageResult.LowLuckBlackStarWedgeTriggered;
@@ -1764,6 +1827,7 @@ public partial class BattleDamageResolver : IDisposable
                     totalShieldAbsorbed += damageResult.ShieldAbsorbed;
                     shieldBroken = shieldBroken || damageResult.ShieldBroken;
                     damageEvents.Add(damageResult.Event);
+                    AppendRemovedStatusEffectIds(removedStatusEffectIds, damageResult);
                 }
             }
             else if (effectKind == BattleEffectKind.GradedSaveExecute)
@@ -1794,6 +1858,7 @@ public partial class BattleDamageResolver : IDisposable
                         blackStarWedgeTriggered
                         || damageResult.LowLuckBlackStarWedgeTriggered;
                     damageEvents.Add(damageResult.Event);
+                    AppendRemovedStatusEffectIds(removedStatusEffectIds, damageResult);
                 }
             }
         }
@@ -2346,6 +2411,7 @@ public partial class BattleDamageResolver : IDisposable
         int hpDamage = projection.HpDamage;
         BattleFatalInterceptPreviewResult fatalInterceptPreview = null;
         bool finalizedResolvedFromPreviewBranches = false;
+        var removedStatusEffectIds = new List<StringName>();
         if (hpDamage > 0)
         {
             int maxHp = GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.HpMax));
@@ -2449,7 +2515,8 @@ public partial class BattleDamageResolver : IDisposable
                                                 damageContext,
                                                 applicationEvent,
                                                 rawDamage,
-                                                hpBeforeDamage
+                                                hpBeforeDamage,
+                                                removedStatusEffectIds
                                             );
                                     if (branchActions.Count > 0)
                                         equipmentActionPreviews?.AddRange(branchActions);
@@ -2488,6 +2555,13 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         int actualHpDamage = Math.Max(hpBeforeDamage - Math.Max(targetUnit.GetCurrentHp(), 0), 0);
+        if (actualHpDamage > 0 || shieldAbsorbed > 0)
+        {
+            AppendUniqueRemovedStatusEffectIds(
+                removedStatusEffectIds,
+                targetUnit.BreakStatusEffectsOnPositiveDamageTyped()
+            );
+        }
         if (!finalizedResolvedFromPreviewBranches)
         {
             ResolveFinalizedEquipmentDamageReactions(
@@ -2501,14 +2575,16 @@ public partial class BattleDamageResolver : IDisposable
                 previewActionSink
             );
         }
-        return BuildAppliedDamageResult(
+        AppliedDamageResult appliedDamageResult = BuildAppliedDamageResult(
                 damageInput with { Event = applicationEvent },
                 actualHpDamage,
                 shieldAbsorbed,
                 shieldBroken
             )
             .WithFatalInterceptPreview(fatalInterceptPreview)
-            .WithEquipmentActionPreviews(equipmentActionPreviews?.AsReadOnly());
+            .WithEquipmentActionPreviews(equipmentActionPreviews?.AsReadOnly())
+            .WithRemovedStatusEffectIds(removedStatusEffectIds.AsReadOnly());
+        return appliedDamageResult;
     }
 
     private IReadOnlyList<BattleEquipmentAbilityActionPreviewResult>
@@ -2517,7 +2593,8 @@ public partial class BattleDamageResolver : IDisposable
             DamageResolutionContext damageContext,
             DamageEventResult damageEvent,
             int rawDamage,
-            int hpBefore
+            int hpBefore,
+            List<StringName> removedStatusEffectIds
         )
     {
         var weightedActions = new List<WeightedEquipmentActionPreview>();
@@ -2541,6 +2618,17 @@ public partial class BattleDamageResolver : IDisposable
                 (damageContext ?? DamageResolutionContext.Empty())
                     .WithBattleState(branch.BattleState)
                     .WithDetachedPreviewMode();
+            int branchHpDamage = Math.Max(
+                hpBefore - Math.Max(branch.TargetUnit.GetCurrentHp(), 0),
+                0
+            );
+            if (branchHpDamage > 0)
+            {
+                AppendUniqueRemovedStatusEffectIds(
+                    removedStatusEffectIds,
+                    branch.TargetUnit.BreakStatusEffectsOnPositiveDamageTyped()
+                );
+            }
             ResolveFinalizedEquipmentDamageReactions(
                 branch.TargetUnit,
                 branch.SourceUnit,

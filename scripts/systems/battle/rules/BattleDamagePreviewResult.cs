@@ -597,6 +597,8 @@ public sealed class BattleDamagePreviewResult
         Array.Empty<BattleDamagePreviewSaveEstimate>();
     public IReadOnlyList<object> DamageEvents { get; private set; } = Array.Empty<object>();
     public IReadOnlyList<object> Diagnostics { get; private set; } = Array.Empty<object>();
+    public IReadOnlyList<StringName> RemovedStatusEffectIds { get; private set; } =
+        Array.Empty<StringName>();
     public BattleUnitState SourcePreviewAfter { get; private set; }
     public BattleUnitState TargetPreviewAfter { get; private set; }
     internal BattleFatalInterceptPreviewResult FatalInterceptPreview { get; private set; }
@@ -632,6 +634,7 @@ public sealed class BattleDamagePreviewResult
         IReadOnlyList<BattleDamagePreviewSaveEstimate> saveEstimates = null,
         IReadOnlyList<object> damageEvents = null,
         IReadOnlyList<object> diagnostics = null,
+        IReadOnlyList<StringName> removedStatusEffectIds = null,
         BattleUnitState sourcePreviewAfter = null,
         BattleUnitState targetPreviewAfter = null,
         BattleFatalInterceptPreviewResult fatalInterceptPreview = null,
@@ -671,6 +674,9 @@ public sealed class BattleDamagePreviewResult
             SaveEstimates = saveEstimates ?? Array.Empty<BattleDamagePreviewSaveEstimate>(),
             DamageEvents = CloneTraceObjectList(damageEvents),
             Diagnostics = CloneTraceObjectList(diagnostics),
+            RemovedStatusEffectIds = removedStatusEffectIds == null
+                ? Array.Empty<StringName>()
+                : new List<StringName>(removedStatusEffectIds).AsReadOnly(),
             SourcePreviewAfter = sourcePreviewAfter,
             TargetPreviewAfter = targetPreviewAfter,
             FatalInterceptPreview = fatalInterceptPreview,

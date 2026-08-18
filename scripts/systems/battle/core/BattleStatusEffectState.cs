@@ -105,6 +105,13 @@ public class BattleStatusEffectState
         "save_immunity_tags",
         "status_tags",
         "save_bonus_by_tag",
+        "skip_turn",
+        "break_on_positive_damage",
+        "on_removed_status_id",
+        "on_removed_status_save_immunity_tags",
+        "on_removed_status_undispellable",
+        "on_removed_status_consume_after_normal_turn",
+        "consume_after_normal_turn",
     };
 
     public StringName status_id { get; set; } = "";
@@ -189,6 +196,13 @@ public class BattleStatusEffectState
     public bool lock_guard { get; set; }
     public bool lock_dodge_bonus { get; set; }
     public bool lock_crit { get; set; }
+    public bool skip_turn { get; set; }
+    public bool break_on_positive_damage { get; set; }
+    public StringName on_removed_status_id { get; set; } = "";
+    public List<StringName> on_removed_status_save_immunity_tags { get; set; } = new();
+    public bool on_removed_status_undispellable { get; set; }
+    public bool on_removed_status_consume_after_normal_turn { get; set; }
+    public bool consume_after_normal_turn { get; set; }
     public int save_bonus { get; set; }
     public int control_save_bonus { get; set; }
     public int passive_reduction { get; set; }
@@ -539,6 +553,16 @@ public class BattleStatusEffectState
             lock_guard = lock_guard,
             lock_dodge_bonus = lock_dodge_bonus,
             lock_crit = lock_crit,
+            skip_turn = skip_turn,
+            break_on_positive_damage = break_on_positive_damage,
+            on_removed_status_id = on_removed_status_id,
+            on_removed_status_save_immunity_tags = BuildStringNameList(
+                on_removed_status_save_immunity_tags
+            ),
+            on_removed_status_undispellable = on_removed_status_undispellable,
+            on_removed_status_consume_after_normal_turn =
+                on_removed_status_consume_after_normal_turn,
+            consume_after_normal_turn = consume_after_normal_turn,
             save_bonus = save_bonus,
             control_save_bonus = control_save_bonus,
             passive_reduction = passive_reduction,
@@ -568,6 +592,10 @@ public class BattleStatusEffectState
             DuplicateNullableStringNameListExact(save_disadvantage_tags);
         duplicate.save_immunity_tags =
             DuplicateNullableStringNameListExact(save_immunity_tags);
+        duplicate.on_removed_status_save_immunity_tags =
+            DuplicateNullableStringNameListExact(
+                on_removed_status_save_immunity_tags
+            );
         duplicate.status_tags = DuplicateNullableStringNameListExact(status_tags);
         duplicate.save_bonus_by_tag =
             DuplicateNullableStringNameIntMapExact(save_bonus_by_tag);
@@ -1021,6 +1049,31 @@ public class BattleStatusEffectState
             lock_guard = lockGuardValue,
             lock_dodge_bonus = lockDodgeBonusValue,
             lock_crit = lockCritValue,
+            skip_turn = ReadOptionalBoolParam(parameters, "skip_turn"),
+            break_on_positive_damage = ReadOptionalBoolParam(
+                parameters,
+                "break_on_positive_damage"
+            ),
+            on_removed_status_id = ReadOptionalStringNameParam(
+                parameters,
+                "on_removed_status_id"
+            ),
+            on_removed_status_save_immunity_tags = ReadStringNameListParam(
+                parameters,
+                "on_removed_status_save_immunity_tags"
+            ),
+            on_removed_status_undispellable = ReadOptionalBoolParam(
+                parameters,
+                "on_removed_status_undispellable"
+            ),
+            on_removed_status_consume_after_normal_turn = ReadOptionalBoolParam(
+                parameters,
+                "on_removed_status_consume_after_normal_turn"
+            ),
+            consume_after_normal_turn = ReadOptionalBoolParam(
+                parameters,
+                "consume_after_normal_turn"
+            ),
             main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,
         };
         state.SetParamsTyped(CopyResidualParamsPlain(parameters));
@@ -1379,6 +1432,23 @@ public class BattleStatusEffectState
             projected["save_immunity_tags"] = BuildPlainStringList(save_immunity_tags);
         if ((status_tags?.Count ?? 0) > 0)
             projected["status_tags"] = BuildPlainStringList(status_tags);
+        if (skip_turn)
+            projected["skip_turn"] = true;
+        if (break_on_positive_damage)
+            projected["break_on_positive_damage"] = true;
+        if (on_removed_status_id != "")
+            projected["on_removed_status_id"] = on_removed_status_id;
+        if ((on_removed_status_save_immunity_tags?.Count ?? 0) > 0)
+        {
+            projected["on_removed_status_save_immunity_tags"] =
+                BuildPlainStringList(on_removed_status_save_immunity_tags);
+        }
+        if (on_removed_status_undispellable)
+            projected["on_removed_status_undispellable"] = true;
+        if (on_removed_status_consume_after_normal_turn)
+            projected["on_removed_status_consume_after_normal_turn"] = true;
+        if (consume_after_normal_turn)
+            projected["consume_after_normal_turn"] = true;
         if ((save_bonus_by_tag?.Count ?? 0) > 0)
         {
             var projectedBonusByTag = new Dictionary<StringName, int>();

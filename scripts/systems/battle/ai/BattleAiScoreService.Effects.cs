@@ -1285,6 +1285,27 @@ public partial class BattleAiScoreService
                             effectDefinition,
                             statusId
                         );
+                    BattleSaveProbabilityResult saveProbability =
+                        BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                            sourceUnit,
+                            targetUnit,
+                            effectDefinition,
+                            BattleSaveContext.ForSkill(ResolveSkillId(skillDefinition))
+                        );
+                    if (saveProbability.HasSave)
+                    {
+                        marginalControlBasisPoints = (int)Math.Clamp(
+                            (long)marginalControlBasisPoints
+                                * Math.Clamp(
+                                    saveProbability.FailureProbabilityBasisPoints,
+                                    0,
+                                    10000
+                                )
+                                / 10000L,
+                            0L,
+                            10000L
+                        );
+                    }
                     if (marginalControlBasisPoints <= 0)
                     {
                         continue;

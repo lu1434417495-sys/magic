@@ -1978,6 +1978,23 @@ internal sealed class SkillCombatProfileValidator
             );
         }
 
+        bool hasStatusLifecycleConfiguration =
+            effectDef.skip_turn
+            || effectDef.break_on_positive_damage
+            || ProgressionDataUtils.to_string_name(effectDef.on_removed_status_id) != ""
+            || (effectDef.on_removed_status_save_immunity_tags?.Count ?? 0) > 0
+            || effectDef.on_removed_status_undispellable
+            || effectDef.on_removed_status_consume_after_normal_turn;
+        bool isStatusEffect =
+            effectKind == BattleEffectKind.Status
+            || effectKind == BattleEffectKind.ApplyStatus;
+        if (hasStatusLifecycleConfiguration && !isStatusEffect)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} status lifecycle fields are only supported on status effects."
+            );
+        }
+
         if (effectKind == BattleEffectKind.Damage)
         {
             _damageEffectValidator.AppendDamageEffectValidationErrors(errors, skillId, effectDef, contextLabel);
@@ -1991,6 +2008,47 @@ internal sealed class SkillCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} status effect in {contextLabel} is missing status_id."
                 );
+            if (effectDef.skip_turn && effectDef.duration_tu <= 0)
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} skip_turn requires positive duration_tu."
+                );
+            StringName onRemovedStatusId = ProgressionDataUtils.to_string_name(
+                effectDef.on_removed_status_id
+            );
+            bool hasOnRemovedStatusConfiguration =
+                onRemovedStatusId != ""
+                || (effectDef.on_removed_status_save_immunity_tags?.Count ?? 0) > 0
+                || effectDef.on_removed_status_undispellable
+                || effectDef.on_removed_status_consume_after_normal_turn;
+            if (hasOnRemovedStatusConfiguration && onRemovedStatusId == "")
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} on-removed status configuration requires on_removed_status_id."
+                );
+            if (
+                onRemovedStatusId != ""
+                && onRemovedStatusId
+                    == ProgressionDataUtils.to_string_name(effectDef.status_id)
+            )
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} on_removed_status_id must differ from status_id."
+                );
+            AppendStringNameArrayValidationErrors(
+                errors,
+                skillId,
+                $"status effect in {contextLabel} on_removed_status_save_immunity_tags",
+                effectDef.on_removed_status_save_immunity_tags
+            );
+            foreach (
+                StringName saveImmunityTag in
+                    effectDef.on_removed_status_save_immunity_tags
+                        ?? new Godot.Collections.Array<StringName>()
+            )
+            {
+                if (!BattleSaveContentRules.IsValidSaveTag(saveImmunityTag))
+                    errors.Add(
+                        $"Skill {skillId} status effect in {contextLabel} on_removed_status_save_immunity_tags contains unsupported save tag {saveImmunityTag}."
+                    );
+            }
             if (effectDef.terrain_effect_id == "" && parameters.ContainsKey("duration_tu"))
                 errors.Add(
                     $"Skill {skillId} effect {contextLabel} params.duration_tu is unsupported; use CombatEffectDef.duration_tu."

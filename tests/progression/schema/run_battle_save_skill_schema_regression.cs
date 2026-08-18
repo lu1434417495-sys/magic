@@ -25,6 +25,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
         TestSkillSchemaRejectsInvalidSaveFields();
         TestSkillSchemaRejectsInvalidSaveTagLists();
+        TestStatusLifecycleSchemaValidation();
         TestLevelOverridesRejectNonIntFields();
 
         RequestTestExit(_test.Finish("Battle save skill schema regression"));
@@ -448,6 +449,107 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
             formattedErrors.Contains("not_a_save_tag")
                 && formattedErrors.Contains("not a supported save tag"),
             $"技能 effect save tag 列表应拒绝未知值。 errors={formattedErrors}"
+        );
+    }
+
+    private void TestStatusLifecycleSchemaValidation()
+    {
+        using SkillContentRegistry registry = new(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        );
+        using CombatEffectDef validSleep = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            duration_tu = 60,
+            skip_turn = true,
+            break_on_positive_damage = true,
+            on_removed_status_id = "wakeful",
+            on_removed_status_save_immunity_tags = new GStringNameArray { "sleep" },
+            on_removed_status_undispellable = true,
+            on_removed_status_consume_after_normal_turn = true,
+        };
+        AssertExactErrors(
+            ValidateEffect(registry, "valid_sleep_lifecycle", validSleep),
+            "valid typed sleep lifecycle"
+        );
+
+        using CombatEffectDef lifecycleOnDamage = BuildPlainDamageEffect();
+        lifecycleOnDamage.break_on_positive_damage = true;
+        string nonStatusErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "lifecycle_on_damage", lifecycleOnDamage)
+        );
+        _test.True(
+            nonStatusErrors.Contains("status lifecycle fields are only supported on status effects"),
+            $"非状态效果不得使用状态生命周期字段。 errors={nonStatusErrors}"
+        );
+
+        using CombatEffectDef zeroDurationSkip = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            skip_turn = true,
+        };
+        string zeroDurationSkipErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "zero_duration_skip", zeroDurationSkip)
+        );
+        _test.True(
+            zeroDurationSkipErrors.Contains("skip_turn requires positive duration_tu"),
+            $"跳过回合的状态必须提供正持续时间。 errors={zeroDurationSkipErrors}"
+        );
+
+        using CombatEffectDef missingSuccessor = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            duration_tu = 60,
+            on_removed_status_save_immunity_tags = new GStringNameArray { "sleep" },
+        };
+        string missingSuccessorErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "missing_lifecycle_successor", missingSuccessor)
+        );
+        _test.True(
+            missingSuccessorErrors.Contains("requires on_removed_status_id"),
+            $"解除后配置缺少状态ID时必须拒绝。 errors={missingSuccessorErrors}"
+        );
+
+        using CombatEffectDef recursiveSuccessor = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            duration_tu = 60,
+            on_removed_status_id = "sleeping",
+        };
+        string recursiveErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "recursive_lifecycle_successor", recursiveSuccessor)
+        );
+        _test.True(
+            recursiveErrors.Contains("must differ from status_id"),
+            $"状态不得在解除时递归生成自身。 errors={recursiveErrors}"
+        );
+
+        using CombatEffectDef invalidSuccessorSaveTag = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            duration_tu = 60,
+            on_removed_status_id = "wakeful",
+            on_removed_status_save_immunity_tags = new GStringNameArray { "not_a_save_tag" },
+        };
+        string invalidSuccessorSaveTagErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "invalid_successor_save_tag", invalidSuccessorSaveTag)
+        );
+        _test.True(
+            invalidSuccessorSaveTagErrors.Contains(
+                "on_removed_status_save_immunity_tags contains unsupported save tag not_a_save_tag"
+            ),
+            $"解除后状态的豁免标签必须来自正式 save tag 集合。 errors={invalidSuccessorSaveTagErrors}"
         );
     }
 

@@ -190,8 +190,9 @@ internal static class BattleDamagePreviewProjection
             lease,
             "BattleDamagePreviewProjection.status_effect_ids"
         );
-        target["removed_status_effect_ids"] = EmptyArray(
+        target["removed_status_effect_ids"] = WriteStringNameArray(
             lease,
+            preview.RemovedStatusEffectIds,
             "BattleDamagePreviewProjection.removed_status_effect_ids"
         );
         target["source_status_effect_ids"] = EmptyArray(
@@ -316,6 +317,19 @@ internal static class BattleDamagePreviewProjection
         string reason
     )
         where TLeaseRoot : class, IDisposable => lease.Own(new GArray(), reason);
+
+    private static GArray WriteStringNameArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<StringName> values,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        foreach (StringName value in values ?? Array.Empty<StringName>())
+            result.Add(value);
+        return result;
+    }
 
     private readonly record struct ProjectionRoot(
         GodotProjectionLease<GDictionary> Lease,

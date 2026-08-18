@@ -1713,10 +1713,81 @@ public partial class BattleUnitState
     public void EraseStatusEffect(StringName status_id)
     {
         StringName normalized = ToStringName(status_id);
-        if (!IsEmpty(normalized))
+        if (IsEmpty(normalized))
         {
-            _statusEffects.Remove(normalized);
+            return;
         }
+        BattleStatusEffectState removed = _statusEffects.Get(normalized);
+        if (removed == null || !_statusEffects.Remove(normalized))
+            return;
+        ApplyOnRemovedStatusTransitionTyped(removed);
+    }
+
+    internal IReadOnlyList<StringName> BreakStatusEffectsOnPositiveDamageTyped()
+    {
+        var removedStatusIds = new List<StringName>();
+        foreach (StringName statusId in GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState status = GetStatusEffect(statusId);
+            if (status?.break_on_positive_damage != true)
+                continue;
+            EraseStatusEffect(statusId);
+            removedStatusIds.Add(statusId);
+        }
+        return removedStatusIds;
+    }
+
+    internal IReadOnlyList<StringName> ConsumeStatusEffectsAfterNormalTurnTyped()
+    {
+        var removedStatusIds = new List<StringName>();
+        foreach (StringName statusId in GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState status = GetStatusEffect(statusId);
+            if (status?.consume_after_normal_turn != true)
+                continue;
+            EraseStatusEffect(statusId);
+            removedStatusIds.Add(statusId);
+        }
+        return removedStatusIds;
+    }
+
+    private void ApplyOnRemovedStatusTransitionTyped(BattleStatusEffectState removed)
+    {
+        StringName successorId = ToStringName(removed?.on_removed_status_id ?? "");
+        if (IsEmpty(successorId) || successorId == removed.status_id)
+            return;
+
+        BattleStatusEffectState successor =
+            GetStatusEffect(successorId)?.DuplicateState()
+            ?? new BattleStatusEffectState
+            {
+                status_id = successorId,
+                source_unit_id = removed.source_unit_id,
+                source_profile_id = removed.source_profile_id,
+                source_layer_id = removed.source_layer_id,
+                source_skill_id = removed.source_skill_id,
+                stack_behavior = BattleStatusSemanticTable.STACK_REFRESH,
+                stack_limit = 1,
+                power = 1,
+                stacks = 1,
+                duration = -1,
+            };
+        successor.undispellable =
+            successor.undispellable || removed.on_removed_status_undispellable;
+        successor.consume_after_normal_turn =
+            successor.consume_after_normal_turn
+            || removed.on_removed_status_consume_after_normal_turn;
+        successor.save_immunity_tags ??= new List<StringName>();
+        foreach (
+            StringName tag in removed.on_removed_status_save_immunity_tags
+                ?? new List<StringName>()
+        )
+        {
+            StringName normalizedTag = ToStringName(tag);
+            if (!IsEmpty(normalizedTag) && !successor.save_immunity_tags.Contains(normalizedTag))
+                successor.save_immunity_tags.Add(normalizedTag);
+        }
+        SetStatusEffect(successor);
     }
 
     public void ClearStatusEffects()
