@@ -495,6 +495,17 @@ internal sealed partial class CombatEffectImportModel
         int power,
         int durationTu,
         ICombatEffectPayloadImportModel payload
+    ) : this(kind, payload)
+    {
+        MinSkillLevel = minSkillLevel;
+        MaxSkillLevel = maxSkillLevel;
+        Power = power;
+        DurationTu = durationTu;
+    }
+
+    internal CombatEffectImportModel(
+        CombatEffectImportKind kind,
+        ICombatEffectPayloadImportModel payload
     )
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -507,18 +518,14 @@ internal sealed partial class CombatEffectImportModel
         }
 
         Kind = kind;
-        MinSkillLevel = minSkillLevel;
-        MaxSkillLevel = maxSkillLevel;
-        Power = power;
-        DurationTu = durationTu;
         Payload = payload;
     }
 
     internal CombatEffectImportKind Kind { get; }
-    internal int MinSkillLevel { get; }
-    internal int MaxSkillLevel { get; }
-    internal int Power { get; }
-    internal int DurationTu { get; }
+    internal int MinSkillLevel { get; init; }
+    internal int MaxSkillLevel { get; init; } = -1;
+    internal int Power { get; init; }
+    internal int DurationTu { get; init; }
     internal ICombatEffectPayloadImportModel Payload { get; }
 }
 
@@ -799,7 +806,19 @@ internal sealed class SkillLevelOverrideJsonDto
 [JsonSerializable(typeof(SkillJsonDto))]
 [JsonSerializable(typeof(CombatSkillJsonDto))]
 [JsonSerializable(typeof(CombatEffectJsonDto))]
+[JsonSerializable(typeof(EmptyCombatEffectPayloadJsonDto))]
+[JsonSerializable(typeof(StatusEffectPayloadJsonDto))]
+[JsonSerializable(typeof(HealEffectPayloadJsonDto))]
+[JsonSerializable(typeof(EquipmentDurabilityDamageEffectPayloadJsonDto))]
+[JsonSerializable(typeof(RepeatAttackUntilFailEffectPayloadJsonDto))]
 [JsonSerializable(typeof(LayeredBarrierEffectPayloadJsonDto))]
+[JsonSerializable(typeof(GradedSaveExecuteEffectPayloadJsonDto))]
+[JsonSerializable(typeof(DispelMagicEffectPayloadJsonDto))]
+[JsonSerializable(typeof(OnKillGainResourcesEffectPayloadJsonDto))]
+[JsonSerializable(typeof(CombatEffectSlotWeightJsonDto))]
+[JsonSerializable(typeof(CombatDamageSegmentJsonDto))]
+[JsonSerializable(typeof(CombatTargetDamageMultiplierRuleJsonDto))]
+[JsonSerializable(typeof(CombatWeightedStatusOutcomeJsonDto))]
 [JsonSerializable(typeof(SkillLevelOverrideJsonDto))]
 [JsonSerializable(typeof(CombatCastVariantPayloadJsonDto))]
 internal partial class SkillJsonImportSerializerContext : JsonSerializerContext { }

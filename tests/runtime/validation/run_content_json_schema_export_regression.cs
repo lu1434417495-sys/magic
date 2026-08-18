@@ -561,17 +561,23 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
         );
         _test.Eq(
             effect.GetProperty("oneOf").GetArrayLength(),
-            1,
-            "stage-1a skill schema should truthfully expose only the layered_barrier pilot kind"
+            28,
+            "skill schema should expose the complete registered combat-effect closed set"
         );
         JsonElement layeredBranch = ReferencedDefinition(
             root,
-            effect.GetProperty("oneOf").EnumerateArray().Single()
+            effect.GetProperty("oneOf").EnumerateArray().Single(branch =>
+                ReferencedDefinition(root, branch)
+                    .GetProperty("properties")
+                    .GetProperty("effect_type")
+                    .GetProperty("const")
+                    .GetString() == "layered_barrier"
+            )
         );
         _test.Eq(
             layeredBranch.GetProperty("properties").GetProperty("effect_type").GetProperty("const").GetString(),
             "layered_barrier",
-            "pilot closed-kind branch should lock its wire discriminator"
+            "closed-kind branch should lock its wire discriminator"
         );
         JsonElement payload = ReferencedDefinition(
             root,
@@ -633,6 +639,17 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             NonNullBranch(
                 partialEntry.GetProperty("properties").GetProperty("combat_profile")
             )
+        );
+        JsonElement partialEffect = ReferencedDefinition(
+            root,
+            partialCombat.GetProperty("properties")
+                .GetProperty("effect_defs")
+                .GetProperty("items")
+        );
+        _test.Eq(
+            partialEffect.GetRawText(),
+            effect.GetRawText(),
+            "replace-only effect arrays should retain the complete closed full-effect schema in templates"
         );
         _test.False(
             partialCombat.TryGetProperty("required", out _),
@@ -906,6 +923,28 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             SkillRootCombatImportValueRules.TrySquare2Corner,
             "cast_variant.payload.square2_corner"
         );
+        AssertSkillSchemaProviderParity<CombatTickEffectImportKind>(new CombatTickEffectSchemaValues(), SkillCombatEffectValueRules.TryTickEffect, "effect.tick_effect_type");
+        AssertSkillSchemaProviderParity<CombatEffectLifetimeImportKind>(new CombatEffectLifetimeSchemaValues(), SkillCombatEffectValueRules.TryLifetime, "effect.lifetime_policy");
+        AssertSkillSchemaProviderParity<CombatPathStepAreaPatternImportKind>(new CombatPathStepAreaPatternSchemaValues(), SkillCombatEffectValueRules.TryPathStepAreaPattern, "effect.path_step_area_pattern");
+        AssertSkillSchemaProviderParity<DamageMitigationTierImportKind>(new DamageMitigationTierSchemaValues(), SkillCombatEffectValueRules.TryMitigationTier, "effect.mitigation_tier");
+        AssertSkillSchemaProviderParity<DamageCategoryImportKind>(new DamageCategorySchemaValues(), SkillCombatEffectValueRules.TryDamageCategory, "effect.damage_category");
+        AssertSkillSchemaProviderParity<ShieldAttributeModifierImportKind>(new ShieldAttributeModifierSchemaValues(), SkillCombatEffectValueRules.TryShieldAttribute, "effect.shield_attribute_modifier_id");
+        AssertSkillSchemaProviderParity<CombatEffectTargetTeamFilterImportKind>(new CombatEffectTargetTeamFilterSchemaValues(), SkillCombatEffectValueRules.TryEffectTargetTeamFilter, "effect.effect_target_team_filter");
+        AssertSkillSchemaProviderParity<CombatEffectTargetOrderImportKind>(new CombatEffectTargetOrderSchemaValues(), SkillCombatEffectValueRules.TryTargetOrder, "effect.target_order");
+        AssertSkillSchemaProviderParity<CombatCognitionImportKind>(new CombatCognitionSchemaValues(), SkillCombatEffectValueRules.TryCognition, "effect.required_target_min_cognition");
+        AssertSkillSchemaProviderParity<CombatTerrainContactImportKind>(new CombatTerrainContactSchemaValues(), SkillCombatEffectValueRules.TryTerrainContact, "effect.terrain_contact_mode");
+        AssertSkillSchemaProviderParity<CombatBodySizeImportKind>(new CombatBodySizeSchemaValues(), SkillCombatEffectValueRules.TryBodySize, "effect.body_size_category");
+        AssertSkillSchemaProviderParity<CombatForcedMoveImportKind>(new CombatForcedMoveSchemaValues(), SkillCombatEffectValueRules.TryForcedMove, "effect.forced_move_mode");
+        AssertSkillSchemaProviderParity<CombatStackBehaviorImportKind>(new CombatStackBehaviorSchemaValues(), SkillCombatEffectValueRules.TryStackBehavior, "effect.stack_behavior");
+        AssertSkillSchemaProviderParity<CombatDamageBonusConditionImportKind>(new CombatDamageBonusConditionSchemaValues(), SkillCombatEffectValueRules.TryBonusCondition, "effect.bonus_condition");
+        AssertSkillSchemaProviderParity<CombatEffectTriggerEventImportKind>(new CombatEffectTriggerEventSchemaValues(), SkillCombatEffectValueRules.TryTriggerEvent, "effect.trigger_event");
+        AssertSkillSchemaProviderParity<CombatEffectTriggerConditionImportKind>(new CombatEffectTriggerConditionSchemaValues(), SkillCombatEffectValueRules.TryTriggerCondition, "effect.trigger_condition");
+        AssertSkillSchemaProviderParity<CombatSaveDcModeImportKind>(new CombatSaveDcModeSchemaValues(), SkillCombatEffectValueRules.TrySaveDcMode, "effect.save_dc_mode");
+        AssertSkillSchemaProviderParity<CombatSaveTagImportKind>(new CombatSaveTagSchemaValues(), SkillCombatEffectValueRules.TrySaveTag, "effect.save_tag");
+        AssertSkillSchemaProviderParity<CombatResourceImportKind>(new CombatResourceSchemaValues(), SkillCombatEffectValueRules.TryResource, "effect.upkeep_resource");
+        AssertSkillSchemaProviderParity<CombatStatusSourceSelectorImportKind>(new CombatStatusSourceSelectorSchemaValues(), SkillCombatEffectValueRules.TryStatusSourceSelector, "effect.required_target_status_source_selector");
+        AssertSkillSchemaProviderParity<CombatEquipmentSlotImportKind>(new CombatEquipmentSlotSchemaValues(), SkillCombatEffectValueRules.TryEquipmentSlot, "effect.equipment_slot");
+        AssertSkillSchemaProviderParity<CombatOnKillGrantScopeImportKind>(new CombatOnKillGrantScopeSchemaValues(), SkillCombatEffectValueRules.TryGrantScope, "effect.payload.grant_scope", CombatOnKillGrantScopeImportKind.None);
     }
 
     private void AssertSkillSchemaProviderParity<TEnum>(

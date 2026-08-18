@@ -35,7 +35,7 @@ internal static class SkillJsonImportRules
         "skill.dto.level_override.area_pattern.unknown";
 }
 
-internal static class SkillJsonImportParser
+internal static partial class SkillJsonImportParser
 {
     /// <summary>
     /// Synchronous sealed import boundary. Domain registration and authoring tools must register
@@ -586,94 +586,7 @@ internal static class SkillJsonImportParser
         CombatEffectJsonDto? dto,
         string pointer,
         List<ContentJsonDiagnostic> diagnostics
-    )
-    {
-        if (dto == null)
-        {
-            diagnostics.Add(Required(context, pointer));
-            return null;
-        }
-
-        int startingErrorCount = diagnostics.Count;
-        int minSkillLevel = dto.MinSkillLevel ?? 0;
-        int maxSkillLevel = dto.MaxSkillLevel ?? -1;
-        int power = dto.Power ?? 0;
-        int durationTu = dto.DurationTu ?? 0;
-        ICombatEffectPayloadImportModel? payload = null;
-        if (
-            !SkillJsonImportValueRules.TryParseEffectKind(
-                dto.EffectType,
-                out CombatEffectImportKind kind
-            )
-        )
-        {
-            diagnostics.Add(
-                Diagnostic(
-                    SkillJsonImportRules.UnknownEffectKind,
-                    "Combat effect type is not registered by the pilot closed-kind contract.",
-                    context,
-                    $"{pointer}/effect_type"
-                )
-            );
-        }
-        else
-        {
-            payload = NormalizeEffectPayload(context, dto, kind, pointer, diagnostics);
-        }
-
-        ValidateNonNegative(minSkillLevel, context, $"{pointer}/min_skill_level", diagnostics);
-        if (maxSkillLevel < -1)
-            AddRangeDiagnostic(context, $"{pointer}/max_skill_level", diagnostics);
-        ValidateNonNegative(power, context, $"{pointer}/power", diagnostics);
-        ValidateNonNegative(durationTu, context, $"{pointer}/duration_tu", diagnostics);
-
-        return diagnostics.Count == startingErrorCount && payload != null
-            ? new CombatEffectImportModel(
-                kind,
-                minSkillLevel,
-                maxSkillLevel,
-                power,
-                durationTu,
-                payload
-            )
-            : null;
-    }
-
-    private static ICombatEffectPayloadImportModel? NormalizeEffectPayload(
-        JsonContentEntryContext context,
-        CombatEffectJsonDto dto,
-        CombatEffectImportKind kind,
-        string effectPointer,
-        List<ContentJsonDiagnostic> diagnostics
-    )
-    {
-        string payloadPointer = $"{effectPointer}/payload";
-        if (dto.Payload is not JsonElement payload)
-        {
-            diagnostics.Add(
-                Diagnostic(
-                    SkillJsonImportRules.InvalidEffectPayload,
-                    "Registered combat effect payload must be a JSON value consumed by the parser.",
-                    context,
-                    payloadPointer
-                )
-            );
-            return null;
-        }
-
-        return kind switch
-        {
-            CombatEffectImportKind.LayeredBarrier => NormalizeLayeredBarrierPayload(
-                context,
-                payload,
-                payloadPointer,
-                diagnostics
-            ),
-            _ => throw new InvalidOperationException(
-                $"Combat effect kind '{kind}' has no registered typed payload parser."
-            ),
-        };
-    }
+    ) => NormalizeFullCombatEffect(context, dto, pointer, diagnostics);
 
     private static LayeredBarrierEffectPayloadImportModel? NormalizeLayeredBarrierPayload(
         JsonContentEntryContext context,
@@ -1238,34 +1151,8 @@ internal static class SkillJsonImportParser
                 return Required(context, effectPointer);
             if (effect.ValueKind == JsonValueKind.Object)
             {
-                ContentJsonDiagnostic? missing = FindMissing(
+                ContentJsonDiagnostic? missing = FindEffectObjectContract(
                     effect,
-                    new[] { "effect_type" },
-                    context,
-                    effectPointer
-                );
-                if (missing != null)
-                    return missing;
-                if (
-                    effect.TryGetProperty("effect_type", out JsonElement effectType)
-                    && effectType.ValueKind == JsonValueKind.String
-                    && SkillJsonImportValueRules.TryParseEffectKind(effectType.GetString(), out _)
-                    && (
-                        !effect.TryGetProperty("payload", out JsonElement payload)
-                        || payload.ValueKind == JsonValueKind.Null
-                    )
-                )
-                {
-                    return Diagnostic(
-                        SkillJsonImportRules.MissingEffectPayload,
-                        "Registered combat effect kind requires a typed payload object.",
-                        context,
-                        $"{effectPointer}/payload"
-                    );
-                }
-                missing = FindExplicitNull(
-                    effect,
-                    new[] { "min_skill_level", "max_skill_level", "power", "duration_tu" },
                     context,
                     effectPointer
                 );
@@ -1276,6 +1163,356 @@ internal static class SkillJsonImportParser
         }
         return null;
     }
+
+    private static ContentJsonDiagnostic? FindEffectObjectContract(
+        JsonElement effect,
+        JsonContentEntryContext context,
+        string pointer
+    )
+    {
+        ContentJsonDiagnostic? issue = FindMissing(
+            effect,
+            new[] { "effect_type" },
+            context,
+            pointer
+        );
+        if (issue != null)
+            return issue;
+
+        if (
+            effect.TryGetProperty("effect_type", out JsonElement effectType)
+            && effectType.ValueKind == JsonValueKind.String
+            && SkillJsonImportValueRules.TryParseEffectKind(
+                effectType.GetString(),
+                out CombatEffectImportKind kind
+            )
+        )
+        {
+            if (
+                !effect.TryGetProperty("payload", out JsonElement payload)
+                || payload.ValueKind == JsonValueKind.Null
+            )
+            {
+                return Diagnostic(
+                    SkillJsonImportRules.MissingEffectPayload,
+                    "Registered combat effect kind requires a typed payload object.",
+                    context,
+                    $"{pointer}/payload"
+                );
+            }
+
+            if (payload.ValueKind == JsonValueKind.Object)
+            {
+                issue = FindMissing(
+                    payload,
+                    RequiredPayloadPropertyNames(
+                        SkillFullCombatEffectClosedSpec.GetPayloadShape(kind)
+                    ),
+                    context,
+                    $"{pointer}/payload"
+                );
+                if (issue != null)
+                    return issue;
+
+                issue = FindExplicitEmptyString(
+                    payload,
+                    PayloadClosedScalarPropertyNames,
+                    context,
+                    $"{pointer}/payload"
+                );
+                if (issue != null)
+                    return issue;
+
+                if (
+                    kind == CombatEffectImportKind.EquipmentDurabilityDamage
+                    && payload.TryGetProperty("target_slots", out JsonElement targetSlots)
+                    && targetSlots.ValueKind == JsonValueKind.Array
+                    && targetSlots.GetArrayLength() == 0
+                )
+                {
+                    return Required(context, $"{pointer}/payload/target_slots");
+                }
+
+                if (kind == CombatEffectImportKind.RepeatAttackUntilFail)
+                {
+                    issue = FindDuplicatePenaltyFreeStageLevel(
+                        payload,
+                        context,
+                        $"{pointer}/payload"
+                    );
+                    if (issue != null)
+                        return issue;
+                }
+            }
+        }
+
+        issue = FindExplicitEmptyString(
+            effect,
+            EffectClosedScalarPropertyNames,
+            context,
+            pointer
+        );
+        if (issue != null)
+            return issue;
+
+        issue = FindFirstExplicitNull(effect, context, pointer);
+        if (issue != null)
+            return issue;
+
+        if (
+            effect.TryGetProperty("extra_damage_segments", out JsonElement segments)
+            && segments.ValueKind == JsonValueKind.Array
+        )
+        {
+            int segmentIndex = 0;
+            foreach (JsonElement segment in segments.EnumerateArray())
+            {
+                if (segment.ValueKind == JsonValueKind.Object)
+                {
+                    issue = FindExplicitEmptyString(
+                        segment,
+                        NestedDamageSegmentClosedScalarPropertyNames,
+                        context,
+                        $"{pointer}/extra_damage_segments/{segmentIndex}"
+                    );
+                    if (issue != null)
+                        return issue;
+                }
+                segmentIndex += 1;
+            }
+        }
+
+        if (
+            effect.TryGetProperty(
+                "save_failure_status_outcomes",
+                out JsonElement outcomes
+            )
+            && outcomes.ValueKind == JsonValueKind.Array
+        )
+        {
+            int index = 0;
+            foreach (JsonElement outcome in outcomes.EnumerateArray())
+            {
+                string outcomePointer =
+                    $"{pointer}/save_failure_status_outcomes/{index}";
+                if (outcome.ValueKind == JsonValueKind.Object)
+                {
+                    issue = FindMissing(
+                        outcome,
+                        new[] { "status_effect" },
+                        context,
+                        outcomePointer
+                    );
+                    if (issue != null)
+                        return issue;
+                }
+                if (
+                    outcome.ValueKind == JsonValueKind.Object
+                    && outcome.TryGetProperty(
+                        "status_effect",
+                        out JsonElement nestedEffect
+                    )
+                    && nestedEffect.ValueKind == JsonValueKind.Object
+                )
+                {
+                    issue = FindEffectObjectContract(
+                        nestedEffect,
+                        context,
+                        $"{outcomePointer}/status_effect"
+                    );
+                    if (issue != null)
+                        return issue;
+                }
+                index += 1;
+            }
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> RequiredPayloadPropertyNames(
+        CombatEffectPayloadShape shape
+    ) =>
+        shape switch
+        {
+            CombatEffectPayloadShape.LayeredBarrier =>
+                CombatEffectImportClosedSpec.LayeredBarrierRequiredPayloadPropertyNames,
+            CombatEffectPayloadShape.EquipmentDurabilityDamage =>
+                new[] { "target_slots" },
+            CombatEffectPayloadShape.GradedSaveExecute => GradedPayloadRequiredPropertyNames,
+            _ => Array.Empty<string>(),
+        };
+
+    private static ContentJsonDiagnostic? FindFirstExplicitNull(
+        JsonElement value,
+        JsonContentEntryContext context,
+        string pointer
+    )
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            foreach (JsonProperty property in value.EnumerateObject())
+            {
+                string childPointer = $"{pointer}/{EscapePointerToken(property.Name)}";
+                if (property.Value.ValueKind == JsonValueKind.Null)
+                    return Required(context, childPointer);
+                ContentJsonDiagnostic? nested = FindFirstExplicitNull(
+                    property.Value,
+                    context,
+                    childPointer
+                );
+                if (nested != null)
+                    return nested;
+            }
+        }
+        else if (value.ValueKind == JsonValueKind.Array)
+        {
+            int index = 0;
+            foreach (JsonElement item in value.EnumerateArray())
+            {
+                string childPointer = $"{pointer}/{index}";
+                if (item.ValueKind == JsonValueKind.Null)
+                    return Required(context, childPointer);
+                ContentJsonDiagnostic? nested = FindFirstExplicitNull(
+                    item,
+                    context,
+                    childPointer
+                );
+                if (nested != null)
+                    return nested;
+                index += 1;
+            }
+        }
+        return null;
+    }
+
+    private static ContentJsonDiagnostic? FindDuplicatePenaltyFreeStageLevel(
+        JsonElement payload,
+        JsonContentEntryContext context,
+        string pointer
+    )
+    {
+        if (
+            !payload.TryGetProperty(
+                "penalty_free_stages_by_level",
+                out JsonElement levels
+            )
+            || levels.ValueKind != JsonValueKind.Object
+        )
+        {
+            return null;
+        }
+
+        var seen = new HashSet<int>();
+        foreach (JsonProperty property in levels.EnumerateObject())
+        {
+            string keyPointer =
+                $"{pointer}/penalty_free_stages_by_level/{EscapePointerToken(property.Name)}";
+            if (!TryParseCanonicalNonNegativeInt(property.Name, out int level))
+            {
+                return Diagnostic(
+                    SkillJsonImportRules.InvalidId,
+                    "Penalty-free stage level key must be a canonical nonnegative integer.",
+                    context,
+                    keyPointer
+                );
+            }
+            if (!seen.Add(level))
+            {
+                return Diagnostic(
+                    SkillJsonImportRules.DuplicateLevelKey,
+                    "Penalty-free stage level key must be unique.",
+                    context,
+                    keyPointer
+                );
+            }
+        }
+        return null;
+    }
+
+    private static bool TryParseCanonicalNonNegativeInt(string? value, out int result)
+    {
+        result = default;
+        if (
+            string.IsNullOrEmpty(value)
+            || (value.Length > 1 && value[0] == '0')
+            || !int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out result)
+            || result < 0
+        )
+        {
+            result = default;
+            return false;
+        }
+        return true;
+    }
+
+    private static readonly IReadOnlyList<(string PropertyName, string RuleId)>
+        EffectClosedScalarPropertyNames = Array.AsReadOnly(
+            new[]
+            {
+                ("tick_effect_type", SkillJsonImportRules.InvalidEffectPayload),
+                ("lifetime_policy", SkillJsonImportRules.InvalidEffectPayload),
+                ("damage_tag", SkillJsonImportRules.InvalidEffectPayload),
+                ("damage_category", SkillJsonImportRules.InvalidEffectPayload),
+                ("shield_attribute_modifier_id", SkillJsonImportRules.InvalidEffectPayload),
+                ("path_step_area_pattern", SkillJsonImportRules.InvalidEffectPayload),
+                ("mitigation_tier", SkillJsonImportRules.InvalidEffectPayload),
+                ("effect_target_team_filter", SkillJsonImportRules.InvalidEffectPayload),
+                ("target_order", SkillJsonImportRules.InvalidEffectPayload),
+                ("required_target_min_cognition", SkillJsonImportRules.InvalidEffectPayload),
+                ("terrain_contact_mode", SkillJsonImportRules.InvalidEffectPayload),
+                ("body_size_category", SkillJsonImportRules.InvalidEffectPayload),
+                ("forced_move_mode", SkillJsonImportRules.InvalidEffectPayload),
+                ("stack_behavior", SkillJsonImportRules.InvalidEffectPayload),
+                ("bonus_condition", SkillJsonImportRules.InvalidEffectPayload),
+                ("trigger_event", SkillJsonImportRules.InvalidEffectPayload),
+                ("trigger_condition", SkillJsonImportRules.InvalidEffectPayload),
+                ("save_dc_mode", SkillJsonImportRules.InvalidEffectPayload),
+                ("save_dc_source_ability", SkillJsonImportRules.InvalidEffectPayload),
+                ("save_ability", SkillJsonImportRules.InvalidEffectPayload),
+                ("save_tag", SkillJsonImportRules.InvalidEffectPayload),
+                ("required_target_status_source_selector", SkillJsonImportRules.InvalidEffectPayload),
+                ("upkeep_resource", SkillJsonImportRules.InvalidEffectPayload),
+            }
+        );
+
+    private static readonly IReadOnlyList<(string PropertyName, string RuleId)>
+        PayloadClosedScalarPropertyNames = Array.AsReadOnly(
+            new[]
+            {
+                ("area_pattern", SkillJsonImportRules.InvalidEffectPayload),
+                ("cost_resource", SkillJsonImportRules.InvalidEffectPayload),
+                ("grant_scope", SkillJsonImportRules.InvalidEffectPayload),
+            }
+        );
+
+    private static readonly IReadOnlyList<(string PropertyName, string RuleId)>
+        NestedDamageSegmentClosedScalarPropertyNames = Array.AsReadOnly(
+            new[]
+            {
+                ("damage_tag", SkillJsonImportRules.InvalidEffectPayload),
+            }
+        );
+
+    private static readonly IReadOnlyList<string> GradedPayloadRequiredPropertyNames =
+        Array.AsReadOnly(
+            new[]
+            {
+                "critical_failure_damage_dice_count",
+                "critical_failure_damage_dice_sides",
+                "critical_failure_execute_threshold_max_hp_percent",
+                "critical_failure_frightened_duration_tu",
+                "critical_failure_stunned_duration_tu",
+                "failure_damage_dice_count",
+                "failure_damage_dice_sides",
+                "failure_execute_threshold_fixed",
+                "failure_execute_threshold_max_hp_percent",
+                "failure_frightened_duration_tu",
+                "failure_reaction_lock_duration_tu",
+                "profile_id",
+                "success_aftershock_duration_tu",
+            }
+        );
 
     private static ContentJsonDiagnostic? FindExplicitEmptyString(
         JsonElement parent,
