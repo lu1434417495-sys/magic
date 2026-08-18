@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_t60br"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_n3rh7"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatRangedWeaponReactionDef.cs" id="3_sdhxb"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_slsgk"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_lu2ov"]
+
+[sub_resource type="Resource" id="Resource_f56ff"]
+script = ExtResource("3_sdhxb")
+readiness_status_id = &"ready"
+trigger_weapon_families = Array[StringName]([&"", &"bow", &"bow"])
+attack_roll_bonus_by_skill_level = PackedInt32Array(0, 0)
+
+[sub_resource type="Resource" id="Resource_qrsc4"]
+script = ExtResource("4_slsgk")
+skill_id = &"diagnostic_ranged_reaction_families"
+ranged_weapon_reaction_profile = SubResource("Resource_f56ff")
+fumble_protection_extra_mp_percent = 100
+
+[resource]
+script = ExtResource("5_lu2ov")
+skill_id = &"diagnostic_ranged_reaction_families"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_ranged_reaction_families"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_qrsc4")

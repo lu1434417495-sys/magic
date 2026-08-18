@@ -1,0 +1,81 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_e3sq1"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_g5k4d"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_ps42b"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_b48jd"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_5vp1d"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_5pqm7"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_80ox2"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_6bxdy"]
+
+[sub_resource type="Resource" id="Resource_pldba"]
+script = ExtResource("5_5vp1d")
+weight = 0
+
+[sub_resource type="Resource" id="Resource_u32jm"]
+script = ExtResource("2_g5k4d")
+effect_type = &"damage"
+min_skill_level = 1
+effect_target_team_filter = &"enemy"
+trigger_event = &"attack_hit"
+save_dc = 10
+save_ability = &"strength"
+save_tag = &"control"
+
+[sub_resource type="Resource" id="Resource_oyluc"]
+script = ExtResource("5_5vp1d")
+outcome_id = &"duplicate"
+weight = 2147483647
+status_effect = SubResource("Resource_u32jm")
+
+[sub_resource type="Resource" id="Resource_5l64y"]
+script = ExtResource("2_g5k4d")
+effect_type = &"status"
+status_id = &"nested"
+
+[sub_resource type="Resource" id="Resource_2eaio"]
+script = ExtResource("5_5vp1d")
+outcome_id = &"duplicate"
+weight = 2147483647
+status_effect = SubResource("Resource_5l64y")
+
+[sub_resource type="Resource" id="Resource_bxild"]
+script = ExtResource("2_g5k4d")
+effect_type = &"damage"
+damage_tag = &"fire"
+save_dc_bonus = -1
+save_ability = &"strength"
+save_failure_status_id = &"legacy"
+save_failure_status_outcomes = Array[ExtResource("5_5vp1d")]([null, SubResource("Resource_pldba"), SubResource("Resource_oyluc"), SubResource("Resource_2eaio")])
+save_partial_on_success = true
+save_tag = &"control"
+
+[sub_resource type="Resource" id="Resource_77dj3"]
+script = ExtResource("5_5vp1d")
+
+[sub_resource type="Resource" id="Resource_b81u0"]
+script = ExtResource("2_g5k4d")
+effect_type = &"heal"
+save_dc = 10
+save_ability = &"strength"
+save_failure_status_id = &"failed"
+save_failure_status_outcomes = Array[ExtResource("5_5vp1d")]([SubResource("Resource_77dj3")])
+save_partial_on_success = true
+save_tag = &"control"
+
+[sub_resource type="Resource" id="Resource_1hudj"]
+script = ExtResource("7_80ox2")
+skill_id = &"diagnostic_save_outcomes"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_g5k4d")]([SubResource("Resource_bxild"), SubResource("Resource_b81u0")])
+
+[resource]
+script = ExtResource("8_6bxdy")
+skill_id = &"diagnostic_save_outcomes"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_save_outcomes"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_1hudj")

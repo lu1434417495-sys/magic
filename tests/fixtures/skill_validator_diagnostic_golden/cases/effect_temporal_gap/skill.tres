@@ -1,0 +1,52 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_kex1u"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_s1vp5"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_7xsaj"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_dbus4"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_xr7t0"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_4comy"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_mxyeo"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_fa50f"]
+
+[sub_resource type="Resource" id="Resource_8860c"]
+script = ExtResource("2_s1vp5")
+effect_type = &"status"
+status_id = &"time_reverberation"
+
+[sub_resource type="Resource" id="Resource_ouh70"]
+script = ExtResource("2_s1vp5")
+effect_type = &"status"
+status_id = &"time_stasis"
+
+[sub_resource type="Resource" id="Resource_hfs7h"]
+script = ExtResource("2_s1vp5")
+effect_type = &"erase_status"
+status_id = &"other"
+effect_tags = Array[StringName]([&"temporal"])
+
+[sub_resource type="Resource" id="Resource_cc23p"]
+script = ExtResource("2_s1vp5")
+effect_type = &"erase_status"
+status_id = &"time_slow"
+
+[sub_resource type="Resource" id="Resource_3igoy"]
+script = ExtResource("2_s1vp5")
+effect_type = &"damage"
+damage_tag = &"fire"
+
+[sub_resource type="Resource" id="Resource_btnmh"]
+script = ExtResource("7_mxyeo")
+skill_id = &"diagnostic_temporal_gap"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_s1vp5")]([SubResource("Resource_8860c"), SubResource("Resource_ouh70"), SubResource("Resource_hfs7h"), SubResource("Resource_cc23p"), SubResource("Resource_3igoy")])
+
+[resource]
+script = ExtResource("8_fa50f")
+skill_id = &"diagnostic_temporal_gap"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_temporal_gap"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_btnmh")

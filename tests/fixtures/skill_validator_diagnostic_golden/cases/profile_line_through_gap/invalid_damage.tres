@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatLineThroughAttackDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_skill"]
+
+[sub_resource type="Resource" id="Effect"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+damage_tag = &"fire"
+power = 1
+
+[sub_resource type="Resource" id="Profile"]
+script = ExtResource("2_profile")
+primary_weapon_dice_multiplier_curve = PackedInt32Array(1)
+primary_attack_roll_bonus_curve = PackedInt32Array(0)
+successful_intermediate_hit_bonus_cap_curve = PackedInt32Array(0)
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("3_combat")
+skill_id = &"diagnostic_line_through_damage_gap"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+min_target_count = 1
+max_target_count = 1
+max_hits_per_target = 1
+range_value = 5
+weapon_range_policy = &"configured"
+requires_los = true
+fumble_protection_extra_mp_percent = 100
+line_through_attack_profile = SubResource("Profile")
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect")])
+
+[resource]
+script = ExtResource("4_skill")
+skill_id = &"diagnostic_line_through_damage_gap"
+display_name = "Line-through damage diagnostic fixture"
+icon_id = &"diagnostic_line_through_damage_gap"
+description = "T1a.7 diagnostic fixture."
+max_level = 0
+mastery_curve = PackedInt32Array()
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Combat")

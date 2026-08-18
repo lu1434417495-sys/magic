@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_u4cw0"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_m58u8"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_joffg"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_ai5gt"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_mw5mp"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_dqgfu"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_yrerr"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_ghsvr"]
+
+[sub_resource type="Resource" id="Resource_jv26p"]
+script = ExtResource("2_m58u8")
+effect_type = &"damage"
+bonus_weapon_dice_multiplier = 1
+damage_tag = &"fire"
+add_weapon_dice = true
+
+[sub_resource type="Resource" id="Resource_jxwf4"]
+script = ExtResource("2_m58u8")
+effect_type = &"damage"
+damage_tag = &"fire"
+bonus_damage_dice_count = 1
+bonus_condition = &"target_low_hp"
+
+[sub_resource type="Resource" id="Resource_y25vi"]
+script = ExtResource("7_yrerr")
+skill_id = &"diagnostic_damage_direct_gap"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_m58u8")]([SubResource("Resource_jv26p"), SubResource("Resource_jxwf4")])
+
+[resource]
+script = ExtResource("8_ghsvr")
+skill_id = &"diagnostic_damage_direct_gap"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_damage_direct_gap"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_y25vi")

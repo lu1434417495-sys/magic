@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_j4o8u"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_leuix"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_o1bbv"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWindupDef.cs" id="4_wwdaj"]
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencyAutomationDef.cs" id="5_wgocl"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="6_033nn"]
+
+[sub_resource type="Resource" id="Resource_6wrbd"]
+script = ExtResource("1_j4o8u")
+variant_id = &"windup_option"
+
+[sub_resource type="Resource" id="Resource_ye5y7"]
+script = ExtResource("4_wwdaj")
+stamina_cost_per_tier = -1
+weapon_dice_per_tier = 0
+skill_level_tier_caps = PackedInt32Array(-1)
+base_weapon_dice_multipliers = PackedInt32Array(0)
+
+[sub_resource type="Resource" id="Resource_nyq33"]
+script = ExtResource("3_o1bbv")
+skill_id = &"diagnostic_windup"
+target_mode = &"ground"
+casting_time_tu = 5
+casting_maintenance_dc = 1
+casting_spell_control_dc = 1
+windup_profile = SubResource("Resource_ye5y7")
+fumble_protection_extra_mp_percent = 100
+special_resolution_profile_id = &"special"
+target_selection_mode = &"single_coord"
+random_chain_attack_count = 1
+cast_variants = Array[ExtResource("1_j4o8u")]([SubResource("Resource_6wrbd")])
+
+[sub_resource type="Resource" id="Resource_pbgew"]
+script = ExtResource("5_wgocl")
+can_be_stored_in_contingency = true
+
+[resource]
+script = ExtResource("6_033nn")
+skill_id = &"diagnostic_windup"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_windup"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_nyq33")
+contingency_automation_profile = SubResource("Resource_pbgew")

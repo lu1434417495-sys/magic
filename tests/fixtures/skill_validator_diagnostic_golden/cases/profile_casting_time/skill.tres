@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_jeu24"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_bg8in"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_if1xf"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_7ye50"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_vk447"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_dshyu"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_nglpy"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_2347c"]
+
+[sub_resource type="Resource" id="Resource_3g2yy"]
+script = ExtResource("2_bg8in")
+effect_type = &"charge"
+
+[sub_resource type="Resource" id="Resource_emd7a"]
+script = ExtResource("2_bg8in")
+effect_type = &"forced_move"
+effect_target_team_filter = &"self"
+forced_move_mode = &"jump"
+
+[sub_resource type="Resource" id="Resource_m1v8q"]
+script = ExtResource("7_nglpy")
+skill_id = &"black_contract_push"
+casting_time_tu = 5
+fumble_protection_curve = PackedInt32Array(1)
+fumble_protection_extra_mp_percent = 100
+special_resolution_profile_id = &"special"
+target_selection_mode = &"random_chain"
+effect_defs = Array[ExtResource("2_bg8in")]([SubResource("Resource_3g2yy"), SubResource("Resource_emd7a")])
+
+[resource]
+script = ExtResource("8_2347c")
+skill_id = &"black_contract_push"
+display_name = "Diagnostic fixture"
+icon_id = &"black_contract_push"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+learn_source = &"race"
+combat_profile = SubResource("Resource_m1v8q")

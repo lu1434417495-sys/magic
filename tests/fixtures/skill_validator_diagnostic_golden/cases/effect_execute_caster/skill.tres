@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_l71u0"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_deslg"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_rj7cd"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_08yb7"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_uxlmu"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_jtkb8"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_kuusc"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_w37ma"]
+
+[sub_resource type="Resource" id="Resource_7jsgf"]
+script = ExtResource("2_deslg")
+effect_type = &"execute"
+damage_tag = &"fire"
+effect_target_team_filter = &"enemy"
+save_dc = 10
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"unsupported"
+save_ability = &"strength"
+save_tag = &"execute"
+
+[sub_resource type="Resource" id="Resource_82ssa"]
+script = ExtResource("7_kuusc")
+skill_id = &"diagnostic_execute_caster"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_deslg")]([SubResource("Resource_7jsgf")])
+
+[resource]
+script = ExtResource("8_w37ma")
+skill_id = &"diagnostic_execute_caster"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_execute_caster"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_82ssa")

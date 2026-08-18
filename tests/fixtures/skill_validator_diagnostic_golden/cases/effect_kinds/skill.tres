@@ -1,0 +1,160 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_6np23"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_u5b3j"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_3l3sf"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_fieer"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_7qavf"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_rrmw7"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_sdb54"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_hxiso"]
+
+[sub_resource type="Resource" id="Resource_0410v"]
+script = ExtResource("2_u5b3j")
+effect_type = &"chain_damage"
+prevent_repeat_target = false
+chain_conductive_hop_range = -1
+chain_max_total_targets = 1
+chain_conductive_status_ids = Array[StringName]([&"", &"wet", &"wet"])
+chain_backlash_hop_range_bonus = -1
+
+[sub_resource type="Resource" id="Resource_ysi7x"]
+script = ExtResource("2_u5b3j")
+effect_type = &"fixed_repeat_attack"
+fixed_attack_count = 1
+follow_up_damage_multiplier_percent = 0
+
+[sub_resource type="Resource" id="Resource_4fe4w"]
+script = ExtResource("2_u5b3j")
+effect_type = &"repeat_attack_until_fail"
+follow_up_damage_multiplier_percent = 0
+
+[sub_resource type="Resource" id="Resource_qww3p"]
+script = ExtResource("2_u5b3j")
+effect_type = &"shield"
+shield_family = &" "
+shield_attribute_modifier_id = &"unsupported"
+shield_roll_per_target = true
+
+[sub_resource type="Resource" id="Resource_xasq0"]
+script = ExtResource("2_u5b3j")
+effect_type = &"heal"
+power = 1
+heal_to_hp_percent_floor = 50
+heal_missing_hp_percent = 50
+dice_count = 1
+
+[sub_resource type="Resource" id="Resource_jcfpd"]
+script = ExtResource("2_u5b3j")
+effect_type = &"stamina_restore"
+
+[sub_resource type="Resource" id="Resource_htif0"]
+script = ExtResource("2_u5b3j")
+effect_type = &"terrain_effect"
+lifetime_policy = &"unsupported"
+move_cost_delta = -1
+overlay_priority = -1
+does_not_stack_with_status_ids = Array[StringName]([&""])
+terrain_contact_mode = &"unsupported"
+terrain_max_active_instances_per_source = -1
+terrain_replace_existing_from_source = true
+duration_tu = 5
+params = {
+"display_name": "x",
+"does_not_stack_with_status_id": &"x",
+"does_not_stack_with_status_ids": [],
+"overlay_priority": 1,
+"render_overlay_id": &"x"
+}
+
+[sub_resource type="Resource" id="Resource_0ptqc"]
+script = ExtResource("2_u5b3j")
+effect_type = &"terrain"
+
+[sub_resource type="Resource" id="Resource_gkhf2"]
+script = ExtResource("2_u5b3j")
+effect_type = &"terrain_replace"
+
+[sub_resource type="Resource" id="Resource_6uma4"]
+script = ExtResource("2_u5b3j")
+effect_type = &"terrain_replace_to"
+
+[sub_resource type="Resource" id="Resource_ewdny"]
+script = ExtResource("2_u5b3j")
+effect_type = &"height"
+
+[sub_resource type="Resource" id="Resource_dwgoq"]
+script = ExtResource("2_u5b3j")
+effect_type = &"height_delta"
+
+[sub_resource type="Resource" id="Resource_dj2lu"]
+script = ExtResource("2_u5b3j")
+effect_type = &"body_size_category_override"
+body_size_category = &"unsupported"
+
+[sub_resource type="Resource" id="Resource_sq6tw"]
+script = ExtResource("2_u5b3j")
+effect_type = &"position_swap"
+effect_target_team_filter = &"enemy"
+
+[sub_resource type="Resource" id="Resource_fyt46"]
+script = ExtResource("2_u5b3j")
+effect_type = &"forced_move"
+params = {
+"distance": 1,
+"mode": &"x"
+}
+
+[sub_resource type="Resource" id="Resource_4l03a"]
+script = ExtResource("2_u5b3j")
+effect_type = &"source_retreat"
+params = {
+"distance": 1
+}
+
+[sub_resource type="Resource" id="Resource_7hnm2"]
+script = ExtResource("2_u5b3j")
+effect_type = &"charge"
+charge_trap_immunity_min_skill_level = -2
+params = {
+"base_distance": 1,
+"collision_base_damage": 1,
+"collision_size_gap_damage": 1,
+"distance_by_level": 1,
+"skill_id": &"x",
+"trap_immunity_level": 1
+}
+
+[sub_resource type="Resource" id="Resource_doau4"]
+script = ExtResource("2_u5b3j")
+effect_type = &"path_step_aoe"
+path_step_area_pattern = &"unsupported"
+path_step_radius = -1
+repeat_hit_status_threshold = -1
+repeat_hit_status_min_skill_level = -1
+repeat_hit_status_power = -1
+repeat_hit_status_duration_tu = 1
+
+[sub_resource type="Resource" id="Resource_k2coj"]
+script = ExtResource("2_u5b3j")
+effect_type = &"equipment_durability_damage"
+params = {
+"slot_weight_map": {},
+"target_slots": []
+}
+
+[sub_resource type="Resource" id="Resource_4n1bc"]
+script = ExtResource("7_sdb54")
+skill_id = &"diagnostic_effect_kinds"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_u5b3j")]([SubResource("Resource_0410v"), SubResource("Resource_ysi7x"), SubResource("Resource_4fe4w"), SubResource("Resource_qww3p"), SubResource("Resource_xasq0"), SubResource("Resource_jcfpd"), SubResource("Resource_htif0"), SubResource("Resource_0ptqc"), SubResource("Resource_gkhf2"), SubResource("Resource_6uma4"), SubResource("Resource_ewdny"), SubResource("Resource_dwgoq"), SubResource("Resource_dj2lu"), SubResource("Resource_sq6tw"), SubResource("Resource_fyt46"), SubResource("Resource_4l03a"), SubResource("Resource_7hnm2"), SubResource("Resource_doau4"), SubResource("Resource_k2coj")])
+
+[resource]
+script = ExtResource("8_hxiso")
+skill_id = &"diagnostic_effect_kinds"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_effect_kinds"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_4n1bc")

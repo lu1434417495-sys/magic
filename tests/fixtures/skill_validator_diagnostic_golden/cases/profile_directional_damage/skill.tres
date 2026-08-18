@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_xtdky"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDirectionalPiercingDef.cs" id="2_n8xb4"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_uixvj"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="4_57aay"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="5_1p0sn"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="6_3yvwy"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="7_skybc"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="8_2r7cv"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="9_vvacj"]
+
+[sub_resource type="Resource" id="Resource_mawb1"]
+script = ExtResource("2_n8xb4")
+
+[sub_resource type="Resource" id="Resource_c4p4v"]
+script = ExtResource("3_uixvj")
+effect_type = &"damage"
+damage_tag = &"fire"
+
+[sub_resource type="Resource" id="Resource_dcc5e"]
+script = ExtResource("8_2r7cv")
+skill_id = &"diagnostic_directional_damage"
+directional_piercing_profile = SubResource("Resource_mawb1")
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("3_uixvj")]([SubResource("Resource_c4p4v")])
+
+[resource]
+script = ExtResource("9_vvacj")
+skill_id = &"diagnostic_directional_damage"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_directional_damage"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_dcc5e")

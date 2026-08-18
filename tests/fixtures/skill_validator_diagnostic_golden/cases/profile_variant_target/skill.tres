@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_6pqyq"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_j8ucc"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_o3id4"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_1mub2"]
+
+[sub_resource type="Resource" id="Resource_ydbmm"]
+script = ExtResource("1_6pqyq")
+variant_id = &"unsupported_target"
+target_mode = &"unsupported"
+
+[sub_resource type="Resource" id="Resource_juhyf"]
+script = ExtResource("3_o3id4")
+skill_id = &"diagnostic_variant_target"
+fumble_protection_extra_mp_percent = 100
+cast_variants = Array[ExtResource("1_6pqyq")]([SubResource("Resource_ydbmm")])
+
+[resource]
+script = ExtResource("4_1mub2")
+skill_id = &"diagnostic_variant_target"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_variant_target"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_juhyf")

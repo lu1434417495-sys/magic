@@ -1,0 +1,88 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_e3ajy"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_0an22"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_bg5ck"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_8b2xw"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_ksn0t"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_cu5y4"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_unt0k"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_gnexj"]
+
+[sub_resource type="Resource" id="Resource_6kv3k"]
+script = ExtResource("2_0an22")
+effect_type = &"damage"
+damage_tag = &"unsupported"
+
+[sub_resource type="Resource" id="Resource_qiksg"]
+script = ExtResource("2_0an22")
+effect_type = &"damage"
+damage_tag = &"fire"
+mitigation_bypass_damage_tags = Array[StringName]([&"fire"])
+
+[sub_resource type="Resource" id="Resource_mjp6x"]
+script = ExtResource("4_8b2xw")
+mitigation_bypass_damage_tags = Array[StringName]([&"fire"])
+dice_bonus = 1
+
+[sub_resource type="Resource" id="Resource_t1wpe"]
+script = ExtResource("2_0an22")
+effect_type = &"damage"
+damage_tag = &"fire"
+extra_damage_segments = Array[ExtResource("4_8b2xw")]([SubResource("Resource_mjp6x")])
+
+[sub_resource type="Resource" id="Resource_h2xvd"]
+script = ExtResource("6_cu5y4")
+
+[sub_resource type="Resource" id="Resource_gf2n4"]
+script = ExtResource("6_cu5y4")
+all_creature_type_tags = ["", "dragon", "dragon"]
+excluded_creature_type_tags = ["", "undead", "undead"]
+
+[sub_resource type="Resource" id="Resource_a2hpd"]
+script = ExtResource("2_0an22")
+effect_type = &"damage"
+damage_tag = &"fire"
+target_damage_multiplier_rules = Array[ExtResource("6_cu5y4")]([SubResource("Resource_h2xvd"), SubResource("Resource_gf2n4")])
+
+[sub_resource type="Resource" id="Resource_mr1ck"]
+script = ExtResource("2_0an22")
+effect_type = &"damage"
+damage_tag = &"fire"
+bonus_condition = &"target_creature_type"
+
+[sub_resource type="Resource" id="Resource_1m8h1"]
+script = ExtResource("2_0an22")
+effect_type = &"damage"
+weapon_dice_multiplier = 2
+bonus_weapon_dice_multiplier = 1
+damage_tag = &"fire"
+
+[sub_resource type="Resource" id="Resource_4761u"]
+script = ExtResource("2_0an22")
+effect_type = &"damage"
+damage_tag = &"fire"
+bonus_damage_dice_sides = 6
+
+[sub_resource type="Resource" id="Resource_0eru4"]
+script = ExtResource("2_0an22")
+effect_type = &"damage"
+damage_tag = &"fire"
+bonus_damage_dice_count = 1
+bonus_condition = &"target_low_hp"
+
+[sub_resource type="Resource" id="Resource_1tagn"]
+script = ExtResource("7_unt0k")
+skill_id = &"diagnostic_damage_semantic_gaps"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_0an22")]([SubResource("Resource_6kv3k"), SubResource("Resource_qiksg"), SubResource("Resource_t1wpe"), SubResource("Resource_a2hpd"), SubResource("Resource_mr1ck"), SubResource("Resource_1m8h1"), SubResource("Resource_4761u"), SubResource("Resource_0eru4")])
+
+[resource]
+script = ExtResource("8_gnexj")
+skill_id = &"diagnostic_damage_semantic_gaps"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_damage_semantic_gaps"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_1tagn")

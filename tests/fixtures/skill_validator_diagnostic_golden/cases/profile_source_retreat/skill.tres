@@ -1,0 +1,55 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_lbrth"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_gwd0f"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_hdb72"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_3afpj"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_3i7yt"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_n616m"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_3wu6i"]
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencyAutomationDef.cs" id="8_nw5gw"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="9_u0wce"]
+
+[sub_resource type="Resource" id="Resource_edcjt"]
+script = ExtResource("2_gwd0f")
+effect_type = &"source_retreat"
+
+[sub_resource type="Resource" id="Resource_xrwpm"]
+script = ExtResource("1_lbrth")
+variant_id = &"retreat_variant"
+effect_defs = Array[ExtResource("2_gwd0f")]([SubResource("Resource_edcjt")])
+
+[sub_resource type="Resource" id="Resource_g7d36"]
+script = ExtResource("2_gwd0f")
+effect_type = &"source_retreat"
+
+[sub_resource type="Resource" id="Resource_eejhi"]
+script = ExtResource("2_gwd0f")
+effect_type = &"source_retreat"
+
+[sub_resource type="Resource" id="Resource_fqg7d"]
+script = ExtResource("7_3wu6i")
+skill_id = &"diagnostic_source_retreat_profile"
+target_mode = &"ground"
+casting_time_tu = 5
+fumble_protection_extra_mp_percent = 100
+special_resolution_profile_id = &"special"
+target_selection_mode = &"single_coord"
+random_chain_attack_count = 1
+effect_defs = Array[ExtResource("2_gwd0f")]([SubResource("Resource_g7d36"), SubResource("Resource_eejhi")])
+cast_variants = Array[ExtResource("1_lbrth")]([SubResource("Resource_xrwpm")])
+
+[sub_resource type="Resource" id="Resource_knnil"]
+script = ExtResource("8_nw5gw")
+can_be_stored_in_contingency = true
+
+[resource]
+script = ExtResource("9_u0wce")
+skill_id = &"diagnostic_source_retreat_profile"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_source_retreat_profile"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_fqg7d")
+contingency_automation_profile = SubResource("Resource_knnil")

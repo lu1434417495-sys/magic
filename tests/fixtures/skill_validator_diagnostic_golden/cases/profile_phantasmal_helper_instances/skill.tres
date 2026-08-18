@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="1_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="2_skill"]
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("1_combat")
+skill_id = &"mage_phantasmal_kill"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+area_pattern = &"single"
+area_value = 0
+special_resolution_profile_id = &"wrong_profile"
+fumble_protection_extra_mp_percent = 100
+
+[resource]
+script = ExtResource("2_skill")
+skill_id = &"mage_phantasmal_kill"
+display_name = "Phantasmal helper diagnostic fixture"
+icon_id = &"mage_phantasmal_kill"
+description = "T1a.7 diagnostic fixture."
+max_level = 9
+mastery_curve = PackedInt32Array(10, 20, 30, 40, 50, 60, 70, 80, 90)
+tags = Array[StringName]([&"test"])
+level_description_configs = {
+"0": {},
+"1": {},
+"2": {},
+"3": {},
+"4": {},
+"5": {},
+"6": {},
+"7": {},
+"8": {},
+"9": {}
+}
+combat_profile = SubResource("Combat")

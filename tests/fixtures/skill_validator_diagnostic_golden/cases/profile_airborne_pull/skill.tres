@@ -1,0 +1,72 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_oremn"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_3k4if"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_r52of"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_xf0oj"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_qos76"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_gtu3v"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_em47v"]
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencyAutomationDef.cs" id="8_gwjlm"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="9_c1ex0"]
+
+[sub_resource type="Resource" id="Resource_vjbg7"]
+script = ExtResource("2_3k4if")
+effect_type = &"forced_move"
+forced_move_mode = &"airborne_pull"
+
+[sub_resource type="Resource" id="Resource_jjsij"]
+script = ExtResource("1_oremn")
+variant_id = &"pull_variant"
+effect_defs = Array[ExtResource("2_3k4if")]([SubResource("Resource_vjbg7")])
+
+[sub_resource type="Resource" id="Resource_aivhr"]
+script = ExtResource("2_3k4if")
+effect_type = &"forced_move"
+min_skill_level = 1
+forced_move_mode = &"airborne_pull"
+
+[sub_resource type="Resource" id="Resource_lwbhp"]
+script = ExtResource("2_3k4if")
+effect_type = &"damage"
+
+[sub_resource type="Resource" id="Resource_65eie"]
+script = ExtResource("2_3k4if")
+effect_type = &"damage"
+damage_tag = &"fire"
+trigger_event = &"forced_move_applied"
+
+[sub_resource type="Resource" id="Resource_ako55"]
+script = ExtResource("2_3k4if")
+effect_type = &"forced_move"
+forced_move_mode = &"airborne_pull"
+
+[sub_resource type="Resource" id="Resource_6t2v2"]
+script = ExtResource("7_em47v")
+skill_id = &"diagnostic_airborne_pull_profile"
+target_mode = &"ground"
+target_team_filter = &"ally"
+casting_time_tu = 5
+attack_resolution_mode = &"auto"
+fumble_protection_extra_mp_percent = 100
+special_resolution_profile_id = &"special"
+target_selection_mode = &"single_coord"
+random_chain_attack_count = 1
+effect_defs = Array[ExtResource("2_3k4if")]([SubResource("Resource_aivhr"), SubResource("Resource_lwbhp"), SubResource("Resource_65eie")])
+passive_effect_defs = Array[ExtResource("2_3k4if")]([SubResource("Resource_ako55")])
+cast_variants = Array[ExtResource("1_oremn")]([SubResource("Resource_jjsij")])
+
+[sub_resource type="Resource" id="Resource_xswiv"]
+script = ExtResource("8_gwjlm")
+can_be_stored_in_contingency = true
+
+[resource]
+script = ExtResource("9_c1ex0")
+skill_id = &"diagnostic_airborne_pull_profile"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_airborne_pull_profile"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_6t2v2")
+contingency_automation_profile = SubResource("Resource_xswiv")

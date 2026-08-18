@@ -1,0 +1,55 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_lh7f3"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_17nwp"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_sh1sn"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_fq02u"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_svnse"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_x0f8b"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_7octx"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_gv1hb"]
+
+[sub_resource type="Resource" id="Resource_kxi0f"]
+script = ExtResource("3_sh1sn")
+slot_id = &"unsupported"
+
+[sub_resource type="Resource" id="Resource_74ep2"]
+script = ExtResource("3_sh1sn")
+slot_id = &"head"
+weight = 1
+
+[sub_resource type="Resource" id="Resource_dn6hh"]
+script = ExtResource("3_sh1sn")
+slot_id = &"head"
+weight = 1
+
+[sub_resource type="Resource" id="Resource_dc7ny"]
+script = ExtResource("2_17nwp")
+effect_type = &"equipment_durability_damage"
+power = 1
+require_damage_applied = true
+save_dc = 10
+save_ability = &"strength"
+save_tag = &"control"
+equipment_durability_slot_weights = Array[ExtResource("3_sh1sn")]([null, SubResource("Resource_kxi0f"), SubResource("Resource_74ep2"), SubResource("Resource_dn6hh")])
+params = {
+"fallback_slots": [&"unsupported", &"head", &"head"],
+"max_damaged_items": 2,
+"target_slots": "not_array"
+}
+
+[sub_resource type="Resource" id="Resource_tr8um"]
+script = ExtResource("7_7octx")
+skill_id = &"diagnostic_durability_gap"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_17nwp")]([SubResource("Resource_dc7ny")])
+
+[resource]
+script = ExtResource("8_gv1hb")
+skill_id = &"diagnostic_durability_gap"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_durability_gap"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_tr8um")

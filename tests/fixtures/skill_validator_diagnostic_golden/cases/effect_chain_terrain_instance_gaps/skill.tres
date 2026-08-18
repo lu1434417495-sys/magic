@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect"]
+script = ExtResource("1_effect")
+effect_type = &"chain_damage"
+damage_tag = &"lightning"
+dice_count = 1
+dice_sides = 6
+chain_base_hop_range = 1
+chain_conductive_hop_range = 1
+chain_conductive_terrain_effect_ids = Array[StringName]([&"", &"wet_ground", &"wet_ground"])
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
+skill_id = &"diagnostic_chain_terrain_instance_gaps"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"diagnostic_chain_terrain_instance_gaps"
+display_name = "Chain terrain instance diagnostic fixture"
+icon_id = &"diagnostic_chain_terrain_instance_gaps"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Combat")

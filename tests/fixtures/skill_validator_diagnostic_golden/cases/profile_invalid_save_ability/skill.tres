@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_fh8ip"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_84av4"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_lsvdp"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_ewot2"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_n50on"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_6ndcu"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_u8akx"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_mv83r"]
+
+[sub_resource type="Resource" id="Resource_onjle"]
+script = ExtResource("2_84av4")
+effect_type = &"damage"
+damage_tag = &"fire"
+save_dc = 10
+save_ability = &"unsupported"
+save_tag = &"control"
+
+[sub_resource type="Resource" id="Resource_yxneg"]
+script = ExtResource("7_u8akx")
+skill_id = &"diagnostic_invalid_save_ability"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_84av4")]([SubResource("Resource_onjle")])
+
+[resource]
+script = ExtResource("8_mv83r")
+skill_id = &"diagnostic_invalid_save_ability"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_invalid_save_ability"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_yxneg")

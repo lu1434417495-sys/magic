@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_xop4r"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_ai7a1"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_uskwm"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_camg5"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_e0j37"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_56m07"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_x2a7c"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_hufkf"]
+
+[sub_resource type="Resource" id="Resource_0xrs0"]
+script = ExtResource("2_ai7a1")
+effect_type = &"execute"
+
+[sub_resource type="Resource" id="Resource_uu8el"]
+script = ExtResource("7_x2a7c")
+skill_id = &"diagnostic_passive_execute"
+fumble_protection_extra_mp_percent = 100
+passive_effect_defs = Array[ExtResource("2_ai7a1")]([SubResource("Resource_0xrs0")])
+
+[resource]
+script = ExtResource("8_hufkf")
+skill_id = &"diagnostic_passive_execute"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_passive_execute"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_uu8el")

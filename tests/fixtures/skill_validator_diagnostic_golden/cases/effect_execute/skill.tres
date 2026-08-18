@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_40u2j"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_58btj"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_j8pgo"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_u7x2k"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_yak7h"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_hw2sq"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_iob7e"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_7oall"]
+
+[sub_resource type="Resource" id="Resource_s7n5g"]
+script = ExtResource("2_58btj")
+effect_type = &"execute"
+damage_tag = &"unsupported"
+threshold_max_hp_ratio_percent = 80
+threshold_cap_max_hp_ratio_percent = 20
+soul_fracture_duration_tu = 1
+save_dc_mode = &"unsupported"
+save_dc_source_ability = &"unsupported"
+save_ability = &"unsupported"
+params = {
+"legacy": 1
+}
+
+[sub_resource type="Resource" id="Resource_ybce8"]
+script = ExtResource("2_58btj")
+effect_type = &"graded_save_execute"
+params = {
+"save_bonus_by_tag": 1,
+"unexpected": 1
+}
+
+[sub_resource type="Resource" id="Resource_nhubw"]
+script = ExtResource("7_iob7e")
+skill_id = &"diagnostic_effect_execute"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_58btj")]([SubResource("Resource_s7n5g"), SubResource("Resource_ybce8")])
+
+[resource]
+script = ExtResource("8_7oall")
+skill_id = &"diagnostic_effect_execute"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_effect_execute"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_nhubw")

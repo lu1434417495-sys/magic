@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_ljdpe"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_0o105"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_t8ims"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_v7yny"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_f6qdw"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_e0etu"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_j1b80"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_8beoy"]
+
+[sub_resource type="Resource" id="Resource_qw3ok"]
+script = ExtResource("2_0o105")
+effect_type = &"path_step_aoe"
+params = {
+"area_pattern": &"diamond",
+"log_label": "x",
+"radius": 1,
+"repeat_hit_status_duration_tu": 5,
+"repeat_hit_status_id": &"x",
+"repeat_hit_status_log_template": "x",
+"repeat_hit_status_min_skill_level": 1,
+"repeat_hit_status_power": 1,
+"repeat_hit_status_threshold": 1
+}
+
+[sub_resource type="Resource" id="Resource_n7ggj"]
+script = ExtResource("7_j1b80")
+skill_id = &"diagnostic_path_gap"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_0o105")]([SubResource("Resource_qw3ok")])
+
+[resource]
+script = ExtResource("8_8beoy")
+skill_id = &"diagnostic_path_gap"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_path_gap"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_n7ggj")

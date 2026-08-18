@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_1v016"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_kmovk"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_3bk7l"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_ofa0f"]
+
+[sub_resource type="Resource" id="Resource_4bbra"]
+script = ExtResource("3_3bk7l")
+skill_id = &"diagnostic_profile_override_gap"
+level_overrides = {
+1: {
+"attack_defense_mode": "unsupported",
+"attack_resolution_mode": "unsupported",
+"casting_maintenance_dc": -1,
+"casting_spell_control_dc": -1,
+"casting_time_tu": 5,
+"pending_cast_binding_mode": "unsupported"
+}
+}
+fumble_protection_extra_mp_percent = 100
+target_selection_mode = &"multi_unit"
+allow_repeat_target = true
+unit_target_resolution_mode = &"ordered_slots"
+selection_order_mode = &"manual"
+
+[resource]
+script = ExtResource("4_ofa0f")
+skill_id = &"diagnostic_profile_override_gap"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_profile_override_gap"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_4bbra")

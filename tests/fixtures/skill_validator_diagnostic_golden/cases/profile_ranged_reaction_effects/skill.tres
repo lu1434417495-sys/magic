@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_4fpg7"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_67q6n"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_a5oke"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_bp4l3"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_u0oet"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_uy285"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatRangedWeaponReactionDef.cs" id="7_aakgh"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="8_eq5n8"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="9_ehrc4"]
+
+[sub_resource type="Resource" id="Resource_36kgj"]
+script = ExtResource("2_67q6n")
+effect_type = &"damage"
+damage_tag = &"fire"
+
+[sub_resource type="Resource" id="Resource_l07e0"]
+script = ExtResource("2_67q6n")
+effect_type = &"status"
+status_id = &"ready"
+
+[sub_resource type="Resource" id="Resource_tp8fh"]
+script = ExtResource("7_aakgh")
+readiness_status_id = &"ready"
+trigger_weapon_families = Array[StringName]([&"bow"])
+attack_defense_mode = &"normal"
+attack_roll_bonus_by_skill_level = PackedInt32Array(0, 0)
+
+[sub_resource type="Resource" id="Resource_j07bl"]
+script = ExtResource("8_eq5n8")
+skill_id = &"diagnostic_ranged_reaction_effects"
+ranged_weapon_reaction_profile = SubResource("Resource_tp8fh")
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_67q6n")]([SubResource("Resource_36kgj"), SubResource("Resource_l07e0")])
+
+[resource]
+script = ExtResource("9_ehrc4")
+skill_id = &"diagnostic_ranged_reaction_effects"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_ranged_reaction_effects"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_j07bl")

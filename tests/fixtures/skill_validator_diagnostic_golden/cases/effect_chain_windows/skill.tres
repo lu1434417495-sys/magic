@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_wtkk5"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_o340j"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_o8mr0"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_rrn37"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_nv8cc"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_44ey4"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_vxpgu"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_0w4rd"]
+
+[sub_resource type="Resource" id="Resource_rawb7"]
+script = ExtResource("2_o340j")
+effect_type = &"chain_damage"
+max_skill_level = 0
+chain_base_hop_range = 1
+chain_conductive_hop_range = 1
+
+[sub_resource type="Resource" id="Resource_yke06"]
+script = ExtResource("2_o340j")
+effect_type = &"chain_damage"
+max_skill_level = 0
+chain_base_hop_range = 1
+chain_conductive_hop_range = 1
+
+[sub_resource type="Resource" id="Resource_cuahm"]
+script = ExtResource("7_vxpgu")
+skill_id = &"diagnostic_chain_windows"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_o340j")]([SubResource("Resource_rawb7"), SubResource("Resource_yke06")])
+
+[resource]
+script = ExtResource("8_0w4rd")
+skill_id = &"diagnostic_chain_windows"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_chain_windows"
+description = "T1a.7 diagnostic fixture."
+max_level = 2
+mastery_curve = PackedInt32Array(10, 20)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_cuahm")

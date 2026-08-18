@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="1_840f8"]
+
+[resource]
+script = ExtResource("1_840f8")
+skill_id = &"present_invalid_reaction"
+display_name = "Diagnostic fixture"
+icon_id = &"present_invalid_reaction"
+description = "T1a.7 diagnostic fixture."
+skill_type = &"passive"
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])

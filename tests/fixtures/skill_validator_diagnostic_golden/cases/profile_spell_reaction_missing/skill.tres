@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_qo15f"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_33sih"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_m0u1p"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSpellReactionDef.cs" id="4_glpry"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_adcki"]
+
+[sub_resource type="Resource" id="Resource_is7nb"]
+script = ExtResource("4_glpry")
+trigger_delivery_category = &""
+reaction_skill_id = &""
+save_ability = &"unsupported"
+save_tag = &""
+base_save_dc = 0
+hp_damage_divisor = 0
+attack_roll_bonus_by_skill_level = PackedInt32Array(-1)
+save_dc_bonus_by_skill_level = PackedInt32Array(-1)
+
+[sub_resource type="Resource" id="Resource_id4s7"]
+script = ExtResource("3_m0u1p")
+skill_id = &"diagnostic_spell_reaction_missing"
+spell_reaction_profile = SubResource("Resource_is7nb")
+fumble_protection_extra_mp_percent = 100
+
+[resource]
+script = ExtResource("5_adcki")
+skill_id = &"diagnostic_spell_reaction_missing"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_spell_reaction_missing"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_id4s7")

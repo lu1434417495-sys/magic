@@ -1,0 +1,72 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_byt7m"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_isrv2"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectSlotWeightDef.cs" id="3_w7s4c"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="4_gf06v"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatWeightedStatusOutcomeDef.cs" id="5_4a27h"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="6_a0nw5"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="7_w1dl2"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="8_dssgl"]
+
+[sub_resource type="Resource" id="Resource_w3kbq"]
+script = ExtResource("2_isrv2")
+effect_type = &"forced_move"
+forced_move_mode = &"unsupported"
+
+[sub_resource type="Resource" id="Resource_vwde5"]
+script = ExtResource("2_isrv2")
+effect_type = &"forced_move"
+forced_move_mode = &"grapple_ascent"
+
+[sub_resource type="Resource" id="Resource_a0q2a"]
+script = ExtResource("2_isrv2")
+effect_type = &"forced_move"
+forced_move_mode = &"airborne_pull"
+forced_move_max_target_body_size = 5
+trigger_event = &"attack_hit"
+save_dc = 10
+save_ability = &"strength"
+save_tag = &"control"
+
+[sub_resource type="Resource" id="Resource_obk2o"]
+script = ExtResource("2_isrv2")
+effect_type = &"forced_move"
+forced_move_mode = &"wind_push"
+forced_move_max_target_body_size = 5
+
+[sub_resource type="Resource" id="Resource_eiyan"]
+script = ExtResource("2_isrv2")
+effect_type = &"forced_move"
+forced_move_mode = &"knockback"
+
+[sub_resource type="Resource" id="Resource_0py6h"]
+script = ExtResource("2_isrv2")
+effect_type = &"forced_move"
+forced_move_mode = &"jump"
+forced_move_distance = -1
+jump_base_budget = -1
+jump_str_scale = -1.0
+jump_arc_ratio = 2.0
+jump_range_multiplier = 0
+
+[sub_resource type="Resource" id="Resource_5dc1l"]
+script = ExtResource("2_isrv2")
+effect_type = &"charge"
+charge_trap_immunity_min_skill_level = 2
+
+[sub_resource type="Resource" id="Resource_nv6kn"]
+script = ExtResource("7_w1dl2")
+skill_id = &"diagnostic_forced_move_gap"
+fumble_protection_extra_mp_percent = 100
+effect_defs = Array[ExtResource("2_isrv2")]([SubResource("Resource_w3kbq"), SubResource("Resource_vwde5"), SubResource("Resource_a0q2a"), SubResource("Resource_obk2o"), SubResource("Resource_eiyan"), SubResource("Resource_0py6h"), SubResource("Resource_5dc1l")])
+
+[resource]
+script = ExtResource("8_dssgl")
+skill_id = &"diagnostic_forced_move_gap"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_forced_move_gap"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_nv6kn")

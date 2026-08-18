@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatApproachAttackDef.cs" id="1_3s5xn"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_oc8ti"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_xwlmw"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_svsmh"]
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencyAutomationDef.cs" id="5_tlyqa"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="6_upmwi"]
+
+[sub_resource type="Resource" id="Resource_m24bu"]
+script = ExtResource("1_3s5xn")
+maximum_path_height_delta_from_origin = -1
+
+[sub_resource type="Resource" id="Resource_77lg1"]
+script = ExtResource("2_oc8ti")
+
+[sub_resource type="Resource" id="Resource_rdl54"]
+script = ExtResource("4_svsmh")
+skill_id = &"diagnostic_approach"
+target_mode = &"ground"
+target_team_filter = &"ally"
+range_value = 0
+weapon_range_policy = &"configured"
+casting_time_tu = 5
+approach_attack_profile = SubResource("Resource_m24bu")
+fumble_protection_extra_mp_percent = 100
+special_resolution_profile_id = &"special"
+target_selection_mode = &"single_coord"
+min_target_count = 2
+max_target_count = 3
+allow_repeat_target = true
+random_chain_attack_count = 1
+cast_variants = Array[ExtResource("2_oc8ti")]([SubResource("Resource_77lg1")])
+required_weapon_families = Array[StringName]([&"sword"])
+allows_natural_weapon = true
+
+[sub_resource type="Resource" id="Resource_2ps2i"]
+script = ExtResource("5_tlyqa")
+can_be_stored_in_contingency = true
+
+[resource]
+script = ExtResource("6_upmwi")
+skill_id = &"diagnostic_approach"
+display_name = "Diagnostic fixture"
+icon_id = &"diagnostic_approach"
+description = "T1a.7 diagnostic fixture."
+mastery_curve = PackedInt32Array(10)
+tags = Array[StringName]([&"test"])
+combat_profile = SubResource("Resource_rdl54")
+contingency_automation_profile = SubResource("Resource_2ps2i")
