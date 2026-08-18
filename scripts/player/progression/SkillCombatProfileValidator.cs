@@ -43,6 +43,7 @@ internal sealed class SkillCombatProfileValidator
             { "resolve_as_weapon_attack", "resolve_as_weapon_attack" },
             { "allow_repeat_hits_across_steps", "allow_repeat_hits_across_steps" },
             { "prevent_repeat_target", "prevent_repeat_target" },
+            { "save_dc_bonus", "save_dc_bonus" },
             { "stop_on_miss", "stop_on_miss" },
             { "stop_on_target_down", "stop_on_target_down" },
             { "fixed_attack_count", "fixed_attack_count" },
@@ -2656,9 +2657,17 @@ internal sealed class SkillCombatProfileValidator
             );
         if (saveDc < 0)
             errors.Add($"Skill {skillId} effect {contextLabel} save_dc must be >= 0.");
+        if (effectDef.save_dc_bonus < 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} save_dc_bonus must be >= 0."
+            );
         if (dynamicSaveDc && saveDc > 0)
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} caster_spell save_dc_mode must leave static save_dc at 0."
+            );
+        if (effectDef.save_dc_bonus > 0 && !dynamicSaveDc)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} save_dc_bonus requires caster_spell save_dc_mode."
             );
         if (!dynamicSaveDc && saveDcSourceAbility != "")
             errors.Add(

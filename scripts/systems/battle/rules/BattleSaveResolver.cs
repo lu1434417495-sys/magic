@@ -371,7 +371,9 @@ public static class BattleSaveResolver
         if (effect_definition.SaveDcModeKind == BattleSaveDcMode.CasterSpell)
         {
             int casterDc = ResolveCasterSpellSaveDc(source_unit, effect_definition);
-            return casterDc > 0 ? casterDc + lockedSkillHitBonus : 0;
+            return casterDc > 0
+                ? casterDc + effect_definition.SaveDcBonus + lockedSkillHitBonus
+                : 0;
         }
 
         int staticDc = Math.Max(effect_definition.SaveDc, 0);

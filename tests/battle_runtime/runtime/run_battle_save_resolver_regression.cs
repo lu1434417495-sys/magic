@@ -20,6 +20,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             TestSaveResolverEstimatesSuccessProbability();
             TestSaveResultProjectionBoundary();
             TestCasterSpellSaveDcUsesSourceAbilityAndSpellProficiency();
+            TestCasterSpellSaveDcIncludesAuthoredBonus();
             TestLockedSkillBonusIncreasesStaticSaveDc();
             TestLockedSkillBonusIncreasesCasterSpellSaveDc();
             TestDamageSaveSuccessHalvesPartialDamage();
@@ -510,6 +511,27 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         _test.True(successResult.Success, "Meeting dynamic DC should succeed.");
     }
 
+    private void TestCasterSpellSaveDcIncludesAuthoredBonus()
+    {
+        BattleUnitState source = MakeUnit("spell_dc_bonus_source", "enemy");
+        source.attribute_snapshot.SetValue("intelligence", 18);
+        source.attribute_snapshot.SetValue(
+            AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus),
+            3
+        );
+        BattleUnitState target = MakeUnit("spell_dc_bonus_target", "player");
+        CombatEffectDefinition effect = MakeCasterSpellSaveDamageEffect(saveDcBonus: 2);
+
+        BattleSaveProbabilityResult probability =
+            BattleSaveResolver.EstimateSaveSuccessProbabilityResult(source, target, effect);
+        _test.Eq(probability.Dc, 17, "Authored save_dc_bonus should raise the caster-spell DC.");
+        _test.Eq(
+            probability.SuccessProbabilityBasisPoints,
+            2000,
+            "DC17 against an unmodified d20 save should expose the raised DC to canonical preview probability."
+        );
+    }
+
     private void TestLockedSkillBonusIncreasesStaticSaveDc()
     {
         BattleUnitState source = MakeUnit("locked_static_source", "enemy");
@@ -642,7 +664,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             saveTag: saveTag
         );
 
-    private static CombatEffectDefinition MakeCasterSpellSaveDamageEffect() =>
+    private static CombatEffectDefinition MakeCasterSpellSaveDamageEffect(int saveDcBonus = 0) =>
         TestSkillDefinitionProjection.BuildEffect(
             "damage",
             damageTag: "fire",
@@ -651,7 +673,8 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             saveDcSourceAbility: "intelligence",
             saveAbility: "agility",
             saveTag: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
-            savePartialOnSuccess: true
+            savePartialOnSuccess: true,
+            saveDcBonus: saveDcBonus
         );
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)

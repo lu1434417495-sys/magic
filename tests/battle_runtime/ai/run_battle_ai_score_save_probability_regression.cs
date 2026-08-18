@@ -12,6 +12,7 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
         try
         {
             TestAiDamageEstimateWeightsPartialSaveProbability();
+            TestDecisionScopeCacheSeparatesStaticDcFromCasterSpellBonus();
         }
         catch (Exception exception)
         {
@@ -29,6 +30,11 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
         source.equipment_view_initialized = false;
         target.equipment_view = null;
         target.equipment_view_initialized = false;
+        source.attribute_snapshot.SetValue("intelligence", 14);
+        source.attribute_snapshot.SetValue(
+            AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus),
+            1
+        );
         var state = new BattleState();
         state.SetUnit(source);
         state.SetUnit(target);
@@ -43,7 +49,9 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
             "damage",
             damageTag: "fire",
             power: 40,
-            saveDc: 11,
+            saveDcMode: BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
+            saveDcSourceAbility: "intelligence",
+            saveDcBonus: 2,
             saveAbility: "constitution",
             saveTag: "fireball",
             savePartialOnSuccess: true
@@ -75,7 +83,7 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
             new Dictionary<string, object>(StringComparer.Ordinal)
         );
 
-        _test.Eq(scoreInput.estimated_damage, 30, "40 点伤害、50% 半伤豁免时，AI 期望伤害应为 30。");
+        _test.Eq(scoreInput.estimated_damage, 32, "DC加值生效后，40 点伤害、40% 半伤豁免时，AI 期望伤害应为 32。");
         _test.Eq(
             scoreInput.estimated_lethal_target_count,
             0,
@@ -103,12 +111,12 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
         BattleAiScoreService.DamageSaveEstimate estimate = targetEstimates[0];
         _test.Eq(
             estimate.SaveSuccessRatePercent,
-            50,
-            "DC11/CON0 的豁免成功率应为 50%。"
+            40,
+            "基础施法DC11加2点技能DC加值、CON0 的豁免成功率应为 40%。"
         );
         _test.Eq(
             estimate.DamageAfterSaveEstimate,
-            30,
+            32,
             "trace 中也应保留豁免加权后的期望伤害。"
         );
         _test.True(
@@ -119,6 +127,119 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
             target.equipment_view == null && !target.equipment_view_initialized,
             "AI damage scoring 不应惰性初始化 target equipment state。"
         );
+    }
+
+    private void TestDecisionScopeCacheSeparatesStaticDcFromCasterSpellBonus()
+    {
+        BattleUnitState source = MakeUnit("cache_caster", "player", 30);
+        BattleUnitState target = MakeUnit("cache_target", "hostile", 100);
+        source.equipment_view = null;
+        source.equipment_view_initialized = false;
+        target.equipment_view = null;
+        target.equipment_view_initialized = false;
+        source.attribute_snapshot.SetValue("intelligence", 14);
+        source.attribute_snapshot.SetValue(
+            AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus),
+            1
+        );
+
+        var state = new BattleState();
+        state.SetUnit(source);
+        state.SetUnit(target);
+        var context = new BattleAiContext
+        {
+            state = state,
+            unit_state = source,
+        };
+        var preview = new BattlePreview
+        {
+            allowed = true,
+        };
+        preview.AddTargetUnitId(target.unit_id);
+
+        CombatEffectDefinition staticEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "fire",
+            power: 40,
+            saveDc: 2,
+            saveDcMode: BattleSaveContentRules.ToStringName(BattleSaveDcMode.Static),
+            saveAbility: "constitution",
+            saveTag: "fireball",
+            savePartialOnSuccess: true
+        );
+        CombatEffectDefinition casterSpellEffect =
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                damageTag: "fire",
+                power: 40,
+                saveDcMode: BattleSaveContentRules.ToStringName(
+                    BattleSaveDcMode.CasterSpell
+                ),
+                saveDcSourceAbility: "intelligence",
+                saveDcBonus: 2,
+                saveAbility: "constitution",
+                saveTag: "fireball",
+                savePartialOnSuccess: true
+            );
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "save_signature_probe",
+            "Save Signature Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                "save_signature_probe",
+                effects: new[] { staticEffect }
+            )
+        );
+
+        using var damageResolver = new BattleDamageResolver();
+        using var scoreService = new BattleAiScoreService();
+        scoreService.Setup(damageResolver);
+        scoreService.BeginDecisionScope(state, source);
+        try
+        {
+            BattleAiScoreInput staticInput = scoreService.BuildSkillScoreInput(
+                context,
+                skill,
+                null,
+                preview,
+                new[] { staticEffect },
+                new Dictionary<string, object>(StringComparer.Ordinal)
+            );
+            BattleAiScoreInput casterSpellInput = scoreService.BuildSkillScoreInput(
+                context,
+                skill,
+                null,
+                preview,
+                new[] { casterSpellEffect },
+                new Dictionary<string, object>(StringComparer.Ordinal)
+            );
+
+            _test.Eq(
+                staticInput.save_estimates_by_target_id[target.unit_id][0]
+                    .SaveSuccessRatePercent,
+                95,
+                "Static DC2 should retain its own decision-cache entry."
+            );
+            _test.Eq(
+                casterSpellInput.save_estimates_by_target_id[target.unit_id][0]
+                    .SaveSuccessRatePercent,
+                40,
+                "Caster-spell bonus2 should not reuse the static DC2 cache entry."
+            );
+            _test.Eq(
+                staticInput.estimated_damage,
+                21,
+                "Static DC2 should keep its 95%-success partial-save damage estimate."
+            );
+            _test.Eq(
+                casterSpellInput.estimated_damage,
+                32,
+                "Caster-spell bonus2 should keep its 40%-success partial-save damage estimate."
+            );
+        }
+        finally
+        {
+            scoreService.EndDecisionScope();
+        }
     }
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId, int hp)

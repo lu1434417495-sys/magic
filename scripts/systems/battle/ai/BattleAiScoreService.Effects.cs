@@ -974,6 +974,7 @@ public partial class BattleAiScoreService
                 hash = hash * 31 + (effectDefinition?.DamageRatioPercent ?? 0);
                 hash = hash * 31 + (effectDefinition?.HeightDelta ?? 0);
                 hash = hash * 31 + (effectDefinition?.SaveDc ?? 0);
+                hash = hash * 31 + (effectDefinition?.SaveDcBonus ?? 0);
                 hash = hash * 31 + (effectDefinition?.SavePartialOnSuccess == true ? 1 : 0);
                 hash = hash * 31 + BuildStringNameListSignature(effectDefinition?.EffectTags);
                 hash = hash * 31 + BuildWeightedStatusOutcomeSignature(

@@ -299,7 +299,8 @@ internal static class TestSkillDefinitionProjection
         IReadOnlyList<int> followUpAttackRollBonusCurve = null,
         int fixedAttackCount = 0,
         bool stopOnMiss = true,
-        int forcedMoveMaxTargetBodySize = 0
+        int forcedMoveMaxTargetBodySize = 0,
+        int saveDcBonus = 0
     )
     {
         return new CombatEffectDefinition(
@@ -399,7 +400,8 @@ internal static class TestSkillDefinitionProjection
             followUpAttackRollBonusCurve: followUpAttackRollBonusCurve,
             fixedAttackCount: fixedAttackCount,
             stopOnMiss: stopOnMiss,
-            forcedMoveMaxTargetBodySize: forcedMoveMaxTargetBodySize
+            forcedMoveMaxTargetBodySize: forcedMoveMaxTargetBodySize,
+            saveDcBonus: saveDcBonus
         );
     }
 

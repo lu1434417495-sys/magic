@@ -202,6 +202,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
             power = 8,
             damage_tag = "fire",
             save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
+            save_dc_bonus = 2,
             save_dc_source_ability = "intelligence",
             save_ability = "agility",
             save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
@@ -216,7 +217,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         );
         _test.True(
             errors.Count == 0,
-            "caster_spell save_dc_mode should allow save fields without static save_dc."
+            "caster_spell save_dc_mode should allow a non-negative authored save DC bonus without static save_dc."
         );
 
         using CombatEffectDef genericMagicEffect = new()
@@ -313,6 +314,27 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
             ValidateEffect(registry, "dynamic_invalid_source", dynamicInvalidSourceEffect),
             "caster-spell save with invalid source ability",
             "Skill dynamic_invalid_source effect test_effect uses unsupported save_dc_source_ability fortune."
+        );
+
+        using CombatEffectDef negativeDcBonusEffect = BuildValidDynamicSaveEffect();
+        negativeDcBonusEffect.save_dc_bonus = -1;
+        AssertExactErrors(
+            ValidateEffect(registry, "negative_save_dc_bonus", negativeDcBonusEffect),
+            "negative caster-spell save DC bonus",
+            "Skill negative_save_dc_bonus effect test_effect save_dc_bonus must be >= 0."
+        );
+
+        using CombatEffectDef staticDcBonusEffect = BuildPlainDamageEffect();
+        staticDcBonusEffect.save_dc = 12;
+        staticDcBonusEffect.save_dc_bonus = 1;
+        staticDcBonusEffect.save_ability = "agility";
+        staticDcBonusEffect.save_tag = BattleSaveContentRules.ToStringName(
+            BattleSaveTagKind.Magic
+        );
+        AssertExactErrors(
+            ValidateEffect(registry, "static_save_dc_bonus", staticDcBonusEffect),
+            "authored save DC bonus on a static save",
+            "Skill static_save_dc_bonus effect test_effect save_dc_bonus requires caster_spell save_dc_mode."
         );
     }
 
