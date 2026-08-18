@@ -148,6 +148,7 @@ internal static class SkillJsonImportParser
         {
             diagnostics.Add(Required(context, "/level_description_configs"));
         }
+
         else
         {
             foreach (
@@ -182,23 +183,26 @@ internal static class SkillJsonImportParser
             );
         }
 
-        if (diagnostics.Count > 0)
+        SkillImportModel? model = SkillRootCombatJsonNormalizer.NormalizeSkill(
+            context,
+            dto,
+            skillId,
+            dto.DisplayName,
+            dto.Description,
+            skillType,
+            maxLevel,
+            learnSource,
+            tags,
+            dto.LevelDescriptionTemplate,
+            levelDescriptionConfigs,
+            combatProfile,
+            diagnostics
+        );
+
+        if (diagnostics.Count > 0 || model == null)
             return ContentImportStageResult<SkillImportModel>.Failure(diagnostics);
 
-        return ContentImportStageResult<SkillImportModel>.Success(
-            new SkillImportModel(
-                skillId,
-                dto.DisplayName,
-                dto.Description,
-                skillType,
-                maxLevel,
-                learnSource,
-                tags,
-                dto.LevelDescriptionTemplate,
-                levelDescriptionConfigs,
-                combatProfile
-            )
-        );
+        return ContentImportStageResult<SkillImportModel>.Success(model);
     }
 
     private static CombatSkillImportModel? NormalizeCombatProfile(
@@ -307,7 +311,7 @@ internal static class SkillJsonImportParser
                 CombatEffectImportModel? effect = NormalizeEffect(
                     context,
                     dto.EffectDefs[index],
-                    index,
+                    $"/combat_profile/effect_defs/{index}",
                     diagnostics
                 );
                 if (effect != null)
@@ -551,32 +555,39 @@ internal static class SkillJsonImportParser
             }
         }
 
-        if (diagnostics.Count != startingErrorCount)
+        CombatSkillImportModel? model =
+            SkillRootCombatJsonNormalizer.NormalizeCombatSkill(
+                context,
+                dto,
+                skillId,
+                targetMode,
+                targetTeamFilter,
+                rangePattern,
+                rangeValue,
+                areaPattern,
+                apCost,
+                mpCost,
+                cooldownTu,
+                effects,
+                overrides,
+                (effectDto, pointer, targetDiagnostics) =>
+                    NormalizeEffect(context, effectDto, pointer, targetDiagnostics),
+                diagnostics
+            );
+
+        if (diagnostics.Count != startingErrorCount || model == null)
             return null;
 
-        return new CombatSkillImportModel(
-            skillId,
-            targetMode,
-            targetTeamFilter,
-            rangePattern,
-            rangeValue,
-            areaPattern,
-            apCost,
-            mpCost,
-            cooldownTu,
-            effects,
-            overrides
-        );
+        return model;
     }
 
     private static CombatEffectImportModel? NormalizeEffect(
         JsonContentEntryContext context,
         CombatEffectJsonDto? dto,
-        int index,
+        string pointer,
         List<ContentJsonDiagnostic> diagnostics
     )
     {
-        string pointer = $"/combat_profile/effect_defs/{index}";
         if (dto == null)
         {
             diagnostics.Add(Required(context, pointer));
@@ -607,7 +618,7 @@ internal static class SkillJsonImportParser
         }
         else
         {
-            payload = NormalizeEffectPayload(context, dto, kind, index, diagnostics);
+            payload = NormalizeEffectPayload(context, dto, kind, pointer, diagnostics);
         }
 
         ValidateNonNegative(minSkillLevel, context, $"{pointer}/min_skill_level", diagnostics);
@@ -632,11 +643,11 @@ internal static class SkillJsonImportParser
         JsonContentEntryContext context,
         CombatEffectJsonDto dto,
         CombatEffectImportKind kind,
-        int effectIndex,
+        string effectPointer,
         List<ContentJsonDiagnostic> diagnostics
     )
     {
-        string payloadPointer = $"/combat_profile/effect_defs/{effectIndex}/payload";
+        string payloadPointer = $"{effectPointer}/payload";
         if (dto.Payload is not JsonElement payload)
         {
             diagnostics.Add(
@@ -773,6 +784,9 @@ internal static class SkillJsonImportParser
             );
             if (missing != null)
                 return missing;
+            missing = FindExpandedRootExplicitNull(root, context);
+            if (missing != null)
+                return missing;
 
             if (
                 root.TryGetProperty(
@@ -848,64 +862,26 @@ internal static class SkillJsonImportParser
             );
             if (missing != null)
                 return missing;
+            missing = FindExpandedCombatExplicitNull(combat, context);
+            if (missing != null)
+                return missing;
 
-            if (
-                combat.TryGetProperty("effect_defs", out JsonElement effects)
-                && effects.ValueKind == JsonValueKind.Array
-            )
-            {
-                string[] effectRequired =
-                {
-                    "effect_type",
-                };
-                int index = 0;
-                foreach (JsonElement effect in effects.EnumerateArray())
-                {
-                    if (effect.ValueKind == JsonValueKind.Object)
-                    {
-                        missing = FindMissing(
-                            effect,
-                            effectRequired,
-                            context,
-                            $"/combat_profile/effect_defs/{index}"
-                        );
-                        if (missing != null)
-                            return missing;
-                        if (
-                            effect.TryGetProperty("effect_type", out JsonElement effectType)
-                            && effectType.ValueKind == JsonValueKind.String
-                            && SkillJsonImportValueRules.TryParseEffectKind(
-                                effectType.GetString(),
-                                out _
-                            )
-                            && (
-                                !effect.TryGetProperty("payload", out JsonElement payload)
-                                || payload.ValueKind == JsonValueKind.Null
-                            )
-                        )
-                        {
-                            return Diagnostic(
-                                SkillJsonImportRules.MissingEffectPayload,
-                                "Registered combat effect kind requires a typed payload object.",
-                                context,
-                                $"/combat_profile/effect_defs/{index}/payload"
-                            );
-                        }
-                        missing = FindExplicitNull(
-                            effect,
-                            new[]
-                            {
-                                "min_skill_level", "max_skill_level", "power", "duration_tu",
-                            },
-                            context,
-                            $"/combat_profile/effect_defs/{index}"
-                        );
-                        if (missing != null)
-                            return missing;
-                    }
-                    index += 1;
-                }
-            }
+            missing = FindEffectArrayContract(
+                combat,
+                "effect_defs",
+                context,
+                "/combat_profile/effect_defs"
+            );
+            if (missing != null)
+                return missing;
+            missing = FindEffectArrayContract(
+                combat,
+                "passive_effect_defs",
+                context,
+                "/combat_profile/passive_effect_defs"
+            );
+            if (missing != null)
+                return missing;
 
             if (
                 combat.TryGetProperty("level_overrides", out JsonElement overrides)
@@ -954,6 +930,391 @@ internal static class SkillJsonImportParser
         }
 
         return null;
+    }
+
+    private static ContentJsonDiagnostic? FindExpandedRootExplicitNull(
+        JsonElement root,
+        JsonContentEntryContext context
+    )
+    {
+        ContentJsonDiagnostic? missing = FindExplicitNull(
+            root,
+            new[]
+            {
+                "icon_id", "dynamic_max_level_stat_id", "mastery_curve",
+                "learn_requirements", "unlock_mode", "knowledge_requirements",
+                "skill_level_requirements", "attribute_requirements",
+                "achievement_requirements", "upgrade_source_skill_ids",
+                "retain_source_skills_on_unlock", "core_skill_transition_mode",
+                "mastery_sources", "growth_tier", "attribute_growth_progress",
+                "practice_tier", "attribute_modifiers",
+            },
+            context,
+            ""
+        );
+        if (missing != null)
+            return missing;
+
+        missing = FindExplicitEmptyString(
+            root,
+            new[]
+            {
+                ("growth_tier", "skill.dto.growth_tier.unknown"),
+                ("practice_tier", "skill.dto.practice_tier.unknown"),
+            },
+            context,
+            ""
+        );
+        if (missing != null)
+            return missing;
+
+        if (
+            root.TryGetProperty("attribute_modifiers", out JsonElement modifiers)
+            && modifiers.ValueKind == JsonValueKind.Array
+        )
+        {
+            int index = 0;
+            foreach (JsonElement modifier in modifiers.EnumerateArray())
+            {
+                string pointer = $"/attribute_modifiers/{index}";
+                if (modifier.ValueKind == JsonValueKind.Null)
+                    return Required(context, pointer);
+                if (modifier.ValueKind == JsonValueKind.Object)
+                {
+                    missing = FindExplicitNull(
+                        modifier,
+                        new[] { "attribute_id", "mode", "source_type", "source_id" },
+                        context,
+                        pointer
+                    );
+                    if (missing != null)
+                        return missing;
+                }
+                index += 1;
+            }
+        }
+
+        return FindNestedExplicitNull(
+            root,
+            "contingency_automation_profile",
+            new[]
+            {
+                "min_contingency_skill_level", "effect_category", "tags",
+                "allowed_target_resolvers", "allowed_parameter_bindings",
+            },
+            context,
+            "/contingency_automation_profile"
+        );
+    }
+
+    private static ContentJsonDiagnostic? FindExpandedCombatExplicitNull(
+        JsonElement combat,
+        JsonContentEntryContext context
+    )
+    {
+        ContentJsonDiagnostic? missing = FindExplicitNull(
+            combat,
+            new[]
+            {
+                "excluded_target_creature_type_tags", "weapon_range_policy",
+                "pending_cast_binding_mode", "attack_resolution_mode",
+                "attack_defense_mode", "mastery_trigger_mode", "mastery_amount_mode",
+                "mastery_base_amount", "spell_fate_mode", "spell_critical_mode",
+                "fumble_protection_curve", "fumble_protection_extra_mp_percent",
+                "backlash_mode", "backlash_target_filter", "area_origin_mode",
+                "area_direction_mode", "ai_tags", "delivery_categories",
+                "attack_roll_bonus_status_id", "projectile_kind",
+                "special_resolution_profile_id", "target_selection_mode",
+                "min_target_count", "max_target_count", "unit_target_resolution_mode",
+                "selection_order_mode", "passive_effect_defs", "cast_variants",
+                "required_weapon_families", "required_weapon_type_ids",
+                "excluded_weapon_families", "excluded_weapon_type_ids",
+                "mastery_low_hp_bonus_multiplier", "mastery_low_hp_threshold_percent",
+            },
+            context,
+            "/combat_profile"
+        );
+        if (missing != null)
+            return missing;
+
+        missing = FindExplicitEmptyString(
+            combat,
+            new[]
+            {
+                ("weapon_range_policy", "skill.dto.weapon_range_policy.unknown"),
+                ("attack_resolution_mode", "skill.dto.attack_resolution_mode.unknown"),
+                ("spell_fate_mode", "skill.dto.spell_fate_mode.unknown"),
+                ("spell_critical_mode", "skill.dto.spell_critical_mode.unknown"),
+                ("backlash_mode", "skill.dto.backlash_mode.unknown"),
+                ("backlash_target_filter", "skill.dto.backlash_target_filter.unknown"),
+            },
+            context,
+            "/combat_profile"
+        );
+        if (missing != null)
+            return missing;
+
+        missing = FindNestedExplicitNull(
+            combat,
+            "windup_profile",
+            new[]
+            {
+                "stamina_cost_per_tier", "weapon_dice_per_tier",
+                "skill_level_tier_caps", "base_weapon_dice_multipliers",
+            },
+            context,
+            "/combat_profile/windup_profile"
+        );
+        if (missing != null)
+            return missing;
+        missing = FindNestedExplicitNull(
+            combat,
+            "directional_piercing_profile",
+            new[]
+            {
+                "base_damage_percent_curve", "successful_hit_decay_percent",
+                "minimum_damage_percent", "stamina_flat_base",
+                "stamina_range_square_coefficient", "stamina_strength_square_scale",
+                "minimum_stamina_cost", "maximum_height_delta",
+            },
+            context,
+            "/combat_profile/directional_piercing_profile"
+        );
+        if (missing != null)
+            return missing;
+        missing = FindNestedExplicitNull(
+            combat,
+            "line_through_attack_profile",
+            new[]
+            {
+                "maximum_weapon_range", "intermediate_weapon_dice_multiplier",
+                "primary_weapon_dice_multiplier_curve", "primary_attack_roll_bonus_curve",
+                "successful_intermediate_hit_bonus_weapon_dice",
+                "successful_intermediate_hit_attack_roll_bonus",
+                "successful_intermediate_hit_bonus_cap_curve",
+            },
+            context,
+            "/combat_profile/line_through_attack_profile"
+        );
+        if (missing != null)
+            return missing;
+        missing = FindNestedExplicitNull(
+            combat,
+            "sequential_line_hit_profile",
+            new[]
+            {
+                "minimum_primary_distance_curve", "continuation_range_curve",
+                "follow_up_attack_penalty_curve",
+            },
+            context,
+            "/combat_profile/sequential_line_hit_profile"
+        );
+        if (missing != null)
+            return missing;
+        missing = FindNestedExplicitNull(
+            combat,
+            "spell_reaction_profile",
+            new[]
+            {
+                "trigger_delivery_category", "reaction_skill_id", "readiness_status_id",
+                "required_weapon_family", "save_ability", "save_tag", "base_save_dc",
+                "hp_damage_divisor", "attack_roll_bonus_by_skill_level",
+                "save_dc_bonus_by_skill_level", "require_hp_damage", "consume_on_trigger",
+                "expire_on_owner_turn_start",
+            },
+            context,
+            "/combat_profile/spell_reaction_profile"
+        );
+        if (missing != null)
+            return missing;
+        missing = FindNestedExplicitNull(
+            combat,
+            "ranged_weapon_reaction_profile",
+            new[]
+            {
+                "readiness_status_id", "trigger_weapon_families", "damage_tag",
+                "attack_defense_mode", "attack_roll_bonus_by_skill_level",
+                "consume_status_stacks", "trigger_on_hit", "trigger_on_miss",
+            },
+            context,
+            "/combat_profile/ranged_weapon_reaction_profile"
+        );
+        if (missing != null)
+            return missing;
+
+        if (
+            combat.TryGetProperty("cast_variants", out JsonElement variants)
+            && variants.ValueKind == JsonValueKind.Array
+        )
+        {
+            int index = 0;
+            foreach (JsonElement variant in variants.EnumerateArray())
+            {
+                string pointer = $"/combat_profile/cast_variants/{index}";
+                if (variant.ValueKind == JsonValueKind.Null)
+                    return Required(context, pointer);
+                if (variant.ValueKind == JsonValueKind.Object)
+                {
+                    missing = FindMissing(variant, new[] { "variant_id" }, context, pointer);
+                    if (missing != null)
+                        return missing;
+                    missing = FindExplicitEmptyString(
+                        variant,
+                        new[]
+                        {
+                            (
+                                "projectile_kind_override",
+                                "skill.dto.cast_variant.projectile_kind_override.unknown"
+                            ),
+                        },
+                        context,
+                        pointer
+                    );
+                    if (missing != null)
+                        return missing;
+                    missing = FindExplicitNull(
+                        variant,
+                        new[]
+                        {
+                            "display_name", "description", "target_mode",
+                            "footprint_pattern", "required_coord_count",
+                            "allowed_base_terrains", "projectile_kind_override", "effect_defs",
+                            "payload",
+                        },
+                        context,
+                        pointer
+                    );
+                    if (missing != null)
+                        return missing;
+                    missing = FindEffectArrayContract(
+                        variant,
+                        "effect_defs",
+                        context,
+                        $"{pointer}/effect_defs"
+                    );
+                    if (missing != null)
+                        return missing;
+                    if (
+                        variant.TryGetProperty("payload", out JsonElement castPayload)
+                        && castPayload.ValueKind == JsonValueKind.Object
+                    )
+                    {
+                        missing = FindExplicitNull(
+                            castPayload,
+                            new[] { "square2_corner" },
+                            context,
+                            $"{pointer}/payload"
+                        );
+                        if (missing != null)
+                            return missing;
+                    }
+                }
+                index += 1;
+            }
+        }
+        return null;
+    }
+
+    private static ContentJsonDiagnostic? FindEffectArrayContract(
+        JsonElement parent,
+        string propertyName,
+        JsonContentEntryContext context,
+        string pointer
+    )
+    {
+        if (
+            !parent.TryGetProperty(propertyName, out JsonElement effects)
+            || effects.ValueKind != JsonValueKind.Array
+        )
+        {
+            return null;
+        }
+
+        int index = 0;
+        foreach (JsonElement effect in effects.EnumerateArray())
+        {
+            string effectPointer = $"{pointer}/{index}";
+            if (effect.ValueKind == JsonValueKind.Null)
+                return Required(context, effectPointer);
+            if (effect.ValueKind == JsonValueKind.Object)
+            {
+                ContentJsonDiagnostic? missing = FindMissing(
+                    effect,
+                    new[] { "effect_type" },
+                    context,
+                    effectPointer
+                );
+                if (missing != null)
+                    return missing;
+                if (
+                    effect.TryGetProperty("effect_type", out JsonElement effectType)
+                    && effectType.ValueKind == JsonValueKind.String
+                    && SkillJsonImportValueRules.TryParseEffectKind(effectType.GetString(), out _)
+                    && (
+                        !effect.TryGetProperty("payload", out JsonElement payload)
+                        || payload.ValueKind == JsonValueKind.Null
+                    )
+                )
+                {
+                    return Diagnostic(
+                        SkillJsonImportRules.MissingEffectPayload,
+                        "Registered combat effect kind requires a typed payload object.",
+                        context,
+                        $"{effectPointer}/payload"
+                    );
+                }
+                missing = FindExplicitNull(
+                    effect,
+                    new[] { "min_skill_level", "max_skill_level", "power", "duration_tu" },
+                    context,
+                    effectPointer
+                );
+                if (missing != null)
+                    return missing;
+            }
+            index += 1;
+        }
+        return null;
+    }
+
+    private static ContentJsonDiagnostic? FindExplicitEmptyString(
+        JsonElement parent,
+        IEnumerable<(string PropertyName, string RuleId)> fields,
+        JsonContentEntryContext context,
+        string pointer
+    )
+    {
+        foreach ((string propertyName, string ruleId) in fields)
+        {
+            if (
+                parent.TryGetProperty(propertyName, out JsonElement value)
+                && value.ValueKind == JsonValueKind.String
+                && value.GetString() == ""
+            )
+            {
+                return Diagnostic(
+                    ruleId,
+                    "An explicit empty string is not a registered canonical authoring value; omit the member to use its default.",
+                    context,
+                    $"{pointer}/{propertyName}"
+                );
+            }
+        }
+        return null;
+    }
+
+    private static ContentJsonDiagnostic? FindNestedExplicitNull(
+        JsonElement parent,
+        string propertyName,
+        IEnumerable<string> nestedPropertyNames,
+        JsonContentEntryContext context,
+        string pointer
+    )
+    {
+        return parent.TryGetProperty(propertyName, out JsonElement nested)
+            && nested.ValueKind == JsonValueKind.Object
+            ? FindExplicitNull(nested, nestedPropertyNames, context, pointer)
+            : null;
     }
 
     private static ContentJsonDiagnostic? FindDuplicateCanonicalLevelKey(

@@ -5,6 +5,208 @@
   "description": "Current stage-1a skill import contract. It covers the committed pilot fields and the layered_barrier effect payload only; it is not the final full-skill-domain schema.",
   "$ref": "#/$defs/SkillJsonDocumentDto",
   "$defs": {
+    "AttributeModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "flat",
+            "percent"
+          ]
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      }
+    },
+    "CombatApproachAttackJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maximum_path_height_delta_from_origin": {
+          "type": "integer"
+        }
+      }
+    },
+    "CombatApproachAttackJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maximum_path_height_delta_from_origin": {
+          "type": "integer"
+        }
+      }
+    },
+    "CombatCastVariantJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_base_terrains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "land",
+              "forest",
+              "water",
+              "shallow_water",
+              "flowing_water",
+              "deep_water",
+              "ice",
+              "mud",
+              "spike"
+            ]
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "effect_defs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatEffectJsonDto"
+          }
+        },
+        "footprint_pattern": {
+          "type": "string",
+          "enum": [
+            "single",
+            "line2",
+            "square2",
+            "unordered"
+          ]
+        },
+        "min_skill_level": {
+          "type": "integer"
+        },
+        "payload": {
+          "$ref": "#/$defs/CombatCastVariantPayloadJsonDto"
+        },
+        "projectile_kind_override": {
+          "type": "string",
+          "enum": [
+            "none",
+            "nonmagical",
+            "magical",
+            "current_weapon"
+          ]
+        },
+        "required_coord_count": {
+          "type": "integer"
+        },
+        "target_mode": {
+          "type": "string",
+          "enum": [
+            "unit",
+            "ground"
+          ]
+        },
+        "variant_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "variant_id"
+      ]
+    },
+    "CombatCastVariantPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "square2_corner": {
+          "type": "string",
+          "enum": [
+            "top_left",
+            "top_right",
+            "bottom_left",
+            "bottom_right"
+          ]
+        }
+      }
+    },
+    "CombatDirectionalPiercingJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_damage_percent_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "maximum_height_delta": {
+          "type": "integer"
+        },
+        "minimum_damage_percent": {
+          "type": "integer"
+        },
+        "minimum_stamina_cost": {
+          "type": "integer"
+        },
+        "stamina_flat_base": {
+          "type": "integer"
+        },
+        "stamina_range_square_coefficient": {
+          "type": "integer"
+        },
+        "stamina_strength_square_scale": {
+          "type": "integer"
+        },
+        "successful_hit_decay_percent": {
+          "type": "integer"
+        }
+      }
+    },
+    "CombatDirectionalPiercingJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_damage_percent_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "maximum_height_delta": {
+          "type": "integer"
+        },
+        "minimum_damage_percent": {
+          "type": "integer"
+        },
+        "minimum_stamina_cost": {
+          "type": "integer"
+        },
+        "stamina_flat_base": {
+          "type": "integer"
+        },
+        "stamina_range_square_coefficient": {
+          "type": "integer"
+        },
+        "stamina_strength_square_scale": {
+          "type": "integer"
+        },
+        "successful_hit_decay_percent": {
+          "type": "integer"
+        }
+      }
+    },
     "CombatEffectJsonDto": {
       "oneOf": [
         {
@@ -47,12 +249,290 @@
         "payload"
       ]
     },
+    "CombatLineThroughAttackJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intermediate_weapon_dice_multiplier": {
+          "type": "integer"
+        },
+        "maximum_weapon_range": {
+          "type": "integer"
+        },
+        "primary_attack_roll_bonus_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "primary_weapon_dice_multiplier_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "successful_intermediate_hit_attack_roll_bonus": {
+          "type": "integer"
+        },
+        "successful_intermediate_hit_bonus_cap_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "successful_intermediate_hit_bonus_weapon_dice": {
+          "type": "integer"
+        }
+      }
+    },
+    "CombatLineThroughAttackJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intermediate_weapon_dice_multiplier": {
+          "type": "integer"
+        },
+        "maximum_weapon_range": {
+          "type": "integer"
+        },
+        "primary_attack_roll_bonus_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "primary_weapon_dice_multiplier_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "successful_intermediate_hit_attack_roll_bonus": {
+          "type": "integer"
+        },
+        "successful_intermediate_hit_bonus_cap_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "successful_intermediate_hit_bonus_weapon_dice": {
+          "type": "integer"
+        }
+      }
+    },
+    "CombatRangedWeaponReactionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow_critical": {
+          "type": "boolean"
+        },
+        "attack_defense_mode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "touch",
+            "flat_footed"
+          ]
+        },
+        "attack_roll_bonus_by_skill_level": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "consume_status_stacks": {
+          "type": "integer"
+        },
+        "damage_tag": {
+          "type": "string",
+          "enum": [
+            "physical_slash",
+            "physical_pierce",
+            "physical_blunt",
+            "fire",
+            "freeze",
+            "lightning",
+            "negative_energy",
+            "force",
+            "psychic",
+            "radiant",
+            "thunder",
+            "magic",
+            "acid",
+            "poison"
+          ]
+        },
+        "readiness_status_id": {
+          "type": "string"
+        },
+        "trigger_on_hit": {
+          "type": "boolean"
+        },
+        "trigger_on_miss": {
+          "type": "boolean"
+        },
+        "trigger_weapon_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "CombatRangedWeaponReactionJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow_critical": {
+          "type": "boolean"
+        },
+        "attack_defense_mode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "touch",
+            "flat_footed"
+          ]
+        },
+        "attack_roll_bonus_by_skill_level": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "consume_status_stacks": {
+          "type": "integer"
+        },
+        "damage_tag": {
+          "type": "string",
+          "enum": [
+            "physical_slash",
+            "physical_pierce",
+            "physical_blunt",
+            "fire",
+            "freeze",
+            "lightning",
+            "negative_energy",
+            "force",
+            "psychic",
+            "radiant",
+            "thunder",
+            "magic",
+            "acid",
+            "poison"
+          ]
+        },
+        "readiness_status_id": {
+          "type": "string"
+        },
+        "trigger_on_hit": {
+          "type": "boolean"
+        },
+        "trigger_on_miss": {
+          "type": "boolean"
+        },
+        "trigger_weapon_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "CombatSequentialLineHitJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "continuation_range_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "follow_up_attack_penalty_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "minimum_primary_distance_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "CombatSequentialLineHitJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "continuation_range_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "follow_up_attack_penalty_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "minimum_primary_distance_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      }
+    },
     "CombatSkillJsonDto": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "ai_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allow_repeat_target": {
+          "type": "boolean"
+        },
+        "allows_natural_weapon": {
+          "type": "boolean"
+        },
         "ap_cost": {
           "type": "integer"
+        },
+        "approach_attack_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatApproachAttackJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "area_direction_mode": {
+          "type": "string",
+          "enum": [
+            "target_vector",
+            "target_vector_perpendicular",
+            "caster_facing"
+          ]
+        },
+        "area_origin_mode": {
+          "type": "string",
+          "enum": [
+            "target",
+            "caster",
+            "anchor_coord"
+          ]
         },
         "area_pattern": {
           "type": "string",
@@ -61,11 +541,97 @@
             "self",
             "diamond",
             "square",
-            "line"
+            "radius",
+            "cross",
+            "line",
+            "cone",
+            "narrow_cone",
+            "front_arc"
           ]
+        },
+        "area_value": {
+          "type": "integer"
+        },
+        "attack_defense_mode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "touch",
+            "flat_footed"
+          ]
+        },
+        "attack_resolution_mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "direct_effect",
+            "fate_attack",
+            "force_hit_no_crit"
+          ]
+        },
+        "attack_roll_bonus": {
+          "type": "integer"
+        },
+        "attack_roll_bonus_status_id": {
+          "type": "string"
+        },
+        "attack_roll_bonus_status_stack_divisor": {
+          "type": "integer"
+        },
+        "aura_cost": {
+          "type": "integer"
+        },
+        "backlash_mode": {
+          "type": "string",
+          "enum": [
+            "ground_anchor_drift"
+          ]
+        },
+        "backlash_offset_radius": {
+          "type": "integer"
+        },
+        "backlash_target_filter": {
+          "type": "string",
+          "enum": [
+            "self",
+            "ally",
+            "enemy",
+            "any"
+          ]
+        },
+        "cast_variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatCastVariantJsonDto"
+          }
+        },
+        "casting_maintenance_dc": {
+          "type": "integer"
+        },
+        "casting_spell_control_dc": {
+          "type": "integer"
+        },
+        "casting_time_tu": {
+          "type": "integer"
         },
         "cooldown_tu": {
           "type": "integer"
+        },
+        "delivery_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "directional_piercing_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatDirectionalPiercingJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "effect_defs": {
           "type": "array",
@@ -73,19 +639,140 @@
             "$ref": "#/$defs/CombatEffectJsonDto"
           }
         },
+        "excluded_target_creature_type_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded_weapon_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded_weapon_type_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fumble_protection_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "fumble_protection_extra_mp_percent": {
+          "type": "integer"
+        },
+        "ground_effect_require_empty": {
+          "type": "boolean"
+        },
+        "ground_effect_require_full_area": {
+          "type": "boolean"
+        },
+        "ground_effect_require_traversable": {
+          "type": "boolean"
+        },
         "level_overrides": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/$defs/SkillLevelOverrideJsonDto"
           }
         },
+        "line_through_attack_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatLineThroughAttackJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mastery_amount_mode": {
+          "type": "string",
+          "enum": [
+            "per_target_rank",
+            "per_cast_hp_ratio"
+          ]
+        },
+        "mastery_base_amount": {
+          "type": "integer"
+        },
+        "mastery_low_hp_bonus_multiplier": {
+          "type": "integer"
+        },
+        "mastery_low_hp_threshold_percent": {
+          "type": "integer"
+        },
+        "mastery_trigger_mode": {
+          "type": "string",
+          "enum": [
+            "skill_damage_dice_max",
+            "weapon_attack_quality",
+            "damage_dealt",
+            "status_applied",
+            "effect_applied",
+            "incoming_physical_hit",
+            "secondary_hit",
+            "source_bound_weapon_bonus_damage",
+            "terrain_effective_trigger"
+          ]
+        },
+        "max_hits_per_target": {
+          "type": "integer"
+        },
+        "max_target_count": {
+          "type": "integer"
+        },
+        "min_target_count": {
+          "type": "integer"
+        },
         "mp_cost": {
+          "type": "integer"
+        },
+        "mp_cost_per_target_slot": {
+          "type": "integer"
+        },
+        "passive_effect_defs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatEffectJsonDto"
+          }
+        },
+        "pending_cast_binding_mode": {
+          "type": "string",
+          "enum": [
+            "soft_anchor",
+            "hard_anchor",
+            "ground_bind"
+          ]
+        },
+        "projectile_kind": {
+          "type": "string",
+          "enum": [
+            "none",
+            "nonmagical",
+            "magical",
+            "current_weapon"
+          ]
+        },
+        "random_chain_attack_count": {
+          "type": "integer"
+        },
+        "random_chain_continue_on_miss": {
+          "type": "boolean"
+        },
+        "range_move_point_capacity_multiplier": {
           "type": "integer"
         },
         "range_pattern": {
           "type": "string",
           "enum": [
             "single",
+            "fixed",
             "diamond",
             "square",
             "line"
@@ -94,14 +781,107 @@
         "range_value": {
           "type": "integer"
         },
+        "ranged_weapon_reaction_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatRangedWeaponReactionJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "required_weapon_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_weapon_type_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires_equipped_shield": {
+          "type": "boolean"
+        },
+        "requires_heavy_weapon": {
+          "type": "boolean"
+        },
+        "requires_los": {
+          "type": "boolean"
+        },
+        "selection_order_mode": {
+          "type": "string",
+          "enum": [
+            "stable",
+            "manual"
+          ]
+        },
+        "sequential_line_hit_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatSequentialLineHitJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "skill_id": {
           "type": "string"
+        },
+        "special_resolution_profile_id": {
+          "type": "string"
+        },
+        "spell_critical_mode": {
+          "type": "string",
+          "enum": [
+            "mp_refund"
+          ]
+        },
+        "spell_critical_mp_refund_percent": {
+          "type": "integer"
+        },
+        "spell_fate_mode": {
+          "type": "string",
+          "enum": [
+            "control_roll"
+          ]
+        },
+        "spell_reaction_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatSpellReactionJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stamina_cost": {
+          "type": "integer"
+        },
+        "stamina_cost_per_target_slot": {
+          "type": "integer"
         },
         "target_mode": {
           "type": "string",
           "enum": [
             "unit",
             "ground"
+          ]
+        },
+        "target_selection_mode": {
+          "type": "string",
+          "enum": [
+            "single_unit",
+            "multi_unit",
+            "random_chain",
+            "self",
+            "single_coord",
+            "coord_pair"
           ]
         },
         "target_team_filter": {
@@ -111,6 +891,31 @@
             "ally",
             "enemy",
             "any"
+          ]
+        },
+        "unit_target_resolution_mode": {
+          "type": "string",
+          "enum": [
+            "aggregate",
+            "ordered_slots"
+          ]
+        },
+        "weapon_range_policy": {
+          "type": "string",
+          "enum": [
+            "current_weapon",
+            "configured",
+            "current_weapon_plus_configured"
+          ]
+        },
+        "windup_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatWindupJsonDto"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },
@@ -122,8 +927,46 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "ai_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allow_repeat_target": {
+          "type": "boolean"
+        },
+        "allows_natural_weapon": {
+          "type": "boolean"
+        },
         "ap_cost": {
           "type": "integer"
+        },
+        "approach_attack_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatApproachAttackJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "area_direction_mode": {
+          "type": "string",
+          "enum": [
+            "target_vector",
+            "target_vector_perpendicular",
+            "caster_facing"
+          ]
+        },
+        "area_origin_mode": {
+          "type": "string",
+          "enum": [
+            "target",
+            "caster",
+            "anchor_coord"
+          ]
         },
         "area_pattern": {
           "type": "string",
@@ -132,11 +975,97 @@
             "self",
             "diamond",
             "square",
-            "line"
+            "radius",
+            "cross",
+            "line",
+            "cone",
+            "narrow_cone",
+            "front_arc"
           ]
+        },
+        "area_value": {
+          "type": "integer"
+        },
+        "attack_defense_mode": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "touch",
+            "flat_footed"
+          ]
+        },
+        "attack_resolution_mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "direct_effect",
+            "fate_attack",
+            "force_hit_no_crit"
+          ]
+        },
+        "attack_roll_bonus": {
+          "type": "integer"
+        },
+        "attack_roll_bonus_status_id": {
+          "type": "string"
+        },
+        "attack_roll_bonus_status_stack_divisor": {
+          "type": "integer"
+        },
+        "aura_cost": {
+          "type": "integer"
+        },
+        "backlash_mode": {
+          "type": "string",
+          "enum": [
+            "ground_anchor_drift"
+          ]
+        },
+        "backlash_offset_radius": {
+          "type": "integer"
+        },
+        "backlash_target_filter": {
+          "type": "string",
+          "enum": [
+            "self",
+            "ally",
+            "enemy",
+            "any"
+          ]
+        },
+        "cast_variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatCastVariantJsonDto"
+          }
+        },
+        "casting_maintenance_dc": {
+          "type": "integer"
+        },
+        "casting_spell_control_dc": {
+          "type": "integer"
+        },
+        "casting_time_tu": {
+          "type": "integer"
         },
         "cooldown_tu": {
           "type": "integer"
+        },
+        "delivery_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "directional_piercing_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatDirectionalPiercingJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "effect_defs": {
           "type": "array",
@@ -144,19 +1073,140 @@
             "$ref": "#/$defs/CombatEffectJsonDto"
           }
         },
+        "excluded_target_creature_type_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded_weapon_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded_weapon_type_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fumble_protection_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "fumble_protection_extra_mp_percent": {
+          "type": "integer"
+        },
+        "ground_effect_require_empty": {
+          "type": "boolean"
+        },
+        "ground_effect_require_full_area": {
+          "type": "boolean"
+        },
+        "ground_effect_require_traversable": {
+          "type": "boolean"
+        },
         "level_overrides": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/$defs/SkillLevelOverrideJsonDto__partial"
           }
         },
+        "line_through_attack_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatLineThroughAttackJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mastery_amount_mode": {
+          "type": "string",
+          "enum": [
+            "per_target_rank",
+            "per_cast_hp_ratio"
+          ]
+        },
+        "mastery_base_amount": {
+          "type": "integer"
+        },
+        "mastery_low_hp_bonus_multiplier": {
+          "type": "integer"
+        },
+        "mastery_low_hp_threshold_percent": {
+          "type": "integer"
+        },
+        "mastery_trigger_mode": {
+          "type": "string",
+          "enum": [
+            "skill_damage_dice_max",
+            "weapon_attack_quality",
+            "damage_dealt",
+            "status_applied",
+            "effect_applied",
+            "incoming_physical_hit",
+            "secondary_hit",
+            "source_bound_weapon_bonus_damage",
+            "terrain_effective_trigger"
+          ]
+        },
+        "max_hits_per_target": {
+          "type": "integer"
+        },
+        "max_target_count": {
+          "type": "integer"
+        },
+        "min_target_count": {
+          "type": "integer"
+        },
         "mp_cost": {
+          "type": "integer"
+        },
+        "mp_cost_per_target_slot": {
+          "type": "integer"
+        },
+        "passive_effect_defs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatEffectJsonDto"
+          }
+        },
+        "pending_cast_binding_mode": {
+          "type": "string",
+          "enum": [
+            "soft_anchor",
+            "hard_anchor",
+            "ground_bind"
+          ]
+        },
+        "projectile_kind": {
+          "type": "string",
+          "enum": [
+            "none",
+            "nonmagical",
+            "magical",
+            "current_weapon"
+          ]
+        },
+        "random_chain_attack_count": {
+          "type": "integer"
+        },
+        "random_chain_continue_on_miss": {
+          "type": "boolean"
+        },
+        "range_move_point_capacity_multiplier": {
           "type": "integer"
         },
         "range_pattern": {
           "type": "string",
           "enum": [
             "single",
+            "fixed",
             "diamond",
             "square",
             "line"
@@ -165,14 +1215,107 @@
         "range_value": {
           "type": "integer"
         },
+        "ranged_weapon_reaction_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatRangedWeaponReactionJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "required_weapon_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_weapon_type_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requires_equipped_shield": {
+          "type": "boolean"
+        },
+        "requires_heavy_weapon": {
+          "type": "boolean"
+        },
+        "requires_los": {
+          "type": "boolean"
+        },
+        "selection_order_mode": {
+          "type": "string",
+          "enum": [
+            "stable",
+            "manual"
+          ]
+        },
+        "sequential_line_hit_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatSequentialLineHitJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "skill_id": {
           "type": "string"
+        },
+        "special_resolution_profile_id": {
+          "type": "string"
+        },
+        "spell_critical_mode": {
+          "type": "string",
+          "enum": [
+            "mp_refund"
+          ]
+        },
+        "spell_critical_mp_refund_percent": {
+          "type": "integer"
+        },
+        "spell_fate_mode": {
+          "type": "string",
+          "enum": [
+            "control_roll"
+          ]
+        },
+        "spell_reaction_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatSpellReactionJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stamina_cost": {
+          "type": "integer"
+        },
+        "stamina_cost_per_target_slot": {
+          "type": "integer"
         },
         "target_mode": {
           "type": "string",
           "enum": [
             "unit",
             "ground"
+          ]
+        },
+        "target_selection_mode": {
+          "type": "string",
+          "enum": [
+            "single_unit",
+            "multi_unit",
+            "random_chain",
+            "self",
+            "single_coord",
+            "coord_pair"
           ]
         },
         "target_team_filter": {
@@ -183,6 +1326,321 @@
             "enemy",
             "any"
           ]
+        },
+        "unit_target_resolution_mode": {
+          "type": "string",
+          "enum": [
+            "aggregate",
+            "ordered_slots"
+          ]
+        },
+        "weapon_range_policy": {
+          "type": "string",
+          "enum": [
+            "current_weapon",
+            "configured",
+            "current_weapon_plus_configured"
+          ]
+        },
+        "windup_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CombatWindupJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "CombatSpellReactionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack_roll_bonus_by_skill_level": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "base_save_dc": {
+          "type": "integer"
+        },
+        "consume_on_trigger": {
+          "type": "boolean"
+        },
+        "expire_on_owner_turn_start": {
+          "type": "boolean"
+        },
+        "hp_damage_divisor": {
+          "type": "integer"
+        },
+        "reaction_skill_id": {
+          "type": "string"
+        },
+        "readiness_status_id": {
+          "type": "string"
+        },
+        "require_hp_damage": {
+          "type": "boolean"
+        },
+        "required_weapon_family": {
+          "type": "string"
+        },
+        "save_ability": {
+          "type": "string",
+          "enum": [
+            "strength",
+            "agility",
+            "constitution",
+            "perception",
+            "intelligence",
+            "willpower"
+          ]
+        },
+        "save_dc_bonus_by_skill_level": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "save_tag": {
+          "type": "string"
+        },
+        "trigger_delivery_category": {
+          "type": "string"
+        }
+      }
+    },
+    "CombatSpellReactionJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack_roll_bonus_by_skill_level": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "base_save_dc": {
+          "type": "integer"
+        },
+        "consume_on_trigger": {
+          "type": "boolean"
+        },
+        "expire_on_owner_turn_start": {
+          "type": "boolean"
+        },
+        "hp_damage_divisor": {
+          "type": "integer"
+        },
+        "reaction_skill_id": {
+          "type": "string"
+        },
+        "readiness_status_id": {
+          "type": "string"
+        },
+        "require_hp_damage": {
+          "type": "boolean"
+        },
+        "required_weapon_family": {
+          "type": "string"
+        },
+        "save_ability": {
+          "type": "string",
+          "enum": [
+            "strength",
+            "agility",
+            "constitution",
+            "perception",
+            "intelligence",
+            "willpower"
+          ]
+        },
+        "save_dc_bonus_by_skill_level": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "save_tag": {
+          "type": "string"
+        },
+        "trigger_delivery_category": {
+          "type": "string"
+        }
+      }
+    },
+    "CombatWindupJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_weapon_dice_multipliers": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "skill_level_tier_caps": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "stamina_cost_per_tier": {
+          "type": "integer"
+        },
+        "weapon_dice_per_tier": {
+          "type": "integer"
+        }
+      }
+    },
+    "CombatWindupJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_weapon_dice_multipliers": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "skill_level_tier_caps": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "stamina_cost_per_tier": {
+          "type": "integer"
+        },
+        "weapon_dice_per_tier": {
+          "type": "integer"
+        }
+      }
+    },
+    "ContingencyAutomationJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_parameter_bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "number",
+                "minimum": -1.7976931348623157E+308,
+                "maximum": 1.7976931348623157E+308
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "allowed_target_resolvers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "can_be_stored_in_contingency": {
+          "type": "boolean"
+        },
+        "contingency_load_override": {
+          "type": "integer"
+        },
+        "effect_category": {
+          "type": "string"
+        },
+        "min_contingency_skill_level": {
+          "type": "integer"
+        },
+        "requires_manual_targeting": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ContingencyAutomationJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_parameter_bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "number",
+                "minimum": -1.7976931348623157E+308,
+                "maximum": 1.7976931348623157E+308
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "allowed_target_resolvers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "can_be_stored_in_contingency": {
+          "type": "boolean"
+        },
+        "contingency_load_override": {
+          "type": "integer"
+        },
+        "effect_category": {
+          "type": "string"
+        },
+        "min_contingency_skill_level": {
+          "type": "integer"
+        },
+        "requires_manual_targeting": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -197,7 +1655,12 @@
             "self",
             "diamond",
             "square",
-            "line"
+            "radius",
+            "cross",
+            "line",
+            "cone",
+            "narrow_cone",
+            "front_arc"
           ]
         },
         "profile_id": {
@@ -258,6 +1721,30 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "achievement_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "attribute_growth_progress": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttributeModifierJsonDto"
+          }
+        },
+        "attribute_requirements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
         "combat_profile": {
           "anyOf": [
             {
@@ -268,11 +1755,61 @@
             }
           ]
         },
+        "contingency_automation_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContingencyAutomationJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "core_skill_transition_mode": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "replace_sources_with_result"
+          ]
+        },
         "description": {
           "type": "string"
         },
         "display_name": {
           "type": "string"
+        },
+        "dynamic_max_level_base": {
+          "type": "integer"
+        },
+        "dynamic_max_level_per_stat": {
+          "type": "integer"
+        },
+        "dynamic_max_level_stat_id": {
+          "type": "string"
+        },
+        "growth_tier": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "intermediate",
+            "advanced",
+            "ultimate"
+          ]
+        },
+        "icon_id": {
+          "type": "string"
+        },
+        "knowledge_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "learn_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "learn_source": {
           "type": "string",
@@ -300,11 +1837,44 @@
         "level_description_template": {
           "type": "string"
         },
+        "mastery_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "mastery_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "max_level": {
           "type": "integer"
         },
+        "non_core_max_level": {
+          "type": "integer"
+        },
+        "practice_tier": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "intermediate",
+            "advanced",
+            "ultimate"
+          ]
+        },
+        "retain_source_skills_on_unlock": {
+          "type": "boolean"
+        },
         "skill_id": {
           "type": "string"
+        },
+        "skill_level_requirements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
         },
         "skill_type": {
           "type": "string",
@@ -314,6 +1884,19 @@
           ]
         },
         "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unlock_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "composite_upgrade"
+          ]
+        },
+        "upgrade_source_skill_ids": {
           "type": "array",
           "items": {
             "type": "string"
@@ -339,6 +1922,30 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "achievement_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "attribute_growth_progress": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttributeModifierJsonDto"
+          }
+        },
+        "attribute_requirements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
         "combat_profile": {
           "anyOf": [
             {
@@ -349,11 +1956,61 @@
             }
           ]
         },
+        "contingency_automation_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContingencyAutomationJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "core_skill_transition_mode": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "replace_sources_with_result"
+          ]
+        },
         "description": {
           "type": "string"
         },
         "display_name": {
           "type": "string"
+        },
+        "dynamic_max_level_base": {
+          "type": "integer"
+        },
+        "dynamic_max_level_per_stat": {
+          "type": "integer"
+        },
+        "dynamic_max_level_stat_id": {
+          "type": "string"
+        },
+        "growth_tier": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "intermediate",
+            "advanced",
+            "ultimate"
+          ]
+        },
+        "icon_id": {
+          "type": "string"
+        },
+        "knowledge_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "learn_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "learn_source": {
           "type": "string",
@@ -381,11 +2038,44 @@
         "level_description_template": {
           "type": "string"
         },
+        "mastery_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "mastery_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "max_level": {
           "type": "integer"
         },
+        "non_core_max_level": {
+          "type": "integer"
+        },
+        "practice_tier": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "intermediate",
+            "advanced",
+            "ultimate"
+          ]
+        },
+        "retain_source_skills_on_unlock": {
+          "type": "boolean"
+        },
         "skill_id": {
           "type": "string"
+        },
+        "skill_level_requirements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
         },
         "skill_type": {
           "type": "string",
@@ -395,6 +2085,19 @@
           ]
         },
         "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unlock_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "composite_upgrade"
+          ]
+        },
+        "upgrade_source_skill_ids": {
           "type": "array",
           "items": {
             "type": "string"
@@ -411,6 +2114,30 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "achievement_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "attribute_growth_progress": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttributeModifierJsonDto"
+          }
+        },
+        "attribute_requirements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
         "combat_profile": {
           "anyOf": [
             {
@@ -421,11 +2148,61 @@
             }
           ]
         },
+        "contingency_automation_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContingencyAutomationJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "core_skill_transition_mode": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "replace_sources_with_result"
+          ]
+        },
         "description": {
           "type": "string"
         },
         "display_name": {
           "type": "string"
+        },
+        "dynamic_max_level_base": {
+          "type": "integer"
+        },
+        "dynamic_max_level_per_stat": {
+          "type": "integer"
+        },
+        "dynamic_max_level_stat_id": {
+          "type": "string"
+        },
+        "growth_tier": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "intermediate",
+            "advanced",
+            "ultimate"
+          ]
+        },
+        "icon_id": {
+          "type": "string"
+        },
+        "knowledge_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "learn_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "learn_source": {
           "type": "string",
@@ -453,11 +2230,44 @@
         "level_description_template": {
           "type": "string"
         },
+        "mastery_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "mastery_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "max_level": {
           "type": "integer"
         },
+        "non_core_max_level": {
+          "type": "integer"
+        },
+        "practice_tier": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "intermediate",
+            "advanced",
+            "ultimate"
+          ]
+        },
+        "retain_source_skills_on_unlock": {
+          "type": "boolean"
+        },
         "skill_id": {
           "type": "string"
+        },
+        "skill_level_requirements": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
         },
         "skill_type": {
           "type": "string",
@@ -467,6 +2277,19 @@
           ]
         },
         "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unlock_mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "composite_upgrade"
+          ]
+        },
+        "upgrade_source_skill_ids": {
           "type": "array",
           "items": {
             "type": "string"

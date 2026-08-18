@@ -24,7 +24,11 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             TestLevelDescriptionConfigContract();
             TestSnakeCaseIdsAreRejectedAtExactPointers();
             TestUnknownBusinessStringIsRejectedAtExactPointer();
+            TestExpandedRootCombatContractsAreTypedAndClosed();
+            TestExpandedDefaultsRejectExplicitNullAtExactPointers();
+            TestCastVariantPayloadOmissionAndSquare2Contract();
             TestEffectKindIsClosedAndFailurePublishesNoModel();
+            TestNestedEffectRawContractsAtExactPointers();
             TestImportModelsDefensivelyCopyCollections();
             TestImportModelsExposeOnlyPlainTypedClrState();
         }
@@ -72,6 +76,11 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             "omitted level description configs should use a canonical empty map"
         );
         _test.True(result.Value.CombatProfile == null, "combat_profile must remain optional");
+        _test.Eq(
+            result.Value.IconId.Value,
+            "",
+            "omitted icon_id should retain the Resource empty sentinel"
+        );
     }
 
     private void TestPilotCombatSkillNormalizesToTypedModel()
@@ -519,6 +528,66 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
         _test.False(result.HasValue, "closed-kind failure must not expose a partial model");
     }
 
+    private void TestNestedEffectRawContractsAtExactPointers()
+    {
+        const string layeredPayload =
+            "\"payload\":{\"area_pattern\":\"diamond\",\"profile_id\":\"ward\","
+            + "\"radius_cells\":1,\"save_dc\":12}";
+        (string Label, string EffectArrayJson, string Pointer, string RuleId)[] cases =
+        {
+            (
+                "passive explicit-null power",
+                "\"passive_effect_defs\":[{\"effect_type\":\"layered_barrier\",\"power\":null," + layeredPayload + "}]",
+                "/entries/7/combat_profile/passive_effect_defs/0/power",
+                SkillJsonImportRules.RequiredMember
+            ),
+            (
+                "passive missing effect type",
+                "\"passive_effect_defs\":[{" + layeredPayload + "}]",
+                "/entries/7/combat_profile/passive_effect_defs/0/effect_type",
+                SkillJsonImportRules.RequiredMember
+            ),
+            (
+                "passive missing payload",
+                "\"passive_effect_defs\":[{\"effect_type\":\"layered_barrier\"}]",
+                "/entries/7/combat_profile/passive_effect_defs/0/payload",
+                SkillJsonImportRules.MissingEffectPayload
+            ),
+            (
+                "cast explicit-null power",
+                "\"cast_variants\":[{\"variant_id\":\"probe\",\"effect_defs\":[{\"effect_type\":\"layered_barrier\",\"power\":null," + layeredPayload + "}]}]",
+                "/entries/7/combat_profile/cast_variants/0/effect_defs/0/power",
+                SkillJsonImportRules.RequiredMember
+            ),
+            (
+                "cast missing effect type",
+                "\"cast_variants\":[{\"variant_id\":\"probe\",\"effect_defs\":[{" + layeredPayload + "}]}]",
+                "/entries/7/combat_profile/cast_variants/0/effect_defs/0/effect_type",
+                SkillJsonImportRules.RequiredMember
+            ),
+            (
+                "cast missing payload",
+                "\"cast_variants\":[{\"variant_id\":\"probe\",\"effect_defs\":[{\"effect_type\":\"layered_barrier\"}]}]",
+                "/entries/7/combat_profile/cast_variants/0/effect_defs/0/payload",
+                SkillJsonImportRules.MissingEffectPayload
+            ),
+        };
+
+        foreach ((string label, string effectArrayJson, string pointer, string ruleId) in cases)
+        {
+            AssertSingleFailure(
+                Parse(
+                    $"nested_effect_{label.Replace('-', '_').Replace(' ', '_')}",
+                    "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\","
+                        + "\"combat_profile\":{\"skill_id\":\"mage_probe\"," + effectArrayJson + "}}"
+                ),
+                ruleId,
+                pointer,
+                label
+            );
+        }
+    }
+
     private void TestUnknownBusinessStringIsRejectedAtExactPointer()
     {
         ContentImportStageResult<SkillImportModel> result = Parse(
@@ -532,6 +601,488 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             SkillJsonImportRules.UnknownSkillType,
             "/entries/7/skill_type",
             "unknown skill type"
+        );
+    }
+
+    private void TestExpandedRootCombatContractsAreTypedAndClosed()
+    {
+        ContentImportStageResult<SkillImportModel> result = Parse(
+            "expanded_contract",
+            "{"
+                + "\"skill_id\":\"mage_contract_probe\",\"display_name\":\"Probe\","
+                + "\"unlock_mode\":\"composite_upgrade\","
+                + "\"dynamic_max_level_stat_id\":\"profession_rank:mage\","
+                + "\"core_skill_transition_mode\":\"replace_sources_with_result\","
+                + "\"growth_tier\":\"advanced\",\"practice_tier\":\"intermediate\","
+                + "\"attribute_modifiers\":[{\"attribute_id\":\"strength\",\"mode\":\"percent\"}],"
+                + "\"contingency_automation_profile\":{\"allowed_parameter_bindings\":{"
+                + "\"enabled\":true,\"limit\":3,\"ratio\":1.5,"
+                + "\"mode\":\"arc\",\"tags\":[\"fire\",\"cold\"]}},"
+                + "\"combat_profile\":{\"skill_id\":\"mage_contract_probe\","
+                + "\"weapon_range_policy\":\"configured\","
+                + "\"mastery_trigger_mode\":\"damage_dealt\","
+                + "\"mastery_amount_mode\":\"per_cast_hp_ratio\","
+                + "\"projectile_kind\":\"magical\","
+                + "\"target_selection_mode\":\"multi_unit\","
+                + "\"unit_target_resolution_mode\":\"ordered_slots\","
+                + "\"selection_order_mode\":\"manual\","
+                + "\"ranged_weapon_reaction_profile\":{\"damage_tag\":\"force\"}}}"
+        );
+        _test.True(result.HasValue, $"expanded A/B contract should parse | {FormatDiagnostics(result)}");
+        if (!result.HasValue || result.Value.CombatProfile == null)
+            return;
+
+        SkillImportModel root = result.Value;
+        _test.Eq(root.UnlockMode, SkillImportUnlockMode.CompositeUpgrade, "unlock mode should be typed");
+        _test.Eq(root.DynamicMaxLevelStatId.Value, "profession_rank:mage", "namespaced stat ID should remain typed and lossless");
+        _test.Eq(root.CoreSkillTransitionMode, SkillImportCoreSkillTransitionMode.ReplaceSourcesWithResult, "core transition should be typed");
+        _test.Eq(root.GrowthTier, SkillImportProgressionTier.Advanced, "growth tier should be typed");
+        _test.Eq(root.PracticeTier, SkillImportProgressionTier.Intermediate, "practice tier should be typed");
+        _test.Eq(root.AttributeModifiers[0].Mode, AttributeModifierImportMode.Percent, "modifier mode should be typed");
+        IReadOnlyDictionary<SkillImportIdentifier, ContingencyParameterBindingImportValue> bindings =
+            root.ContingencyAutomationProfile!.AllowedParameterBindings;
+        _test.Eq(bindings.Count, 5, "parameter binding dictionary must retain every key/value");
+        AssertBindingType<ContingencyBoolBindingImportValue>(bindings, "enabled");
+        AssertBindingType<ContingencyIntBindingImportValue>(bindings, "limit");
+        AssertBindingType<ContingencyFloatBindingImportValue>(bindings, "ratio");
+        AssertBindingType<ContingencyStringBindingImportValue>(bindings, "mode");
+        AssertBindingType<ContingencyStringListBindingImportValue>(bindings, "tags");
+
+        CombatSkillImportModel combat = result.Value.CombatProfile;
+        _test.Eq(combat.WeaponRangePolicy, CombatWeaponRangePolicyImportKind.Configured, "weapon range policy should be typed");
+        _test.Eq(combat.MasteryTriggerMode, CombatMasteryTriggerImportKind.DamageDealt, "mastery trigger should be typed");
+        _test.Eq(combat.MasteryAmountMode, CombatMasteryAmountImportKind.PerCastHpRatio, "mastery amount should be typed");
+        _test.Eq(combat.ProjectileKind, CombatBaseProjectileImportKind.Magical, "projectile kind should be typed");
+        _test.Eq(combat.TargetSelectionMode, CombatTargetSelectionImportKind.MultiUnit, "target selection should be typed");
+        _test.Eq(combat.UnitTargetResolutionMode, CombatUnitTargetResolutionImportKind.OrderedSlots, "slot resolution should be typed");
+        _test.Eq(combat.SelectionOrderMode, CombatSelectionOrderImportKind.Manual, "selection order should be typed");
+        _test.Eq(combat.RangedWeaponReactionProfile?.DamageTag, DamageTagImportKind.Force, "reaction damage tag should be typed");
+
+        AssertSingleFailure(
+            Parse("bad_unlock", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"unlock_mode\":\"future\"}"),
+            "skill.dto.unlock_mode.unknown",
+            "/entries/7/unlock_mode",
+            "unknown root business string"
+        );
+        AssertSingleFailure(
+            Parse("bad_projectile", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"projectile_kind\":\"future\"}}"),
+            "skill.dto.projectile_kind.unknown",
+            "/entries/7/combat_profile/projectile_kind",
+            "unknown combat business string"
+        );
+        AssertSingleFailure(
+            Parse("empty_base_projectile", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"projectile_kind\":\"\"}}"),
+            "skill.dto.projectile_kind.unknown",
+            "/entries/7/combat_profile/projectile_kind",
+            "base projectile inherit sentinel"
+        );
+        AssertSingleFailure(
+            Parse("movement_target", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"target_selection_mode\":\"movement\"}}"),
+            "skill.dto.target_selection_mode.unknown",
+            "/entries/7/combat_profile/target_selection_mode",
+            "unsupported movement target selection"
+        );
+        AssertSingleFailure(
+            Parse("bad_reaction_damage", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"ranged_weapon_reaction_profile\":{\"damage_tag\":\"future\"}}}"),
+            "skill.dto.ranged_weapon_reaction.damage_tag.unknown",
+            "/entries/7/combat_profile/ranged_weapon_reaction_profile/damage_tag",
+            "unknown reaction damage tag"
+        );
+        AssertSingleFailure(
+            Parse("bad_binding", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"contingency_automation_profile\":{\"allowed_parameter_bindings\":{\"mode\":{}}}}"),
+            "skill.dto.contingency.parameter_binding_value.invalid",
+            "/entries/7/contingency_automation_profile/allowed_parameter_bindings/mode",
+            "unsupported parameter binding value"
+        );
+        AssertSingleFailure(
+            Parse("non_finite_binding", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"contingency_automation_profile\":{\"allowed_parameter_bindings\":{\"ratio\":1e400}}}"),
+            "skill.dto.contingency.parameter_binding_value.invalid",
+            "/entries/7/contingency_automation_profile/allowed_parameter_bindings/ratio",
+            "non-finite parameter binding number"
+        );
+        AssertSingleFailure(
+            Parse("bad_binding_key", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"contingency_automation_profile\":{\"allowed_parameter_bindings\":{\"bad/key\":true}}}"),
+            SkillJsonImportRules.InvalidId,
+            "/entries/7/contingency_automation_profile/allowed_parameter_bindings/bad~1key",
+            "invalid escaped parameter binding key"
+        );
+
+        ContentImportStageResult<SkillImportModel> assetId = Parse(
+            "asset_id",
+            "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\","
+                + "\"icon_id\":\"550e8400-e29b-41d4-a716-446655440000.asset\"}"
+        );
+        _test.True(assetId.HasValue, $"UUID/dot asset ID should parse | {FormatDiagnostics(assetId)}");
+        if (assetId.HasValue)
+        {
+            _test.Eq(
+                assetId.Value.IconId.Value,
+                "550e8400-e29b-41d4-a716-446655440000.asset",
+                "asset ID must retain its exact stable token"
+            );
+        }
+        AssertSingleFailure(
+            Parse("asset_path", "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"icon_id\":\"res://icons/probe.png\"}"),
+            "skill.dto.asset_id.invalid",
+            "/entries/7/icon_id",
+            "path-like asset ID"
+        );
+
+        (string Label, string Json, string RuleId, string Pointer)[] explicitEmptyCases =
+        {
+            (
+                "growth tier",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"growth_tier\":\"\"}",
+                "skill.dto.growth_tier.unknown",
+                "/entries/7/growth_tier"
+            ),
+            (
+                "weapon range",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"weapon_range_policy\":\"\"}}",
+                "skill.dto.weapon_range_policy.unknown",
+                "/entries/7/combat_profile/weapon_range_policy"
+            ),
+            (
+                "attack resolution",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"attack_resolution_mode\":\"\"}}",
+                "skill.dto.attack_resolution_mode.unknown",
+                "/entries/7/combat_profile/attack_resolution_mode"
+            ),
+            (
+                "spell fate",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"spell_fate_mode\":\"\"}}",
+                "skill.dto.spell_fate_mode.unknown",
+                "/entries/7/combat_profile/spell_fate_mode"
+            ),
+            (
+                "spell critical",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"spell_critical_mode\":\"\"}}",
+                "skill.dto.spell_critical_mode.unknown",
+                "/entries/7/combat_profile/spell_critical_mode"
+            ),
+            (
+                "backlash",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"backlash_mode\":\"\"}}",
+                "skill.dto.backlash_mode.unknown",
+                "/entries/7/combat_profile/backlash_mode"
+            ),
+            (
+                "backlash target filter",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"backlash_target_filter\":\"\"}}",
+                "skill.dto.backlash_target_filter.unknown",
+                "/entries/7/combat_profile/backlash_target_filter"
+            ),
+            (
+                "projectile override",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"cast_variants\":[{\"variant_id\":\"probe\",\"projectile_kind_override\":\"\"}]}}",
+                "skill.dto.cast_variant.projectile_kind_override.unknown",
+                "/entries/7/combat_profile/cast_variants/0/projectile_kind_override"
+            ),
+        };
+        foreach ((string label, string json, string ruleId, string pointer) in explicitEmptyCases)
+            AssertSingleFailure(Parse($"explicit_empty_{label.Replace(' ', '_')}", json), ruleId, pointer, $"explicit empty {label}");
+    }
+
+    private void TestExpandedDefaultsRejectExplicitNullAtExactPointers()
+    {
+        (string Label, string Json, string Pointer)[] cases =
+        {
+            (
+                "root collection",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"mastery_curve\":null}",
+                "/entries/7/mastery_curve"
+            ),
+            (
+                "attribute modifier",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"attribute_modifiers\":[{\"mode\":null}]}",
+                "/entries/7/attribute_modifiers/0/mode"
+            ),
+            (
+                "contingency profile",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"contingency_automation_profile\":{\"allowed_parameter_bindings\":null}}",
+                "/entries/7/contingency_automation_profile/allowed_parameter_bindings"
+            ),
+            (
+                "combat default",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"projectile_kind\":null}}",
+                "/entries/7/combat_profile/projectile_kind"
+            ),
+            (
+                "windup profile",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"windup_profile\":{\"skill_level_tier_caps\":null}}}",
+                "/entries/7/combat_profile/windup_profile/skill_level_tier_caps"
+            ),
+            (
+                "directional profile",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"directional_piercing_profile\":{\"base_damage_percent_curve\":null}}}",
+                "/entries/7/combat_profile/directional_piercing_profile/base_damage_percent_curve"
+            ),
+            (
+                "line-through profile",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"line_through_attack_profile\":{\"primary_weapon_dice_multiplier_curve\":null}}}",
+                "/entries/7/combat_profile/line_through_attack_profile/primary_weapon_dice_multiplier_curve"
+            ),
+            (
+                "sequential profile",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"sequential_line_hit_profile\":{\"continuation_range_curve\":null}}}",
+                "/entries/7/combat_profile/sequential_line_hit_profile/continuation_range_curve"
+            ),
+            (
+                "spell reaction profile",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"spell_reaction_profile\":{\"save_tag\":null}}}",
+                "/entries/7/combat_profile/spell_reaction_profile/save_tag"
+            ),
+            (
+                "ranged reaction profile",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"ranged_weapon_reaction_profile\":{\"damage_tag\":null}}}",
+                "/entries/7/combat_profile/ranged_weapon_reaction_profile/damage_tag"
+            ),
+            (
+                "cast variant",
+                "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"cast_variants\":[{\"variant_id\":\"plain\",\"allowed_base_terrains\":null}]}}",
+                "/entries/7/combat_profile/cast_variants/0/allowed_base_terrains"
+            ),
+        };
+
+        foreach ((string label, string json, string pointer) in cases)
+        {
+            AssertSingleFailure(
+                Parse($"explicit_null_{label.Replace('-', '_').Replace(' ', '_')}", json),
+                SkillJsonImportRules.RequiredMember,
+                pointer,
+                $"explicit null {label}"
+            );
+        }
+
+        ContentImportStageResult<SkillImportModel> nullableProfile = Parse(
+            "nullable_profile",
+            "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"windup_profile\":null}}"
+        );
+        _test.True(
+            nullableProfile.HasValue,
+            $"nullable profile carrier should continue to allow explicit null | {FormatDiagnostics(nullableProfile)}"
+        );
+    }
+
+    private void TestCastVariantPayloadOmissionAndSquare2Contract()
+    {
+        string prefix = "{\"skill_id\":\"mage_probe\",\"display_name\":\"Probe\",\"combat_profile\":{\"skill_id\":\"mage_probe\",\"cast_variants\":[";
+        ContentImportStageResult<SkillImportModel> result = Parse(
+            "cast_payloads",
+            prefix
+                + "{\"variant_id\":\"plain\"},"
+                + "{\"variant_id\":\"square\",\"footprint_pattern\":\"square2\","
+                + "\"allowed_base_terrains\":[\"land\",\"deep_water\"],"
+                + "\"payload\":{\"square2_corner\":\"top_left\"}}]}}"
+        );
+        _test.True(result.HasValue, $"empty and square2 cast payloads should parse | {FormatDiagnostics(result)}");
+        if (result.HasValue && result.Value.CombatProfile != null)
+        {
+            IReadOnlyList<CombatCastVariantImportModel> variants = result.Value.CombatProfile.CastVariants;
+            _test.Eq(variants.Count, 2, "both cast variants should normalize");
+            _test.True(variants[0].Payload.Square2Corner == null, "omitted non-square payload should become typed empty payload");
+            _test.Eq(variants[1].Payload.Square2Corner, CombatCastSquare2Corner.TopLeft, "square2 corner should remain typed");
+            _test.True(
+                variants[1].AllowedBaseTerrains.SequenceEqual(
+                    new[] { BattleTerrainImportKind.Land, BattleTerrainImportKind.DeepWater }
+                ),
+                "cast terrain allowlist should be a typed closed collection"
+            );
+        }
+
+        AssertSingleFailure(
+            Parse(
+                "missing_square_corner",
+                prefix + "{\"variant_id\":\"square\",\"footprint_pattern\":\"square2\"}]}}"
+            ),
+            "skill.dto.cast_payload.square2_corner.required",
+            "/entries/7/combat_profile/cast_variants/0/payload/square2_corner",
+            "square2 variant without corner"
+        );
+        AssertSingleFailure(
+            Parse(
+                "null_cast_payload",
+                prefix + "{\"variant_id\":\"plain\",\"payload\":null}]}}"
+            ),
+            SkillJsonImportRules.RequiredMember,
+            "/entries/7/combat_profile/cast_variants/0/payload",
+            "explicit-null cast payload"
+        );
+        AssertSingleFailure(
+            Parse(
+                "unknown_cast_payload_member",
+                prefix + "{\"variant_id\":\"plain\",\"payload\":{\"future\":true}}]}}"
+            ),
+            SkillJsonImportRules.InvalidDto,
+            "/entries/7/combat_profile/cast_variants/0/payload/future",
+            "unknown cast payload member"
+        );
+        AssertSingleFailure(
+            Parse(
+                "null_square_corner",
+                prefix + "{\"variant_id\":\"square\",\"footprint_pattern\":\"square2\",\"payload\":{\"square2_corner\":null}}]}}"
+            ),
+            SkillJsonImportRules.RequiredMember,
+            "/entries/7/combat_profile/cast_variants/0/payload/square2_corner",
+            "explicit-null square2 corner"
+        );
+        AssertSingleFailure(
+            Parse(
+                "bad_footprint",
+                prefix + "{\"variant_id\":\"plain\",\"footprint_pattern\":\"future\"}]}}"
+            ),
+            "skill.dto.cast_variant.footprint_pattern.unknown",
+            "/entries/7/combat_profile/cast_variants/0/footprint_pattern",
+            "unknown cast footprint"
+        );
+        AssertSingleFailure(
+            Parse(
+                "bad_cast_terrain",
+                prefix + "{\"variant_id\":\"plain\",\"allowed_base_terrains\":[\"lava\"]}]}}"
+            ),
+            "skill.dto.cast_variant.allowed_base_terrain.unknown",
+            "/entries/7/combat_profile/cast_variants/0/allowed_base_terrains/0",
+            "unknown cast terrain"
+        );
+    }
+
+    private void AssertBindingType<T>(
+        IReadOnlyDictionary<SkillImportIdentifier, ContingencyParameterBindingImportValue> values,
+        string key
+    ) where T : ContingencyParameterBindingImportValue
+    {
+        SkillImportIdentifier.TryCreate(key, out SkillImportIdentifier identifier);
+        _test.True(values.TryGetValue(identifier, out ContingencyParameterBindingImportValue? value), $"binding {key} should exist");
+        _test.True(value is T, $"binding {key} should normalize as {typeof(T).Name}");
+    }
+
+    private static SkillImportModel CreateSkillModel(
+        SkillImportIdentifier skillId,
+        IEnumerable<SkillImportIdentifier> tags,
+        IEnumerable<KeyValuePair<int, SkillDescriptionVariables>> descriptionConfigs,
+        CombatSkillImportModel? combatProfile
+    ) => new(
+        skillId: skillId,
+        displayName: "Copy",
+        description: "",
+        skillType: SkillImportType.Active,
+        maxLevel: 5,
+        learnSource: SkillImportLearnSource.Book,
+        tags: tags,
+        levelDescriptionTemplate: "Value {a}",
+        levelDescriptionConfigs: descriptionConfigs,
+        combatProfile: combatProfile,
+        iconId: SkillImportAssetId.FromResource(""),
+        nonCoreMaxLevel: 0,
+        dynamicMaxLevelStatId: default,
+        dynamicMaxLevelBase: 0,
+        dynamicMaxLevelPerStat: 0,
+        masteryCurve: Array.Empty<int>(),
+        learnRequirements: Array.Empty<SkillImportIdentifier>(),
+        unlockMode: SkillImportUnlockMode.Standard,
+        knowledgeRequirements: Array.Empty<SkillImportIdentifier>(),
+        skillLevelRequirements: Array.Empty<KeyValuePair<SkillImportIdentifier, int>>(),
+        attributeRequirements: Array.Empty<KeyValuePair<SkillImportIdentifier, int>>(),
+        achievementRequirements: Array.Empty<SkillImportIdentifier>(),
+        upgradeSourceSkillIds: Array.Empty<SkillImportIdentifier>(),
+        retainSourceSkillsOnUnlock: true,
+        coreSkillTransitionMode: SkillImportCoreSkillTransitionMode.Inherit,
+        masterySources: Array.Empty<SkillImportIdentifier>(),
+        growthTier: SkillImportProgressionTier.None,
+        attributeGrowthProgress: Array.Empty<KeyValuePair<SkillImportIdentifier, int>>(),
+        practiceTier: SkillImportProgressionTier.None,
+        attributeModifiers: Array.Empty<AttributeModifierImportModel>(),
+        contingencyAutomationProfile: null
+    );
+
+    private static CombatSkillImportModel CreateCombatModel(
+        SkillImportIdentifier skillId,
+        IEnumerable<CombatEffectImportModel> effects,
+        IEnumerable<KeyValuePair<int, CombatSkillLevelOverrideImportModel>> overrides,
+        IEnumerable<SkillImportStringName>? expandedTokens = null,
+        IEnumerable<int>? expandedNumbers = null
+    )
+    {
+        IEnumerable<SkillImportStringName> tokens =
+            expandedTokens ?? Array.Empty<SkillImportStringName>();
+        IEnumerable<int> numbers = expandedNumbers ?? Array.Empty<int>();
+        return new CombatSkillImportModel(
+            skillId: skillId,
+            targetMode: CombatSkillImportTargetMode.Unit,
+            targetTeamFilter: CombatSkillImportTargetTeamFilter.Self,
+            rangePattern: CombatSkillImportRangePattern.Single,
+            rangeValue: 0,
+            areaPattern: CombatSkillImportAreaPattern.Self,
+            apCost: 2,
+            mpCost: 10,
+            cooldownTu: 20,
+            effectDefs: effects,
+            levelOverrides: overrides,
+            excludedTargetCreatureTypeTags: tokens,
+            rangeMovePointCapacityMultiplier: 0,
+            weaponRangePolicy: CombatWeaponRangePolicyImportKind.CurrentWeapon,
+            areaValue: 0,
+            requiresLos: false,
+            groundEffectRequireFullArea: false,
+            groundEffectRequireEmpty: false,
+            groundEffectRequireTraversable: false,
+            staminaCost: 0,
+            mpCostPerTargetSlot: 0,
+            staminaCostPerTargetSlot: 0,
+            castingTimeTu: 0,
+            castingMaintenanceDc: 0,
+            castingSpellControlDc: 0,
+            windupProfile: null,
+            directionalPiercingProfile: null,
+            approachAttackProfile: null,
+            lineThroughAttackProfile: null,
+            sequentialLineHitProfile: null,
+            spellReactionProfile: null,
+            rangedWeaponReactionProfile: null,
+            pendingCastBindingMode: PendingCastBindingModeKind.SoftAnchor,
+            attackRollBonus: 0,
+            attackResolutionMode: CombatSkillLevelOverrideAttackResolutionMode.Auto,
+            attackDefenseMode: CombatSkillLevelOverrideAttackDefenseMode.Normal,
+            auraCost: 0,
+            masteryTriggerMode: CombatMasteryTriggerImportKind.SkillDamageDiceMax,
+            masteryAmountMode: CombatMasteryAmountImportKind.PerTargetRank,
+            masteryBaseAmount: 1,
+            spellFateMode: CombatSpellFateImportKind.None,
+            spellCriticalMode: CombatSpellCriticalImportKind.None,
+            spellCriticalMpRefundPercent: 0,
+            fumbleProtectionCurve: numbers,
+            fumbleProtectionExtraMpPercent: 100,
+            backlashMode: CombatBacklashImportKind.None,
+            backlashTargetFilter: null,
+            backlashOffsetRadius: 0,
+            areaOriginMode: CombatAreaOriginImportKind.Target,
+            areaDirectionMode: CombatAreaDirectionImportKind.TargetVector,
+            aiTags: tokens,
+            deliveryCategories: tokens,
+            attackRollBonusStatusId: default,
+            attackRollBonusStatusStackDivisor: 0,
+            projectileKind: CombatBaseProjectileImportKind.None,
+            specialResolutionProfileId: default,
+            targetSelectionMode: CombatTargetSelectionImportKind.SingleUnit,
+            minTargetCount: 1,
+            maxTargetCount: 1,
+            allowRepeatTarget: false,
+            unitTargetResolutionMode: CombatUnitTargetResolutionImportKind.Aggregate,
+            maxHitsPerTarget: 0,
+            randomChainAttackCount: 0,
+            randomChainContinueOnMiss: false,
+            selectionOrderMode: CombatSelectionOrderImportKind.Stable,
+            passiveEffectDefs: Array.Empty<CombatEffectImportModel>(),
+            castVariants: Array.Empty<CombatCastVariantImportModel>(),
+            requiredWeaponFamilies: tokens,
+            allowsNaturalWeapon: false,
+            requiresHeavyWeapon: false,
+            requiredWeaponTypeIds: tokens,
+            excludedWeaponFamilies: tokens,
+            excludedWeaponTypeIds: tokens,
+            requiresEquippedShield: false,
+            masteryLowHpBonusMultiplier: 1,
+            masteryLowHpThresholdPercent: 50
         );
     }
 
@@ -563,19 +1114,7 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
         {
             new(2, new CombatSkillLevelOverrideImportModel(cooldownTu: 10)),
         };
-        var combat = new CombatSkillImportModel(
-            skillId,
-            CombatSkillImportTargetMode.Unit,
-            CombatSkillImportTargetTeamFilter.Self,
-            CombatSkillImportRangePattern.Single,
-            0,
-            CombatSkillImportAreaPattern.Self,
-            2,
-            10,
-            20,
-            effects,
-            overrides
-        );
+        CombatSkillImportModel combat = CreateCombatModel(skillId, effects, overrides);
         var tags = new List<SkillImportIdentifier> { tag };
         var descriptionValues = new Dictionary<string, string>
         {
@@ -586,15 +1125,9 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
         {
             new(2, new SkillDescriptionVariables(descriptionValues)),
         };
-        var skill = new SkillImportModel(
+        SkillImportModel skill = CreateSkillModel(
             skillId,
-            "Copy",
-            "",
-            SkillImportType.Active,
-            5,
-            SkillImportLearnSource.Book,
             tags,
-            "Value {a}",
             descriptionConfigs,
             combat
         );
@@ -642,10 +1175,83 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             duplicateDescriptionVariableRejected,
             "SkillDescriptionVariables must reject duplicate keys instead of applying last-write-wins"
         );
+
+        SkillImportStringName.TryCreate("spell", out SkillImportStringName token);
+        var numbers = new List<int> { 1 };
+        var tokens = new List<SkillImportStringName> { token };
+        var windup = new CombatWindupImportModel(6, 1, numbers, numbers);
+        var directional = new CombatDirectionalPiercingImportModel(numbers, 20, 40, 32, 1, 100, 1, 1);
+        var lineThrough = new CombatLineThroughAttackImportModel(2, 1, numbers, numbers, 1, 1, numbers);
+        var sequential = new CombatSequentialLineHitImportModel(numbers, numbers, numbers);
+        var spellReaction = new CombatSpellReactionImportModel(
+            token, token, token, token, CombatSaveAbilityImportKind.Constitution, token,
+            10, 2, numbers, numbers, true, true, true
+        );
+        var rangedReaction = new CombatRangedWeaponReactionImportModel(
+            token, tokens, DamageTagImportKind.Force, CombatSkillLevelOverrideAttackDefenseMode.Touch,
+            numbers, 1, true, true, false
+        );
+        var bindingList = new ContingencyStringListBindingImportValue(new[] { "fire" });
+        CombatSkillImportModel expandedCombat = CreateCombatModel(
+            skillId,
+            Array.Empty<CombatEffectImportModel>(),
+            Array.Empty<KeyValuePair<int, CombatSkillLevelOverrideImportModel>>(),
+            tokens,
+            numbers
+        );
+        numbers.Add(2);
+        tokens.Add(token);
+
+        _test.Eq(windup.SkillLevelTierCaps.Count, 1, "windup collections must be copied");
+        _test.Eq(directional.BaseDamagePercentCurve.Count, 1, "directional collections must be copied");
+        _test.Eq(lineThrough.PrimaryWeaponDiceMultiplierCurve.Count, 1, "line-through collections must be copied");
+        _test.Eq(sequential.ContinuationRangeCurve.Count, 1, "sequential collections must be copied");
+        _test.Eq(spellReaction.SaveDcBonusBySkillLevel.Count, 1, "spell reaction collections must be copied");
+        _test.Eq(rangedReaction.TriggerWeaponFamilies.Count, 1, "ranged reaction collections must be copied");
+        _test.Eq(expandedCombat.FumbleProtectionCurve.Count, 1, "combat int collections must be copied");
+        _test.Eq(expandedCombat.AiTags.Count, 1, "combat token collections must be copied");
+        _test.Eq(bindingList.Values.Count, 1, "binding list values must be copied");
+
+        IReadOnlyDictionary<string, int> emptyMap = new SkillJsonDto().SkillLevelRequirements;
+        var mutableView = (ICollection<KeyValuePair<string, int>>)emptyMap;
+        _test.True(mutableView.IsReadOnly, "DTO empty map must expose a true read-only wrapper");
+        bool emptyMapMutationRejected = false;
+        try
+        {
+            mutableView.Add(new KeyValuePair<string, int>("poison", 1));
+        }
+        catch (NotSupportedException)
+        {
+            emptyMapMutationRejected = true;
+        }
+        _test.True(emptyMapMutationRejected, "DTO empty map mutation must be rejected");
     }
 
     private void TestImportModelsExposeOnlyPlainTypedClrState()
     {
+        _test.Eq(
+            typeof(SkillImportModel).GetConstructors(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            ).Length,
+            1,
+            "root import model should expose one complete immutable construction contract"
+        );
+        _test.Eq(
+            typeof(CombatSkillImportModel).GetConstructors(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            ).Length,
+            1,
+            "combat import model should expose one complete immutable construction contract"
+        );
+        _test.True(
+            typeof(SkillImportModel).GetProperty("RootDetails") == null,
+            "root model must not retain a nullable details sidecar"
+        );
+        _test.True(
+            typeof(CombatSkillImportModel).GetProperty("Details") == null,
+            "combat model must not retain a nullable details sidecar"
+        );
+
         Type[] modelTypes =
         {
             typeof(SkillImportModel),
@@ -654,6 +1260,22 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             typeof(LayeredBarrierEffectPayloadImportModel),
             typeof(CombatSkillLevelOverrideImportModel),
             typeof(SkillDescriptionVariables),
+            typeof(AttributeModifierImportModel),
+            typeof(ContingencyAutomationImportModel),
+            typeof(ContingencyBoolBindingImportValue),
+            typeof(ContingencyIntBindingImportValue),
+            typeof(ContingencyFloatBindingImportValue),
+            typeof(ContingencyStringBindingImportValue),
+            typeof(ContingencyStringListBindingImportValue),
+            typeof(CombatWindupImportModel),
+            typeof(CombatDirectionalPiercingImportModel),
+            typeof(CombatApproachAttackImportModel),
+            typeof(CombatLineThroughAttackImportModel),
+            typeof(CombatSequentialLineHitImportModel),
+            typeof(CombatSpellReactionImportModel),
+            typeof(CombatRangedWeaponReactionImportModel),
+            typeof(CombatCastVariantImportModel),
+            typeof(CombatCastVariantPayloadImportModel),
         };
         foreach (Type modelType in modelTypes)
         {

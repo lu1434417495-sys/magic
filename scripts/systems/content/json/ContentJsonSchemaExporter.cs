@@ -351,10 +351,13 @@ internal sealed class ContentJsonSchemaExporter
             property.Property.GetCustomAttribute<ContentJsonSchemaEntryControlMembersAttribute>();
         ContentJsonSchemaPartialObjectValuesAttribute partialObjectValues =
             property.Property.GetCustomAttribute<ContentJsonSchemaPartialObjectValuesAttribute>();
+        ContentJsonSchemaScalarOrStringArrayDictionaryValuesAttribute scalarOrStringArrayValues =
+            property.Property.GetCustomAttribute<ContentJsonSchemaScalarOrStringArrayDictionaryValuesAttribute>();
         ContentJsonSchemaDisallowExplicitNullAttribute disallowExplicitNull =
             property.Property.GetCustomAttribute<ContentJsonSchemaDisallowExplicitNullAttribute>();
         int schemaShapeAttributeCount = (entryControl != null ? 1 : 0)
             + (partialObjectValues != null ? 1 : 0)
+            + (scalarOrStringArrayValues != null ? 1 : 0)
             + (disallowExplicitNull != null ? 1 : 0);
         if (schemaShapeAttributeCount > 1)
         {
@@ -372,6 +375,11 @@ internal sealed class ContentJsonSchemaExporter
                     property.Property,
                     nullability,
                     partialObjectValues
+                )
+            : scalarOrStringArrayValues != null
+                ? BuildScalarOrStringArrayDictionarySchema(
+                    property.Property,
+                    nullability
                 )
             : disallowExplicitNull != null
                 ? BuildExplicitNonNullPropertySchema(property.Property, nullability)
@@ -447,6 +455,72 @@ internal sealed class ContentJsonSchemaExporter
             : dictionarySchema;
     }
 
+    private static JsonObject BuildScalarOrStringArrayDictionarySchema(
+        PropertyInfo property,
+        NullabilityInfo nullability
+    )
+    {
+        if (
+            !TryGetDictionaryValueType(property.PropertyType, out Type valueType)
+            || valueType != typeof(JsonElement)
+        )
+        {
+            throw new InvalidOperationException(
+                $"Scalar-or-string-array dictionary schema metadata on "
+                    + $"'{property.DeclaringType?.Name}.{property.Name}' requires a "
+                    + "string-keyed dictionary whose value carrier is JsonElement."
+            );
+        }
+        if (property.PropertyType.IsValueType)
+        {
+            throw new InvalidOperationException(
+                $"Scalar-or-string-array dictionary schema metadata on "
+                    + $"'{property.DeclaringType?.Name}.{property.Name}' requires a "
+                    + "dictionary reference type."
+            );
+        }
+        if (nullability.ReadState == NullabilityState.Unknown)
+        {
+            throw new InvalidOperationException(
+                $"Reference property '{property.DeclaringType?.Name}.{property.Name}' has "
+                    + "unknown nullable metadata. Enable nullable annotations for the DTO file "
+                    + "and declare the property as nullable or non-nullable explicitly."
+            );
+        }
+
+        JsonObject dictionarySchema = new()
+        {
+            ["type"] = "object",
+            ["additionalProperties"] = new JsonObject
+            {
+                ["anyOf"] = new JsonArray(
+                    new JsonObject { ["type"] = "boolean" },
+                    new JsonObject
+                    {
+                        ["type"] = "integer",
+                        ["minimum"] = long.MinValue,
+                        ["maximum"] = long.MaxValue,
+                    },
+                    new JsonObject
+                    {
+                        ["type"] = "number",
+                        ["minimum"] = -double.MaxValue,
+                        ["maximum"] = double.MaxValue,
+                    },
+                    new JsonObject { ["type"] = "string" },
+                    new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["items"] = new JsonObject { ["type"] = "string" },
+                    }
+                ),
+            },
+        };
+        return nullability.ReadState == NullabilityState.Nullable
+            ? WrapNullable(dictionarySchema)
+            : dictionarySchema;
+    }
+
     private string EnsurePartialDefinition(Type type)
     {
         if (_partialDefinitionKeys.TryGetValue(type, out string existingKey))
@@ -486,12 +560,27 @@ internal sealed class ContentJsonSchemaExporter
 
     private JsonObject BuildPartialPropertySchema(SerializableProperty property)
     {
-        if (
-            property.Property.GetCustomAttribute<ContentJsonSchemaEntryControlMembersAttribute>()
-                != null
-            || property.Property.GetCustomAttribute<ContentJsonSchemaPartialObjectValuesAttribute>()
-                != null
-        )
+        ContentJsonSchemaEntryControlMembersAttribute entryControl =
+            property.Property.GetCustomAttribute<ContentJsonSchemaEntryControlMembersAttribute>();
+        ContentJsonSchemaPartialObjectValuesAttribute partialObjectValues =
+            property.Property.GetCustomAttribute<ContentJsonSchemaPartialObjectValuesAttribute>();
+        ContentJsonSchemaScalarOrStringArrayDictionaryValuesAttribute scalarOrStringArrayValues =
+            property.Property.GetCustomAttribute<ContentJsonSchemaScalarOrStringArrayDictionaryValuesAttribute>();
+        ContentJsonSchemaDisallowExplicitNullAttribute disallowExplicitNullAttribute =
+            property.Property.GetCustomAttribute<ContentJsonSchemaDisallowExplicitNullAttribute>();
+        int schemaShapeAttributeCount = (entryControl != null ? 1 : 0)
+            + (partialObjectValues != null ? 1 : 0)
+            + (scalarOrStringArrayValues != null ? 1 : 0)
+            + (disallowExplicitNullAttribute != null ? 1 : 0);
+        if (schemaShapeAttributeCount > 1)
+        {
+            throw new InvalidOperationException(
+                $"JSON Schema property '{property.Property.DeclaringType?.Name}."
+                    + $"{property.Property.Name}' cannot combine multiple schema-only shape "
+                    + "metadata attributes."
+            );
+        }
+        if (entryControl != null || partialObjectValues != null)
         {
             throw new InvalidOperationException(
                 $"Recursive partial DTO '{property.Property.DeclaringType?.Name}."
@@ -500,9 +589,18 @@ internal sealed class ContentJsonSchemaExporter
         }
 
         NullabilityInfo nullability = _nullability.Create(property.Property);
-        bool disallowExplicitNull =
-            property.Property.GetCustomAttribute<ContentJsonSchemaDisallowExplicitNullAttribute>()
-                != null;
+        if (scalarOrStringArrayValues != null)
+        {
+            JsonObject dictionarySchema = BuildScalarOrStringArrayDictionarySchema(
+                property.Property,
+                nullability
+            );
+            AddDescription(dictionarySchema, property.Description);
+            ApplyPropertyConst(dictionarySchema, property.Property);
+            ApplyPropertyStringConstraints(dictionarySchema, property.Property);
+            return dictionarySchema;
+        }
+        bool disallowExplicitNull = disallowExplicitNullAttribute != null;
         JsonObject schema = BuildPartialValueSchema(
             property.Property.PropertyType,
             nullability,
@@ -626,7 +724,7 @@ internal sealed class ContentJsonSchemaExporter
             declaringProperty?.GetCustomAttribute<ContentJsonSchemaStableStringValuesAttribute>()
             ?? type.GetCustomAttribute<ContentJsonSchemaStableStringValuesAttribute>();
         if (stableStrings != null)
-            return BuildStableStringSchema(stableStrings, declaringProperty, type);
+            return BuildStableStringSchema(stableStrings, declaringProperty, type, nullability);
 
         if (
             type == typeof(string)
@@ -1106,7 +1204,7 @@ internal sealed class ContentJsonSchemaExporter
             declaringProperty?.GetCustomAttribute<ContentJsonSchemaStableStringValuesAttribute>()
             ?? type.GetCustomAttribute<ContentJsonSchemaStableStringValuesAttribute>();
         if (stableStrings != null)
-            return BuildStableStringSchema(stableStrings, declaringProperty, type);
+            return BuildStableStringSchema(stableStrings, declaringProperty, type, nullability);
 
         if (type == typeof(string) || type == typeof(char))
             return new JsonObject { ["type"] = "string" };
@@ -1191,15 +1289,35 @@ internal sealed class ContentJsonSchemaExporter
     private JsonObject BuildStableStringSchema(
         ContentJsonSchemaStableStringValuesAttribute attribute,
         PropertyInfo property,
-        Type valueType
+        Type valueType,
+        NullabilityInfo nullability
     )
     {
-        if (valueType != typeof(string) && !valueType.IsEnum)
+        bool isCollection = TryGetArrayElementType(valueType, out Type elementType);
+        Type stableValueType = isCollection ? elementType : valueType;
+        if (stableValueType != typeof(string) && !stableValueType.IsEnum)
         {
             throw new InvalidOperationException(
                 $"Stable business-string metadata on '{property?.DeclaringType?.Name}."
-                    + $"{property?.Name}' must target string or enum, not '{DisplayType(valueType)}'."
+                    + $"{property?.Name}' must target string, enum, or a collection of those, "
+                    + $"not '{DisplayType(valueType)}'."
             );
+        }
+        if (isCollection)
+        {
+            NullabilityInfo elementNullability = valueType.IsArray
+                ? nullability.ElementType
+                : RequireGenericNullability(nullability, 0, property, "array element");
+            if (
+                elementNullability == null
+                || elementNullability.ReadState != NullabilityState.NotNull
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Stable business-string collection '{property?.DeclaringType?.Name}."
+                        + $"{property?.Name}' requires non-null elements."
+                );
+            }
         }
 
         IContentJsonSchemaStableStringValues provider =
@@ -1211,11 +1329,18 @@ internal sealed class ContentJsonSchemaExporter
             provider.Values,
             $"stable business string '{property?.DeclaringType?.Name}.{property?.Name}'"
         );
-        return new JsonObject
+        JsonObject scalarSchema = new()
         {
             ["type"] = "string",
             ["enum"] = ToJsonArray(values),
         };
+        return isCollection
+            ? new JsonObject
+            {
+                ["type"] = "array",
+                ["items"] = scalarSchema,
+            }
+            : scalarSchema;
     }
 
     private static JsonObject BuildEnumSchema(Type enumType, PropertyInfo property)

@@ -27,6 +27,11 @@
     <Compile Include="../../scripts/systems/content/skills/PendingCastBindingModeKind.cs" Link="Shared/PendingCastBindingModeKind.cs" />
     <Compile Include="../../scripts/systems/content/skills/SkillTypedLevelValueModels.cs" Link="Shared/SkillTypedLevelValueModels.cs" />
     <Compile Include="../../scripts/systems/content/skills/SkillJsonImportContracts.cs" Link="Shared/SkillJsonImportContracts.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillFullCombatEffectClosedSpec.cs" Link="Shared/SkillFullCombatEffectClosedSpec.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillRootCombatImportModels.cs" Link="Shared/SkillRootCombatImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillRootCombatImportValueRules.cs" Link="Shared/SkillRootCombatImportValueRules.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillRootCombatJsonDtos.cs" Link="Shared/SkillRootCombatJsonDtos.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillRootCombatJsonNormalizer.cs" Link="Shared/SkillRootCombatJsonNormalizer.cs" />
     <Compile Include="../../scripts/systems/content/skills/SkillJsonImportParser.cs" Link="Shared/SkillJsonImportParser.cs" />
     <Compile Include="../../scripts/systems/content/skills/SkillContentJsonAuthoringDomain.cs" Link="Shared/SkillContentJsonAuthoringDomain.cs" />
   </ItemGroup>

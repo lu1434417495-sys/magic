@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -25,6 +26,7 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             TestEntryControlMembersAreSchemaOnly();
             TestRecursivePartialTemplatesPreserveReplaceOnlyArrays();
             TestOptionalNullableCarrierCanDisallowExplicitNull();
+            TestScalarOrStringArrayDictionaryMetadataFailsClosed();
             TestSkillPilotSchemaReflectsCurrentImportContract();
             TestSkillSchemaValueProvidersMatchParserEnums();
             TestTrackedSchemaIsByteExact();
@@ -447,6 +449,30 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
         );
     }
 
+    private void TestScalarOrStringArrayDictionaryMetadataFailsClosed()
+    {
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaWrongScalarDictionaryValueDto),
+            "value carrier is JsonElement",
+            "scalar-or-string-array dictionary metadata should reject a copied string DTO shape"
+        );
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaNonStringScalarDictionaryKeyDto),
+            "must use string keys",
+            "scalar-or-string-array dictionary metadata should reject non-string keys"
+        );
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaCombinedScalarDictionaryShapeDto),
+            "cannot combine multiple schema-only shape metadata attributes",
+            "scalar-or-string-array dictionary metadata should remain mutually exclusive"
+        );
+        ExpectExportFailure(
+            typeof(ContentJsonSchemaPartialCombinedScalarDictionaryShapeDto),
+            "cannot combine multiple schema-only shape metadata attributes",
+            "recursive partial DTOs should independently reject combined shape metadata"
+        );
+    }
+
     private void TestSkillPilotSchemaReflectsCurrentImportContract()
     {
         ContentJsonSchemaDomainRegistration registration =
@@ -505,6 +531,16 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             "integer",
             "skill max_level should be optional but explicit-null-forbidden"
         );
+        JsonElement contingency = ReferencedDefinition(
+            root,
+            NonNullBranch(
+                entry.GetProperty("properties")
+                    .GetProperty("contingency_automation_profile")
+            )
+        );
+        JsonElement fullParameterBindings = contingency.GetProperty("properties")
+            .GetProperty("allowed_parameter_bindings");
+        AssertScalarOrStringArrayDictionarySchema(fullParameterBindings);
 
         JsonElement combat = ReferencedDefinition(
             root,
@@ -548,7 +584,34 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             "self",
             "diamond",
             "square",
-            "line"
+            "radius",
+            "cross",
+            "line",
+            "cone",
+            "narrow_cone",
+            "front_arc"
+        );
+        JsonElement castVariant = ReferencedDefinition(
+            root,
+            combat.GetProperty("properties")
+                .GetProperty("cast_variants")
+                .GetProperty("items")
+        );
+        JsonElement castPayloadReference = castVariant.GetProperty("properties")
+            .GetProperty("payload");
+        _test.False(
+            castPayloadReference.TryGetProperty("anyOf", out _),
+            "cast payload may be omitted but must reject explicit null"
+        );
+        JsonElement castPayload = ReferencedDefinition(root, castPayloadReference);
+        _test.False(
+            castPayload.GetProperty("additionalProperties").GetBoolean(),
+            "cast payload should be closed by its strict typed DTO"
+        );
+        _test.Eq(
+            castPayload.GetProperty("properties").EnumerateObject().Single().Name,
+            "square2_corner",
+            "cast payload should expose only the registered square2_corner member"
         );
 
         JsonElement partialEntry = ReferencedDefinition(
@@ -592,6 +655,77 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             "soft_anchor",
             "hard_anchor",
             "ground_bind"
+        );
+        JsonElement partialCastVariant = ReferencedDefinition(
+            root,
+            partialCombat.GetProperty("properties")
+                .GetProperty("cast_variants")
+                .GetProperty("items")
+        );
+        _test.Eq(
+            partialCastVariant.GetProperty("properties")
+                .GetProperty("payload")
+                .GetRawText(),
+            castPayloadReference.GetRawText(),
+            "replace-only cast variants should retain the same closed non-null payload schema"
+        );
+        JsonElement spellReaction = ReferencedDefinition(
+            root,
+            NonNullBranch(combat.GetProperty("properties").GetProperty("spell_reaction_profile"))
+        );
+        JsonElement partialSpellReaction = ReferencedDefinition(
+            root,
+            NonNullBranch(partialCombat.GetProperty("properties").GetProperty("spell_reaction_profile"))
+        );
+        JsonElement rangedReaction = ReferencedDefinition(
+            root,
+            NonNullBranch(combat.GetProperty("properties").GetProperty("ranged_weapon_reaction_profile"))
+        );
+        JsonElement partialRangedReaction = ReferencedDefinition(
+            root,
+            NonNullBranch(partialCombat.GetProperty("properties").GetProperty("ranged_weapon_reaction_profile"))
+        );
+        AssertStableStringPropertySchemas(entry, partialEntry, typeof(SkillJsonDto));
+        AssertStableStringPropertySchemas(combat, partialCombat, typeof(CombatSkillJsonDto));
+        AssertStableStringPropertySchemas(
+            Definition(root, nameof(AttributeModifierJsonDto)),
+            null,
+            typeof(AttributeModifierJsonDto)
+        );
+        AssertStableStringPropertySchemas(
+            spellReaction,
+            partialSpellReaction,
+            typeof(CombatSpellReactionJsonDto)
+        );
+        AssertStableStringPropertySchemas(
+            rangedReaction,
+            partialRangedReaction,
+            typeof(CombatRangedWeaponReactionJsonDto)
+        );
+        AssertStableStringPropertySchemas(
+            castVariant,
+            partialCastVariant,
+            typeof(CombatCastVariantJsonDto)
+        );
+        AssertStableStringPropertySchemas(
+            castPayload,
+            null,
+            typeof(CombatCastVariantPayloadJsonDto)
+        );
+        JsonElement partialContingency = ReferencedDefinition(
+            root,
+            NonNullBranch(
+                partialEntry.GetProperty("properties")
+                    .GetProperty("contingency_automation_profile")
+            )
+        );
+        JsonElement partialParameterBindings = partialContingency.GetProperty("properties")
+            .GetProperty("allowed_parameter_bindings");
+        AssertScalarOrStringArrayDictionarySchema(partialParameterBindings);
+        _test.Eq(
+            partialParameterBindings.GetRawText(),
+            fullParameterBindings.GetRawText(),
+            "full entries and partial templates must expose the same raw binding value union"
         );
 
         Type templateValueType = typeof(SkillJsonDocumentDto).GetProperty("Templates")!
@@ -657,12 +791,128 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             SkillJsonImportValueRules.TryParseLevelOverrideAreaPattern,
             "level_override.area_pattern"
         );
+        AssertSkillSchemaProviderParity<SkillImportUnlockMode>(
+            new SkillUnlockModeSchemaValues(),
+            SkillRootCombatImportValueRules.TryUnlockMode,
+            "unlock_mode"
+        );
+        AssertSkillSchemaProviderParity<SkillImportCoreSkillTransitionMode>(
+            new SkillCoreTransitionSchemaValues(),
+            SkillRootCombatImportValueRules.TryCoreTransition,
+            "core_skill_transition_mode"
+        );
+        AssertSkillSchemaProviderParity<SkillImportProgressionTier>(
+            new SkillProgressionTierSchemaValues(),
+            SkillRootCombatImportValueRules.TryTier,
+            "progression_tier",
+            SkillImportProgressionTier.None
+        );
+        AssertSkillSchemaProviderParity<AttributeModifierImportMode>(
+            new SkillAttributeModifierModeSchemaValues(),
+            SkillRootCombatImportValueRules.TryAttributeModifierMode,
+            "attribute_modifier.mode"
+        );
+        AssertSkillSchemaProviderParity<CombatWeaponRangePolicyImportKind>(
+            new SkillWeaponRangePolicySchemaValues(),
+            SkillRootCombatImportValueRules.TryWeaponRangePolicy,
+            "weapon_range_policy"
+        );
+        AssertSkillSchemaProviderParity<CombatMasteryTriggerImportKind>(
+            new SkillMasteryTriggerSchemaValues(),
+            SkillRootCombatImportValueRules.TryMasteryTrigger,
+            "mastery_trigger_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatMasteryAmountImportKind>(
+            new SkillMasteryAmountSchemaValues(),
+            SkillRootCombatImportValueRules.TryMasteryAmount,
+            "mastery_amount_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatSpellFateImportKind>(
+            new SkillSpellFateSchemaValues(),
+            SkillRootCombatImportValueRules.TrySpellFate,
+            "spell_fate_mode",
+            CombatSpellFateImportKind.None
+        );
+        AssertSkillSchemaProviderParity<CombatSpellCriticalImportKind>(
+            new SkillSpellCriticalSchemaValues(),
+            SkillRootCombatImportValueRules.TrySpellCritical,
+            "spell_critical_mode",
+            CombatSpellCriticalImportKind.None
+        );
+        AssertSkillSchemaProviderParity<CombatBacklashImportKind>(
+            new SkillBacklashSchemaValues(),
+            SkillRootCombatImportValueRules.TryBacklash,
+            "backlash_mode",
+            CombatBacklashImportKind.None
+        );
+        AssertSkillSchemaProviderParity<CombatAreaOriginImportKind>(
+            new SkillAreaOriginSchemaValues(),
+            SkillRootCombatImportValueRules.TryAreaOrigin,
+            "area_origin_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatAreaDirectionImportKind>(
+            new SkillAreaDirectionSchemaValues(),
+            SkillRootCombatImportValueRules.TryAreaDirection,
+            "area_direction_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatBaseProjectileImportKind>(
+            new SkillBaseProjectileSchemaValues(),
+            SkillRootCombatImportValueRules.TryBaseProjectile,
+            "projectile_kind"
+        );
+        AssertSkillSchemaProviderParity<CombatProjectileImportKind>(
+            new SkillBaseProjectileSchemaValues(),
+            SkillRootCombatImportValueRules.TryProjectile,
+            "cast_variant.projectile_kind_override",
+            CombatProjectileImportKind.Inherit
+        );
+        AssertSkillSchemaProviderParity<CombatTargetSelectionImportKind>(
+            new SkillTargetSelectionSchemaValues(),
+            SkillRootCombatImportValueRules.TryTargetSelection,
+            "target_selection_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatUnitTargetResolutionImportKind>(
+            new SkillUnitTargetResolutionSchemaValues(),
+            SkillRootCombatImportValueRules.TryUnitTargetResolution,
+            "unit_target_resolution_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatSelectionOrderImportKind>(
+            new SkillSelectionOrderSchemaValues(),
+            SkillRootCombatImportValueRules.TrySelectionOrder,
+            "selection_order_mode"
+        );
+        AssertSkillSchemaProviderParity<CombatCastFootprintImportKind>(
+            new SkillCastFootprintSchemaValues(),
+            SkillRootCombatImportValueRules.TryFootprint,
+            "cast_variant.footprint_pattern"
+        );
+        AssertSkillSchemaProviderParity<CombatSaveAbilityImportKind>(
+            new SkillSaveAbilitySchemaValues(),
+            SkillRootCombatImportValueRules.TrySaveAbility,
+            "spell_reaction.save_ability"
+        );
+        AssertSkillSchemaProviderParity<DamageTagImportKind>(
+            new SkillDamageTagSchemaValues(),
+            SkillRootCombatImportValueRules.TryDamageTag,
+            "ranged_weapon_reaction.damage_tag"
+        );
+        AssertSkillSchemaProviderParity<BattleTerrainImportKind>(
+            new SkillTerrainSchemaValues(),
+            SkillRootCombatImportValueRules.TryTerrain,
+            "cast_variant.allowed_base_terrains"
+        );
+        AssertSkillSchemaProviderParity<CombatCastSquare2Corner>(
+            new SkillSquare2CornerSchemaValues(),
+            SkillRootCombatImportValueRules.TrySquare2Corner,
+            "cast_variant.payload.square2_corner"
+        );
     }
 
     private void AssertSkillSchemaProviderParity<TEnum>(
         IContentJsonSchemaStableStringValues provider,
         TryParseSkillSchemaValue<TEnum> parser,
-        string fieldLabel
+        string fieldLabel,
+        TEnum? implicitOmittedValue = null
     )
         where TEnum : struct, Enum
     {
@@ -686,7 +936,14 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             );
         }
 
-        TEnum[] expected = Enum.GetValues<TEnum>();
+        _test.False(
+            parser("__schema_unknown__", out _),
+            $"{fieldLabel} parser must reject strings outside its schema provider"
+        );
+
+        TEnum[] expected = Enum.GetValues<TEnum>()
+            .Where(value => !implicitOmittedValue.HasValue || !EqualityComparer<TEnum>.Default.Equals(value, implicitOmittedValue.Value))
+            .ToArray();
         _test.Eq(
             parsedValues.Count,
             expected.Length,
@@ -700,6 +957,48 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
             );
         }
     }
+
+    private void AssertStableStringPropertySchemas(
+        JsonElement fullSchema,
+        JsonElement? partialSchema,
+        Type dtoType
+    )
+    {
+        JsonElement fullProperties = fullSchema.GetProperty("properties");
+        foreach (PropertyInfo property in dtoType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            ContentJsonSchemaStableStringValuesAttribute? attribute =
+                property.GetCustomAttribute<ContentJsonSchemaStableStringValuesAttribute>();
+            if (attribute == null)
+                continue;
+
+            string jsonName = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+                ?? throw new InvalidOperationException($"{dtoType.Name}.{property.Name} lacks JsonPropertyName.");
+            var provider = (IContentJsonSchemaStableStringValues)(
+                Activator.CreateInstance(attribute.ProviderType)
+                ?? throw new InvalidOperationException($"Cannot create {attribute.ProviderType.Name}.")
+            );
+            JsonElement fullProperty = StableStringScalarSchema(fullProperties.GetProperty(jsonName));
+            AssertEnumValues(fullProperty, provider.Values.ToArray());
+            _test.False(
+                fullProperty.GetProperty("enum").EnumerateArray().Any(value => value.GetString() == ""),
+                $"{dtoType.Name}.{jsonName} schema must not publish omission-only empty sentinels"
+            );
+
+            if (partialSchema.HasValue)
+            {
+                JsonElement partialProperty = partialSchema.Value.GetProperty("properties").GetProperty(jsonName);
+                _test.Eq(
+                    partialProperty.GetRawText(),
+                    fullProperties.GetProperty(jsonName).GetRawText(),
+                    $"{dtoType.Name}.{jsonName} full and partial schemas must match exactly"
+                );
+            }
+        }
+    }
+
+    private static JsonElement StableStringScalarSchema(JsonElement propertySchema) =>
+        propertySchema.TryGetProperty("items", out JsonElement items) ? items : propertySchema;
 
     private void TestTrackedSchemaIsByteExact()
     {
@@ -924,6 +1223,49 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
         );
     }
 
+    private void AssertScalarOrStringArrayDictionarySchema(JsonElement schema)
+    {
+        _test.Eq(
+            schema.GetProperty("type").GetString(),
+            "object",
+            "parameter bindings should remain a JSON object keyed by binding ID"
+        );
+        JsonElement[] branches = schema.GetProperty("additionalProperties")
+            .GetProperty("anyOf")
+            .EnumerateArray()
+            .ToArray();
+        _test.Eq(branches.Length, 5, "binding values should expose exactly five closed shapes");
+        string[] types = branches
+            .Select(branch => branch.GetProperty("type").GetString() ?? "")
+            .ToArray();
+        _test.True(
+            types.SequenceEqual(new[] { "boolean", "integer", "number", "string", "array" }),
+            $"binding value shapes should be stable and closed | actual={string.Join(",", types)}"
+        );
+        _test.False(
+            types.Contains("object") || types.Contains("null"),
+            "binding value union must not expose object or null compatibility branches"
+        );
+        JsonElement integer = branches.Single(branch =>
+            branch.GetProperty("type").GetString() == "integer"
+        );
+        _test.Eq(integer.GetProperty("minimum").GetInt64(), long.MinValue, "integer minimum should match Int64 parsing");
+        _test.Eq(integer.GetProperty("maximum").GetInt64(), long.MaxValue, "integer maximum should match Int64 parsing");
+        JsonElement number = branches.Single(branch =>
+            branch.GetProperty("type").GetString() == "number"
+        );
+        _test.Eq(number.GetProperty("minimum").GetDouble(), -double.MaxValue, "number minimum should reject negative overflow");
+        _test.Eq(number.GetProperty("maximum").GetDouble(), double.MaxValue, "number maximum should reject positive overflow");
+        JsonElement array = branches.Single(branch =>
+            branch.GetProperty("type").GetString() == "array"
+        );
+        _test.Eq(
+            array.GetProperty("items").GetProperty("type").GetString(),
+            "string",
+            "binding arrays should contain strings only"
+        );
+    }
+
     private static JsonElement Definition(JsonElement root, string name) =>
         root.GetProperty("$defs").GetProperty(name);
 
@@ -980,6 +1322,42 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
         [JsonPropertyName("value")]
         [ContentJsonSchemaDisallowExplicitNull]
         public int Value { get; init; }
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaWrongScalarDictionaryValueDto
+    {
+        [JsonPropertyName("values")]
+        [ContentJsonSchemaScalarOrStringArrayDictionaryValues]
+        public IReadOnlyDictionary<string, string> Values { get; init; } =
+            new Dictionary<string, string>();
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaNonStringScalarDictionaryKeyDto
+    {
+        [JsonPropertyName("values")]
+        [ContentJsonSchemaScalarOrStringArrayDictionaryValues]
+        public IReadOnlyDictionary<int, JsonElement> Values { get; init; } =
+            new Dictionary<int, JsonElement>();
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaCombinedScalarDictionaryShapeDto
+    {
+        [JsonPropertyName("values")]
+        [ContentJsonSchemaScalarOrStringArrayDictionaryValues]
+        [ContentJsonSchemaDisallowExplicitNull]
+        public IReadOnlyDictionary<string, JsonElement>? Values { get; init; }
+    }
+
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+    private sealed class ContentJsonSchemaPartialCombinedScalarDictionaryShapeDto
+    {
+        [JsonPropertyName("templates")]
+        [ContentJsonSchemaPartialObjectValues]
+        public IReadOnlyDictionary<string, ContentJsonSchemaCombinedScalarDictionaryShapeDto> Templates { get; init; } =
+            new Dictionary<string, ContentJsonSchemaCombinedScalarDictionaryShapeDto>();
     }
 
     [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

@@ -63,6 +63,7 @@ internal enum CombatSkillImportTargetTeamFilter
 internal enum CombatSkillImportRangePattern
 {
     Single,
+    Fixed,
     Diamond,
     Square,
     Line,
@@ -74,12 +75,44 @@ internal enum CombatSkillImportAreaPattern
     Self,
     Diamond,
     Square,
+    Radius,
+    Cross,
     Line,
+    Cone,
+    NarrowCone,
+    FrontArc,
 }
 
 internal enum CombatEffectImportKind
 {
+    BodySizeCategoryOverride,
+    ChainDamage,
+    Charge,
+    CleanseHarmful,
+    Damage,
+    DispelMagic,
+    EquipmentDurabilityDamage,
+    EraseStatus,
+    Execute,
+    FixedRepeatAttack,
+    ForcedMove,
+    GradedSaveExecute,
+    Heal,
+    HealFatal,
+    HeightDelta,
     LayeredBarrier,
+    OnKillGainResources,
+    PathStepAoe,
+    PositionSwap,
+    RepeatAttackUntilFail,
+    Shield,
+    SourceRetreat,
+    StaminaRestore,
+    Status,
+    TerrainEffect,
+    TerrainReplace,
+    TerrainReplaceTo,
+    VaultBehindTarget,
 }
 
 internal interface ICombatEffectPayloadImportModel { }
@@ -106,7 +139,7 @@ internal sealed class LayeredBarrierEffectPayloadImportModel
     internal int SaveDc { get; }
 }
 
-internal static class CombatEffectImportClosedSpec
+internal static partial class CombatEffectImportClosedSpec
 {
     internal const string LayeredBarrierKindValue = "layered_barrier";
 
@@ -117,26 +150,14 @@ internal static class CombatEffectImportClosedSpec
 
     internal static bool TryParseKind(string? value, out CombatEffectImportKind result)
     {
-        if (string.Equals(value, LayeredBarrierKindValue, StringComparison.Ordinal))
-        {
-            result = CombatEffectImportKind.LayeredBarrier;
-            return true;
-        }
-
-        result = default;
-        return false;
+        return SkillFullCombatEffectClosedSpec.TryParseKind(value, out result);
     }
 
     internal static bool IsPayloadCompatible(
         CombatEffectImportKind kind,
         ICombatEffectPayloadImportModel payload
     ) =>
-        kind switch
-        {
-            CombatEffectImportKind.LayeredBarrier =>
-                payload is LayeredBarrierEffectPayloadImportModel,
-            _ => false,
-        };
+        SkillFullCombatEffectClosedSpec.IsPayloadCompatible(kind, payload);
 }
 
 internal static class SkillJsonImportValueRules
@@ -241,6 +262,7 @@ internal static class SkillJsonImportValueRules
         switch (value)
         {
             case "single": result = CombatSkillImportRangePattern.Single; return true;
+            case "fixed": result = CombatSkillImportRangePattern.Fixed; return true;
             case "diamond": result = CombatSkillImportRangePattern.Diamond; return true;
             case "square": result = CombatSkillImportRangePattern.Square; return true;
             case "line": result = CombatSkillImportRangePattern.Line; return true;
@@ -261,7 +283,12 @@ internal static class SkillJsonImportValueRules
             case "self": result = CombatSkillImportAreaPattern.Self; return true;
             case "diamond": result = CombatSkillImportAreaPattern.Diamond; return true;
             case "square": result = CombatSkillImportAreaPattern.Square; return true;
+            case "radius": result = CombatSkillImportAreaPattern.Radius; return true;
+            case "cross": result = CombatSkillImportAreaPattern.Cross; return true;
             case "line": result = CombatSkillImportAreaPattern.Line; return true;
+            case "cone": result = CombatSkillImportAreaPattern.Cone; return true;
+            case "narrow_cone": result = CombatSkillImportAreaPattern.NarrowCone; return true;
+            case "front_arc": result = CombatSkillImportAreaPattern.FrontArc; return true;
             default:
                 result = default;
                 return false;
@@ -381,13 +408,19 @@ internal sealed class SkillTargetTeamFilterSchemaValues
 internal sealed class SkillRangePatternSchemaValues : IContentJsonSchemaStableStringValues
 {
     public IReadOnlyList<string> Values { get; } =
-        Array.AsReadOnly(new[] { "single", "diamond", "square", "line" });
+        Array.AsReadOnly(new[] { "single", "fixed", "diamond", "square", "line" });
 }
 
 internal sealed class SkillAreaPatternSchemaValues : IContentJsonSchemaStableStringValues
 {
     public IReadOnlyList<string> Values { get; } =
-        Array.AsReadOnly(new[] { "single", "self", "diamond", "square", "line" });
+        Array.AsReadOnly(
+            new[]
+            {
+                "single", "self", "diamond", "square", "radius", "cross", "line",
+                "cone", "narrow_cone", "front_arc",
+            }
+        );
 }
 
 internal sealed class SkillPendingCastBindingModeSchemaValues
@@ -424,49 +457,8 @@ internal sealed class SkillLevelOverrideAreaPatternSchemaValues
     );
 }
 
-internal sealed class SkillImportModel
+internal sealed partial class SkillImportModel
 {
-    internal SkillImportModel(
-        SkillImportIdentifier skillId,
-        string displayName,
-        string description,
-        SkillImportType skillType,
-        int maxLevel,
-        SkillImportLearnSource learnSource,
-        IEnumerable<SkillImportIdentifier> tags,
-        string levelDescriptionTemplate,
-        IEnumerable<KeyValuePair<int, SkillDescriptionVariables>> levelDescriptionConfigs,
-        CombatSkillImportModel? combatProfile
-    )
-    {
-        ArgumentNullException.ThrowIfNull(displayName);
-        ArgumentNullException.ThrowIfNull(description);
-        ArgumentNullException.ThrowIfNull(tags);
-        ArgumentNullException.ThrowIfNull(levelDescriptionTemplate);
-        ArgumentNullException.ThrowIfNull(levelDescriptionConfigs);
-
-        SkillId = skillId;
-        DisplayName = displayName;
-        Description = description;
-        SkillType = skillType;
-        MaxLevel = maxLevel;
-        LearnSource = learnSource;
-        Tags = new ReadOnlyCollection<SkillImportIdentifier>(
-            new List<SkillImportIdentifier>(tags)
-        );
-        LevelDescriptionTemplate = levelDescriptionTemplate;
-        var levelDescriptionCopy = new SortedDictionary<int, SkillDescriptionVariables>();
-        foreach (KeyValuePair<int, SkillDescriptionVariables> pair in levelDescriptionConfigs)
-        {
-            ArgumentNullException.ThrowIfNull(pair.Value);
-            levelDescriptionCopy.Add(pair.Key, pair.Value);
-        }
-        LevelDescriptionConfigs = new ReadOnlyDictionary<int, SkillDescriptionVariables>(
-            levelDescriptionCopy
-        );
-        CombatProfile = combatProfile;
-    }
-
     internal SkillImportIdentifier SkillId { get; }
     internal string DisplayName { get; }
     internal string Description { get; }
@@ -479,48 +471,8 @@ internal sealed class SkillImportModel
     internal CombatSkillImportModel? CombatProfile { get; }
 }
 
-internal sealed class CombatSkillImportModel
+internal sealed partial class CombatSkillImportModel
 {
-    internal CombatSkillImportModel(
-        SkillImportIdentifier skillId,
-        CombatSkillImportTargetMode targetMode,
-        CombatSkillImportTargetTeamFilter targetTeamFilter,
-        CombatSkillImportRangePattern rangePattern,
-        int rangeValue,
-        CombatSkillImportAreaPattern areaPattern,
-        int apCost,
-        int mpCost,
-        int cooldownTu,
-        IEnumerable<CombatEffectImportModel> effectDefs,
-        IEnumerable<KeyValuePair<int, CombatSkillLevelOverrideImportModel>> levelOverrides
-    )
-    {
-        ArgumentNullException.ThrowIfNull(effectDefs);
-        ArgumentNullException.ThrowIfNull(levelOverrides);
-
-        SkillId = skillId;
-        TargetMode = targetMode;
-        TargetTeamFilter = targetTeamFilter;
-        RangePattern = rangePattern;
-        RangeValue = rangeValue;
-        AreaPattern = areaPattern;
-        ApCost = apCost;
-        MpCost = mpCost;
-        CooldownTu = cooldownTu;
-        EffectDefs = new ReadOnlyCollection<CombatEffectImportModel>(
-            new List<CombatEffectImportModel>(effectDefs)
-        );
-        var levelOverrideCopy = new SortedDictionary<int, CombatSkillLevelOverrideImportModel>();
-        foreach (KeyValuePair<int, CombatSkillLevelOverrideImportModel> pair in levelOverrides)
-        {
-            ArgumentNullException.ThrowIfNull(pair.Value);
-            levelOverrideCopy.Add(pair.Key, pair.Value);
-        }
-        LevelOverrides = new ReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel>(
-            levelOverrideCopy
-        );
-    }
-
     internal SkillImportIdentifier SkillId { get; }
     internal CombatSkillImportTargetMode TargetMode { get; }
     internal CombatSkillImportTargetTeamFilter TargetTeamFilter { get; }
@@ -534,7 +486,7 @@ internal sealed class CombatSkillImportModel
     internal IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> LevelOverrides { get; }
 }
 
-internal sealed class CombatEffectImportModel
+internal sealed partial class CombatEffectImportModel
 {
     internal CombatEffectImportModel(
         CombatEffectImportKind kind,
@@ -571,7 +523,7 @@ internal sealed class CombatEffectImportModel
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed class SkillJsonDto
+internal sealed partial class SkillJsonDto
 {
     private string? _description;
     private string? _skillType;
@@ -630,7 +582,7 @@ internal sealed class SkillJsonDto
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed class CombatSkillJsonDto
+internal sealed partial class CombatSkillJsonDto
 {
     private string? _targetMode;
     private string? _targetTeamFilter;
@@ -697,7 +649,7 @@ internal sealed class CombatSkillJsonDto
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 [ContentJsonSchemaClosedKind(typeof(SkillCombatEffectClosedKindSchemaSpec))]
-internal sealed class CombatEffectJsonDto
+internal sealed partial class CombatEffectJsonDto
 {
     [JsonPropertyName("effect_type")]
     [JsonRequired]
@@ -731,16 +683,8 @@ internal sealed class SkillCombatEffectClosedKindSchemaSpec
 {
     public string DiscriminatorPropertyName => "effect_type";
     public string PayloadPropertyName => "payload";
-    public IReadOnlyList<ContentJsonSchemaClosedKindBranch> Branches { get; } =
-        Array.AsReadOnly(
-            new[]
-            {
-                new ContentJsonSchemaClosedKindBranch(
-                    CombatEffectImportClosedSpec.LayeredBarrierKindValue,
-                    typeof(LayeredBarrierEffectPayloadJsonDto)
-                ),
-            }
-        );
+    public IReadOnlyList<ContentJsonSchemaClosedKindBranch> Branches =>
+        SkillFullCombatEffectClosedSpec.SchemaBranches;
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -857,4 +801,5 @@ internal sealed class SkillLevelOverrideJsonDto
 [JsonSerializable(typeof(CombatEffectJsonDto))]
 [JsonSerializable(typeof(LayeredBarrierEffectPayloadJsonDto))]
 [JsonSerializable(typeof(SkillLevelOverrideJsonDto))]
+[JsonSerializable(typeof(CombatCastVariantPayloadJsonDto))]
 internal partial class SkillJsonImportSerializerContext : JsonSerializerContext { }

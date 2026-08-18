@@ -72,6 +72,9 @@ internal sealed class ContentJsonSchemaPartialObjectValuesAttribute : Attribute
     internal Type? RootControlDtoType { get; }
 }
 
+[AttributeUsage(AttributeTargets.Property)]
+internal sealed class ContentJsonSchemaScalarOrStringArrayDictionaryValuesAttribute : Attribute { }
+
 internal interface IContentJsonSchemaStableStringValues
 {
     IReadOnlyList<string> Values { get; }
