@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 
@@ -79,6 +80,83 @@ public partial class run_content_canonical_json_writer_regression : LifecycleTes
         )
     );
 
+    private static readonly ContentCanonicalJsonObjectSchema<SampleMapEnvelope> MapEnvelopeSchema =
+        new(
+            ContentCanonicalJsonProperty<SampleMapEnvelope>.Required(
+                "levels",
+                model => model.Levels,
+                ContentCanonicalJsonValue.OrderedObjectMap<
+                    IReadOnlyDictionary<int, string>,
+                    int,
+                    string
+                >(
+                    entries => entries,
+                    ContentCanonicalJsonKey.InvariantInt32,
+                    ContentCanonicalJsonKey.InvariantInt32Order,
+                    ContentCanonicalJsonValue.Text
+                )
+            )
+        );
+
+    private static readonly ContentCanonicalJsonObjectSchema<SampleShieldPayload>
+        ShieldPayloadSchema = new(
+            ContentCanonicalJsonProperty<SampleShieldPayload>.Required(
+                "kind",
+                payload => PayloadKindToString(payload.Kind),
+                ContentCanonicalJsonValue.Text
+            ),
+            ContentCanonicalJsonProperty<SampleShieldPayload>.Required(
+                "shield_points",
+                payload => payload.ShieldPoints,
+                ContentCanonicalJsonValue.Int32
+            )
+        );
+
+    private static readonly ContentCanonicalJsonObjectSchema<SampleHealPayload>
+        HealPayloadSchema = new(
+            ContentCanonicalJsonProperty<SampleHealPayload>.Required(
+                "kind",
+                payload => PayloadKindToString(payload.Kind),
+                ContentCanonicalJsonValue.Text
+            ),
+            ContentCanonicalJsonProperty<SampleHealPayload>.Required(
+                "heal_points",
+                payload => payload.HealPoints,
+                ContentCanonicalJsonValue.Int32
+            )
+        );
+
+    private static readonly ContentCanonicalJsonValueSchema<ISampleClosedUnionPayload>
+        ClosedPayloadSchema = ContentCanonicalJsonValue.ClosedUnion<
+            ISampleClosedUnionPayload,
+            SamplePayloadKind
+        >(
+            payload => payload.Kind,
+            ContentCanonicalJsonUnionCase<
+                ISampleClosedUnionPayload,
+                SamplePayloadKind
+            >.Create<SampleShieldPayload>(
+                SamplePayloadKind.Shield,
+                ContentCanonicalJsonValue.Object(ShieldPayloadSchema)
+            ),
+            ContentCanonicalJsonUnionCase<
+                ISampleClosedUnionPayload,
+                SamplePayloadKind
+            >.Create<SampleHealPayload>(
+                SamplePayloadKind.Heal,
+                ContentCanonicalJsonValue.Object(HealPayloadSchema)
+            )
+        );
+
+    private static readonly ContentCanonicalJsonObjectSchema<SampleUnionEnvelope>
+        UnionEnvelopeSchema = new(
+            ContentCanonicalJsonProperty<SampleUnionEnvelope>.Required(
+                "payload",
+                model => model.Payload,
+                ClosedPayloadSchema
+            )
+        );
+
     private readonly TestHarness _test = new();
     private readonly ContentCanonicalJsonWriter _writer = new();
 
@@ -89,6 +167,10 @@ public partial class run_content_canonical_json_writer_regression : LifecycleTes
             TestImportModelRoundTripAndCanonicalOrder();
             TestNonDefaultOptionalValuesAreWritten();
             TestParityIgnoresObjectKeyOrderOnly();
+            TestOrderedObjectMapUsesCanonicalKeysAndStableOrder();
+            TestOrderedObjectMapFailuresAreFailClosed();
+            TestClosedUnionUsesExplicitPerKindSchemas();
+            TestClosedUnionFailuresAreFailClosed();
             TestSchemaAndNumberFailuresAreFailClosed();
         }
         catch (Exception exception)
@@ -223,6 +305,288 @@ public partial class run_content_canonical_json_writer_regression : LifecycleTes
         _test.False(
             _writer.JsonEqualsIgnoringObjectPropertyOrder(declaredOrder, changedValue),
             "parity comparison should keep values significant"
+        );
+    }
+
+    private void TestOrderedObjectMapUsesCanonicalKeysAndStableOrder()
+    {
+        var levels = new Dictionary<int, string>
+        {
+            [10] = "ten",
+            [2] = "two",
+            [1] = "one",
+        };
+        CultureInfo originalCulture = CultureInfo.CurrentCulture;
+        string json;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("ar-SA");
+            json = _writer.Write(new SampleMapEnvelope(levels), MapEnvelopeSchema);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonProperty[] properties = document
+            .RootElement
+            .GetProperty("levels")
+            .EnumerateObject()
+            .ToArray();
+        AssertSequenceEqual(
+            properties.Select(property => property.Name),
+            new[] { "1", "2", "10" },
+            "object-map keys should use explicit canonical numeric order"
+        );
+        AssertSequenceEqual(
+            properties.Select(property => property.Value.GetString()),
+            new[] { "one", "two", "ten" },
+            "object-map values should remain paired with canonical keys"
+        );
+        _test.False(
+            json.Contains('\u0661'),
+            "Int32 object-map keys should remain invariant under non-English culture"
+        );
+    }
+
+    private void TestOrderedObjectMapFailuresAreFailClosed()
+    {
+        ContentCanonicalJsonValueSchema<
+            IReadOnlyList<KeyValuePair<string, string>>
+        > collidingMapSchema = ContentCanonicalJsonValue.OrderedObjectMap<
+            IReadOnlyList<KeyValuePair<string, string>>,
+            string,
+            string
+        >(
+            entries => entries,
+            key => key.ToUpperInvariant(),
+            StringComparer.Ordinal,
+            ContentCanonicalJsonValue.Text
+        );
+        var collisionEnvelopeSchema =
+            new ContentCanonicalJsonObjectSchema<SampleStringMapEnvelope>(
+                ContentCanonicalJsonProperty<SampleStringMapEnvelope>.Required(
+                    "values",
+                    model => model.Values,
+                    collidingMapSchema
+                )
+            );
+        bool collisionRejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleStringMapEnvelope(
+                    new[]
+                    {
+                        new KeyValuePair<string, string>("a", "first"),
+                        new KeyValuePair<string, string>("A", "second"),
+                    }
+                ),
+                collisionEnvelopeSchema
+            );
+        }
+        catch (JsonException)
+        {
+            collisionRejected = true;
+        }
+        _test.True(
+            collisionRejected,
+            "object-map keys that collide after canonicalization should fail closed"
+        );
+
+        bool nullMapRejected = false;
+        try
+        {
+            _writer.Write(new SampleMapEnvelope(null), MapEnvelopeSchema);
+        }
+        catch (JsonException)
+        {
+            nullMapRejected = true;
+        }
+        _test.True(nullMapRejected, "null object-map values should fail closed");
+
+        ContentCanonicalJsonValueSchema<IReadOnlyDictionary<int, string>> invalidKeySchema =
+            ContentCanonicalJsonValue.OrderedObjectMap<
+                IReadOnlyDictionary<int, string>,
+                int,
+                string
+            >(
+                entries => entries,
+                key => $"not-an-int-{key}",
+                ContentCanonicalJsonKey.InvariantInt32Order,
+                ContentCanonicalJsonValue.Text
+            );
+        var invalidKeyEnvelopeSchema = new ContentCanonicalJsonObjectSchema<SampleMapEnvelope>(
+            ContentCanonicalJsonProperty<SampleMapEnvelope>.Required(
+                "levels",
+                model => model.Levels,
+                invalidKeySchema
+            )
+        );
+        bool invalidCanonicalKeyRejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleMapEnvelope(new Dictionary<int, string> { [1] = "one", [2] = "two" }),
+                invalidKeyEnvelopeSchema
+            );
+        }
+        catch (JsonException)
+        {
+            invalidCanonicalKeyRejected = true;
+        }
+        _test.True(
+            invalidCanonicalKeyRejected,
+            "a canonical-key comparer should reject keys outside its declared format"
+        );
+
+        AssertNonCanonicalInt32MapKeyRejected("+1");
+        AssertNonCanonicalInt32MapKeyRejected("01");
+        AssertNonCanonicalInt32MapKeyRejected("-0");
+    }
+
+    private void TestClosedUnionUsesExplicitPerKindSchemas()
+    {
+        string shieldJson = _writer.Write(
+            new SampleUnionEnvelope(new SampleShieldPayload(17)),
+            UnionEnvelopeSchema
+        );
+        string healJson = _writer.Write(
+            new SampleUnionEnvelope(new SampleHealPayload(9)),
+            UnionEnvelopeSchema
+        );
+        using JsonDocument shieldDocument = JsonDocument.Parse(shieldJson);
+        using JsonDocument healDocument = JsonDocument.Parse(healJson);
+        JsonElement shield = shieldDocument.RootElement.GetProperty("payload");
+        JsonElement heal = healDocument.RootElement.GetProperty("payload");
+
+        _test.Eq(shield.GetProperty("kind").GetString(), "shield", "shield kind string");
+        _test.Eq(shield.GetProperty("shield_points").GetInt32(), 17, "shield case schema");
+        _test.False(
+            shield.TryGetProperty("heal_points", out _),
+            "shield case should not use heal schema"
+        );
+        _test.Eq(heal.GetProperty("kind").GetString(), "heal", "heal kind string");
+        _test.Eq(heal.GetProperty("heal_points").GetInt32(), 9, "heal case schema");
+        _test.False(
+            heal.TryGetProperty("shield_points", out _),
+            "heal case should not use shield schema"
+        );
+    }
+
+    private void TestClosedUnionFailuresAreFailClosed()
+    {
+        bool duplicateKindRejected = false;
+        try
+        {
+            _ = ContentCanonicalJsonValue.ClosedUnion<
+                ISampleClosedUnionPayload,
+                SamplePayloadKind
+            >(
+                payload => payload.Kind,
+                ContentCanonicalJsonUnionCase<
+                    ISampleClosedUnionPayload,
+                    SamplePayloadKind
+                >.Create<SampleShieldPayload>(
+                    SamplePayloadKind.Shield,
+                    ContentCanonicalJsonValue.Object(ShieldPayloadSchema)
+                ),
+                ContentCanonicalJsonUnionCase<
+                    ISampleClosedUnionPayload,
+                    SamplePayloadKind
+                >.Create<SampleShieldPayload>(
+                    SamplePayloadKind.Shield,
+                    ContentCanonicalJsonValue.Object(ShieldPayloadSchema)
+                )
+            );
+        }
+        catch (ArgumentException)
+        {
+            duplicateKindRejected = true;
+        }
+        _test.True(
+            duplicateKindRejected,
+            "closed union should reject duplicate kind registrations"
+        );
+
+        bool unknownKindRejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleUnionEnvelope(
+                    new SampleForgedPayload((SamplePayloadKind)999)
+                ),
+                UnionEnvelopeSchema
+            );
+        }
+        catch (JsonException)
+        {
+            unknownKindRejected = true;
+        }
+        _test.True(unknownKindRejected, "closed union should reject unregistered kinds");
+
+        bool mismatchedPayloadRejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleUnionEnvelope(new SampleForgedPayload(SamplePayloadKind.Shield)),
+                UnionEnvelopeSchema
+            );
+        }
+        catch (JsonException)
+        {
+            mismatchedPayloadRejected = true;
+        }
+        _test.True(
+            mismatchedPayloadRejected,
+            "closed-union dispatch should reject a payload whose concrete type does not match its kind"
+        );
+    }
+
+    private void AssertNonCanonicalInt32MapKeyRejected(string nonCanonicalKey)
+    {
+        ContentCanonicalJsonValueSchema<
+            IReadOnlyList<KeyValuePair<string, string>>
+        > mapSchema = ContentCanonicalJsonValue.OrderedObjectMap<
+            IReadOnlyList<KeyValuePair<string, string>>,
+            string,
+            string
+        >(
+            entries => entries,
+            key => key,
+            ContentCanonicalJsonKey.InvariantInt32Order,
+            ContentCanonicalJsonValue.Text
+        );
+        var envelopeSchema = new ContentCanonicalJsonObjectSchema<SampleStringMapEnvelope>(
+            ContentCanonicalJsonProperty<SampleStringMapEnvelope>.Required(
+                "values",
+                model => model.Values,
+                mapSchema
+            )
+        );
+
+        bool rejected = false;
+        try
+        {
+            _writer.Write(
+                new SampleStringMapEnvelope(
+                    new[]
+                    {
+                        new KeyValuePair<string, string>(nonCanonicalKey, "invalid"),
+                        new KeyValuePair<string, string>("2", "valid"),
+                    }
+                ),
+                envelopeSchema
+            );
+        }
+        catch (JsonException)
+        {
+            rejected = true;
+        }
+        _test.True(
+            rejected,
+            $"InvariantInt32 object-map order should reject non-canonical key '{nonCanonicalKey}'"
         );
     }
 
@@ -468,6 +832,14 @@ public partial class run_content_canonical_json_writer_regression : LifecycleTes
             _ => throw new JsonException($"Unknown sample target shape '{shape}'."),
         };
 
+    private static string PayloadKindToString(SamplePayloadKind kind) =>
+        kind switch
+        {
+            SamplePayloadKind.Shield => "shield",
+            SamplePayloadKind.Heal => "heal",
+            _ => throw new JsonException($"Unknown sample payload kind '{kind}'."),
+        };
+
     private enum SampleTargetShape
     {
         NarrowCone,
@@ -475,6 +847,38 @@ public partial class run_content_canonical_json_writer_regression : LifecycleTes
     }
 
     private readonly record struct SampleRuneId(string Value);
+
+    private sealed record SampleMapEnvelope(IReadOnlyDictionary<int, string> Levels);
+
+    private sealed record SampleStringMapEnvelope(
+        IReadOnlyList<KeyValuePair<string, string>> Values
+    );
+
+    private enum SamplePayloadKind
+    {
+        Shield,
+        Heal,
+    }
+
+    private interface ISampleClosedUnionPayload
+    {
+        SamplePayloadKind Kind { get; }
+    }
+
+    private sealed record SampleShieldPayload(int ShieldPoints) : ISampleClosedUnionPayload
+    {
+        public SamplePayloadKind Kind => SamplePayloadKind.Shield;
+    }
+
+    private sealed record SampleHealPayload(int HealPoints) : ISampleClosedUnionPayload
+    {
+        public SamplePayloadKind Kind => SamplePayloadKind.Heal;
+    }
+
+    private sealed record SampleForgedPayload(SamplePayloadKind Kind)
+        : ISampleClosedUnionPayload;
+
+    private sealed record SampleUnionEnvelope(ISampleClosedUnionPayload Payload);
 
     private sealed record SampleProfile(double Resistance, string Label, bool Enabled);
 

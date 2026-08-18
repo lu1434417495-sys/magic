@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -312,6 +313,28 @@ internal static class ContentCanonicalJsonValue
         ContentCanonicalJsonValueSchema<TElement> elementSchema
     ) => new ArrayValueSchema<TElement>(elementSchema);
 
+    internal static ContentCanonicalJsonValueSchema<TMap> OrderedObjectMap<
+        TMap,
+        TKey,
+        TValue
+    >(
+        Func<TMap, IEnumerable<KeyValuePair<TKey, TValue>>> entrySelector,
+        Func<TKey, string> canonicalKeySelector,
+        IComparer<string> canonicalKeyComparer,
+        ContentCanonicalJsonValueSchema<TValue> valueSchema
+    ) =>
+        new OrderedObjectMapValueSchema<TMap, TKey, TValue>(
+            entrySelector,
+            canonicalKeySelector,
+            canonicalKeyComparer,
+            valueSchema
+        );
+
+    internal static ContentCanonicalJsonValueSchema<TValue> ClosedUnion<TValue, TKind>(
+        Func<TValue, TKind> kindSelector,
+        params ContentCanonicalJsonUnionCase<TValue, TKind>[] cases
+    ) => new ClosedUnionValueSchema<TValue, TKind>(kindSelector, cases);
+
     internal static ContentCanonicalJsonValueSchema<TValue> NullableReference<TValue>(
         ContentCanonicalJsonValueSchema<TValue> valueSchema
     )
@@ -430,6 +453,171 @@ internal static class ContentCanonicalJsonValue
         }
     }
 
+    private sealed class OrderedObjectMapValueSchema<TMap, TKey, TValue>
+        : ContentCanonicalJsonValueSchema<TMap>
+    {
+        private readonly Func<TMap, IEnumerable<KeyValuePair<TKey, TValue>>> _entrySelector;
+        private readonly Func<TKey, string> _canonicalKeySelector;
+        private readonly IComparer<string> _canonicalKeyComparer;
+        private readonly ContentCanonicalJsonValueSchema<TValue> _valueSchema;
+
+        internal OrderedObjectMapValueSchema(
+            Func<TMap, IEnumerable<KeyValuePair<TKey, TValue>>> entrySelector,
+            Func<TKey, string> canonicalKeySelector,
+            IComparer<string> canonicalKeyComparer,
+            ContentCanonicalJsonValueSchema<TValue> valueSchema
+        )
+        {
+            _entrySelector = entrySelector ?? throw new ArgumentNullException(nameof(entrySelector));
+            _canonicalKeySelector =
+                canonicalKeySelector
+                ?? throw new ArgumentNullException(nameof(canonicalKeySelector));
+            _canonicalKeyComparer =
+                canonicalKeyComparer
+                ?? throw new ArgumentNullException(nameof(canonicalKeyComparer));
+            _valueSchema = valueSchema ?? throw new ArgumentNullException(nameof(valueSchema));
+        }
+
+        internal override void Write(Utf8JsonWriter writer, TMap value)
+        {
+            if (value is null)
+                throw new JsonException("Canonical JSON object-map value cannot be null.");
+
+            IEnumerable<KeyValuePair<TKey, TValue>> sourceEntries =
+                _entrySelector(value)
+                ?? throw new JsonException(
+                    "Canonical JSON object-map entry selector returned null."
+                );
+            var entries = new List<CanonicalObjectMapEntry<TValue>>();
+            var propertyNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (KeyValuePair<TKey, TValue> sourceEntry in sourceEntries)
+            {
+                string canonicalKey = _canonicalKeySelector(sourceEntry.Key);
+                if (canonicalKey == null)
+                {
+                    throw new JsonException(
+                        "Canonical JSON object-map key selector returned null."
+                    );
+                }
+                if (!propertyNames.Add(canonicalKey))
+                {
+                    throw new JsonException(
+                        $"Canonical JSON object-map contains duplicate property '{canonicalKey}'."
+                    );
+                }
+                entries.Add(new CanonicalObjectMapEntry<TValue>(canonicalKey, sourceEntry.Value));
+            }
+
+            try
+            {
+                entries.Sort(
+                    (left, right) =>
+                    {
+                        int result = _canonicalKeyComparer.Compare(
+                            left.CanonicalKey,
+                            right.CanonicalKey
+                        );
+                        return result != 0
+                            ? result
+                            : StringComparer.Ordinal.Compare(
+                                left.CanonicalKey,
+                                right.CanonicalKey
+                            );
+                    }
+                );
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new JsonException(
+                    "Canonical JSON object-map key comparison failed.",
+                    exception.InnerException ?? exception
+                );
+            }
+
+            writer.WriteStartObject();
+            foreach (CanonicalObjectMapEntry<TValue> entry in entries)
+            {
+                writer.WritePropertyName(entry.CanonicalKey);
+                _valueSchema.Write(writer, entry.Value);
+            }
+            writer.WriteEndObject();
+        }
+    }
+
+    private sealed class ClosedUnionValueSchema<TValue, TKind>
+        : ContentCanonicalJsonValueSchema<TValue>
+    {
+        private readonly Func<TValue, TKind> _kindSelector;
+        private readonly IReadOnlyDictionary<
+            TKind,
+            ContentCanonicalJsonUnionCase<TValue, TKind>
+        > _cases;
+
+        internal ClosedUnionValueSchema(
+            Func<TValue, TKind> kindSelector,
+            ContentCanonicalJsonUnionCase<TValue, TKind>[] cases
+        )
+        {
+            _kindSelector = kindSelector ?? throw new ArgumentNullException(nameof(kindSelector));
+            ArgumentNullException.ThrowIfNull(cases);
+            if (cases.Length == 0)
+            {
+                throw new ArgumentException(
+                    "Canonical JSON closed union requires at least one case.",
+                    nameof(cases)
+                );
+            }
+
+            var caseMap = new Dictionary<
+                TKind,
+                ContentCanonicalJsonUnionCase<TValue, TKind>
+            >();
+            foreach (ContentCanonicalJsonUnionCase<TValue, TKind> unionCase in cases)
+            {
+                if (unionCase == null)
+                {
+                    throw new ArgumentException(
+                        "Canonical JSON closed union cases cannot contain null.",
+                        nameof(cases)
+                    );
+                }
+                if (!caseMap.TryAdd(unionCase.Kind, unionCase))
+                {
+                    throw new ArgumentException(
+                        $"Canonical JSON closed union declares duplicate kind '{unionCase.Kind}'.",
+                        nameof(cases)
+                    );
+                }
+            }
+            _cases = new System.Collections.ObjectModel.ReadOnlyDictionary<
+                TKind,
+                ContentCanonicalJsonUnionCase<TValue, TKind>
+            >(caseMap);
+        }
+
+        internal override void Write(Utf8JsonWriter writer, TValue value)
+        {
+            if (value is null)
+                throw new JsonException("Canonical JSON closed-union value cannot be null.");
+
+            TKind kind = _kindSelector(value);
+            if (
+                !_cases.TryGetValue(
+                    kind,
+                    out ContentCanonicalJsonUnionCase<TValue, TKind> unionCase
+                )
+            )
+            {
+                throw new JsonException(
+                    $"Canonical JSON closed union has no registered schema for kind '{kind}'."
+                );
+            }
+            unionCase.Write(writer, value);
+        }
+    }
+
+    private sealed record CanonicalObjectMapEntry<TValue>(string CanonicalKey, TValue Value);
+
     private sealed class NullableReferenceValueSchema<TValue>
         : ContentCanonicalJsonValueSchema<TValue>
         where TValue : class
@@ -471,6 +659,98 @@ internal static class ContentCanonicalJsonValue
                 return;
             }
             _valueSchema.Write(writer, value.Value);
+        }
+    }
+}
+
+internal abstract class ContentCanonicalJsonUnionCase<TValue, TKind>
+{
+    private protected ContentCanonicalJsonUnionCase(TKind kind)
+    {
+        Kind = kind;
+    }
+
+    internal TKind Kind { get; }
+
+    internal static ContentCanonicalJsonUnionCase<TValue, TKind> Create<TCase>(
+        TKind kind,
+        ContentCanonicalJsonValueSchema<TCase> valueSchema
+    )
+        where TCase : TValue => new TypedUnionCase<TCase>(kind, valueSchema);
+
+    internal abstract void Write(Utf8JsonWriter writer, TValue value);
+
+    private sealed class TypedUnionCase<TCase>
+        : ContentCanonicalJsonUnionCase<TValue, TKind>
+        where TCase : TValue
+    {
+        private readonly ContentCanonicalJsonValueSchema<TCase> _valueSchema;
+
+        internal TypedUnionCase(
+            TKind kind,
+            ContentCanonicalJsonValueSchema<TCase> valueSchema
+        )
+            : base(kind)
+        {
+            _valueSchema = valueSchema ?? throw new ArgumentNullException(nameof(valueSchema));
+        }
+
+        internal override void Write(Utf8JsonWriter writer, TValue value)
+        {
+            if (value is not TCase typedValue)
+            {
+                throw new JsonException(
+                    $"Canonical JSON closed-union kind '{Kind}' received an incompatible payload."
+                );
+            }
+            _valueSchema.Write(writer, typedValue);
+        }
+    }
+}
+
+internal static class ContentCanonicalJsonKey
+{
+    internal static IComparer<string> InvariantInt32Order { get; } =
+        new InvariantInt32KeyComparer();
+
+    internal static string InvariantInt32(int value) =>
+        value.ToString(CultureInfo.InvariantCulture);
+
+    private sealed class InvariantInt32KeyComparer : IComparer<string>
+    {
+        public int Compare(string left, string right)
+        {
+            if (
+                !int.TryParse(
+                    left,
+                    NumberStyles.AllowLeadingSign,
+                    CultureInfo.InvariantCulture,
+                    out int leftValue
+                )
+                || !int.TryParse(
+                    right,
+                    NumberStyles.AllowLeadingSign,
+                    CultureInfo.InvariantCulture,
+                    out int rightValue
+                )
+            )
+            {
+                throw new JsonException(
+                    "Canonical JSON Int32 object-map comparer received a non-Int32 key."
+                );
+            }
+            if (
+                !string.Equals(left, InvariantInt32(leftValue), StringComparison.Ordinal)
+                || !string.Equals(right, InvariantInt32(rightValue), StringComparison.Ordinal)
+            )
+            {
+                throw new JsonException(
+                    "Canonical JSON Int32 object-map comparer received a non-canonical key."
+                );
+            }
+
+            int result = leftValue.CompareTo(rightValue);
+            return result != 0 ? result : StringComparer.Ordinal.Compare(left, right);
         }
     }
 }
