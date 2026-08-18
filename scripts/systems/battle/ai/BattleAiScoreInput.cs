@@ -48,6 +48,8 @@ public sealed class BattleAiScoreInput
     public int estimated_ally_damage { get; set; } = 0;
     public int estimated_enemy_healing { get; set; } = 0;
     public int estimated_ally_healing { get; set; } = 0;
+    public int estimated_enemy_healing_denied { get; set; } = 0;
+    public int estimated_ally_healing_denied { get; set; } = 0;
     public int estimated_ally_shield_gain_basis_points { get; set; } = 0;
     public int estimated_status_count { get; set; } = 0;
     public int estimated_control_count { get; set; } = 0;
@@ -295,6 +297,8 @@ public sealed class BattleAiScoreInput
             ["estimated_ally_damage"] = estimated_ally_damage,
             ["estimated_enemy_healing"] = estimated_enemy_healing,
             ["estimated_ally_healing"] = estimated_ally_healing,
+            ["estimated_enemy_healing_denied"] = estimated_enemy_healing_denied,
+            ["estimated_ally_healing_denied"] = estimated_ally_healing_denied,
             ["estimated_ally_shield_gain_basis_points"] =
                 estimated_ally_shield_gain_basis_points,
             ["estimated_status_count"] = estimated_status_count,
@@ -532,6 +536,16 @@ public sealed class BattleAiScoreInput
             estimated_enemy_healing
         );
         AppendNamedValueFingerprint(builder, "estimated_ally_healing", estimated_ally_healing);
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_enemy_healing_denied",
+            estimated_enemy_healing_denied
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_ally_healing_denied",
+            estimated_ally_healing_denied
+        );
         AppendNamedValueFingerprint(
             builder,
             "estimated_ally_shield_gain_basis_points",

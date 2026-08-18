@@ -1231,6 +1231,11 @@ public partial class BattleAiScoreService
                 || effectKind == BattleEffectKind.ApplyStatus
             )
             {
+                if (effectDefinition.HealMultiplierPercent < 100)
+                {
+                    metrics.IsEmpty = false;
+                    continue;
+                }
                 if (skillDefinition?.CombatProfile?.SpellReaction != null)
                 {
                     continue;

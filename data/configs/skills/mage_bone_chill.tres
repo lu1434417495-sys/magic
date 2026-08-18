@@ -6,191 +6,176 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_yrllf"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_jl5r8"]
 
-[sub_resource type="Resource" id="Resource_rd0b4"]
+[sub_resource type="Resource" id="Resource_damage_0_2"]
 script = ExtResource("3_acudt")
 effect_type = &"damage"
-max_skill_level = 0
-damage_tag = &"negative_energy"
-dice_count = 2
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_qpsqy"]
-script = ExtResource("3_acudt")
-effect_type = &"damage"
-min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"negative_energy"
-dice_count = 3
-dice_sides = 6
+dice_count = 1
+dice_sides = 4
 
-[sub_resource type="Resource" id="Resource_acudt"]
+[sub_resource type="Resource" id="Resource_damage_3_6"]
 script = ExtResource("3_acudt")
 effect_type = &"damage"
 min_skill_level = 3
-max_skill_level = 4
-damage_tag = &"negative_energy"
-dice_count = 4
-dice_sides = 6
-
-[sub_resource type="Resource" id="Resource_yrllf"]
-script = ExtResource("3_acudt")
-effect_type = &"damage"
-min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"negative_energy"
-dice_count = 5
-dice_sides = 6
+dice_count = 2
+dice_sides = 4
 
-[sub_resource type="Resource" id="Resource_jl5r8"]
+[sub_resource type="Resource" id="Resource_damage_7"]
 script = ExtResource("3_acudt")
 effect_type = &"damage"
 min_skill_level = 7
 damage_tag = &"negative_energy"
-dice_count = 6
-dice_sides = 6
+dice_count = 3
+dice_sides = 4
 
-[sub_resource type="Resource" id="Resource_ufix4"]
+[sub_resource type="Resource" id="Resource_bone_chill_0_5"]
 script = ExtResource("3_acudt")
 effect_type = &"status"
-power = 2
-min_skill_level = 3
-max_skill_level = 4
+power = 1
+max_skill_level = 5
 effect_target_team_filter = &"enemy"
-status_id = &"marked"
+heal_multiplier_percent = 50
+status_id = &"bone_chill"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Resource_bone_chill_6_7"]
+script = ExtResource("3_acudt")
+effect_type = &"status"
+power = 1
+min_skill_level = 6
+effect_target_team_filter = &"enemy"
+heal_multiplier_percent = 50
+status_id = &"bone_chill"
 duration_tu = 80
 
-[sub_resource type="Resource" id="Resource_ide3c"]
-script = ExtResource("3_acudt")
-effect_type = &"status"
-power = 2
-min_skill_level = 5
-max_skill_level = 6
-effect_target_team_filter = &"enemy"
-status_id = &"marked"
-duration_tu = 100
-
-[sub_resource type="Resource" id="Resource_fdmha"]
-script = ExtResource("3_acudt")
-effect_type = &"status"
-power = 3
-min_skill_level = 7
-effect_target_team_filter = &"enemy"
-status_id = &"marked"
-duration_tu = 120
-
-[sub_resource type="Resource" id="Resource_f6ysm"]
+[sub_resource type="Resource" id="Resource_combat_profile"]
 script = ExtResource("4_yrllf")
 skill_id = &"mage_bone_chill"
+target_team_filter = &"enemy"
+excluded_target_creature_type_tags = Array[StringName]([&"undead", &"construct"])
+range_value = 4
+requires_los = true
+ap_cost = 1
+mp_cost = 20
+cooldown_tu = 180
+attack_roll_bonus = 0
+attack_defense_mode = &"touch"
+mastery_trigger_mode = &"status_applied"
+mastery_amount_mode = &"per_target_rank"
 delivery_categories = Array[StringName]([&"spell"])
 projectile_kind = &"magical"
-range_value = 5
-mp_cost = 60
-cooldown_tu = 10
-attack_roll_bonus = 2
+ai_tags = Array[StringName]([&"debuff"])
 level_overrides = {
-3: {
-"range_value": 6
+1: {
+"attack_roll_bonus": 1
+},
+2: {
+"mp_cost": 15
+},
+4: {
+"range_value": 5
 },
 5: {
-"cooldown_tu": 5,
-"range_value": 6
+"cooldown_tu": 160
 },
 7: {
-"attack_roll_bonus": 3,
-"range_value": 7
+"attack_roll_bonus": 2
 }
 }
-effect_defs = Array[ExtResource("3_acudt")]([SubResource("Resource_rd0b4"), SubResource("Resource_qpsqy"), SubResource("Resource_acudt"), SubResource("Resource_yrllf"), SubResource("Resource_jl5r8"), SubResource("Resource_ufix4"), SubResource("Resource_ide3c"), SubResource("Resource_fdmha")])
+effect_defs = Array[ExtResource("3_acudt")]([SubResource("Resource_damage_0_2"), SubResource("Resource_damage_3_6"), SubResource("Resource_damage_7"), SubResource("Resource_bone_chill_0_5"), SubResource("Resource_bone_chill_6_7")])
 
 [resource]
 script = ExtResource("5_jl5r8")
 skill_id = &"mage_bone_chill"
 display_name = "骨寒术"
 icon_id = &"mage_bone_chill"
-description = "目标获得寒蚀与治疗效率下降效果，对奶量体系很克制。"
+description = "选择射程内一个可见的存活敌人（亡灵与构装除外），发射寒冷的负能量。命中造成负能量伤害并施加寒蚀；寒蚀期间，目标获得的生命治疗至多为正常值的50%。寒蚀只新增或刷新自身，不会延长其他减疗效果。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
-tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"output", &"control"])
+tags = Array[StringName]([&"mage", &"magic", &"necromancy", &"output", &"debuff"])
 growth_tier = &"advanced"
 attribute_growth_progress = {
 "intelligence": 110,
 "perception": 20,
 "willpower": 50
 }
-level_description_template = "射程{range}，攻击检定{hit}，负能量伤{dmg}。消耗{mp}法力，冷却{cooldown}TU"
+level_description_template = "仅对非亡灵、非构装的存活敌人有效；射程{range}，接触攻击检定{hit}，命中造成{dmg}负能量伤害并施加寒蚀，使其获得的生命治疗至多为正常值的50%，持续{duration}TU。消耗{ap}AP/{mp}法力，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "2D6",
+"cooldown": "180",
+"dmg": "1D4",
 "duration": "60",
-"hit": "+2",
-"mp": "60",
-"range": "5"
+"hit": "+0",
+"mp": "20",
+"range": "4"
 },
 "1": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "3D6",
+"cooldown": "180",
+"dmg": "1D4",
 "duration": "60",
-"hit": "+2",
-"mp": "60",
-"range": "5"
+"hit": "+1",
+"mp": "20",
+"range": "4"
 },
 "2": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "3D6",
+"cooldown": "180",
+"dmg": "1D4",
 "duration": "60",
-"hit": "+2",
-"mp": "60",
-"range": "5"
+"hit": "+1",
+"mp": "15",
+"range": "4"
 },
 "3": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "4D6",
-"duration": "80",
-"hit": "+2",
-"mp": "60",
-"range": "6"
+"cooldown": "180",
+"dmg": "2D4",
+"duration": "60",
+"hit": "+1",
+"mp": "15",
+"range": "4"
 },
 "4": {
 "ap": "1",
-"cooldown": "10",
-"dmg": "4D6",
-"duration": "80",
-"hit": "+2",
-"mp": "60",
-"range": "6"
+"cooldown": "180",
+"dmg": "2D4",
+"duration": "60",
+"hit": "+1",
+"mp": "15",
+"range": "5"
 },
 "5": {
 "ap": "1",
-"cooldown": "5",
-"dmg": "5D6",
-"duration": "100",
-"hit": "+2",
-"mp": "60",
-"range": "6"
+"cooldown": "160",
+"dmg": "2D4",
+"duration": "60",
+"hit": "+1",
+"mp": "15",
+"range": "5"
 },
 "6": {
 "ap": "1",
-"cooldown": "5",
-"dmg": "5D6",
-"duration": "100",
-"hit": "+2",
-"mp": "60",
-"range": "6"
+"cooldown": "160",
+"dmg": "2D4",
+"duration": "80",
+"hit": "+1",
+"mp": "15",
+"range": "5"
 },
 "7": {
 "ap": "1",
-"cooldown": "5",
-"dmg": "6D6",
-"duration": "120",
-"hit": "+3",
-"mp": "60",
-"range": "7"
+"cooldown": "160",
+"dmg": "3D4",
+"duration": "80",
+"hit": "+2",
+"mp": "15",
+"range": "5"
 }
 }
-combat_profile = SubResource("Resource_f6ysm")
+combat_profile = SubResource("Resource_combat_profile")

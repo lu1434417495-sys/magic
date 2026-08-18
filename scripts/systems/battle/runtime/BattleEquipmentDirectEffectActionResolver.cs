@@ -154,6 +154,10 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             return null;
 
         int expectedHeal = ExpectedDiceValue(payload.Dice);
+        expectedHeal = BattleStatusModifierRules.ApplyHealMultiplier(
+            resolvedTarget,
+            expectedHeal
+        );
         int maxHp = Math.Max(
             resolvedTarget.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 1,
             1
@@ -227,6 +231,9 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             battleState
         );
         if (resolvedTarget?.IsAlive() != true)
+            return null;
+        healAmount = BattleStatusModifierRules.ApplyHealMultiplier(resolvedTarget, healAmount);
+        if (healAmount <= 0)
             return null;
 
         int maxHp = Math.Max(

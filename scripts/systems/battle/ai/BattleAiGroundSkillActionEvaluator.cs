@@ -952,6 +952,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             || scoreInput.estimated_enemy_damage > 0
             || scoreInput.estimated_healing > 0
             || scoreInput.estimated_enemy_healing > 0
+            || scoreInput.estimated_enemy_healing_denied > 0
             || scoreInput.estimated_status_count > 0
             || scoreInput.estimated_control_count > 0
             || scoreInput.ground_control_score > 0

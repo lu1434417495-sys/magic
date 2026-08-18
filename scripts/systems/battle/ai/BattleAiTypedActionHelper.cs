@@ -62,6 +62,7 @@ internal sealed class BattleAiTypedActionHelper
             || skillDefinition.CombatProfile.ApproachAttack != null
             || skillDefinition.CombatProfile.LineThroughAttack != null
             || skillDefinition.CombatProfile.SequentialLineHit != null
+            || skillDefinition.CombatProfile.ExcludedTargetCreatureTypeTags.Count > 0
         )
             return true;
         foreach (CombatEffectDefinition effect in skillDefinition.CombatProfile.EffectDefinitions)

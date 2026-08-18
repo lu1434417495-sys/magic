@@ -66,6 +66,12 @@ internal sealed class RandomStartingSkillResourceSupportService
         ).MpCost;
         if (mpCost <= 0)
             return 0;
+        if (mpCost > TrueRandomStartingManaPoolRoller.MaximumManaPool)
+        {
+            throw new InvalidOperationException(
+                $"Random starting MP skill cost must not exceed {TrueRandomStartingManaPoolRoller.MaximumManaPool}, got {mpCost} for {randomStartingSkillDefinition.SkillId}."
+            );
+        }
 
         ResolveBasicMeditationDefinition();
         UnitBaseAttributes baseAttributes =
@@ -111,9 +117,10 @@ internal sealed class RandomStartingSkillResourceSupportService
             CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
         );
 
-        baseAttributes.SetAttributeValue(MpMaxAttributeId, rolledManaPool);
-        memberState.SetCurrentMp(rolledManaPool);
-        return rolledManaPool;
+        int supportedManaPool = Mathf.Max(rolledManaPool, mpCost);
+        baseAttributes.SetAttributeValue(MpMaxAttributeId, supportedManaPool);
+        memberState.SetCurrentMp(supportedManaPool);
+        return supportedManaPool;
     }
 
     private SkillDefinition ResolveBasicMeditationDefinition()

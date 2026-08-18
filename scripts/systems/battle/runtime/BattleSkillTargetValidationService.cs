@@ -801,6 +801,7 @@ internal sealed class BattleSkillTargetValidationService
                 combatProfile.TargetTeamFilter,
                 allowDeadTargets
             )
+            || !BattleSkillCreatureTypeTargetRules.Allows(combatProfile, target_unit)
         )
         {
             return false;
@@ -882,6 +883,7 @@ internal sealed class BattleSkillTargetValidationService
                 combatProfile.TargetTeamFilter,
                 allowDeadTargets
             )
+            || !BattleSkillCreatureTypeTargetRules.Allows(combatProfile, target_unit)
         )
         {
             return false;

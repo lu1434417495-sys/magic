@@ -655,6 +655,16 @@ public partial class GameSession
         {
             return false;
         }
+        int initialLevel = ResolveRandomStartSkillInitialLevel(skillDefinition, progression);
+        CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
+        if (
+            combatProfile != null
+            && BattleTargetSlotCostRules.Resolve(combatProfile, initialLevel, 1).MpCost
+                > TrueRandomStartingManaPoolRoller.MaximumManaPool
+        )
+        {
+            return false;
+        }
         UnitSkillProgress learnedProgress = progression?.GetSkillProgress(skillDefinition.SkillId);
         return learnedProgress == null || !learnedProgress.is_learned;
     }

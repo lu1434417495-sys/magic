@@ -434,6 +434,12 @@ internal sealed class SkillCombatProfileValidator
             "combat_profile.excluded_weapon_type_ids",
             combatProfile.excluded_weapon_type_ids
         );
+        AppendUniqueStringNameArrayValidationErrors(
+            errors,
+            skillId,
+            "combat_profile.excluded_target_creature_type_tags",
+            combatProfile.excluded_target_creature_type_tags
+        );
 
         foreach (object overrideLevelKey in combatProfile.level_overrides.Keys)
         {
@@ -2977,6 +2983,25 @@ internal sealed class SkillCombatProfileValidator
             var value = values[index];
             if (value == "")
                 errors.Add($"Skill {skillId} {fieldLabel}[{index}] must be non-empty.");
+        }
+    }
+
+    private void AppendUniqueStringNameArrayValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        string fieldLabel,
+        Array<StringName> values
+    )
+    {
+        AppendStringNameArrayValidationErrors(errors, skillId, fieldLabel, values);
+        var seen = new HashSet<StringName>();
+        for (int index = 0; index < values.Count; index++)
+        {
+            StringName value = values[index];
+            if (value != "" && !seen.Add(value))
+                errors.Add(
+                    $"Skill {skillId} {fieldLabel}[{index}] duplicates {value}."
+                );
         }
     }
 

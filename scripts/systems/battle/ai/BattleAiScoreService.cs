@@ -372,6 +372,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             skillDefinition
         );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
+        PopulateHealingSuppressionMetrics(scoreInput, context);
         PopulateForcedMovePositionMetrics(scoreInput, context);
         PopulateSpellReactionThreatMetrics(scoreInput, context, skillDefinition);
         PopulateRangedWeaponReactionThreatMetrics(

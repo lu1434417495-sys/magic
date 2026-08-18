@@ -53,6 +53,7 @@ public static class BattleStatusSemanticTable
         STATUS_ARCHER_SHOOTING_SPECIALIZATION = "archer_shooting_specialization",
         STATUS_ATTACK_UP = "attack_up",
         STATUS_ATTACK_ROLL_BONUS_UP = "attack_roll_bonus_up",
+        STATUS_BONE_CHILL = "bone_chill",
         STATUS_BURNING = "burning",
         STATUS_BLIND = "blind",
         STATUS_FLASH_WHISTLE_DAZZLED = "flash_whistle_dazzled",
@@ -151,6 +152,7 @@ public static class BattleStatusSemanticTable
         [STATUS_CROWN_BREAK_BROKEN_HAND] = new() { Semantic = RefreshSemantic(), Harmful = true },
         [STATUS_CROWN_BREAK_BLINDED_EYE] = new() { Semantic = RefreshSemantic(), Harmful = true },
         [STATUS_BLIND] = new() { Semantic = RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_BONE_CHILL] = new() { Semantic = RefreshSemantic(displayLabel: "寒蚀"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_FLASH_WHISTLE_DAZZLED] = new()
         {
             Semantic = RefreshSemantic(

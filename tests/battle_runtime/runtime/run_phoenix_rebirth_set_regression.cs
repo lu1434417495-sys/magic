@@ -447,6 +447,15 @@ public partial class run_phoenix_rebirth_set_regression : LifecycleTestSceneTree
             new[] { enemy },
             worldStep: 12
         );
+        holder.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "phoenix_test_healing_suppression",
+                stacks = 1,
+                duration = 60,
+                heal_multiplier_percent = 50,
+            }
+        );
 
         CombatEffectDefinition damage = TestSkillDefinitionProjection.BuildEffect(
             effectType: "damage",
@@ -465,7 +474,7 @@ public partial class run_phoenix_rebirth_set_regression : LifecycleTestSceneTree
                 IsPreview = true,
             }
         );
-        _test.Eq(previewHolder.GetCurrentHp(), 34, "预览应使用2D8期望值9治疗预览副本。");
+        _test.Eq(previewHolder.GetCurrentHp(), 29, "50%减疗下，预览应把2D8期望治疗9缩放为4。");
         _test.True(previewHolder.HasStatusEffect(EmberStatusId), "预览副本应展示余烬形态。");
         _test.Eq(holder.GetCurrentHp(), 25, "预览不得修改正式单位生命。");
         _test.False(holder.HasStatusEffect(EmberStatusId), "预览不得把余烬形态写回正式单位。");
@@ -478,8 +487,8 @@ public partial class run_phoenix_rebirth_set_regression : LifecycleTestSceneTree
         );
         _test.Eq(
             holder.GetCurrentHp(),
-            29,
-            "正式5点伤害结算至20生命后，应沿伤害resolver钩子恢复固定骰4+5。"
+            24,
+            "正式5点伤害结算至20生命后，固定骰4+5应受50%减疗缩放为4。"
         );
         BattleStatusEffectState ember = holder.GetStatusEffect(EmberStatusId);
         _test.True(ember != null, "首次低血正式伤害后应进入余烬形态。");

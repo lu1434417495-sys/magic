@@ -14,7 +14,9 @@ internal sealed record BattleStatusContributionPreviewData(
     int ResultAggregateStacks,
     int ResultSourceCount,
     int ResultDurationTu,
-    int TickIntervalTu
+    int TickIntervalTu,
+    string StatusDisplayName = "",
+    int? HealMultiplierPercent = null
 )
 {
     internal string SummaryText
@@ -25,6 +27,13 @@ internal sealed record BattleStatusContributionPreviewData(
                 ? TargetUnitId.ToString()
                 : TargetDisplayName;
             string condition = AppliesOnSaveFailure ? "豁免失败时" : "命中时";
+            string statusLabel = string.IsNullOrWhiteSpace(StatusDisplayName)
+                ? StatusId.ToString()
+                : StatusDisplayName;
+            if (HealMultiplierPercent is int healMultiplierPercent)
+            {
+                return $"{targetLabel}：{condition}施加{statusLabel}，获得的生命治疗至多为正常值的{healMultiplierPercent}%，持续{ResultDurationTu}TU。";
+            }
             string sourceAction = AddsNewSource ? "新增独立来源" : "叠加同源层数";
             string stackText = SourceStackLimit > 0
                 ? $"{ResultSourceStacks}/{SourceStackLimit} 层"

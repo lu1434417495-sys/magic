@@ -218,6 +218,8 @@ internal sealed class BattleAiDecisionResult
             estimated_ally_damage = source.estimated_ally_damage,
             estimated_enemy_healing = source.estimated_enemy_healing,
             estimated_ally_healing = source.estimated_ally_healing,
+            estimated_enemy_healing_denied = source.estimated_enemy_healing_denied,
+            estimated_ally_healing_denied = source.estimated_ally_healing_denied,
             estimated_ally_shield_gain_basis_points =
                 source.estimated_ally_shield_gain_basis_points,
             estimated_status_count = source.estimated_status_count,

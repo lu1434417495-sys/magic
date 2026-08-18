@@ -623,6 +623,9 @@ internal static class BattlePreviewProjection
             payload["result_source_count"] = preview.ResultSourceCount;
             payload["result_duration_tu"] = preview.ResultDurationTu;
             payload["tick_interval_tu"] = preview.TickIntervalTu;
+            payload["status_display_name"] = preview.StatusDisplayName ?? "";
+            if (preview.HealMultiplierPercent is int healMultiplierPercent)
+                payload["heal_multiplier_percent"] = healMultiplierPercent;
             payload["summary_text"] = preview.SummaryText;
             result.Add(payload);
         }

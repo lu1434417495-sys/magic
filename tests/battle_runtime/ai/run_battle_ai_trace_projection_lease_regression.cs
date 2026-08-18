@@ -86,8 +86,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             AssertLegacyTraceReference(trace, payload);
             AssertFingerprint(
                 payload,
-                13021,
-                "c95f565549d9e280b18908f103f41da109c9dc1a4f3293c45276492701300d7b",
+                13090,
+                "63aebbcb7e3a462feb41832ad5d3dfc9d5d85175350eb75549119352ccdb60b0",
                 "full AI trace payload"
             );
             AssertDictionaryKeysAreStrings(payload, "trace");
@@ -706,8 +706,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 lease.Value,
-                10389,
-                "a298a7ef42069d683a784e9e7786353e361e276ee6c2e03a628c616636ffed2f",
+                10458,
+                "7c3952d0df540aea502f2b3d800b28f9bf0f5f1f3f0864ecacfd5c7f41db6df9",
                 "full standalone AI score payload"
             );
         }
@@ -992,8 +992,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             // 同上：action_threshold 默认值 120 -> 40。
             AssertFingerprint(
                 reportLease.Value,
-                17275,
-                "c2f07c448a791c1d6e7bae24fd1f69a66a28b1cad28b26d269900b752720a9ce",
+                17344,
+                "5ca26a54affe9fb0ef6466507d15d65c0887be347eb80ed3d78785f4e9d220f6",
                 "full simulation report payload"
             );
         }
@@ -1046,8 +1046,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 summaryLease.Value,
-                7096,
-                "50a9c222a42af056703fc56c8784599503bee2dc1fca4aecf8a5399f97970dbb",
+                7234,
+                "d80acec63ba7df214be66edf48d6626fa4d7ac0129175f6156322073d89b3695",
                 "full compact trace summary payload"
             );
         }

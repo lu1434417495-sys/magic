@@ -1787,6 +1787,35 @@ internal sealed class BattleSkillPreviewService
                     statusId,
                     sourceIdentity
                 );
+                if (
+                    semantic.StackingScope != BattleStatusStackingScope.SourceDefinition
+                    && effectDefinition.HealMultiplierPercent < 100
+                )
+                {
+                    if (merged == null)
+                        continue;
+                    result.Add(
+                        new BattleStatusContributionPreviewData(
+                            targetUnit.unit_id,
+                            targetUnit.display_name,
+                            statusId,
+                            sourceIdentity.KindId,
+                            sourceIdentity.SourceDefinitionId,
+                            appliesOnSaveFailure,
+                            existing == null,
+                            Math.Max(existing?.stacks ?? 0, 0),
+                            Math.Max(merged.stacks, 0),
+                            Math.Max(semantic.MaxStacks, 0),
+                            Math.Max(merged.stacks, 0),
+                            1,
+                            merged.duration,
+                            merged.tick_interval_tu,
+                            BattleStatusSemanticTable.GetDisplayLabel(statusId),
+                            effectDefinition.HealMultiplierPercent
+                        )
+                    );
+                    continue;
+                }
                 BattleStatusSourceContributionState resultContribution =
                     merged?.GetSourceContributionTyped(sourceIdentity);
                 if (merged == null || resultContribution == null)
@@ -1806,7 +1835,8 @@ internal sealed class BattleSkillPreviewService
                         Math.Max(merged.stacks, 0),
                         merged.GetSourceContributionsTyped().Count,
                         resultContribution.DurationTu,
-                        resultContribution.TickIntervalTu
+                        resultContribution.TickIntervalTu,
+                        BattleStatusSemanticTable.GetDisplayLabel(statusId)
                     )
                 );
             }
@@ -1843,6 +1873,7 @@ internal sealed class BattleSkillPreviewService
         }
         semantic = BattleStatusSemanticTable.GetSemantic(statusId);
         return semantic.StackingScope == BattleStatusStackingScope.SourceDefinition
+            || effectDefinition.HealMultiplierPercent < 100
             ? statusId
             : new StringName("");
     }

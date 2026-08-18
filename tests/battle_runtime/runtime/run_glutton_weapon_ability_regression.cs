@@ -39,6 +39,7 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             TestGluttonProjectsRealContentOntoBattleUnitAndClearsOnUnequip();
             TestUnsatisfiedAddsHungerAndDevouringChopConsumesItForDamage();
             TestSatedHealsForHalfActualHpDamageOnWeaponKill();
+            TestSatedHealFromFactRespectsHealingSuppression();
             RequestTestExit(_test.Finish("Glutton weapon ability regression"));
         }
         catch (Exception exception)
@@ -226,6 +227,47 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
         _test.False(
             attacker.HasStatusEffect(HungerStatusId),
             "击杀触发饱食时不应再按未击杀路径获得饥饿。"
+        );
+    }
+
+    private void TestSatedHealFromFactRespectsHealingSuppression()
+    {
+        using GluttonFixture fixture = GluttonFixture.Build(new GArray { 10 });
+        BattleUnitState attacker = fixture.BuildGluttonUnit("sated_healing_suppression");
+        attacker.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
+        attacker.SetCurrentHp(40);
+        attacker.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "glutton_test_healing_suppression",
+                stacks = 1,
+                duration = 60,
+                heal_multiplier_percent = 50,
+            }
+        );
+        BattleUnitState target = BuildEnemy(
+            "glutton_suppressed_heal_target",
+            new Vector2I(1, 0),
+            hp: 12
+        );
+
+        IssueBasicAttackWithAttackerHp(
+            fixture.Runtime,
+            attacker,
+            target,
+            "glutton_sated_suppressed_heal",
+            attackerHp: 40
+        );
+
+        _test.False(target.IsAlive(), "减疗用例中的贪食者攻击应击杀目标。");
+        _test.Eq(
+            43,
+            attacker.GetCurrentHp(),
+            "饱食原始6点heal_from_fact治疗应受50%减疗缩放为3点。"
+        );
+        _test.False(
+            attacker.HasStatusEffect(HungerStatusId),
+            "击杀触发受抑制的饱食治疗时仍不应获得饥饿。"
         );
     }
 

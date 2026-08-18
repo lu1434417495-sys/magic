@@ -17,6 +17,8 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
         TestStartingEquipmentMatchesSelectedRandomSkillThroughCreateNewSave();
         TestMpStartingSkillGrantsBasicMeditationAndRandomManaPool();
         TestFrostBoltRandomStartTierAndAffordableLevelCost();
+        TestBoneChillRandomStartTierAndAffordableLevelCost();
+        TestRandomStartCandidatesAreAffordableAndBoneChillGetsManaFloor();
 
         RequestTestExit(_test.Finish("GameSession random start skill regression"));
     }
@@ -222,6 +224,93 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
         }
     }
 
+    private void TestBoneChillRandomStartTierAndAffordableLevelCost()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
+            _test.True(
+                skillDefinitions.TryGetValue("mage_bone_chill", out SkillDefinition boneChill),
+                "随机起始等级回归前置：应加载骨寒术定义。"
+            );
+            if (boneChill == null)
+                return;
+
+            int initialLevel = gameSession.ResolveRandomStartSkillInitialLevel(boneChill);
+            _test.Eq(initialLevel, 0, "骨寒术在当前随机起始分档规则下应从0级开始。" );
+            CombatSkillResourceCosts initialCosts = BattleTargetSlotCostRules.Resolve(
+                boneChill.CombatProfile,
+                initialLevel,
+                1
+            );
+            _test.Eq(initialCosts.MpCost, 20, "随机起始0级骨寒术应采用20 MP消耗。" );
+            _test.True(
+                initialCosts.MpCost <= TrueRandomStartingManaPoolRoller.MaximumManaPool,
+                "随机起始骨寒术必须可由允许的起始法力池支付。"
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestRandomStartCandidatesAreAffordableAndBoneChillGetsManaFloor()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
+            bool inspectedCandidates = false;
+            gameSession.SetRandomStartingSkillSelectorForTests(
+                candidateIds =>
+                {
+                    inspectedCandidates = true;
+                    foreach (StringName candidateId in candidateIds)
+                    {
+                        SkillDefinition candidate = skillDefinitions[candidateId];
+                        int initialLevel = gameSession.ResolveRandomStartSkillInitialLevel(
+                            candidate
+                        );
+                        int mpCost = BattleTargetSlotCostRules.Resolve(
+                            candidate.CombatProfile,
+                            initialLevel,
+                            1
+                        ).MpCost;
+                        _test.True(
+                            mpCost <= TrueRandomStartingManaPoolRoller.MaximumManaPool,
+                            $"随机起始候选{candidateId}的起始等级MP消耗不得超过40。"
+                        );
+                    }
+                    return new StringName("mage_bone_chill");
+                }
+            );
+
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "选择骨寒术时应能创建测试存档。" );
+            _test.True(inspectedCandidates, "随机起始选择器应收到已过滤的候选集合。" );
+            if (createError != Error.Ok)
+                return;
+            PartyState partyState = gameSession.GetPartyState();
+            PartyMemberState memberState = partyState?.GetMemberState(
+                partyState.GetResolvedMainCharacterMemberId()
+            );
+            _test.True(
+                memberState?.progression?.GetSkillProgress("mage_bone_chill")?.is_learned == true,
+                "测试选择器指定的骨寒术应被授予。"
+            );
+            _test.True(memberState?.GetCurrentMp() >= 20, "骨寒术随机开局法力不得低于0级20 MP消耗。" );
+            _test.True(memberState?.GetCurrentMp() <= 40, "随机开局法力池仍不得超过40。" );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
     private void AssertManaPoolRoll(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         SkillDefinition arcaneMissile,
@@ -260,6 +349,11 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
             memberState,
             arcaneMissile
         );
+        int startingMpCost = BattleTargetSlotCostRules.Resolve(
+            arcaneMissile.CombatProfile,
+            0,
+            1
+        ).MpCost;
 
         UnitSkillProgress meditationProgress = progression.GetSkillProgress(
             RandomStartingSkillResourceSupportService.BasicMeditationSkillId
@@ -276,22 +370,23 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
                 "基础冥想法应记录触发伴随授予的随机法术。"
             );
         }
-        _test.Eq(resultingManaPool, rolledManaPool, "初始法力值应采用 0–40 闭区间随机结果。");
+        int expectedManaPool = Mathf.Max(rolledManaPool, startingMpCost);
+        _test.Eq(resultingManaPool, expectedManaPool, "初始法力值不得低于所抽技能的实际消耗。");
         _test.Eq(
             progression.unit_base_attributes.GetAttributeValue("mp_max"),
-            rolledManaPool,
-            "随机法力值应写入角色法力池上限。"
+            expectedManaPool,
+            "受技能消耗下限约束的法力值应写入角色法力池上限。"
         );
         _test.Eq(
             memberState.GetCurrentMp(),
-            rolledManaPool,
+            expectedManaPool,
             "新角色当前法力应与随机法力池上限一致。"
         );
         _test.True(
             progression.HasCombatResourceUnlocked(
                 CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
             ),
-            "即使随机法力值为 0，耗蓝法术仍应解锁 MP 资源。"
+            "即使原始随机法力值为0，耗蓝法术仍应解锁MP资源并获得可支付下限。"
         );
     }
 

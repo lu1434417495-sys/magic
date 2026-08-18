@@ -606,6 +606,14 @@ public sealed class BattleSimTraceSummaryBuilder
             ),
             FriendlyFirePenaltyScore = ReadPlainInt(score, "friendly_fire_penalty_score"),
             EstimatedHealing = ReadPlainInt(score, "estimated_healing"),
+            EstimatedEnemyHealingDenied = ReadPlainInt(
+                score,
+                "estimated_enemy_healing_denied"
+            ),
+            EstimatedAllyHealingDenied = ReadPlainInt(
+                score,
+                "estimated_ally_healing_denied"
+            ),
             EstimatedStatusCount = ReadPlainInt(score, "estimated_status_count"),
             EstimatedTerrainEffectCount = ReadPlainInt(score, "estimated_terrain_effect_count"),
             CooldownTu = ReadPlainInt(score, "cooldown_tu"),
@@ -680,6 +688,8 @@ public sealed class BattleSimTraceSummaryBuilder
             EstimatedFriendlyLethalTargetCount = score.estimated_friendly_lethal_target_count,
             FriendlyFirePenaltyScore = score.friendly_fire_penalty_score,
             EstimatedHealing = score.estimated_healing,
+            EstimatedEnemyHealingDenied = score.estimated_enemy_healing_denied,
+            EstimatedAllyHealingDenied = score.estimated_ally_healing_denied,
             EstimatedStatusCount = score.estimated_status_count,
             EstimatedTerrainEffectCount = score.estimated_terrain_effect_count,
             CooldownTu = score.cooldown_tu,
@@ -1293,6 +1303,8 @@ public sealed class BattleSimTraceSummaryBuilder
         public int EstimatedFriendlyLethalTargetCount { get; set; }
         public int FriendlyFirePenaltyScore { get; set; }
         public int EstimatedHealing { get; set; }
+        public int EstimatedEnemyHealingDenied { get; set; }
+        public int EstimatedAllyHealingDenied { get; set; }
         public int EstimatedStatusCount { get; set; }
         public int EstimatedTerrainEffectCount { get; set; }
         public int CooldownTu { get; set; }
@@ -1373,6 +1385,8 @@ public sealed class BattleSimTraceSummaryBuilder
                 ("estimated_friendly_lethal_target_count", EstimatedFriendlyLethalTargetCount),
                 ("friendly_fire_penalty_score", FriendlyFirePenaltyScore),
                 ("estimated_healing", EstimatedHealing),
+                ("estimated_enemy_healing_denied", EstimatedEnemyHealingDenied),
+                ("estimated_ally_healing_denied", EstimatedAllyHealingDenied),
                 ("estimated_status_count", EstimatedStatusCount),
                 ("estimated_terrain_effect_count", EstimatedTerrainEffectCount),
                 ("cooldown_tu", CooldownTu),
