@@ -13,7 +13,8 @@ internal static partial class SkillJsonImportParser
         JsonContentEntryContext context,
         CombatEffectJsonDto? dto,
         string pointer,
-        List<ContentJsonDiagnostic> diagnostics
+        List<ContentJsonDiagnostic> diagnostics,
+        bool validateNumericRanges
     )
     {
         if (dto == null)
@@ -48,11 +49,14 @@ internal static partial class SkillJsonImportParser
         int maxSkillLevel = dto.MaxSkillLevel ?? -1;
         int power = dto.Power ?? 0;
         int durationTu = dto.DurationTu ?? 0;
-        ValidateNonNegative(minSkillLevel, context, $"{pointer}/min_skill_level", diagnostics);
-        if (maxSkillLevel < -1)
-            AddRangeDiagnostic(context, $"{pointer}/max_skill_level", diagnostics);
-        ValidateNonNegative(power, context, $"{pointer}/power", diagnostics);
-        ValidateNonNegative(durationTu, context, $"{pointer}/duration_tu", diagnostics);
+        if (validateNumericRanges)
+        {
+            ValidateNonNegative(minSkillLevel, context, $"{pointer}/min_skill_level", diagnostics);
+            if (maxSkillLevel < -1)
+                AddRangeDiagnostic(context, $"{pointer}/max_skill_level", diagnostics);
+            ValidateNonNegative(power, context, $"{pointer}/power", diagnostics);
+            ValidateNonNegative(durationTu, context, $"{pointer}/duration_tu", diagnostics);
+        }
         ValidateFinite(dto.PreResistanceDamageMultiplier, context, $"{pointer}/pre_resistance_damage_multiplier", diagnostics);
         ValidateFinite(dto.JumpStrScale, context, $"{pointer}/jump_str_scale", diagnostics);
         ValidateFinite(dto.JumpArcRatio, context, $"{pointer}/jump_arc_ratio", diagnostics);
@@ -237,7 +241,7 @@ internal static partial class SkillJsonImportParser
             SaveDcSourceAbility = OptionalClosed<CombatSaveAbilityImportKind>(dto.SaveDcSourceAbility, SkillRootCombatImportValueRules.TrySaveAbility, context, $"{pointer}/save_dc_source_ability", diagnostics),
             SaveAbility = OptionalClosed<CombatSaveAbilityImportKind>(dto.SaveAbility, SkillRootCombatImportValueRules.TrySaveAbility, context, $"{pointer}/save_ability", diagnostics),
             SaveFailureStatusId = Name(dto.SaveFailureStatusId, context, $"{pointer}/save_failure_status_id", diagnostics),
-            SaveFailureStatusOutcomes = NormalizeWeightedOutcomes(context, dto.SaveFailureStatusOutcomes, $"{pointer}/save_failure_status_outcomes", diagnostics),
+            SaveFailureStatusOutcomes = NormalizeWeightedOutcomes(context, dto.SaveFailureStatusOutcomes, $"{pointer}/save_failure_status_outcomes", diagnostics, validateNumericRanges),
             SavePartialOnSuccess = dto.SavePartialOnSuccess,
             SaveTag = OptionalClosed<CombatSaveTagImportKind>(dto.SaveTag, SkillCombatEffectValueRules.TrySaveTag, context, $"{pointer}/save_tag", diagnostics),
             ConsumedStatusId = Name(dto.ConsumedStatusId, context, $"{pointer}/consumed_status_id", diagnostics),
@@ -401,7 +405,7 @@ internal static partial class SkillJsonImportParser
         return null;
     }
 
-    private static IReadOnlyList<CombatWeightedStatusOutcomeImportModel> NormalizeWeightedOutcomes(JsonContentEntryContext context, IReadOnlyList<CombatWeightedStatusOutcomeJsonDto>? values, string pointer, List<ContentJsonDiagnostic> diagnostics)
+    private static IReadOnlyList<CombatWeightedStatusOutcomeImportModel> NormalizeWeightedOutcomes(JsonContentEntryContext context, IReadOnlyList<CombatWeightedStatusOutcomeJsonDto>? values, string pointer, List<ContentJsonDiagnostic> diagnostics, bool validateNumericRanges)
     {
         values ??= Array.Empty<CombatWeightedStatusOutcomeJsonDto>();
         var result = new List<CombatWeightedStatusOutcomeImportModel>(values.Count);
@@ -414,7 +418,7 @@ internal static partial class SkillJsonImportParser
                 diagnostics.Add(Required(context, value == null ? itemPointer : $"{itemPointer}/status_effect"));
                 continue;
             }
-            CombatEffectImportModel? effect = NormalizeFullCombatEffect(context, value.StatusEffect, $"{itemPointer}/status_effect", diagnostics);
+            CombatEffectImportModel? effect = NormalizeFullCombatEffect(context, value.StatusEffect, $"{itemPointer}/status_effect", diagnostics, validateNumericRanges);
             if (effect != null)
                 result.Add(new(Name(value.OutcomeId, context, $"{itemPointer}/outcome_id", diagnostics), value.Weight, effect));
         }

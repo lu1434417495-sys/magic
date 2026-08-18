@@ -49,7 +49,7 @@ internal static partial class SkillJsonImportParser
     {
         ContentImportStageResult<SkillJsonDto> dtoResult = ParseDto(context, json);
         return dtoResult.HasValue
-            ? Normalize(context, dtoResult.Value)
+            ? Normalize(context, dtoResult.Value, allowResourceOnlyShape: false)
             : ContentImportStageResult<SkillImportModel>.Failure(dtoResult.Diagnostics);
     }
 
@@ -75,7 +75,8 @@ internal static partial class SkillJsonImportParser
 
     private static ContentImportStageResult<SkillImportModel> Normalize(
         JsonContentEntryContext context,
-        SkillJsonDto dto
+        SkillJsonDto dto,
+        bool allowResourceOnlyShape
     )
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -116,7 +117,7 @@ internal static partial class SkillJsonImportParser
             );
         }
 
-        if (maxLevel < 0)
+        if (!allowResourceOnlyShape && maxLevel < 0)
             AddRangeDiagnostic(context, "/max_level", diagnostics);
 
         var tags = new List<SkillImportIdentifier>();
@@ -157,7 +158,10 @@ internal static partial class SkillJsonImportParser
             {
                 string escapedKey = EscapePointerToken(pair.Key ?? "");
                 string pointer = $"/level_description_configs/{escapedKey}";
-                if (!TryParseCanonicalLevel(pair.Key, out int level) || level > maxLevel)
+                if (
+                    !TryParseCanonicalLevel(pair.Key, out int level)
+                    || (!allowResourceOnlyShape && level > maxLevel)
+                )
                 {
                     AddRangeDiagnostic(context, pointer, diagnostics);
                     continue;
@@ -179,6 +183,7 @@ internal static partial class SkillJsonImportParser
                 dto.CombatProfile,
                 dto.SkillId,
                 maxLevel,
+                allowResourceOnlyShape,
                 diagnostics
             );
         }
@@ -205,11 +210,22 @@ internal static partial class SkillJsonImportParser
         return ContentImportStageResult<SkillImportModel>.Success(model);
     }
 
+    /// <summary>
+    /// Resource-adapter-only synchronous normalization entry. The DTO and its transient
+    /// JsonElement payload carriers must not be registered as a content-domain API or retained;
+    /// this method returns only the canonical plain CLR import model.
+    /// </summary>
+    internal static ContentImportStageResult<SkillImportModel> NormalizeResourceSnapshot(
+        JsonContentEntryContext context,
+        SkillJsonDto dto
+    ) => Normalize(context, dto, allowResourceOnlyShape: true);
+
     private static CombatSkillImportModel? NormalizeCombatProfile(
         JsonContentEntryContext context,
         CombatSkillJsonDto dto,
         string rootSkillId,
         int maxLevel,
+        bool allowResourceOnlyShape,
         List<ContentJsonDiagnostic> diagnostics
     )
     {
@@ -226,6 +242,8 @@ internal static partial class SkillJsonImportParser
             out SkillImportIdentifier skillId
         );
         if (
+            !allowResourceOnlyShape
+            &&
             SkillJsonImportValueRules.IsSnakeCaseId(rootSkillId)
             && SkillJsonImportValueRules.IsSnakeCaseId(dto.SkillId)
             && !string.Equals(rootSkillId, dto.SkillId, StringComparison.Ordinal)
@@ -294,10 +312,13 @@ internal static partial class SkillJsonImportParser
             );
         }
 
-        ValidateNonNegative(rangeValue, context, "/combat_profile/range_value", diagnostics);
-        ValidateNonNegative(apCost, context, "/combat_profile/ap_cost", diagnostics);
-        ValidateNonNegative(mpCost, context, "/combat_profile/mp_cost", diagnostics);
-        ValidateNonNegative(cooldownTu, context, "/combat_profile/cooldown_tu", diagnostics);
+        if (!allowResourceOnlyShape)
+        {
+            ValidateNonNegative(rangeValue, context, "/combat_profile/range_value", diagnostics);
+            ValidateNonNegative(apCost, context, "/combat_profile/ap_cost", diagnostics);
+            ValidateNonNegative(mpCost, context, "/combat_profile/mp_cost", diagnostics);
+            ValidateNonNegative(cooldownTu, context, "/combat_profile/cooldown_tu", diagnostics);
+        }
 
         var effects = new List<CombatEffectImportModel>();
         if (dto.EffectDefs == null)
@@ -312,7 +333,8 @@ internal static partial class SkillJsonImportParser
                     context,
                     dto.EffectDefs[index],
                     $"/combat_profile/effect_defs/{index}",
-                    diagnostics
+                    diagnostics,
+                    validateNumericRanges: !allowResourceOnlyShape
                 );
                 if (effect != null)
                     effects.Add(effect);
@@ -330,7 +352,10 @@ internal static partial class SkillJsonImportParser
             {
                 string escapedKey = EscapePointerToken(pair.Key ?? "");
                 string pointer = $"/combat_profile/level_overrides/{escapedKey}";
-                if (!TryParseCanonicalLevel(pair.Key, out int level) || level > maxLevel)
+                if (
+                    !TryParseCanonicalLevel(pair.Key, out int level)
+                    || (!allowResourceOnlyShape && level > maxLevel)
+                )
                 {
                     AddRangeDiagnostic(context, pointer, diagnostics);
                     continue;
@@ -344,75 +369,83 @@ internal static partial class SkillJsonImportParser
                 }
 
                 int beforeOverride = diagnostics.Count;
-                ValidateOptionalNonNegative(overrideDto.ApCost, context, $"{pointer}/ap_cost", diagnostics);
-                ValidateOptionalNonNegative(overrideDto.MpCost, context, $"{pointer}/mp_cost", diagnostics);
-                ValidateOptionalNonNegative(
-                    overrideDto.StaminaCost,
-                    context,
-                    $"{pointer}/stamina_cost",
-                    diagnostics
-                );
-                ValidateOptionalNonNegative(
-                    overrideDto.MpCostPerTargetSlot,
-                    context,
-                    $"{pointer}/mp_cost_per_target_slot",
-                    diagnostics
-                );
-                ValidateOptionalNonNegative(
-                    overrideDto.StaminaCostPerTargetSlot,
-                    context,
-                    $"{pointer}/stamina_cost_per_target_slot",
-                    diagnostics
-                );
-                ValidateOptionalNonNegative(
-                    overrideDto.AuraCost,
-                    context,
-                    $"{pointer}/aura_cost",
-                    diagnostics
-                );
-                ValidateOptionalNonNegative(overrideDto.CooldownTu, context, $"{pointer}/cooldown_tu", diagnostics);
-                ValidateOptionalNonNegative(
-                    overrideDto.CastingTimeTu,
-                    context,
-                    $"{pointer}/casting_time_tu",
-                    diagnostics
-                );
-                ValidateOptionalNonNegative(
-                    overrideDto.CastingMaintenanceDc,
-                    context,
-                    $"{pointer}/casting_maintenance_dc",
-                    diagnostics
-                );
-                ValidateOptionalNonNegative(
-                    overrideDto.CastingSpellControlDc,
-                    context,
-                    $"{pointer}/casting_spell_control_dc",
-                    diagnostics
-                );
-                ValidateOptionalNonNegative(
-                    overrideDto.AreaValue,
-                    context,
-                    $"{pointer}/area_value",
-                    diagnostics
-                );
-                ValidateOptionalNonNegative(
-                    overrideDto.RangeValue,
-                    context,
-                    $"{pointer}/range_value",
-                    diagnostics
-                );
-                ValidateOptionalPositive(
-                    overrideDto.MaxTargetCount,
-                    context,
-                    $"{pointer}/max_target_count",
-                    diagnostics
-                );
-                ValidateOptionalPositive(
-                    overrideDto.RandomChainAttackCount,
-                    context,
-                    $"{pointer}/random_chain_attack_count",
-                    diagnostics
-                );
+                if (!allowResourceOnlyShape)
+                {
+                    ValidateOptionalNonNegative(overrideDto.ApCost, context, $"{pointer}/ap_cost", diagnostics);
+                    ValidateOptionalNonNegative(overrideDto.MpCost, context, $"{pointer}/mp_cost", diagnostics);
+                    ValidateOptionalNonNegative(
+                        overrideDto.StaminaCost,
+                        context,
+                        $"{pointer}/stamina_cost",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.MpCostPerTargetSlot,
+                        context,
+                        $"{pointer}/mp_cost_per_target_slot",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.StaminaCostPerTargetSlot,
+                        context,
+                        $"{pointer}/stamina_cost_per_target_slot",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.AuraCost,
+                        context,
+                        $"{pointer}/aura_cost",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.CooldownTu,
+                        context,
+                        $"{pointer}/cooldown_tu",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.CastingTimeTu,
+                        context,
+                        $"{pointer}/casting_time_tu",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.CastingMaintenanceDc,
+                        context,
+                        $"{pointer}/casting_maintenance_dc",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.CastingSpellControlDc,
+                        context,
+                        $"{pointer}/casting_spell_control_dc",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.AreaValue,
+                        context,
+                        $"{pointer}/area_value",
+                        diagnostics
+                    );
+                    ValidateOptionalNonNegative(
+                        overrideDto.RangeValue,
+                        context,
+                        $"{pointer}/range_value",
+                        diagnostics
+                    );
+                    ValidateOptionalPositive(
+                        overrideDto.MaxTargetCount,
+                        context,
+                        $"{pointer}/max_target_count",
+                        diagnostics
+                    );
+                    ValidateOptionalPositive(
+                        overrideDto.RandomChainAttackCount,
+                        context,
+                        $"{pointer}/random_chain_attack_count",
+                        diagnostics
+                    );
+                }
 
                 PendingCastBindingModeKind? pendingCastBindingMode = null;
                 if (overrideDto.PendingCastBindingMode != null)
@@ -514,7 +547,7 @@ internal static partial class SkillJsonImportParser
                     }
                 }
 
-                if (!HasAnyLevelOverrideValue(overrideDto))
+                if (!allowResourceOnlyShape && !HasAnyLevelOverrideValue(overrideDto))
                 {
                     diagnostics.Add(
                         Diagnostic(
@@ -571,7 +604,14 @@ internal static partial class SkillJsonImportParser
                 effects,
                 overrides,
                 (effectDto, pointer, targetDiagnostics) =>
-                    NormalizeEffect(context, effectDto, pointer, targetDiagnostics),
+                    NormalizeEffect(
+                        context,
+                        effectDto,
+                        pointer,
+                        targetDiagnostics,
+                        validateNumericRanges: !allowResourceOnlyShape
+                    ),
+                requireCanonicalSquare2Payload: !allowResourceOnlyShape,
                 diagnostics
             );
 
@@ -585,8 +625,15 @@ internal static partial class SkillJsonImportParser
         JsonContentEntryContext context,
         CombatEffectJsonDto? dto,
         string pointer,
-        List<ContentJsonDiagnostic> diagnostics
-    ) => NormalizeFullCombatEffect(context, dto, pointer, diagnostics);
+        List<ContentJsonDiagnostic> diagnostics,
+        bool validateNumericRanges
+    ) => NormalizeFullCombatEffect(
+        context,
+        dto,
+        pointer,
+        diagnostics,
+        validateNumericRanges
+    );
 
     private static LayeredBarrierEffectPayloadImportModel? NormalizeLayeredBarrierPayload(
         JsonContentEntryContext context,

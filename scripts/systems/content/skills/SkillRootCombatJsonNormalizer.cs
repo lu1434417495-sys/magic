@@ -245,6 +245,7 @@ internal static class SkillRootCombatJsonNormalizer
         IEnumerable<CombatEffectImportModel> effectDefs,
         IEnumerable<KeyValuePair<int, CombatSkillLevelOverrideImportModel>> levelOverrides,
         EffectNormalizer normalizeEffect,
+        bool requireCanonicalSquare2Payload,
         List<ContentJsonDiagnostic> diagnostics
     )
     {
@@ -282,6 +283,7 @@ internal static class SkillRootCombatJsonNormalizer
                     dto.CastVariants[index],
                     index,
                     normalizeEffect,
+                    requireCanonicalSquare2Payload,
                     diagnostics
                 );
                 if (variant != null)
@@ -481,6 +483,7 @@ internal static class SkillRootCombatJsonNormalizer
         CombatCastVariantJsonDto? dto,
         int index,
         EffectNormalizer normalizeEffect,
+        bool requireCanonicalSquare2Payload,
         List<ContentJsonDiagnostic> diagnostics
     )
     {
@@ -551,6 +554,7 @@ internal static class SkillRootCombatJsonNormalizer
             context,
             dto.Payload,
             footprintPattern,
+            requireCanonicalSquare2Payload,
             $"{pointer}/payload",
             diagnostics
         );
@@ -575,13 +579,17 @@ internal static class SkillRootCombatJsonNormalizer
         JsonContentEntryContext context,
         CombatCastVariantPayloadJsonDto? payload,
         CombatCastFootprintImportKind footprintPattern,
+        bool requireCanonicalSquare2Payload,
         string pointer,
         List<ContentJsonDiagnostic> diagnostics
     )
     {
         if (payload == null)
         {
-            if (footprintPattern == CombatCastFootprintImportKind.Square2)
+            if (
+                requireCanonicalSquare2Payload
+                && footprintPattern == CombatCastFootprintImportKind.Square2
+            )
             {
                 diagnostics.Add(
                     Diagnostic(
@@ -614,7 +622,8 @@ internal static class SkillRootCombatJsonNormalizer
             }
         }
         if (
-            footprintPattern == CombatCastFootprintImportKind.Square2
+            requireCanonicalSquare2Payload
+            && footprintPattern == CombatCastFootprintImportKind.Square2
             && corner == null
         )
         {
