@@ -300,6 +300,188 @@ internal static class SkillCombatEffectValueRules
             _ => Fail(out result),
         };
 
+    internal static string GetWireValue(CombatTickEffectImportKind value) => value switch
+    {
+        CombatTickEffectImportKind.None => "none",
+        CombatTickEffectImportKind.Damage => "damage",
+        CombatTickEffectImportKind.MovementCost => "movement_cost",
+        CombatTickEffectImportKind.Status => "status",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatEffectLifetimeImportKind value) => value switch
+    {
+        CombatEffectLifetimeImportKind.Timed => "timed",
+        CombatEffectLifetimeImportKind.Battle => "battle",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatPathStepAreaPatternImportKind value) => value switch
+    {
+        CombatPathStepAreaPatternImportKind.Single => "single",
+        CombatPathStepAreaPatternImportKind.Self => "self",
+        CombatPathStepAreaPatternImportKind.Diamond => "diamond",
+        CombatPathStepAreaPatternImportKind.Square => "square",
+        CombatPathStepAreaPatternImportKind.Radius => "radius",
+        CombatPathStepAreaPatternImportKind.Cross => "cross",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(DamageMitigationTierImportKind value) => value switch
+    {
+        DamageMitigationTierImportKind.Normal => "normal",
+        DamageMitigationTierImportKind.Half => "half",
+        DamageMitigationTierImportKind.Double => "double",
+        DamageMitigationTierImportKind.Immune => "immune",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(DamageCategoryImportKind value) => value switch
+    {
+        DamageCategoryImportKind.Physical => "physical",
+        DamageCategoryImportKind.Spell => "spell",
+        DamageCategoryImportKind.Magic => "magic",
+        DamageCategoryImportKind.Energy => "energy",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(ShieldAttributeModifierImportKind value) => value switch
+    {
+        ShieldAttributeModifierImportKind.Strength => "strength_modifier",
+        ShieldAttributeModifierImportKind.Agility => "agility_modifier",
+        ShieldAttributeModifierImportKind.Constitution => "constitution_modifier",
+        ShieldAttributeModifierImportKind.Perception => "perception_modifier",
+        ShieldAttributeModifierImportKind.Intelligence => "intelligence_modifier",
+        ShieldAttributeModifierImportKind.Willpower => "willpower_modifier",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatEffectTargetTeamFilterImportKind value) => value switch
+    {
+        CombatEffectTargetTeamFilterImportKind.Inherit => "inherit",
+        CombatEffectTargetTeamFilterImportKind.Self => "self",
+        CombatEffectTargetTeamFilterImportKind.Ally => "ally",
+        CombatEffectTargetTeamFilterImportKind.Enemy => "enemy",
+        CombatEffectTargetTeamFilterImportKind.Any => "any",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatEffectTargetOrderImportKind value) => value switch
+    {
+        CombatEffectTargetOrderImportKind.LowestHpPercentThenUnitId => "lowest_hp_percent_then_unit_id",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatCognitionImportKind value) => value switch
+    {
+        CombatCognitionImportKind.Mindless => "mindless",
+        CombatCognitionImportKind.Instinctive => "instinctive",
+        CombatCognitionImportKind.Sapient => "sapient",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatTerrainContactImportKind value) => value switch
+    {
+        CombatTerrainContactImportKind.InterruptMovementOnFailedSave => "interrupt_movement_on_failed_save",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatBodySizeImportKind value) => value switch
+    {
+        CombatBodySizeImportKind.Tiny => "tiny",
+        CombatBodySizeImportKind.Small => "small",
+        CombatBodySizeImportKind.Medium => "medium",
+        CombatBodySizeImportKind.Large => "large",
+        CombatBodySizeImportKind.Huge => "huge",
+        CombatBodySizeImportKind.Gargantuan => "gargantuan",
+        CombatBodySizeImportKind.Boss => "boss",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatForcedMoveImportKind value) => value switch
+    {
+        CombatForcedMoveImportKind.Jump => "jump",
+        CombatForcedMoveImportKind.Blink => "blink",
+        CombatForcedMoveImportKind.WindPush => "wind_push",
+        CombatForcedMoveImportKind.Evasive => "evasive",
+        CombatForcedMoveImportKind.Retreat => "retreat",
+        CombatForcedMoveImportKind.Knockback => "knockback",
+        CombatForcedMoveImportKind.Reposition => "reposition",
+        CombatForcedMoveImportKind.GrappleAscent => "grapple_ascent",
+        CombatForcedMoveImportKind.AirbornePull => "airborne_pull",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatStackBehaviorImportKind value) => value switch
+    {
+        CombatStackBehaviorImportKind.Refresh => "refresh",
+        CombatStackBehaviorImportKind.Add => "add",
+        CombatStackBehaviorImportKind.Stack => "stack",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatDamageBonusConditionImportKind value) => value switch
+    {
+        CombatDamageBonusConditionImportKind.TargetLowHp => "target_low_hp",
+        CombatDamageBonusConditionImportKind.TargetDebuffCount => "target_debuff_count",
+        CombatDamageBonusConditionImportKind.TargetCreatureType => "target_creature_type",
+        CombatDamageBonusConditionImportKind.TargetHardControlled => "target_hard_controlled",
+        CombatDamageBonusConditionImportKind.TargetHasShield => "target_has_shield",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatEffectTriggerEventImportKind value) => value switch
+    {
+        CombatEffectTriggerEventImportKind.AttackHit => "attack_hit",
+        CombatEffectTriggerEventImportKind.CriticalHit => "critical_hit",
+        CombatEffectTriggerEventImportKind.OrdinaryHit => "ordinary_hit",
+        CombatEffectTriggerEventImportKind.SecondaryHit => "secondary_hit",
+        CombatEffectTriggerEventImportKind.ForcedMoveApplied => "forced_move_applied",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatEffectTriggerConditionImportKind value) => value switch
+    {
+        CombatEffectTriggerConditionImportKind.BattleStart => "battle_start",
+        CombatEffectTriggerConditionImportKind.OnFatalDamage => "on_fatal_damage",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSaveDcModeImportKind value) => value switch
+    {
+        CombatSaveDcModeImportKind.Static => "static",
+        CombatSaveDcModeImportKind.CasterSpell => "caster_spell",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSaveTagImportKind value) =>
+        GetDictionaryWireValue(value, SaveTags);
+
+    internal static string GetWireValue(CombatResourceImportKind value) => value switch
+    {
+        CombatResourceImportKind.Ap => "ap",
+        CombatResourceImportKind.Aura => "aura",
+        CombatResourceImportKind.Mp => "mp",
+        CombatResourceImportKind.Stamina => "stamina",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatStatusSourceSelectorImportKind value) => value switch
+    {
+        CombatStatusSourceSelectorImportKind.Source => "source",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatEquipmentSlotImportKind value) =>
+        GetDictionaryWireValue(value, EquipmentSlots);
+
+    internal static string GetWireValue(CombatOnKillGrantScopeImportKind value) => value switch
+    {
+        CombatOnKillGrantScopeImportKind.None => "",
+        CombatOnKillGrantScopeImportKind.CurrentTurn => "current_turn",
+        _ => throw Unknown(value),
+    };
+
     private static readonly IReadOnlyDictionary<string, CombatSaveTagImportKind> SaveTags =
         new Dictionary<string, CombatSaveTagImportKind>(StringComparer.Ordinal)
         {
@@ -354,6 +536,22 @@ internal static class SkillCombatEffectValueRules
         result = default;
         return false;
     }
+
+    private static string GetDictionaryWireValue<T>(
+        T value,
+        IReadOnlyDictionary<string, T> values
+    ) where T : struct
+    {
+        foreach (KeyValuePair<string, T> pair in values)
+        {
+            if (EqualityComparer<T>.Default.Equals(value, pair.Value))
+                return pair.Key;
+        }
+        throw Unknown(value);
+    }
+
+    private static ArgumentOutOfRangeException Unknown<T>(T value) where T : struct =>
+        new(nameof(value), value, "Unregistered combat-effect import enum value.");
 
     private static bool Set<T>(T value, out T result) where T : struct
     {

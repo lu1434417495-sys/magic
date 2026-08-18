@@ -234,6 +234,212 @@ internal static class SkillRootCombatImportValueRules
         }
     }
 
+    internal static string GetWireValue(SkillImportUnlockMode value) => value switch
+    {
+        SkillImportUnlockMode.Standard => "standard",
+        SkillImportUnlockMode.CompositeUpgrade => "composite_upgrade",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(SkillImportCoreSkillTransitionMode value) => value switch
+    {
+        SkillImportCoreSkillTransitionMode.Inherit => "inherit",
+        SkillImportCoreSkillTransitionMode.ReplaceSourcesWithResult => "replace_sources_with_result",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(SkillImportProgressionTier value) => value switch
+    {
+        SkillImportProgressionTier.None => "",
+        SkillImportProgressionTier.Basic => "basic",
+        SkillImportProgressionTier.Intermediate => "intermediate",
+        SkillImportProgressionTier.Advanced => "advanced",
+        SkillImportProgressionTier.Ultimate => "ultimate",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(AttributeModifierImportMode value) => value switch
+    {
+        AttributeModifierImportMode.Flat => "flat",
+        AttributeModifierImportMode.Percent => "percent",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatWeaponRangePolicyImportKind value) => value switch
+    {
+        CombatWeaponRangePolicyImportKind.CurrentWeapon => "current_weapon",
+        CombatWeaponRangePolicyImportKind.Configured => "configured",
+        CombatWeaponRangePolicyImportKind.CurrentWeaponPlusConfigured => "current_weapon_plus_configured",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatMasteryTriggerImportKind value) => value switch
+    {
+        CombatMasteryTriggerImportKind.SkillDamageDiceMax => "skill_damage_dice_max",
+        CombatMasteryTriggerImportKind.WeaponAttackQuality => "weapon_attack_quality",
+        CombatMasteryTriggerImportKind.DamageDealt => "damage_dealt",
+        CombatMasteryTriggerImportKind.StatusApplied => "status_applied",
+        CombatMasteryTriggerImportKind.EffectApplied => "effect_applied",
+        CombatMasteryTriggerImportKind.IncomingPhysicalHit => "incoming_physical_hit",
+        CombatMasteryTriggerImportKind.SecondaryHit => "secondary_hit",
+        CombatMasteryTriggerImportKind.SourceBoundWeaponBonusDamage => "source_bound_weapon_bonus_damage",
+        CombatMasteryTriggerImportKind.TerrainEffectiveTrigger => "terrain_effective_trigger",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatMasteryAmountImportKind value) => value switch
+    {
+        CombatMasteryAmountImportKind.PerTargetRank => "per_target_rank",
+        CombatMasteryAmountImportKind.PerCastHpRatio => "per_cast_hp_ratio",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSpellFateImportKind value) => value switch
+    {
+        CombatSpellFateImportKind.None => "",
+        CombatSpellFateImportKind.ControlRoll => "control_roll",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSpellCriticalImportKind value) => value switch
+    {
+        CombatSpellCriticalImportKind.None => "",
+        CombatSpellCriticalImportKind.MpRefund => "mp_refund",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatBacklashImportKind value) => value switch
+    {
+        CombatBacklashImportKind.None => "",
+        CombatBacklashImportKind.GroundAnchorDrift => "ground_anchor_drift",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatAreaOriginImportKind value) => value switch
+    {
+        CombatAreaOriginImportKind.Target => "target",
+        CombatAreaOriginImportKind.Caster => "caster",
+        CombatAreaOriginImportKind.AnchorCoord => "anchor_coord",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatAreaDirectionImportKind value) => value switch
+    {
+        CombatAreaDirectionImportKind.TargetVector => "target_vector",
+        CombatAreaDirectionImportKind.TargetVectorPerpendicular => "target_vector_perpendicular",
+        CombatAreaDirectionImportKind.CasterFacing => "caster_facing",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatProjectileImportKind value) => value switch
+    {
+        CombatProjectileImportKind.Inherit => "",
+        CombatProjectileImportKind.None => "none",
+        CombatProjectileImportKind.Nonmagical => "nonmagical",
+        CombatProjectileImportKind.Magical => "magical",
+        CombatProjectileImportKind.CurrentWeapon => "current_weapon",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatBaseProjectileImportKind value) => value switch
+    {
+        CombatBaseProjectileImportKind.None => "none",
+        CombatBaseProjectileImportKind.Nonmagical => "nonmagical",
+        CombatBaseProjectileImportKind.Magical => "magical",
+        CombatBaseProjectileImportKind.CurrentWeapon => "current_weapon",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatTargetSelectionImportKind value) => value switch
+    {
+        CombatTargetSelectionImportKind.SingleUnit => "single_unit",
+        CombatTargetSelectionImportKind.MultiUnit => "multi_unit",
+        CombatTargetSelectionImportKind.RandomChain => "random_chain",
+        CombatTargetSelectionImportKind.Self => "self",
+        CombatTargetSelectionImportKind.SingleCoord => "single_coord",
+        CombatTargetSelectionImportKind.CoordPair => "coord_pair",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatUnitTargetResolutionImportKind value) => value switch
+    {
+        CombatUnitTargetResolutionImportKind.Aggregate => "aggregate",
+        CombatUnitTargetResolutionImportKind.OrderedSlots => "ordered_slots",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSelectionOrderImportKind value) => value switch
+    {
+        CombatSelectionOrderImportKind.Stable => "stable",
+        CombatSelectionOrderImportKind.Manual => "manual",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatCastFootprintImportKind value) => value switch
+    {
+        CombatCastFootprintImportKind.Single => "single",
+        CombatCastFootprintImportKind.Line2 => "line2",
+        CombatCastFootprintImportKind.Square2 => "square2",
+        CombatCastFootprintImportKind.Unordered => "unordered",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSaveAbilityImportKind value) => value switch
+    {
+        CombatSaveAbilityImportKind.Strength => "strength",
+        CombatSaveAbilityImportKind.Agility => "agility",
+        CombatSaveAbilityImportKind.Constitution => "constitution",
+        CombatSaveAbilityImportKind.Perception => "perception",
+        CombatSaveAbilityImportKind.Intelligence => "intelligence",
+        CombatSaveAbilityImportKind.Willpower => "willpower",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(DamageTagImportKind value) => value switch
+    {
+        DamageTagImportKind.PhysicalSlash => "physical_slash",
+        DamageTagImportKind.PhysicalPierce => "physical_pierce",
+        DamageTagImportKind.PhysicalBlunt => "physical_blunt",
+        DamageTagImportKind.Fire => "fire",
+        DamageTagImportKind.Freeze => "freeze",
+        DamageTagImportKind.Lightning => "lightning",
+        DamageTagImportKind.NegativeEnergy => "negative_energy",
+        DamageTagImportKind.Force => "force",
+        DamageTagImportKind.Psychic => "psychic",
+        DamageTagImportKind.Radiant => "radiant",
+        DamageTagImportKind.Thunder => "thunder",
+        DamageTagImportKind.Magic => "magic",
+        DamageTagImportKind.Acid => "acid",
+        DamageTagImportKind.Poison => "poison",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(BattleTerrainImportKind value) => value switch
+    {
+        BattleTerrainImportKind.Land => "land",
+        BattleTerrainImportKind.Forest => "forest",
+        BattleTerrainImportKind.Water => "water",
+        BattleTerrainImportKind.ShallowWater => "shallow_water",
+        BattleTerrainImportKind.FlowingWater => "flowing_water",
+        BattleTerrainImportKind.DeepWater => "deep_water",
+        BattleTerrainImportKind.Ice => "ice",
+        BattleTerrainImportKind.Mud => "mud",
+        BattleTerrainImportKind.Spike => "spike",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatCastSquare2Corner value) => value switch
+    {
+        CombatCastSquare2Corner.TopLeft => "top_left",
+        CombatCastSquare2Corner.TopRight => "top_right",
+        CombatCastSquare2Corner.BottomLeft => "bottom_left",
+        CombatCastSquare2Corner.BottomRight => "bottom_right",
+        _ => throw Unknown(value),
+    };
+
+    private static ArgumentOutOfRangeException Unknown<T>(T value) where T : struct =>
+        new(nameof(value), value, "Unregistered root/combat import enum value.");
+
     private static bool Try<T>(
         string? value,
         string firstText,

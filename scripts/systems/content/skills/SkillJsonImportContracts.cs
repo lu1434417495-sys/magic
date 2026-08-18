@@ -372,6 +372,115 @@ internal static class SkillJsonImportValueRules
         out CombatEffectImportKind result
     ) => CombatEffectImportClosedSpec.TryParseKind(value, out result);
 
+    internal static string GetWireValue(SkillImportType value) => value switch
+    {
+        SkillImportType.Active => "active",
+        SkillImportType.Passive => "passive",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(SkillImportLearnSource value) => value switch
+    {
+        SkillImportLearnSource.Book => "book",
+        SkillImportLearnSource.Innate => "innate",
+        SkillImportLearnSource.Internal => "internal",
+        SkillImportLearnSource.Player => "player",
+        SkillImportLearnSource.Profession => "profession",
+        SkillImportLearnSource.Race => "race",
+        SkillImportLearnSource.Subrace => "subrace",
+        SkillImportLearnSource.Ascension => "ascension",
+        SkillImportLearnSource.Bloodline => "bloodline",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSkillImportTargetMode value) => value switch
+    {
+        CombatSkillImportTargetMode.Unit => "unit",
+        CombatSkillImportTargetMode.Ground => "ground",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSkillImportTargetTeamFilter value) => value switch
+    {
+        CombatSkillImportTargetTeamFilter.Self => "self",
+        CombatSkillImportTargetTeamFilter.Ally => "ally",
+        CombatSkillImportTargetTeamFilter.Enemy => "enemy",
+        CombatSkillImportTargetTeamFilter.Any => "any",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSkillImportRangePattern value) => value switch
+    {
+        CombatSkillImportRangePattern.Single => "single",
+        CombatSkillImportRangePattern.Fixed => "fixed",
+        CombatSkillImportRangePattern.Diamond => "diamond",
+        CombatSkillImportRangePattern.Square => "square",
+        CombatSkillImportRangePattern.Line => "line",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSkillImportAreaPattern value) => value switch
+    {
+        CombatSkillImportAreaPattern.Single => "single",
+        CombatSkillImportAreaPattern.Self => "self",
+        CombatSkillImportAreaPattern.Diamond => "diamond",
+        CombatSkillImportAreaPattern.Square => "square",
+        CombatSkillImportAreaPattern.Radius => "radius",
+        CombatSkillImportAreaPattern.Cross => "cross",
+        CombatSkillImportAreaPattern.Line => "line",
+        CombatSkillImportAreaPattern.Cone => "cone",
+        CombatSkillImportAreaPattern.NarrowCone => "narrow_cone",
+        CombatSkillImportAreaPattern.FrontArc => "front_arc",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(PendingCastBindingModeKind value) => value switch
+    {
+        PendingCastBindingModeKind.SoftAnchor => "soft_anchor",
+        PendingCastBindingModeKind.HardAnchor => "hard_anchor",
+        PendingCastBindingModeKind.GroundBind => "ground_bind",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(
+        CombatSkillLevelOverrideAttackResolutionMode value
+    ) => value switch
+    {
+        CombatSkillLevelOverrideAttackResolutionMode.Auto => "auto",
+        CombatSkillLevelOverrideAttackResolutionMode.DirectEffect => "direct_effect",
+        CombatSkillLevelOverrideAttackResolutionMode.FateAttack => "fate_attack",
+        CombatSkillLevelOverrideAttackResolutionMode.ForceHitNoCrit => "force_hit_no_crit",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(
+        CombatSkillLevelOverrideAttackDefenseMode value
+    ) => value switch
+    {
+        CombatSkillLevelOverrideAttackDefenseMode.Normal => "normal",
+        CombatSkillLevelOverrideAttackDefenseMode.Touch => "touch",
+        CombatSkillLevelOverrideAttackDefenseMode.FlatFooted => "flat_footed",
+        _ => throw Unknown(value),
+    };
+
+    internal static string GetWireValue(CombatSkillLevelOverrideAreaPattern value) => value switch
+    {
+        CombatSkillLevelOverrideAreaPattern.Single => "single",
+        CombatSkillLevelOverrideAreaPattern.Self => "self",
+        CombatSkillLevelOverrideAreaPattern.Diamond => "diamond",
+        CombatSkillLevelOverrideAreaPattern.Square => "square",
+        CombatSkillLevelOverrideAreaPattern.Radius => "radius",
+        CombatSkillLevelOverrideAreaPattern.Cross => "cross",
+        CombatSkillLevelOverrideAreaPattern.Line => "line",
+        CombatSkillLevelOverrideAreaPattern.Cone => "cone",
+        CombatSkillLevelOverrideAreaPattern.NarrowCone => "narrow_cone",
+        CombatSkillLevelOverrideAreaPattern.FrontArc => "front_arc",
+        _ => throw Unknown(value),
+    };
+
+    private static ArgumentOutOfRangeException Unknown<T>(T value) where T : struct =>
+        new(nameof(value), value, "Unregistered skill import enum value.");
+
     private static bool IsLowerAscii(char value) => value is >= 'a' and <= 'z';
 }
 

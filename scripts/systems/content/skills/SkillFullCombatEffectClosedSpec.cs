@@ -85,6 +85,16 @@ internal static class SkillFullCombatEffectClosedSpec
         throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unregistered effect kind.");
     }
 
+    internal static string GetWireValue(CombatEffectImportKind kind)
+    {
+        foreach (Entry entry in Entries)
+        {
+            if (entry.Kind == kind)
+                return entry.WireValue;
+        }
+        throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unregistered effect kind.");
+    }
+
     internal static bool IsPayloadCompatible(
         CombatEffectImportKind kind,
         ICombatEffectPayloadImportModel payload
