@@ -5,21 +5,14 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_passwall_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_passwall_skill"]
 
-[sub_resource type="Resource" id="Effect_edge_clear"]
-script = ExtResource("2_passwall_effect")
-effect_type = &"edge_clear"
-params = {
-"breaks_barrier_layer": "green"
-}
-
 [sub_resource type="Resource" id="Variant_open_passage"]
 script = ExtResource("1_passwall_option")
 variant_id = &"open_passage"
 display_name = "开辟通道"
-description = "选择两个正交相邻地格，移除它们之间的墙、门或闸门阻挡。"
+description = "格级障碍物系统落地前，此施法选项暂不产生战斗效果。"
 footprint_pattern = &"line2"
 required_coord_count = 2
-effect_defs = Array[ExtResource("2_passwall_effect")]([SubResource("Effect_edge_clear")])
+effect_defs = Array[ExtResource("2_passwall_effect")]([])
 
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("3_passwall_combat")
@@ -44,7 +37,7 @@ level_overrides = {
 }
 }
 mastery_trigger_mode = &"effect_applied"
-ai_tags = Array[StringName]([&"terrain", &"mobility", &"breaker"])
+ai_tags = Array[StringName]([&"breaker"])
 cast_variants = Array[ExtResource("1_passwall_option")]([SubResource("Variant_open_passage")])
 
 [resource]
@@ -52,7 +45,7 @@ script = ExtResource("4_passwall_skill")
 skill_id = &"mage_passwall"
 display_name = "穿墙术"
 icon_id = &"mage_passwall"
-description = "在墙体、门或闸门之间开辟通道；也可按虹光法球规则破解绿色层。"
+description = "格级障碍物系统落地前，此技能暂不产生战斗效果。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
@@ -63,7 +56,7 @@ attribute_growth_progress = {
 "perception": 40,
 "willpower": 40
 }
-level_description_template = "开辟相邻两格之间的墙体通道。消耗{ap}AP/{mp}法力，射程{range}格，冷却{cooldown}TU"
+level_description_template = "格级障碍物系统落地前暂不产生战斗效果。预留消耗{ap}AP/{mp}法力，射程{range}格，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "ap": "2",
