@@ -191,6 +191,7 @@ internal interface ISkillGenerationBattleSimulationGate
 {
     SkillGenerationBattleSimulationGateResult Evaluate(
         IReadOnlyDictionary<StringName, SkillDefinition> candidateSkills,
+        IReadOnlyDictionary<StringName, JsonContentEntryContext> candidateContexts,
         IReadOnlyDictionary<StringName, SkillDefinition> combinedSkills,
         ContentSnapshot processSnapshot
     );

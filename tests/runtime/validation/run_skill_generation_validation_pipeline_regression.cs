@@ -333,6 +333,7 @@ public partial class run_skill_generation_validation_pipeline_regression
 
         public SkillGenerationBattleSimulationGateResult Evaluate(
             IReadOnlyDictionary<StringName, SkillDefinition> candidateSkills,
+            IReadOnlyDictionary<StringName, JsonContentEntryContext> candidateContexts,
             IReadOnlyDictionary<StringName, SkillDefinition> combinedSkills,
             ContentSnapshot processSnapshot
         )

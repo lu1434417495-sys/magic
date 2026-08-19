@@ -100,6 +100,7 @@ internal sealed class SkillGenerationValidationService
         SkillGenerationBattleSimulationGateResult simulation =
             _battleSimulationGate.Evaluate(
                 candidateSkills,
+                BuildCandidateContexts(schemaBatch.Entries),
                 combinedSkills,
                 _processSnapshot
             ) ?? throw new InvalidOperationException(
@@ -129,6 +130,17 @@ internal sealed class SkillGenerationValidationService
             projected.Add(skillId, SkillDefinitionProjector.Project(entry.Import));
         }
         return new ReadOnlyDictionary<StringName, SkillDefinition>(projected);
+    }
+
+    private static IReadOnlyDictionary<StringName, JsonContentEntryContext>
+        BuildCandidateContexts(
+            IReadOnlyList<ContentImportEntry<SkillImportModel>> entries
+        )
+    {
+        var contexts = new Dictionary<StringName, JsonContentEntryContext>();
+        foreach (ContentImportEntry<SkillImportModel> entry in entries)
+            contexts.Add(new StringName(entry.Import.SkillId.Value), entry.Context);
+        return new ReadOnlyDictionary<StringName, JsonContentEntryContext>(contexts);
     }
 
     private IReadOnlyDictionary<StringName, SkillDefinition> BuildCombinedSkillCatalog(

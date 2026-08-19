@@ -1204,6 +1204,21 @@ runtime 会在每场战斗中维护 `_battle_metrics`，最终进入 `run_result
 不要泛泛而谈，要基于字段做判断。
 ```
 
+## 生成技能强度门禁
+
+`SkillGenerationBattleSimGate` 直接复用本系统的 runner、content provider、metrics 与 report artifact，不维护第二套模拟器。它只抽检 active、enemy-targeted、unit/ground damage 或 execute 技能；其他 surface 以稳定 `unsupported_surface` 诊断拒绝，不能假装已做数值验证。
+
+每个候选与同 surface benchmark 使用相同单位 id、属性、武器、AI brain、地图以及 20 个固定 seed。ground 技能对比 `mage_fireball`，远程/魔法 unit 技能对比 `mage_arcane_missile`，近战 unit 技能对比 `basic_attack`。candidate definition 通过 `BattleSimContentProvider` 的只读 combined skill view 进入正式 runtime，process snapshot 不被修改。
+
+正式判定必须同时满足：
+
+- baseline 与 candidate 各有至少 20 个 completed samples；unfinished run 仍只作诊断。
+- candidate 在汇总中至少出现 3 次 skill attempt，避免把“AI 根本没用”误判成平衡。
+- 友方胜率差位于 `[-3500, +3500]` basis points。
+- 友方每 completed run 总伤害比位于 `[4500, 22500]` basis points。
+
+胜率差或伤害比任一越界就产生 high/low strength outlier。该结论只表示标准化 1v1 抽检离群，不替代技能在真实职业、队伍、地形和资源经济中的完整平衡评估。生成门禁及其回归位于 `/simulation/` opt-in 路径，不进入 routine full suite。
+
 ## 已知限制
 
 当前系统有这些明确限制：
