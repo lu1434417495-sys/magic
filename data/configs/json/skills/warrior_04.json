@@ -1,0 +1,1444 @@
+{
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_bone_shock_shatter",
+      "display_name": "龙骨震裂",
+      "description": "HP低于50%时额外破防。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "output",
+        "debuff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_bone_shock_shatter",
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "armor_break"
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "stamina_cost": 22
+          }
+        },
+        "stamina_cost": 28
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 70,
+        "strength": 60,
+        "willpower": 50
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_breath_short",
+      "display_name": "龙息短吐",
+      "description": "锥形龙息附加灼鳞反伤效果。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_breath_short",
+        "range_value": 3,
+        "area_pattern": "cone",
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 25
+          }
+        },
+        "area_value": 3,
+        "attack_roll_bonus": -1,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_claw_mark",
+      "display_name": "龙爪裂印",
+      "description": "留下龙爪印记，叠加后爆发伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mark"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_claw_mark",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "dragon_claw_mark",
+            "stack_behavior": "add",
+            "stack_limit": 3
+          }
+        ],
+        "stamina_cost": 13,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 10,
+        "strength": 50
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_claw_rend_mark",
+      "display_name": "龙爪裂印",
+      "description": "叠裂印最多3层，3层时目标受100%龙血伤害。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "output",
+        "mark"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_claw_rend_mark",
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_earth_rend",
+      "display_name": "裂地龙斩",
+      "description": "路径变困难地形2回合。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "terrain",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_earth_rend",
+        "range_value": 3,
+        "area_pattern": "line",
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 14,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 10,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 42
+          }
+        },
+        "area_value": 3,
+        "attack_roll_bonus": -2,
+        "aura_cost": 50
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_earth_split",
+      "display_name": "裂地龙斩",
+      "description": "以龙之力斩裂大地，路径变为困难地形。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_earth_split",
+        "target_mode": "ground",
+        "range_value": 3,
+        "area_pattern": "line",
+        "ap_cost": 2,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 14,
+            "payload": {},
+            "damage_tag": "magic"
+          },
+          {
+            "effect_type": "terrain_replace_to",
+            "payload": {},
+            "terrain_replace_to": "difficult_terrain"
+          }
+        ],
+        "area_value": 1,
+        "attack_roll_bonus": -10,
+        "aura_cost": 45,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 120,
+        "willpower": 60
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_eye_lock_soul",
+      "display_name": "龙瞳锁魂",
+      "description": "目标被锁定，对你的命中降低你对其命中提升。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "mark"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_eye_lock_soul",
+        "range_value": 4,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 22
+          }
+        },
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_fang_thrust",
+      "display_name": "龙牙突",
+      "description": "直线穿透攻击，对路径上敌人造成伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "pierce"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_fang_thrust",
+        "target_mode": "ground",
+        "range_value": 2,
+        "area_pattern": "line",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "magic"
+          }
+        ],
+        "area_value": 1,
+        "aura_cost": 25,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 80
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_fang_thrust_skill",
+      "display_name": "龙牙突",
+      "description": "穿透第一目标攻击第二目标。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "ranged"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_fang_thrust_skill",
+        "range_value": 2,
+        "area_pattern": "line",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "physical_pierce",
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 22
+          }
+        },
+        "area_value": 2,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_form_stance",
+      "display_name": "龙化战姿",
+      "description": "3回合移动+1/近战附带30%斗气波/免疫恐惧。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_form_stance",
+        "range_value": 0,
+        "cooldown_tu": 200,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 55
+          }
+        },
+        "aura_cost": 70
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "strength": 100,
+        "willpower": 60
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_heaven_shake",
+      "display_name": "龙震九天",
+      "description": "大范围斗气爆发，中心敌人受重创，外围敌人减速。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "aoe",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_heaven_shake",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "cooldown_tu": 200,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "area_value": 2,
+        "attack_roll_bonus": -10,
+        "aura_cost": 50,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 90,
+        "willpower": 90
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_qi_slash",
+      "display_name": "斗气斩",
+      "description": "基础斗气远程攻击。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "ranged",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_qi_slash",
+        "range_value": 3,
+        "area_pattern": "line",
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 6,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 8,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 10
+          }
+        },
+        "area_value": 3,
+        "attack_roll_bonus": -1,
+        "aura_cost": 14,
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_scale_guard",
+      "display_name": "龙鳞护体",
+      "description": "减伤25%并免疫暴击。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_scale_guard",
+        "range_value": 0,
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 28
+          }
+        },
+        "aura_cost": 35
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "willpower": 40
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_scales",
+      "display_name": "龙鳞护体",
+      "description": "以龙鳞之力护体，减少受到的伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_scales",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "aura_cost": 30,
+        "mastery_trigger_mode": "effect_applied",
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 120
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_shake_heaven",
+      "display_name": "龙震九天",
+      "description": "中心眩晕+外围减速的大范围龙震。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "aoe",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_shake_heaven",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "thunder",
+            "dice_count": 1,
+            "dice_sides": 8
+          },
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "staggered"
+          },
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow"
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 48
+          }
+        },
+        "area_value": 2,
+        "attack_roll_bonus": -2,
+        "aura_cost": 55
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_soul_burst",
+      "display_name": "龙魂爆发",
+      "description": "消耗龙魂，每层下次斗气技能+15%伤害/+3命中。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_soul_burst",
+        "range_value": 0,
+        "cooldown_tu": 200,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 50
+          }
+        },
+        "aura_cost": 60
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_soul_stack",
+      "display_name": "龙魂叠印",
+      "description": "2回合每次命中+1龙魂最多5层。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_soul_stack",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 14
+          }
+        },
+        "aura_cost": 18
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 70
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_tail_formation",
+      "display_name": "龙尾扫阵",
+      "description": "击退周围敌人1格，撞墙眩晕。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "aoe",
+        "displacement"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_tail_formation",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "physical_blunt",
+            "dice_count": 1,
+            "dice_sides": 8
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "knockback",
+            "forced_move_distance": 1
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 22
+          }
+        },
+        "area_value": 1,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_tail_sweep",
+      "display_name": "龙尾扫阵",
+      "description": "扫击周围敌人，将其击退。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "aoe",
+        "displacement"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_tail_sweep",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "magic"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "retreat",
+            "forced_move_distance": 1
+          }
+        ],
+        "area_value": 1,
+        "aura_cost": 25,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "strength": 100
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_vein_resonance",
+      "display_name": "龙纹共鸣",
+      "description": "友军获得斗气获取+20%但受治疗-5%。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_vein_resonance",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 25
+          }
+        },
+        "area_value": 2,
+        "aura_cost": 32
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 70,
+        "strength": 60,
+        "willpower": 50
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_vein_step_ring",
+      "display_name": "龙脉踏响",
+      "description": "每命中1人叠龙脉最多3层提升斗气回复。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_vein_step_ring",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 18
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 24
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    },
+    {
+      "skill_id": "warrior_duel_declare_name",
+      "display_name": "决斗宣名",
+      "description": "单挑宣言，互相增伤15%对外减伤10%。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_duel_declare_name",
+        "range_value": 3,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 80
+      }
+    },
+    {
+      "skill_id": "warrior_dull_bone_knock",
+      "display_name": "钝鸣敲骨",
+      "description": "钝器重击，削弱目标治疗能力。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "debuff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dull_bone_knock",
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "heal_down_mark"
+          }
+        ],
+        "stamina_cost": 11,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 10
+      }
+    },
+    {
+      "skill_id": "warrior_earth_bind",
+      "display_name": "地脉锁足",
+      "description": "用大地之力定住目标，使其无法移动。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_earth_bind",
+        "target_mode": "ground",
+        "range_value": 3,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "rooted"
+          }
+        ],
+        "attack_roll_bonus": -5,
+        "aura_cost": 15,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    },
+    {
+      "skill_id": "warrior_earth_pulse",
+      "display_name": "大地脉冲",
+      "description": "释放大地脉冲，大范围减速敌人并保护友军。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "control",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_earth_pulse",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "cooldown_tu": 200,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 4,
+            "payload": {},
+            "damage_tag": "physical_blunt"
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "area_value": 3,
+        "aura_cost": 50,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 120,
+        "willpower": 60
+      }
+    },
+    {
+      "skill_id": "warrior_earth_pulse_domain",
+      "display_name": "大地脉冲",
+      "description": "大范围减速敌军，友军免疫减速。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "control",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_earth_pulse_domain",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "thunder",
+            "dice_count": 1,
+            "dice_sides": 8
+          },
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow"
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 45
+          }
+        },
+        "area_value": 3,
+        "aura_cost": 55
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 90,
+        "willpower": 90
+      }
+    },
+    {
+      "skill_id": "warrior_earth_rebound",
+      "display_name": "大地反弹",
+      "description": "受近战后反弹60%伤害并减速。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_earth_rebound",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 40,
+        "willpower": 20
+      }
+    },
+    {
+      "skill_id": "warrior_earth_shake_aoe",
+      "display_name": "震地",
+      "description": "范围震击减速周围敌人。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_earth_shake_aoe",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 24
+          }
+        },
+        "area_value": 2,
+        "stamina_cost": 30
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    },
+    {
+      "skill_id": "warrior_earth_split",
+      "display_name": "裂地冲击",
+      "description": "向前方直线轰击，造成范围伤害并留下裂缝地形。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_earth_split",
+        "target_mode": "ground",
+        "range_value": 3,
+        "area_pattern": "line",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "terrain_effect",
+            "duration_tu": 40,
+            "payload": {},
+            "terrain_effect_id": "earth_crack",
+            "tick_interval_tu": 40
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 22,
+        "attack_roll_bonus": -5,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 10,
+        "strength": 50
+      }
+    }
+  ],
+  "family": "warrior_04",
+  "templates": {},
+  "domain": "skills",
+  "schema": 1
+}

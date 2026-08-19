@@ -1,0 +1,1535 @@
+{
+  "entries": [
+    {
+      "skill_id": "warrior_calm_draw_spear",
+      "display_name": "静息拔枪",
+      "description": "未移动下回合首次攻击射程+1暴击+20%。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_calm_draw_spear",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 0
+          }
+        }
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    },
+    {
+      "skill_id": "warrior_calm_shield_focus",
+      "display_name": "静盾凝心",
+      "description": "不移动时魔法抗性+25%并清除1轻度减益。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_calm_shield_focus",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 0
+          }
+        }
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 40,
+        "willpower": 20
+      }
+    },
+    {
+      "skill_id": "warrior_calm_step",
+      "display_name": "静心步",
+      "description": "移动1格并清除减速/锁足。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_calm_step",
+        "range_value": 0,
+        "cooldown_tu": 20,
+        "level_overrides": {
+          "1": {
+            "stamina_cost": 13
+          },
+          "2": {
+            "stamina_cost": 10
+          }
+        },
+        "stamina_cost": 16
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    },
+    {
+      "skill_id": "warrior_centerless_step",
+      "display_name": "无重心步法",
+      "description": "2回合免疫击退/拉拽+闪避提升。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_centerless_step",
+        "range_value": 0,
+        "cooldown_tu": 160,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 38
+          }
+        },
+        "aura_cost": 45
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "agility": 110,
+        "strength": 70
+      }
+    },
+    {
+      "skill_id": "warrior_chain_slashes",
+      "display_name": "三连斩",
+      "description": "对同一目标连续发动三次近战攻击，每段独立结算；每段命中获得1层近战连击。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "combo"
+      ],
+      "level_description_template": "连续攻击3次，每段追加{skill_dice}技能骰。{{?attack}}攻击检定{attack}，{{/attack}}体力消耗{stamina}。",
+      "level_description_configs": {
+        "0": {
+          "skill_dice": "1D4",
+          "stamina": "30"
+        },
+        "1": {
+          "skill_dice": "1D4",
+          "stamina": "30"
+        },
+        "2": {
+          "skill_dice": "1D4",
+          "stamina": "30"
+        },
+        "3": {
+          "skill_dice": "1D4",
+          "stamina": "24"
+        },
+        "4": {
+          "skill_dice": "1D6",
+          "stamina": "24"
+        },
+        "5": {
+          "attack": "+1",
+          "skill_dice": "1D6",
+          "stamina": "24"
+        },
+        "6": {
+          "attack": "+1",
+          "skill_dice": "1D6",
+          "stamina": "20"
+        },
+        "7": {
+          "attack": "+1",
+          "skill_dice": "1D8",
+          "stamina": "20"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "warrior_chain_slashes",
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "max_skill_level": 6,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "fixed_repeat_attack",
+            "payload": {},
+            "stop_on_miss": false,
+            "fixed_attack_count": 3
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 24
+          },
+          "5": {
+            "attack_roll_bonus": 1
+          },
+          "6": {
+            "stamina_cost": 20
+          }
+        },
+        "stamina_cost": 30
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    },
+    {
+      "skill_id": "warrior_charge_horn",
+      "display_name": "冲锋号角",
+      "description": "友军下次移动+1，近战伤害提升。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_charge_horn",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 100,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 22
+          }
+        },
+        "area_value": 3,
+        "stamina_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 80
+      }
+    },
+    {
+      "skill_id": "warrior_circle_formation_final_oath",
+      "display_name": "圆阵终誓",
+      "description": "范围内友军获得伤害护盾，破裂时对相邻敌人造成伤害。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_circle_formation_final_oath",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 160,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 55
+          }
+        },
+        "area_value": 2,
+        "aura_cost": 70
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "constitution": 150,
+        "willpower": 90
+      }
+    },
+    {
+      "skill_id": "warrior_circle_step",
+      "display_name": "回环步",
+      "description": "移到邻敌侧面+闪避提升。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_circle_step",
+        "range_value": 0,
+        "cooldown_tu": 40,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    },
+    {
+      "skill_id": "warrior_clear_blade_read",
+      "display_name": "明刃识破",
+      "description": "攻击者命中低于80%时其攻击额外降低。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_clear_blade_read",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    },
+    {
+      "skill_id": "warrior_cliff_heavy_strike",
+      "display_name": "断崖重击",
+      "description": "目标身后障碍/边缘额外50%伤害。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_cliff_heavy_strike",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 10,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 7,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 8,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "stamina_cost": 26
+          }
+        },
+        "stamina_cost": 32,
+        "attack_roll_bonus": -1
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "strength": 100
+      }
+    },
+    {
+      "skill_id": "warrior_combat_recovery_heal",
+      "display_name": "战斗回复",
+      "description": "恢复自身HP。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "recovery"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_combat_recovery_heal",
+        "range_value": 0,
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "heal",
+            "power": 2,
+            "payload": {
+              "con_mod_heal": true
+            },
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 18
+          }
+        },
+        "stamina_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "willpower": 40
+      }
+    },
+    {
+      "skill_id": "warrior_combo_strike",
+      "display_name": "连击",
+      "description": "连续进行武器攻击，命中惩罚随段数指数提升。高等级增加免惩罚段数并降低体力消耗。精通：命中且暴击/武器骰最大值时获得基础精通；第5段起逐段额外翻倍奖励。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "combo"
+      ],
+      "level_description_template": "连续武器攻击，体力消耗{stamina}。{penalty_desc}，后续逐段翻倍（-{penalty_value}起）。额外段消耗{follow_up_cost}体力。",
+      "level_description_configs": {
+        "0": {
+          "follow_up_cost": "5",
+          "penalty_desc": "无命中惩罚减免",
+          "penalty_value": "1",
+          "stamina": "30"
+        },
+        "1": {
+          "follow_up_cost": "5",
+          "penalty_desc": "前1段无命中惩罚",
+          "penalty_value": "1",
+          "stamina": "30"
+        },
+        "2": {
+          "follow_up_cost": "5",
+          "penalty_desc": "前1段无命中惩罚",
+          "penalty_value": "1",
+          "stamina": "25"
+        },
+        "3": {
+          "follow_up_cost": "5",
+          "penalty_desc": "前2段无命中惩罚",
+          "penalty_value": "1",
+          "stamina": "25"
+        },
+        "4": {
+          "follow_up_cost": "5",
+          "penalty_desc": "前2段无命中惩罚",
+          "penalty_value": "1",
+          "stamina": "20"
+        },
+        "5": {
+          "follow_up_cost": "5",
+          "penalty_desc": "前3段无命中惩罚",
+          "penalty_value": "1",
+          "stamina": "20"
+        },
+        "6": {
+          "follow_up_cost": "5",
+          "penalty_desc": "前4段无命中惩罚",
+          "penalty_value": "1",
+          "stamina": "20"
+        },
+        "7": {
+          "follow_up_cost": "5",
+          "penalty_desc": "前4段无命中惩罚",
+          "penalty_value": "1",
+          "stamina": "20"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "warrior_combo_strike",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "repeat_attack_until_fail",
+            "payload": {
+              "cost_resource": "stamina",
+              "follow_up_attack_penalty": 1,
+              "penalty_free_stages_by_level": {
+                "1": 1,
+                "3": 2,
+                "5": 3,
+                "6": 4,
+                "7": 4
+              },
+              "same_target_only": true,
+              "follow_up_fixed_cost": 5,
+              "exponential_penalty": true,
+              "stop_on_insufficient_resource": true
+            }
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 25
+          },
+          "4": {
+            "stamina_cost": 20
+          }
+        },
+        "stamina_cost": 30,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "icon_id": "warrior_combo_strike",
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        200,
+        500,
+        1100,
+        2000,
+        3200,
+        4700,
+        6500
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 100,
+        "strength": 20
+      }
+    },
+    {
+      "skill_id": "warrior_counter_flag",
+      "display_name": "反攻旗帜",
+      "description": "旗帜周围友军被攻击后下次伤害提升。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "support",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_counter_flag",
+        "area_pattern": "radius",
+        "cooldown_tu": 120,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 22
+          }
+        },
+        "area_value": 2,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 60,
+        "willpower": 120
+      }
+    },
+    {
+      "skill_id": "warrior_counter_slash",
+      "display_name": "反击斩",
+      "description": "本回合首次被近战攻击后自动反击。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_counter_slash",
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 2,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 30,
+        "strength": 30
+      }
+    },
+    {
+      "skill_id": "warrior_courage_resonance",
+      "display_name": "勇气共鸣",
+      "description": "清除友军恐惧并提升攻击。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "support",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_courage_resonance",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 20
+          }
+        },
+        "area_value": 2,
+        "aura_cost": 25
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 80
+      }
+    },
+    {
+      "skill_id": "warrior_crack_ground_impact",
+      "display_name": "裂地冲击",
+      "description": "直线地面裂缝，穿越需额外移动。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_crack_ground_impact",
+        "range_value": 3,
+        "area_pattern": "line",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 28
+          }
+        },
+        "area_value": 3,
+        "stamina_cost": 35,
+        "attack_roll_bonus": -1
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    },
+    {
+      "skill_id": "warrior_crack_step_smash",
+      "display_name": "裂阶砸击",
+      "description": "目标格变为碎石地形。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "output",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_crack_step_smash",
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 18
+          }
+        },
+        "stamina_cost": 24
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    },
+    {
+      "skill_id": "warrior_crack_strike",
+      "display_name": "裂阶砸击",
+      "description": "猛击地面，造成伤害并改变目标格地形。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_crack_strike",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "terrain_replace_to",
+            "payload": {},
+            "terrain_replace_to": "gravel"
+          }
+        ],
+        "stamina_cost": 14,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 60
+      }
+    },
+    {
+      "skill_id": "warrior_crimson_lotus_dance",
+      "display_name": "红莲战舞",
+      "description": "2回合AOE范围+1但有友军伤害。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "fire"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_crimson_lotus_dance",
+        "range_value": 0,
+        "cooldown_tu": 160,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 48
+          }
+        },
+        "aura_cost": 55
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    },
+    {
+      "skill_id": "warrior_crimson_wind_step",
+      "display_name": "赤风连步",
+      "description": "本回合击杀可再移动最多3格。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "fire"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_crimson_wind_step",
+        "range_value": 0,
+        "cooldown_tu": 100,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 28
+          }
+        },
+        "aura_cost": 35
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 70
+      }
+    },
+    {
+      "skill_id": "warrior_crippling_strike_limb",
+      "display_name": "断肢猛击",
+      "description": "目标不能使用位移技能。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_crippling_strike_limb",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 26
+          }
+        },
+        "stamina_cost": 32,
+        "attack_roll_bonus": -1
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    },
+    {
+      "skill_id": "warrior_crisis_shield_protect",
+      "display_name": "危急架护",
+      "description": "友军可能被击杀时替其承受50%伤害。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_crisis_shield_protect",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "5": {
+            "stamina_cost": 22
+          }
+        },
+        "stamina_cost": 28
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 120,
+        "willpower": 60
+      }
+    },
+    {
+      "skill_id": "warrior_crossbar_block",
+      "display_name": "横梁拦腰",
+      "description": "前方横排横扫，压制长武器敌人。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_crossbar_block",
+        "target_mode": "ground",
+        "area_pattern": "front_arc",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 15,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 10,
+        "strength": 50
+      }
+    },
+    {
+      "skill_id": "warrior_dark_step_swap",
+      "display_name": "暗步换位",
+      "description": "与友军或幻影交换位置。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dark_step_swap",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    },
+    {
+      "skill_id": "warrior_deep_bell_fall",
+      "display_name": "沉钟坠击",
+      "description": "目标行动顺序晚于你则额外+25%伤害。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_deep_bell_fall",
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 10,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 7,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 8,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "stamina_cost": 24
+          }
+        },
+        "stamina_cost": 30,
+        "attack_roll_bonus": -1
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "strength": 100
+      }
+    },
+    {
+      "skill_id": "warrior_defend_rotation_recover",
+      "display_name": "守备轮换",
+      "description": "最多2友军恢复体力并清除迟缓。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "recovery",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_defend_rotation_recover",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 22
+          }
+        },
+        "area_value": 2,
+        "stamina_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 80
+      }
+    },
+    {
+      "skill_id": "warrior_deflect_stance",
+      "display_name": "卸劲架势",
+      "description": "下次近战伤害减半并可横移。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_deflect_stance",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 40,
+        "willpower": 20
+      }
+    },
+    {
+      "skill_id": "warrior_ditch_dig",
+      "display_name": "沉钺开沟",
+      "description": "直线开沟，改变地形阻碍敌人推进。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_ditch_dig",
+        "target_mode": "ground",
+        "area_pattern": "line",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "terrain_replace_to",
+            "payload": {},
+            "terrain_replace_to": "ditch"
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 18,
+        "mastery_trigger_mode": "effect_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 10,
+        "strength": 50
+      }
+    },
+    {
+      "skill_id": "warrior_double_strike",
+      "display_name": "双重打击",
+      "description": "连续两次近战攻击，每段独立命中检定。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_double_strike",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "fixed_repeat_attack",
+            "payload": {},
+            "stop_on_miss": false,
+            "fixed_attack_count": 2
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "attack_roll_bonus": 1
+          },
+          "5": {
+            "stamina_cost": 20
+          }
+        },
+        "stamina_cost": 25
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 25,
+        "strength": 35
+      }
+    },
+    {
+      "skill_id": "warrior_dragon_blood_boil",
+      "display_name": "龙血沸腾",
+      "description": "2回合每损失10%HP获得斗气但受治疗-15%。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_blood_boil",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "5": {
+            "stamina_cost": 0
+          }
+        }
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 70,
+        "strength": 60,
+        "willpower": 50
+      }
+    }
+  ],
+  "family": "warrior_03",
+  "templates": {},
+  "domain": "skills",
+  "schema": 1
+}
