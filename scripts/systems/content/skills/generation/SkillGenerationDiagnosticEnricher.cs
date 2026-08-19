@@ -123,6 +123,8 @@ internal static class SkillGenerationDiagnosticEnricher
                 "battle special profile_id present in the process snapshot",
             SkillGenerationCrossDomainRules.InvalidReactionSkill =>
                 "active unit reaction skill with weapon-dice damage",
+            SkillGenerationCrossDomainRules.MissingTextureAsset =>
+                "texture asset_id present in the supplied typed asset catalog",
             _ => $"value satisfying {ruleId}",
         };
 

@@ -38,7 +38,7 @@ public partial class run_skill_json_directory_round_trip_regression : LifecycleT
                 static entry => entry.Import,
                 StringComparer.Ordinal
             );
-            _test.Eq(jsonById.Count, 706, "canonical JSON should contain every migrated skill exactly once");
+            _test.Eq(jsonById.Count, 705, "canonical JSON should contain every migrated skill exactly once");
         }
         catch (Exception exception)
         {

@@ -14,7 +14,7 @@ public partial class run_skill_definition_projector_parity_regression
     : LifecycleTestSceneTree
 {
     private const string ExpectedDefinitionGoldenSha256 =
-        "0A11E03125EA1DCCD1EC5D508D044C5E7BCBF88B24C8A1EF46CB9399C61E653B";
+        "3C38E70DE96EE24EA7E46DBF6A90C62BFB8BC092D06D51594453F9BA7DD9E8EC";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
@@ -49,7 +49,7 @@ public partial class run_skill_definition_projector_parity_regression
             TestProductionProjectionPaths(loader);
             _test.Eq(
                 goldenRows.Count,
-                706,
+                705,
                 "definition projection golden must include every migrated skill"
             );
             goldenRows.Sort(StringComparer.Ordinal);

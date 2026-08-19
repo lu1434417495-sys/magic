@@ -10,16 +10,21 @@ internal sealed class SkillGenerationValidationService
     private readonly SkillImportModelValidator _domainValidator = new();
     private readonly ContentSnapshot _processSnapshot;
     private readonly ISkillGenerationBattleSimulationGate _battleSimulationGate;
+    private readonly IReadOnlySet<StringName> _textureAssetIds;
 
     internal SkillGenerationValidationService(
         ContentSnapshot processSnapshot,
-        ISkillGenerationBattleSimulationGate battleSimulationGate
+        ISkillGenerationBattleSimulationGate battleSimulationGate,
+        IReadOnlySet<StringName>? textureAssetIds = null
     )
     {
         _processSnapshot = processSnapshot
             ?? throw new ArgumentNullException(nameof(processSnapshot));
         _battleSimulationGate = battleSimulationGate
             ?? throw new ArgumentNullException(nameof(battleSimulationGate));
+        _textureAssetIds = new HashSet<StringName>(
+            textureAssetIds ?? new HashSet<StringName>()
+        );
     }
 
     internal SkillGenerationValidationReport Validate(
@@ -83,7 +88,8 @@ internal sealed class SkillGenerationValidationService
                 schemaBatch.Entries,
                 candidateSkills,
                 combinedSkills,
-                _processSnapshot
+                _processSnapshot,
+                _textureAssetIds
             );
         reports.Add(new SkillGenerationValidationStageReport(
             SkillGenerationValidationStageKind.CrossDomain,
