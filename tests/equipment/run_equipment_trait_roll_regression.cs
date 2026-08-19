@@ -263,10 +263,9 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
         return new ItemDefinition(
             itemId: "iron_sword",
-            baseItemId: "",
             displayName: "Iron Sword",
             description: "",
-            icon: "",
+            iconAssetId: "",
             isStackable: false,
             basePrice: 0,
             buyPrice: 0,

@@ -258,7 +258,7 @@ public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSc
             [new StringName("potion")] = BuildStackItem("potion"),
             [new StringName("herb")] = BuildStackItem("herb"),
             [new StringName("gem")] = BuildStackItem("gem"),
-            [new StringName("iron_sword")] = new ItemDef
+            [new StringName("iron_sword")] = new TestItemDefinitionBuilder
             {
                 item_id = "iron_sword",
                 display_name = "Iron Sword",
@@ -276,7 +276,7 @@ public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSc
 
     private static ItemDefinition BuildStackItem(StringName itemId)
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = itemId,
             display_name = itemId.ToString(),

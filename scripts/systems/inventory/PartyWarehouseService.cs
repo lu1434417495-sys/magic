@@ -1216,7 +1216,7 @@ public sealed class PartyWarehouseService : IDisposable
                 ? itemDef.DisplayName
                 : normalizedItemId.ToString(),
             itemDef?.Description ?? "该物品定义缺失，当前仅保留存档中的 item_id 与数量。",
-            itemDef?.Icon ?? "",
+            itemDef?.IconAssetId ?? "",
             resolvedQuantity,
             CountItem(normalizedItemId),
             itemDef?.IsStackable ?? resolvedQuantity > 1,

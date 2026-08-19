@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineAssetCatalogDef.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineTextureAssetEntryDef.cs" id="2_texture"]
@@ -6,6 +6,12 @@
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineAudioAssetEntryDef.cs" id="4_audio"]
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineShaderAssetEntryDef.cs" id="5_shader"]
 [ext_resource type="PackedScene" path="res://scenes/main/login_screen.tscn" id="6_login"]
+[ext_resource type="Texture2D" path="res://icon.svg" id="7_item_icon"]
+
+[sub_resource type="Resource" id="TextureEntry_item_icon"]
+script = ExtResource("2_texture")
+asset_id = &"ui.item.icon.default"
+texture = ExtResource("7_item_icon")
 
 [sub_resource type="Resource" id="SceneEntry_login"]
 script = ExtResource("3_scene")
@@ -14,7 +20,7 @@ scene = ExtResource("6_login")
 
 [resource]
 script = ExtResource("1_catalog")
-texture_assets = Array[ExtResource("2_texture")]([])
+texture_assets = Array[ExtResource("2_texture")]([SubResource("TextureEntry_item_icon")])
 scene_assets = Array[ExtResource("3_scene")]([SubResource("SceneEntry_login")])
 audio_assets = Array[ExtResource("4_audio")]([])
 shader_assets = Array[ExtResource("5_shader")]([])

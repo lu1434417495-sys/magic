@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -350,15 +351,17 @@ public partial class PartyWarehouseWindow : ModalWindowShell
             && _has_target_member(_selectedTargetMemberId);
     }
 
-    private Texture2D _load_icon_texture(string icon_path)
+    private Texture2D _load_icon_texture(string icon_asset_id)
     {
         if (
-            string.IsNullOrEmpty(icon_path)
-            || !ResourceLoader.Exists(icon_path, "Texture2D")
+            string.IsNullOrEmpty(icon_asset_id)
+            || icon_asset_id.Contains("/", StringComparison.Ordinal)
+            || icon_asset_id.Contains("\\", StringComparison.Ordinal)
+            || icon_asset_id.Contains("://", StringComparison.Ordinal)
         )
             return null;
         return EngineAssetAccess
-            .ResolveAuthoredContentPathBorrowedDuringMigration<Texture2D>(this, icon_path);
+            .ResolveContentAssetBorrowed<Texture2D>(this, new StringName(icon_asset_id));
     }
 
     private void _on_stack_selected(int index)

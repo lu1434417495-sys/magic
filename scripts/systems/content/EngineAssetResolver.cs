@@ -13,6 +13,10 @@ internal sealed class EngineAssetResolver : IDisposable
         new ReadOnlyDictionary<StringName, Resource>(
             new Dictionary<StringName, Resource>()
         );
+    private IReadOnlyDictionary<string, StringName> _catalogAssetIdsByPath =
+        new ReadOnlyDictionary<string, StringName>(
+            new Dictionary<string, StringName>(StringComparer.Ordinal)
+        );
     private EngineAssetCatalogDef _catalogRoot;
     private string _catalogCanonicalPath = "";
     private bool _catalogPublished;
@@ -23,6 +27,25 @@ internal sealed class EngineAssetResolver : IDisposable
     internal int PublishedAssetCount => _catalogAssets.Count;
     internal bool HasCatalogRoot => _catalogRoot != null;
     internal bool HasPublishedCatalog => _catalogPublished;
+
+    internal IReadOnlySet<StringName> GetPublishedContentAssetIds<T>()
+        where T : Resource
+    {
+        ThrowIfDisposed();
+        if (!_catalogPublished)
+        {
+            throw new InvalidOperationException(
+                "Engine asset catalog has not been published."
+            );
+        }
+        var result = new HashSet<StringName>();
+        foreach ((StringName assetId, Resource asset) in _catalogAssets)
+        {
+            if (asset is T)
+                result.Add(assetId);
+        }
+        return result;
+    }
 
     internal EngineAssetCatalogDef LoadAndPublishCatalogBorrowed(string catalogPath)
     {
@@ -118,6 +141,40 @@ internal sealed class EngineAssetResolver : IDisposable
         return ResolveCanonicalPathBorrowed<T>(canonicalPath);
     }
 
+    // Migration-only reverse lookup. Delete it at the terminal content-migration stage
+    // after every authored presentation path has moved to a stable catalog ID.
+    // Runtime content must resolve stable IDs in the forward direction only.
+    internal StringName ResolveContentAssetIdForAuthoredPathDuringMigration<T>(
+        string authoredContentPath
+    )
+        where T : Resource
+    {
+        ThrowIfLoadUnavailable();
+        string canonicalPath = CanonicalizeResPath(
+            authoredContentPath,
+            nameof(authoredContentPath)
+        );
+        if (!_catalogPublished)
+        {
+            throw new InvalidOperationException(
+                "Engine asset catalog has not been published."
+            );
+        }
+        if (!_catalogAssetIdsByPath.TryGetValue(canonicalPath, out StringName assetId))
+        {
+            throw new KeyNotFoundException(
+                $"Engine asset path is not registered for migration: {canonicalPath}."
+            );
+        }
+        if (!_catalogAssets.TryGetValue(assetId, out Resource asset) || asset is not T)
+        {
+            throw new InvalidOperationException(
+                $"Engine asset {assetId} registered for {canonicalPath} is not {typeof(T).Name}."
+            );
+        }
+        return assetId;
+    }
+
     // Delete this seam as the item, skill, and enemy domains migrate their authored
     // presentation paths to engine-asset catalog IDs. New code-owned callers must use
     // ResolveCodeAssetBorrowed instead.
@@ -186,6 +243,9 @@ internal sealed class EngineAssetResolver : IDisposable
         _catalogAssets = new ReadOnlyDictionary<StringName, Resource>(
             new Dictionary<StringName, Resource>()
         );
+        _catalogAssetIdsByPath = new ReadOnlyDictionary<string, StringName>(
+            new Dictionary<string, StringName>(StringComparer.Ordinal)
+        );
         _catalogPublished = false;
         if (_catalogRoot != null)
         {
@@ -209,36 +269,43 @@ internal sealed class EngineAssetResolver : IDisposable
     {
         var assetsById = new Dictionary<StringName, Resource>();
         var idsByInstance = new Dictionary<ulong, StringName>();
+        var idsByPath = new Dictionary<string, StringName>(StringComparer.Ordinal);
 
         RegisterTextureEntries(
             catalog.texture_assets,
             assetsById,
-            idsByInstance
+            idsByInstance,
+            idsByPath
         );
         RegisterSceneEntries(
             catalog.scene_assets,
             assetsById,
-            idsByInstance
+            idsByInstance,
+            idsByPath
         );
         RegisterAudioEntries(
             catalog.audio_assets,
             assetsById,
-            idsByInstance
+            idsByInstance,
+            idsByPath
         );
         RegisterShaderEntries(
             catalog.shader_assets,
             assetsById,
-            idsByInstance
+            idsByInstance,
+            idsByPath
         );
 
         _catalogAssets = new ReadOnlyDictionary<StringName, Resource>(assetsById);
+        _catalogAssetIdsByPath = new ReadOnlyDictionary<string, StringName>(idsByPath);
         _catalogPublished = true;
     }
 
     private static void RegisterTextureEntries(
         Godot.Collections.Array<EngineTextureAssetEntryDef> entries,
         Dictionary<StringName, Resource> assetsById,
-        Dictionary<ulong, StringName> idsByInstance
+        Dictionary<ulong, StringName> idsByInstance,
+        Dictionary<string, StringName> idsByPath
     )
     {
         RequireArray(entries, "texture");
@@ -252,7 +319,8 @@ internal sealed class EngineAssetResolver : IDisposable
                 "texture",
                 index,
                 assetsById,
-                idsByInstance
+                idsByInstance,
+                idsByPath
             );
         }
     }
@@ -260,7 +328,8 @@ internal sealed class EngineAssetResolver : IDisposable
     private static void RegisterSceneEntries(
         Godot.Collections.Array<EngineSceneAssetEntryDef> entries,
         Dictionary<StringName, Resource> assetsById,
-        Dictionary<ulong, StringName> idsByInstance
+        Dictionary<ulong, StringName> idsByInstance,
+        Dictionary<string, StringName> idsByPath
     )
     {
         RequireArray(entries, "scene");
@@ -274,7 +343,8 @@ internal sealed class EngineAssetResolver : IDisposable
                 "scene",
                 index,
                 assetsById,
-                idsByInstance
+                idsByInstance,
+                idsByPath
             );
         }
     }
@@ -282,7 +352,8 @@ internal sealed class EngineAssetResolver : IDisposable
     private static void RegisterAudioEntries(
         Godot.Collections.Array<EngineAudioAssetEntryDef> entries,
         Dictionary<StringName, Resource> assetsById,
-        Dictionary<ulong, StringName> idsByInstance
+        Dictionary<ulong, StringName> idsByInstance,
+        Dictionary<string, StringName> idsByPath
     )
     {
         RequireArray(entries, "audio");
@@ -296,7 +367,8 @@ internal sealed class EngineAssetResolver : IDisposable
                 "audio",
                 index,
                 assetsById,
-                idsByInstance
+                idsByInstance,
+                idsByPath
             );
         }
     }
@@ -304,7 +376,8 @@ internal sealed class EngineAssetResolver : IDisposable
     private static void RegisterShaderEntries(
         Godot.Collections.Array<EngineShaderAssetEntryDef> entries,
         Dictionary<StringName, Resource> assetsById,
-        Dictionary<ulong, StringName> idsByInstance
+        Dictionary<ulong, StringName> idsByInstance,
+        Dictionary<string, StringName> idsByPath
     )
     {
         RequireArray(entries, "shader");
@@ -318,7 +391,8 @@ internal sealed class EngineAssetResolver : IDisposable
                 "shader",
                 index,
                 assetsById,
-                idsByInstance
+                idsByInstance,
+                idsByPath
             );
         }
     }
@@ -336,7 +410,8 @@ internal sealed class EngineAssetResolver : IDisposable
         string assetKind,
         int index,
         Dictionary<StringName, Resource> assetsById,
-        Dictionary<ulong, StringName> idsByInstance
+        Dictionary<ulong, StringName> idsByInstance,
+        Dictionary<string, StringName> idsByPath
     )
     {
         if (entry == null || !GodotObject.IsInstanceValid(entry))
@@ -377,6 +452,19 @@ internal sealed class EngineAssetResolver : IDisposable
 
         assetsById.Add(assetId, asset);
         idsByInstance.Add(instanceId, assetId);
+
+        string authoredPath = asset.ResourcePath;
+        if (!string.IsNullOrWhiteSpace(authoredPath))
+        {
+            string canonicalPath = CanonicalizeResPath(authoredPath, nameof(asset));
+            if (!idsByPath.TryAdd(canonicalPath, assetId))
+            {
+                throw new InvalidOperationException(
+                    "Engine asset catalog registers the same authored path as "
+                        + $"both {idsByPath[canonicalPath]} and {assetId}."
+                );
+            }
+        }
     }
 
     private static bool IsEmptyAssetId(StringName assetId) =>

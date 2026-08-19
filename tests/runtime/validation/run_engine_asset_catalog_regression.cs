@@ -8,6 +8,8 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
     private static readonly StringName ValidSceneId = "test.login_scene";
     private static readonly StringName ProductionTextureId =
         "battle.terrain.marker_preview";
+    private static readonly StringName ProductionItemIconId =
+        "ui.item.icon.default";
     private static readonly StringName ProductionSkillIconId =
         "archer_aimed_shot";
     private static readonly StringName ProductionSceneId =
@@ -55,7 +57,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
             "process content host publishes the bootstrap engine asset catalog before tests run"
         );
         _test.True(
-            catalog.texture_assets != null && catalog.texture_assets.Count == 24,
+            catalog.texture_assets != null && catalog.texture_assets.Count == 25,
             "production bootstrap deserializes all typed texture entries"
         );
         _test.True(
@@ -72,8 +74,8 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         );
         _test.Eq(
             resolver.PublishedAssetCount,
-            26,
-            "production bootstrap publishes its 26 real engine assets"
+            27,
+            "production bootstrap publishes its 27 real engine assets"
         );
         _test.True(
             ReferenceEquals(
@@ -83,14 +85,24 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
             "production texture ID resolves the catalog-owned borrowed target"
         );
         _test.True(
-            catalog.texture_assets[1].asset_id == ProductionSkillIconId
+            catalog.texture_assets[2].asset_id == ProductionSkillIconId
                 && ReferenceEquals(
                     resolver.ResolveContentAssetBorrowed<Texture2D>(
                         ProductionSkillIconId
                     ),
-                    catalog.texture_assets[1].texture
+                    catalog.texture_assets[2].texture
                 ),
             "production skill icon ID resolves its catalog-owned borrowed texture"
+        );
+        _test.True(
+            catalog.texture_assets[1].asset_id == ProductionItemIconId
+                && ReferenceEquals(
+                    resolver.ResolveContentAssetBorrowed<Texture2D>(
+                        ProductionItemIconId
+                    ),
+                    catalog.texture_assets[1].texture
+                ),
+            "production item icon ID resolves its catalog-owned borrowed texture"
         );
         _test.True(
             ReferenceEquals(
@@ -198,7 +210,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
                 "snapshot projection failure does not publish a partial snapshot"
             );
             _test.True(
-                resolver.HasPublishedCatalog && resolver.PublishedAssetCount == 1,
+                resolver.HasPublishedCatalog && resolver.PublishedAssetCount == 2,
                 "snapshot projection failure leaves the independently owned catalog index whole"
             );
             _test.True(
@@ -242,7 +254,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         _test.True(catalog.scene_assets != null, "typed scene array is deserialized");
         _test.True(catalog.audio_assets != null, "typed audio array is deserialized");
         _test.True(catalog.shader_assets != null, "typed shader array is deserialized");
-        _test.Eq(resolver.PublishedAssetCount, 1, "valid catalog publishes one asset ID");
+        _test.Eq(resolver.PublishedAssetCount, 2, "valid catalog publishes two asset IDs");
 
         PackedScene first = resolver.ResolveContentAssetBorrowed<PackedScene>(ValidSceneId);
         PackedScene repeated = resolver.ResolveContentAssetBorrowed<PackedScene>(ValidSceneId);

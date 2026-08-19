@@ -304,14 +304,14 @@ public partial class run_warehouse_state_item_validator_regression : LifecycleTe
 
     private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
-        ItemDef herb = new()
+        TestItemDefinitionBuilder herb = new()
         {
             item_id = "healing_herb",
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
             max_stack = 5,
         };
-        ItemDef sword = new()
+        TestItemDefinitionBuilder sword = new()
         {
             item_id = "iron_sword",
             CategoryKind = ItemCategoryKind.Equipment,

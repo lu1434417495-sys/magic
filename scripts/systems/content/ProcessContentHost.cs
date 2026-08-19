@@ -226,7 +226,7 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         long candidateEpoch = Interlocked.Read(ref _lastPublishedEpoch) + 1;
         return _publication.BuildAndSeal(
             candidateEpoch,
-            () => ValidateSkillIconAssetsForPublication(
+            () => ValidateIconAssetsForPublication(
                 _build(this, candidateEpoch),
                 EngineAssets
             ),
@@ -236,15 +236,16 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         );
     }
 
-    internal static ContentSnapshotBuildArtifact ValidateSkillIconAssetsForPublication(
+    internal static ContentSnapshotBuildArtifact ValidateIconAssetsForPublication(
         ContentSnapshotBuildArtifact artifact,
         EngineAssetResolver engineAssets
     )
     {
         if (artifact?.Snapshot == null)
             return artifact;
-        SkillIconAssetCatalogValidator.ThrowIfInvalid(
+        ContentIconAssetCatalogValidator.ThrowIfInvalid(
             artifact.Snapshot.Skills,
+            artifact.Snapshot.Items,
             engineAssets
         );
         return artifact;

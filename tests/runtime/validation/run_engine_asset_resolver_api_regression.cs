@@ -10,6 +10,7 @@ public partial class run_engine_asset_resolver_api_regression : LifecycleTestSce
         "res://scenes/main/login_screen.tscn";
     private const string AuthoredItemIconPath = "res://icon.svg";
     private static readonly StringName ContentSceneId = "test.login_scene";
+    private static readonly StringName ItemIconId = "ui.item.icon.default";
 
     private readonly TestHarness _test = new();
 
@@ -24,6 +25,7 @@ public partial class run_engine_asset_resolver_api_regression : LifecycleTestSce
             resolver.LoadAndPublishCatalogBorrowed(CatalogFixture);
             AssertTypedContentIdApi(resolver);
             AssertCodeOwnedPathApi(resolver);
+            AssertAuthoredPathReverseIndex(resolver);
             AssertAuthoredPathMigrationSeam(resolver);
         }
         catch (Exception exception)
@@ -57,6 +59,12 @@ public partial class run_engine_asset_resolver_api_regression : LifecycleTestSce
 
     private void AssertTypedContentIdApi(EngineAssetResolver resolver)
     {
+        IReadOnlySet<StringName> textureIds =
+            resolver.GetPublishedContentAssetIds<Texture2D>();
+        _test.True(
+            textureIds.Contains(ItemIconId) && !textureIds.Contains(ContentSceneId),
+            "typed asset-ID list exposes textures without leaking scene IDs"
+        );
         StringName contentAssetId = ContentSceneId;
         PackedScene scene = resolver.ResolveContentAssetBorrowed<PackedScene>(contentAssetId);
         _test.True(scene != null, "content asset API resolves a typed catalog ID");
@@ -126,6 +134,33 @@ public partial class run_engine_asset_resolver_api_regression : LifecycleTestSce
                 )
             ),
             "the migration seam rejects an asset ID passed as a path"
+        );
+    }
+
+    private void AssertAuthoredPathReverseIndex(EngineAssetResolver resolver)
+    {
+        _test.Eq(
+            resolver.ResolveContentAssetIdForAuthoredPathDuringMigration<Texture2D>(
+                AuthoredItemIconPath
+            ),
+            ItemIconId,
+            "migration reverse index maps an authored item icon path to its stable asset ID"
+        );
+        _test.True(
+            Throws<InvalidOperationException>(() =>
+                resolver.ResolveContentAssetIdForAuthoredPathDuringMigration<PackedScene>(
+                    AuthoredItemIconPath
+                )
+            ),
+            "migration reverse index rejects a mismatched target type"
+        );
+        _test.True(
+            Throws<KeyNotFoundException>(() =>
+                resolver.ResolveContentAssetIdForAuthoredPathDuringMigration<Texture2D>(
+                    "res://assets/main/battle/terrain/canyon/marker_preview.png"
+                )
+            ),
+            "migration reverse index rejects an unregistered authored path"
         );
     }
 

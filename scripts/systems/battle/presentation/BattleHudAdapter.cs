@@ -1498,7 +1498,7 @@ public sealed class BattleHudAdapter : IDisposable
 
     private static string GetItemIcon(ItemDefinition itemDefinition)
     {
-        return itemDefinition != null ? itemDefinition.Icon : "";
+        return itemDefinition != null ? itemDefinition.IconAssetId : "";
     }
 
     private static IReadOnlyList<string> BuildSlotLabels(IEnumerable<StringName> slotIds)

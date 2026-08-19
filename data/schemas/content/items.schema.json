@@ -1,0 +1,764 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:items:v1",
+  "title": "Magic item JSON authoring schema",
+  "description": "Flat, fully resolved item definitions. Legacy base_item_id and item template chains are intentionally absent.",
+  "$ref": "#/$defs/ItemJsonDocumentDto",
+  "$defs": {
+    "ItemAttributeModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "flat",
+            "percent"
+          ]
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "mode",
+        "source_id",
+        "source_type",
+        "value",
+        "value_per_rank"
+      ]
+    },
+    "ItemEquipmentAttributeRequirementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "min_value": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "min_value"
+      ]
+    },
+    "ItemEquipmentRequirementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemEquipmentAttributeRequirementJsonDto"
+          }
+        },
+        "max_body_size": {
+          "type": "integer"
+        },
+        "min_body_size": {
+          "type": "integer"
+        },
+        "required_profession_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "attribute_requirements",
+        "max_body_size",
+        "min_body_size",
+        "required_profession_ids"
+      ]
+    },
+    "ItemEquipmentRequirementJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemEquipmentAttributeRequirementJsonDto"
+          }
+        },
+        "max_body_size": {
+          "type": "integer"
+        },
+        "min_body_size": {
+          "type": "integer"
+        },
+        "required_profession_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ItemJsonDocumentDto": {
+      "description": "Flat, fully resolved item authoring document. Legacy base_item_id and item-template merge controls are not part of this contract.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "items"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemJsonDto__authoring_item_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ItemJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "ItemJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemAttributeModifierJsonDto"
+          }
+        },
+        "base_price": {
+          "type": "integer"
+        },
+        "buy_price": {
+          "type": "integer"
+        },
+        "crafting_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "equip_requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemEquipmentRequirementJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "equipment_slot_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "equipment_type_id": {
+          "type": "string"
+        },
+        "granted_skill_id": {
+          "type": "string"
+        },
+        "icon_asset_id": {
+          "type": "string"
+        },
+        "is_stackable": {
+          "type": "boolean"
+        },
+        "item_category": {
+          "type": "string",
+          "enum": [
+            "misc",
+            "equipment",
+            "skill_book"
+          ]
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "max_dex_bonus": {
+          "type": "integer"
+        },
+        "max_stack": {
+          "type": "integer"
+        },
+        "occupied_slot_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quest_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sell_price": {
+          "type": "integer"
+        },
+        "sellable": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_roll_groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemTraitRollGroupJsonDto"
+          }
+        },
+        "weapon_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemWeaponProfileJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "attribute_modifiers",
+        "base_price",
+        "buy_price",
+        "crafting_groups",
+        "description",
+        "display_name",
+        "equip_requirement",
+        "equipment_slot_ids",
+        "equipment_type_id",
+        "granted_skill_id",
+        "icon_asset_id",
+        "is_stackable",
+        "item_category",
+        "item_id",
+        "max_dex_bonus",
+        "max_stack",
+        "occupied_slot_ids",
+        "quest_groups",
+        "sell_price",
+        "sellable",
+        "tags",
+        "trait_ids",
+        "trait_roll_groups",
+        "weapon_profile"
+      ]
+    },
+    "ItemJsonDto__authoring_item_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ItemJsonDto"
+        },
+        {
+          "$ref": "#/$defs/ItemJsonDto__templated_item_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "ItemJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemAttributeModifierJsonDto"
+          }
+        },
+        "base_price": {
+          "type": "integer"
+        },
+        "buy_price": {
+          "type": "integer"
+        },
+        "crafting_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "equip_requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemEquipmentRequirementJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "equipment_slot_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "equipment_type_id": {
+          "type": "string"
+        },
+        "granted_skill_id": {
+          "type": "string"
+        },
+        "icon_asset_id": {
+          "type": "string"
+        },
+        "is_stackable": {
+          "type": "boolean"
+        },
+        "item_category": {
+          "type": "string",
+          "enum": [
+            "misc",
+            "equipment",
+            "skill_book"
+          ]
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "max_dex_bonus": {
+          "type": "integer"
+        },
+        "max_stack": {
+          "type": "integer"
+        },
+        "occupied_slot_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quest_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sell_price": {
+          "type": "integer"
+        },
+        "sellable": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_roll_groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemTraitRollGroupJsonDto"
+          }
+        },
+        "weapon_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemWeaponProfileJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "ItemJsonDto__templated_item_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemAttributeModifierJsonDto"
+          }
+        },
+        "base_price": {
+          "type": "integer"
+        },
+        "buy_price": {
+          "type": "integer"
+        },
+        "crafting_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "equip_requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemEquipmentRequirementJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "equipment_slot_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "equipment_type_id": {
+          "type": "string"
+        },
+        "granted_skill_id": {
+          "type": "string"
+        },
+        "icon_asset_id": {
+          "type": "string"
+        },
+        "is_stackable": {
+          "type": "boolean"
+        },
+        "item_category": {
+          "type": "string",
+          "enum": [
+            "misc",
+            "equipment",
+            "skill_book"
+          ]
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "max_dex_bonus": {
+          "type": "integer"
+        },
+        "max_stack": {
+          "type": "integer"
+        },
+        "occupied_slot_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quest_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sell_price": {
+          "type": "integer"
+        },
+        "sellable": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_roll_groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemTraitRollGroupJsonDto"
+          }
+        },
+        "weapon_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemWeaponProfileJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "item_id",
+        "template"
+      ]
+    },
+    "ItemTraitRollGroupEntryJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exclusive_group": {
+          "type": "string"
+        },
+        "trait_id": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "exclusive_group",
+        "trait_id",
+        "weight"
+      ]
+    },
+    "ItemTraitRollGroupJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ItemTraitRollGroupEntryJsonDto"
+          }
+        },
+        "group_id": {
+          "type": "string"
+        },
+        "roll_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entries",
+        "group_id",
+        "roll_count"
+      ]
+    },
+    "ItemWeaponDamageDiceJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dice_count": {
+          "type": "integer"
+        },
+        "dice_sides": {
+          "type": "integer"
+        },
+        "flat_bonus": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dice_count",
+        "dice_sides",
+        "flat_bonus"
+      ]
+    },
+    "ItemWeaponDamageDiceJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dice_count": {
+          "type": "integer"
+        },
+        "dice_sides": {
+          "type": "integer"
+        },
+        "flat_bonus": {
+          "type": "integer"
+        }
+      }
+    },
+    "ItemWeaponProfileJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack_range": {
+          "type": "integer"
+        },
+        "damage_tag": {
+          "type": "string",
+          "enum": [
+            "physical_slash",
+            "physical_pierce",
+            "physical_blunt"
+          ]
+        },
+        "family": {
+          "type": "string"
+        },
+        "one_handed_dice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemWeaponDamageDiceJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "range_type": {
+          "type": "string"
+        },
+        "training_group": {
+          "type": "string"
+        },
+        "two_handed_dice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemWeaponDamageDiceJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "weapon_type_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attack_range",
+        "damage_tag",
+        "family",
+        "one_handed_dice",
+        "properties",
+        "range_type",
+        "training_group",
+        "two_handed_dice",
+        "weapon_type_id"
+      ]
+    },
+    "ItemWeaponProfileJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack_range": {
+          "type": "integer"
+        },
+        "damage_tag": {
+          "type": "string",
+          "enum": [
+            "physical_slash",
+            "physical_pierce",
+            "physical_blunt"
+          ]
+        },
+        "family": {
+          "type": "string"
+        },
+        "one_handed_dice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemWeaponDamageDiceJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "range_type": {
+          "type": "string"
+        },
+        "training_group": {
+          "type": "string"
+        },
+        "two_handed_dice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemWeaponDamageDiceJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "weapon_type_id": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
