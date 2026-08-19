@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text.Json.Serialization;
 
 internal sealed partial class CombatEffectJsonDto
@@ -29,6 +30,9 @@ internal sealed partial class CombatEffectJsonDto
     public int? WeaponDiceMultiplier { get; init; }
     [JsonPropertyName("bonus_weapon_dice_multiplier")] public int BonusWeaponDiceMultiplier { get; init; }
     [ContentJsonSchemaStableStringValues(typeof(SkillDamageTagSchemaValues))]
+    [Description(
+        "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
+    )]
     [JsonPropertyName("damage_tag")] public string DamageTag { get; init; } = "";
     [ContentJsonSchemaStableStringValues(typeof(SkillDamageTagSchemaValues))]
     [JsonPropertyName("damage_tags")] public IReadOnlyList<string> DamageTags { get; init; } = Array.Empty<string>();
@@ -161,7 +165,11 @@ internal sealed partial class CombatEffectJsonDto
     [JsonPropertyName("con_mod_per_2_levels")]
     [ContentJsonSchemaDisallowExplicitNull]
     public int? ConModPer2Levels { get; init; }
-    [JsonPropertyName("effect_categories")] public IReadOnlyList<string> EffectCategories { get; init; } = Array.Empty<string>();
+    [JsonPropertyName("effect_categories")]
+    [Description(
+        "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
+    )]
+    public IReadOnlyList<string> EffectCategories { get; init; } = Array.Empty<string>();
     [ContentJsonSchemaStableStringValues(typeof(CombatEffectTargetTeamFilterSchemaValues))]
     [JsonPropertyName("effect_target_team_filter")] public string EffectTargetTeamFilter { get; init; } = "";
     [JsonPropertyName("max_affected_targets")] public int MaxAffectedTargets { get; init; }
@@ -224,6 +232,9 @@ internal sealed partial class CombatEffectJsonDto
     [JsonPropertyName("save_failure_status_outcomes")] public IReadOnlyList<CombatWeightedStatusOutcomeJsonDto> SaveFailureStatusOutcomes { get; init; } = Array.Empty<CombatWeightedStatusOutcomeJsonDto>();
     [JsonPropertyName("save_partial_on_success")] public bool SavePartialOnSuccess { get; init; }
     [ContentJsonSchemaStableStringValues(typeof(CombatSaveTagSchemaValues))]
+    [Description(
+        "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
+    )]
     [JsonPropertyName("save_tag")] public string SaveTag { get; init; } = "";
     [JsonPropertyName("consumed_status_id")] public string ConsumedStatusId { get; init; } = "";
     [JsonPropertyName("required_target_status_id")] public string RequiredTargetStatusId { get; init; } = "";

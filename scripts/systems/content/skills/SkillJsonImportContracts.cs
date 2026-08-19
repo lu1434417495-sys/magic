@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Text.Json.Serialization;
 
 internal readonly record struct SkillImportIdentifier
@@ -737,6 +738,9 @@ internal sealed partial class CombatSkillJsonDto
 
     [JsonPropertyName("mp_cost")]
     [ContentJsonSchemaDisallowExplicitNull]
+    [Description(
+        "Base mana-point cost for one cast. The canonical JSON field is mp_cost; mana_cost is not supported."
+    )]
     public int? MpCost { get; init; }
 
     [JsonPropertyName("cooldown_tu")]

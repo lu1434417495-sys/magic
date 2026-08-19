@@ -14,7 +14,9 @@ using GdStringArray = Godot.Collections.Array<string>;
 /// </summary>
 internal sealed class SkillImportModelValidator
 {
-    private const string DomainRuleId = "skill.validation.domain_rule";
+    internal const string DomainRuleId = "skill.validation.domain_rule";
+    internal const string AttributeGrowthTotalRuleId =
+        "skill.validation.attribute_growth_total";
     private static readonly StringName[] PracticeTrackTags =
     {
         "meditation",
@@ -39,13 +41,51 @@ internal sealed class SkillImportModelValidator
         ArgumentNullException.ThrowIfNull(import);
         IReadOnlyList<string> messages = ValidateMessages(import);
         return new ReadOnlyCollection<ContentJsonDiagnostic>(
-            messages.Select(message => new ContentJsonDiagnostic(
-                    DomainRuleId,
-                    message,
-                    context.SourceLabel,
-                    context.JsonPointer
-                ))
+            messages.Select(message => ProjectDiagnostic(context, import, message))
                 .ToList()
+        );
+    }
+
+    private static ContentJsonDiagnostic ProjectDiagnostic(
+        JsonContentEntryContext context,
+        SkillImportModel import,
+        string message
+    )
+    {
+        long actualGrowthTotal = import.AttributeGrowthProgress.Values.Sum(
+            static amount => (long)amount
+        );
+        string growthTierWire = SkillRootCombatImportValueRules.GetWireValue(
+            import.GrowthTier
+        );
+        int expectedGrowthTotal = AttributeGrowthContentRules.GetTierBudget(
+            new StringName(growthTierWire)
+        );
+        if (
+            expectedGrowthTotal > 0
+            && actualGrowthTotal != expectedGrowthTotal
+            && message.EndsWith(
+                $"attribute_growth_progress total must equal {expectedGrowthTotal} "
+                    + $"for growth_tier {growthTierWire}.",
+                StringComparison.Ordinal
+            )
+        )
+        {
+            return new ContentJsonDiagnostic(
+                AttributeGrowthTotalRuleId,
+                message,
+                context.SourceLabel,
+                context.JsonPointer + "/attribute_growth_progress",
+                $"sum equal to {expectedGrowthTotal} for growth_tier "
+                    + growthTierWire,
+                $"sum={actualGrowthTotal}"
+            );
+        }
+        return new ContentJsonDiagnostic(
+            DomainRuleId,
+            message,
+            context.SourceLabel,
+            context.JsonPointer
         );
     }
 

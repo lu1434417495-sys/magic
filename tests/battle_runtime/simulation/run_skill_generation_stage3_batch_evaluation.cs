@@ -25,10 +25,8 @@ public partial class run_skill_generation_stage3_batch_evaluation
             new BatchCase(
                 "accepted_force_needle",
                 ExpectedAccept: true,
-                ExpectedRejectedStage:
-                    SkillGenerationValidationStageKind.BattleSimulation,
-                ExpectedRuleId:
-                    SkillGenerationBattleSimRules.IncompleteSamples
+                ExpectedRejectedStage: null,
+                ExpectedRuleId: ""
             ),
             new BatchCase(
                 "accepted_ember_orb",
@@ -39,10 +37,8 @@ public partial class run_skill_generation_stage3_batch_evaluation
             new BatchCase(
                 "expected_accept_reserve_comet",
                 ExpectedAccept: true,
-                ExpectedRejectedStage:
-                    SkillGenerationValidationStageKind.BattleSimulation,
-                ExpectedRuleId:
-                    SkillGenerationBattleSimRules.IncompleteSamples
+                ExpectedRejectedStage: null,
+                ExpectedRuleId: ""
             ),
             new BatchCase(
                 "reject_schema_mana_cost",
@@ -54,7 +50,7 @@ public partial class run_skill_generation_stage3_batch_evaluation
                 "reject_domain_growth_total",
                 ExpectedAccept: false,
                 ExpectedRejectedStage: SkillGenerationValidationStageKind.Domain,
-                ExpectedRuleId: "skill.validation.domain_rule"
+                ExpectedRuleId: SkillImportModelValidator.AttributeGrowthTotalRuleId
             ),
             new BatchCase(
                 "reject_cross_missing_skill",
@@ -69,7 +65,8 @@ public partial class run_skill_generation_stage3_batch_evaluation
                 ExpectedAccept: false,
                 ExpectedRejectedStage:
                     SkillGenerationValidationStageKind.BattleSimulation,
-                ExpectedRuleId: ""
+                ExpectedRuleId:
+                    SkillGenerationBattleSimRules.HighStrengthOutlier
             ),
         }
     );
@@ -89,14 +86,30 @@ public partial class run_skill_generation_stage3_batch_evaluation
                 GameSessionTestFactory.GetProcessSnapshot()
             );
             var results = new List<BatchResult>(Cases.Count);
-            foreach (BatchCase batchCase in Cases)
+            IReadOnlyList<BatchCase> acceptedCases = Cases
+                .Where(value => value.ExpectedAccept)
+                .ToList()
+                .AsReadOnly();
+            SkillGenerationValidationReport acceptedBatch = EvaluateAcceptedBatch(
+                acceptedCases,
+                processSnapshot
+            );
+            foreach (BatchCase batchCase in acceptedCases)
+                results.Add(AssertCase(batchCase, acceptedBatch));
+            foreach (BatchCase batchCase in Cases.Where(value => !value.ExpectedAccept))
                 results.Add(EvaluateCase(batchCase, processSnapshot));
 
             BatchStatistics statistics = BatchStatistics.From(results);
             AssertInitialRunStatistics(statistics);
             Console.Out.WriteLine(statistics.ToJson());
-            foreach (BatchResult result in results)
-                Console.Out.Write(SkillGenerationValidationProtocol.FormatNdjson(result.Report));
+            foreach (
+                SkillGenerationValidationReport report in results
+                    .Select(value => value.Report)
+                    .Distinct()
+            )
+            {
+                Console.Out.Write(SkillGenerationValidationProtocol.FormatNdjson(report));
+            }
         }
         catch (Exception exception)
         {
@@ -120,7 +133,48 @@ public partial class run_skill_generation_stage3_batch_evaluation
                 new SkillGenerationBattleSimGate()
             ).Validate(sourceDirectory, new GodotContentJsonSourceReader());
 
-        if (batchCase.ExpectedRejectedStage != null)
+        return AssertCase(batchCase, report);
+    }
+
+    private SkillGenerationValidationReport EvaluateAcceptedBatch(
+        IReadOnlyList<BatchCase> acceptedCases,
+        ContentSnapshot processSnapshot
+    )
+    {
+        SkillGenerationValidationReport report =
+            new SkillGenerationValidationService(
+                processSnapshot,
+                new SkillGenerationBattleSimGate()
+            ).Validate(
+                $"{FixtureRoot}/accepted_batch",
+                new AcceptedBatchSourceReader(acceptedCases)
+            );
+        _test.True(report.Success, "the three accepted sources should pass as one batch");
+        _test.Eq(report.Stages.Count, 4, "accepted batch should publish four stages");
+        foreach (SkillGenerationValidationStageReport stage in report.Stages)
+        {
+            _test.Eq(
+                stage.ValidatedEntryCount,
+                3,
+                $"accepted batch {stage.Stage} stage should validate all three entries"
+            );
+        }
+        return report;
+    }
+
+    private BatchResult AssertCase(
+        BatchCase batchCase,
+        SkillGenerationValidationReport report
+    )
+    {
+        if (batchCase.ExpectedAccept)
+        {
+            _test.True(
+                report.Success,
+                $"{batchCase.CaseId} should pass all four stages after T3.5"
+            );
+        }
+        else if (batchCase.ExpectedRejectedStage != null)
         {
             _test.True(
                 report.RejectedStage == batchCase.ExpectedRejectedStage,
@@ -141,6 +195,21 @@ public partial class run_skill_generation_stage3_batch_evaluation
                 $"{batchCase.CaseId} rejection should expose the expected machine-locatable rule"
             );
         }
+        if (batchCase.CaseId == "reject_domain_growth_total")
+        {
+            _test.True(
+                report.Stages[^1].Diagnostics.Any(value =>
+                    value.RuleId
+                        == SkillImportModelValidator.AttributeGrowthTotalRuleId
+                    && value.JsonPointer
+                        == "/entries/0/attribute_growth_progress"
+                    && value.Expected
+                        == "sum equal to 60 for growth_tier basic"
+                    && value.Actual == "sum=30"
+                ),
+                "growth budget rejection should locate the field and expose expected/actual totals"
+            );
+        }
 
         return new BatchResult(batchCase, report);
     }
@@ -148,21 +217,13 @@ public partial class run_skill_generation_stage3_batch_evaluation
     private void AssertInitialRunStatistics(BatchStatistics statistics)
     {
         _test.Eq(statistics.AttemptedCount, 7, "batch should contain seven labeled cases");
-        _test.True(
-            statistics.AcceptedCount is >= 0 and <= 1,
-            "pre-fix repeated runs should accept zero or one case"
-        );
-        _test.True(
-            statistics.RejectedCount is >= 6 and <= 7,
-            "pre-fix repeated runs should reject six or seven cases"
-        );
-        _test.True(
-            statistics.FalsePositiveCount is >= 2 and <= 3,
-            "pre-fix repeated runs should expose two or three false positives"
-        );
-        _test.True(
-            statistics.FalsePositiveRateBasisPoints is >= 6667 and <= 10000,
-            "pre-fix false-positive rate should remain in the observed 66.67%-100% range"
+        _test.Eq(statistics.AcceptedCount, 3, "T3.5 should accept all intended-valid cases");
+        _test.Eq(statistics.RejectedCount, 4, "T3.5 should retain all four true rejections");
+        _test.Eq(statistics.FalsePositiveCount, 0, "T3.5 should eliminate false positives");
+        _test.Eq(
+            statistics.FalsePositiveRateBasisPoints,
+            0,
+            "T3.5 false-positive rate should be zero"
         );
         _test.Eq(statistics.FalseNegativeCount, 0, "first run should have no false negatives");
         _test.Eq(
@@ -180,11 +241,12 @@ public partial class run_skill_generation_stage3_batch_evaluation
             1,
             "cross-domain gate should reject one case"
         );
-        _test.True(
+        _test.Eq(
             statistics.RejectedByStage[
                 SkillGenerationValidationStageKind.BattleSimulation
-            ] is >= 3 and <= 4,
-            "BattleSim should reject three or four cases before the fixture correction"
+            ],
+            1,
+            "BattleSim should reject only the true strength outlier after T3.5"
         );
     }
 
@@ -209,6 +271,40 @@ public partial class run_skill_generation_stage3_batch_evaluation
         BatchCase Case,
         SkillGenerationValidationReport Report
     );
+
+    private sealed class AcceptedBatchSourceReader : IContentJsonSourceReader
+    {
+        private readonly IReadOnlyList<BatchCase> _acceptedCases;
+
+        internal AcceptedBatchSourceReader(IReadOnlyList<BatchCase> acceptedCases)
+        {
+            _acceptedCases = acceptedCases
+                ?? throw new ArgumentNullException(nameof(acceptedCases));
+        }
+
+        public IReadOnlyList<ContentJsonSourceText> ReadUtf8Documents(
+            string directoryPath
+        )
+        {
+            var sources = new List<ContentJsonSourceText>(_acceptedCases.Count);
+            var reader = new GodotContentJsonSourceReader();
+            foreach (BatchCase batchCase in _acceptedCases)
+            {
+                IReadOnlyList<ContentJsonSourceText> caseSources =
+                    reader.ReadUtf8Documents(
+                        $"{FixtureRoot}/{batchCase.CaseId}"
+                    );
+                if (caseSources.Count != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Accepted batch case {batchCase.CaseId} must contain exactly one JSON document."
+                    );
+                }
+                sources.Add(caseSources[0]);
+            }
+            return sources.AsReadOnly();
+        }
+    }
 
     private sealed record BatchStatistics(
         int AttemptedCount,

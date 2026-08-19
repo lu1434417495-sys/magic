@@ -1208,7 +1208,9 @@ runtime 会在每场战斗中维护 `_battle_metrics`，最终进入 `run_result
 
 `SkillGenerationBattleSimGate` 直接复用本系统的 runner、content provider、metrics 与 report artifact，不维护第二套模拟器。它只抽检 active、enemy-targeted、unit/ground damage 或 execute 技能；其他 surface 以稳定 `unsupported_surface` 诊断拒绝，不能假装已做数值验证。
 
-每个候选与同 surface benchmark 使用相同单位 id、属性、武器、AI brain、地图以及 20 个固定 seed。ground 技能对比 `mage_fireball`，远程/魔法 unit 技能对比 `mage_arcane_missile`，近战 unit 技能对比 `basic_attack`。candidate definition 通过 `BattleSimContentProvider` 的只读 combined skill view 进入正式 runtime，process snapshot 不被修改。
+每个候选与同 surface benchmark 使用相同单位 id、属性、武器、AI brain、地图以及 20 个固定 seed。ground 技能使用 `mage_controller` 对比 `mage_fireball`；multi-unit 技能使用具备对应 action family 的 `ranged_archer` 对比 `mage_arcane_missile`；普通远程/魔法 unit 技能使用 `mage_controller` 对比 `mage_frost_bolt`；近战 unit 技能使用 `melee_aggressor` 对比 `basic_attack`。candidate definition 通过 `BattleSimContentProvider` 的只读 combined skill view 进入正式 runtime，process snapshot 不被修改。
+
+双方资源容量由 candidate 1 级单次完整施法成本（含 multi-unit target-slot 成本）推导，至少保留默认 120，并提供三次完整施法容量；AP 上限最高扩到 8，MP/体力/斗气各封顶 10000。该容量只保证夹具可测，不改变候选的实际技能成本。scenario iteration budget 为 2000；仍未自然终局的 run 继续按 unfinished 处理，不能进入统计分母。
 
 正式判定必须同时满足：
 

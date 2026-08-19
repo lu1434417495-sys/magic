@@ -590,7 +590,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -675,7 +676,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -1171,7 +1173,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -1531,7 +1534,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -1616,7 +1620,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -2112,7 +2117,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -2472,7 +2478,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -2557,7 +2564,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -3053,7 +3061,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -3413,7 +3422,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -3498,7 +3508,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -3994,7 +4005,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -4354,7 +4366,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -4439,7 +4452,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -4935,7 +4949,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -5295,7 +5310,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -5380,7 +5396,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -5876,7 +5893,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -6236,7 +6254,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -6321,7 +6340,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -6817,7 +6837,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -7177,7 +7198,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -7262,7 +7284,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -7758,7 +7781,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -8118,7 +8142,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -8203,7 +8228,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -8699,7 +8725,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -9059,7 +9086,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -9144,7 +9172,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -9640,7 +9669,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -10000,7 +10030,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -10085,7 +10116,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -10581,7 +10613,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -10941,7 +10974,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -11026,7 +11060,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -11522,7 +11557,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -11882,7 +11918,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -11967,7 +12004,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -12463,7 +12501,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -12823,7 +12862,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -12908,7 +12948,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -13404,7 +13445,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -13764,7 +13806,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -13849,7 +13892,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -14345,7 +14389,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -14705,7 +14750,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -14790,7 +14836,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -15286,7 +15333,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -15646,7 +15694,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -15731,7 +15780,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -16227,7 +16277,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -16587,7 +16638,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -16672,7 +16724,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -17168,7 +17221,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -17528,7 +17582,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -17613,7 +17668,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -18109,7 +18165,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -18469,7 +18526,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -18554,7 +18612,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -19050,7 +19109,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -19410,7 +19470,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -19495,7 +19556,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -19991,7 +20053,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -20351,7 +20414,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -20436,7 +20500,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -20932,7 +20997,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -21292,7 +21358,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -21377,7 +21444,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -21873,7 +21941,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -22233,7 +22302,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -22318,7 +22388,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -22814,7 +22885,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -23174,7 +23246,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -23259,7 +23332,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -23755,7 +23829,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -24115,7 +24190,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -24200,7 +24276,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -24696,7 +24773,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -25056,7 +25134,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -25141,7 +25220,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -25637,7 +25717,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -25997,7 +26078,8 @@
             "magic",
             "acid",
             "poison"
-          ]
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
         },
         "damage_tags": {
           "type": "array",
@@ -26082,7 +26164,8 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
         },
         "effect_tags": {
           "type": "array",
@@ -26578,7 +26661,8 @@
             "perception",
             "intelligence",
             "willpower"
-          ]
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
         },
         "secondary_hit_dc_base": {
           "type": "integer"
@@ -27283,7 +27367,8 @@
           "type": "integer"
         },
         "mp_cost": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Base mana-point cost for one cast. The canonical JSON field is mp_cost; mana_cost is not supported."
         },
         "mp_cost_per_target_slot": {
           "type": "integer"
@@ -27717,7 +27802,8 @@
           "type": "integer"
         },
         "mp_cost": {
-          "type": "integer"
+          "type": "integer",
+          "description": "Base mana-point cost for one cast. The canonical JSON field is mp_cost; mana_cost is not supported."
         },
         "mp_cost_per_target_slot": {
           "type": "integer"
@@ -28506,7 +28592,8 @@
           "type": "object",
           "additionalProperties": {
             "type": "integer"
-          }
+          },
+          "description": "Positive base-attribute allocations. When present, values must sum exactly to the selected growth_tier budget: basic=60, intermediate=120, advanced=180, ultimate=240."
         },
         "attribute_modifiers": {
           "type": "array",
@@ -28707,7 +28794,8 @@
           "type": "object",
           "additionalProperties": {
             "type": "integer"
-          }
+          },
+          "description": "Positive base-attribute allocations. When present, values must sum exactly to the selected growth_tier budget: basic=60, intermediate=120, advanced=180, ultimate=240."
         },
         "attribute_modifiers": {
           "type": "array",
@@ -28899,7 +28987,8 @@
           "type": "object",
           "additionalProperties": {
             "type": "integer"
-          }
+          },
+          "description": "Positive base-attribute allocations. When present, values must sum exactly to the selected growth_tier budget: basic=60, intermediate=120, advanced=180, ultimate=240."
         },
         "attribute_modifiers": {
           "type": "array",

@@ -11,8 +11,10 @@ internal static class SkillGenerationBattleSimScenarioFactory
     private static readonly StringName BasicAttackSkillId = "basic_attack";
     private static readonly StringName ArcaneMissileSkillId = "mage_arcane_missile";
     private static readonly StringName FireballSkillId = "mage_fireball";
+    private static readonly StringName FrostBoltSkillId = "mage_frost_bolt";
     private static readonly StringName MeleeBrainId = "melee_aggressor";
     private static readonly StringName MageBrainId = "mage_controller";
+    private static readonly StringName RangedArcherBrainId = "ranged_archer";
     private static readonly Vector2I AllyCoord = new(1, 1);
     private static readonly Vector2I EnemyCoord = new(5, 1);
 
@@ -27,7 +29,8 @@ internal static class SkillGenerationBattleSimScenarioFactory
         StringName candidateId = candidate.SkillId;
         StringName benchmarkSkillId = ResolveBenchmarkSkillId(candidate);
         StringName allyBrainId = ResolveAllyBrain(candidate);
-        StringName allyStateId = allyBrainId == MageBrainId ? "pressure" : "engage";
+        StringName allyStateId = allyBrainId == MeleeBrainId ? "engage" : "pressure";
+        ResourceCapacities resourceCapacities = ResolveResourceCapacities(candidate);
         BattleUnitState ally = BuildUnit(
             unitId: "generated_probe",
             factionId: "player",
@@ -37,7 +40,8 @@ internal static class SkillGenerationBattleSimScenarioFactory
             skills: includeCandidate
                 ? DistinctSkills(BasicAttackSkillId, candidateId)
                 : DistinctSkills(BasicAttackSkillId, benchmarkSkillId),
-            candidate: candidate
+            candidate: candidate,
+            resourceCapacities: resourceCapacities
         );
         BattleUnitState enemy = BuildUnit(
             unitId: "generated_control",
@@ -46,7 +50,8 @@ internal static class SkillGenerationBattleSimScenarioFactory
             brainId: MeleeBrainId,
             stateId: "engage",
             skills: new[] { BasicAttackSkillId },
-            candidate: null
+            candidate: null,
+            resourceCapacities: ResourceCapacities.Standard
         );
         string suffix = includeCandidate ? "candidate" : "baseline";
         return new BattleSimScenarioDefinition(
@@ -77,7 +82,7 @@ internal static class SkillGenerationBattleSimScenarioFactory
             cells: new Dictionary<Vector2I, IReadOnlyDictionary<string, object>>(),
             timelineTicksPerStep: 1,
             tuPerTick: 5,
-            maxIterations: 600,
+            maxIterations: 2000,
             manualPolicy: "wait",
             traceEnabled: false,
             seeds: seeds
@@ -135,7 +140,8 @@ internal static class SkillGenerationBattleSimScenarioFactory
         StringName brainId,
         StringName stateId,
         IReadOnlyList<StringName> skills,
-        SkillDefinition? candidate
+        SkillDefinition? candidate,
+        ResourceCapacities resourceCapacities
     )
     {
         var unit = new BattleUnitState
@@ -151,16 +157,16 @@ internal static class SkillGenerationBattleSimScenarioFactory
         if (!unit.SetBodySizeCategory("medium"))
             throw new InvalidOperationException("Standard BattleSim body size is invalid.");
         unit.SetAnchorCoord(coord);
-        ConfigureAttributes(unit.attribute_snapshot);
+        ConfigureAttributes(unit.attribute_snapshot, resourceCapacities);
         unit.SetActionThresholdTyped(40);
         unit.UnlockCombatResource("mp");
         unit.UnlockCombatResource("aura");
         unit.SetCombatResources(
             hp: 160,
-            mp: 120,
-            stamina: 120,
-            aura: 120,
-            ap: 2,
+            mp: resourceCapacities.Mp,
+            stamina: resourceCapacities.Stamina,
+            aura: resourceCapacities.Aura,
+            ap: resourceCapacities.Ap,
             movePoints: BattleUnitState.DefaultMovePointsPerTurn
         );
         unit.SetKnownActiveSkillIds(skills);
@@ -170,7 +176,10 @@ internal static class SkillGenerationBattleSimScenarioFactory
         return unit;
     }
 
-    private static void ConfigureAttributes(AttributeSnapshot snapshot)
+    private static void ConfigureAttributes(
+        AttributeSnapshot snapshot,
+        ResourceCapacities resourceCapacities
+    )
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         snapshot.SetValue("strength", 14);
@@ -180,10 +189,10 @@ internal static class SkillGenerationBattleSimScenarioFactory
         snapshot.SetValue("intelligence", 14);
         snapshot.SetValue("willpower", 14);
         snapshot.SetValue("hp_max", 160);
-        snapshot.SetValue("mp_max", 120);
-        snapshot.SetValue("stamina_max", 120);
-        snapshot.SetValue("aura_max", 120);
-        snapshot.SetValue("action_points", 2);
+        snapshot.SetValue("mp_max", resourceCapacities.Mp);
+        snapshot.SetValue("stamina_max", resourceCapacities.Stamina);
+        snapshot.SetValue("aura_max", resourceCapacities.Aura);
+        snapshot.SetValue("action_points", resourceCapacities.Ap);
         snapshot.SetValue("action_threshold", 40);
         snapshot.SetValue("attack_bonus", 7);
         snapshot.SetValue("spell_proficiency_bonus", 5);
@@ -237,6 +246,8 @@ internal static class SkillGenerationBattleSimScenarioFactory
     private static StringName ResolveAllyBrain(SkillDefinition candidate)
     {
         CombatSkillDefinition combat = candidate.CombatProfile;
+        if (combat.TargetSelectionModeKind == BattleTargetSelectionMode.MultiUnit)
+            return RangedArcherBrainId;
         return combat.TargetModeKind == BattleTargetMode.Ground
             || combat.RangeValue > 1
             || combat.ProjectileKind == (StringName)"magical"
@@ -249,13 +260,63 @@ internal static class SkillGenerationBattleSimScenarioFactory
         CombatSkillDefinition combat = candidate.CombatProfile;
         if (combat.TargetModeKind == BattleTargetMode.Ground)
             return FireballSkillId;
+        if (combat.TargetSelectionModeKind == BattleTargetSelectionMode.MultiUnit)
+            return ArcaneMissileSkillId;
         return ResolveAllyBrain(candidate) == MageBrainId
-            ? ArcaneMissileSkillId
+            ? FrostBoltSkillId
             : BasicAttackSkillId;
+    }
+
+    private static ResourceCapacities ResolveResourceCapacities(
+        SkillDefinition candidate
+    )
+    {
+        CombatSkillDefinition combat = candidate.CombatProfile;
+        CombatSkillResourceCosts costs = combat.GetEffectiveResourceCostValues(1);
+        int targetSlots = combat.TargetSelectionModeKind
+            == BattleTargetSelectionMode.MultiUnit
+            ? Math.Max(combat.MaxTargetCount, 1)
+            : 1;
+        return new ResourceCapacities(
+            Ap: Math.Clamp(Math.Max(costs.ApCost, 2), 2, 8),
+            Mp: ResolveResourceCapacity(
+                costs.MpCost,
+                combat.GetEffectiveMpCostPerTargetSlot(1),
+                targetSlots
+            ),
+            Stamina: ResolveResourceCapacity(
+                costs.StaminaCost,
+                combat.GetEffectiveStaminaCostPerTargetSlot(1),
+                targetSlots
+            ),
+            Aura: ResolveResourceCapacity(costs.AuraCost, 0, 1)
+        );
+    }
+
+    private static int ResolveResourceCapacity(
+        int baseCost,
+        int perTargetSlotCost,
+        int targetSlots
+    )
+    {
+        long oneCastCost = Math.Max(baseCost, 0)
+            + (long)Math.Max(perTargetSlotCost, 0) * Math.Max(targetSlots, 1);
+        return (int)Math.Clamp(oneCastCost * 3L, 120L, 10000L);
     }
 
     private static IReadOnlyList<StringName> DistinctSkills(
         StringName first,
         StringName second
     ) => first == second ? new[] { first } : new[] { first, second };
+
+    private readonly record struct ResourceCapacities(
+        int Ap,
+        int Mp,
+        int Stamina,
+        int Aura
+    )
+    {
+        internal static ResourceCapacities Standard { get; } =
+            new(2, 120, 120, 120);
+    }
 }

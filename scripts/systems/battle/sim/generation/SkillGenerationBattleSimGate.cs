@@ -145,6 +145,7 @@ internal sealed class SkillGenerationBattleSimGate
         {
             new StringName("mage_arcane_missile"),
             new StringName("mage_fireball"),
+            new StringName("mage_frost_bolt"),
         })
         {
             if (!combinedSkills.ContainsKey(benchmarkSkillId))
@@ -158,6 +159,7 @@ internal sealed class SkillGenerationBattleSimGate
         {
             new StringName("melee_aggressor"),
             new StringName("mage_controller"),
+            new StringName("ranged_archer"),
         })
         {
             if (!processSnapshot.EnemyBrains.ContainsKey(brainId))

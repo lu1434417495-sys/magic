@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -50,7 +51,11 @@ internal sealed partial class SkillJsonDto
     [JsonPropertyName("growth_tier")]
     [ContentJsonSchemaStableStringValues(typeof(SkillProgressionTierSchemaValues))]
     public string GrowthTier { get => _growthTier ?? ""; init => _growthTier = value; }
-    [JsonPropertyName("attribute_growth_progress")] public IReadOnlyDictionary<string, int> AttributeGrowthProgress { get => _attributeGrowthProgress ?? EmptyIntMap; init => _attributeGrowthProgress = value; }
+    [JsonPropertyName("attribute_growth_progress")]
+    [Description(
+        "Positive base-attribute allocations. When present, values must sum exactly to the selected growth_tier budget: basic=60, intermediate=120, advanced=180, ultimate=240."
+    )]
+    public IReadOnlyDictionary<string, int> AttributeGrowthProgress { get => _attributeGrowthProgress ?? EmptyIntMap; init => _attributeGrowthProgress = value; }
     [JsonPropertyName("practice_tier")]
     [ContentJsonSchemaStableStringValues(typeof(SkillProgressionTierSchemaValues))]
     public string PracticeTier { get => _practiceTier ?? ""; init => _practiceTier = value; }
