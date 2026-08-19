@@ -60,7 +60,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_heavy_blow",
@@ -158,7 +159,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_heavy_pressure_slash",
@@ -223,7 +225,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_heavy_strike",
@@ -386,7 +389,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_heavy_weapon_root",
@@ -420,7 +424,8 @@
       "attribute_growth_progress": {
         "constitution": 40,
         "willpower": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_hidden_blade_under_shield",
@@ -455,7 +460,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_hold_line_order",
@@ -502,7 +508,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_hold_step",
@@ -536,7 +543,8 @@
       "attribute_growth_progress": {
         "constitution": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_hold_the_line",
@@ -574,7 +582,8 @@
       "attribute_growth_progress": {
         "constitution": 40,
         "willpower": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_holy_dragon_charge",
@@ -627,7 +636,8 @@
       "attribute_growth_progress": {
         "constitution": 60,
         "strength": 120
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_holy_dragon_rush",
@@ -681,7 +691,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_holy_oath_strike",
@@ -740,7 +751,8 @@
       "attribute_growth_progress": {
         "constitution": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_holy_shield_impact",
@@ -809,7 +821,8 @@
       "attribute_growth_progress": {
         "constitution": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_horn_charge_knock",
@@ -853,7 +866,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 100
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_horse_rejection_zone",
@@ -895,7 +909,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_hundred_crack_tiger",
@@ -971,7 +986,8 @@
       "attribute_growth_progress": {
         "constitution": 90,
         "strength": 150
-      }
+      },
+      "template": "max_level_10"
     },
     {
       "skill_id": "warrior_hundred_shadow_final_dance",
@@ -1039,7 +1055,8 @@
       "attribute_growth_progress": {
         "agility": 140,
         "strength": 100
-      }
+      },
+      "template": "max_level_10"
     },
     {
       "skill_id": "warrior_hundred_spear_formless",
@@ -1095,7 +1112,8 @@
       "attribute_growth_progress": {
         "agility": 140,
         "strength": 100
-      }
+      },
+      "template": "max_level_10"
     },
     {
       "skill_id": "warrior_hundred_weapons_chorus",
@@ -1160,7 +1178,8 @@
       "attribute_growth_progress": {
         "strength": 80,
         "willpower": 160
-      }
+      },
+      "template": "max_level_10"
     },
     {
       "skill_id": "warrior_inner_breath_closed_loop",
@@ -1196,7 +1215,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_instant_three_judgment",
@@ -1254,7 +1274,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_intimidating_gaze",
@@ -1305,7 +1326,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_iron_boot_block_road",
@@ -1343,7 +1365,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_iron_charge",
@@ -1403,7 +1426,8 @@
       "attribute_growth_progress": {
         "agility": 30,
         "strength": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_iron_tide_finisher",
@@ -1472,7 +1496,8 @@
       "attribute_growth_progress": {
         "constitution": 90,
         "strength": 150
-      }
+      },
+      "template": "max_level_10"
     },
     {
       "skill_id": "warrior_iron_tide_march",
@@ -1519,7 +1544,8 @@
       "attribute_growth_progress": {
         "strength": 40,
         "willpower": 80
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_iron_tide_push",
@@ -1562,7 +1588,8 @@
       "attribute_growth_progress": {
         "constitution": 10,
         "strength": 50
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_iron_torrent_slash",
@@ -1623,7 +1650,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_iron_wall_oath",
@@ -1671,11 +1699,52 @@
       "attribute_growth_progress": {
         "constitution": 120,
         "willpower": 60
-      }
+      },
+      "template": "max_level_9"
     }
   ],
   "family": "warrior_07",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_10": {
+      "max_level": 10
+    },
+    "max_level_9": {
+      "max_level": 9
+    },
+    "max_level_3": {
+      "max_level": 3
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_7": {
+      "non_core_max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "non_core_max_level_9": {
+      "non_core_max_level": 9
+    },
+    "growth_tier_intermediate": {
+      "growth_tier": "intermediate"
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    },
+    "growth_tier_ultimate": {
+      "growth_tier": "ultimate"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

@@ -48,7 +48,8 @@
       "mastery_sources": [
         "training"
       ],
-      "practice_tier": "basic"
+      "practice_tier": "basic",
+      "template": "max_level_5"
     },
     {
       "skill_id": "black_contract_push",
@@ -189,7 +190,8 @@
       ],
       "mastery_sources": [
         "battle"
-      ]
+      ],
+      "template": "max_level_5"
     },
     {
       "skill_id": "charge",
@@ -274,7 +276,8 @@
       "attribute_growth_progress": {
         "agility": 100,
         "strength": 20
-      }
+      },
+      "template": "non_core_max_level_5"
     },
     {
       "skill_id": "crown_break",
@@ -649,7 +652,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_dragon_scale_dragon_blood_boil",
@@ -679,7 +683,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_ash_ring_fire",
@@ -728,7 +733,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_badge_blessing",
@@ -775,7 +781,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_cloak_low_hp_burst",
@@ -820,11 +827,22 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     }
   ],
   "family": "misc_01",
-  "templates": {},
+  "templates": {
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_1": {
+      "non_core_max_level": 1
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

@@ -175,7 +175,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_frost_sprite",
@@ -415,7 +416,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_frozen_step",
@@ -581,7 +583,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_glacial_prison",
@@ -782,7 +785,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_glacier_edge",
@@ -1030,7 +1034,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_glitter_dust",
@@ -1308,7 +1313,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_grand_conjuration",
@@ -1514,7 +1520,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_grave_mist",
@@ -1763,7 +1770,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_gravity_sink",
@@ -2011,7 +2019,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_gust_of_wind",
@@ -2218,7 +2227,8 @@
         "intelligence": 100,
         "perception": 30,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_hail_storm",
@@ -2468,7 +2478,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_hallucinatory_field",
@@ -2746,7 +2757,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_haste_stream",
@@ -2914,7 +2926,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_hex_of_frailty",
@@ -3153,7 +3166,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_ice_lance",
@@ -3367,7 +3381,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_inferno_pillar",
@@ -3620,7 +3635,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_invisibility",
@@ -3789,7 +3805,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_levitate",
@@ -3957,7 +3974,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_life_drain",
@@ -4158,7 +4176,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_living_meteor",
@@ -4406,7 +4425,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_magic_shield",
@@ -4606,7 +4626,8 @@
         "allowed_target_resolvers": [
           "self"
         ]
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mana_burst",
@@ -4822,7 +4843,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mana_font",
@@ -5001,7 +5023,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mana_leech",
@@ -5256,7 +5279,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mass_hypnosis",
@@ -5481,11 +5505,22 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     }
   ],
   "family": "mage_03",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

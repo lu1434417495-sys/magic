@@ -43,7 +43,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_egg_burst",
@@ -88,7 +89,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_fire_shield",
@@ -133,7 +135,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_flame_charge",
@@ -172,7 +175,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_gauntlet_fire_strike",
@@ -226,7 +230,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_gauntlet_healing_flame",
@@ -265,7 +270,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_necklace_nirvana_fire",
@@ -315,7 +321,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "equipment_phoenix_rebirth_rebirth_ring_life_rekindle",
@@ -354,7 +361,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "gear_set_phoenix_rebirth_solar_rebirth",
@@ -422,7 +430,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "misstep_to_scheme",
@@ -598,7 +607,8 @@
         "allowed_target_resolvers": [
           "owner_centered_area"
         ]
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "saint_blade_combo",
@@ -696,7 +706,8 @@
         "agility": 80,
         "strength": 80,
         "willpower": 80
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "sword_training",
@@ -720,7 +731,8 @@
       ],
       "mastery_sources": [
         "battle"
-      ]
+      ],
+      "template": "max_level_5"
     },
     {
       "skill_id": "titan_colossus_form",
@@ -854,7 +866,8 @@
       ],
       "mastery_sources": [
         "battle"
-      ]
+      ],
+      "template": "max_level_5"
     },
     {
       "skill_id": "vajra_body",
@@ -1023,7 +1036,8 @@
         550,
         1000,
         1600
-      ]
+      ],
+      "template": "max_level_5"
     },
     {
       "skill_id": "wolf_alpha_dominance_howl",
@@ -1132,7 +1146,8 @@
         550,
         1000,
         1600
-      ]
+      ],
+      "template": "max_level_5"
     },
     {
       "skill_id": "wolf_alpha_hamstring_bite",
@@ -1258,11 +1273,25 @@
         550,
         1000,
         1600
-      ]
+      ],
+      "template": "max_level_5"
     }
   ],
   "family": "misc_02",
-  "templates": {},
+  "templates": {
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "non_core_max_level_1": {
+      "non_core_max_level": 1
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

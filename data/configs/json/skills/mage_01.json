@@ -257,7 +257,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_apocalypse_word",
@@ -516,7 +517,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_arc_net",
@@ -764,7 +766,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_arcane_aegis",
@@ -944,7 +947,8 @@
         "constitution": 20,
         "intelligence": 60,
         "willpower": 100
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_arcane_cataclysm",
@@ -1218,7 +1222,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_arcane_echo",
@@ -1384,7 +1389,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_arcane_missile",
@@ -1882,7 +1888,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_arcane_turret",
@@ -2137,7 +2144,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_ashen_mark",
@@ -2342,7 +2350,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_astral_page",
@@ -2531,7 +2540,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_ball_lightning",
@@ -2779,7 +2789,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_banshee_wail",
@@ -3025,7 +3036,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_black_flame",
@@ -3226,7 +3238,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_blink",
@@ -3351,7 +3364,8 @@
         "allowed_target_resolvers": [
           "empty_cell_near_owner"
         ]
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_blur",
@@ -3516,7 +3530,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_bone_chill",
@@ -3704,7 +3719,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_boulder_throw",
@@ -3905,7 +3921,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_burning_hands",
@@ -4123,7 +4140,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_chain_contingency",
@@ -4167,7 +4185,8 @@
         "intelligence": 100,
         "perception": 30,
         "willpower": 50
-      }
+      },
+      "template": "growth_tier_advanced"
     },
     {
       "skill_id": "mage_chain_lightning",
@@ -4492,7 +4511,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_cinder_bolt",
@@ -4697,7 +4717,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_cold_snap",
@@ -4945,7 +4966,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_color_spray",
@@ -5547,7 +5569,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_comet_drop",
@@ -5797,7 +5820,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_conductive_mark",
@@ -5999,11 +6023,22 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     }
   ],
   "family": "mage_01",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

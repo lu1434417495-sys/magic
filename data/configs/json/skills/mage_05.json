@@ -125,7 +125,8 @@
         "intelligence": 20,
         "perception": 10,
         "willpower": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "mage_prismatic_orange_ward",
@@ -252,7 +253,8 @@
         "constitution": 20,
         "intelligence": 30,
         "willpower": 10
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "mage_prismatic_red_ward",
@@ -379,7 +381,8 @@
         "constitution": 20,
         "intelligence": 30,
         "willpower": 10
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "mage_prismatic_sphere",
@@ -489,7 +492,8 @@
         "constitution": 20,
         "intelligence": 100,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_prismatic_violet_ward",
@@ -616,7 +620,8 @@
         "intelligence": 30,
         "perception": 10,
         "willpower": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "mage_prismatic_yellow_ward",
@@ -743,7 +748,8 @@
         "constitution": 20,
         "intelligence": 20,
         "willpower": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "mage_quicksand",
@@ -984,7 +990,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_rampart_raise",
@@ -1157,7 +1164,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_rime_burst",
@@ -1398,7 +1406,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_rock_armor",
@@ -1573,7 +1582,8 @@
         "allowed_target_resolvers": [
           "self"
         ]
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_runic_golem",
@@ -1828,7 +1838,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_runic_trap",
@@ -2083,7 +2094,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_sandstorm",
@@ -2324,7 +2336,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_scorch_wave",
@@ -2567,7 +2580,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_seal_of_binding",
@@ -2784,7 +2798,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_searing_orb",
@@ -3024,7 +3039,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_shadow_bolt",
@@ -3226,7 +3242,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_shadow_double",
@@ -3425,7 +3442,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_shatter_lance",
@@ -3628,7 +3646,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_silence_orb",
@@ -3897,7 +3916,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_skybreaker",
@@ -4148,7 +4168,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_sleep_dust",
@@ -4451,7 +4472,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_snowblind",
@@ -4691,7 +4713,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_soul_cage",
@@ -4892,7 +4915,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_soul_chain",
@@ -5132,11 +5156,31 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     }
   ],
   "family": "mage_05",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

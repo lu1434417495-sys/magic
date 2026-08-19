@@ -217,7 +217,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_spell_disjunction",
@@ -723,7 +724,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_spell_totem",
@@ -895,7 +897,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_spellbreaker",
@@ -1114,7 +1117,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_spellward",
@@ -1370,7 +1374,8 @@
         "constitution": 20,
         "intelligence": 60,
         "willpower": 100
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_starfall_gate",
@@ -1610,7 +1615,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_static_field",
@@ -1851,7 +1857,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_stone_spike",
@@ -2091,7 +2098,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_storm_call",
@@ -2331,7 +2339,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_storm_nexus",
@@ -2580,7 +2589,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_storm_sprite",
@@ -2820,7 +2830,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_summon_familiar",
@@ -2985,7 +2996,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_sunflare_bomb",
@@ -3237,7 +3249,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_tempest_ring",
@@ -3474,7 +3487,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_temporal_rewind",
@@ -3640,7 +3654,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_terra_pulse",
@@ -3877,7 +3892,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_thunder_lance",
@@ -4117,7 +4133,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_thunderclap",
@@ -4362,7 +4379,8 @@
         "allowed_target_resolvers": [
           "owner_centered_area"
         ]
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_time_dilate",
@@ -4580,7 +4598,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_time_stop",
@@ -4754,7 +4773,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_void_spike",
@@ -4994,7 +5014,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_voltage_hook",
@@ -5180,7 +5201,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_warding_skull",
@@ -5414,7 +5436,8 @@
         "constitution": 20,
         "intelligence": 60,
         "willpower": 100
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_whiteout",
@@ -5654,7 +5677,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_wither_field",
@@ -5895,11 +5919,22 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     }
   ],
   "family": "mage_06",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

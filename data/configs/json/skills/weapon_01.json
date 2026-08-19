@@ -37,7 +37,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_executioner_death_sentence",
@@ -86,7 +87,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_executioner_execution_fear",
@@ -132,7 +134,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_executioner_judgment_fallback",
@@ -168,7 +171,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_executioner_judgment_resolution",
@@ -203,7 +207,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_executioner_self_execution",
@@ -242,7 +247,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_frostbite_icebound_path",
@@ -287,7 +293,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_lunareclipse_eclipse_shadowstep",
@@ -336,7 +343,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_rustanchor_sunk_anchor_stance",
@@ -371,7 +379,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_axe_starfragment_starburst",
@@ -471,7 +480,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_bow_thunderbow_stored_thunder_shot",
@@ -527,7 +537,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_bow_windbow_gale_push",
@@ -578,7 +589,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_bow_wolf_spirit_summon",
@@ -607,7 +619,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_exotic_sands_time_accelerate",
@@ -636,7 +649,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_exotic_sands_time_decelerate",
@@ -664,7 +678,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_hammer_tremor_shockwave",
@@ -705,7 +720,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_morningstar_viper_venom_injection",
@@ -734,7 +750,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_polearm_spider_spear_web_binding",
@@ -782,7 +799,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_courage_inspire",
@@ -834,7 +852,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_cowardice_scurry",
@@ -890,7 +909,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_double_edged_single_edge",
@@ -937,7 +957,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_double_edged_twin_attack",
@@ -987,7 +1008,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_heartbane_heartbreak_burst",
@@ -1049,7 +1071,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_last_lesson_inheritance_seal",
@@ -1076,7 +1099,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_last_lesson_last_lesson",
@@ -1103,7 +1127,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_oathscar_bind_oath",
@@ -1142,7 +1167,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_oathscar_oath_judgment",
@@ -1206,7 +1232,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_ravenplume_crow_feast",
@@ -1244,7 +1271,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_rustoath_rust_powder_storm",
@@ -1288,7 +1316,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_starfell_star_map_guidance",
@@ -1315,7 +1344,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_starfell_starfall",
@@ -1428,7 +1458,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_threadweaver_thread_mending",
@@ -1468,7 +1499,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_twilight_edge_twilight_step",
@@ -1504,7 +1536,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_wyrmbreak_dragon_soul_burst",
@@ -1557,7 +1590,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_sword_wyrmbreak_dragon_soul_extension",
@@ -1595,7 +1629,8 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     },
     {
       "skill_id": "weapon_warhammer_sacred_heal",
@@ -1635,11 +1670,16 @@
       "non_core_max_level": 1,
       "mastery_curve": [
         20
-      ]
+      ],
+      "template": "non_core_max_level_1"
     }
   ],
   "family": "weapon_01",
-  "templates": {},
+  "templates": {
+    "non_core_max_level_1": {
+      "non_core_max_level": 1
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

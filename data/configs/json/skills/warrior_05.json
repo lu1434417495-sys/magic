@@ -46,7 +46,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_earthquake",
@@ -94,7 +95,8 @@
       "attribute_growth_progress": {
         "constitution": 10,
         "strength": 50
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_encircle_tactic",
@@ -132,7 +134,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_endurance_stance",
@@ -167,7 +170,8 @@
       "attribute_growth_progress": {
         "constitution": 40,
         "willpower": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_execution_cleave",
@@ -250,7 +254,8 @@
       "attribute_growth_progress": {
         "perception": 60,
         "strength": 120
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_expose_weakness",
@@ -288,7 +293,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "willpower": 20
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_falling_mountain_intimidate",
@@ -343,7 +349,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_falling_star_break_step",
@@ -388,7 +395,8 @@
       "attribute_growth_progress": {
         "agility": 30,
         "strength": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_falling_star_step",
@@ -432,7 +440,8 @@
       "attribute_growth_progress": {
         "agility": 30,
         "strength": 30
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_fate_toss",
@@ -484,7 +493,8 @@
       "attribute_growth_progress": {
         "strength": 90,
         "willpower": 90
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_fearless_advance",
@@ -517,7 +527,8 @@
       "attribute_growth_progress": {
         "constitution": 40,
         "willpower": 20
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_feint_retreat_order",
@@ -567,7 +578,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 120
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_first_ascend_order",
@@ -603,7 +615,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_flag_tip_break_order",
@@ -662,7 +675,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_flame_arc_sweep",
@@ -710,7 +724,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_flame_arc_sweep_aoe",
@@ -767,7 +782,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_flame_armor_break",
@@ -812,7 +828,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_flame_blade_aura",
@@ -850,7 +867,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_flame_breath_seal_domain",
@@ -904,7 +922,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_flame_cyclone",
@@ -960,7 +979,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_flame_line_slice",
@@ -1002,7 +1022,8 @@
       "attribute_growth_progress": {
         "strength": 40,
         "willpower": 80
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_flame_line_slice_formation",
@@ -1056,7 +1077,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_flame_step_light_body",
@@ -1091,7 +1113,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_flame_wind_curtain",
@@ -1131,7 +1154,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_flame_zone_block",
@@ -1180,7 +1204,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 100
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_flank_order",
@@ -1216,7 +1241,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_flaw_read",
@@ -1260,7 +1286,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_flip_slash",
@@ -1323,7 +1350,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_focus_fire_command",
@@ -1362,11 +1390,43 @@
       "attribute_growth_progress": {
         "agility": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_3"
     }
   ],
   "family": "warrior_05",
-  "templates": {},
+  "templates": {
+    "max_level_3": {
+      "max_level": 3
+    },
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "max_level_9": {
+      "max_level": 9
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_7": {
+      "non_core_max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_intermediate": {
+      "growth_tier": "intermediate"
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

@@ -251,7 +251,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_confusion_wave",
@@ -501,7 +502,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_continual_light",
@@ -708,7 +710,8 @@
         "intelligence": 100,
         "perception": 50,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_cryo_lock",
@@ -911,7 +914,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_crystal_pike",
@@ -1159,7 +1163,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_crystal_sentinel",
@@ -1399,7 +1404,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_death_mark",
@@ -1588,7 +1594,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_death_reap",
@@ -1800,7 +1807,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_delayed_fireball",
@@ -2087,7 +2095,8 @@
       "attribute_growth_progress": {
         "intelligence": 120,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_dimension_swap",
@@ -2229,7 +2238,8 @@
         "agility": 50,
         "intelligence": 90,
         "willpower": 40
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_dispel_magic",
@@ -2419,7 +2429,8 @@
         "intelligence": 100,
         "perception": 30,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_dispel_wave",
@@ -2683,7 +2694,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_earthen_grasp",
@@ -2914,7 +2926,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_elemental_fusion",
@@ -3080,7 +3093,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_ember_mine",
@@ -3323,7 +3337,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_ember_wisp",
@@ -3566,7 +3581,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_ether_pull",
@@ -3783,7 +3799,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_fault_line",
@@ -4031,7 +4048,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_fear_whisper",
@@ -4248,7 +4266,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_fire_wall",
@@ -4566,7 +4585,8 @@
       "attribute_growth_progress": {
         "intelligence": 120,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_fireball",
@@ -4855,7 +4875,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_flame_spear",
@@ -5106,7 +5127,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_force_lance",
@@ -5363,7 +5385,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_force_wall",
@@ -5564,7 +5587,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_fossil_to_mud",
@@ -5756,11 +5780,22 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     }
   ],
   "family": "mage_02",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

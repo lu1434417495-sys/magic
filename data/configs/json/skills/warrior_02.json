@@ -38,7 +38,8 @@
       "attribute_growth_progress": {
         "constitution": 10,
         "strength": 50
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_bestial_dodge",
@@ -74,7 +75,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_black_blade_soul_cut",
@@ -132,7 +134,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_blade_pick_gap",
@@ -178,7 +181,8 @@
       "attribute_growth_progress": {
         "agility": 30,
         "strength": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_blade_wall_stance",
@@ -221,7 +225,8 @@
       "attribute_growth_progress": {
         "constitution": 40,
         "willpower": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_blade_wall_stroll",
@@ -266,7 +271,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_blazing_sun_flash",
@@ -305,7 +311,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 80
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_blinding_flash",
@@ -354,7 +361,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_blood_mark",
@@ -387,7 +395,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_blood_oath_mark",
@@ -425,7 +434,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_blood_rain_chain",
@@ -498,7 +508,8 @@
       "attribute_growth_progress": {
         "constitution": 80,
         "strength": 100
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_blood_shadow_recycle",
@@ -535,7 +546,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_blood_vein_guard_heart",
@@ -574,7 +586,8 @@
         "constitution": 50,
         "strength": 40,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_blood_vein_oath_kill",
@@ -615,7 +628,8 @@
         "constitution": 70,
         "strength": 60,
         "willpower": 50
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_bloodthirst",
@@ -650,7 +664,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_blue_dragon_pierce",
@@ -707,7 +722,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_bone_crush",
@@ -752,7 +768,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 10
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_bone_crush_shock",
@@ -817,7 +834,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_bone_ring_chase_judge",
@@ -862,7 +880,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_borrow_enemy_crash",
@@ -922,7 +941,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_break_formation_order",
@@ -962,7 +982,8 @@
       "attribute_growth_progress": {
         "strength": 40,
         "willpower": 80
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_break_momentum_knock",
@@ -1020,7 +1041,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_breath_stop_short_thrust",
@@ -1078,7 +1100,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_broken_horn_headbutt",
@@ -1139,7 +1162,8 @@
         "constitution": 50,
         "strength": 40,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_burn_armor_qi",
@@ -1210,7 +1234,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_burn_breath_press",
@@ -1262,7 +1287,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_burn_feet",
@@ -1315,7 +1341,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_burn_soul_short_oath",
@@ -1354,7 +1381,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_burning_dragon_tornado",
@@ -1454,11 +1482,43 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     }
   ],
   "family": "warrior_02",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_9": {
+      "max_level": 9
+    },
+    "max_level_3": {
+      "max_level": 3
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_7": {
+      "non_core_max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_intermediate": {
+      "growth_tier": "intermediate"
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

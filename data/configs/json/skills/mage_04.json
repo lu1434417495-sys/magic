@@ -215,7 +215,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_meteor_swarm",
@@ -384,7 +385,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mirror_frost",
@@ -550,7 +552,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mirror_image",
@@ -723,7 +726,8 @@
         "allowed_target_resolvers": [
           "self"
         ]
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mirror_shard",
@@ -939,7 +943,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mislead",
@@ -1107,7 +1112,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_molten_burst",
@@ -1358,7 +1364,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_mud_wave",
@@ -1607,7 +1614,8 @@
         "constitution": 50,
         "intelligence": 100,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_null_zone",
@@ -1808,7 +1816,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_obsidian_shards",
@@ -2056,7 +2065,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_overcharge",
@@ -2221,7 +2231,8 @@
         "intelligence": 90,
         "perception": 20,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_passwall",
@@ -2339,7 +2350,8 @@
         "intelligence": 100,
         "perception": 40,
         "willpower": 40
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_permafrost_field",
@@ -2588,7 +2600,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_phantasmal_blade",
@@ -2806,7 +2819,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_phantasmal_kill",
@@ -3038,7 +3052,8 @@
       "attribute_growth_progress": {
         "intelligence": 160,
         "willpower": 80
-      }
+      },
+      "template": "growth_tier_ultimate"
     },
     {
       "skill_id": "mage_phantom_cage",
@@ -3254,7 +3269,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_phase_beam",
@@ -3518,7 +3534,8 @@
         "agility": 50,
         "intelligence": 90,
         "willpower": 40
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_phoenix_arc",
@@ -3769,7 +3786,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_plasma_beam",
@@ -4019,7 +4037,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_portal_step",
@@ -4194,7 +4213,8 @@
         "agility": 50,
         "intelligence": 90,
         "willpower": 40
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_power_word_kill",
@@ -4252,7 +4272,8 @@
       "attribute_growth_progress": {
         "intelligence": 160,
         "willpower": 80
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "mage_prism_spray",
@@ -4500,7 +4521,8 @@
         "intelligence": 110,
         "perception": 20,
         "willpower": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_prismatic_barrier",
@@ -4711,7 +4733,8 @@
         "constitution": 20,
         "intelligence": 60,
         "willpower": 100
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "mage_prismatic_blue_ward",
@@ -4838,7 +4861,8 @@
         "constitution": 20,
         "intelligence": 20,
         "willpower": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "mage_prismatic_green_ward",
@@ -4965,11 +4989,34 @@
         "constitution": 30,
         "intelligence": 20,
         "willpower": 10
-      }
+      },
+      "template": "max_level_5"
     }
   ],
   "family": "mage_04",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_ultimate": {
+      "growth_tier": "ultimate"
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

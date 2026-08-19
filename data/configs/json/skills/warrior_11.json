@@ -44,7 +44,8 @@
       "attribute_growth_progress": {
         "agility": 10,
         "strength": 50
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_rip_slash",
@@ -109,7 +110,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_rock_armor",
@@ -156,7 +158,8 @@
       "growth_tier": "intermediate",
       "attribute_growth_progress": {
         "constitution": 120
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_rock_hum_charge",
@@ -190,7 +193,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_rotate_position",
@@ -224,7 +228,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_round_shield_trip",
@@ -269,7 +274,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_sand_fire_trap",
@@ -309,7 +315,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "willpower": 80
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_sand_fire_trap_skill",
@@ -357,7 +364,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_scale_crack",
@@ -396,7 +404,8 @@
       "attribute_growth_progress": {
         "constitution": 10,
         "strength": 50
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_scale_crack_open",
@@ -442,7 +451,8 @@
         "constitution": 50,
         "strength": 40,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_scale_rain_counter",
@@ -492,7 +502,8 @@
         "constitution": 50,
         "strength": 40,
         "willpower": 30
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_scatter_formation",
@@ -541,7 +552,8 @@
       "attribute_growth_progress": {
         "constitution": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_scorching_feet",
@@ -586,7 +598,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_sever_light_hand",
@@ -644,7 +657,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shadow_blade_throw",
@@ -683,7 +697,8 @@
       "attribute_growth_progress": {
         "agility": 50,
         "strength": 10
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_shadow_chain",
@@ -723,7 +738,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_shadow_chain_bind",
@@ -770,7 +786,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shadow_dagger_throw",
@@ -816,7 +833,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_shadow_hide_stance",
@@ -853,7 +871,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shadow_nail_remain",
@@ -913,7 +932,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shadow_rope_step",
@@ -973,7 +993,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shadow_sever",
@@ -1082,7 +1103,8 @@
       "attribute_growth_progress": {
         "agility": 70,
         "strength": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shadow_stitch",
@@ -1128,7 +1150,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_shadow_strike",
@@ -1191,7 +1214,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shatter_armor_echo",
@@ -1250,7 +1274,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shatter_formation_drag",
@@ -1309,7 +1334,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shelter_afterglow",
@@ -1359,7 +1385,8 @@
       "attribute_growth_progress": {
         "constitution": 80,
         "willpower": 40
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_shelter_light",
@@ -1409,11 +1436,34 @@
       "attribute_growth_progress": {
         "constitution": 40,
         "willpower": 80
-      }
+      },
+      "template": "max_level_3"
     }
   ],
   "family": "warrior_11",
-  "templates": {},
+  "templates": {
+    "max_level_3": {
+      "max_level": 3
+    },
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_intermediate": {
+      "growth_tier": "intermediate"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

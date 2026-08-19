@@ -56,7 +56,8 @@
       "attribute_growth_progress": {
         "constitution": 120,
         "willpower": 60
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_one_inch_advantage",
@@ -91,7 +92,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_opening_bait",
@@ -126,7 +128,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_over_shoulder",
@@ -187,7 +190,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_overhead_chop",
@@ -282,7 +286,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_perfect_rhythm",
@@ -360,7 +365,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_phantom_blade_bait",
@@ -405,7 +411,8 @@
       "attribute_growth_progress": {
         "agility": 30,
         "strength": 30
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_phantom_through",
@@ -551,7 +558,8 @@
       "attribute_growth_progress": {
         "agility": 90,
         "strength": 90
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_phantom_walk_mark",
@@ -586,7 +594,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_pierce_formation_draw",
@@ -649,7 +658,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_piercing_thrust",
@@ -763,7 +773,8 @@
       "attribute_growth_progress": {
         "perception": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_pole_shift_force",
@@ -798,7 +809,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_pounce",
@@ -857,7 +869,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_prairie_fire_domain",
@@ -910,7 +923,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_prairie_fire_order",
@@ -960,7 +974,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 120
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_precision_combo",
@@ -995,7 +1010,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_predictive_block",
@@ -1028,7 +1044,8 @@
       "attribute_growth_progress": {
         "constitution": 40,
         "willpower": 20
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_purify_roar",
@@ -1077,7 +1094,8 @@
       "attribute_growth_progress": {
         "constitution": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_push_hand_block",
@@ -1122,7 +1140,8 @@
       "attribute_growth_progress": {
         "constitution": 20,
         "strength": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_qi_awaken",
@@ -1162,7 +1181,8 @@
       "attribute_growth_progress": {
         "strength": 70,
         "willpower": 110
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_qi_blade",
@@ -1204,7 +1224,8 @@
       "attribute_growth_progress": {
         "strength": 20,
         "willpower": 40
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_qi_blade_line",
@@ -1246,7 +1267,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_qi_blade_return",
@@ -1304,7 +1326,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_qi_bolt_snipe",
@@ -1356,7 +1379,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_qi_bolt_sniper",
@@ -1394,7 +1418,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "willpower": 80
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_qi_burst",
@@ -1435,7 +1460,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_qi_burst_aoe",
@@ -1489,7 +1515,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_qi_chain_combo",
@@ -1539,7 +1566,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_qi_combo",
@@ -1582,11 +1610,43 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_3"
     }
   ],
   "family": "warrior_09",
-  "templates": {},
+  "templates": {
+    "max_level_3": {
+      "max_level": 3
+    },
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "max_level_9": {
+      "max_level": 9
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_7": {
+      "non_core_max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_intermediate": {
+      "growth_tier": "intermediate"
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

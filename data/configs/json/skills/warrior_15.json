@@ -54,7 +54,8 @@
       "attribute_growth_progress": {
         "strength": 112,
         "willpower": 68
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_twin_blade_chain_plan",
@@ -113,7 +114,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_twin_blade_rotate",
@@ -146,7 +148,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_twin_claw_rip",
@@ -205,7 +208,8 @@
       "attribute_growth_progress": {
         "constitution": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_twin_moon_cross",
@@ -264,7 +268,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_twin_shadow_shift",
@@ -324,7 +329,8 @@
       "attribute_growth_progress": {
         "agility": 60,
         "strength": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_unbending_rise",
@@ -384,7 +390,8 @@
       "attribute_growth_progress": {
         "constitution": 80,
         "willpower": 40
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_unbreakable_fortress",
@@ -436,7 +443,8 @@
       "attribute_growth_progress": {
         "constitution": 150,
         "willpower": 90
-      }
+      },
+      "template": "max_level_10"
     },
     {
       "skill_id": "warrior_undying_dragon_scar",
@@ -477,7 +485,8 @@
         "constitution": 80,
         "strength": 100,
         "willpower": 60
-      }
+      },
+      "template": "max_level_10"
     },
     {
       "skill_id": "warrior_vanguard_designate",
@@ -511,7 +520,8 @@
       "attribute_growth_progress": {
         "constitution": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_vanguard_pardon",
@@ -551,7 +561,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_vanguard_pardon_skill",
@@ -601,7 +612,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 120
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_vein_burn_circulate",
@@ -638,7 +650,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_war_banner",
@@ -694,7 +707,8 @@
       "attribute_growth_progress": {
         "strength": 40,
         "willpower": 80
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_war_cry",
@@ -848,7 +862,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 90
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_war_cry_v2",
@@ -892,7 +907,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_war_drum_reverse_echo",
@@ -932,7 +948,8 @@
       "attribute_growth_progress": {
         "strength": 40,
         "willpower": 80
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_weak_point_mark",
@@ -965,7 +982,8 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_weapon_disarm",
@@ -1031,7 +1049,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 60
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_whirlwind_slash",
@@ -1157,7 +1176,8 @@
       "attribute_growth_progress": {
         "agility": 90,
         "strength": 90
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_white_blade_vanish",
@@ -1195,7 +1215,8 @@
       "attribute_growth_progress": {
         "agility": 70,
         "strength": 50
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_white_raven_decree",
@@ -1237,7 +1258,8 @@
       "attribute_growth_progress": {
         "strength": 60,
         "willpower": 120
-      }
+      },
+      "template": "max_level_9"
     },
     {
       "skill_id": "warrior_wild_dodge",
@@ -1283,7 +1305,8 @@
       "growth_tier": "basic",
       "attribute_growth_progress": {
         "agility": 60
-      }
+      },
+      "template": "max_level_3"
     },
     {
       "skill_id": "warrior_wild_pursuit",
@@ -1318,7 +1341,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "strength": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "warrior_will_penetrate",
@@ -1389,7 +1413,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_wind_blade_slash",
@@ -1444,7 +1469,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_wind_ember",
@@ -1482,7 +1508,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_wind_pressure_thrust",
@@ -1541,7 +1568,8 @@
       "attribute_growth_progress": {
         "strength": 50,
         "willpower": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "warrior_wrist_shock_steal",
@@ -1586,11 +1614,52 @@
       "attribute_growth_progress": {
         "strength": 30,
         "willpower": 30
-      }
+      },
+      "template": "max_level_5"
     }
   ],
   "family": "warrior_15",
-  "templates": {},
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_10": {
+      "max_level": 10
+    },
+    "max_level_3": {
+      "max_level": 3
+    },
+    "max_level_9": {
+      "max_level": 9
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_7": {
+      "non_core_max_level": 7
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "non_core_max_level_9": {
+      "non_core_max_level": 9
+    },
+    "growth_tier_intermediate": {
+      "growth_tier": "intermediate"
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    },
+    "growth_tier_ultimate": {
+      "growth_tier": "ultimate"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

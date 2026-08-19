@@ -118,7 +118,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_armor_piercer",
@@ -275,7 +276,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_arrow_rain",
@@ -487,7 +489,8 @@
       "attribute_growth_progress": {
         "agility": 80,
         "perception": 40
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "archer_backstep_shot",
@@ -586,7 +589,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_breach_barrage",
@@ -710,7 +714,8 @@
       "attribute_growth_progress": {
         "agility": 50,
         "strength": 70
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "archer_disrupting_arrow",
@@ -825,7 +830,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_double_nock",
@@ -924,7 +930,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_evasive_roll",
@@ -1000,7 +1007,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_execution_arrow",
@@ -1064,7 +1072,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_fan_volley",
@@ -1135,7 +1144,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_far_horizon",
@@ -1204,7 +1214,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_fearsignal_shot",
@@ -1275,7 +1286,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_flash_whistle",
@@ -1411,7 +1423,8 @@
       "attribute_growth_progress": {
         "agility": 20,
         "perception": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_grapple_redeploy",
@@ -1523,7 +1536,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_harrier_mark",
@@ -1726,7 +1740,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_heartseeker",
@@ -1794,7 +1809,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_highground_claim",
@@ -1866,7 +1882,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_hunter_feint",
@@ -1929,7 +1946,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_hunter_mark",
@@ -2140,7 +2158,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "willpower": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_hunting_grid",
@@ -2211,7 +2230,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_killing_field",
@@ -2287,7 +2307,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_long_draw",
@@ -2421,7 +2442,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_multishot",
@@ -2559,7 +2581,8 @@
       "attribute_growth_progress": {
         "agility": 80,
         "strength": 40
-      }
+      },
+      "template": "max_level_7"
     },
     {
       "skill_id": "archer_pinning_shot",
@@ -2700,7 +2723,8 @@
       "attribute_growth_progress": {
         "agility": 20,
         "perception": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_repel_arrow",
@@ -2807,7 +2831,8 @@
       "attribute_growth_progress": {
         "agility": 40,
         "perception": 20
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_running_shot",
@@ -2875,7 +2900,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_shield_breaker",
@@ -2943,7 +2969,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_shooting_specialization",
@@ -3040,7 +3067,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_skirmish_step",
@@ -3116,7 +3144,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_split_bolt",
@@ -3192,7 +3221,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_suppressive_fire",
@@ -3380,7 +3410,8 @@
       "attribute_growth_progress": {
         "agility": 20,
         "perception": 40
-      }
+      },
+      "template": "max_level_5"
     },
     {
       "skill_id": "archer_tendon_splitter",
@@ -3448,7 +3479,8 @@
         28,
         46,
         72
-      ]
+      ],
+      "template": "max_level_3"
     },
     {
       "skill_id": "archer_tripwire_arrow",
@@ -3673,11 +3705,34 @@
       "attribute_growth_progress": {
         "agility": 20,
         "perception": 40
-      }
+      },
+      "template": "max_level_5"
     }
   ],
   "family": "archer_01",
-  "templates": {},
+  "templates": {
+    "max_level_3": {
+      "max_level": 3
+    },
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_3": {
+      "non_core_max_level": 3
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    },
+    "growth_tier_intermediate": {
+      "growth_tier": "intermediate"
+    },
+    "growth_tier_basic": {
+      "growth_tier": "basic"
+    }
+  },
   "domain": "skills",
   "schema": 1
 }

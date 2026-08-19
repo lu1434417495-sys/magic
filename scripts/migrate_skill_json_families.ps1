@@ -77,26 +77,29 @@ foreach ($file in $documents) {
     $entries = @($document.entries)
     if ($entries.Count -eq 0) { continue }
 
-    $template = [ordered]@{}
-    foreach ($key in @('skill_type', 'learn_source')) {
-        if (-not $entries[0].Contains($key)) { continue }
-        $candidate = $entries[0][$key]
-        $candidateJson = $candidate | ConvertTo-Json -Compress -Depth 20
-        $shared = $true
+    $templates = [ordered]@{}
+    foreach ($key in @('max_level', 'non_core_max_level', 'growth_tier')) {
+        $groups = @{}
         foreach ($entry in $entries) {
-            if (-not $entry.Contains($key) -or (($entry[$key] | ConvertTo-Json -Compress -Depth 20) -ne $candidateJson)) {
-                $shared = $false
-                break
+            if (-not $entry.Contains($key)) { continue }
+            $serialized = $entry[$key] | ConvertTo-Json -Compress -Depth 20
+            if (-not $groups.Contains($serialized)) { $groups[$serialized] = @() }
+            $groups[$serialized] += $entry
+        }
+        foreach ($serialized in $groups.Keys) {
+            $members = @($groups[$serialized])
+            if ($members.Count -lt 2) { continue }
+            $suffix = ($serialized -replace '[^A-Za-z0-9]+', '_').Trim('_').ToLowerInvariant()
+            $templateName = "${key}_${suffix}"
+            $templates[$templateName] = [ordered]@{ $key = $members[0][$key] }
+            foreach ($entry in $members) {
+                if (-not $entry.Contains('template')) {
+                    $entry['template'] = $templateName
+                }
             }
         }
-        if ($shared) { $template[$key] = $candidate }
     }
-    if ($template.Count -eq 0) { continue }
-
-    $templateName = 'family_base'
-    foreach ($entry in $entries) {
-        $entry.template = $templateName
-    }
-    $document.templates = [ordered]@{ $templateName = $template }
+    if ($templates.Count -eq 0) { continue }
+    $document.templates = $templates
     Write-JsonDocument $file.FullName $document
 }
