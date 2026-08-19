@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "stage3_reject_cross_missing_skill",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_generated_cross_missing_skill",
+      "display_name": "错误前置技能",
+      "description": "故意引用不存在的学习前置技能。",
+      "skill_type": "active",
+      "max_level": 0,
+      "learn_source": "internal",
+      "learn_requirements": [
+        "mage_skill_that_does_not_exist"
+      ],
+      "combat_profile": {
+        "skill_id": "mage_generated_cross_missing_skill",
+        "target_mode": "unit",
+        "target_team_filter": "enemy",
+        "range_value": 3,
+        "ap_cost": 1,
+        "mp_cost": 30,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 3,
+            "dice_sides": 4,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      }
+    }
+  ]
+}

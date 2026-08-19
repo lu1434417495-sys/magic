@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "stage3_reject_domain_growth_total",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_generated_domain_growth_total",
+      "display_name": "错误成长预算",
+      "description": "故意让 basic 技能的属性成长总量低于领域规定的 60。",
+      "skill_type": "active",
+      "max_level": 0,
+      "learn_source": "internal",
+      "combat_profile": {
+        "skill_id": "mage_generated_domain_growth_total",
+        "target_mode": "unit",
+        "target_team_filter": "enemy",
+        "range_value": 3,
+        "ap_cost": 1,
+        "mp_cost": 30,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 3,
+            "dice_sides": 4
+          }
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "intelligence": 30
+      }
+    }
+  ]
+}
