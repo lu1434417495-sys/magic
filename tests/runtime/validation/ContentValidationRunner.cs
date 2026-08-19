@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -199,7 +198,6 @@ internal static class ContentValidationRunner
             label,
             ["res://data/configs/races"],
             ["res://data/configs/subraces"],
-            ["res://data/configs/traits"],
             ["res://data/configs/age_profiles"],
             ["res://data/configs/bloodlines"],
             ["res://data/configs/ascensions"],
@@ -212,7 +210,6 @@ internal static class ContentValidationRunner
         string label,
         string[] raceDirectories,
         string[] subraceDirectories,
-        string[] traitDirectories,
         string[] ageProfileDirectories,
         string[] bloodlineDirectories,
         string[] ascensionDirectories,
@@ -222,7 +219,7 @@ internal static class ContentValidationRunner
     {
         using RaceContentRegistry raceRegistry = BuildRaceRegistry(raceDirectories);
         using SubraceContentRegistry subraceRegistry = BuildSubraceRegistry(subraceDirectories);
-        using TraitContentRegistry traitRegistry = BuildTraitRegistry(traitDirectories);
+        using TraitContentRegistry traitRegistry = BuildTraitRegistry();
         using AgeContentRegistry ageRegistry = BuildAgeRegistry(ageProfileDirectories);
         using BloodlineContentRegistry bloodlineRegistry =
             BuildBloodlineRegistry(bloodlineDirectories);
@@ -263,47 +260,19 @@ internal static class ContentValidationRunner
 
     public static ValidationDomainResult ValidateOfficialItemContent()
     {
-        using TraitContentRegistry traitRegistry = new(new TestContentResourceLoader());
-        return ValidateItemDirectories(
-            "official_items",
-            ["res://data/configs/items"],
-            ["res://data/configs/items_templates"],
-            traitDefinitions: traitRegistry.GetTraitDefsTyped()
-        );
-    }
-
-    public static ValidationDomainResult ValidateItemDirectories(
-        string label,
-        string[] itemDirectories,
-        string[] templateDirectories = null,
-        GDictionary skillDefs = null,
-        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions = null
-    )
-    {
-        using TestContentResourceLoader loader = new();
-        using ItemContentRegistry registry = new(loader);
-        registry.RebuildFromDirectories(
-            ToGodotArray(itemDirectories),
-            ToGodotArray(templateDirectories ?? Array.Empty<string>())
-        );
+        using TraitContentRegistry traitRegistry = new();
+        using ItemContentRegistry registry = new();
+        registry.Rebuild();
         List<string> combinedErrors = ToStringList(registry.Validate());
-        if (skillDefs != null && skillDefs.Count > 0)
-            AppendUniqueErrors(
-                combinedErrors,
-                ValidateSkillBookItems(registry.GetItemDefsTyped(), skillDefs)
-            );
-        if (traitDefinitions != null && traitDefinitions.Count > 0)
-        {
-            AppendUniqueErrors(
-                combinedErrors,
-                ItemTraitContentValidator.Validate(
-                    registry.GetItemDefsTyped(),
-                    traitDefinitions,
-                    label
-                )
-            );
-        }
-        return BuildDomainResult("item", label, combinedErrors);
+        AppendUniqueErrors(
+            combinedErrors,
+            ItemTraitContentValidator.Validate(
+                registry.GetItemDefsTyped(),
+                traitRegistry.GetTraitDefsTyped(),
+                "official_items"
+            )
+        );
+        return BuildDomainResult("item", "official_items", combinedErrors);
     }
 
     public static ValidationDomainResult ValidateRecipeDirectory(
@@ -311,11 +280,77 @@ internal static class ContentValidationRunner
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
-        using TestContentResourceLoader loader = new();
-        using RecipeContentRegistry registry = new(loader);
-        registry.Setup(itemDefinitions);
-        registry.LoadFromDirectory(directoryPath);
-        return BuildDomainResult("recipe", directoryPath, registry.Validate());
+        var sourceReader = new GodotContentJsonSourceReader();
+        ContentImportBatch<RecipeImportModel> batch =
+            RecipeContentJsonAuthoringDomain.CreateImportDescriptor(
+                directoryPath,
+                sourceReader
+            ).Import();
+        var errors = new List<string>();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+        {
+            errors.Add(
+                $"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
+            );
+        }
+        IReadOnlyList<ContentImportEntry<RecipeImportModel>> referenceEntries =
+            batch.HasErrors
+                ? ImportRecipeEntriesPerDocument(directoryPath, sourceReader)
+                : batch.Entries;
+        foreach (ContentImportEntry<RecipeImportModel> entry in referenceEntries)
+        {
+            foreach (RecipeIngredientImportModel input in entry.Import.Inputs)
+            {
+                var inputId = new StringName(input.ItemId);
+                if (itemDefinitions != null && !itemDefinitions.ContainsKey(inputId))
+                {
+                    errors.Add(
+                        $"Recipe {entry.Import.RecipeId} references missing input item {inputId}."
+                    );
+                }
+            }
+            var outputItemId = new StringName(entry.Import.OutputItemId);
+            if (itemDefinitions != null && !itemDefinitions.ContainsKey(outputItemId))
+            {
+                errors.Add(
+                    $"Recipe {entry.Import.RecipeId} references missing output item {outputItemId}."
+                );
+            }
+        }
+        return BuildDomainResult("recipe", directoryPath, errors);
+    }
+
+    private static IReadOnlyList<ContentImportEntry<RecipeImportModel>>
+        ImportRecipeEntriesPerDocument(
+            string directoryPath,
+            IContentJsonSourceReader sourceReader
+        )
+    {
+        var entries = new List<ContentImportEntry<RecipeImportModel>>();
+        foreach (ContentJsonSourceText source in sourceReader.ReadUtf8Documents(directoryPath))
+        {
+            ContentImportBatch<RecipeImportModel> documentBatch =
+                RecipeContentJsonAuthoringDomain.CreateImportDescriptor(
+                    directoryPath,
+                    new SingleContentJsonSourceReader(source)
+                ).Import();
+            entries.AddRange(documentBatch.Entries);
+        }
+        return entries;
+    }
+
+    private sealed class SingleContentJsonSourceReader : IContentJsonSourceReader
+    {
+        private readonly ContentJsonSourceText _source;
+
+        internal SingleContentJsonSourceReader(ContentJsonSourceText source)
+        {
+            _source = source ?? throw new ArgumentNullException(nameof(source));
+        }
+
+        public IReadOnlyList<ContentJsonSourceText> ReadUtf8Documents(
+            string directoryPath
+        ) => new[] { _source };
     }
 
     public static ValidationDomainResult ValidateEnemySeed(
@@ -508,15 +543,7 @@ internal static class ContentValidationRunner
         return registry;
     }
 
-    private static TraitContentRegistry BuildTraitRegistry(string[] directoryPaths)
-    {
-        TraitContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
-        registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
-        return registry;
-    }
+    private static TraitContentRegistry BuildTraitRegistry() => new();
 
     private static AgeContentRegistry BuildAgeRegistry(string[] directoryPaths)
     {
@@ -716,16 +743,6 @@ internal static class ContentValidationRunner
     private static List<string> ToStringList(IEnumerable<string> values)
     {
         List<string> result = new();
-        if (values == null)
-            return result;
-        foreach (string value in values)
-            result.Add(value ?? "");
-        return result;
-    }
-
-    private static GArray ToGodotArray(IEnumerable<string> values)
-    {
-        GArray result = new();
         if (values == null)
             return result;
         foreach (string value in values)

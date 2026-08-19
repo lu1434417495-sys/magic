@@ -365,16 +365,21 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
 
     private void TestEquipmentRuntimeModifierProjectionUsesDefinitions()
     {
-        ItemDef armor = new()
+        TestItemDefinitionBuilder armor = new()
         {
             item_id = "runtime_armor",
             item_category = "equipment",
             equipment_type_id = "armor",
             equipment_slot_ids = new Godot.Collections.Array<string> { "body" },
             max_dex_bonus = 2,
-            attribute_modifiers = new Godot.Collections.Array<AttributeModifier>
+            attribute_modifiers = new List<AttributeModifierDefinition>
             {
-                Modifier("strength", 3, sourceType: "equipment", sourceId: "runtime_armor"),
+                Definition(
+                    "strength",
+                    3,
+                    sourceType: "equipment",
+                    sourceId: "runtime_armor"
+                ),
             },
         };
         ItemDefinition armorDefinition = armor.ToDefinition();
@@ -736,7 +741,9 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
     ) =>
         new(
             attributeId,
-            mode != "" ? mode : AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+            mode != null && mode != ""
+                ? mode
+                : AttributeModifier.ToStringName(AttributeModifierMode.Flat),
             value,
             valuePerRank,
             sourceType,

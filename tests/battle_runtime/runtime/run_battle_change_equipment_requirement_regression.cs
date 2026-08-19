@@ -470,7 +470,6 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
     {
         return new ItemDefinition(
             itemId,
-            "",
             displayName,
             "",
             "",

@@ -70,15 +70,21 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
             [new StringName("main_hand")] = 99,
         };
 
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
-            resource,
-            "test.combat_effect_durability.legacy_param"
-        );
-
-        _test.Eq(
-            definition.EquipmentDurabilitySlotWeights.Count,
-            0,
-            "legacy params.slot_weight_map should not project into typed durability slot weights."
+        bool rejected = false;
+        try
+        {
+            CombatEffectDefinition.FromResource(
+                resource,
+                "test.combat_effect_durability.legacy_param"
+            );
+        }
+        catch (System.IO.InvalidDataException exception)
+        {
+            rejected = exception.Message.Contains("slot_weight_map");
+        }
+        _test.True(
+            rejected,
+            "strict Resource import should reject legacy params.slot_weight_map before projection."
         );
     }
 

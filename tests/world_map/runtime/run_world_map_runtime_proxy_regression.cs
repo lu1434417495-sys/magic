@@ -19,7 +19,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
     {
         public GameRuntimeFacade Runtime { get; init; }
         public WorldMapGenerationConfig GenerationConfig { get; init; }
-        public GDictionary ItemDefs { get; init; }
+        public Dictionary<StringName, ItemDefinition> ItemDefs { get; init; }
 
         public void Dispose()
         {
@@ -413,7 +413,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
     private static RuntimeFixture BuildRuntime(PartyState partyState)
     {
         Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefs = BuildItemDefs();
         WorldMapGenerationConfig generationConfig = new();
         WorldGenerationDefinition generationDefinition =
             TestWorldGenerationDefinitionFactory.Project(
@@ -439,12 +439,12 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             skillDefinitions,
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildTypedItemDefs(itemDefs)
+            itemDefs
         );
-        runtime._party_warehouse_service.Setup(partyState, BuildTypedItemDefs(itemDefs));
+        runtime._party_warehouse_service.Setup(partyState, itemDefs);
         runtime._party_item_use_service.Setup(
             partyState,
-            BuildTypedItemDefs(itemDefs),
+            itemDefs,
             skillDefinitions,
             runtime._party_warehouse_service,
             runtime._character_management
@@ -462,14 +462,11 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         };
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
-        GDictionary result = TestResourceOwnership.OwnWrapper(
-            new GDictionary(),
-            "world_map_runtime_proxy.item_defs"
-        );
-        result[new StringName("skill_book_focus")] = TestResourceOwnership.Own(
-            new ItemDef
+        return new Dictionary<StringName, ItemDefinition>
+        {
+            ["skill_book_focus"] = new TestItemDefinitionBuilder
             {
                 item_id = "skill_book_focus",
                 display_name = "Focus Manual",
@@ -477,26 +474,8 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
                 is_stackable = true,
                 max_stack = 20,
                 granted_skill_id = "focus",
-            },
-            "world_map_runtime_proxy.skill_book_focus"
-        );
-        return result;
-    }
-
-    private static Dictionary<StringName, ItemDefinition> BuildTypedItemDefs(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDefinition> result = new();
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef.ToDefinition();
-        }
-        return result;
+            }.ToDefinition(),
+        };
     }
 
     private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()

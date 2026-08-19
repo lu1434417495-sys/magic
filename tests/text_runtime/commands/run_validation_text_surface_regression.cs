@@ -188,7 +188,6 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
     private static ItemDefinition BuildInvalidSkillBookDefinition() =>
         new(
             "contract_invalid_skill_book",
-            "",
             "Invalid Skill Book",
             "Invalid skill-book fixture for validation text.",
             "",

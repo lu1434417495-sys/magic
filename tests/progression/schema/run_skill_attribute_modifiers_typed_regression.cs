@@ -132,7 +132,7 @@ public partial class run_skill_attribute_modifiers_typed_regression : LifecycleT
         return new AttributeModifier
         {
             attribute_id = attributeId,
-            mode = mode != ""
+            mode = mode != null && mode != ""
                 ? mode
                 : AttributeModifier.ToStringName(AttributeModifierMode.Flat),
             value = value,

@@ -907,12 +907,12 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         StringName weaponTypeId,
         StringName damageTag,
         int attackRange,
-        WeaponDamageDiceDef oneHandedDice,
-        WeaponDamageDiceDef twoHandedDice,
+        TestWeaponDamageDiceDefinitionBuilder oneHandedDice,
+        TestWeaponDamageDiceDefinitionBuilder twoHandedDice,
         StringName[] properties
     )
     {
-        var itemDef = new ItemDef
+        var itemDef = new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -921,7 +921,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             is_stackable = false,
             max_stack = 1,
         };
-        var profile = new WeaponProfileDef
+        var profile = new TestWeaponProfileDefinitionBuilder
         {
             weapon_type_id = weaponTypeId,
             training_group = "martial",
@@ -931,7 +931,6 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             attack_range = attackRange,
             one_handed_dice = oneHandedDice,
             two_handed_dice = twoHandedDice,
-            properties_mode = (int)WeaponProfileDef.PropertyMergeMode.REPLACE,
         };
         foreach (StringName property in properties ?? Array.Empty<StringName>())
         {
@@ -941,14 +940,12 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             }
         }
         itemDef.weapon_profile = profile;
-        return TestResourceOwnership
-            .Own(itemDef, "EnemyTemplateRuntimeStart.MakeWeapon")
-            .ToDefinition();
+        return itemDef.ToDefinition();
     }
 
-    private static WeaponDamageDiceDef MakeWeaponDice(int count, int sides, int bonus)
+    private static TestWeaponDamageDiceDefinitionBuilder MakeWeaponDice(int count, int sides, int bonus)
     {
-        return new WeaponDamageDiceDef
+        return new TestWeaponDamageDiceDefinitionBuilder
         {
             dice_count = count,
             dice_sides = sides,

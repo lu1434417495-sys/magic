@@ -73,7 +73,7 @@ public partial class run_character_management_quest_materializer_regression : Li
     private void TestSubmitItemObjectiveTracksProgressAndFailures()
     {
         PartyState party = BuildPartyWithMember("hero", 4);
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefs = BuildItemDefs();
 
         QuestDef submitQuest = BuildSubmitItemQuest(
             "contract_supply_delivery",
@@ -134,7 +134,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             questDefinitions
         );
         PartyWarehouseService warehouse = new();
-        warehouse.Setup(party, BuildItemDefIndex(itemDefs));
+        warehouse.Setup(party, itemDefs);
 
         QuestState partialQuest = new() { quest_id = submitQuest.quest_id };
         partialQuest.MarkAccepted(3);
@@ -274,7 +274,7 @@ public partial class run_character_management_quest_materializer_regression : Li
 
     private void TestQuestRewardMaterializesGoldItemsAndOverflow()
     {
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefs = BuildItemDefs();
         QuestDef rewardQuest = BuildRewardQuest(
             "contract_supply_receipt",
             "Supply receipt",
@@ -308,7 +308,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             }
         );
         PartyWarehouseService warehouse = new();
-        warehouse.Setup(party, BuildItemDefIndex(itemDefs));
+        warehouse.Setup(party, itemDefs);
         party.SetClaimableQuestState(BuildClaimableQuest("contract_supply_receipt", 4, 6));
 
         using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
@@ -329,7 +329,7 @@ public partial class run_character_management_quest_materializer_regression : Li
 
         PartyState overflowParty = BuildPartyWithMember("porter", 1);
         PartyWarehouseService overflowWarehouse = new();
-        overflowWarehouse.Setup(overflowParty, BuildItemDefIndex(itemDefs));
+        overflowWarehouse.Setup(overflowParty, itemDefs);
         overflowWarehouse.AddItemTyped("bronze_sword", 1);
         CharacterManagementModule overflowManager = BuildManager(
             overflowParty,
@@ -768,6 +768,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new
             {
                 Label = "StringName key",
+                RejectsAtImport = true,
                 Growth = OwnedDictionary(
                     new GDictionary { [new StringName("agility")] = 60 },
                     "character_management_quest_materializer.invalid_growth.string_name_key"
@@ -776,6 +777,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new
             {
                 Label = "unknown attribute key",
+                RejectsAtImport = false,
                 Growth = OwnedDictionary(
                     new GDictionary { ["unknown_attribute"] = 60 },
                     "character_management_quest_materializer.invalid_growth.unknown_attribute"
@@ -784,6 +786,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new
             {
                 Label = "non-int amount",
+                RejectsAtImport = true,
                 Growth = OwnedDictionary(
                     new GDictionary { ["agility"] = "60" },
                     "character_management_quest_materializer.invalid_growth.non_int_amount"
@@ -792,6 +795,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new
             {
                 Label = "non-positive amount",
+                RejectsAtImport = true,
                 Growth = OwnedDictionary(
                     new GDictionary { ["agility"] = 0 },
                     "character_management_quest_materializer.invalid_growth.non_positive_amount"
@@ -801,10 +805,6 @@ public partial class run_character_management_quest_materializer_regression : Li
 
         foreach (var testCase in cases)
         {
-            PartyState party = BuildPartyWithMember("hero", 2);
-            PartyMemberState member = party.GetMemberState("hero");
-            member.progression.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 2);
-
             SkillDef triggerSkill = TestResourceOwnership.Own(
                 new SkillDef
                 {
@@ -820,6 +820,45 @@ public partial class run_character_management_quest_materializer_regression : Li
             triggerSkill.attribute_growth_progress = OwnedDictionary(
                 (GDictionary)testCase.Growth.Duplicate(true),
                 $"character_management_quest_materializer.invalid_growth.payload.{testCase.Label}"
+            );
+            IReadOnlyDictionary<StringName, SkillDefinition> projected = null;
+            bool rejectedAtImport = false;
+            try
+            {
+                projected = SkillDefinition.ProjectIndex(
+                    new Dictionary<StringName, SkillDef>
+                    {
+                        [triggerSkill.skill_id] = triggerSkill,
+                    }
+                );
+            }
+            catch (System.IO.InvalidDataException exception)
+            {
+                rejectedAtImport = exception.Message.Contains(
+                    "cannot enter the canonical import model"
+                );
+            }
+            if (testCase.RejectsAtImport)
+            {
+                _test.True(
+                    rejectedAtImport,
+                    $"{testCase.Label} should be rejected at the canonical import boundary."
+                );
+                continue;
+            }
+
+            _test.False(
+                rejectedAtImport,
+                $"{testCase.Label} should reach semantic validation as a typed definition."
+            );
+            if (projected == null)
+                continue;
+
+            PartyState party = BuildPartyWithMember("hero", 2);
+            PartyMemberState member = party.GetMemberState("hero");
+            member.progression.unit_base_attributes.SetAttributeValue(
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+                2
             );
             member.progression.SetSkillProgress(
                 new UnitSkillProgress
@@ -845,16 +884,10 @@ public partial class run_character_management_quest_materializer_regression : Li
                 },
                 $"character_management_quest_materializer.invalid_growth.profession.{testCase.Label}"
             );
-
             CharacterManagementModule manager = new();
             manager.setup(
                 party,
-                SkillDefinition.ProjectIndex(
-                    new Dictionary<StringName, SkillDef>
-                    {
-                        [triggerSkill.skill_id] = triggerSkill,
-                    }
-                ),
+                projected,
                 TestProgressionDefinitionProjection.Professions(
                     new Dictionary<StringName, ProfessionDef>
                     {
@@ -869,8 +902,9 @@ public partial class run_character_management_quest_materializer_regression : Li
                 profession.profession_id,
                 PromotionSelectionData.Empty
             );
-            UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
-
+            UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(
+                triggerSkill.skill_id
+            );
             _test.Eq(
                 delta.changed_profession_ids.Count,
                 1,
@@ -882,7 +916,10 @@ public partial class run_character_management_quest_materializer_regression : Li
                 $"{testCase.Label} should not produce attribute growth changes."
             );
             _test.Eq(
-                ReadGrowthProgress(member.progression, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
+                ReadGrowthProgress(
+                    member.progression,
+                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)
+                ),
                 0,
                 $"{testCase.Label} should not write agility growth progress."
             );
@@ -917,7 +954,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new Dictionary<StringName, SkillDefinition> { [charge.SkillId] = charge },
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(BuildItemDefs()),
+            BuildItemDefs(),
             new Dictionary<StringName, QuestDefinition>()
         );
 
@@ -968,13 +1005,13 @@ public partial class run_character_management_quest_materializer_regression : Li
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         GDictionary questDefs
     ) => BuildManager(party, itemDefs, BuildQuestDefIndex(questDefs));
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
@@ -984,7 +1021,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(itemDefs),
+            itemDefs,
             questDefs
         );
         return manager;
@@ -1007,45 +1044,27 @@ public partial class run_character_management_quest_materializer_regression : Li
         return party;
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
-        ItemDef ironOre = new()
+        TestItemDefinitionBuilder ironOre = new()
         {
             item_id = "iron_ore",
             display_name = "Iron Ore",
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
         };
-        ItemDef bronzeSword = new()
+        TestItemDefinitionBuilder bronzeSword = new()
         {
             item_id = "bronze_sword",
             display_name = "Bronze Sword",
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
         };
-        return new GDictionary
+        return new Dictionary<StringName, ItemDefinition>
         {
-            [ironOre.item_id] = ironOre,
-            [bronzeSword.item_id] = bronzeSword,
+            [ironOre.item_id] = ironOre.ToDefinition(),
+            [bronzeSword.item_id] = bronzeSword.ToDefinition(),
         };
-    }
-
-    private static Dictionary<StringName, ItemDefinition> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDefinition> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef.ToDefinition();
-        }
-        return result;
     }
 
     private static Dictionary<StringName, QuestDefinition> BuildQuestDefIndex(

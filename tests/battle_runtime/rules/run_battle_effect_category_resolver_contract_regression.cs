@@ -230,28 +230,21 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
     private void TestResolverIgnoresLegacyParamsBarrierCategories()
     {
         SkillDefinition skill = BuildSkill("contract_legacy_params", Array.Empty<StringName>());
-        var effect = TestResourceOwnership.Own(
-            new CombatEffectDef(),
-            "BattleEffectCategoryResolverContract.legacy-params-effect"
-        );
-        effect.@params = new Godot.Collections.Dictionary
-        {
-            ["barrier_categories"] = new Godot.Collections.Array<StringName>
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            parameters: new Dictionary<string, object>
             {
-                new("spell"),
-                new("force_effect"),
-            },
-        };
+                ["barrier_categories"] = new[]
+                {
+                    new StringName("spell"),
+                    new StringName("force_effect"),
+                },
+            }
+        );
 
         var categories = BattleEffectCategoryResolver.ResolveCategories(
             skill,
-            new[]
-            {
-                CombatEffectDefinition.FromResource(
-                    effect,
-                    "test.battle_effect_category.legacy_params"
-                ),
-            }
+            new[] { effect }
         );
 
         _test.False(

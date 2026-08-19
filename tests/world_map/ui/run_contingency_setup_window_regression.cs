@@ -357,7 +357,6 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         {
             ["special_contingency_gem"] = new ItemDefinition(
                 "special_contingency_gem",
-                "",
                 "Special Contingency Gem",
                 "",
                 "",

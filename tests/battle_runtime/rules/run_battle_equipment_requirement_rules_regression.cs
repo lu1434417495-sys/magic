@@ -94,7 +94,6 @@ public partial class run_battle_equipment_requirement_rules_regression : Lifecyc
     {
         return new ItemDefinition(
             itemId,
-            "",
             itemId.ToString(),
             "",
             "",

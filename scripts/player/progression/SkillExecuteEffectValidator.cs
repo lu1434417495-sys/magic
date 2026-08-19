@@ -634,10 +634,9 @@ internal sealed class SkillExecuteEffectValidator
 
     private static bool IsTemporalReleaseEffectResource(CombatEffectDef effectDef)
     {
-        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(
-            effectDef,
-            "skill_content_validation.temporal_release_effect"
-        );
-        return TemporalStatusContentRules.IsTemporalReleaseEffect(effectDefinition);
+        return effectDef != null
+            && effectDef.EffectKind == BattleEffectKind.EraseStatus
+            && effectDef.HasEffectTagTyped(TemporalStatusContentRules.TemporalStatusTag)
+            && TemporalStatusContentRules.IsTemporalReleaseTargetStatusId(effectDef.status_id);
     }
 }

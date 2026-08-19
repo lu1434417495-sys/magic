@@ -45,9 +45,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static readonly StringName HpMax = "hp_max";
     private static readonly StringName PracticeMeditation = "meditation";
     private static readonly StringName PracticeCultivation = "cultivation";
-    private const string EquipmentAbilityConfigDirectory =
-        "res://data/configs/equipment_abilities";
-
     private static readonly StringName[] PracticeTrackTags =
     {
         PracticeMeditation,
@@ -133,10 +130,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             _resourceLoader,
             loadDefaultContent: false
         );
-        _traitContentRegistry = new TraitContentRegistry(
-            _resourceLoader,
-            loadDefaultContent: false
-        );
+        _traitContentRegistry = new TraitContentRegistry(loadDefaultContent: false);
         _ageContentRegistry = new AgeContentRegistry(
             _resourceLoader,
             loadDefaultContent: false
@@ -157,7 +151,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _contingencyTemplateContentRegistry = new ContingencyTemplateContentRegistry(
             _resourceLoader
         );
-        _equipmentAbilityContentRegistry = new EquipmentAbilityContentRegistry(_resourceLoader);
+        _equipmentAbilityContentRegistry = new EquipmentAbilityContentRegistry();
         if (loadDefaultContent)
             Rebuild();
     }
@@ -257,8 +251,9 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _register_seed_achievements();
 
         EquipmentAbilityRegistryBuildResult equipmentAbilityResult =
-            _equipmentAbilityContentRegistry.Rebuild(
-                LoadEquipmentAbilityContentPacks(),
+            _equipmentAbilityContentRegistry.RebuildFromJson(
+                EquipmentAbilityContentJsonAuthoringDomain.ProductionDirectory,
+                new GodotContentJsonSourceReader(),
                 BuildEquipmentAbilityValidationContext()
             );
         foreach (string error in equipmentAbilityResult.Errors)
@@ -661,58 +656,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _stageAdvancementDefIndex.Clear();
         _validationErrors.Clear();
         _usesReplacementDefinitionsForValidation = false;
-    }
-
-    private IReadOnlyList<EquipmentAbilityContentPackDef> LoadEquipmentAbilityContentPacks()
-    {
-        var packs = new List<EquipmentAbilityContentPackDef>();
-        if (!DirAccess.DirExistsAbsolute(EquipmentAbilityConfigDirectory))
-            return packs;
-
-        ScanEquipmentAbilityContentDirectory(EquipmentAbilityConfigDirectory, packs);
-        return packs;
-    }
-
-    private void ScanEquipmentAbilityContentDirectory(
-        string directoryPath,
-        List<EquipmentAbilityContentPackDef> packs
-    )
-    {
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
-            return;
-
-        try
-        {
-            directory.ListDirBegin();
-            while (true)
-            {
-                string entryName = directory.GetNext();
-                if (string.IsNullOrEmpty(entryName))
-                    break;
-                if (entryName == "." || entryName == "..")
-                    continue;
-
-                string entryPath = $"{directoryPath}/{entryName}";
-                if (directory.CurrentIsDir())
-                {
-                    ScanEquipmentAbilityContentDirectory(entryPath, packs);
-                    continue;
-                }
-                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                    continue;
-
-                Resource resource = _resourceLoader.LoadCanonical<Resource>(entryPath);
-                if (resource is not EquipmentAbilityContentPackDef pack)
-                    continue;
-                packs.Add(pack);
-            }
-            directory.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
-        }
     }
 
     private EquipmentAbilityContentValidationContext BuildEquipmentAbilityValidationContext()

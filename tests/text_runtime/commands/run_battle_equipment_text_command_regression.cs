@@ -248,13 +248,11 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         return runner;
     }
 
-    private static ItemDefinition OwnItemDefinition(ItemDef resource, string fixtureId) =>
-        TestResourceOwnership
-            .Own(
-                resource,
-                $"run_battle_equipment_text_command_regression.{fixtureId}"
-            )
-            .ToDefinition();
+    private static ItemDefinition OwnItemDefinition(TestItemDefinitionBuilder resource, string fixtureId)
+    {
+        _ = fixtureId;
+        return resource.ToDefinition();
+    }
 
     private void InstallStringKeyOnlyBattleItemInstance(GameTextCommandRunner runner)
     {
@@ -299,9 +297,9 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         backpack.AddEquipmentInstance(rareInstance);
     }
 
-    private static ItemDef BuildVersatileTestWeaponDef()
+    private static TestItemDefinitionBuilder BuildVersatileTestWeaponDef()
     {
-        var itemDef = new ItemDef
+        var itemDef = new TestItemDefinitionBuilder
         {
             item_id = VersatileTestWeaponId,
             display_name = "WPNDICE Versatile Longsword",
@@ -312,23 +310,22 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             tags = new GStringNameArray { "weapon", "melee", "versatile", "test" },
         };
 
-        var profile = new WeaponProfileDef
+        var profile = new TestWeaponProfileDefinitionBuilder
         {
             weapon_type_id = "wpndice_longsword",
             damage_tag = "physical_slash",
             attack_range = 1,
             one_handed_dice = BuildWeaponDice(1, 8, 0),
             two_handed_dice = BuildWeaponDice(1, 10, 0),
-            properties_mode = (int)WeaponProfileDef.PropertyMergeMode.REPLACE,
             properties = new GStringNameArray { "versatile" },
         };
         itemDef.weapon_profile = profile;
         return itemDef;
     }
 
-    private static ItemDef BuildOffhandTestItemDef()
+    private static TestItemDefinitionBuilder BuildOffhandTestItemDef()
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = OffhandTestItemId,
             display_name = "WPNDICE Offhand Focus",
@@ -340,9 +337,9 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         };
     }
 
-    private static ItemDef BuildDuplicateTestCharmDef()
+    private static TestItemDefinitionBuilder BuildDuplicateTestCharmDef()
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = DuplicateTestCharmId,
             display_name = "WPNDICE Duplicate Charm",
@@ -354,9 +351,9 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         };
     }
 
-    private static ItemDef BuildRestrictedTestHelmDef()
+    private static TestItemDefinitionBuilder BuildRestrictedTestHelmDef()
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = RestrictedTestHelmId,
             display_name = "WPNDICE Restricted Helm",
@@ -365,13 +362,18 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             equipment_type_id = "armor",
             equipment_slot_ids = new GStringArray { "head" },
             tags = new GStringNameArray { "head", "armor", "test" },
-            equip_requirement = new EquipmentRequirement { min_body_size = 99 },
+            equip_requirement = new EquipmentRequirementDefinition(
+                System.Array.Empty<string>(),
+                99,
+                0,
+                System.Array.Empty<EquipmentAttributeRequirementDefinition>()
+            ),
         };
     }
 
-    private static WeaponDamageDiceDef BuildWeaponDice(int diceCount, int diceSides, int flatBonus)
+    private static TestWeaponDamageDiceDefinitionBuilder BuildWeaponDice(int diceCount, int diceSides, int flatBonus)
     {
-        return new WeaponDamageDiceDef
+        return new TestWeaponDamageDiceDefinitionBuilder
         {
             dice_count = diceCount,
             dice_sides = diceSides,

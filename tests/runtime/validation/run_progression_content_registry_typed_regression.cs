@@ -10,7 +10,6 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
         "res://data/configs/professions/",
         "res://data/configs/races/",
         "res://data/configs/subraces/",
-        "res://data/configs/traits/",
         "res://data/configs/age_profiles/",
         "res://data/configs/bloodlines/",
         "res://data/configs/ascensions/",
@@ -66,6 +65,10 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
         _test.True(
             registry.GetContingencySetupTemplatesTyped().Count > 0,
             "contingency getter 应暴露 Definition snapshot。"
+        );
+        _test.True(
+            registry.GetTraitDefsTyped().ContainsKey("brave"),
+            "progression registry 应从正式 JSON snapshot 暴露 brave trait definition。"
         );
 
         foreach (string contentPrefix in AggregatedRegistryContentPrefixes)

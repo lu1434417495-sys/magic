@@ -29,9 +29,9 @@ internal sealed class ContentSnapshotBuilder
 
         using var progression = new ProgressionContentRegistry(_loader);
         using var barrier = new BarrierContentRegistry(_loader);
-        using var items = new ItemContentRegistry(_loader);
-        using var gearSets = new GearSetContentRegistry(_loader);
-        using var recipes = new RecipeContentRegistry(_loader);
+        using var items = new ItemContentRegistry();
+        using var gearSets = new GearSetContentRegistry();
+        using var recipes = new RecipeContentRegistry();
         using var specialProfiles = new BattleSpecialProfileRegistry(_loader);
         using var enemies = new EnemyContentRegistry(_loader, loadDefaultContent: false);
         using var battleEncounters = new BattleEncounterContentRegistry(_loader);

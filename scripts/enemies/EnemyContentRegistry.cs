@@ -577,7 +577,7 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 
     private IReadOnlyDictionary<StringName, ItemDefinition> _get_item_defs_for_validation_typed()
     {
-        using var ir = new ItemContentRegistry(_loader);
+        using var ir = new ItemContentRegistry();
         return new Dictionary<StringName, ItemDefinition>(ir.GetItemDefsTyped());
     }
 

@@ -91,7 +91,7 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
                 damage_tag = "fire",
                 damage_ratio_percent = 75,
                 pre_resistance_damage_multiplier = 1.5,
-                damage_category = "elemental",
+                damage_category = "magic",
                 dr_bypass_tag = "magic",
                 dice_count = 3,
                 dice_sides = 8,
@@ -408,7 +408,7 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
             1.5,
             "pre_resistance_damage_multiplier 应为 1.5。"
         );
-        _test.Eq(actual.DamageCategory, new StringName("elemental"), "damage_category 应为 elemental。");
+        _test.Eq(actual.DamageCategory, new StringName("magic"), "damage_category 应为 magic。");
         _test.Eq(actual.DrBypassTag, new StringName("magic"), "dr_bypass_tag 应为 magic。");
         _test.Eq(actual.DiceCount, 3, "dice_count 应为 3。");
         _test.Eq(actual.DiceSides, 8, "dice_sides 应为 8。");

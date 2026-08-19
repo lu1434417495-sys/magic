@@ -182,9 +182,9 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         {
             [new StringName("dictionary_schema_brain")] = BuildBrain("dictionary_schema_brain", "engage"),
         };
-        GDictionary itemDefs = new()
+        var itemDefinitions = new Dictionary<StringName, ItemDefinition>
         {
-            [new StringName("dictionary_schema_weapon")] = MakeWeaponResource(
+            ["dictionary_schema_weapon"] = MakeWeapon(
                 "dictionary_schema_weapon",
                 "dictionary_schema_weapon_type"
             ),
@@ -196,12 +196,12 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
 
         GStringArray errors = template.ValidateSchemaTyped(
             EnemyTemplateDef.BuildBrainIndex(knownBrains),
-            BuildItemDefinitionIndex(itemDefs),
+            itemDefinitions,
             BuildSkillDefinitionIndex(skillDefs)
         );
         _test.True(
             errors.Count == 0,
-            $"typed ValidateSchemaTyped() 应接受从 StringName-key Dictionary 物化出来的正式 typed 索引。 errors={FormatErrors(errors)}"
+            $"typed ValidateSchemaTyped() 应接受 StringName-key 的正式 item definition 索引。 errors={FormatErrors(errors)}"
         );
     }
 
@@ -223,25 +223,6 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             StringName keySkillId = rawKey.AsStringName();
             if (keySkillId != "")
                 result[keySkillId] = skillDefinition;
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitionIndex(
-        GDictionary itemDefs
-    )
-    {
-        var result = new Dictionary<StringName, ItemDefinition>();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            ItemDef itemResource = itemDefs[rawKey].As<ItemDef>();
-            StringName itemId = rawKey.AsStringName();
-            if (itemResource != null && itemId != "")
-                result[itemId] = itemResource.ToDefinition();
         }
         return result;
     }
@@ -670,10 +651,10 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         TestSkillDefinitionProjection.BuildSkill(skillId, displayName: skillId.ToString(), maxLevel: maxLevel);
 
     private static ItemDefinition MakeWeapon(StringName itemId, StringName weaponTypeId) =>
-        MakeWeaponResource(itemId, weaponTypeId).ToDefinition();
+        MakeWeaponBuilder(itemId, weaponTypeId).ToDefinition();
 
     private static ItemDefinition MakeArmor(StringName itemId) =>
-        new ItemDef
+        new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -683,9 +664,9 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             max_stack = 1,
         }.ToDefinition();
 
-    private static ItemDef MakeWeaponResource(StringName itemId, StringName weaponTypeId)
+    private static TestItemDefinitionBuilder MakeWeaponBuilder(StringName itemId, StringName weaponTypeId)
     {
-        var itemDef = new ItemDef
+        var itemDef = new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -694,25 +675,22 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             is_stackable = false,
             max_stack = 1,
         };
-        itemDef.weapon_profile = new WeaponProfileDef
+        itemDef.weapon_profile = new TestWeaponProfileDefinitionBuilder
         {
             weapon_type_id = weaponTypeId,
             training_group = "martial",
             range_type = "melee",
             family = "sword",
-            damage_tag = ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            damage_tag = TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             attack_range = 1,
-            one_handed_dice = new WeaponDamageDiceDef
+            one_handed_dice = new TestWeaponDamageDiceDefinitionBuilder
             {
                 dice_count = 1,
                 dice_sides = 6,
                 flat_bonus = 0,
             },
         };
-        return TestResourceOwnership.Own(
-            itemDef,
-            $"EnemyTemplateSchemaBoundary.MakeWeaponResource.{itemId}"
-        );
+        return itemDef;
     }
 
     private static GStringArray ValidateWithReferenceTables(EnemyTemplateDef template)

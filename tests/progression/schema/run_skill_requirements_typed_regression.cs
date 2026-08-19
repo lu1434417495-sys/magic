@@ -31,7 +31,10 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
         };
 
         SkillDef badSkillLevelRequirement = BuildSkill("invalid_skill_level_requirement");
-        badSkillLevelRequirement.skill_level_requirements = new GDictionary { ["charge"] = "5" };
+        badSkillLevelRequirement.skill_level_requirements = new GDictionary
+        {
+            ["missing_skill"] = 5,
+        };
 
         SkillDef badAttributeRequirement = BuildSkill("invalid_attribute_requirement");
         badAttributeRequirement.attribute_requirements = new GDictionary { ["hp_max"] = 1 };
@@ -55,7 +58,7 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
         AssertOnlyValidationErrors(
             errors,
             "Skill invalid_learn_requirement references missing skill missing_skill in learn_requirements.",
-            "Skill invalid_skill_level_requirement requires integer value for charge in skill_level_requirements.",
+            "Skill invalid_skill_level_requirement references missing skill missing_skill in skill_level_requirements.",
             "Skill invalid_attribute_requirement references unsupported attribute hp_max in attribute_requirements.",
             "Skill invalid_upgrade_sources references missing skill missing_upgrade_skill in upgrade_source_skill_ids."
         );

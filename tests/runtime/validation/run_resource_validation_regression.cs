@@ -9,30 +9,18 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 {
     private const string OFFICIAL_SKILL_DIRECTORY = "res://data/configs/json/skills";
     private const string OFFICIAL_PROFESSION_DIRECTORY = "res://data/configs/professions";
-    private const string OFFICIAL_RECIPE_DIRECTORY = "res://data/configs/recipes";
+    private const string OFFICIAL_RECIPE_DIRECTORY = RecipeContentJsonAuthoringDomain.ProductionDirectory;
     private const string OFFICIAL_ENEMY_SEED_PATH = "res://data/configs/enemies/enemy_content_seed.tres";
     private const string SKILL_INVALID_DIRECTORY = "res://tests/progression/fixtures/skill_registry_invalid";
     private const string SKILL_VALID_DIRECTORY = "res://tests/progression/fixtures/skill_registry_valid";
     private const string PROFESSION_INVALID_DIRECTORY =
         "res://tests/progression/fixtures/profession_registry_invalid";
-    private const string ITEM_INVALID_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_invalid";
-    private const string ITEM_TEMPLATE_INVALID_ITEM_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_template_invalid/items";
-    private const string ITEM_TEMPLATE_INVALID_TEMPLATE_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_template_invalid/templates";
-    private const string ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_template_isolated/items";
-    private const string ITEM_TEMPLATE_ISOLATED_TEMPLATE_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_template_isolated/templates";
     private const string RECIPE_INVALID_DIRECTORY =
         "res://tests/fixtures/resource_validation/recipe_registry_invalid";
     private const string IDENTITY_INVALID_RACE_DIRECTORY =
         "res://tests/progression/fixtures/identity_registry_invalid/races";
     private const string IDENTITY_INVALID_SUBRACE_DIRECTORY =
         "res://tests/progression/fixtures/identity_registry_invalid/subraces";
-    private const string TRAIT_INVALID_DIRECTORY =
-        "res://tests/progression/fixtures/trait_registry_invalid";
     private const string IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY =
         "res://tests/progression/fixtures/identity_registry_invalid/stage_advancements";
     private const string ENEMY_MISSING_ID_SEED_PATH =
@@ -69,7 +57,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
         using TestContentResourceLoader contentLoader = new();
         using ProgressionContentRegistry progressionRegistry = new(contentLoader);
-        using ItemContentRegistry itemRegistry = new(contentLoader);
+        using ItemContentRegistry itemRegistry = new();
 
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
             itemRegistry.GetItemDefsTyped();
@@ -91,8 +79,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             typedItemDefs,
             typedSkillDefinitions
         );
-
-        TestItemRegistryDirectoryRebuildClearsTemplateCache();
 
         ValidationRunReport officialReport = ContentValidationRunner.BuildRunReport(
             "official_content",
@@ -158,7 +144,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             "invalid_identity_directories",
             ["res://data/configs/races", IDENTITY_INVALID_RACE_DIRECTORY],
             ["res://data/configs/subraces", IDENTITY_INVALID_SUBRACE_DIRECTORY],
-            ["res://data/configs/traits", TRAIT_INVALID_DIRECTORY],
             ["res://data/configs/age_profiles"],
             ["res://data/configs/bloodlines"],
             ["res://data/configs/ascensions"],
@@ -167,15 +152,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                 IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY,
             ],
             typedSkillDefinitions
-        );
-        ValidationDomainResult itemResult = ContentValidationRunner.ValidateItemDirectories(
-            "isolated_invalid_items",
-            [ITEM_INVALID_DIRECTORY]
-        );
-        ValidationDomainResult itemTemplateResult = ContentValidationRunner.ValidateItemDirectories(
-            "invalid_item_templates",
-            [ITEM_TEMPLATE_INVALID_ITEM_DIRECTORY],
-            [ITEM_TEMPLATE_INVALID_TEMPLATE_DIRECTORY]
         );
         ValidationDomainResult recipeResult = ContentValidationRunner.ValidateRecipeDirectory(
             RECIPE_INVALID_DIRECTORY,
@@ -331,8 +307,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                 skillResult,
                 professionResult,
                 identityResult,
-                itemResult,
-                itemTemplateResult,
                 recipeResult,
                 enemyMissingResult,
                 enemyDuplicateResult,
@@ -393,20 +367,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             "invalid_damage_resistance_race.damage_resistances",
             "missing_id_race.tres is missing race_id",
             "parent_mismatch_race.default_subrace_id must be a non-empty StringName",
-            "invalid_charge_scope_trait.charge_scope",
-            "bad_attribute_modifier_trait.attribute_modifiers[0].attribute_id",
-            "bad_attribute_modifier_trait.attribute_modifiers[0].mode uses unsupported value bad_mode",
-            "fixed_source_roll_schema_trait.roll_value_schema requires an instance source",
-            "fixed_source_roll_schema_trait.roll_value_schema cannot be used by fixed sources",
-            "identity_attribute_trait.attribute_modifiers must be empty for identity traits",
-            "invalid_save_tags_trait.save_advantage_tags[1] duplicates save tag poison",
-            "invalid_save_tags_trait.save_disadvantage_tags[0] entry not_a_save_tag",
-            "invalid_save_tags_trait.save_immunity_tags[0] entry sleep_immunity uses removed suffix syntax",
-            "invalid_save_tags_trait.passive_status_effects[0].save_immunity_tags[1] duplicates save tag magic",
-            "missing_source_kind_trait.allowed_source_kinds must include at least one allowed_source_kind",
-            "Trait missing_text_trait.display_name",
-            "Trait missing_text_trait.description",
-            "unsupported_dispatch_trait.trigger_type on_crit has no dispatch coverage",
             "invalid_target_axis_stage_advancement uses unsupported target_axis unlisted_axis",
             "invalid_reference_race trait_ids references missing trait missing_trait",
             "invalid_reference_race references missing age_profile missing_age_profile",
@@ -419,31 +379,11 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         );
 
         AssertContainsErrors(
-            itemResult,
-            "非法物品目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate item_id registered: duplicate_item",
-            "invalid_slot_item declares invalid slot phantom_slot",
-            "legacy_weapon_fields_item must declare weapon_profile",
-            "missing_explicit_price_item must declare explicit buy_price",
-            "missing_id_item.tres is missing item_id",
-            "official_template_leak_item references missing template weapon_type_longsword_base"
-        );
-
-        AssertContainsErrors(
-            itemTemplateResult,
-            "非法 item template 目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate item template id: duplicate_fixture_template",
-            "missing_id_template.tres is missing item_id",
-            "Item template inheritance cycle detected at fixture_cycle_template_a",
-            "Item template inheritance cycle detected at fixture_cycle_template_b"
-        );
-
-        AssertContainsErrors(
             recipeResult,
             "非法配方目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate recipe_id registered: duplicate_recipe",
+            "content.json.document.duplicate_entry_id",
             "invalid_reference_recipe references missing input item missing_item",
-            "missing_id_recipe.tres is missing recipe_id"
+            "content.json.document.invalid_entry_id"
         );
 
         AssertDomainIs(enemyMissingResult, "enemy", "缺失 template_id 的 enemy fixture 应稳定归入 enemy domain。");
@@ -581,38 +521,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             keys.Add(key);
         keys.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return keys;
-    }
-
-    private void TestItemRegistryDirectoryRebuildClearsTemplateCache()
-    {
-        using TestContentResourceLoader loader = new();
-        using ItemContentRegistry registry = new(loader);
-        registry.RebuildFromDirectories(
-            new GArray { ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY },
-            new GArray { ITEM_TEMPLATE_ISOLATED_TEMPLATE_DIRECTORY }
-        );
-        _test.True(registry.Validate().Count == 0, "显式传入 fixture template 时 isolated item registry 应可通过。");
-        _test.True(
-            registry.GetItemDefsTyped().ContainsKey("fixture_inherited_item"),
-            "显式传入 fixture template 时应注册继承后的 fixture item。"
-        );
-
-        registry.RebuildFromDirectories(
-            new GArray { ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY },
-            new GArray()
-        );
-        GStringArray missingTemplateErrors = registry.Validate();
-        _test.Eq(
-            missingTemplateErrors.Count,
-            1,
-            $"清空 template 目录后应只报告 fixture template 缺失。errors={FormatErrors(ToStringList(missingTemplateErrors))}"
-        );
-        _test.True(
-            missingTemplateErrors.Contains(
-                "Item fixture_inherited_item references missing template fixture_item_base."
-            ),
-            "同一个 registry 重新构建时不得残留上一次的 fixture template cache。"
-        );
     }
 
     private void TestFormalPhantasmalKillResource(

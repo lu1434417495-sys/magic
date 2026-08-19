@@ -37,34 +37,34 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private void TestBattleUnitFactoryProjectsPlayerWeaponProfiles()
     {
-        ItemDef bronzeSword = MakeWeapon(
+        TestItemDefinitionBuilder bronzeSword = MakeWeapon(
             "bronze_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
             Array.Empty<StringName>()
         );
-        ItemDef ironGreatsword = MakeWeapon(
+        TestItemDefinitionBuilder ironGreatsword = MakeWeapon(
             "iron_greatsword",
             "greatsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             null,
             MakeWeaponDice(2, 6, 0),
             new[] { new StringName("two_handed"), new StringName("heavy") }
         );
-        ItemDef trainingLongsword = MakeWeapon(
+        TestItemDefinitionBuilder trainingLongsword = MakeWeapon(
             "training_longsword",
             "longsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 8, 0),
             MakeWeaponDice(1, 10, 0),
             new[] { new StringName("versatile") }
         );
-        ItemDef trainingShield = MakeOffHandEquipment("training_shield");
+        TestItemDefinitionBuilder trainingShield = MakeOffHandEquipment("training_shield");
 
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithMemberItems(
             bronzeSword,
@@ -97,7 +97,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
         _test.Eq(
             unarmedWeapon.PhysicalDamageTag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
             "unarmed player should project blunt damage tag."
         );
         _test.Eq(
@@ -148,7 +148,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
         _test.Eq(
             oneHandedWeapon.PhysicalDamageTag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             "one-handed weapon should preserve damage tag."
         );
         _test.True(
@@ -188,7 +188,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
         _test.Eq(
             twoHandedWeapon.PhysicalDamageTag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             "two-handed weapon should preserve slash damage tag."
         );
         _test.Eq(
@@ -271,19 +271,19 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private void TestBattleUnitFactoryRefreshUsesBattleLocalEquipmentView()
     {
-        ItemDef bronzeSword = MakeWeapon(
+        TestItemDefinitionBuilder bronzeSword = MakeWeapon(
             "bronze_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
             Array.Empty<StringName>()
         );
-        ItemDef ironGreatsword = MakeWeapon(
+        TestItemDefinitionBuilder ironGreatsword = MakeWeapon(
             "iron_greatsword",
             "greatsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             null,
             MakeWeaponDice(2, 6, 0),
@@ -401,10 +401,10 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private void TestBattleUnitFactoryRefreshesEffectiveTraitsFromBattleLocalEquipment()
     {
-        ItemDef luckySword = MakeWeapon(
+        TestItemDefinitionBuilder luckySword = MakeWeapon(
             "lucky_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -478,10 +478,10 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private void TestBattleUnitFactoryProjectsPlayerEquipmentAbilitySources()
     {
-        ItemDef flameSword = MakeWeapon(
+        TestItemDefinitionBuilder flameSword = MakeWeapon(
             "flame_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -705,11 +705,11 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
     }
 
-    private BattleRuntimeScope BuildRuntimeWithMemberItems(params ItemDef[] itemDefs)
+    private BattleRuntimeScope BuildRuntimeWithMemberItems(params TestItemDefinitionBuilder[] itemDefs)
     {
         PartyState partyState = BuildPartyState("hero");
         var typedItemDefs = new Dictionary<StringName, ItemDefinition>();
-        foreach (ItemDef itemDef in itemDefs)
+        foreach (TestItemDefinitionBuilder itemDef in itemDefs)
         {
             if (itemDef != null)
             {
@@ -785,7 +785,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
-    private BattleRuntimeScope BuildRuntimeWithEquipmentTrait(ItemDef itemDef)
+    private BattleRuntimeScope BuildRuntimeWithEquipmentTrait(TestItemDefinitionBuilder itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
@@ -831,7 +831,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
-    private BattleRuntimeScope BuildRuntimeWithEquipmentAbilityBinding(ItemDef itemDef)
+    private BattleRuntimeScope BuildRuntimeWithEquipmentAbilityBinding(TestItemDefinitionBuilder itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
@@ -975,17 +975,17 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return partyState;
     }
 
-    private static ItemDef MakeWeapon(
+    private static TestItemDefinitionBuilder MakeWeapon(
         StringName itemId,
         StringName weaponTypeId,
         StringName damageTag,
         int attackRange,
-        WeaponDamageDiceDef oneHandedDice,
-        WeaponDamageDiceDef twoHandedDice,
+        TestWeaponDamageDiceDefinitionBuilder oneHandedDice,
+        TestWeaponDamageDiceDefinitionBuilder twoHandedDice,
         IReadOnlyList<StringName> properties
     )
     {
-        var itemDef = new ItemDef
+        var itemDef = new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -995,7 +995,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             max_stack = 1,
             tags = new GStringNameArray { "melee" },
         };
-        var profile = new WeaponProfileDef
+        var profile = new TestWeaponProfileDefinitionBuilder
         {
             weapon_type_id = weaponTypeId,
             training_group = "martial",
@@ -1005,7 +1005,6 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             attack_range = attackRange,
             one_handed_dice = oneHandedDice,
             two_handed_dice = twoHandedDice,
-            properties_mode = (int)WeaponProfileDef.PropertyMergeMode.REPLACE,
         };
         foreach (StringName property in properties ?? Array.Empty<StringName>())
         {
@@ -1018,9 +1017,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return itemDef;
     }
 
-    private static ItemDef MakeOffHandEquipment(StringName itemId)
+    private static TestItemDefinitionBuilder MakeOffHandEquipment(StringName itemId)
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -1031,9 +1030,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         };
     }
 
-    private static WeaponDamageDiceDef MakeWeaponDice(int count, int sides, int bonus)
+    private static TestWeaponDamageDiceDefinitionBuilder MakeWeaponDice(int count, int sides, int bonus)
     {
-        return new WeaponDamageDiceDef
+        return new TestWeaponDamageDiceDefinitionBuilder
         {
             dice_count = count,
             dice_sides = sides,

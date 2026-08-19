@@ -33,7 +33,7 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
     {
         using TestContentResourceLoader loader = new();
         using SkillContentRegistry skills = new(loader);
-        using ItemContentRegistry items = new(loader);
+        using ItemContentRegistry items = new();
         using EnemyContentRegistry registry = new(loader, loadDefaultContent: false);
         registry.Rebuild(
             new EnemyContentValidationContext(
@@ -44,25 +44,12 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
 
         GStringArray errors = registry.Validate();
         _test.True(errors.Count == 0, $"EnemyContentRegistry 应接受正式 generation slots: {FormatErrors(errors)}");
-        AssertNoDuplicateDependencyLoads(loader, "res://data/configs/items/");
-        AssertNoDuplicateDependencyLoads(loader, "res://data/configs/items_templates/");
-    }
-
-    private void AssertNoDuplicateDependencyLoads(
-        TestContentResourceLoader loader,
-        string contentPrefix
-    )
-    {
-        IReadOnlyList<string> duplicateLoads = loader.GetDuplicateLoadsUnder(contentPrefix);
-        _test.True(
-            loader.CountLoadedPathsUnder(contentPrefix) > 0,
-            $"EnemyContentRegistry 校验前应提供 {contentPrefix} definition 索引。"
-        );
         _test.Eq(
-            duplicateLoads.Count,
+            items.ValidateTyped().Count,
             0,
-            $"EnemyContentRegistry 不应重新加载已提供的 {contentPrefix}: {string.Join(" | ", duplicateLoads)}"
+            $"EnemyContentRegistry 校验前应接收有效 JSON item definition 索引: {string.Join(" | ", items.ValidateTyped())}"
         );
+        _test.Eq(items.GetItemDefsTyped().Count, 129, "正式 JSON item registry 应提供 129 个 definition。");
     }
 
     private void TestFormalBrainsDeclareGenerationSlots()
