@@ -31,15 +31,26 @@ internal sealed class SkillGenerationValidationService
             throw new ArgumentException("Source directory is required.", nameof(sourceDirectory));
         ArgumentNullException.ThrowIfNull(sourceReader);
 
+        IReadOnlyList<ContentJsonSourceText> sources =
+            sourceReader.ReadUtf8Documents(sourceDirectory)
+            ?? throw new InvalidOperationException(
+                "Generated skill source reader returned a null document collection."
+            );
+        var bufferedReader = new SkillGenerationBufferedSourceReader(sources);
+
         var reports = new List<SkillGenerationValidationStageReport>();
         ContentImportBatch<SkillImportModel> schemaBatch =
             SkillContentJsonAuthoringDomain
-                .CreateSchemaImportDescriptor(sourceDirectory, sourceReader)
+                .CreateSchemaImportDescriptor(sourceDirectory, bufferedReader)
                 .Import();
         reports.Add(new SkillGenerationValidationStageReport(
             SkillGenerationValidationStageKind.Schema,
             schemaBatch.Entries.Count,
-            schemaBatch.Diagnostics
+            SkillGenerationDiagnosticEnricher.Enrich(
+                SkillGenerationValidationStageKind.Schema,
+                schemaBatch.Diagnostics,
+                sources
+            )
         ));
         if (schemaBatch.HasErrors)
             return new SkillGenerationValidationReport(reports);
@@ -54,7 +65,11 @@ internal sealed class SkillGenerationValidationService
         reports.Add(new SkillGenerationValidationStageReport(
             SkillGenerationValidationStageKind.Domain,
             domainDiagnostics.Count == 0 ? schemaBatch.Entries.Count : 0,
-            domainDiagnostics
+            SkillGenerationDiagnosticEnricher.Enrich(
+                SkillGenerationValidationStageKind.Domain,
+                domainDiagnostics,
+                sources
+            )
         ));
         if (domainDiagnostics.Count > 0)
             return new SkillGenerationValidationReport(reports);
@@ -73,7 +88,11 @@ internal sealed class SkillGenerationValidationService
         reports.Add(new SkillGenerationValidationStageReport(
             SkillGenerationValidationStageKind.CrossDomain,
             crossDomainDiagnostics.Count == 0 ? candidateSkills.Count : 0,
-            crossDomainDiagnostics
+            SkillGenerationDiagnosticEnricher.Enrich(
+                SkillGenerationValidationStageKind.CrossDomain,
+                crossDomainDiagnostics,
+                sources
+            )
         ));
         if (crossDomainDiagnostics.Count > 0)
             return new SkillGenerationValidationReport(reports);
@@ -89,7 +108,11 @@ internal sealed class SkillGenerationValidationService
         reports.Add(new SkillGenerationValidationStageReport(
             SkillGenerationValidationStageKind.BattleSimulation,
             simulation.Diagnostics.Count == 0 ? simulation.SampledSkillCount : 0,
-            simulation.Diagnostics,
+            SkillGenerationDiagnosticEnricher.Enrich(
+                SkillGenerationValidationStageKind.BattleSimulation,
+                simulation.Diagnostics,
+                sources
+            ),
             simulation.Metrics
         ));
         return new SkillGenerationValidationReport(reports);

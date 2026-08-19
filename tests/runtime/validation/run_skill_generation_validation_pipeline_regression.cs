@@ -20,6 +20,7 @@ public partial class run_skill_generation_validation_pipeline_regression
             TestCrossDomainRejectionStopsPipeline();
             TestBattleSimulationRejectionUsesDedicatedExitCode();
             TestValidBatchPassesAllFourStages();
+            TestMachineReadableDiagnosticsAreByteStable();
         }
         catch (Exception exception)
         {
@@ -53,8 +54,10 @@ public partial class run_skill_generation_validation_pipeline_regression
             report.Stages[0].Diagnostics.Any(value =>
                 value.SourceLabel == "pipeline.json#schema_bad"
                 && value.JsonPointer == "/entries/0/unexpected"
+                && value.Expected == "value accepted by the strict skill DTO"
+                && value.Actual == "true"
             ),
-            "schema rejection should retain file, entry ID, and exact pointer"
+            "schema rejection should retain location plus expected and actual values"
         );
     }
 
@@ -77,8 +80,12 @@ public partial class run_skill_generation_validation_pipeline_regression
             report.Stages[1].Diagnostics.Any(value =>
                 value.RuleId == "skill.validation.domain_rule"
                 && value.SourceLabel == "pipeline.json#domain_bad"
+                && value.JsonPointer == "/entries/0"
+                && value.Expected == "skill accepted by domain validator"
+                && value.Actual
+                    == "{\"skill_id\":\"domain_bad\",\"display_name\":\"\",\"max_level\":0}"
             ),
-            "domain rejection should use the canonical import validator"
+            "domain rejection should preserve canonical validator identity and input"
         );
     }
 
@@ -107,8 +114,10 @@ public partial class run_skill_generation_validation_pipeline_regression
                     == SkillGenerationCrossDomainRules.MissingSkillReference
                 && value.SourceLabel == "pipeline.json#cross_bad"
                 && value.JsonPointer == "/entries/0/learn_requirements/0"
+                && value.Expected == "skill_id present in the combined skill catalog"
+                && value.Actual == "\"missing_skill\""
             ),
-            "cross-domain rejection should locate the missing reference"
+            "cross-domain rejection should locate and describe the missing reference"
         );
     }
 
@@ -164,6 +173,96 @@ public partial class run_skill_generation_validation_pipeline_regression
         _test.True(
             simulation.LastCombinedSkillCount == 1,
             "BattleSim should receive the generated definition in the combined catalog"
+        );
+    }
+
+    private void TestMachineReadableDiagnosticsAreByteStable()
+    {
+        var report = new SkillGenerationValidationReport(new[]
+        {
+            new SkillGenerationValidationStageReport(
+                SkillGenerationValidationStageKind.Schema,
+                0,
+                new[]
+                {
+                    new ContentJsonDiagnostic(
+                        SkillJsonImportRules.InvalidDto,
+                        "Human prose may change independently.",
+                        "batch.json#generated_bad",
+                        "/entries/2/unexpected",
+                        "value accepted by the strict skill DTO",
+                        "true"
+                    ),
+                },
+                new Dictionary<string, object>
+                {
+                    ["z_metric"] = "later",
+                    ["a_metric"] = 1,
+                }
+            ),
+        });
+        const string expectedJson =
+            "{\n"
+            + "  \"protocol\": \"magic.skill_generation.validation/v1\",\n"
+            + "  \"success\": false,\n"
+            + "  \"exit_code\": 10,\n"
+            + "  \"rejected_stage\": \"schema\",\n"
+            + "  \"stages\": [\n"
+            + "    {\n"
+            + "      \"stage\": \"schema\",\n"
+            + "      \"success\": false,\n"
+            + "      \"validated_entry_count\": 0,\n"
+            + "      \"diagnostic_count\": 1,\n"
+            + "      \"metrics\": {\n"
+            + "        \"a_metric\": 1,\n"
+            + "        \"z_metric\": \"later\"\n"
+            + "      },\n"
+            + "      \"diagnostics\": [\n"
+            + "        {\n"
+            + "          \"stage\": \"schema\",\n"
+            + "          \"source_label\": \"batch.json#generated_bad\",\n"
+            + "          \"json_pointer\": \"/entries/2/unexpected\",\n"
+            + "          \"rule_id\": \"skill.dto.invalid_entry\",\n"
+            + "          \"expected\": \"value accepted by the strict skill DTO\",\n"
+            + "          \"actual\": \"true\",\n"
+            + "          \"message\": \"Human prose may change independently.\"\n"
+            + "        }\n"
+            + "      ]\n"
+            + "    }\n"
+            + "  ]\n"
+            + "}\n";
+        _test.Eq(
+            SkillGenerationValidationProtocol.FormatJson(report),
+            expectedJson,
+            "generation JSON diagnostic envelope should be byte-stable"
+        );
+
+        const string expectedNdjson =
+            "{\"type\":\"diagnostic\",\"protocol\":\"magic.skill_generation.validation/v1\","
+            + "\"stage\":\"schema\",\"source_label\":\"batch.json#generated_bad\","
+            + "\"json_pointer\":\"/entries/2/unexpected\","
+            + "\"rule_id\":\"skill.dto.invalid_entry\","
+            + "\"expected\":\"value accepted by the strict skill DTO\","
+            + "\"actual\":\"true\","
+            + "\"message\":\"Human prose may change independently.\"}\n"
+            + "{\"type\":\"stage_summary\","
+            + "\"protocol\":\"magic.skill_generation.validation/v1\","
+            + "\"stage\":\"schema\",\"success\":false,"
+            + "\"validated_entry_count\":0,\"diagnostic_count\":1,"
+            + "\"metrics\":{\"a_metric\":1,\"z_metric\":\"later\"}}\n"
+            + "{\"type\":\"summary\","
+            + "\"protocol\":\"magic.skill_generation.validation/v1\","
+            + "\"success\":false,\"exit_code\":10,"
+            + "\"rejected_stage\":\"schema\"}\n";
+        _test.Eq(
+            SkillGenerationValidationProtocol.FormatNdjson(report),
+            expectedNdjson,
+            "generation NDJSON diagnostic envelope should be byte-stable"
+        );
+        _test.Eq(
+            SkillJsonImportRules.InvalidDto,
+            "skill.dto.invalid_entry",
+            "machine rule ID should be a stable constant independent of human prose"
         );
     }
 

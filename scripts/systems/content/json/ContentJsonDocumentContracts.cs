@@ -38,7 +38,9 @@ internal sealed record ContentJsonDiagnostic(
     string RuleId,
     string Message,
     string SourceLabel,
-    string JsonPointer
+    string JsonPointer,
+    string Expected = "",
+    string Actual = ""
 );
 
 internal sealed record ContentJsonEntryDocument(string EntryId, string Json);
