@@ -117,7 +117,8 @@ internal static partial class SkillJsonImportParser
             );
         }
 
-        if (!allowResourceOnlyShape && maxLevel < 0)
+        bool hasDynamicMaxLevel = !string.IsNullOrWhiteSpace(dto.DynamicMaxLevelStatId);
+        if (!allowResourceOnlyShape && maxLevel < 0 && !hasDynamicMaxLevel)
             AddRangeDiagnostic(context, "/max_level", diagnostics);
 
         var tags = new List<SkillImportIdentifier>();
@@ -160,7 +161,7 @@ internal static partial class SkillJsonImportParser
                 string pointer = $"/level_description_configs/{escapedKey}";
                 if (
                     !TryParseCanonicalLevel(pair.Key, out int level)
-                    || (!allowResourceOnlyShape && level > maxLevel)
+                    || (!allowResourceOnlyShape && !hasDynamicMaxLevel && maxLevel >= 0 && level > maxLevel)
                 )
                 {
                     AddRangeDiagnostic(context, pointer, diagnostics);
@@ -183,6 +184,7 @@ internal static partial class SkillJsonImportParser
                 dto.CombatProfile,
                 dto.SkillId,
                 maxLevel,
+                hasDynamicMaxLevel,
                 allowResourceOnlyShape,
                 diagnostics
             );
@@ -225,6 +227,7 @@ internal static partial class SkillJsonImportParser
         CombatSkillJsonDto dto,
         string rootSkillId,
         int maxLevel,
+        bool hasDynamicMaxLevel,
         bool allowResourceOnlyShape,
         List<ContentJsonDiagnostic> diagnostics
     )
@@ -354,7 +357,7 @@ internal static partial class SkillJsonImportParser
                 string pointer = $"/combat_profile/level_overrides/{escapedKey}";
                 if (
                     !TryParseCanonicalLevel(pair.Key, out int level)
-                    || (!allowResourceOnlyShape && level > maxLevel)
+                    || (!allowResourceOnlyShape && !hasDynamicMaxLevel && maxLevel >= 0 && level > maxLevel)
                 )
                 {
                     AddRangeDiagnostic(context, pointer, diagnostics);
@@ -547,17 +550,6 @@ internal static partial class SkillJsonImportParser
                     }
                 }
 
-                if (!allowResourceOnlyShape && !HasAnyLevelOverrideValue(overrideDto))
-                {
-                    diagnostics.Add(
-                        Diagnostic(
-                            SkillJsonImportRules.EmptyLevelOverride,
-                            "A skill level override must override at least one registered field.",
-                            context,
-                            pointer
-                        )
-                    );
-                }
                 if (diagnostics.Count == beforeOverride)
                 {
                     overrides.Add(

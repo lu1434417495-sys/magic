@@ -65,26 +65,23 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
 
     private void TestManifestIsFixedAndOrdered()
     {
-        string[] expectedColors =
-        {
-            "red",
-            "orange",
-            "yellow",
-            "green",
-            "blue",
-            "indigo",
-            "violet",
-        };
-        _test.Eq(SkillTresToJsonConverter.Sources.Count, expectedColors.Length,
-            "converter manifest should contain exactly seven wards");
-        for (int index = 0; index < expectedColors.Length; index += 1)
+        string[] expectedPaths = Directory.GetFiles(
+                ProjectSettings.GlobalizePath("res://data/configs/skills"),
+                "*.tres",
+                SearchOption.AllDirectories
+            )
+            .Select(path => Path.GetFileNameWithoutExtension(path))
+            .OrderBy(static id => id, StringComparer.Ordinal)
+            .ToArray();
+        _test.Eq(SkillTresToJsonConverter.Sources.Count, expectedPaths.Length,
+            "converter manifest should cover every skill Resource");
+        for (int index = 0; index < expectedPaths.Length; index += 1)
         {
             if (index >= SkillTresToJsonConverter.Sources.Count)
                 break;
-            string color = expectedColors[index];
-            string skillId = $"mage_prismatic_{color}_ward";
+            string skillId = expectedPaths[index];
             SkillTresToJsonSource source = SkillTresToJsonConverter.Sources[index];
-            _test.Eq(source.Color, color, $"manifest color order {index}");
+            _test.Eq(source.Family, skillId, $"manifest family {index}");
             _test.Eq(source.SkillId, skillId, $"manifest skill id {index}");
             _test.Eq(
                 source.ResourcePath,
@@ -201,7 +198,8 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
         SkillTresToJsonExportResult result = converter.ConvertAndPublish(outputHost);
         SkillTresToJsonExportResult repeated = converter.ConvertAndPublish(repeatedHost);
 
-        _test.Eq(result.EntryCount, 7, "successful conversion should publish seven entries");
+        int expectedCount = SkillTresToJsonConverter.Sources.Count;
+        _test.Eq(result.EntryCount, expectedCount, "successful conversion should publish every skill");
         _test.Eq(result.OutputDirectory, Path.GetFullPath(outputHost),
             "result should expose the canonical host target");
         AssertOrderedFileNames(result.FileNames, "primary publication");
@@ -210,7 +208,7 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
         var sourceReader = new GodotContentJsonSourceReader();
         IReadOnlyList<ContentJsonSourceText> sourceTexts =
             sourceReader.ReadUtf8Documents(outputVirtual);
-        _test.Eq(sourceTexts.Count, 7, "Godot source reader should observe seven JSON files");
+        _test.Eq(sourceTexts.Count, expectedCount, "Godot source reader should observe every JSON file");
 
         var documentLoader = new ContentJsonDocumentLoader(sourceReader);
         ContentJsonDocumentLoadResult loaded = documentLoader.LoadDirectory(
@@ -218,7 +216,7 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
             LoadOptions
         );
         _test.False(loaded.HasErrors, Diagnostics("document load", loaded.Diagnostics));
-        _test.Eq(loaded.Documents.Count, 7, "one document should be published per ward");
+        _test.Eq(loaded.Documents.Count, expectedCount, "one document should be published per skill");
 
         ContentImportBatch<SkillImportModel> importedBatch =
             SkillContentJsonAuthoringDomain.CreateImportDescriptor(
@@ -226,8 +224,8 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
                 sourceReader
             ).Import();
         _test.False(importedBatch.HasErrors, Diagnostics("domain import", importedBatch.Diagnostics));
-        _test.Eq(importedBatch.Entries.Count, 7,
-            "the shared skill domain descriptor should import all seven entries");
+        _test.Eq(importedBatch.Entries.Count, expectedCount,
+            "the shared skill domain descriptor should import every entry");
 
         using var resourceLoader = new TestContentResourceLoader();
         var writer = new ContentCanonicalJsonWriter();
@@ -240,13 +238,13 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
         {
             _test.Eq(document.SchemaVersion, 1, "document schema should be canonical");
             _test.Eq(document.Domain, "skills", "document domain should be canonical");
-            _test.Eq(document.Family, SkillImportCanonicalJson.FamilyId,
+            _test.True(!string.IsNullOrWhiteSpace(document.Family),
                 "document family should be canonical");
             _test.Eq(document.Templates.Count, 0, "converter documents should have no templates");
             _test.Eq(document.Entries.Count, 1, "each converter document should have one entry");
         }
 
-        _test.Eq(importedById.Count, 7, "all seven JSON entries should re-import");
+        _test.Eq(importedById.Count, expectedCount, "all JSON entries should re-import");
         foreach (SkillTresToJsonSource source in SkillTresToJsonConverter.Sources)
         {
             SkillDef resource = resourceLoader.LoadCanonical<SkillDef>(source.ResourcePath);
@@ -364,7 +362,7 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
 
         _test.True(rejected, "synthetic promotion failure should fail the publication");
         _test.True(Directory.Exists(targetHost), "rollback should restore the old target directory");
-        _test.Eq(Directory.GetFiles(targetHost, "*.json").Length, 7,
+        _test.Eq(Directory.GetFiles(targetHost, "*.json").Length, SkillTresToJsonConverter.Sources.Count,
             "rollback should restore the complete old generation");
         foreach ((string fileName, byte[] bytes) in previousBytes)
         {
@@ -532,7 +530,7 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
         (string Label, string InvalidJson)[] cases =
         {
             ("bad_json", "{\n"),
-            ("wrong_id", OwnedEnvelope(firstSource, "wrong id", entryId: "mage_prismatic_orange_ward")),
+            ("wrong_id", OwnedEnvelope(firstSource, "wrong id", entryId: firstSource.SkillId + "_wrong")),
             ("extra_member", OwnedEnvelope(firstSource, "extra member", extraRootMember: true)),
             ("multiple_entries", OwnedEnvelope(firstSource, "multiple entries", multipleEntries: true)),
         };
@@ -571,7 +569,7 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
             catch (IOException exception)
             {
                 rejected = exception.Message.Contains(
-                    "is not an owned mage_prismatic_ward generation",
+                    "not an owned",
                     StringComparison.Ordinal
                 );
             }
@@ -676,14 +674,14 @@ public partial class run_skill_tres_to_json_converter_regression : LifecycleTest
     )
     {
         string id = JsonSerializer.Serialize(entryId ?? source.SkillId);
-        string display = JsonSerializer.Serialize($"Old {source.Color} ward");
+        string display = JsonSerializer.Serialize($"Old {source.SkillId} skill");
         string serializedDescription = JsonSerializer.Serialize(description);
         string entry =
             $"{{\"skill_id\":{id},\"display_name\":{display},\"description\":{serializedDescription}}}";
         string entries = multipleEntries ? $"[{entry},{entry}]" : $"[{entry}]";
         string extra = extraRootMember ? ",\"unexpected\":true" : "";
         return
-            $"{{\"schema\":1,\"domain\":\"skills\",\"family\":\"mage_prismatic_ward\","
+            $"{{\"schema\":1,\"domain\":\"skills\",\"family\":{JsonSerializer.Serialize(source.Family)},"
                 + $"\"templates\":{{}},\"entries\":{entries}{extra}}}\n";
     }
 

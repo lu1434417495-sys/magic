@@ -10,7 +10,7 @@ using System.Text.Json;
 using Godot;
 
 internal sealed record SkillTresToJsonSource(
-    string Color,
+    string Family,
     string SkillId,
     string ResourcePath,
     string OutputFileName
@@ -33,8 +33,8 @@ internal sealed class SkillTresToJsonExportResult
 }
 
 /// <summary>
-/// Converts the fixed stage-1a prismatic ward manifest through the sole Resource-to-import
-/// adapter and canonical writer. The complete output is built in memory before publication.
+/// Converts the complete skill source directory through the sole Resource-to-import adapter and
+/// canonical writer. The complete output is built in memory before publication.
 /// </summary>
 internal sealed class SkillTresToJsonConverter
 {
@@ -42,19 +42,8 @@ internal sealed class SkillTresToJsonConverter
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true
     );
-    private static readonly IReadOnlyList<SkillTresToJsonSource> Manifest =
-        Array.AsReadOnly(
-            new[]
-            {
-                Source("red"),
-                Source("orange"),
-                Source("yellow"),
-                Source("green"),
-                Source("blue"),
-                Source("indigo"),
-                Source("violet"),
-            }
-        );
+    private const string SourceDirectory = "res://data/configs/skills";
+    private static readonly IReadOnlyList<SkillTresToJsonSource> Manifest = BuildManifest();
 
     private readonly Func<string, SkillDef?> _loadResource;
     private readonly ContentCanonicalJsonWriter _writer;
@@ -143,7 +132,7 @@ internal sealed class SkillTresToJsonConverter
             files.Add(
                 new ContentJsonOutputFile(
                     source.OutputFileName,
-                    SkillImportCanonicalJson.WriteSingleEntry(_writer, import)
+                    SkillImportCanonicalJson.WriteSingleEntry(_writer, import, source.Family)
                 )
             );
         }
@@ -173,7 +162,7 @@ internal sealed class SkillTresToJsonConverter
             {
                 throw new IOException(
                     $"Existing skill JSON target file '{source.OutputFileName}' is not an owned "
-                        + $"{SkillImportCanonicalJson.FamilyId} generation: {exception.Message}",
+                        + $"owned skill generation: {exception.Message}",
                     exception
                 );
             }
@@ -221,7 +210,7 @@ internal sealed class SkillTresToJsonConverter
             || family.ValueKind != JsonValueKind.String
             || !string.Equals(
                 family.GetString(),
-                SkillImportCanonicalJson.FamilyId,
+                source.Family,
                 StringComparison.Ordinal
             )
         )
@@ -259,15 +248,27 @@ internal sealed class SkillTresToJsonConverter
         }
     }
 
-    private static SkillTresToJsonSource Source(string color)
+    private static IReadOnlyList<SkillTresToJsonSource> BuildManifest()
     {
-        string skillId = $"mage_prismatic_{color}_ward";
-        return new SkillTresToJsonSource(
-            color,
-            skillId,
-            $"res://data/configs/skills/{skillId}.tres",
-            $"{skillId}.json"
-        );
+        string hostDirectory = ProjectSettings.GlobalizePath(SourceDirectory);
+        if (!Directory.Exists(hostDirectory))
+            throw new DirectoryNotFoundException($"Skill source directory not found: {SourceDirectory}");
+
+        SkillTresToJsonSource[] sources = Directory.GetFiles(hostDirectory, "*.tres", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(hostDirectory, path).Replace('\\', '/'))
+            .OrderBy(static path => path, StringComparer.Ordinal)
+            .Select(relativePath =>
+            {
+                string skillId = Path.GetFileNameWithoutExtension(relativePath);
+                return new SkillTresToJsonSource(
+                    skillId,
+                    skillId,
+                    $"{SourceDirectory}/{relativePath}",
+                    $"{skillId}.json"
+                );
+            })
+            .ToArray();
+        return Array.AsReadOnly(sources);
     }
 
     private static SkillDef? LoadResource(string resourcePath) =>

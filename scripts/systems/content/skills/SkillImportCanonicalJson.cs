@@ -5,18 +5,22 @@ using System.Collections.Generic;
 
 internal static class SkillImportCanonicalJson
 {
-    internal const string FamilyId = "mage_prismatic_ward";
+    internal const string PilotFamilyId = "mage_prismatic_ward";
 
     private sealed record EmptyTemplateMap;
 
     private sealed class SkillImportDocument
     {
-        internal SkillImportDocument(SkillImportModel entry)
+        internal SkillImportDocument(string family, SkillImportModel entry)
         {
             ArgumentNullException.ThrowIfNull(entry);
+            Family = string.IsNullOrWhiteSpace(family)
+                ? throw new ArgumentException("Skill family is required.", nameof(family))
+                : family;
             Entries = Array.AsReadOnly(new[] { entry });
         }
 
+        internal string Family { get; }
         internal IReadOnlyList<SkillImportModel> Entries { get; }
         internal EmptyTemplateMap Templates { get; } = new();
     }
@@ -40,7 +44,7 @@ internal static class SkillImportCanonicalJson
             ),
             ContentCanonicalJsonProperty<SkillImportDocument>.Required(
                 "family",
-                static _ => FamilyId,
+                static value => value.Family,
                 ContentCanonicalJsonValue.Text
             ),
             ContentCanonicalJsonProperty<SkillImportDocument>.Required(
@@ -59,12 +63,17 @@ internal static class SkillImportCanonicalJson
 
     internal static string WriteSingleEntry(
         ContentCanonicalJsonWriter writer,
-        SkillImportModel entry
+        SkillImportModel entry,
+        string? family = null
     )
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(entry);
-        return writer.Write(new SkillImportDocument(entry), DocumentSchema, indented: true) + "\n";
+        return writer.Write(
+            new SkillImportDocument(family ?? entry.SkillId.Value, entry),
+            DocumentSchema,
+            indented: true
+        ) + "\n";
     }
 
     internal static string WriteEntry(

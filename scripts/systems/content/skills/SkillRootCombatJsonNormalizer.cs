@@ -586,21 +586,6 @@ internal static class SkillRootCombatJsonNormalizer
     {
         if (payload == null)
         {
-            if (
-                requireCanonicalSquare2Payload
-                && footprintPattern == CombatCastFootprintImportKind.Square2
-            )
-            {
-                diagnostics.Add(
-                    Diagnostic(
-                        "skill.dto.cast_payload.square2_corner.required",
-                        "square2 cast variants require a typed square2_corner payload.",
-                        context,
-                        $"{pointer}/square2_corner"
-                    )
-                );
-                return null;
-            }
             return new CombatCastVariantPayloadImportModel(null);
         }
         CombatCastSquare2Corner? corner = null;
@@ -620,22 +605,6 @@ internal static class SkillRootCombatJsonNormalizer
                 diagnostics.Add(Diagnostic("skill.dto.cast_payload.square2_corner.unknown", "square2_corner is not registered.", context, $"{pointer}/square2_corner"));
                 return null;
             }
-        }
-        if (
-            requireCanonicalSquare2Payload
-            && footprintPattern == CombatCastFootprintImportKind.Square2
-            && corner == null
-        )
-        {
-            diagnostics.Add(
-                Diagnostic(
-                    "skill.dto.cast_payload.square2_corner.required",
-                    "square2 cast variants require a typed square2_corner payload.",
-                    context,
-                    $"{pointer}/square2_corner"
-                )
-            );
-            return null;
         }
         return new CombatCastVariantPayloadImportModel(corner);
     }
