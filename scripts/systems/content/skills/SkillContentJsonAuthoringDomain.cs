@@ -33,6 +33,24 @@ internal static class SkillContentJsonAuthoringDomain
 
     internal static JsonContentDomainDescriptor<SkillImportModel, SkillImportModel>
         CreateImportDescriptor(string sourceDirectory, IContentJsonSourceReader sourceReader) =>
+        CreateDescriptor(sourceDirectory, sourceReader, ValidateCurrentContract);
+
+    internal static JsonContentDomainDescriptor<SkillImportModel, SkillImportModel>
+        CreateSchemaImportDescriptor(
+            string sourceDirectory,
+            IContentJsonSourceReader sourceReader
+        ) => CreateDescriptor(sourceDirectory, sourceReader, ValidateSchemaOnly);
+
+    private static JsonContentDomainDescriptor<SkillImportModel, SkillImportModel>
+        CreateDescriptor(
+            string sourceDirectory,
+            IContentJsonSourceReader sourceReader,
+            Func<
+                JsonContentEntryContext,
+                SkillImportModel,
+                IReadOnlyList<ContentJsonDiagnostic>
+            > validateDomainLocal
+        ) =>
         new(
             domainId: DomainId,
             schemaVersion: SchemaVersion,
@@ -42,7 +60,7 @@ internal static class SkillContentJsonAuthoringDomain
             nullabilityPolicy: NullabilityPolicy,
             parseDto: SkillJsonImportParser.Parse,
             normalizeImportModel: NormalizeIdentity,
-            validateDomainLocal: ValidateCurrentContract
+            validateDomainLocal: validateDomainLocal
         );
 
     internal static IContentJsonOfflineValidationDomain CreateOfflineValidationDomain() =>
@@ -66,6 +84,11 @@ internal static class SkillContentJsonAuthoringDomain
         return ImportValidator.ValidateDomainLocal(context, import);
 #endif
     }
+
+    private static IReadOnlyList<ContentJsonDiagnostic> ValidateSchemaOnly(
+        JsonContentEntryContext context,
+        SkillImportModel import
+    ) => Array.Empty<ContentJsonDiagnostic>();
 
     private sealed class SkillOfflineValidationDomain : IContentJsonOfflineValidationDomain
     {
