@@ -164,11 +164,11 @@ public partial class run_content_json_document_loader_regression : LifecycleTest
             new[]
             {
                 new ContentJsonSourceText(
-                    "res://data/configs/skills/bad_schema.json",
+                    "res://data/configs/json/skills/bad_schema.json",
                     ValidDocument(schema: 2, entriesJson: "[]")
                 ),
                 new ContentJsonSourceText(
-                    "res://data/configs/skills/bad_domain.json",
+                    "res://data/configs/json/skills/bad_domain.json",
                     ValidDocument(domain: "items", entriesJson: "[]")
                 ),
             },
@@ -197,7 +197,7 @@ public partial class run_content_json_document_loader_regression : LifecycleTest
             "{\"schema\":1,\"domain\":\"skills\",\"family\":\"fixture\","
             + "\"templates\":{},\"entries\":[],\"resource/path\":\"forbidden\"}";
         ContentJsonDocumentLoadResult result = ContentJsonDocumentLoader.ParseDocuments(
-            new[] { new ContentJsonSourceText("res://data/configs/skills/unknown.json", json) },
+            new[] { new ContentJsonSourceText("res://data/configs/json/skills/unknown.json", json) },
             SkillOptions
         );
 
@@ -217,7 +217,7 @@ public partial class run_content_json_document_loader_regression : LifecycleTest
             new[]
             {
                 new ContentJsonSourceText(
-                    "res://data/configs/skills/first.json",
+                    "res://data/configs/json/skills/first.json",
                     ValidDocument(
                         family: "first",
                         entriesJson:
@@ -225,7 +225,7 @@ public partial class run_content_json_document_loader_regression : LifecycleTest
                     )
                 ),
                 new ContentJsonSourceText(
-                    "res://data/configs/skills/second.json",
+                    "res://data/configs/json/skills/second.json",
                     ValidDocument(
                         family: "second",
                         entriesJson:

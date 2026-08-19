@@ -115,7 +115,7 @@ public partial class run_battle_metrics_collector_regression : LifecycleTestScen
 
     private void TestIssueCommandPopulatesActionDamageAndKillMetrics()
     {
-        const string resourcePath = "res://data/configs/skills/mage_death_reap.tres";
+        const string resourcePath = "mage_death_reap";
         SkillDefinition skillDefinition =
             TestSkillDefinitionProjection.LoadSkillDefinition(resourcePath, resourcePath);
         BattleUnitState caster = BattleTestFixture.BuildUnit(

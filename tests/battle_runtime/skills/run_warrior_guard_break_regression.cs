@@ -15,7 +15,7 @@ public partial class run_warrior_guard_break_regression : LifecycleTestSceneTree
         try
         {
             SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-                "res://data/configs/skills/warrior_guard_break.tres",
+                "warrior_guard_break",
                 "warrior_guard_break_regression"
             );
             TestAuthoredContract(skill);

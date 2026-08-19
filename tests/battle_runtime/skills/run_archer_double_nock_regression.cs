@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_archer_double_nock_regression : LifecycleTestSceneTree
 {
     private static readonly StringName SkillId = "archer_double_nock";
-    private const string SkillPath = "res://data/configs/skills/archer_double_nock.tres";
+    private const string SkillPath = "archer_double_nock";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);

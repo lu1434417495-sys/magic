@@ -20,20 +20,29 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
 
     private void Run()
     {
-        TestAllowedGodotValuesBecomePlainFrozenValues();
-        TestMathAllowlistProjectionRoundTrip();
-        TestAllDefinitionGraphsDefensivelyDeepFreezeSyntheticInput();
-        TestTypedSkillResourceFieldsProjectToFrozenPlainGraph();
-        TestMalformedGodotValuesReportFullSkillPaths();
-        TestStrictDictionaryAndPackedValueRejection();
-        TestSyntheticIllegalObjectAndCycleRejection();
-        TestResourceDefaultsAreEffectiveWithoutWritingBack();
-        TestResourceLevelOverrideProjectionRules();
-        TestResourceDescriptionVariablesRequireStrings();
-        TestFormalFlawReadOverrideMigrationPreservesEffectiveBehavior();
-        TestFingerprintAndLevelDescriptionRemainStable();
-
-        RequestTestExit(_test.Finish("Skill definition plain value graph regression"));
+        try
+        {
+            TestAllowedGodotValuesBecomePlainFrozenValues();
+            TestMathAllowlistProjectionRoundTrip();
+            TestAllDefinitionGraphsDefensivelyDeepFreezeSyntheticInput();
+            TestTypedSkillResourceFieldsProjectToFrozenPlainGraph();
+            TestMalformedGodotValuesReportFullSkillPaths();
+            TestStrictDictionaryAndPackedValueRejection();
+            TestSyntheticIllegalObjectAndCycleRejection();
+            TestResourceDefaultsAreEffectiveWithoutWritingBack();
+            TestResourceLevelOverrideProjectionRules();
+            TestResourceDescriptionVariablesRequireStrings();
+            TestFormalFlawReadOverrideMigrationPreservesEffectiveBehavior();
+            TestFingerprintAndLevelDescriptionRemainStable();
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"Skill definition plain value graph regression crashed: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Skill definition plain value graph regression"));
+        }
     }
 
     private void TestMathAllowlistProjectionRoundTrip()
@@ -632,7 +641,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
 
             AssertInvalidDataPath(
                 () => SkillDefinition.FromResource(effectSkill),
-                "skill.charge.combat_profile.effect_defs[0].params.outer[0].bad",
+                "<SkillDef:charge>/entries/0/combat_profile/effect_defs/0/payload/outer",
                 "Nested effect Object rejection should identify the complete authored skill path."
             );
         }
@@ -673,7 +682,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
 
             AssertInvalidDataPath(
                 () => SkillDefinition.FromResource(variantSkill),
-                "skill.teleport.combat_profile.cast_variants[0].params.nested",
+                "<SkillDef:teleport>/entries/0/combat_profile/cast_variants/0/payload/nested",
                 "Cast-variant Object rejection should identify the complete authored skill path."
             );
         }
@@ -910,7 +919,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             1,
             "future_field",
             1,
-            "skill.unknown_override_field.combat_profile.level_overrides[1].future_field",
+            "<SkillDef:unknown_override_field>/entries/0/combat_profile/level_overrides/1/future_field",
             "Unknown Resource level override fields must fail closed."
         );
         AssertInvalidLevelOverrideProjection(
@@ -918,7 +927,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             1,
             "ap_cost",
             (long)int.MaxValue + 1L,
-            "skill.overflow_override_value.combat_profile.level_overrides[1].ap_cost",
+            "<SkillDef:overflow_override_value>/entries/0/combat_profile/level_overrides/1/ap_cost",
             "Resource level override integers outside Int32 must fail explicitly."
         );
         AssertInvalidLevelOverrideProjection(
@@ -926,7 +935,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             (long)int.MaxValue + 1L,
             "ap_cost",
             1,
-            "skill.overflow_override_level.combat_profile.level_overrides",
+            "<SkillDef:overflow_override_level>/entries/0/combat_profile/level_overrides",
             "Resource level keys outside Int32 must fail explicitly."
         );
     }
@@ -1007,7 +1016,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         );
         AssertInvalidDataPath(
             () => SkillDefinition.FromResource(skillResource),
-            $"skill.{skillId}.level_description_configs.0.power",
+            $"<SkillDef:{skillId}>/entries/0/level_description_configs/0/power",
             $"Resource description variable {typeLabel} values must be rejected."
         );
     }
@@ -1016,7 +1025,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
     {
         using var loader = new TestContentResourceLoader();
         SkillDef resource = loader.LoadCanonical<SkillDef>(
-            "res://data/configs/skills/warrior_flaw_read.tres"
+            "warrior_flaw_read"
         );
         SkillDefinition skill = SkillDefinition.FromResource(resource);
         CombatSkillDefinition combat = skill.CombatProfile;

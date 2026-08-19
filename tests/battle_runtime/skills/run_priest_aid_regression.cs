@@ -15,7 +15,7 @@ public partial class run_priest_aid_regression : LifecycleTestSceneTree
         try
         {
             SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-                "res://data/configs/skills/priest_aid.tres",
+                "priest_aid",
                 "priest_aid_regression"
             );
             TestAuthoredContract(skill);

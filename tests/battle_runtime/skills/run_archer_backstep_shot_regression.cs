@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/archer_backstep_shot.tres";
+        "archer_backstep_shot";
     private static readonly StringName SkillId = "archer_backstep_shot";
     private readonly TestHarness _test = new();
 
@@ -438,14 +438,14 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
         using (BattleTestFixture fixture = CreateFixture(skill, wallCaster, wallTarget))
         {
             ConfigureHit(fixture);
-            fixture.Runtime
-                .GetGridService()
-                .SetEdgeFeature(
-                    fixture.State,
-                    wallCaster.GetAnchorCoord() + Vector2I.Left,
-                    Vector2I.Right,
-                    BattleEdgeFeatureState.MakeWall()
-                );
+            _test.True(
+                fixture.State.PutTemporaryEdgeFeature(
+                    BuildTemporaryWall(wallCaster.GetAnchorCoord() + Vector2I.Left, Vector2I.Right),
+                    refreshExisting: false,
+                    maxActiveEdges: 0
+                ),
+                "测试前提：临时墙体应可写入。"
+            );
             BattleCommand command = BuildCommand(wallCaster, wallTarget, Vector2I.Left);
             BattlePreview preview = fixture.Runtime.PreviewCommand(command);
             _test.True(preview?.allowed == true, "第一步遇墙时不能取消攻击。");
@@ -830,6 +830,23 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
             SkillPath,
             "archer_backstep_shot_regression"
         );
+
+    private static BattleTemporaryEdgeFeatureState BuildTemporaryWall(
+        Vector2I originCoord,
+        Vector2I direction
+    )
+    {
+        return new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = originCoord,
+            Direction = direction,
+            BindingId = "backstep_shot_test_wall",
+            ActionId = "backstep_shot_test_wall",
+            CreatedAtTu = 0,
+            ExpiresAtTu = 100,
+            Feature = BattleEdgeFeatureState.MakeWall(),
+        };
+    }
 
     private static BattleTestFixture CreateFixture(
         SkillDefinition skill,

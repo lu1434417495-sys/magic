@@ -83,7 +83,7 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
             "manual"
         );
         SkillDefinition windupSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_heavy_blow.tres",
+            "warrior_heavy_blow",
             "battle_command_dock_windup"
         );
         caster.AddKnownActiveSkill(windupSkill.SkillId);

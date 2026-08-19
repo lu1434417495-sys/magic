@@ -62,7 +62,7 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
     {
         BattleDamageResolver resolver = new();
         SkillDefinition lastStandSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_last_stand.tres",
+            "warrior_last_stand",
             "battle_execute_lethal:warrior_last_stand"
         );
         resolver.SetSkillDefinitions(

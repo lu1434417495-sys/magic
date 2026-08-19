@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_archer_repel_arrow_regression : LifecycleTestSceneTree
 {
     private static readonly StringName SkillId = "archer_repel_arrow";
-    private const string SkillPath = "res://data/configs/skills/archer_repel_arrow.tres";
+    private const string SkillPath = "archer_repel_arrow";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);

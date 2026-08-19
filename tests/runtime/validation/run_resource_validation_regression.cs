@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_resource_validation_regression : LifecycleTestSceneTree
 {
-    private const string OFFICIAL_SKILL_DIRECTORY = "res://data/configs/skills";
+    private const string OFFICIAL_SKILL_DIRECTORY = "res://data/configs/json/skills";
     private const string OFFICIAL_PROFESSION_DIRECTORY = "res://data/configs/professions";
     private const string OFFICIAL_RECIPE_DIRECTORY = "res://data/configs/recipes";
     private const string OFFICIAL_ENEMY_SEED_PATH = "res://data/configs/enemies/enemy_content_seed.tres";
@@ -71,7 +71,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         using ProgressionContentRegistry progressionRegistry = new(contentLoader);
         using ItemContentRegistry itemRegistry = new(contentLoader);
 
-        GDictionary skillDefs = progressionRegistry.DuplicateSkillResourceBucketForValidation();
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
             itemRegistry.GetItemDefsTyped();
         EnemyContentDefinitionGraph enemyDefinitions = new(
@@ -102,9 +101,12 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                 ContentValidationRunner.ValidateSkillDirectory(OFFICIAL_SKILL_DIRECTORY),
                 ContentValidationRunner.ValidateProfessionDirectory(
                     OFFICIAL_PROFESSION_DIRECTORY,
-                    skillDefs
+                    typedSkillDefinitions
                 ),
-                ContentValidationRunner.ValidateIdentityContent("official_identity", skillDefs),
+                ContentValidationRunner.ValidateIdentityContent(
+                    "official_identity",
+                    typedSkillDefinitions
+                ),
                 ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                     "official_battle_special_profiles",
                     typedSkillDefinitions
@@ -141,16 +143,16 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             "正式 enemy validation runner 应稳定归入 enemy domain。"
         );
 
-        ValidationDomainResult skillResult = ContentValidationRunner.ValidateSkillDirectory(
+        ValidationDomainResult skillResult = ContentValidationRunner.ValidateSkillResourceFixtureDirectory(
             SKILL_INVALID_DIRECTORY,
             true
         );
-        ValidationDomainResult validSkillResult = ContentValidationRunner.ValidateSkillDirectory(
+        ValidationDomainResult validSkillResult = ContentValidationRunner.ValidateSkillResourceFixtureDirectory(
             SKILL_VALID_DIRECTORY
         );
         ValidationDomainResult professionResult = ContentValidationRunner.ValidateProfessionDirectory(
             PROFESSION_INVALID_DIRECTORY,
-            skillDefs
+            typedSkillDefinitions
         );
         ValidationDomainResult identityResult = ContentValidationRunner.ValidateIdentityDirectories(
             "invalid_identity_directories",
@@ -164,7 +166,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                 "res://data/configs/stage_advancements",
                 IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY,
             ],
-            skillDefs
+            typedSkillDefinitions
         );
         ValidationDomainResult itemResult = ContentValidationRunner.ValidateItemDirectories(
             "isolated_invalid_items",
@@ -354,23 +356,22 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             skillResult,
             "非法技能目录中的每个独立 fixture 规则都必须被命中。",
             "Duplicate skill_id registered: duplicate_skill",
-            "missing_id_skill.tres is missing skill_id",
-            "illegal_reference_skill has an effect without effect_type",
+            "missing_id_skill.tres/skill_id: Content ID must be canonical lower snake_case ASCII",
+            "skill.dto.effect_type.unknown",
             "invalid_level_description_gap_skill level_description_configs must include level 1",
             "invalid_level_description_level_less_overflow_skill level_description_configs[1] must be <= max_level 0",
-            "skill.invalid_level_description_malformed_skill.level_description_configs",
+            "invalid_level_description_malformed_skill.tres/level_description_configs",
             "invalid_level_description_missing_config_skill level_description_configs must be non-empty",
             "invalid_level_description_missing_template_skill level_description_template must be non-empty",
             "invalid_level_less_variant_skill cast option locked_option min_skill_level must be <= max_level 0",
-            "invalid_targeting_enums_skill combat_profile uses unsupported target_mode phantom",
-            "invalid_targeting_enums_skill combat_profile uses unsupported target_selection_mode spiral_selection",
-            "invalid_targeting_enums_skill combat_profile uses unsupported selection_order_mode chaotic",
-            "invalid_targeting_enums_skill combat_profile uses unsupported area_pattern blob",
-            "invalid_targeting_enums_skill combat_profile level override 1.area_pattern uses unsupported area_pattern spiral",
-            "invalid_targeting_enums_skill cast option self_option uses unsupported target_mode self",
-            "invalid_targeting_enums_skill cast option typo_option uses unsupported footprint_pattern hex",
-            "invalid_targeting_enums_skill cast option typo_option min_skill_level must be >= 0",
-            "invalid_targeting_enums_skill cast option overlevel_option min_skill_level must be <= max_level 1"
+            "skill.dto.target_mode.unknown",
+            "skill.dto.target_selection_mode.unknown",
+            "skill.dto.selection_order_mode.unknown",
+            "skill.dto.area_pattern.unknown",
+            "skill.dto.level_override.area_pattern.unknown",
+            "/cast_variants/0/target_mode",
+            "/cast_variants/1/target_mode",
+            "skill.dto.cast_variant.footprint_pattern.unknown"
         );
         _test.True(validSkillResult.ErrorCount == 0, "合法技能 targeting fixture 不应产生 validation 错误。");
 
@@ -631,7 +632,11 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 
         _test.Eq(skill.SkillId, skillId, "Phantasmal Kill skill_id 应匹配。");
         _test.Eq(skill.DisplayName, "怪影杀戮", "Phantasmal Kill display_name 应匹配。");
-        _test.Eq(skill.IconId, skillId, "Phantasmal Kill icon_id 应匹配。");
+        _test.Eq(
+            skill.IconId,
+            new StringName(""),
+            "Phantasmal Kill 应保留 authoring 中显式为空的 icon asset ID。"
+        );
         _test.Eq(skill.SkillType, new StringName("active"), "Phantasmal Kill 应是 active 技能。");
         _test.Eq(skill.MaxLevel, 9, "Phantasmal Kill max_level 应为 9。");
         _test.Eq(skill.NonCoreMaxLevel, 7, "Phantasmal Kill non_core_max_level 应为 7。");

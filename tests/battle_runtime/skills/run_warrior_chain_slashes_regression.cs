@@ -91,7 +91,7 @@ public partial class run_warrior_chain_slashes_regression : LifecycleTestSceneTr
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_chain_slashes.tres",
+            "warrior_chain_slashes",
             "warrior_chain_slashes_regression"
         );
 

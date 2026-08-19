@@ -290,7 +290,7 @@ public partial class run_warrior_nine_echo_final_hammer_regression : LifecycleTe
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_nine_echo_final_hammer.tres",
+            "warrior_nine_echo_final_hammer",
             "warrior_nine_echo_final_hammer_regression"
         );
 
@@ -518,5 +518,15 @@ public partial class run_warrior_nine_echo_final_hammer_regression : LifecycleTe
         public IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> CollectMitigationAuras(
             BattleEquipmentAbilityMitigationAuraContext context
         ) => Array.Empty<BattleEquipmentAbilityMitigationAuraResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+            BattleEquipmentAbilityMitigationTierContext context
+        ) => Array.Empty<BattleEquipmentAbilityMitigationTierResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+            CollectBonusDamageDiceForEffect(BattleEquipmentAbilityDirectDamageContext context)
+        {
+            return Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>();
+        }
     }
 }

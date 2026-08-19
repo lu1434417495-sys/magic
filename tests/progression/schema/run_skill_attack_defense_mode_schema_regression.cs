@@ -5,7 +5,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_skill_attack_defense_mode_schema_regression : LifecycleTestSceneTree
 {
     private const string ArcaneMissilePath =
-        "res://data/configs/skills/mage_arcane_missile.tres";
+        "mage_arcane_missile";
 
     private readonly TestHarness _test = new();
 

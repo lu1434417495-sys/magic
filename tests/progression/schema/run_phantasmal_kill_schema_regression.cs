@@ -49,7 +49,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
     private void TestFormalResourceLoadsAndValidates()
     {
         SkillDef skill = ResourceLoader.Load<SkillDef>(
-            "res://data/configs/skills/mage_phantasmal_kill.tres",
+            "mage_phantasmal_kill",
             cacheMode: ResourceLoader.CacheMode.IgnoreDeep
         );
         _test.True(skill != null, "formal mage_phantasmal_kill resource should load.");
@@ -71,7 +71,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         effect.effect_target_team_filter = "enemy";
         effect.save_dc_mode = "static";
         effect.save_dc = 12;
-        effect.save_dc_source_ability = "fortune";
+        effect.save_dc_source_ability = "willpower";
         effect.save_ability = "constitution";
         effect.save_tag = "magic";
         effect.damage_tag = "fire";
@@ -153,7 +153,6 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
     {
         SkillDef skill = FormalPhantasmalKillSkill();
         CombatEffectDef effect = skill.combat_profile.effect_defs[0];
-        effect.@params.Remove("failure_damage_dice_count");
         effect.@params["profile_id"] = "other_profile";
         effect.@params["failure_execute_threshold_fixed"] = -1;
         effect.@params["failure_execute_threshold_max_hp_percent"] = 0;
@@ -162,21 +161,10 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         effect.@params["critical_failure_execute_threshold_max_hp_percent"] = 101;
         effect.@params["critical_failure_damage_dice_count"] = 0;
         effect.@params["critical_failure_stunned_duration_tu"] = 0;
-        effect.@params["unexpected_payload"] = 1;
 
         string errors = FormatErrors(ValidateSkill(skill));
 
         AssertContains(errors, "params.profile_id", "profile_id must be the formal profile.");
-        AssertContains(
-            errors,
-            "params.failure_damage_dice_count",
-            "missing dice count should be rejected."
-        );
-        AssertContains(
-            errors,
-            "params.unexpected_payload",
-            "unknown params should be rejected."
-        );
         AssertContains(
             errors,
             "params.failure_execute_threshold_fixed",
@@ -211,6 +199,26 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
             errors,
             "params.critical_failure_stunned_duration_tu",
             "critical failure stunned duration should be positive TU."
+        );
+
+        SkillDef missingPayloadSkill = FormalPhantasmalKillSkill();
+        missingPayloadSkill.combat_profile.effect_defs[0].@params.Remove(
+            "failure_damage_dice_count"
+        );
+        string missingPayloadErrors = FormatErrors(ValidateSkill(missingPayloadSkill));
+        AssertContains(
+            missingPayloadErrors,
+            "/payload/failure_damage_dice_count",
+            "missing dice count should be rejected at the import boundary."
+        );
+
+        SkillDef unknownPayloadSkill = FormalPhantasmalKillSkill();
+        unknownPayloadSkill.combat_profile.effect_defs[0].@params["unexpected_payload"] = 1;
+        string unknownPayloadErrors = FormatErrors(ValidateSkill(unknownPayloadSkill));
+        AssertContains(
+            unknownPayloadErrors,
+            "/payload/unexpected_payload",
+            "unknown params should be rejected at the import boundary."
         );
     }
 
@@ -321,7 +329,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         GDictionary configs = new();
         for (int level = 0; level <= 9; level++)
         {
-            configs[level.ToString()] = new GDictionary { ["range"] = 12 };
+            configs[level.ToString()] = new GDictionary { ["range"] = "12" };
         }
         return configs;
     }

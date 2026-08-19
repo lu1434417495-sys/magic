@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_mage_burning_hands_regression : LifecycleTestSceneTree
 {
-    private const string SkillPath = "res://data/configs/skills/mage_burning_hands.tres";
+    private const string SkillPath = "mage_burning_hands";
     private static readonly StringName SkillId = "mage_burning_hands";
     private readonly TestHarness _test = new();
 

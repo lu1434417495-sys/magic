@@ -115,7 +115,7 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_double_strike.tres",
+            "warrior_double_strike",
             "warrior_double_strike_regression"
         );
 

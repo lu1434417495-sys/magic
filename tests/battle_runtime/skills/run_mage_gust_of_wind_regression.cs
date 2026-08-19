@@ -6,7 +6,7 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_mage_gust_of_wind_regression : LifecycleTestSceneTree
 {
-    private const string SkillPath = "res://data/configs/skills/mage_gust_of_wind.tres";
+    private const string SkillPath = "mage_gust_of_wind";
     private static readonly StringName SkillId = "mage_gust_of_wind";
     private readonly TestHarness _test = new();
 

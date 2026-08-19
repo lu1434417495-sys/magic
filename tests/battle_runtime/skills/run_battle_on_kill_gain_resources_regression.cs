@@ -214,7 +214,7 @@ public partial class run_battle_on_kill_gain_resources_regression : LifecycleTes
 
     private static SkillDefinition LoadDeathReapDefinition()
     {
-        const string resourcePath = "res://data/configs/skills/mage_death_reap.tres";
+        const string resourcePath = "mage_death_reap";
         return TestSkillDefinitionProjection.LoadSkillDefinition(resourcePath, resourcePath);
     }
 

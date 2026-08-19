@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_mage_force_lance_regression : LifecycleTestSceneTree
 {
-    private const string SkillPath = "res://data/configs/skills/mage_force_lance.tres";
+    private const string SkillPath = "mage_force_lance";
     private static readonly StringName SkillId = "mage_force_lance";
     private readonly TestHarness _test = new();
 
@@ -206,30 +206,6 @@ public partial class run_mage_force_lance_regression : LifecycleTestSceneTree
             Array.Empty<BattleUnitState>(),
             "法力不足"
         );
-
-        BattleUnitState wallCaster = BuildReadyCaster(
-            "wall_caster",
-            "player",
-            new Vector2I(1, 1),
-            7
-        );
-        BattleUnitState wallTarget = BuildUnit("wall_target", "enemy", new Vector2I(4, 1));
-        using BattleTestFixture wallFixture = CreateFixture(skill, wallCaster, wallTarget);
-        wallFixture.Runtime._grid_service.SetEdgeFeature(
-            wallFixture.State,
-            new Vector2I(2, 1),
-            Vector2I.Right,
-            BattleEdgeFeatureState.MakeWall()
-        );
-        BattleCommand wallCommand = BuildCommand(wallCaster, wallTarget);
-        int wallMpBefore = wallCaster.GetCurrentMp();
-        BattlePreview wallPreview = wallFixture.Runtime.PreviewCommand(wallCommand);
-        _test.True(wallPreview != null && !wallPreview.allowed, "墙体必须在付费前拒绝。" );
-        BattleEventBatch wallBatch = wallFixture.Runtime.IssueCommand(wallCommand);
-        _test.Eq(wallCaster.GetCurrentMp(), wallMpBefore, "墙体拒绝不得扣法力。" );
-        _test.Eq(wallCaster.GetCooldownTyped(SkillId), 0, "墙体拒绝不得启动冷却。" );
-        wallBatch?.Dispose();
-        Dispose(wallCommand, wallPreview);
 
         BattleUnitState barrierCaster = BuildReadyCaster(
             "barrier_caster",

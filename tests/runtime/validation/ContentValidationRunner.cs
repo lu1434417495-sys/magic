@@ -101,9 +101,6 @@ internal static class ContentValidationRunner
                         SkillDefinitions = registry.GetSkillDefinitionsTyped(),
                     }
                 );
-                progressionRegistry.ReplaceSkillAuthoringResourcesForValidation(
-                    registry.DuplicateSkillResourceBucketForProgressionRegistry()
-                );
                 AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
             }
             catch (System.IO.InvalidDataException exception)
@@ -117,22 +114,85 @@ internal static class ContentValidationRunner
         return BuildDomainResult("skill", directoryPath, errors);
     }
 
+    // Negative schema fixtures remain Godot Resources so they can construct states that the
+    // fail-closed JSON parser rejects before normalization. This test-only boundary must not be
+    // used by SkillContentRegistry or any production content-loading path.
+    public static ValidationDomainResult ValidateSkillResourceFixtureDirectory(
+        string directoryPath,
+        bool includeProgressionSkillChecks = false
+    )
+    {
+        var imports = new Dictionary<StringName, SkillImportModel>();
+        var errors = new List<string>();
+        using DirAccess directory = DirAccess.Open(directoryPath);
+        if (directory == null)
+            return BuildDomainResult("skill", directoryPath, [$"Cannot open skill fixture directory: {directoryPath}"]);
+
+        var fileNames = new List<string>();
+        directory.ListDirBegin();
+        for (string entryName = directory.GetNext(); entryName != ""; entryName = directory.GetNext())
+        {
+            if (!directory.CurrentIsDir() && entryName.EndsWith(".tres", StringComparison.Ordinal))
+                fileNames.Add(entryName);
+        }
+        directory.ListDirEnd();
+        fileNames.Sort(StringComparer.Ordinal);
+
+        foreach (string fileName in fileNames)
+        {
+            string sourcePath = $"{directoryPath.TrimEnd('/')}/{fileName}";
+            using SkillDef skill = ResourceLoader.Load<SkillDef>(sourcePath, cacheMode: ResourceLoader.CacheMode.IgnoreDeep);
+            if (skill == null)
+            {
+                errors.Add($"skill.tres.invalid_resource {sourcePath}: Skill Resource could not be loaded.");
+                continue;
+            }
+            var context = new JsonContentEntryContext("skill", "", sourcePath, "");
+            ContentImportStageResult<SkillImportModel> result = SkillResourceProjectionAdapter.TryAdapt(context, skill);
+            foreach (ContentJsonDiagnostic diagnostic in result.Diagnostics)
+                errors.Add($"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}");
+            if (!result.HasValue)
+                continue;
+            StringName skillId = result.Value.SkillId.Value;
+            if (!imports.TryAdd(skillId, result.Value))
+                errors.Add($"Duplicate skill_id registered: {skillId}");
+        }
+
+        var validator = new SkillImportModelValidator();
+        AppendUniqueErrors(errors, validator.ValidateBatchMessages(imports));
+        if (includeProgressionSkillChecks)
+        {
+            using ProgressionContentRegistry progressionRegistry = new(
+                new TestContentResourceLoader(),
+                loadDefaultContent: false
+            );
+            progressionRegistry.ReplaceDefinitionsForValidation(
+                new ProgressionDefinitionSources
+                {
+                    SkillDefinitions = SkillDefinitionProjector.ProjectIndex(imports.Values),
+                }
+            );
+            AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
+        }
+        return BuildDomainResult("skill", directoryPath, errors);
+    }
+
     public static ValidationDomainResult ValidateProfessionDirectory(
         string directoryPath,
-        GDictionary skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         using ProfessionContentRegistry registry = new(
             new TestContentResourceLoader(),
             loadDefaultContent: false
         );
-        registry.Setup(ProjectSkillDefinitions(skillDefs), directoryPath);
+        registry.Setup(skillDefinitions, directoryPath);
         return BuildDomainResult("profession", directoryPath, registry.Validate());
     }
 
     public static ValidationDomainResult ValidateIdentityContent(
         string label,
-        GDictionary skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
         return ValidateIdentityDirectories(
@@ -144,7 +204,7 @@ internal static class ContentValidationRunner
             ["res://data/configs/bloodlines"],
             ["res://data/configs/ascensions"],
             ["res://data/configs/stage_advancements"],
-            skillDefs ?? new GDictionary()
+            skillDefinitions ?? new Dictionary<StringName, SkillDefinition>()
         );
     }
 
@@ -157,7 +217,7 @@ internal static class ContentValidationRunner
         string[] bloodlineDirectories,
         string[] ascensionDirectories,
         string[] stageAdvancementDirectories,
-        GDictionary skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
         using RaceContentRegistry raceRegistry = BuildRaceRegistry(raceDirectories);
@@ -186,7 +246,7 @@ internal static class ContentValidationRunner
         );
         PrepareIdentityPhase2Registry(
             progressionRegistry,
-            skillDefs ?? new GDictionary(),
+            skillDefinitions ?? new Dictionary<StringName, SkillDefinition>(),
             raceRegistry,
             subraceRegistry,
             traitRegistry,
@@ -502,7 +562,7 @@ internal static class ContentValidationRunner
 
     private static void PrepareIdentityPhase2Registry(
         ProgressionContentRegistry progressionRegistry,
-        GDictionary skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         RaceContentRegistry raceRegistry,
         SubraceContentRegistry subraceRegistry,
         TraitContentRegistry traitRegistry,
@@ -515,7 +575,7 @@ internal static class ContentValidationRunner
         progressionRegistry.ReplaceDefinitionsForValidation(
             new ProgressionDefinitionSources
             {
-                SkillDefinitions = ProjectSkillDefinitions(skillDefs),
+                SkillDefinitions = skillDefinitions,
                 RaceDefinitions = raceRegistry.GetRaceDefsTyped(),
                 SubraceDefinitions = subraceRegistry.GetSubraceDefsTyped(),
                 TraitDefinitions = traitRegistry.GetTraitDefsTyped(),
@@ -620,24 +680,6 @@ internal static class ContentValidationRunner
             result[skillId] = skillDef;
         }
         return result;
-    }
-
-    private static IReadOnlyDictionary<StringName, SkillDefinition> ProjectSkillDefinitions(
-        GDictionary skillDefs
-    )
-    {
-        var resources = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null)
-            return SkillDefinition.ProjectIndex(resources);
-        foreach (Variant rawKey in skillDefs.Keys)
-        {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawKey);
-            if (skillId == "")
-                continue;
-            if (skillDefs[rawKey].AsGodotObject() is SkillDef skillDef)
-                resources[skillId] = skillDef;
-        }
-        return SkillDefinition.ProjectIndex(resources);
     }
 
     private static T DictGetByStringName<T>(GDictionary source, string key)

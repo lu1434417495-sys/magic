@@ -47,7 +47,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             new Vector2I(7, 4)
         );
         SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_color_spray.tres",
+            "mage_color_spray",
             "battle_ai_weighted_save_failure_control"
         );
         fixture.AddSkill(skill);
@@ -173,7 +173,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             new Vector2I(7, 4)
         );
         SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_frost_bolt.tres",
+            "mage_frost_bolt",
             "battle_ai_aggregate_refresh_control"
         );
         fixture.AddSkill(skill);
@@ -298,7 +298,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             new Vector2I(6, 4)
         );
         SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_guard_break.tres",
+            "warrior_guard_break",
             "battle_ai_equipment_durability_score_regression"
         );
         fixture.AddSkill(skill);
@@ -827,7 +827,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
     private void TestWillPenetrateShieldBonusCondition()
     {
         SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_will_penetrate.tres",
+            "warrior_will_penetrate",
             "battle_ai_score_input_metrics_will_penetrate"
         );
         CombatSkillDefinition combat = skill?.CombatProfile;

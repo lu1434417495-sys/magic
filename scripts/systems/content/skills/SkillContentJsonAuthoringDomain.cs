@@ -11,6 +11,9 @@ internal static class SkillContentJsonAuthoringDomain
     internal const string DomainId = "skills";
     internal const int SchemaVersion = 1;
     internal const string EntryIdPropertyName = "skill_id";
+#if !CONTENT_JSON_OFFLINE
+    private static readonly SkillImportModelValidator ImportValidator = new();
+#endif
 
     internal static ContentJsonSchemaDomainRegistration SchemaRegistration { get; } =
         new(
@@ -53,7 +56,16 @@ internal static class SkillContentJsonAuthoringDomain
     private static IReadOnlyList<ContentJsonDiagnostic> ValidateCurrentContract(
         JsonContentEntryContext context,
         SkillImportModel import
-    ) => Array.Empty<ContentJsonDiagnostic>();
+    )
+    {
+#if CONTENT_JSON_OFFLINE
+        // The standalone host shares the complete strict DTO/parser contract but intentionally
+        // carries no Godot-bound Definition validators. Production performs this second stage.
+        return Array.Empty<ContentJsonDiagnostic>();
+#else
+        return ImportValidator.ValidateDomainLocal(context, import);
+#endif
+    }
 
     private sealed class SkillOfflineValidationDomain : IContentJsonOfflineValidationDomain
     {

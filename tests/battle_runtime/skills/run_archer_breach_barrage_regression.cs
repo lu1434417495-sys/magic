@@ -6,7 +6,7 @@ using Godot;
 public partial class run_archer_breach_barrage_regression : LifecycleTestSceneTree
 {
     private static readonly StringName SkillId = "archer_breach_barrage";
-    private const string SkillPath = "res://data/configs/skills/archer_breach_barrage.tres";
+    private const string SkillPath = "archer_breach_barrage";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
@@ -25,7 +25,6 @@ public partial class run_archer_breach_barrage_regression : LifecycleTestSceneTr
             TestMissDoesNotAdvanceDecay(skill);
             TestSuccessfulCheckWithZeroHpDamageAdvancesDecay(skill);
             TestAllMissesStillConsumeCosts(skill);
-            TestLosBlockerStopsPath(skill);
             TestInvalidAndEmptyDirectionsRejectBeforeCost(skill);
             TestAiEnumeratesCardinalDirectionsAndUsesCanonicalPreview(skill);
         }
@@ -38,45 +37,10 @@ public partial class run_archer_breach_barrage_regression : LifecycleTestSceneTr
 
     private void TestAuthoredSchemaValidation()
     {
-        SkillDef authored = ResourceLoader.Load<SkillDef>(
-            SkillPath,
-            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
-        );
-        _test.True(authored != null, "贯阵一矢正式资源必须可加载并进入 schema 校验。" );
-        if (authored == null)
-            return;
-        GodotContentOwnership.RegisterBorrowedContent(
-            authored,
-            "archer_breach_barrage_schema_regression"
-        );
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
-        var validErrors = new Godot.Collections.Array<string>();
-        validator.AppendCombatProfileValidationErrors(
-            validErrors,
-            authored.skill_id,
-            authored.combat_profile,
-            authored
-        );
-        _test.Eq(
-            validErrors.Count,
-            0,
-            $"贯阵一矢正式资源必须通过 directional piercing schema。errors={string.Join(" | ", validErrors)}"
-        );
-
-        authored.combat_profile.target_team_filter = "enemy";
-        var invalidErrors = new Godot.Collections.Array<string>();
-        validator.AppendCombatProfileValidationErrors(
-            invalidErrors,
-            authored.skill_id,
-            authored.combat_profile,
-            authored
-        );
+        SkillDefinition authored = LoadSkill();
         _test.True(
-            invalidErrors.Any(error => error.Contains("target_team_filter any")),
-            $"破坏友军误伤契约后必须由 schema fail closed。errors={string.Join(" | ", invalidErrors)}"
+            authored?.CombatProfile?.DirectionalPiercing != null,
+            "贯阵一矢 JSON 必须通过 domain validator 并投影 directional piercing。"
         );
     }
 
@@ -96,7 +60,8 @@ public partial class run_archer_breach_barrage_regression : LifecycleTestSceneTr
         _test.Eq(combat.TargetModeKind, BattleTargetMode.Ground, "玩家必须选择地面方向。" );
         _test.Eq(combat.TargetFilterKind, BattleTargetFilter.Any, "贯穿必须允许友军误伤。" );
         _test.Eq(combat.RangeValue, 0, "射程必须来自当前弓。" );
-        _test.True(combat.RequiresLos, "阻挡视线的边缘必须能截断箭矢。" );
+        // 边墙移除后 requires_los 已无阻断源（HasLineOfSight 恒为 true），此处只锁内容声明本身。
+        _test.True(combat.RequiresLos, "内容必须声明 requires_los。" );
         _test.True(
             combat.RequiredWeaponFamilies.SequenceEqual(new[] { new StringName("bow") }),
             "武器门禁必须精确要求弓。"
@@ -428,42 +393,6 @@ public partial class run_archer_breach_barrage_regression : LifecycleTestSceneTr
         _test.Eq(archer.GetCurrentStamina(), 132, "全部未命中仍必须消耗动态体力68。" );
         _test.Eq(archer.GetCooldownTyped(SkillId), 120, "全部未命中仍必须启动完整冷却。" );
         Dispose(command);
-    }
-
-    private void TestLosBlockerStopsPath(SkillDefinition skill)
-    {
-        BattleUnitState archer = BuildArcher("wall_archer", "player", new Vector2I(1, 1), 1, 6, 0);
-        BattleUnitState beforeWall = BuildUnit("wall_before", "enemy", new Vector2I(3, 1));
-        BattleUnitState afterWall = BuildUnit("wall_after", "enemy", new Vector2I(5, 1));
-        using BattleTestFixture fixture = CreateFixture(
-            "breach_wall",
-            skill,
-            new[] { archer },
-            beforeWall,
-            afterWall
-        );
-        fixture.Runtime._grid_service.SetEdgeFeature(
-            fixture.State,
-            new Vector2I(3, 1),
-            Vector2I.Right,
-            BattleEdgeFeatureState.MakeWall()
-        );
-        SetHeight(fixture, afterWall.GetAnchorCoord(), 1);
-        BattleCommand command = BuildCommand(archer, Vector2I.Right);
-        BattlePreview preview = fixture.Runtime.PreviewCommand(command);
-        _test.True(preview.allowed, "墙前存在目标时仍应允许施放。" );
-        AssertIds(preview.TargetUnitIdsTyped, beforeWall.unit_id);
-        BattleDirectionalPiercingPlan plan = BattleDirectionalPiercingRules.BuildPlan(
-            fixture.State,
-            fixture.Runtime._grid_service,
-            archer,
-            skill,
-            archer.GetAnchorCoord() + Vector2I.Right,
-            6
-        );
-        _test.Eq(plan.LockedHeightSign, 0, "墙后的+1层单位不得先于阻挡边锁定高度通道。" );
-        _test.True(ContainsLog(preview, "前被阻挡"), "预览必须显示路径被边缘阻挡。" );
-        Dispose(command, preview);
     }
 
     private void TestInvalidAndEmptyDirectionsRejectBeforeCost(SkillDefinition skill)

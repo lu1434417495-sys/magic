@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_level_description_template_regression : LifecycleTestSceneTree
 {
     private const string BattleRecoverySkillPath =
-        "res://data/configs/skills/warrior_battle_recovery.tres";
+        "warrior_battle_recovery";
 
     private readonly TestHarness _test = new();
 
@@ -310,9 +310,10 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             rejectionMessage = exception.Message;
         }
         _test.True(
-            rejectionMessage.Contains(
-                "skill.wrong_config_type_fixture.level_description_configs.0"
-            ),
+            rejectionMessage.Contains("skill.tres.invalid_resource")
+                && rejectionMessage.Contains(
+                    "<SkillDef:wrong_config_type_fixture>/entries/0/level_description_configs/0"
+                ),
             "等级配置不是字典时应由投影边界按精确路径拒绝"
         );
     }

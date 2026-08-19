@@ -215,7 +215,7 @@ public partial class run_warrior_spin_slash_regression : LifecycleTestSceneTree
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_spin_slash.tres",
+            "warrior_spin_slash",
             "warrior_spin_slash_regression"
         );
 

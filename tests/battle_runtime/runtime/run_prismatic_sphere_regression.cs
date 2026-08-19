@@ -796,7 +796,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
     )
     {
         SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            $"res://data/configs/skills/{skillId}.tres",
+            skillId.ToString(),
             $"prismatic_single_layer:{skillId}:level_{skillLevel}"
         );
         _test.True(skill?.CombatProfile != null, $"{skillId} must load as a combat skill.");
@@ -845,7 +845,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
     private void TestPrismaticSphereCommandGrantsEffectAppliedMasteryOnce()
     {
         SkillDefinition sphereSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_prismatic_sphere.tres",
+            "mage_prismatic_sphere",
             "prismatic_sphere:mastery_command"
         );
         _test.True(
@@ -1748,8 +1748,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         BattleState state = fixture.State;
         BattleUnitState enemy = fixture.Enemy;
         SkillDefinition lastStandSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_last_stand.tres",
-            "prismatic_sphere:res://data/configs/skills/warrior_last_stand.tres"
+            "warrior_last_stand",
+            "prismatic_sphere:warrior_last_stand"
         );
         _test.True(
             lastStandSkill != null && lastStandSkill.CombatProfile != null,

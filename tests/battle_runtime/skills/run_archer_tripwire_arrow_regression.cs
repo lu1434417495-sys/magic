@@ -9,7 +9,7 @@ public partial class run_archer_tripwire_arrow_regression : LifecycleTestSceneTr
 {
     private static readonly StringName SkillId = "archer_tripwire_arrow";
     private const string SkillPath =
-        "res://data/configs/skills/archer_tripwire_arrow.tres";
+        "archer_tripwire_arrow";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
@@ -194,16 +194,6 @@ public partial class run_archer_tripwire_arrow_regression : LifecycleTestSceneTr
         _test.False(
             fixture.Runtime.PreviewCommand(occupied)?.allowed == true,
             "三格范围存在单位时必须拒绝。"
-        );
-        fixture.Runtime._grid_service.SetEdgeFeature(
-            fixture.State,
-            new Vector2I(1, 2),
-            Vector2I.Right,
-            BattleEdgeFeatureState.MakeWall()
-        );
-        _test.False(
-            fixture.Runtime.PreviewCommand(command)?.allowed == true,
-            "阻挡视线的边缘必须拒绝布置。"
         );
         BattleTestFixture.DisposeBattleCommand(command);
         BattleTestFixture.DisposeBattleCommand(edge);

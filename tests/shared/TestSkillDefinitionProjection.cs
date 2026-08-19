@@ -1,34 +1,41 @@
 using System.Collections.Generic;
+using System;
 using Godot;
 
 internal static class TestSkillDefinitionProjection
 {
+    private static readonly Lazy<IReadOnlyDictionary<StringName, SkillDefinition>> Definitions =
+        new(LoadDefinitions);
+
     internal static SkillDefinition LoadSkillDefinition(
-        string resourcePath,
+        string skillId,
         string ownershipReason = ""
     )
     {
-        // Load outside the engine's global cache (same pattern as
-        // ProcessContentHost.LoadCanonical / TestContentResourceLoader): the
-        // projected SkillDefinition is plain data, so the SkillDef wrapper is
-        // unrooted after this call. With the default Reuse cache mode the
-        // native resource stays cached while its wrapper can be GC-finalized,
-        // and the next load of the same path races the finalizer thread in
-        // SwapGCHandleForType (FATAL gchandle.is_released).
-        SkillDef skillDef = ResourceLoader.Load<SkillDef>(
-            resourcePath,
-            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
-        );
-        if (skillDef != null)
+        StringName id = skillId ?? "";
+        if (!Definitions.Value.TryGetValue(id, out SkillDefinition definition))
+            throw new KeyNotFoundException($"Skill JSON catalog does not contain '{skillId}'.");
+        return definition;
+    }
+
+    private static IReadOnlyDictionary<StringName, SkillDefinition> LoadDefinitions()
+    {
+        ContentImportBatch<SkillImportModel> batch =
+            SkillContentJsonAuthoringDomain.CreateImportDescriptor(
+                "res://data/configs/json/skills",
+                new GodotContentJsonSourceReader()
+            ).Import();
+        if (batch.HasErrors)
         {
-            GodotContentOwnership.RegisterBorrowedContent(
-                skillDef,
-                string.IsNullOrEmpty(ownershipReason)
-                    ? $"test_skill_definition_projection:{resourcePath}"
-                    : ownershipReason
+            throw new InvalidOperationException(
+                "Skill JSON test catalog failed to import: "
+                    + string.Join(" | ", batch.Diagnostics)
             );
         }
-        return SkillDefinition.FromResource(skillDef);
+        var result = new Dictionary<StringName, SkillDefinition>();
+        foreach (ContentImportEntry<SkillImportModel> entry in batch.Entries)
+            result.Add(entry.Import.SkillId.Value, SkillDefinitionProjector.Project(entry.Import));
+        return result;
     }
 
     internal static SkillDefinition BuildSkill(

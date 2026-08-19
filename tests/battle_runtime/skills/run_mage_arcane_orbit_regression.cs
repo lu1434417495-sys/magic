@@ -5,7 +5,7 @@ using Godot;
 
 public partial class run_mage_arcane_orbit_regression : LifecycleTestSceneTree
 {
-    private const string SkillPath = "res://data/configs/skills/mage_arcane_orbit.tres";
+    private const string SkillPath = "mage_arcane_orbit";
     private static readonly StringName SkillId = "mage_arcane_orbit";
     private static readonly StringName ReadyStatusId = "arcane_orbit_ready";
     private static readonly StringName ShotSkillId = "test_arcane_orbit_three_w_shot";
@@ -35,31 +35,6 @@ public partial class run_mage_arcane_orbit_regression : LifecycleTestSceneTree
 
     private void TestAuthoredSchemaAndTypedContract(SkillDefinition skill)
     {
-        SkillDef authored = ResourceLoader.Load<SkillDef>(
-            SkillPath,
-            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
-        );
-        _test.True(authored != null, "轨道法珠正式资源必须可加载。" );
-        if (authored == null)
-            return;
-        GodotContentOwnership.RegisterBorrowedContent(authored, "mage_arcane_orbit:schema");
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
-        var errors = new Godot.Collections.Array<string>();
-        validator.AppendCombatProfileValidationErrors(
-            errors,
-            authored.skill_id,
-            authored.combat_profile,
-            authored
-        );
-        _test.Eq(
-            errors.Count,
-            0,
-            $"轨道法珠正式资源必须通过 ranged weapon reaction schema。errors={string.Join(" | ", errors)}"
-        );
-
         CombatSkillDefinition combat = skill?.CombatProfile;
         CombatRangedWeaponReactionDefinition reaction = combat?.RangedWeaponReaction;
         _test.True(skill != null && combat != null, "轨道法珠必须投影为 immutable skill definition。" );

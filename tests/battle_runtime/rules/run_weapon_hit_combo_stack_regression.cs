@@ -31,7 +31,7 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
     private void TestFormalBasicAttackGrantsStack()
     {
         SkillDefinition basicAttack = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/basic_attack.tres",
+            "basic_attack",
             "weapon_hit_combo_stack_regression"
         );
         _test.True(basicAttack?.CombatProfile != null, "应能加载正式基础攻击资源。");
@@ -207,7 +207,7 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
     private void TestMyriadBladesConsumesOnlyMeleeStacks()
     {
         SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_myriad_blades_unity.tres",
+            "warrior_myriad_blades_unity",
             "weapon_hit_combo_stack_regression"
         );
         _test.True(skill?.CombatProfile != null, "应能加载万刃归一正式资源。");

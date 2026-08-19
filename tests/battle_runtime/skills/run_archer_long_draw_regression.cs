@@ -8,7 +8,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_archer_long_draw_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/archer_long_draw.tres";
+        "archer_long_draw";
     private static readonly StringName SkillId = "archer_long_draw";
     private readonly TestHarness _test = new();
 

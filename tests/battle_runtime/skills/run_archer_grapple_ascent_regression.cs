@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_archer_grapple_ascent_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/archer_grapple_redeploy.tres";
+        "archer_grapple_redeploy";
     private static readonly StringName SkillId = "archer_grapple_redeploy";
     private readonly TestHarness _test = new();
 
@@ -174,9 +174,16 @@ public partial class run_archer_grapple_ascent_regression : LifecycleTestSceneTr
         _test.False(grid.CanGrappleAscent(state, unit, east, levelThree), "L3 应拒绝+4层。" );
         _test.True(grid.CanGrappleAscent(state, unit, east, levelFive), "L5 应允许+4层。" );
 
-        grid.SetEdgeFeature(state, unit.GetAnchorCoord(), Vector2I.Right, BattleEdgeFeatureState.MakeWall());
-        _test.False(grid.CanGrappleAscent(state, unit, east, levelFive), "显式墙边应阻挡索钩越过。" );
-        grid.ClearEdgeFeature(state, unit.GetAnchorCoord(), Vector2I.Right);
+        _test.True(
+            state.PutTemporaryEdgeFeature(
+                BuildTemporaryWall(unit.GetAnchorCoord(), Vector2I.Right),
+                refreshExisting: false,
+                maxActiveEdges: 0
+            ),
+            "测试前提：临时墙体应可写入。"
+        );
+        _test.False(grid.CanGrappleAscent(state, unit, east, levelFive), "阻挡移动的墙边应阻挡索钩越过。" );
+        state.ReplaceTemporaryEdgeFeaturesTyped(null);
 
         BattleUnitState blocker = BuildArcher("grapple_grid_blocker", "enemy", east, 1);
         state.SetUnit(blocker);
@@ -391,6 +398,23 @@ public partial class run_archer_grapple_ascent_regression : LifecycleTestSceneTr
         fixture.Runtime.SetupStateForTests(fixture.State);
         fixture.State.active_unit_id = caster.unit_id;
         return fixture;
+    }
+
+    private static BattleTemporaryEdgeFeatureState BuildTemporaryWall(
+        Vector2I originCoord,
+        Vector2I direction
+    )
+    {
+        return new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = originCoord,
+            Direction = direction,
+            BindingId = "grapple_ascent_test_wall",
+            ActionId = "grapple_ascent_test_wall",
+            CreatedAtTu = 0,
+            ExpiresAtTu = 100,
+            Feature = BattleEdgeFeatureState.MakeWall(),
+        };
     }
 
     private static BattleState BuildFlatState(StringName battleId, Vector2I mapSize)

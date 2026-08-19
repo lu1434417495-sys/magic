@@ -8,7 +8,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_mage_dimension_swap_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/mage_dimension_swap.tres";
+        "mage_dimension_swap";
     private static readonly StringName SkillId = "mage_dimension_swap";
     private readonly TestHarness _test = new();
 
@@ -26,7 +26,7 @@ public partial class run_mage_dimension_swap_regression : LifecycleTestSceneTree
             TestInvalidDestinationRejectsBeforeCost(skill);
             TestEnemyImmunityConsumesCastWithoutSwap(skill);
             TestForcedMoveImmunityOnlyBlocksHostileSwap(skill);
-            TestBlockingEdgeRejectsBeforeCost(skill);
+            TestBarrierBoundaryRejectsBeforeCost(skill);
             TestAiClassificationAndThreatScore(skill);
         }
         catch (Exception exception)
@@ -221,18 +221,27 @@ public partial class run_mage_dimension_swap_regression : LifecycleTestSceneTree
         Dispose(command, preview);
     }
 
-    private void TestBlockingEdgeRejectsBeforeCost(SkillDefinition skill)
+    private void TestBarrierBoundaryRejectsBeforeCost(SkillDefinition skill)
     {
-        BattleUnitState caster = BuildCaster("wall_caster", new Vector2I(1, 1));
-        BattleUnitState ally = BuildUnit("wall_ally", "player", new Vector2I(3, 1));
+        BattleUnitState caster = BuildCaster("barrier_caster", new Vector2I(1, 1));
+        BattleUnitState ally = BuildUnit("barrier_ally", "player", new Vector2I(3, 1));
         using BattleTestFixture fixture = CreateFixture(skill, caster, ally);
-        fixture.Runtime.GetGridService().SetEdgeFeature(
-            fixture.State,
-            new Vector2I(2, 1),
-            Vector2I.Right,
-            BattleEdgeFeatureState.MakeWall()
+        var barrier = new BattleBarrierInstanceState
+        {
+            BarrierInstanceId = "swap_test_barrier",
+            ProfileId = "swap_test_barrier",
+            DisplayName = "测试屏障",
+            SourceUnitId = "other_unit",
+            AnchorCoord = ally.GetAnchorCoord(),
+            RadiusCells = 0,
+            AreaPattern = "diamond",
+            RemainingTu = 100,
+        };
+        fixture.State.PutLayeredBarrierFieldPayload(
+            barrier.BarrierInstanceId,
+            barrier.ToRuntimeDict()
         );
-        AssertRejectedWithoutCost(fixture, caster, ally, "阻挡视线的边缘墙体");
+        AssertRejectedWithoutCost(fixture, caster, ally, "屏障边界");
     }
 
     private void TestAiClassificationAndThreatScore(SkillDefinition skill)

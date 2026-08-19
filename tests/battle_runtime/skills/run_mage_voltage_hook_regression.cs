@@ -6,7 +6,7 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
 {
-    private const string SkillPath = "res://data/configs/skills/mage_voltage_hook.tres";
+    private const string SkillPath = "mage_voltage_hook";
     private static readonly StringName SkillId = "mage_voltage_hook";
     private readonly TestHarness _test = new();
 

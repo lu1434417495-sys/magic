@@ -1,18 +1,18 @@
 # 战斗技能系统当前实现
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-08-18`
+> 核对日期：`2026-08-19`
 
 ## 定位
 
-本文记录技能从 `.tres` 内容到战斗可用性、preview、execution、状态语义和 AI 消费的当前主链。未来规则扩展与旧阶段计划位于 [`../../proposals/battle/skill_runtime_expansion.md`](../../proposals/battle/skill_runtime_expansion.md)，不能作为当前合同。
+本文记录技能从 JSON 内容到战斗可用性、preview、execution、状态语义和 AI 消费的当前主链。未来规则扩展与旧阶段计划位于 [`../../proposals/battle/skill_runtime_expansion.md`](../../proposals/battle/skill_runtime_expansion.md)，不能作为当前合同。
 
 ## 当前所有权
 
 | 层 | 当前 owner | 职责 |
 |---|---|---|
-| Authoring | `SkillDef`、`CombatSkillDef`、`CombatEffectDef`、`CombatWeightedStatusOutcomeDef`、`CombatCastVariantDef`、`CombatWindupDef`、`CombatSpellReactionDef`、`CombatRangedWeaponReactionDef`、`CombatDirectionalPiercingDef`、`CombatLineThroughAttackDef`、`data/configs/skills/*.tres` | 声明技能、可选 engine-asset catalog 图标 ID、目标、目标生物类型排除、范围、地面布置合法性、基础/逐目标槽位消耗、单位目标解析模式、攻击所对抗的 AC 模式、typed effects、typed 连锁跳距/导电条件/可选目标上限、豁免失败加权状态池、投射物种类、可选蓄力曲线、主动施法反应、远程武器受击反应、方向贯穿、穿身攻击与地形接触参数 |
-| 校验与投影 | `SkillContentRegistry`（加载/索引/编排 + 技能级校验）、`SkillCombatProfileValidator` / `SkillDamageEffectValidator` / `SkillExecuteEffectValidator`（加载期分区校验器）、`SkillIconAssetCatalogValidator`（snapshot publication 前的跨域资产校验）、`CombatSkillContentRules`、`CombatUnitTargetResolutionContentRules`、`CombatLineThroughAttackContentRules`、`CombatTerrainContactModeRules`、`CombatProjectileContentRules`、`SkillDefinition`、`CombatEffectDefinition`、`CombatChainDamageDefinition`、`CombatWeightedStatusOutcomeDefinition`、`CombatSpellReactionDefinition`、`CombatRangedWeaponReactionDefinition`、`CombatDirectionalPiercingDefinition`、`CombatLineThroughAttackDefinition`、`BattleAttackRollModifierSpec` | 加载期校验并发布 immutable definition graph；空图标 ID 保持为空，非空 ID 必须解析为 catalog `Texture2D`；单位目标解析模式与逐槽位费用、typed 连锁、地面布置与移动接触、攻击防御模式、投射物种类、攻击检定修正、豁免失败加权状态池、主动施法反应、远程武器受击反应、方向贯穿、穿身攻击和效果目标最低认知均以 typed content-definition 契约随投影使用 |
+| Authoring | `data/configs/json/skills/*.json`、family documents、file-local templates 与完整 typed payload contract | 声明技能、图标 ID、目标、消耗、typed effects、反应、位移和地形参数 |
+| 校验与投影 | `SkillContentRegistry`、`SkillContentJsonAuthoringDomain`、`SkillJsonImportParser`、`SkillImportModelValidator`、Definition validator 组、`SkillDefinitionProjector` | JSON 严格解析为 plain import model，执行 domain-local 校验后发布 immutable definition graph；production 不加载技能 `.tres` |
 | 战斗可用性 | `BattleSkillAvailabilityService`、`BattleSkillEntryRef`、`BattleSkillEntryIds` | 合并已学技能、装备授予技能和 scoped auto-cast 入口 |
 | 成长与建卡资源支持 | `ProgressionService`、`RandomStartingSkillResourceSupportService`、`EncounterRosterBuilder`、`GameSession.CharacterCreation` | 以 `BattleTargetSlotCostRules` 的最低一槽费用识别逐槽位耗蓝/耗体力技能，负责资源解锁、随机起始法力配套、遭遇单位资源投影与起始技能强度分层；随机书技能候选排除起始等级实际 MP 消耗超过 40 的技能，成功选中后法力池不得低于该消耗 |
 | 命令与预览 | `BattleCommand`、`BattlePreview` / `BattleChainDamagePreviewData` / `BattleForcedMovePreviewData` / `BattleStatusContributionPreviewData` / `BattleRangedWeaponReactionPreviewData`、`BattleRuntimeModule.PreviewCommand(...)`、`BattleGroundSkillValidationService`、`BattleSkillCreatureTypeTargetRules`、`BattleChainDamageRules`、`BattleWindPushRules`、`BattleWindupRules`、`BattleSourceRetreatRules`、`BattleApproachAttackRules`、`BattleDirectionalPiercingRules`、`BattleLineThroughAttackRules` | 校验 entry、资源、目标阵营与目标生物类型、完整空地/通行/视线布置、冻结连锁路线及逐跳屏障结果、蓄力挡位、强风逐目标失败分支、主动后撤、踏步攻击路径、贯穿方向、穿身路径和当前 battle state，并返回只读 preview |
@@ -25,9 +25,10 @@
 ## 主链
 
 ```text
-SkillDef Resource
-  -> SkillContentRegistry
-  -> SkillDefinition in ContentSnapshot
+skill JSON -> SkillContentJsonAuthoringDomain -> SkillJsonImportParser -> SkillImportModel
+                                                    -> SkillImportModelValidator
+                                                    -> SkillDefinitionProjector
+                                                    -> SkillDefinition in ContentSnapshot
   -> BattleSkillAvailabilityService
   -> BattleCommand(skill_entry_id + skill_id)
   -> PreviewCommand / IssueCommand
@@ -38,13 +39,15 @@ SkillDef Resource
 
 ## 实现约束
 
-- Authoring Resource 只在内容构建边界存在；battle runtime、AI 和 UI 消费 `SkillDefinition` 与 battle-local state。
+- Production skill authoring 只存在于 JSON；battle runtime、AI 和 UI 消费 `SkillDefinition` 与 battle-local state。`SkillDef` 仅保留给 synthetic/test builders。
+- `SkillDefinitionProjector` 是 import model 到 immutable definition 的唯一业务投影。JSON 必须先经严格 parser；测试专用 Resource 投影不得进入 production publication。
+- 正式 `GameSession`、`GameContentCatalog`、runtime、HUD 与 AI 都复用 process 发布的同一 `ContentSnapshot.Skills` 对象图，不在会话内重投影。
 - `SkillDef.icon_id` 只表示 engine-asset catalog ID，不是文件名、资源路径或 `skill_id` alias。`SkillDefinition.FromResource` 原样保留空 ID；process snapshot 发布前要求所有非空 ID 已登记为 `Texture2D`。`BattleHudAdapter` 原样投影该 ID，`BattleMapPanel.SkillGrid` 只经 typed asset-ID resolver 借用纹理；空 ID 显示技能短名 glyph，unknown 非空 ID fail closed，不拼路径或借其他技能图标兜底。
 - `chain_damage` 的基础/导电跳距、可选的总目标上限、导电状态/地形集合与反噬跳距加值只允许写在 `CombatEffectDef.chain_*` typed 字段，并投影到 immutable `CombatChainDamageDefinition`；`chain_max_total_targets = 0` 表示不限制目标数量，正数只能为包含主目标在内且不小于 2 的有限上限。旧 `params.base_chain_radius/wet_chain_radius/bonus_terrain_effect_id` 由内容校验直接拒绝。`BattleChainDamageRules` 在主目标效果前按“最近距离、目标 anchor Y/X、unit id”冻结不重复路线，多格单位再稳定选择最近坐标对；不限目标时最多访问当前战场的全部合法存活单位，因此仍有限终止。每个节点只读取施法前状态/地形，本次新施加的状态不改变当前路线。正常施法没有最少次要目标门槛。canonical preview 与 execution 共享路线，逐跳从上一节点检查 layered barrier，任一跳阻断即停止剩余连锁；AI 必须消费 canonical preview 的实际目标和 `BattleChainDamagePreviewData`，不能复制连锁算法。
 - `BattleAttackRollModifierSpec` 归 `scripts/systems/content/skills/`，只提供字段、typed 枚举映射、克隆和字典编解码；筛选、叠加与最终生效仍归 battle rules/runtime，不回灌进内容契约。
-- 地面机关的合法布置由 `CombatSkillDef.ground_effect_require_full_area/empty/traversable` 与 `requires_los` 显式声明；`BattleGroundSkillValidationService` 对 preview 和 commit 共用同一面积、占用、footprint、layered barrier 与阻挡 LOS 边校验。`area_direction_mode = target_vector_perpendicular` 只旋转通用 line area 的方向，不按技能 id 推断。
+- 地面机关的合法布置由 `CombatSkillDef.ground_effect_require_full_area/empty/traversable` 与 `requires_los` 显式声明；`BattleGroundSkillValidationService` 对 preview 和 commit 共用同一面积、占用、footprint 与 layered barrier 边校验。`requires_los` 是该 barrier 穿越校验的开关：只有声明 `true` 的地面技能才走 `GetGroundLosValidationMessage`（投射跨越屏障即拒绝），`false` 表示该技能语义上不受屏障阻断（如陨星雨的垂直坠落）。它与已移除的边墙 LOS 无关，不可当作死字段清理。`area_direction_mode = target_vector_perpendicular` 只旋转通用 line area 的方向，不按技能 id 推断。
 - `terrain_contact_mode = interrupt_movement_on_failed_save` 是通用 typed 地形接触合同。`BattleTerrainEffectState` 保存来源、目标过滤、豁免、剩余有效触发数、接地/格内重判和同源实例策略；同一 field 在一次移动命令内最多判定一次，豁免成功不消耗次数，失败才原子递减整组 field 并拦停。普通移动在失败时支付命令最初选定路径的全部成本并锁定；技能步进和冲锋停止剩余路径，强制位移停止剩余位移；飞行只在效果显式要求接地时忽略，blink/jump/传送/交换/生成/复活不进入该接触入口。新移动命令从 field 内起步是否重判由 typed 字段决定，同一目标可在后续命令再次消耗同一 field；来源倒下不清除 timed field，同源替换在新 field 写入前按来源和 effect id 原子移除旧实例。熟练度只在失败实际拦停后提交，数量继续服从技能的 typed mastery amount mode（如 `per_target_rank`），成功豁免不入账。
-- `position_swap` 是通用 unit payload effect。`BattlePositionSwapRules` 在付费前同时验证非自身存活目标、双方完整 footprint、第三方占位、静滞、敌方强制位移免疫、阻挡 LOS 边与 layered-barrier boundary，并为 preview/execution 返回同一成对落点；正式提交不会经过中间格或地形接触。友军换位视为自愿且不豁免，敌方使用 effect 的正式 `BattleSaveResolver` 意志豁免，成功时已提交消耗与冷却但不移动、不结算 `effect_applied` 熟练度。`CombatSkillDef.mastery_base_amount` 经 immutable definition 投影后只缩放现有 mastery amount mode 的成功结算，不能绕过 trigger gate；canonical preview、HUD 与 AI 共同消费 `BattlePositionSwapPreviewData`，AI 以目标换位前后的威胁差、施法者换位后位置风险及敌方豁免失败概率评分，不按技能 id 分支。
+- `position_swap` 是通用 unit payload effect。`BattlePositionSwapRules` 在付费前同时验证非自身存活目标、双方完整 footprint、第三方占位、静滞、敌方强制位移免疫与 layered-barrier boundary，并为 preview/execution 返回同一成对落点；正式提交不会经过中间格或地形接触。友军换位视为自愿且不豁免，敌方使用 effect 的正式 `BattleSaveResolver` 意志豁免，成功时已提交消耗与冷却但不移动、不结算 `effect_applied` 熟练度。`CombatSkillDef.mastery_base_amount` 经 immutable definition 投影后只缩放现有 mastery amount mode 的成功结算，不能绕过 trigger gate；canonical preview、HUD 与 AI 共同消费 `BattlePositionSwapPreviewData`，AI 以目标换位前后的威胁差、施法者换位后位置风险及敌方豁免失败概率评分，不按技能 id 分支。
 - `forced_move_mode = wind_push` 要求正数距离、1—4 的显式目标体型上限和正式豁免。地面强风只收集效果范围内目标，按风向由远到近逐个进入 `BattleSpecialSkillResolver.ApplyForcedMoveEffect`；范围外单位只阻挡而不会被递归推动。每个目标只进行一次豁免，失败才尝试完整距离；每步都重验通行、占位与 layered barrier，提交后进入统一 terrain-contact 去重链。`BattleWindPushRules` 在 detached state 上以相同顺序投影失败分支落点、体型门禁和豁免概率；纯强风技能只把实际存在失败移动分支的目标暴露给 HUD/AI。`effect_applied + per_target_rank` 熟练度只记录每次施放实际移动的 distinct target；仅屏障裁剪生效且没有单位/地形效果时记录一次 `mastery_base_amount`，空放、成功豁免、体型/免疫拦截与零位移不记录。
 - `skill_entry_id` 标识本次技能来源，`skill_id` 标识技能定义。旧 entry 失效时必须拒绝或清空，不能按同名 `skill_id` 静默切换到另一来源。
 - HUD、手动选择、文本命令、preview、execution 和 AI 必须通过 `BattleSkillAvailabilityService` 看到同一组技能入口。
@@ -86,18 +89,21 @@ SkillDef Resource
 - 护盾 duration 与普通状态 duration 共用非静滞单位的 timeline status phase；实际递减和到期六字段清理由 `BattleUnitShieldState` 原子执行。step 开始时已有 `time_stasis` 的单位在该 step 内冻结护盾 duration，静滞解除后的下一 step 才恢复。
 - Contingency system 只弱借用 `IBattleContingencyRuntimePort`，不反向依赖 `BattleRuntimeModule`。bridge 实现该端口，并保留同步递归 reaction 顺序、调用方 `BattleEventBatch`、执行前玩家已学来源复核和覆盖嵌套反应的 effect-origin scope。
 - 范围、命中、豁免、伤害、死亡、屏障和状态阻断属于通用 service/table；不得在具体技能 id、装备 id 或 UI 中复制规则。
+- authored 边墙（格上静态 edge feature：墙/门/闸门）已于 2026-08-16 移除，随后残留物一并清理：`BattleUnitLineOfSightRules` 整个文件删除（原本恒为 true），`BattleCellState.edge_feature_east/south` 从 state 与存档 schema 移除（SaveVersion 18→19）。游戏不再有任何基于边的 LOS 阻断机制。边界阻断的唯一语义是虹光法球系的 layered barrier（`BattleBarrierService`）。临时边特征仅存于装备能力 `apply_edge_feature`（虚空斧），经 `BattleTemporaryEdgeFeatureState` 由 `BattleEdgeService.ApplyFeature` 叠加进 runtime edge face —— 这也是 feature face 的唯一来源 —— 仍阻挡移动/占位并渲染为墙。`BattleEdgeFeatureState.blocks_los` / `BattleEdgeFaceState.feature_blocks_los` 已无任何运行时消费者，但字段**必须保留**：移除 `ApplyEdgeFeatureActionPayloadDef` 上对应的 `[Export]` 会让 `run_resource_validation_regression` 以约 80% 概率在 GC finalizer 阶段崩溃（`Handle is not initialized`，与 `.tres` 引用无关、清 `.godot` 缓存无效）。改为由 `ValidateApplyEdgeFeaturePayload` 以 `EQA_ACTION_INVALID_VALUE` 拒绝 `blocks_los = true`，内容侧无法配置这个静默失效的字段。注意 `CombatSkillDef.requires_los` 不属于这条已移除的链路，它仍在门禁地面技能的 barrier 穿越校验，见上文。
 - `vault_behind_target` 是 unit-skill typed effect：目标必须与使用者正交相邻，落点为目标沿攻击方向的下一格；落点占用、两段 edge 通行或 layered barrier 边界任一不合法时，canonical preview 与 execution 都拒绝。只有本次攻击检定命中后才移动使用者，目标被伤害击倒不取消已合法的落位。
 - `source_retreat` 是必须放在基础 `effect_defs` 且只出现一次的 single-unit typed effect，距离只读 `CombatEffectDef.source_retreat_distance`。命令必须携带精确的单位正交方向，第一步必须增加使用者与本次攻击目标的曼哈顿距离；缺失、斜向、非单位向量、靠近目标或移动锁定状态都会在支付资源前拒绝整个技能。目标坐标在攻击结算前冻结，之后无论命中、未命中或目标被击倒都尝试后撤；第一步受阻时只完成攻击，第二步受阻时只移动一格。后撤不扣移动力、不记录第二次行动，实际经过的地格仍走正式 grid move、terrain contact、changed coord 和一次 position-changed 事件，layered barrier 边界视为路径阻挡。玩家输入必须先选目标再选方向；AI 把每个远离目标的正交方向作为独立候选并分别走 canonical preview，不增加专用评分权重。读条、蓄力、cast variant、special/random-chain 与 Contingency 等无人工选向的自动路径在内容和运行时 fail closed。
 - `forced_move_mode = airborne_pull` 是敌方 single-unit 的两阶段纯控制效果。目标必须满足 authored 状态前置、体型上限且不具有时间静滞或强制位移免疫；命令先固定目标，再用 `forced_move_destination_coord` 只选择一次最终落点。`BattleAirbornePullRules` 对 mutable/read view 共用曼哈顿位移上限、完整 footprint、空落点、“比原位置更接近施法者”和 layered barrier 边界校验；高低地双向均可，不检查普通移动高差，也不逐格经过中间单位。正式执行以空中迁移一次提交最终坐标，中间格不触发接触，落地格只进入一次 terrain contact；`forced_move_applied` 后置效果只有实际移动成功才执行。canonical preview 通过 `BattleForcedMovePreviewData` 公开起点、终点、距离、体型上限和接触语义；玩家必须完成目标/落点两阶段，AI 枚举每个合法目标-落点组合并分别预览，不允许运行时自动挑落点或按技能 id 分支。
 - `approach_attack_profile` 是先沿直线推进、再进行一次标准武器攻击的 single-unit typed profile。目标必须在当前武器射程外、与使用者 anchor 正交对齐且不超过“当前武器射程 + 等级化 `range_value`”；`BattleApproachAttackRules` 选择让目标首次进入武器射程的最短路径，不允许转弯或绕路。每一步先校验完整 footprint 的通行、占用与 layered barrier，再把所有占用格高度与起始 anchor 高度做绝对差比较；profile 为 0 时，任何中间格或最终格上/下坡以及多格 footprint 局部异高都在付费前拒绝。推进不读写普通移动点，但移动限制状态仍拒绝；正式提交继续逐步触发 terrain contact、changed coord 与 position-changed。付费后发生动态中断时保留 AP、体力和冷却并取消攻击；到位后重新校验目标存活、正交关系、武器类型和真实武器射程，再复用标准命中、暴击、护甲、护盾、抗性、减伤与装备能力链。canonical preview 通过 `source_advance_path`、`resolved_anchor_coord` 和 `move_cost = 0` 公开最终状态；AI unit-skill 快速路径遇到该 profile 必须委托正式 preview，以同一最终落点参与既有位置风险、伤害与资源评分，不增加技能 id 分支或专用权重。
 - `line_through_attack_profile` 是“选择直线终点敌人、按顺序攻击途中敌人、集中攻击终点并在命中后落到敌后”的 single-unit typed profile。`range_value` 是终点目标的配置射程，不与武器射程相加；profile 另行限制允许的最大武器攻击距离。`BattleLineThroughAttackRules` 对完整 footprint 逐步检查地图、地形高度边、阻挡边与 layered barrier：友方单位阻断，途中敌人只记录一次，选定敌人之后的首个完整空落点才是 destination；路径、落点或移动限制在付费前不合法即拒绝。途中和终点都通过同一标准武器攻击链独立结算，未命中不中止；只有途中成功攻击检定按等级化 cap 增加终点武器骰组数与非负攻击检定加值，终点始终只生成一次伤害/减伤包。途中结果不记录该技能熟练度，终点结果正常记录。终点命中后由 `BattleMovementService` 重新验证冻结路径与落点，再作为穿越式位移直接提交 destination、movement trail、changed coord 与 position-changed；终点未命中或落点动态失效时留在原地。canonical preview 以有序 `target_unit_ids`、`source_advance_path`、`resolved_anchor_coord` 和 `AttackPreviewStage` 的途中命中率/终点 capped-success DP 状态公开同一计划；AI 必须使用该 preview 枚举终点，并按阶段命中概率估计途中收益和终点不同武器骰状态，不按技能 id 分支。
-- `directional_piercing_profile` 是直线贯穿武器技的 typed 内容契约。命令只选择相邻单位正交方向，`BattleDirectionalPiercingRules` 以当前武器完整有效射程构造唯一有序路径；阻挡 LOS 的边先截断路径，单位不阻挡，所有阵营的存活单位都可受击，多格单位只按路径首次相交格处理一次。高度以施术者格为基准：同层不锁定，首个高度差为 `+1` 或 `-1` 的合法单位自动锁定该通道，之后跳过相反通道，绝对高度差超过 profile 上限也跳过；跳过不进行攻击检定且不推进衰减。每个纳入目标独立走标准武器攻击，只有成功攻击检定推进后续伤害衰减，倍率在减伤前应用。体力由完整有效射程与力量调整值按 profile 的平方参数动态计算，preview、HUD、执行与 AI 共用同一公式；没有合法路径目标时在支付 AP、体力和冷却前拒绝。AI 只枚举四个方向并消费 canonical plan，按 profile 自动扩展的 prior-hit 状态 DP 估计当前目标的期望衰减（当前 20%/40% 参数对应 `0/1/2/3+` 四状态），友军同样进入顺序与状态转移。
-- `sequential_line_hit_profile` 是“选择正交射线首敌、命中才继续”的 typed 法术攻击契约。`range_value` 与 profile 的等级化最短距离共同限制首目标；`BattleSequentialLineHitRules` 在付费前验证所选单位确为该方向首个存活单位，并按每段等级化续行距离构造有序敌方目标，友方/非敌对单位、阻挡 LOS 的边、墙体、战场边界或 layered barrier 都会拒绝首段或截停后续。正式执行对每个已到达阶段独立复用标准法术攻击、接触 AC、暴击、护盾、抗性与减伤链，后续阶段按 profile 施加累计攻击检定减值，任一攻击检定落空即停止。canonical preview 通过有序 `target_unit_ids`、射线路径与 `AttackPreviewStage.ReachProbabilityBasisPoints` 公开逐段命中率和到达率；AI 强制使用该 preview，并用“到达概率 × 本段命中率”缩放每个目标的期望伤害，不按技能 id 分支。
+- `directional_piercing_profile` 是直线贯穿武器技的 typed 内容契约。命令只选择相邻单位正交方向，`BattleDirectionalPiercingRules` 以当前武器完整有效射程构造唯一有序路径；单位不阻挡路径，所有阵营的存活单位都可受击，多格单位只按路径首次相交格处理一次。高度以施术者格为基准：同层不锁定，首个高度差为 `+1` 或 `-1` 的合法单位自动锁定该通道，之后跳过相反通道，绝对高度差超过 profile 上限也跳过；跳过不进行攻击检定且不推进衰减。每个纳入目标独立走标准武器攻击，只有成功攻击检定推进后续伤害衰减，倍率在减伤前应用。体力由完整有效射程与力量调整值按 profile 的平方参数动态计算，preview、HUD、执行与 AI 共用同一公式；没有合法路径目标时在支付 AP、体力和冷却前拒绝。AI 只枚举四个方向并消费 canonical plan，按 profile 自动扩展的 prior-hit 状态 DP 估计当前目标的期望衰减（当前 20%/40% 参数对应 `0/1/2/3+` 四状态），友军同样进入顺序与状态转移。
+- `sequential_line_hit_profile` 是“选择正交射线首敌、命中才继续”的 typed 法术攻击契约。`range_value` 与 profile 的等级化最短距离共同限制首目标；`BattleSequentialLineHitRules` 在付费前验证所选单位确为该方向首个存活单位，并按每段等级化续行距离构造有序敌方目标，友方/非敌对单位、战场边界或 layered barrier 都会拒绝首段或截停后续。正式执行对每个已到达阶段独立复用标准法术攻击、接触 AC、暴击、护盾、抗性与减伤链，后续阶段按 profile 施加累计攻击检定减值，任一攻击检定落空即停止。canonical preview 通过有序 `target_unit_ids`、射线路径与 `AttackPreviewStage.ReachProbabilityBasisPoints` 公开逐段命中率和到达率；AI 强制使用该 preview，并用“到达概率 × 本段命中率”缩放每个目标的期望伤害，不按技能 id 分支。
 - AI 快速评估可以使用专用 typed evaluator，但遇到会改变合法目标集合的 canonical 规则时必须委托正式 preview，而不是近似复制。
 
 ## 代表性回归
 
 - `tests/runtime/validation/run_barrier_skill_content_validation_regression.cs`
+- `tests/runtime/validation/run_skill_definition_projector_parity_regression.cs`
+- `tests/progression/schema/run_skill_validator_diagnostic_golden_regression.cs`
 - `tests/runtime/validation/run_skill_icon_asset_catalog_validator_regression.cs`
 - `tests/runtime/validation/run_skill_definition_plain_value_graph_regression.cs`
 - `tests/battle_runtime/presentation/run_battle_hud_typed_projection_regression.cs`
@@ -105,9 +111,9 @@ SkillDef Resource
 - `tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs`
 - `tests/battle_runtime/runtime/run_equipment_ability_preview_integrity_regression.cs`
 - `tests/progression/schema/run_skill_attack_defense_mode_schema_regression.cs`
-- `tests/battle_runtime/rules/run_skill_attack_defense_mode_regression.cs`
 - `tests/progression/schema/run_chain_damage_typed_schema_regression.cs`
 - `tests/battle_runtime/skills/run_mage_chain_lightning_regression.cs`
+- `tests/battle_runtime/rules/run_skill_attack_defense_mode_regression.cs`
 - `tests/progression/schema/run_combat_projectile_kind_schema_regression.cs`
 - `tests/battle_runtime/rules/run_battle_effect_category_resolver_contract_regression.cs`
 - `tests/battle_runtime/skills/run_archer_disrupting_arrow_regression.cs`

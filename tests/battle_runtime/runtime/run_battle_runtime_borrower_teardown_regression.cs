@@ -457,10 +457,9 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
 
     private ContentFixture LoadContentFixture(TestContentResourceLoader loader)
     {
-        SkillDef skillResource = loader.LoadCanonical<SkillDef>(
-            "res://data/configs/skills/mage_arcane_aegis.tres"
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "mage_arcane_aegis"
         );
-        SkillDefinition skillDefinition = SkillDefinition.FromResource(skillResource);
         ItemDef itemResource = loader.LoadCanonical<ItemDef>(
             "res://data/configs/items/whetstone.tres"
         );

@@ -66,6 +66,7 @@ internal enum CombatSaveTagImportKind
     Magic,
     Illusion,
     Frightened,
+    DragonFrightfulPresence,
     Execute,
     Temporal,
     Petrification,
@@ -496,6 +497,7 @@ internal static class SkillCombatEffectValueRules
             ["magic"] = CombatSaveTagImportKind.Magic,
             ["illusion"] = CombatSaveTagImportKind.Illusion,
             ["frightened"] = CombatSaveTagImportKind.Frightened,
+            ["dragon_frightful_presence"] = CombatSaveTagImportKind.DragonFrightfulPresence,
             ["execute"] = CombatSaveTagImportKind.Execute,
             ["temporal"] = CombatSaveTagImportKind.Temporal,
             ["petrification"] = CombatSaveTagImportKind.Petrification,
@@ -589,7 +591,7 @@ internal sealed class CombatDamageBonusConditionSchemaValues : CombatEffectSchem
 internal sealed class CombatEffectTriggerEventSchemaValues : CombatEffectSchemaValues { internal CombatEffectTriggerEventSchemaValues() : base("attack_hit", "critical_hit", "ordinary_hit", "secondary_hit", "forced_move_applied") { } }
 internal sealed class CombatEffectTriggerConditionSchemaValues : CombatEffectSchemaValues { internal CombatEffectTriggerConditionSchemaValues() : base("battle_start", "on_fatal_damage") { } }
 internal sealed class CombatSaveDcModeSchemaValues : CombatEffectSchemaValues { internal CombatSaveDcModeSchemaValues() : base("static", "caster_spell") { } }
-internal sealed class CombatSaveTagSchemaValues : CombatEffectSchemaValues { internal CombatSaveTagSchemaValues() : base("sleep", "paralysis", "charm", "poison", "dragon_breath", "fireball", "chain_lightning", "equipment_disjunction", "magic", "illusion", "frightened", "execute", "temporal", "petrification", "antidote", "strength", "agility", "constitution", "perception", "intelligence", "willpower") { } }
+internal sealed class CombatSaveTagSchemaValues : CombatEffectSchemaValues { internal CombatSaveTagSchemaValues() : base("sleep", "paralysis", "charm", "poison", "dragon_breath", "fireball", "chain_lightning", "equipment_disjunction", "magic", "illusion", "frightened", "dragon_frightful_presence", "execute", "temporal", "petrification", "antidote", "strength", "agility", "constitution", "perception", "intelligence", "willpower") { } }
 internal sealed class CombatResourceSchemaValues : CombatEffectSchemaValues { internal CombatResourceSchemaValues() : base("ap", "aura", "mp", "stamina") { } }
 internal sealed class CombatStatusSourceSelectorSchemaValues : CombatEffectSchemaValues { internal CombatStatusSourceSelectorSchemaValues() : base("source") { } }
 internal sealed class CombatEquipmentSlotSchemaValues : CombatEffectSchemaValues { internal CombatEquipmentSlotSchemaValues() : base("main_hand", "off_hand", "head", "body", "hands", "feet", "cloak", "necklace", "ring_1", "ring_2", "special_trinket", "badge") { } }

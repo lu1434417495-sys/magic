@@ -14,7 +14,7 @@ public partial class run_warrior_overhead_chop_regression : LifecycleTestSceneTr
         try
         {
             SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-                "res://data/configs/skills/warrior_overhead_chop.tres",
+                "warrior_overhead_chop",
                 "warrior_overhead_chop_regression"
             );
             TestAuthoredContract(skill);
@@ -366,5 +366,15 @@ public partial class run_warrior_overhead_chop_regression : LifecycleTestSceneTr
         public IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> CollectMitigationAuras(
             BattleEquipmentAbilityMitigationAuraContext context
         ) => Array.Empty<BattleEquipmentAbilityMitigationAuraResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+            BattleEquipmentAbilityMitigationTierContext context
+        ) => Array.Empty<BattleEquipmentAbilityMitigationTierResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+            CollectBonusDamageDiceForEffect(BattleEquipmentAbilityDirectDamageContext context)
+        {
+            return Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>();
+        }
     }
 }

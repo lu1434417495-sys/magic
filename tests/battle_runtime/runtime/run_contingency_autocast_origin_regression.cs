@@ -394,7 +394,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
     private void TestSpecialProfileAutoCastUsesFormalCommitWithoutCostsOrProgression()
     {
         SkillDefinition meteorSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_meteor_swarm.tres",
+            "mage_meteor_swarm",
             "contingency_autocast_origin:mage_meteor_swarm"
         );
         MeteorSwarmProfile meteorProfile = GD.Load<MeteorSwarmProfile>(

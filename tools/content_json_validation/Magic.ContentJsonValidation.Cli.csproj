@@ -9,6 +9,7 @@
     <RootNamespace>Magic.ContentJsonValidation.Cli</RootNamespace>
     <AssemblyName>Magic.ContentJsonValidation.Cli</AssemblyName>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefineConstants>$(DefineConstants);CONTENT_JSON_OFFLINE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

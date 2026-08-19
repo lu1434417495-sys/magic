@@ -564,7 +564,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
     private void TestOrderedTargetSlotsEnumerateRepeatedTargetsAndScoreActualCost()
     {
         SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_arcane_missile.tres",
+            "mage_arcane_missile",
             "enemy_multi_unit_skill_ordered_slots"
         );
         BattleUnitState source = _runtimeScope.OwnWrapper(

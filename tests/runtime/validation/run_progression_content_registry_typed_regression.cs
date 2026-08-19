@@ -7,7 +7,6 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 {
     private static readonly string[] AggregatedRegistryContentPrefixes =
     {
-        "res://data/configs/skills/",
         "res://data/configs/professions/",
         "res://data/configs/races/",
         "res://data/configs/subraces/",
@@ -358,6 +357,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             [
                 new TraitRollValueSchemaEntryDefinition(
@@ -447,6 +447,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             Array.Empty<TraitRollValueSchemaEntryDefinition>()
         );

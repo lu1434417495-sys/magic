@@ -8,7 +8,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_warrior_phantom_through_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/warrior_phantom_through.tres";
+        "warrior_phantom_through";
     private static readonly StringName SkillId = "warrior_phantom_through";
     private readonly TestHarness _test = new();
 
@@ -215,11 +215,22 @@ public partial class run_warrior_phantom_through_regression : LifecycleTestScene
         );
         using (BattleTestFixture wallFixture = CreateFixture(skill, wallCaster, wallTarget))
         {
-            wallFixture.Runtime._grid_service.SetEdgeFeature(
-                wallFixture.State,
-                new Vector2I(3, 1),
-                Vector2I.Right,
-                BattleEdgeFeatureState.MakeWall()
+            _test.True(
+                wallFixture.State.PutTemporaryEdgeFeature(
+                    new BattleTemporaryEdgeFeatureState
+                    {
+                        OriginCoord = new Vector2I(3, 1),
+                        Direction = Vector2I.Right,
+                        BindingId = "phantom_through_test_wall",
+                        ActionId = "phantom_through_test_wall",
+                        CreatedAtTu = 0,
+                        ExpiresAtTu = 100,
+                        Feature = BattleEdgeFeatureState.MakeWall(),
+                    },
+                    refreshExisting: false,
+                    maxActiveEdges: 0
+                ),
+                "测试前提：路径临时墙应可写入。"
             );
             BattleCommand wallCommand = BuildCommand(wallCaster, wallTarget);
             BattlePreview wallPreview = wallFixture.Runtime.PreviewCommand(wallCommand);

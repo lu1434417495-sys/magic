@@ -17,7 +17,7 @@ public partial class run_mage_color_spray_regression : LifecycleTestSceneTree
         try
         {
             SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-                "res://data/configs/skills/mage_color_spray.tres",
+                "mage_color_spray",
                 "mage_color_spray_regression"
             );
             TestAuthoredContract(skill);

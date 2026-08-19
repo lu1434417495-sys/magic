@@ -108,11 +108,11 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
     {
         SkillDefinition rhythm = LoadSkill();
         SkillDefinition basicAttack = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/basic_attack.tres",
+            "basic_attack",
             "warrior_perfect_rhythm_regression"
         );
         SkillDefinition spell = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_arcane_missile.tres",
+            "mage_arcane_missile",
             "warrior_perfect_rhythm_regression"
         );
         BattleUnitState source = BuildUnit("perfect_rhythm_attack_bonus");
@@ -271,7 +271,7 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_perfect_rhythm.tres",
+            "warrior_perfect_rhythm",
             "warrior_perfect_rhythm_regression"
         );
 

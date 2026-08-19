@@ -8,7 +8,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_warrior_piercing_thrust_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/warrior_piercing_thrust.tres";
+        "warrior_piercing_thrust";
     private static readonly StringName SkillId = "warrior_piercing_thrust";
     private readonly TestHarness _test = new();
 

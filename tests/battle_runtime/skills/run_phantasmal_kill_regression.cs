@@ -237,7 +237,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
     {
         FixedRollDamageResolver resolver = new();
         SkillDefinition lastStandSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_last_stand.tres",
+            "warrior_last_stand",
             "phantasmal_kill:warrior_last_stand"
         );
         resolver.SetSkillDefinitions(

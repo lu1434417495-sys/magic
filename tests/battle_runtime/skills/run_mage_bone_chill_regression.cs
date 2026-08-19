@@ -7,9 +7,9 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_mage_bone_chill_regression : LifecycleTestSceneTree
 {
-    private const string SkillPath = "res://data/configs/skills/mage_bone_chill.tres";
+    private const string SkillPath = "mage_bone_chill";
     private const string HealSkillPath =
-        "res://data/configs/skills/warrior_battle_recovery.tres";
+        "warrior_battle_recovery";
     private static readonly StringName SkillId = "mage_bone_chill";
     private static readonly StringName HealSkillId = "warrior_battle_recovery";
     private readonly TestHarness _test = new();

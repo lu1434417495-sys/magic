@@ -16,7 +16,7 @@ public partial class run_archer_flash_whistle_regression : LifecycleTestSceneTre
         try
         {
             SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-                "res://data/configs/skills/archer_flash_whistle.tres",
+                "archer_flash_whistle",
                 "archer_flash_whistle_regression"
             );
             TestAuthoredContract(skill);

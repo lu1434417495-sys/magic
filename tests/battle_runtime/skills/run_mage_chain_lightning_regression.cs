@@ -921,7 +921,7 @@ public partial class run_mage_chain_lightning_regression : LifecycleTestSceneTre
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_chain_lightning.tres",
+            "mage_chain_lightning",
             "mage_chain_lightning_regression"
         );
 

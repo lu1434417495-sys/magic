@@ -44,7 +44,6 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
 
         GStringArray errors = registry.Validate();
         _test.True(errors.Count == 0, $"EnemyContentRegistry 应接受正式 generation slots: {FormatErrors(errors)}");
-        AssertNoDuplicateDependencyLoads(loader, "res://data/configs/skills/");
         AssertNoDuplicateDependencyLoads(loader, "res://data/configs/items/");
         AssertNoDuplicateDependencyLoads(loader, "res://data/configs/items_templates/");
     }

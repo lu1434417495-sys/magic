@@ -28,7 +28,7 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
         SkillDefinition skill = LoadHunterMarkSkill();
         if (skill == null)
         {
-            _test.Fail("应能加载真实技能资源 res://data/configs/skills/archer_hunter_mark.tres。");
+            _test.Fail("应能加载真实技能资源 archer_hunter_mark。");
             return;
         }
 
@@ -57,7 +57,7 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
         SkillDefinition skill = LoadHunterMarkSkill();
         if (skill == null)
         {
-            _test.Fail("应能加载真实技能资源 res://data/configs/skills/archer_hunter_mark.tres。");
+            _test.Fail("应能加载真实技能资源 archer_hunter_mark。");
             return;
         }
 
@@ -103,7 +103,7 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
         SkillDefinition skill = LoadHunterMarkSkill();
         if (skill == null)
         {
-            _test.Fail("应能加载真实技能资源 res://data/configs/skills/archer_hunter_mark.tres。");
+            _test.Fail("应能加载真实技能资源 archer_hunter_mark。");
             return;
         }
 
@@ -154,7 +154,7 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
 
     private static SkillDefinition LoadHunterMarkSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/archer_hunter_mark.tres",
+            "archer_hunter_mark",
             "hunter_mark_skill_regression"
         );
 

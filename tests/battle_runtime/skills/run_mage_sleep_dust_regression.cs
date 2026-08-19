@@ -8,7 +8,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_mage_sleep_dust_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/mage_sleep_dust.tres";
+        "mage_sleep_dust";
     private static readonly StringName SkillId = "mage_sleep_dust";
     private static readonly StringName WakeDamageSkillId = "test_sleep_wake_damage";
     private readonly TestHarness _test = new();

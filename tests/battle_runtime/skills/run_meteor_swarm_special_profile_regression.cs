@@ -524,7 +524,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         ArgumentNullException.ThrowIfNull(_contentSnapshot);
 
         SkillDefinition meteorSkillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_meteor_swarm.tres",
+            "mage_meteor_swarm",
             "meteor_swarm_special_profile:mage_meteor_swarm"
         );
         _test.True(meteorSkillDefinition != null, "陨星雨正式技能资源应可加载。");

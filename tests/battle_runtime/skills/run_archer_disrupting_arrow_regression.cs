@@ -7,9 +7,9 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_archer_disrupting_arrow_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/archer_disrupting_arrow.tres";
+        "archer_disrupting_arrow";
     private const string BasicAttackPath =
-        "res://data/configs/skills/basic_attack.tres";
+        "basic_attack";
     private const string InvalidReactionReferenceDirectory =
         "res://tests/battle_runtime/skills/fixtures/disrupting_arrow_invalid_reference";
     private static readonly StringName SkillId = "archer_disrupting_arrow";

@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_mage_frost_bolt_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/mage_frost_bolt.tres";
+        "mage_frost_bolt";
     private static readonly StringName SkillId = "mage_frost_bolt";
     private readonly TestHarness _test = new();
 
@@ -22,7 +22,7 @@ public partial class run_mage_frost_bolt_regression : LifecycleTestSceneTree
             TestHitAppliesDamageSlowAndRetreat(skill);
             TestMissStillRetreatsWithoutDamageOrSlow(skill);
             TestBlockedRetreatStillResolvesAttack(skill);
-            TestLosAndMovementLockRejectBeforeCost(skill);
+            TestMovementLockRejectsBeforeCost(skill);
             TestAiEnumeratesCanonicalRetreatDirections(skill);
         }
         catch (Exception exception)
@@ -239,22 +239,8 @@ public partial class run_mage_frost_bolt_regression : LifecycleTestSceneTree
         BattleTestFixture.DisposeBattleCommand(command);
     }
 
-    private void TestLosAndMovementLockRejectBeforeCost(SkillDefinition skill)
+    private void TestMovementLockRejectsBeforeCost(SkillDefinition skill)
     {
-        BattleUnitState wallCaster = BuildReadyCaster("frost_wall_caster", new Vector2I(1, 1), 3);
-        BattleUnitState wallTarget = BuildUnit("frost_wall_target", "enemy", new Vector2I(4, 1));
-        using (BattleTestFixture fixture = CreateFixture(skill, wallCaster, wallTarget))
-        {
-            fixture.Runtime.GetGridService().SetEdgeFeature(
-                fixture.State,
-                new Vector2I(2, 1),
-                Vector2I.Right,
-                BattleEdgeFeatureState.MakeWall()
-            );
-            BattleCommand command = BuildCommand(wallCaster, wallTarget, Vector2I.Left);
-            AssertRejectedWithoutCost(fixture, command, "视线被墙阻挡时");
-        }
-
         BattleUnitState rootedCaster = BuildReadyCaster("frost_rooted_caster", new Vector2I(2, 2), 3);
         BattleUnitState rootedTarget = BuildUnit("frost_rooted_target", "enemy", new Vector2I(3, 2));
         rootedCaster.SetStatusEffect(
@@ -353,26 +339,6 @@ public partial class run_mage_frost_bolt_regression : LifecycleTestSceneTree
         IReadOnlyList<AiActionTrace> traces = context.GetActionTracesTyped();
         _test.Eq(traces.Count, 1, "AI霜击术应记录一次 action trace。" );
         _test.Eq(traces.Count == 1 ? traces[0].EvaluationCount : -1, 3, "AI trace 应证明三个方向均被评估。" );
-    }
-
-    private void AssertRejectedWithoutCost(
-        BattleTestFixture fixture,
-        BattleCommand command,
-        string label
-    )
-    {
-        BattleUnitState caster = fixture.Allies[0];
-        Vector2I coordBefore = caster.GetAnchorCoord();
-        BattlePreview preview = fixture.Runtime.PreviewCommand(command);
-        _test.True(preview != null && !preview.allowed, $"{label}预览必须拒绝。" );
-        BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
-        _test.Eq(caster.GetCurrentAp(), 2, $"{label}不得消耗AP。" );
-        _test.Eq(caster.GetCurrentMp(), 100, $"{label}不得消耗MP。" );
-        _test.Eq(caster.GetCooldownTyped(SkillId), 0, $"{label}不得启动冷却。" );
-        _test.Eq(caster.GetAnchorCoord(), coordBefore, $"{label}不得改变坐标。" );
-        batch?.Dispose();
-        BattleTestFixture.DisposeBattlePreview(preview);
-        BattleTestFixture.DisposeBattleCommand(command);
     }
 
     private static SkillDefinition LoadSkill() =>

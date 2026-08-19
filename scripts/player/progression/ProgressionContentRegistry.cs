@@ -197,7 +197,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         ClearRuntimeCaches();
 
         _skillContentRegistry.Rebuild();
-        _skillDefs = _skillContentRegistry.DuplicateSkillResourceBucketForProgressionRegistry();
+        _skillDefs.Clear();
         ReplaceDefinitionIndex(
             _skillDefinitionIndex,
             _skillContentRegistry.GetSkillDefinitionsTyped()
@@ -1986,7 +1986,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 errors.Add($"Skill {skillId} has an empty skill reference in {contextLabel}.");
                 continue;
             }
-            if (!_skillDefs.ContainsKey(requiredSkillId))
+            if (!_skillDefinitionIndex.ContainsKey(requiredSkillId))
             {
                 errors.Add(
                     $"Skill {skillId} references missing skill {requiredSkillId} in {contextLabel}."
@@ -2009,7 +2009,7 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 errors.Add($"Skill {skillId} has an empty skill_id in skill_level_requirements.");
                 continue;
             }
-            if (!_skillDefs.ContainsKey(requiredSkillId))
+            if (!_skillDefinitionIndex.ContainsKey(requiredSkillId))
             {
                 errors.Add(
                     $"Skill {skillId} references missing skill {requiredSkillId} in skill_level_requirements."

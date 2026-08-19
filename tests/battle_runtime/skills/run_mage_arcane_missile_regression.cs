@@ -8,7 +8,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_mage_arcane_missile_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/mage_arcane_missile.tres";
+        "mage_arcane_missile";
     private static readonly StringName SkillId = "mage_arcane_missile";
     private readonly TestHarness _test = new();
 
@@ -25,7 +25,7 @@ public partial class run_mage_arcane_missile_regression : LifecycleTestSceneTree
             TestSelectedCostGateIsAtomic(skill);
             TestDeadTargetMakesLaterAssignedMissilesFizzle(skill);
             TestOrderedCastMasteryCollapsesToSingleGrant(skill);
-            TestRangeAndLineOfSight(skill);
+            TestRangeLimit(skill);
         }
         catch (Exception exception)
         {
@@ -289,7 +289,7 @@ public partial class run_mage_arcane_missile_regression : LifecycleTestSceneTree
         result.Dispose();
     }
 
-    private void TestRangeAndLineOfSight(SkillDefinition skill)
+    private void TestRangeLimit(SkillDefinition skill)
     {
         BattleUnitState caster = BuildCaster("los_caster", new Vector2I(1, 1), 10);
         BattleUnitState rangeFive = BuildUnit("range_five_target", new Vector2I(6, 1), 100);
@@ -298,16 +298,6 @@ public partial class run_mage_arcane_missile_regression : LifecycleTestSceneTree
         BattlePreview clearPreview = fixture.Runtime.PreviewCommand(command);
         _test.True(clearPreview?.allowed == true, "10级必须允许射程5的清晰视线目标。" );
         BattleTestFixture.DisposeBattlePreview(clearPreview);
-
-        fixture.Runtime.GetGridService().SetEdgeFeature(
-            fixture.State,
-            new Vector2I(3, 1),
-            Vector2I.Right,
-            BattleEdgeFeatureState.MakeWall()
-        );
-        BattlePreview blockedPreview = fixture.Runtime.PreviewCommand(command);
-        _test.True(blockedPreview != null && !blockedPreview.allowed, "墙体阻断视线时必须拒绝。" );
-        BattleTestFixture.DisposeBattlePreview(blockedPreview);
         BattleTestFixture.DisposeBattleCommand(command);
 
         BattleUnitState farCaster = BuildCaster("far_caster", new Vector2I(1, 1), 10);
