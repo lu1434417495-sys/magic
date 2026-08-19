@@ -713,7 +713,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
 	private static Dictionary<StringName, ItemDefinition> BuildItemIndex() =>
 		new()
         {
-            [GemId] = new ItemDef
+            [GemId] = new TestItemDefinitionBuilder
             {
                 item_id = GemId,
                 display_name = "Special Contingency Gem",

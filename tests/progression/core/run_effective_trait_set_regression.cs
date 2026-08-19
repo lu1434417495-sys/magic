@@ -17,12 +17,8 @@ public partial class run_effective_trait_set_regression : LifecycleTestSceneTree
 
     private void TestTraitSetLookupsAndSortedBattleProjection()
     {
-        TraitDefinition sharp = TestProgressionDefinitionProjection.Trait(
-            BuildTrait("sharp_edge", "equipment_roll")
-        );
-        TraitDefinition guarded = TestProgressionDefinitionProjection.Trait(
-            BuildTrait("guarded_grip", "equipment_fixed")
-        );
+        TraitDefinition sharp = BuildTrait("sharp_edge", "equipment_roll");
+        TraitDefinition guarded = BuildTrait("guarded_grip", "equipment_fixed");
         EffectiveTraitSet set = new(
             new System.Collections.Generic.List<EffectiveTraitInstance>
             {
@@ -100,18 +96,13 @@ public partial class run_effective_trait_set_regression : LifecycleTestSceneTree
         );
     }
 
-    private static TraitDef BuildTrait(string traitId, string sourceKind) =>
-        new()
-        {
-            trait_id = traitId,
-            display_name = traitId,
-            description = traitId,
-            allowed_source_kinds = new Godot.Collections.Array<StringName> { sourceKind },
-            effect_type = "attribute_modifier",
-            trigger_type = "passive",
-            stack_policy = sourceKind == "equipment_roll" ? "stack_by_instance" : "unique_by_trait",
-            charge_scope = sourceKind == "equipment_roll" ? "per_turn" : "none",
-            charge_reset_timing = sourceKind == "equipment_roll" ? "turn_start" : "none",
-        };
+    private static TraitDefinition BuildTrait(string traitId, string sourceKind) =>
+        TraitTestData.Definition(
+            traitId,
+            new[] { sourceKind },
+            stackPolicy: sourceKind == "equipment_roll" ? "stack_by_instance" : "unique_by_trait",
+            chargeScope: sourceKind == "equipment_roll" ? "per_turn" : "none",
+            chargeResetTiming: sourceKind == "equipment_roll" ? "turn_start" : "none"
+        );
 
 }

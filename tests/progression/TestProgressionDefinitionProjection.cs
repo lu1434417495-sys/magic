@@ -13,9 +13,6 @@ internal static class TestProgressionDefinitionProjection
     internal static QuestDefinition Quest(QuestDef source) =>
         QuestDefinition.FromResource(source, Path("quest", source?.quest_id ?? ""));
 
-    internal static TraitDefinition Trait(TraitDef source) =>
-        TraitDefinition.FromResource(source);
-
     internal static RaceDefinition Race(RaceDef source) =>
         RaceDefinition.FromResource(source, Path("race", source?.race_id ?? ""));
 
@@ -68,10 +65,6 @@ internal static class TestProgressionDefinitionProjection
     internal static Dictionary<StringName, QuestDefinition> Quests(
         IReadOnlyDictionary<StringName, QuestDef> source
     ) => Project(source, Quest);
-
-    internal static Dictionary<StringName, TraitDefinition> Traits(
-        IReadOnlyDictionary<StringName, TraitDef> source
-    ) => Project(source, Trait);
 
     internal static Dictionary<StringName, RaceDefinition> Races(
         IReadOnlyDictionary<StringName, RaceDef> source

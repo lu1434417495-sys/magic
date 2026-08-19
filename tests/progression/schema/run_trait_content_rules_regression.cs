@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -62,7 +63,7 @@ public partial class run_trait_content_rules_regression : LifecycleTestSceneTree
     {
         TestEffectMappingCoversCurrentRaceTraitEffects();
         TestPolicyMappingsRejectUnknownValues();
-        TestSourceKindAllowedUsesTraitDefDeclaration();
+        TestSourceKindAllowedUsesDefinitionDeclaration();
         TestRollSchemaValidation();
 
         RequestTestExit(_test.Finish("Trait content rules regression"));
@@ -207,18 +208,12 @@ public partial class run_trait_content_rules_regression : LifecycleTestSceneTree
         );
     }
 
-    private void TestSourceKindAllowedUsesTraitDefDeclaration()
+    private void TestSourceKindAllowedUsesDefinitionDeclaration()
     {
-        TraitDef authoredDef = new()
-        {
-            trait_id = "source_policy_fixture",
-            display_name = "Source Policy Fixture",
-            description = "Source-kind rule fixture.",
-            effect_type = "attribute_modifier",
-        };
-        authoredDef.allowed_source_kinds.Add("identity");
-        authoredDef.allowed_source_kinds.Add("equipment_roll");
-        TraitDefinition def = TestProgressionDefinitionProjection.Trait(authoredDef);
+        TraitDefinition def = TraitTestData.Definition(
+            "source_policy_fixture",
+            new[] { "identity", "equipment_roll" }
+        );
 
         _test.True(
             TraitContentRules.IsSourceKindAllowed(def, TraitSourceKind.Identity),
@@ -244,27 +239,42 @@ public partial class run_trait_content_rules_regression : LifecycleTestSceneTree
 
     private void TestRollSchemaValidation()
     {
-        List<string> errors = new();
-        TraitRollValueSchemaEntry badInt = new()
-        {
-            key = "amount",
-            value_type = "int",
-            min_value = 5,
-            max_value = 3,
-        };
-        badInt.AppendSchemaErrors(errors, "Trait test_trait");
+        var validator = new TraitImportModelValidator();
+        TraitImportModel badInt = TraitTestData.Import(
+            "test_trait",
+            new[] { "character" },
+            rollValueSchema: new[]
+            {
+                new TraitRollValueSchemaEntryImportModel(
+                    "amount",
+                    "int",
+                    5,
+                    3,
+                    Array.Empty<string>()
+                ),
+            }
+        );
+        IReadOnlyList<string> errors = validator.ValidateMessages(badInt);
         _test.True(
             errors.Count == 1 && errors[0].Contains("min_value"),
             "invalid int range should report an error."
         );
 
-        errors.Clear();
-        TraitRollValueSchemaEntry badStringName = new()
-        {
-            key = "damage_tag",
-            value_type = "string_name",
-        };
-        badStringName.AppendSchemaErrors(errors, "Trait test_trait");
+        TraitImportModel badStringName = TraitTestData.Import(
+            "test_trait",
+            new[] { "character" },
+            rollValueSchema: new[]
+            {
+                new TraitRollValueSchemaEntryImportModel(
+                    "damage_tag",
+                    "string_name",
+                    0,
+                    0,
+                    Array.Empty<string>()
+                ),
+            }
+        );
+        errors = validator.ValidateMessages(badStringName);
         _test.True(
             errors.Count == 1 && errors[0].Contains("allowed_values"),
             "string_name roll needs allowed values."

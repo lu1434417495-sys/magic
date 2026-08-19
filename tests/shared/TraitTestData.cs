@@ -1,8 +1,76 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
 internal static class TraitTestData
 {
+    internal static TraitDefinition Definition(
+        string traitId,
+        IReadOnlyList<string> allowedSourceKinds,
+        string effectType = "attribute_modifier",
+        string triggerType = "passive",
+        string stackPolicy = "unique_by_trait",
+        string chargeScope = "none",
+        string chargeResetTiming = "none",
+        string highestRollCompareKey = "",
+        IReadOnlyList<TraitAttributeModifierImportModel> attributeModifiers = null,
+        IReadOnlyList<TraitRollValueSchemaEntryImportModel> rollValueSchema = null
+    )
+    {
+        TraitImportModel import = Import(
+            traitId,
+            allowedSourceKinds,
+            effectType,
+            triggerType,
+            stackPolicy,
+            chargeScope,
+            chargeResetTiming,
+            highestRollCompareKey,
+            attributeModifiers,
+            rollValueSchema
+        );
+        IReadOnlyList<string> errors = new TraitImportModelValidator().ValidateMessages(import);
+        if (errors.Count > 0)
+            throw new InvalidOperationException(errors[0]);
+        return TraitDefinitionProjector.Project(import);
+    }
+
+    internal static TraitImportModel Import(
+        string traitId,
+        IReadOnlyList<string> allowedSourceKinds,
+        string effectType = "attribute_modifier",
+        string triggerType = "passive",
+        string stackPolicy = "unique_by_trait",
+        string chargeScope = "none",
+        string chargeResetTiming = "none",
+        string highestRollCompareKey = "",
+        IReadOnlyList<TraitAttributeModifierImportModel> attributeModifiers = null,
+        IReadOnlyList<TraitRollValueSchemaEntryImportModel> rollValueSchema = null
+    ) =>
+        new(
+            traitId,
+            traitId,
+            $"{traitId} test definition.",
+            Array.Empty<string>(),
+            allowedSourceKinds ?? Array.Empty<string>(),
+            effectType,
+            triggerType,
+            stackPolicy,
+            chargeScope,
+            chargeResetTiming,
+            highestRollCompareKey,
+            0,
+            0,
+            attributeModifiers ?? Array.Empty<TraitAttributeModifierImportModel>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            Array.Empty<TraitDamageResistanceEntryImportModel>(),
+            Array.Empty<TraitSaveBonusEntryImportModel>(),
+            Array.Empty<TraitPassiveStatusEffectImportModel>(),
+            rollValueSchema ?? Array.Empty<TraitRollValueSchemaEntryImportModel>()
+        );
+
     internal static List<TraitRollValueState> RollValues(
         params TraitRollValueState[] values)
     {

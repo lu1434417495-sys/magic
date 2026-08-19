@@ -460,14 +460,13 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
             "mage_arcane_aegis"
         );
-        ItemDef itemResource = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/whetstone.tres"
-        );
-        ItemDefinition itemDefinition = itemResource.ToDefinition();
-        TraitDef traitResource = loader.LoadCanonical<TraitDef>(
-            "res://data/configs/traits/brave.tres"
-        );
-        TraitDefinition traitDefinition = TraitDefinition.FromResource(traitResource);
+        ItemDefinition itemResource = TestItemDefinitionLookup.GetProductionItem("whetstone");
+        ItemDefinition itemDefinition = itemResource;
+        using TraitContentRegistry traitRegistry = new();
+        TraitDefinition traitDefinition = traitRegistry.GetTraitDef("brave")
+            ?? throw new InvalidOperationException(
+                "Production trait JSON does not define brave."
+            );
         EnemyTemplateDef enemyTemplate = loader.LoadCanonical<EnemyTemplateDef>(
             "res://data/configs/enemies/templates/zombie_shambler.tres"
         );

@@ -1,0 +1,15 @@
+rule_id	source	pointer	message
+trait.validation.modifier_attribute_required	invalid_traits.json#bad_attribute_modifier_trait	/entries/0/attribute_modifiers/0/attribute_id	Trait bad_attribute_modifier_trait.attribute_modifiers[0].attribute_id must be a non-empty StringName.
+trait.validation.modifier_mode_known	invalid_traits.json#bad_attribute_modifier_trait	/entries/0/attribute_modifiers/0/mode	Trait bad_attribute_modifier_trait.attribute_modifiers[0].mode uses unsupported value bad_mode.
+trait.validation.roll_fixed_source	invalid_traits.json#fixed_source_roll_schema_trait	/entries/1/roll_value_schema	Trait fixed_source_roll_schema_trait.roll_value_schema cannot be used by fixed sources such as identity or equipment_fixed.
+trait.validation.roll_instance_source	invalid_traits.json#fixed_source_roll_schema_trait	/entries/1/roll_value_schema	Trait fixed_source_roll_schema_trait.roll_value_schema requires an instance source such as character or equipment_roll.
+trait.validation.identity_modifier	invalid_traits.json#identity_attribute_trait	/entries/2/attribute_modifiers	Trait identity_attribute_trait.attribute_modifiers must be empty for identity traits.
+trait.validation.charge_scope_known	invalid_traits.json#invalid_charge_scope_trait	/entries/3/charge_scope	Trait invalid_charge_scope_trait.charge_scope uses unsupported value per_scene.
+trait.validation.save_tag_duplicate	invalid_traits.json#invalid_save_tags_trait	/entries/4/passive_status_effects/0/save_immunity_tags/1	Trait invalid_save_tags_trait.passive_status_effects[0].save_immunity_tags[1] duplicates save tag magic.
+trait.validation.save_tag_duplicate	invalid_traits.json#invalid_save_tags_trait	/entries/4/save_advantage_tags/1	Trait invalid_save_tags_trait.save_advantage_tags[1] duplicates save tag poison.
+trait.validation.save_tag_known	invalid_traits.json#invalid_save_tags_trait	/entries/4/save_disadvantage_tags/0	Trait invalid_save_tags_trait.save_disadvantage_tags[0] entry not_a_save_tag is not a supported save tag.
+trait.validation.save_tag_bare	invalid_traits.json#invalid_save_tags_trait	/entries/4/save_immunity_tags/0	Trait invalid_save_tags_trait.save_immunity_tags[0] entry sleep_immunity uses removed suffix syntax; write the bare save tag sleep in the field matching its semantics.
+trait.validation.source_required	invalid_traits.json#missing_source_kind_trait	/entries/5/allowed_source_kinds	Trait missing_source_kind_trait.allowed_source_kinds must include at least one allowed_source_kind.
+trait.validation.description	invalid_traits.json#missing_text_trait	/entries/6/description	Trait missing_text_trait.description must be a non-empty String.
+trait.validation.display_name	invalid_traits.json#missing_text_trait	/entries/6/display_name	Trait missing_text_trait.display_name must be a non-empty String.
+trait.validation.trigger_dispatch	invalid_traits.json#unsupported_dispatch_trait	/entries/7/trigger_type	Trait unsupported_dispatch_trait.trigger_type on_crit has no dispatch coverage for effect_type brave.

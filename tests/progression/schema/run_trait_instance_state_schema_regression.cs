@@ -146,30 +146,34 @@ public partial class run_trait_instance_state_schema_regression : LifecycleTestS
 
     private void TestValidateAgainstDefRequiresExactRollSchema()
     {
-        TraitDef authoredDef = new()
-        {
-            trait_id = "sharp_edge",
-            display_name = "Sharp Edge",
-            description = "Roll schema fixture.",
-            allowed_source_kinds = new Godot.Collections.Array<StringName> { "equipment_roll" },
-            effect_type = "attribute_modifier",
-            roll_value_schema = new Godot.Collections.Array<TraitRollValueSchemaEntry>
+        TraitDefinition def = TraitTestData.Definition(
+            "sharp_edge",
+            new[] { "equipment_roll" },
+            rollValueSchema: new[]
             {
-                new() { key = "amount", value_type = "int", min_value = 1, max_value = 6 },
-                new()
-                {
-                    key = "damage_tag",
-                    value_type = "string_name",
-                    allowed_values = new Godot.Collections.Array<StringName>
-                    {
-                        "physical_slash",
-                        "physical_pierce",
-                    },
-                },
-                new() { key = "enabled", value_type = "bool" },
-            },
-        };
-        TraitDefinition def = TestProgressionDefinitionProjection.Trait(authoredDef);
+                new TraitRollValueSchemaEntryImportModel(
+                    "amount",
+                    "int",
+                    1,
+                    6,
+                    System.Array.Empty<string>()
+                ),
+                new TraitRollValueSchemaEntryImportModel(
+                    "damage_tag",
+                    "string_name",
+                    0,
+                    0,
+                    new[] { "physical_slash", "physical_pierce" }
+                ),
+                new TraitRollValueSchemaEntryImportModel(
+                    "enabled",
+                    "bool",
+                    0,
+                    0,
+                    System.Array.Empty<string>()
+                ),
+            }
+        );
 
         TraitInstanceState valid = TraitInstanceState.Create(
             "eq_000001_t01",

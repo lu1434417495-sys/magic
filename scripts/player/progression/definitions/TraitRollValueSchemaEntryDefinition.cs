@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -55,28 +54,5 @@ public sealed class TraitRollValueSchemaEntryDefinition
                 errors.Add($"{ownerLabel}.{Key}: unsupported value_type {ValueType}.");
                 break;
         }
-    }
-
-    internal static TraitRollValueSchemaEntryDefinition FromResource(
-        TraitRollValueSchemaEntry source,
-        string path
-    )
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ProgressionDefinitionProjection.RequireKnown(
-            source.ValueTypeKind != TraitRollValueType.Unknown,
-            $"{path}.value_type",
-            source.value_type
-        );
-        return new TraitRollValueSchemaEntryDefinition(
-            source.key,
-            source.value_type,
-            source.min_value,
-            source.max_value,
-            ProgressionDefinitionProjection.CopyBorrowedValues(
-                source.AllowedValuesProjectionBorrowed,
-                $"{path}.allowed_values"
-            )
-        );
     }
 }

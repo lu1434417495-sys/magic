@@ -1,0 +1,50 @@
+rule_id	description
+trait.dto.invalid_entry	entry matches the strict non-null DTO contract
+trait.validation.id	trait_id is a lowercase stable ID and may contain dot-separated segments
+trait.validation.display_name	display_name is nonblank
+trait.validation.description	description is nonblank
+trait.validation.effect_required	effect_type is nonempty
+trait.validation.effect_known	effect_type maps to a known trait effect
+trait.validation.trigger_required	trigger_type is nonempty
+trait.validation.trigger_known	trigger_type maps to a known trigger
+trait.validation.trigger_dispatch	non-passive effect and trigger pair has dispatch coverage
+trait.validation.stack_required	stack_policy is nonempty
+trait.validation.stack_known	stack_policy is known
+trait.validation.charge_scope_required	charge_scope is nonempty
+trait.validation.charge_scope_known	charge_scope is known
+trait.validation.charge_reset_required	charge_reset_timing is nonempty
+trait.validation.charge_reset_known	charge_reset_timing is known
+trait.validation.source_required	at least one allowed_source_kind is declared
+trait.validation.source_known	allowed_source_kind is known
+trait.validation.source_duplicate	allowed_source_kind is unique
+trait.validation.identity_modifier	identity traits do not declare attribute modifiers
+trait.validation.modifier_attribute_required	attribute modifier attribute_id is nonempty
+trait.validation.modifier_attribute_known	attribute modifier attribute_id is recognized
+trait.validation.modifier_mode_required	attribute modifier mode is nonempty
+trait.validation.modifier_mode_known	attribute modifier mode is flat or percent
+trait.validation.save_tag_required	save tag is nonempty
+trait.validation.save_tag_bare	save tag uses bare syntax without semantic suffix
+trait.validation.save_tag_known	save tag is registered
+trait.validation.save_tag_duplicate	save tag is unique within its field
+trait.validation.damage_tag_required	damage resistance damage_tag is nonempty
+trait.validation.damage_tag_known	damage resistance damage_tag is known
+trait.validation.damage_tag_duplicate	damage resistance damage_tag is unique
+trait.validation.mitigation_required	mitigation_tier is nonempty
+trait.validation.mitigation_known	mitigation_tier is known
+trait.validation.save_ability	save bonus ability is a base attribute
+trait.validation.save_ability_duplicate	save bonus ability is unique
+trait.validation.save_bonus_nonzero	save bonus is nonzero
+trait.validation.passive_status_required	passive status_id is nonempty
+trait.validation.passive_status_duplicate	passive status_id is unique
+trait.validation.passive_power_positive	passive status power is positive
+trait.validation.passive_stacks_positive	passive status stacks is positive
+trait.validation.passive_debuff_override	passive debuff value requires an explicit override
+trait.validation.roll_instance_source	roll schema has a character or equipment_roll source
+trait.validation.roll_fixed_source	roll schema has no identity or equipment_fixed source
+trait.validation.roll_key_required	roll schema key is nonempty
+trait.validation.roll_key_duplicate	roll schema key is unique
+trait.validation.roll_int_range	int roll schema minimum does not exceed maximum
+trait.validation.roll_string_values	string_name roll schema has allowed values
+trait.validation.roll_type_known	roll schema value_type is known
+trait.validation.highest_roll_key_required	highest_roll has a compare key
+trait.validation.highest_roll_key_int	highest_roll compare key references an int schema entry
