@@ -434,7 +434,10 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
 
         var immediateErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateImmediateWeaponAttackPayload(
-            new ImmediateWeaponAttackActionPayloadDef { skill_id = SkillId },
+            new ImmediateWeaponAttackActionPayloadImportModel
+            {
+                skill_id = SkillId.ToString(),
+            },
             context,
             "test.immediate_weapon_attack",
             immediateErrors
@@ -446,7 +449,10 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
 
         var triggerErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateTriggerSkillPayload(
-            new TriggerSkillActionPayloadDef { skill_id = SkillId },
+            new TriggerSkillActionPayloadImportModel
+            {
+                skill_id = SkillId.ToString(),
+            },
             context,
             "test.trigger_skill",
             triggerErrors

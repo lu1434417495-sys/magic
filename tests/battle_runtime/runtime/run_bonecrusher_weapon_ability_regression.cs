@@ -88,33 +88,26 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             return;
 
         using TestContentResourceLoader loader = new();
-        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_bonecrusher.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_bonecrusher_088");
         _test.True(rawItem != null, "碎骨者原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "碎骨者", "碎骨者显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "碎骨者应继承 greataxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 48000, "碎骨者价格应为 48000。");
+            _test.Eq(rawItem.DisplayName, "碎骨者", "碎骨者显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 48000, "碎骨者价格应为 48000。");
             _test.True(
-                rawItem.trait_ids.Contains(ArmorCrushingTraitId),
+                rawItem.TraitIds.Contains(ArmorCrushingTraitId),
                 "碎骨者物品应声明碎甲重击 trait。"
             );
             _test.True(
-                rawItem.trait_ids.Contains(BoneShatterTraitId),
+                rawItem.TraitIds.Contains(BoneShatterTraitId),
                 "碎骨者物品应声明骨骼粉碎 trait。"
             );
             _test.True(
-                rawItem.trait_ids.Contains(AftershockFractureTraitId),
+                rawItem.TraitIds.Contains(AftershockFractureTraitId),
                 "碎骨者物品应声明余震破防 trait。"
             );
             _test.False(
-                TextContainsEnglishCreatureLabels(rawItem.description),
+                TextContainsEnglishCreatureLabels(rawItem.Description),
                 "碎骨者玩家说明不应直接露出 undead/construct 英文标签。"
             );
         }

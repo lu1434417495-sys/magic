@@ -6,7 +6,7 @@ using Godot;
 internal static class EquipmentAbilityDefinitionProjection
 {
     internal static EquipmentAbilityContentPackDefinition ProjectPack(
-        EquipmentAbilityContentPackDef source,
+        EquipmentAbilityContentPackImportModel source,
         IReadOnlyList<EquipmentAbilityBindingDefinition> bindings
     )
     {
@@ -19,11 +19,10 @@ internal static class EquipmentAbilityDefinitionProjection
             Bindings = new ReadOnlyCollection<EquipmentAbilityBindingDefinition>(
                 new List<EquipmentAbilityBindingDefinition>(bindings)
             ),
-            ResourcePath = source.ResourcePath ?? "",
         };
     }
 
-    internal static EquipmentAbilityBindingDefinition ProjectBinding(EquipmentAbilityBindingDef source)
+    internal static EquipmentAbilityBindingDefinition ProjectBinding(EquipmentAbilityBindingImportModel source)
     {
         return new EquipmentAbilityBindingDefinition
         {
@@ -56,19 +55,18 @@ internal static class EquipmentAbilityDefinitionProjection
                 ),
             WeaponProfileOverlays = ProjectWeaponProfileOverlays(source.weapon_profile_overlays),
             WorldEffects = ProjectWorldEffects(source.world_effects),
-            ResourcePath = source.ResourcePath ?? "",
         };
     }
 
     private static IReadOnlyList<EquipmentFatalInterceptDefinition> ProjectFatalIntercepts(
-        Godot.Collections.Array<EquipmentFatalInterceptDef> values
+        IReadOnlyList<EquipmentFatalInterceptImportModel> values
     )
     {
         if (values == null || values.Count == 0)
             return Array.Empty<EquipmentFatalInterceptDefinition>();
 
         var result = new List<EquipmentFatalInterceptDefinition>();
-        foreach (EquipmentFatalInterceptDef value in values)
+        foreach (EquipmentFatalInterceptImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -104,13 +102,13 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentMitigationAuraDefinition> ProjectMitigationAuras(
-        Godot.Collections.Array<EquipmentMitigationAuraDef> values
+        IReadOnlyList<EquipmentMitigationAuraImportModel> values
     )
     {
         if (values == null || values.Count == 0)
             return Array.Empty<EquipmentMitigationAuraDefinition>();
         var result = new List<EquipmentMitigationAuraDefinition>();
-        foreach (EquipmentMitigationAuraDef value in values)
+        foreach (EquipmentMitigationAuraImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -132,13 +130,13 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentMovementTrailDefinition> ProjectMovementTrails(
-        Godot.Collections.Array<EquipmentMovementTrailDef> values
+        IReadOnlyList<EquipmentMovementTrailImportModel> values
     )
     {
         if (values == null || values.Count == 0)
             return Array.Empty<EquipmentMovementTrailDefinition>();
         var result = new List<EquipmentMovementTrailDefinition>();
-        foreach (EquipmentMovementTrailDef value in values)
+        foreach (EquipmentMovementTrailImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -165,13 +163,13 @@ internal static class EquipmentAbilityDefinitionProjection
 
     private static IReadOnlyList<EquipmentTemporalProgressModifierDefinition> ProjectTemporalProgressModifiers(
         StringName bindingId,
-        Godot.Collections.Array<EquipmentTemporalProgressModifierDef> values
+        IReadOnlyList<EquipmentTemporalProgressModifierImportModel> values
     )
     {
         if (values == null || values.Count == 0)
             return Array.Empty<EquipmentTemporalProgressModifierDefinition>();
         var result = new List<EquipmentTemporalProgressModifierDefinition>();
-        foreach (EquipmentTemporalProgressModifierDef value in values)
+        foreach (EquipmentTemporalProgressModifierImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -199,8 +197,8 @@ internal static class EquipmentAbilityDefinitionProjection
         IReadOnlyList<EquipmentCognitionCeilingModifierDefinition>
             ProjectCognitionCeilingModifiers(
                 StringName bindingId,
-                Godot.Collections.Array<
-                    EquipmentCognitionCeilingModifierDef
+                IReadOnlyList<
+                    EquipmentCognitionCeilingModifierImportModel
                 > values
             )
     {
@@ -215,7 +213,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 EquipmentCognitionCeilingModifierDefinition
             >();
         foreach (
-            EquipmentCognitionCeilingModifierDef value in values
+            EquipmentCognitionCeilingModifierImportModel value in values
         )
         {
             if (value == null)
@@ -238,11 +236,11 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlySet<StringName> ProjectSourceKinds(
-        Godot.Collections.Array<StringName> values
+        IReadOnlyList<string> values
     )
     {
         var result = new HashSet<StringName>();
-        foreach (StringName value in values)
+        foreach (string value in values)
         {
             TraitSourceKind kind = TraitContentRules.ToSourceKind(value);
             if (
@@ -256,11 +254,11 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentAbilityStateSchemaDefinition> ProjectStateSchemas(
-        Godot.Collections.Array<EquipmentAbilityStateSchemaDef> values
+        IReadOnlyList<EquipmentAbilityStateSchemaImportModel> values
     )
     {
         var result = new List<EquipmentAbilityStateSchemaDefinition>();
-        foreach (EquipmentAbilityStateSchemaDef value in values)
+        foreach (EquipmentAbilityStateSchemaImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -285,11 +283,11 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentAbilityReactionDefinition> ProjectReactions(
-        Godot.Collections.Array<EquipmentAbilityReactionDef> values
+        IReadOnlyList<EquipmentAbilityReactionImportModel> values
     )
     {
         var result = new List<EquipmentAbilityReactionDefinition>();
-        foreach (EquipmentAbilityReactionDef value in values)
+        foreach (EquipmentAbilityReactionImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -309,10 +307,7 @@ internal static class EquipmentAbilityDefinitionProjection
                     ConditionGroup = ProjectConditionGroup(value.condition_group),
                     RollGate = ProjectRollGate(value.roll_gate),
                     OutcomeTable = ProjectOutcomeTable(value.outcome_table),
-                    ProjectedEffectCategories = ProgressionDefinitionProjection.CopyBorrowedValues(
-                        value.projected_effect_categories,
-                        $"EquipmentAbilityReactionDefinition[{value.reaction_id}].ProjectedEffectCategories"
-                    ),
+                    ProjectedEffectCategories = CopyStringNames(value.projected_effect_categories),
                     Actions = ProjectActions(value.actions),
                 }
             );
@@ -321,13 +316,13 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static EquipmentConditionGroupDefinition ProjectConditionGroup(
-        EquipmentAbilityConditionGroupDef value
+        EquipmentAbilityConditionGroupImportModel value
     )
     {
         if (value == null)
             return null;
         var conditions = new List<EquipmentAbilityConditionDefinition>();
-        foreach (EquipmentAbilityConditionDef condition in value.conditions)
+        foreach (EquipmentAbilityConditionImportModel condition in value.conditions)
         {
             if (condition == null)
                 continue;
@@ -341,14 +336,10 @@ internal static class EquipmentAbilityDefinitionProjection
             );
         }
         var groups = new List<EquipmentConditionGroupDefinition>();
-        foreach (Resource groupResource in value.groups)
+        foreach (EquipmentAbilityConditionGroupImportModel group in value.groups)
         {
-            if (groupResource is not EquipmentAbilityConditionGroupDef group)
-            {
-                throw new InvalidOperationException(
-                    "Validated equipment condition group contains an invalid nested resource type."
-                );
-            }
+            if (group == null)
+                continue;
             EquipmentConditionGroupDefinition projected = ProjectConditionGroup(group);
             if (projected != null)
                 groups.Add(projected);
@@ -362,22 +353,22 @@ internal static class EquipmentAbilityDefinitionProjection
         };
     }
 
-    private static EquipmentAbilityConditionPayloadDefinition ProjectConditionPayload(Resource payload)
+    private static EquipmentAbilityConditionPayloadDefinition ProjectConditionPayload(IEquipmentAbilityConditionPayloadImportModel payload)
     {
         return payload switch
         {
-            HasStatusConditionPayloadDef status => new HasStatusConditionPayloadDefinition
+            HasStatusConditionPayloadImportModel status => new HasStatusConditionPayloadDefinition
             {
                 Subject = status.subject,
                 StatusId = status.status_id,
             },
-            CompareFactConditionPayloadDef compare => new CompareFactConditionPayloadDefinition
+            CompareFactConditionPayloadImportModel compare => new CompareFactConditionPayloadDefinition
             {
                 Left = ProjectFactQuery(compare.left),
                 Compare = compare.compare,
                 Right = ProjectFactQuery(compare.right),
             },
-            HasEquipmentTagConditionPayloadDef tags => new HasEquipmentTagConditionPayloadDefinition
+            HasEquipmentTagConditionPayloadImportModel tags => new HasEquipmentTagConditionPayloadDefinition
             {
                 Subject = tags.subject,
                 EquipmentSelector = tags.equipment_selector,
@@ -389,11 +380,11 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentAbilityActionDefinition> ProjectActions(
-        Godot.Collections.Array<EquipmentAbilityActionDef> values
+        IReadOnlyList<EquipmentAbilityActionImportModel> values
     )
     {
         var result = new List<EquipmentAbilityActionDefinition>();
-        foreach (EquipmentAbilityActionDef value in values)
+        foreach (EquipmentAbilityActionImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -411,11 +402,11 @@ internal static class EquipmentAbilityDefinitionProjection
         return new ReadOnlyCollection<EquipmentAbilityActionDefinition>(result);
     }
 
-    private static EquipmentAbilityActionPayloadDefinition ProjectActionPayload(Resource payload)
+    private static EquipmentAbilityActionPayloadDefinition ProjectActionPayload(IEquipmentAbilityActionPayloadImportModel payload)
     {
         return payload switch
         {
-            AddDamageDiceActionPayloadDef damage => new AddDamageDiceActionPayloadDefinition
+            AddDamageDiceActionPayloadImportModel damage => new AddDamageDiceActionPayloadDefinition
             {
                 TargetSelector = damage.target_selector,
                 Dice = ProjectDice(damage.dice),
@@ -430,7 +421,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 ),
                 MitigationBypassTiers = CopyStringNames(damage.mitigation_bypass_tiers),
             },
-            ImmediateWeaponAttackActionPayloadDef weaponAttack => new ImmediateWeaponAttackActionPayloadDefinition
+            ImmediateWeaponAttackActionPayloadImportModel weaponAttack => new ImmediateWeaponAttackActionPayloadDefinition
             {
                 AnchorSelector = weaponAttack.anchor_selector,
                 TargetTeamFilter = weaponAttack.target_team_filter,
@@ -439,7 +430,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 SkillId = weaponAttack.skill_id,
                 RequireWeaponRange = weaponAttack.require_weapon_range,
             },
-            DealDamageActionPayloadDef directDamage => new DealDamageActionPayloadDefinition
+            DealDamageActionPayloadImportModel directDamage => new DealDamageActionPayloadDefinition
             {
                 TargetSelector = directDamage.target_selector,
                 Dice = ProjectDice(directDamage.dice),
@@ -450,19 +441,19 @@ internal static class EquipmentAbilityDefinitionProjection
                 ),
                 MitigationBypassTiers = CopyStringNames(directDamage.mitigation_bypass_tiers),
             },
-            HealActionPayloadDef heal => new HealActionPayloadDefinition
+            HealActionPayloadImportModel heal => new HealActionPayloadDefinition
             {
                 TargetSelector = heal.target_selector,
                 Dice = ProjectDice(heal.dice),
             },
-            HealFromFactActionPayloadDef healFromFact => new HealFromFactActionPayloadDefinition
+            HealFromFactActionPayloadImportModel healFromFact => new HealFromFactActionPayloadDefinition
             {
                 TargetSelector = healFromFact.target_selector,
                 AmountFact = ProjectFactQuery(healFromFact.amount_fact),
                 MultiplierPercent = healFromFact.multiplier_percent,
                 MaxAmount = healFromFact.max_amount,
             },
-            AttackRollBonusActionPayloadDef attackRoll => new AttackRollBonusActionPayloadDefinition
+            AttackRollBonusActionPayloadImportModel attackRoll => new AttackRollBonusActionPayloadDefinition
             {
                 TargetSelector = attackRoll.target_selector,
                 Bonus = attackRoll.bonus,
@@ -471,20 +462,20 @@ internal static class EquipmentAbilityDefinitionProjection
                 Label = attackRoll.label ?? "",
                 RequireWeaponDamage = attackRoll.require_weapon_damage,
             },
-            AttackRollAdvantageActionPayloadDef attackAdvantage => new AttackRollAdvantageActionPayloadDefinition
+            AttackRollAdvantageActionPayloadImportModel attackAdvantage => new AttackRollAdvantageActionPayloadDefinition
             {
                 TargetSelector = attackAdvantage.target_selector,
                 Mode = attackAdvantage.mode,
                 StackMode = attackAdvantage.stack_mode,
                 Label = attackAdvantage.label ?? "",
             },
-            CriticalHitOverrideActionPayloadDef critical => new CriticalHitOverrideActionPayloadDefinition
+            CriticalHitOverrideActionPayloadImportModel critical => new CriticalHitOverrideActionPayloadDefinition
             {
                 TargetSelector = critical.target_selector,
                 RequireWeaponDamage = critical.require_weapon_damage,
                 Label = critical.label ?? "",
             },
-            EquipmentAttackDefenseModifierDef defense => new EquipmentAttackDefenseModifierDefinition
+            EquipmentAttackDefenseModifierImportModel defense => new EquipmentAttackDefenseModifierDefinition
             {
                 ModifierId = defense.modifier_id,
                 IgnoredAcComponents = CopyStringNames(defense.ignored_ac_components),
@@ -499,7 +490,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 ProjectileObstaclePolicy = defense.projectile_obstacle_policy,
                 TraceLabel = defense.trace_label,
             },
-            DamageRollModeOverrideActionPayloadDef damageRollMode =>
+            DamageRollModeOverrideActionPayloadImportModel damageRollMode =>
                 new DamageRollModeOverrideActionPayloadDefinition
                 {
                     TargetSelector = damageRollMode.target_selector,
@@ -507,7 +498,7 @@ internal static class EquipmentAbilityDefinitionProjection
                     StackMode = damageRollMode.stack_mode,
                     Label = damageRollMode.label ?? "",
                 },
-            DamageReductionActionPayloadDef damageReduction =>
+            DamageReductionActionPayloadImportModel damageReduction =>
                 new DamageReductionActionPayloadDefinition
                 {
                     TargetSelector = damageReduction.target_selector,
@@ -515,14 +506,14 @@ internal static class EquipmentAbilityDefinitionProjection
                     DamageTags = CopyStringNames(damageReduction.damage_tags),
                     Label = damageReduction.label ?? "",
                 },
-            LootQuantityMultiplierActionPayloadDef loot => new LootQuantityMultiplierActionPayloadDefinition
+            LootQuantityMultiplierActionPayloadImportModel loot => new LootQuantityMultiplierActionPayloadDefinition
             {
                 TargetSelector = loot.target_selector,
                 MultiplierPercent = loot.multiplier_percent,
                 AffectedDropKinds = CopyStringNames(loot.affected_drop_kinds),
                 AnyItemTags = CopyStringNames(loot.any_item_tags),
             },
-            ApplyStatusActionPayloadDef status => new ApplyStatusActionPayloadDefinition
+            ApplyStatusActionPayloadImportModel status => new ApplyStatusActionPayloadDefinition
             {
                 TargetSelector = status.target_selector,
                 StatusId = status.status_id,
@@ -566,7 +557,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 SaveTag = status.save_tag,
                 ApplyOnSaveFailure = status.apply_on_save_failure,
             },
-            ModifyActionPointsActionPayloadDef actionPoints => new ModifyActionPointsActionPayloadDefinition
+            ModifyActionPointsActionPayloadImportModel actionPoints => new ModifyActionPointsActionPayloadDefinition
             {
                 TargetSelector = actionPoints.target_selector,
                 Mode = actionPoints.mode,
@@ -574,7 +565,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 StatusId = actionPoints.status_id,
                 DisplayLabel = actionPoints.display_label ?? "",
             },
-            ScheduleAreaEffectActionPayloadDef schedule => new ScheduleAreaEffectActionPayloadDefinition
+            ScheduleAreaEffectActionPayloadImportModel schedule => new ScheduleAreaEffectActionPayloadDefinition
             {
                 AnchorSelector = schedule.anchor_selector,
                 DelayTu = schedule.delay_tu,
@@ -609,7 +600,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 ContactTimelineDamageFlatBonus = schedule.contact_timeline_damage_flat_bonus,
                 ContactBlockedByTraitId = schedule.contact_blocked_by_trait_id,
             },
-            ApplyBattleTerrainEffectAfterCheckActionPayloadDef terrainCheck =>
+            ApplyBattleTerrainEffectAfterCheckActionPayloadImportModel terrainCheck =>
                 new ApplyBattleTerrainEffectAfterCheckActionPayloadDefinition
                 {
                     AnchorSelector = terrainCheck.anchor_selector,
@@ -626,7 +617,7 @@ internal static class EquipmentAbilityDefinitionProjection
                     NaturalTwentyAutoSuccess = terrainCheck.natural_twenty_auto_success,
                     NaturalOneAutoFailure = terrainCheck.natural_one_auto_failure,
                 },
-            ApplyEdgeFeatureActionPayloadDef edgeFeature => new ApplyEdgeFeatureActionPayloadDefinition
+            ApplyEdgeFeatureActionPayloadImportModel edgeFeature => new ApplyEdgeFeatureActionPayloadDefinition
             {
                 FromSelector = edgeFeature.from_selector,
                 ToSelector = edgeFeature.to_selector,
@@ -643,7 +634,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 InteractionKind = edgeFeature.interaction_kind,
                 StateTag = edgeFeature.state_tag,
             },
-            ModifyAbilityStateActionPayloadDef state => new ModifyAbilityStateActionPayloadDefinition
+            ModifyAbilityStateActionPayloadImportModel state => new ModifyAbilityStateActionPayloadDefinition
             {
                 TargetSelector = state.target_selector,
                 BindingId = state.binding_id,
@@ -651,7 +642,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 Operation = state.operation,
                 IntDelta = state.int_delta,
             },
-            MarkTargetActionPayloadDef mark => new MarkTargetActionPayloadDefinition
+            MarkTargetActionPayloadImportModel mark => new MarkTargetActionPayloadDefinition
             {
                 TargetSelector = mark.target_selector,
                 StateKey = mark.state_key,
@@ -666,7 +657,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 MirrorStatusDisplayLabel = mark.mirror_status_display_label ?? "",
                 ClearStatusIdsOnReplace = CopyStringNames(mark.clear_status_ids_on_replace),
             },
-            ClearStatusActionPayloadDef clear => new ClearStatusActionPayloadDefinition
+            ClearStatusActionPayloadImportModel clear => new ClearStatusActionPayloadDefinition
             {
                 TargetSelector = clear.target_selector,
                 StatusId = clear.status_id,
@@ -675,7 +666,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 RequireSourceUnitMatch = clear.require_source_unit_match,
                 ClearTargetMark = clear.clear_target_mark,
             },
-            TriggerSkillActionPayloadDef triggerSkill => new TriggerSkillActionPayloadDefinition
+            TriggerSkillActionPayloadImportModel triggerSkill => new TriggerSkillActionPayloadDefinition
             {
                 SkillId = triggerSkill.skill_id,
                 SkillLevel = Math.Max(triggerSkill.skill_level, 1),
@@ -685,13 +676,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 ActivationLog = triggerSkill.activation_log ?? "",
                 SaveLogLabel = triggerSkill.save_log_label ?? "",
             },
-            GrantSkillActionPayloadDef grant => new GrantSkillActionPayloadDefinition
-            {
-                SkillId = grant.skill_id,
-                SkillLevel = grant.skill_level,
-                AvailabilityStateKey = grant.availability_state_key,
-            },
-            SummonUnitsActionPayloadDef summon => new SummonUnitsActionPayloadDefinition
+            SummonUnitsActionPayloadImportModel summon => new SummonUnitsActionPayloadDefinition
             {
                 AnchorSelector = summon.anchor_selector,
                 StateKey = summon.state_key,
@@ -724,7 +709,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 CreatureTypeTags = CopyStringNames(summon.creature_type_tags),
                 MovementTags = CopyStringNames(summon.movement_tags),
             },
-            ConsumeSummonedUnitsActionPayloadDef consume =>
+            ConsumeSummonedUnitsActionPayloadImportModel consume =>
                 new ConsumeSummonedUnitsActionPayloadDefinition
                 {
                     SourceBindingId = consume.source_binding_id,
@@ -732,7 +717,7 @@ internal static class EquipmentAbilityDefinitionProjection
                     Count = consume.count,
                     SelectionMode = consume.selection_mode,
                 },
-            ConsumeStatusStacksActionPayloadDef consumeStacks =>
+            ConsumeStatusStacksActionPayloadImportModel consumeStacks =>
                 new ConsumeStatusStacksActionPayloadDefinition
                 {
                     TargetSelector = consumeStacks.target_selector,
@@ -741,7 +726,7 @@ internal static class EquipmentAbilityDefinitionProjection
                     RequireSourceUnitMatch = consumeStacks.require_source_unit_match,
                     SelectionMode = consumeStacks.selection_mode,
                 },
-            SummonedUnitAttackRollModifierActionPayloadDef summonedModifier =>
+            SummonedUnitAttackRollModifierActionPayloadImportModel summonedModifier =>
                 new SummonedUnitAttackRollModifierActionPayloadDefinition
                 {
                     TargetSelector = summonedModifier.target_selector,
@@ -754,7 +739,7 @@ internal static class EquipmentAbilityDefinitionProjection
                     StackMode = summonedModifier.stack_mode,
                     Label = summonedModifier.label ?? "",
                 },
-            EquipmentDurabilityDamageActionPayloadDef durability =>
+            EquipmentDurabilityDamageActionPayloadImportModel durability =>
                 new EquipmentDurabilityDamageActionPayloadDefinition
                 {
                     TargetSelector = durability.target_selector,
@@ -774,13 +759,13 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentAcComponentMultiplierDefinition> ProjectAcComponentMultipliers(
-        Godot.Collections.Array<EquipmentAcComponentMultiplierDef> values
+        IReadOnlyList<EquipmentAcComponentMultiplierImportModel> values
     )
     {
         if (values == null || values.Count == 0)
             return Array.Empty<EquipmentAcComponentMultiplierDefinition>();
         var result = new List<EquipmentAcComponentMultiplierDefinition>();
-        foreach (EquipmentAcComponentMultiplierDef value in values)
+        foreach (EquipmentAcComponentMultiplierImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -798,12 +783,12 @@ internal static class EquipmentAbilityDefinitionProjection
             : Array.Empty<EquipmentAcComponentMultiplierDefinition>();
     }
 
-    private static DiceExpressionDefinition ProjectDice(DiceExpressionDef value)
+    private static DiceExpressionDefinition ProjectDice(DiceExpressionImportModel value)
     {
         if (value == null)
             return null;
         var terms = new List<DiceExpressionTermDefinition>();
-        foreach (DiceExpressionTermDef term in value.terms)
+        foreach (DiceExpressionTermImportModel term in value.terms)
         {
             if (term == null)
                 continue;
@@ -826,7 +811,7 @@ internal static class EquipmentAbilityDefinitionProjection
         };
     }
 
-    private static EquipmentAbilityFactQueryDefinition ProjectFactQuery(EquipmentAbilityFactQueryDef value)
+    private static EquipmentAbilityFactQueryDefinition ProjectFactQuery(EquipmentAbilityFactQueryImportModel value)
     {
         if (value == null)
             return null;
@@ -849,7 +834,7 @@ internal static class EquipmentAbilityDefinitionProjection
         };
     }
 
-    private static EquipmentRollGateDefinition ProjectRollGate(EquipmentRollGateDef value)
+    private static EquipmentRollGateDefinition ProjectRollGate(EquipmentRollGateImportModel value)
     {
         return value == null
             ? null
@@ -862,12 +847,12 @@ internal static class EquipmentAbilityDefinitionProjection
             };
     }
 
-    private static EquipmentOutcomeTableDefinition ProjectOutcomeTable(EquipmentOutcomeTableDef value)
+    private static EquipmentOutcomeTableDefinition ProjectOutcomeTable(EquipmentOutcomeTableImportModel value)
     {
         if (value == null)
             return null;
         var entries = new List<EquipmentOutcomeEntryDefinition>();
-        foreach (EquipmentOutcomeEntryDef entry in value.entries)
+        foreach (EquipmentOutcomeEntryImportModel entry in value.entries)
         {
             if (entry == null)
                 continue;
@@ -889,11 +874,11 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentGrantedActionDefinition> ProjectGrantedActions(
-        Godot.Collections.Array<EquipmentGrantedActionDef> values
+        IReadOnlyList<EquipmentGrantedActionImportModel> values
     )
     {
         var result = new List<EquipmentGrantedActionDefinition>();
-        foreach (EquipmentGrantedActionDef value in values)
+        foreach (EquipmentGrantedActionImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -915,7 +900,6 @@ internal static class EquipmentAbilityDefinitionProjection
                     DisplayCategory = value.display_category,
                     DisplayPriority = value.display_priority,
                     AvailabilityConditions = ProjectConditionGroup(value.availability_conditions),
-                    ResourcePath = value.ResourcePath ?? "",
                 }
             );
         }
@@ -923,11 +907,11 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentWeaponProfileOverlayDefinition> ProjectWeaponProfileOverlays(
-        Godot.Collections.Array<EquipmentWeaponProfileOverlayDef> values
+        IReadOnlyList<EquipmentWeaponProfileOverlayImportModel> values
     )
     {
         var result = new List<EquipmentWeaponProfileOverlayDefinition>();
-        foreach (EquipmentWeaponProfileOverlayDef value in values)
+        foreach (EquipmentWeaponProfileOverlayImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -949,7 +933,6 @@ internal static class EquipmentAbilityDefinitionProjection
                     GripOverride = value.grip_override,
                     UsesTwoHandsOverride = value.uses_two_hands_override,
                     IsVersatileOverride = value.is_versatile_override,
-                    ResourcePath = value.ResourcePath ?? "",
                 }
             );
         }
@@ -957,7 +940,7 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static EquipmentWeaponDiceOverlayDefinition ProjectWeaponDiceOverlay(
-        EquipmentWeaponDiceOverlayDef value
+        EquipmentWeaponDiceOverlayImportModel value
     )
     {
         return value == null
@@ -973,11 +956,11 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentWorldEffectDefinition> ProjectWorldEffects(
-        Godot.Collections.Array<EquipmentWorldEffectDef> values
+        IReadOnlyList<EquipmentWorldEffectImportModel> values
     )
     {
         var result = new List<EquipmentWorldEffectDefinition>();
-        foreach (EquipmentWorldEffectDef value in values)
+        foreach (EquipmentWorldEffectImportModel value in values)
         {
             if (value == null)
                 continue;
@@ -1000,13 +983,13 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<StringName> CopyStringNames(
-        Godot.Collections.Array<StringName> values
+        IReadOnlyList<string> values
     )
     {
         if (values == null || values.Count == 0)
             return Array.Empty<StringName>();
         var result = new List<StringName>();
-        foreach (StringName value in values)
+        foreach (string value in values)
         {
             if (value != "")
                 result.Add(value);
@@ -1015,14 +998,14 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlyList<EquipmentSlotWeightDefinition> ProjectSlotWeights(
-        Godot.Collections.Array<EquipmentSlotWeightDef> values
+        IReadOnlyList<EquipmentSlotWeightImportModel> values
     )
     {
         if (values == null || values.Count == 0)
             return Array.Empty<EquipmentSlotWeightDefinition>();
         var result = new List<EquipmentSlotWeightDefinition>();
         HashSet<StringName> seen = new();
-        foreach (EquipmentSlotWeightDef value in values)
+        foreach (EquipmentSlotWeightImportModel value in values)
         {
             if (
                 value == null
@@ -1047,13 +1030,13 @@ internal static class EquipmentAbilityDefinitionProjection
     }
 
     private static IReadOnlySet<StringName> CopyStringNameSet(
-        Godot.Collections.Array<StringName> values
+        IReadOnlyList<string> values
     )
     {
         var result = new HashSet<StringName>();
         if (values == null)
             return EquipmentAbilityReadOnlySet<StringName>.Empty;
-        foreach (StringName value in values)
+        foreach (string value in values)
         {
             if (value != "")
                 result.Add(value);
@@ -1090,11 +1073,6 @@ internal static class EquipmentAbilityDefinitionProjection
         if (value == "on_kill")
         {
             trigger = EquipmentAbilityTriggerKind.OnKill;
-            return true;
-        }
-        if (value == "on_battle_end")
-        {
-            trigger = EquipmentAbilityTriggerKind.OnBattleEnd;
             return true;
         }
         if (value == "on_granted_skill_used")
@@ -1156,11 +1134,6 @@ internal static class EquipmentAbilityDefinitionProjection
         if (value == "after_kill")
         {
             timing = EquipmentAbilityTimingKind.AfterKill;
-            return true;
-        }
-        if (value == "after_battle")
-        {
-            timing = EquipmentAbilityTimingKind.AfterBattle;
             return true;
         }
         if (value == "after_skill")

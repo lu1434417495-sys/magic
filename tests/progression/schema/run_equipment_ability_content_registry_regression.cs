@@ -1,1943 +1,311 @@
+#nullable enable
+
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using Godot;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_equipment_ability_content_registry_regression : LifecycleTestSceneTree
 {
+    private const string TraitId = "trait.weapon.flame";
+    private const string SkillId = "skill.triggered";
     private readonly TestHarness _test = new();
 
-    public override void _Initialize()
-    {
-        RunAfterProcessStartup(Run);
-    }
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private void Run()
     {
-        TestArmorClassComponentContentRulesContract();
-        TestBuiltInHandlerSpecsExposeStaticValidationMetadata();
-        TestValidationContextAndClosedDomainsFailClosed();
-        TestExternalStatusDeclarationCatalogUsesCanonicalOwners();
-        TestStatusDeclarationsAreCollectedBeforeReferencesAreValidated();
-        TestEmptyAndMinimalValidPacksBuildAndFindBindings();
-        TestCognitionCeilingModifiersProjectAndValidate();
-        TestProjectedEffectCategoriesProjectAndValidate();
-        TestDependencyOrderedReplaceBinding();
-        TestReplaceBindingRejectsUnrelatedBindingIdCollision();
-        TestLifecycleSnapshotDoesNotRetainResourceMutations();
-        TestFailedRebuildKeepsLastSuccessfulSnapshot();
-        TestInvalidNestedConditionGroupReturnsStableValidationResult();
-        TestInvalidContentFailsFastWithStableCodesAndPaths();
+        try
+        {
+            TestBuiltInHandlerInventoryIsClosedAndResourceFree();
+            TestJsonRebuildProjectsStableIds();
+            TestIncompleteContextFailsClosed();
+            TestFailedRebuildKeepsLastSuccessfulSnapshot();
+            TestRuntimeVocabularyFailsClosed();
+            TestWindupSkillContextSurvivesStatusExpansion();
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"Unexpected equipment ability registry exception: {exception}");
+        }
 
         RequestTestExit(_test.Finish("Equipment ability content registry regression"));
     }
 
-
-    private void TestArmorClassComponentContentRulesContract()
+    private void TestBuiltInHandlerInventoryIsClosedAndResourceFree()
     {
-        (ArmorClassComponentKind Kind, StringName Id)[] expected =
-        {
-            (ArmorClassComponentKind.ArmorBonus, "armor_ac_bonus"),
-            (ArmorClassComponentKind.ShieldBonus, "shield_ac_bonus"),
-            (ArmorClassComponentKind.DodgeBonus, "dodge_bonus"),
-            (ArmorClassComponentKind.DeflectionBonus, "deflection_bonus"),
-            (ArmorClassComponentKind.NaturalArmorBonus, "natural_armor_ac_bonus"),
-        };
-
-        _test.Eq(
-            AttributeContentRules.ArmorClassComponentAttributeIds.Count,
-            expected.Length,
-            "AC component content rules should expose the complete fixed domain."
-        );
-        for (int index = 0; index < expected.Length; index++)
-        {
-            (ArmorClassComponentKind kind, StringName id) = expected[index];
-            _test.Eq(
-                AttributeContentRules.ArmorClassComponentAttributeIds[index],
-                id,
-                $"AC component order should remain stable at index {index}."
-            );
-            _test.True(
-                AttributeContentRules.IsArmorClassComponentAttributeId(id),
-                $"{id} should be a registered AC component."
-            );
-            _test.Eq(
-                AttributeContentRules.ToArmorClassComponentKind(id),
-                kind,
-                $"{id} should map to its typed AC component kind."
-            );
-            _test.Eq(
-                AttributeContentRules.ToStringName(kind),
-                id,
-                $"{kind} should map back to its stable AC component id."
-            );
-        }
-
-        foreach (
-            StringName invalidId in new StringName[]
-            {
-                "",
-                "unknown_ac_component",
-                "armor_class",
-                "armor_max_dex_bonus",
-            }
-        )
-        {
-            _test.False(
-                AttributeContentRules.IsArmorClassComponentAttributeId(invalidId),
-                $"{invalidId} should remain outside the AC component domain."
-            );
-            _test.Eq(
-                AttributeContentRules.ToArmorClassComponentKind(invalidId),
-                ArmorClassComponentKind.Unknown,
-                $"{invalidId} should map to the unknown AC component kind."
-            );
-        }
-    }
-
-    private void TestBuiltInHandlerSpecsExposeStaticValidationMetadata()
-    {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> conditionSpecs =
+        using var registry = new EquipmentAbilityContentRegistry();
+        IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> conditions =
             registry.GetConditionHandlerSpecsTyped();
-        IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> actionSpecs =
+        IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> actions =
             registry.GetActionHandlerSpecsTyped();
 
-        AssertContainsKey(conditionSpecs, "has_status", "condition specs");
-        AssertContainsKey(conditionSpecs, "compare_fact", "condition specs");
-        AssertContainsKey(conditionSpecs, "has_equipment_tag", "condition specs");
-
-        AssertContainsKey(actionSpecs, "add_damage_dice", "action specs");
-        AssertContainsKey(actionSpecs, "apply_status", "action specs");
-        AssertContainsKey(actionSpecs, "modify_ability_state", "action specs");
-        AssertContainsKey(actionSpecs, "mark_target", "action specs");
-        AssertContainsKey(actionSpecs, "grant_skill", "action specs");
-        AssertContainsKey(actionSpecs, "equipment_durability_damage", "action specs");
-        AssertContainsKey(actionSpecs, "apply_battle_terrain_effect_after_check", "action specs");
-        _test.False(
-            actionSpecs.ContainsKey("weapon_profile_overlay"),
-            "weapon profile overlay should stay projection-only, not a normal action handler."
+        _test.Eq(conditions.Count, 3, "registry exposes the three closed condition handlers");
+        _test.Eq(actions.Count, 26, "registry exposes the 26 executable action handlers");
+        _test.False(actions.ContainsKey("grant_skill"), "grant_skill has no runtime handler");
+        _test.True(conditions.ContainsKey("compare_fact"), "compare_fact remains registered");
+        _test.True(actions.ContainsKey("trigger_skill"), "trigger_skill remains registered");
+        _test.True(actions.ContainsKey("apply_status"), "apply_status remains registered");
+        _test.True(
+            typeof(EquipmentAbilityHandlerSpec).GetProperty(
+                "PayloadResourceType",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            ) == null,
+            "handler metadata no longer retains a Resource payload type"
         );
 
-        EquipmentAbilityHandlerSpec modifyState = actionSpecs["modify_ability_state"];
-        _test.True(
-            modifyState.StateAccess.Writes.Count > 0
-                && modifyState.StateAccess.Writes[0].StateKeyMustBeDeclaredInBinding,
-            "modify_ability_state should declare binding-local state writes."
-        );
-        _test.True(
-            actionSpecs["mark_target"].StateAccess.Writes.Count > 0
-                && actionSpecs["mark_target"].StateAccess.Writes[0].StateKeyMustBeDeclaredInBinding,
-            "mark_target should declare binding-local state writes."
-        );
-        _test.True(
-            actionSpecs["equipment_durability_damage"].SupportsConsumer(
-                EquipmentAbilityConsumerKind.Preview
-            ),
-            "durability action spec should expose preview support metadata."
-        );
-        _test.False(
-            actionSpecs["apply_battle_terrain_effect_after_check"].SupportsConsumer(
-                EquipmentAbilityConsumerKind.Preview
-            ),
-            "terrain break after-check should stay execution-only because it mutates battle terrain."
-        );
-        _test.Eq(
-            modifyState.StateAccess.Writes[0].StateKeyPayloadMemberName,
-            "state_key",
-            "state access metadata should identify the payload field carrying the binding state key."
-        );
-
-        IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> triggerSpecs =
-            registry.GetTriggerTimingSpecsTyped();
-        _test.True(
-            triggerSpecs[EquipmentAbilityTriggerKind.OnHit].AllowedTimings.Contains(
-                EquipmentAbilityTimingKind.AfterHit
-            )
-                && !triggerSpecs[EquipmentAbilityTriggerKind.OnHit].AllowedTimings.Contains(
-                    EquipmentAbilityTimingKind.AfterBattle
-                ),
-            "on_hit trigger metadata should reject after_battle timing."
-        );
-        _test.True(
-            triggerSpecs[EquipmentAbilityTriggerKind.OnBattleEnd].AllowedTimings.Contains(
-                EquipmentAbilityTimingKind.AfterBattle
-            )
-                && !triggerSpecs[EquipmentAbilityTriggerKind.OnBattleEnd].AllowedTimings.Contains(
-                    EquipmentAbilityTimingKind.AfterHit
-                ),
-            "on_battle_end trigger metadata should only allow after_battle timing."
-        );
-    }
-
-    private void TestValidationContextAndClosedDomainsFailClosed()
-    {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityRegistryBuildResult missingContextResult = registry.Rebuild(
-            Array.Empty<EquipmentAbilityContentPackDef>(),
-            null
-        );
-        _test.False(missingContextResult.Success, "missing validation context should fail closed.");
-        AssertErrorContains(
-            missingContextResult.Errors,
-            "EQA_VALIDATION_CONTEXT_INCOMPLETE",
-            "equipment_ability.validation_context"
-        );
-
-        EquipmentAbilityContentPackDef pack = BuildValidPack(
-            "pack.fail_closed",
-            "binding.fail_closed"
-        );
-        ((AddDamageDiceActionPayloadDef)pack.bindings[0].reactions[0].actions[0].payload)
-            .damage_type = "invented_damage";
-        pack.bindings[0].reactions[0].actions.Add(
-            new EquipmentAbilityActionDef
-            {
-                action_id = "action.unknown_skill",
-                kind = "trigger_skill",
-                payload = new TriggerSkillActionPayloadDef
-                {
-                    skill_id = "invented_skill",
-                    skill_level = 1,
-                    target_selector = "target",
-                },
-            }
-        );
-        EquipmentAbilityRegistryBuildResult emptyCatalogResult = registry.Rebuild(
-            new[] { pack },
-            new EquipmentAbilityContentValidationContext
-            {
-                KnownTraitIds = new HashSet<StringName> { "trait.weapon.flame" },
-                KnownSkillIds = EquipmentAbilityReadOnlySet<StringName>.Empty,
-                KnownStatusIds = EquipmentAbilityReadOnlySet<StringName>.Empty,
-            }
-        );
-        _test.False(
-            emptyCatalogResult.Success,
-            "authoritatively empty catalogs and canonical closed domains should reject unknown references."
-        );
-        AssertErrorContains(
-            emptyCatalogResult.Errors,
-            "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
-            "invented_damage"
-        );
-        AssertErrorContains(
-            emptyCatalogResult.Errors,
-            "EQA_REFERENCE_UNKNOWN_SKILL",
-            "invented_skill"
-        );
-    }
-
-    private void TestExternalStatusDeclarationCatalogUsesCanonicalOwners()
-    {
-        TraitDefinition trait = new(
-            traitId: "trait.status_catalog",
-            displayName: "Status Catalog Trait",
-            description: "",
-            categories: Array.Empty<StringName>(),
-            allowedSourceKinds: Array.Empty<StringName>(),
-            effectType: "equipment_ability",
-            triggerType: "passive",
-            stackPolicy: "stack_by_instance",
-            chargeScope: "none",
-            chargeResetTiming: "none",
-            highestRollCompareKey: "",
-            visionRange: 0,
-            proficiencyChoiceCount: 0,
-            attributeModifiers: Array.Empty<AttributeModifierDefinition>(),
-            saveAdvantageTags: Array.Empty<StringName>(),
-            saveDisadvantageTags: Array.Empty<StringName>(),
-            saveImmunityTags: Array.Empty<StringName>(),
-            damageResistanceEntries: Array.Empty<TraitDamageResistanceEntryDefinition>(),
-            saveBonusEntries: Array.Empty<TraitSaveBonusEntryDefinition>(),
-            passiveStatusEffects: new[]
-            {
-                new TraitPassiveStatusEffectDefinition(
-                    "trait_declared_status",
-                    1,
-                    1,
-                    "Trait Status",
-                    true,
-                    false,
-                    false,
-                    Array.Empty<StringName>()
-                ),
-            },
-            rollValueSchema: Array.Empty<TraitRollValueSchemaEntryDefinition>()
-        );
-        CombatEffectDefinition skillStatus = TestSkillDefinitionProjection.BuildEffect(
-            "status",
-            statusId: "skill_declared_status"
-        );
-        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
-            "skill.status_catalog",
-            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
-                "skill.status_catalog",
-                new[] { skillStatus }
-            )
-        );
-
-        IReadOnlySet<StringName> statusIds =
-            EquipmentAbilityStatusDeclarationCatalog.CollectExternalStatusDeclarations(
-                new[] { trait },
-                new[] { skill }
-            );
-        _test.True(
-            statusIds.Contains("knockdown_immunity"),
-            "system status content rules should contribute external status declarations."
-        );
-        _test.True(
-            statusIds.Contains("trait_declared_status"),
-            "trait passive statuses should be external status declarations."
-        );
-        _test.True(
-            statusIds.Contains("skill_declared_status"),
-            "skill effect statuses should be external status declarations."
-        );
-    }
-
-    private void TestStatusDeclarationsAreCollectedBeforeReferencesAreValidated()
-    {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityContentPackDef pack = BuildValidPack(
-            "pack.status_catalog",
-            "binding.status_catalog"
-        );
-        EquipmentAbilityReactionDef reaction = pack.bindings[0].reactions[0];
-        reaction.actions.Add(
-            new EquipmentAbilityActionDef
-            {
-                action_id = "action.declare_status",
-                kind = "apply_status",
-                payload = new ApplyStatusActionPayloadDef
-                {
-                    target_selector = "target",
-                    status_id = "equipment_declared_status",
-                    duration_tu = 10,
-                    stack_delta = 1,
-                },
-            }
-        );
-        reaction.condition_group = new EquipmentAbilityConditionGroupDef
+        foreach ((string kind, EquipmentAbilityPayloadKindSpec payload) in EquipmentAbilityPayloadKindCatalog.Conditions)
         {
-            mode = "all",
-            conditions =
-            {
-                new EquipmentAbilityConditionDef
-                {
-                    condition_id = "condition.same_status",
-                    kind = "has_status",
-                    payload = new HasStatusConditionPayloadDef
-                    {
-                        subject = "target",
-                        status_id = "equipment_declared_status",
-                    },
-                },
-            },
-        };
-
-        EquipmentAbilityRegistryBuildResult declaredResult = registry.Rebuild(
-            new[] { pack },
-            BuildValidationContext()
-        );
-        _test.True(
-            declaredResult.Success,
-            $"equipment status declarations should be visible to references in the same build: {FormatErrors(declaredResult.Errors)}"
-        );
-
-        ((HasStatusConditionPayloadDef)reaction.condition_group.conditions[0].payload).status_id =
-            "equipment_declared_status_typo";
-        EquipmentAbilityRegistryBuildResult typoResult = registry.Rebuild(
-            new[] { pack },
-            BuildValidationContext()
-        );
-        _test.False(typoResult.Success, "an undeclared status typo should fail the second validation pass.");
-        AssertErrorContains(
-            typoResult.Errors,
-            "EQA_REFERENCE_UNKNOWN_STATUS",
-            "equipment_declared_status_typo"
-        );
-    }
-
-    private void TestEmptyAndMinimalValidPacksBuildAndFindBindings()
-    {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityRegistryBuildResult emptyResult =
-            registry.Rebuild(Array.Empty<EquipmentAbilityContentPackDef>(), BuildValidationContext());
-
-        _test.True(emptyResult.Success, $"empty pack list should succeed: {FormatErrors(emptyResult.Errors)}");
-        _test.Eq(registry.GetPackDefinitionsTyped().Count, 0, "empty rebuild should expose no packs.");
-        _test.Eq(
-            registry.GetBindingDefinitionsTyped().Count,
-            0,
-            "empty rebuild should expose no bindings."
-        );
-
-        EquipmentAbilityContentPackDef pack = BuildValidPack();
-        EquipmentAbilityRegistryBuildResult result =
-            registry.Rebuild(new[] { pack }, BuildValidationContext());
-
-        _test.True(result.Success, $"minimal valid pack should build: {FormatErrors(result.Errors)}");
-        _test.Eq(result.Revision, registry.GetRevision(), "build result should report registry revision.");
-        _test.True(
-            registry.GetPackDefinitionsTyped().ContainsKey("pack.core"),
-            "registry should expose typed pack snapshot by pack id."
-        );
-        _test.True(
-            registry.GetBindingDefinitionsTyped().ContainsKey("binding.weapon.flame"),
-            "registry should expose typed binding snapshot by binding id."
-        );
-
-        IReadOnlyList<EquipmentAbilityBindingDefinition> matches = registry.FindBindings(
-            "trait.weapon.flame",
-            TraitSourceKind.EquipmentFixed,
-            new HashSet<StringName> { "weapon_feat" },
-            BuildSourceItem("test_blade", "blade", "weapon")
-        );
-        _test.Eq(matches.Count, 1, "FindBindings should match trait/source/category/item facts.");
-        _test.Eq(
-            matches[0].BindingId,
-            new StringName("binding.weapon.flame"),
-            "FindBindings should return the matching DTO binding."
-        );
-
-        IReadOnlyList<EquipmentAbilityBindingDefinition> wrongTag = registry.FindBindings(
-            "trait.weapon.flame",
-            TraitSourceKind.EquipmentFixed,
-            new HashSet<StringName> { "weapon_feat" },
-            BuildSourceItem("test_blade", "cloth", "weapon")
-        );
-        _test.Eq(wrongTag.Count, 0, "FindBindings should reject source items missing required tags.");
-    }
-
-    private void TestProjectedEffectCategoriesProjectAndValidate()
-    {
-        EquipmentAbilityContentPackDef validPack = BuildValidPack(
-            "pack.projected_effect",
-            "binding.projected_effect"
-        );
-        EquipmentAbilityReactionDef validReaction = validPack.bindings[0].reactions[0];
-        validReaction.projected_effect_categories.Add("poison");
-        ((AddDamageDiceActionPayloadDef)validReaction.actions[0].payload).damage_type =
-            "poison";
-
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityRegistryBuildResult validResult = registry.Rebuild(
-            new[] { validPack },
-            BuildValidationContext()
-        );
-        _test.True(
-            validResult.Success,
-            $"projected effect categories should build: {FormatErrors(validResult.Errors)}"
-        );
-        if (validResult.Success)
+            _test.True(conditions.ContainsKey(kind), $"condition handler covers JSON kind {kind}");
+            _test.Eq(conditions[kind].PayloadJsonDtoType, payload.JsonDtoType, $"condition DTO matches {kind}");
+            _test.Eq(conditions[kind].PayloadImportModelType, payload.ImportModelType, $"condition import matches {kind}");
+        }
+        foreach ((string kind, EquipmentAbilityPayloadKindSpec payload) in EquipmentAbilityPayloadKindCatalog.Actions)
         {
-            IReadOnlyList<StringName> projected = registry
-                .GetBindingDefinitionsTyped()["binding.projected_effect"]
-                .Reactions[0]
-                .ProjectedEffectCategories;
-            _test.Eq(projected.Count, 1, "runtime DTO should retain projected categories.");
-            _test.Eq(projected[0], new StringName("poison"), "projected category should be stable.");
+            _test.True(actions.ContainsKey(kind), $"action handler covers JSON kind {kind}");
+            _test.Eq(actions[kind].PayloadJsonDtoType, payload.JsonDtoType, $"action DTO matches {kind}");
+            _test.Eq(actions[kind].PayloadImportModelType, payload.ImportModelType, $"action import matches {kind}");
         }
 
-        EquipmentAbilityContentPackDef invalidPack = BuildValidPack(
-            "pack.projected_effect_invalid",
-            "binding.projected_effect_invalid"
+        _test.False(
+            Enum.GetNames<EquipmentAbilityTriggerKind>().Contains("OnBattleEnd", StringComparer.Ordinal),
+            "ghost OnBattleEnd trigger is absent"
         );
-        EquipmentAbilityReactionDef invalidReaction = invalidPack.bindings[0].reactions[0];
-        invalidReaction.projected_effect_categories.Add("force_effect");
-        ((AddDamageDiceActionPayloadDef)invalidReaction.actions[0].payload).damage_type =
-            "poison";
-        EquipmentAbilityRegistryBuildResult invalidResult = registry.Rebuild(
-            new[] { invalidPack },
+    }
+
+    private void TestJsonRebuildProjectsStableIds()
+    {
+        EquipmentAbilityContentPackImportModel pack = BuildPack();
+        string json = EquipmentAbilityImportCanonicalJson.WriteDocument("registry-test", new[] { pack });
+        using var registry = new EquipmentAbilityContentRegistry();
+        EquipmentAbilityRegistryBuildResult result = registry.RebuildFromJson(
+            "memory://equipment-abilities",
+            new FakeSourceReader(new ContentJsonSourceText("pack.json", json)),
             BuildValidationContext()
         );
-        AssertErrorContains(
-            invalidResult.Errors,
-            "EQA_PROJECTED_EFFECT_CATEGORY_MISSING",
-            "projected_effect_categories"
-        );
 
-        foreach (
-            StringName reservedCategory in new[]
-            {
-                new StringName("projectile"),
-                new StringName("magical_projectile"),
-                new StringName("nonmagical_projectile"),
-                new StringName("magical_missile"),
-                new StringName("nonmagical_missile"),
-            }
-        )
-        {
-            EquipmentAbilityContentPackDef reservedPack = BuildValidPack(
-                $"pack.projected_effect_reserved.{reservedCategory}",
-                $"binding.projected_effect_reserved.{reservedCategory}"
-            );
-            reservedPack.bindings[0].reactions[0].projected_effect_categories.Add(
-                reservedCategory
-            );
-            EquipmentAbilityRegistryBuildResult reservedResult = registry.Rebuild(
-                new[] { reservedPack },
-                BuildValidationContext()
-            );
-            AssertErrorContains(
-                reservedResult.Errors,
-                "EQA_PROJECTED_EFFECT_CATEGORY_RESERVED",
-                reservedCategory.ToString()
-            );
-        }
-    }
-
-    private void TestCognitionCeilingModifiersProjectAndValidate()
-    {
-        EquipmentAbilityContentPackDef validPack = BuildValidPack(
-            "pack.cognition_ceiling",
-            "binding.cognition_ceiling"
-        );
-        validPack.bindings[0].cognition_ceiling_modifiers.Add(
-            new EquipmentCognitionCeilingModifierDef
-            {
-                modifier_id = "loss_of_reason",
-                cognition_ceiling = "instinctive",
-            }
-        );
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityRegistryBuildResult validResult =
-            registry.Rebuild(
-                new[] { validPack },
-                BuildValidationContext()
-            );
-        _test.True(
-            validResult.Success,
-            $"cognition ceiling modifier should build: {FormatErrors(validResult.Errors)}"
-        );
-        if (validResult.Success)
-        {
-            IReadOnlyList<EquipmentCognitionCeilingModifierDefinition>
-                modifiers = registry
-                    .GetBindingDefinitionsTyped()[
-                        "binding.cognition_ceiling"
-                    ]
-                    .CognitionCeilingModifiers;
-            _test.Eq(
-                modifiers.Count,
-                1,
-                "runtime binding should retain cognition ceiling modifiers."
-            );
-            _test.Eq(
-                modifiers[0].ModifierId,
-                new StringName("loss_of_reason"),
-                "cognition modifier id should project exactly."
-            );
-            _test.Eq(
-                modifiers[0].CognitionCeiling,
-                BattleCognitionKind.Instinctive,
-                "cognition ceiling should project to the closed enum."
-            );
-        }
-
-        validPack.bindings[0].cognition_ceiling_modifiers[0]
-            .cognition_ceiling = "clever";
-        EquipmentAbilityRegistryBuildResult invalidKindResult =
-            registry.Rebuild(
-                new[] { validPack },
-                BuildValidationContext()
-            );
-        AssertErrorContains(
-            invalidKindResult.Errors,
-            "EQA_COGNITION_CEILING_INVALID",
-            "cognition_ceiling"
-        );
-
-        validPack.bindings[0].cognition_ceiling_modifiers[0]
-            .cognition_ceiling = "instinctive";
-        validPack.bindings[0].cognition_ceiling_modifiers.Add(
-            new EquipmentCognitionCeilingModifierDef
-            {
-                modifier_id = "loss_of_reason",
-                cognition_ceiling = "mindless",
-            }
-        );
-        EquipmentAbilityRegistryBuildResult duplicateResult =
-            registry.Rebuild(
-                new[] { validPack },
-                BuildValidationContext()
-            );
-        AssertErrorContains(
-            duplicateResult.Errors,
-            "EQA_COGNITION_CEILING_MODIFIER_DUPLICATE",
-            "loss_of_reason"
-        );
-    }
-
-    private void TestDependencyOrderedReplaceBinding()
-    {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityContentPackDef basePack = BuildValidPack("base_pack", "base.binding");
-        EquipmentAbilityContentPackDef replacementPack =
-            BuildValidPack("mod_pack", "mod.binding", loadOrder: 0);
-        replacementPack.dependencies.Add("base_pack");
-        replacementPack.bindings[0].override_mode = "replace_binding";
-        replacementPack.bindings[0].replaces_binding_id = "base.binding";
-
-        EquipmentAbilityRegistryBuildResult result =
-            registry.Rebuild(new[] { replacementPack, basePack }, BuildValidationContext());
-
-        _test.True(
-            result.Success,
-            $"dependency topo should load base before replacement: {FormatErrors(result.Errors)}"
-        );
-        _test.False(
-            registry.GetBindingDefinitionsTyped().ContainsKey("base.binding"),
-            "replace_binding should remove the replaced binding from the active typed snapshot."
-        );
-        _test.True(
-            registry.GetBindingDefinitionsTyped().ContainsKey("mod.binding"),
-            "replace_binding should publish the replacement binding."
-        );
-    }
-
-    private void TestReplaceBindingRejectsUnrelatedBindingIdCollision()
-    {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityContentPackDef basePack = BuildValidPack("base_pack", "base.binding", loadOrder: 0);
-        EquipmentAbilityContentPackDef otherPack =
-            BuildValidPack("other_pack", "other.binding", loadOrder: 1);
-        EquipmentAbilityContentPackDef replacementPack =
-            BuildValidPack("mod_pack", "other.binding", loadOrder: 2);
-        replacementPack.dependencies.Add("base_pack");
-        replacementPack.dependencies.Add("other_pack");
-        replacementPack.bindings[0].override_mode = "replace_binding";
-        replacementPack.bindings[0].replaces_binding_id = "base.binding";
-
-        EquipmentAbilityRegistryBuildResult result =
-            registry.Rebuild(new[] { replacementPack, otherPack, basePack }, BuildValidationContext());
-
-        _test.False(
-            result.Success,
-            "replace_binding should reject a replacement binding_id that collides with an unrelated loaded binding."
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_BINDING_REPLACE_ID_COLLISION",
-            "other.binding"
-        );
-        _test.False(
-            registry.GetBindingDefinitionsTyped().ContainsKey("other.binding"),
-            "failed replacement rebuild should not publish a partially overwritten binding index."
-        );
-    }
-
-    private void TestLifecycleSnapshotDoesNotRetainResourceMutations()
-    {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityContentPackDef pack = BuildValidPack();
-        EquipmentAbilityRegistryBuildResult result =
-            registry.Rebuild(new[] { pack }, BuildValidationContext());
-        _test.True(result.Success, $"valid pack should build before mutation: {FormatErrors(result.Errors)}");
-
-        EquipmentAbilityBindingDefinition snapshot =
+        _test.True(result.Success, $"plain JSON rebuild succeeds: {Format(result.Errors)}");
+        _test.Eq(registry.GetPackDefinitionsTyped().Count, 1, "JSON rebuild publishes one pack");
+        _test.Eq(registry.GetBindingDefinitionsTyped().Count, 1, "JSON rebuild publishes one binding");
+        EquipmentAbilityBindingDefinition definition =
             registry.GetBindingDefinitionsTyped()["binding.weapon.flame"];
-        pack.pack_id = "mutated_pack";
-        pack.dependencies.Add("unexpected_dependency");
-        EquipmentAbilityBindingDef bindingResource = pack.bindings[0];
-        bindingResource.binding_id = "mutated.binding";
-        bindingResource.required_item_tags.Clear();
-        ((AddDamageDiceActionPayloadDef)bindingResource.reactions[0].actions[0].payload)
-            .damage_type = "mutated_damage";
+        _test.Eq(definition.BindingId.ToString(), "binding.weapon.flame", "binding id survives JSON projection");
+        _test.Eq(definition.TraitId.ToString(), TraitId, "trait id survives JSON projection");
+        _test.Eq(definition.Reactions.Count, 1, "reaction survives JSON projection");
+        _test.Eq(definition.Reactions[0].Trigger, EquipmentAbilityTriggerKind.OnHit, "trigger projects to typed enum");
+        _test.Eq(definition.Reactions[0].Timing, EquipmentAbilityTimingKind.AfterHit, "timing projects to typed enum");
+        _test.True(
+            definition.Reactions[0].Actions[0].PayloadDefinition
+                is AddDamageDiceActionPayloadDefinition,
+            "JSON payload projects to the immutable runtime definition"
+        );
+    }
 
-        _test.True(
-            registry.GetPackDefinitionsTyped().ContainsKey("pack.core"),
-            "pack DTO snapshot should retain original pack id after Resource mutation."
+    private void TestIncompleteContextFailsClosed()
+    {
+        using var registry = new EquipmentAbilityContentRegistry();
+        EquipmentAbilityRegistryBuildResult result = registry.Rebuild(
+            Array.Empty<EquipmentAbilityContentPackImportModel>(),
+            new EquipmentAbilityContentValidationContext()
         );
-        _test.True(
-            registry.GetBindingDefinitionsTyped().ContainsKey("binding.weapon.flame"),
-            "binding DTO snapshot should retain original binding id after Resource mutation."
-        );
-        _test.True(
-            snapshot.RequiredItemTags.Contains("blade"),
-            "binding DTO should retain copied required item tags after Resource mutation."
-        );
-        _test.True(
-            RejectsRequiredItemTagMutation(snapshot.RequiredItemTags),
-            "binding DTO required item tags should reject mutation through any set capability it exposes."
-        );
-        _test.Eq(
-            registry.FindBindings(
-                "trait.weapon.flame",
-                TraitSourceKind.EquipmentFixed,
-                new HashSet<StringName> { "weapon_feat" },
-                BuildSourceItem("test_blade", "blade", "weapon")
-            ).Count,
-            1,
-            "registry lookup should keep using DTO snapshots, not mutated authoring Resources."
-        );
+        _test.False(result.Success, "missing catalogs fail closed even for an empty import batch");
+        AssertError(result.Errors, "EQA_VALIDATION_CONTEXT_INCOMPLETE", "equipment_ability.validation_context");
     }
 
     private void TestFailedRebuildKeepsLastSuccessfulSnapshot()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityRegistryBuildResult validResult =
-            registry.Rebuild(new[] { BuildValidPack() }, BuildValidationContext());
-        _test.True(validResult.Success, $"valid pack should build: {FormatErrors(validResult.Errors)}");
-        int successfulRevision = registry.GetRevision();
-
-        EquipmentAbilityRegistryBuildResult failedResult =
-            registry.Rebuild(new[] { BuildInvalidPack() }, BuildValidationContext());
-
-        _test.False(failedResult.Success, "invalid rebuild should fail.");
-        _test.True(
-            failedResult.Revision > successfulRevision,
-            "failed rebuild should still advance the registry build revision."
-        );
-        _test.True(
-            registry.GetBindingDefinitionsTyped().ContainsKey("binding.weapon.flame"),
-            "failed rebuild should preserve the previous successful binding snapshot."
-        );
-        _test.False(
-            registry.GetBindingDefinitionsTyped().ContainsKey("bad.unknown_action"),
-            "failed rebuild should not publish invalid partial bindings."
-        );
-        _test.Eq(
-            registry.FindBindings(
-                "trait.weapon.flame",
-                TraitSourceKind.EquipmentFixed,
-                new HashSet<StringName> { "weapon_feat" },
-                BuildSourceItem("test_blade", "blade", "weapon")
-            ).Count,
-            1,
-            "failed rebuild should keep lookup behavior on the last successful snapshot."
-        );
-    }
-
-    private void TestInvalidNestedConditionGroupReturnsStableValidationResult()
-    {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityContentPackDef baselinePack = TestResourceOwnership.Own(
-            BuildValidPack("pack.registry_baseline", "binding.registry_baseline"),
-            "equipment-ability-registry-baseline-pack"
-        );
-        EquipmentAbilityRegistryBuildResult baselineResult = registry.Rebuild(
-            new[] { baselinePack },
+        using var registry = new EquipmentAbilityContentRegistry();
+        EquipmentAbilityRegistryBuildResult first = registry.Rebuild(
+            new[] { BuildPack() },
             BuildValidationContext()
         );
-        _test.True(
-            baselineResult.Success,
-            $"baseline pack should build before invalid nested group: {FormatErrors(baselineResult.Errors)}"
-        );
-        if (!baselineResult.Success)
-            return;
+        _test.True(first.Success, $"baseline plain-import rebuild succeeds: {Format(first.Errors)}");
+        EquipmentAbilityBindingDefinition snapshot =
+            registry.GetBindingDefinitionsTyped()["binding.weapon.flame"];
 
-        EquipmentAbilityConditionDef invalidNestedResource = TestResourceOwnership.Own(
-            new EquipmentAbilityConditionDef(),
-            "equipment-ability-invalid-nested-condition-resource"
+        EquipmentAbilityRegistryBuildResult invalid = registry.Rebuild(
+            new[] { BuildPack(traitId: "trait.missing") },
+            BuildValidationContext()
         );
-        EquipmentAbilityConditionGroupDef conditionGroup = TestResourceOwnership.Own(
-            new EquipmentAbilityConditionGroupDef { mode = "all" },
-            "equipment-ability-invalid-nested-condition-group"
-        );
-        conditionGroup.groups.Add(invalidNestedResource);
-        EquipmentAbilityContentPackDef invalidPack = TestResourceOwnership.Own(
-            BuildValidPack("pack.invalid_nested_group", "binding.invalid_nested_group"),
-            "equipment-ability-invalid-nested-pack"
-        );
-        invalidPack.bindings[0].reactions[0].condition_group = conditionGroup;
-
-        EquipmentAbilityRegistryBuildResult invalidResult;
-        try
-        {
-            invalidResult = registry.Rebuild(
-                new[] { invalidPack },
-                BuildValidationContext()
-            );
-        }
-        catch (Exception exception)
-        {
-            _test.Fail(
-                $"invalid nested condition resources should return validation errors instead of throwing: {exception}"
-            );
-            return;
-        }
-        finally
-        {
-            invalidPack.bindings[0].reactions[0].condition_group = null;
-            conditionGroup.groups.Clear();
-        }
-
-        _test.False(invalidResult.Success, "invalid nested condition resources should fail rebuild.");
+        _test.False(invalid.Success, "unknown trait rejects the replacement batch");
+        AssertError(invalid.Errors, "EQA_REFERENCE_MISSING_TRAIT", "binding.weapon.flame");
+        _test.Eq(registry.GetBindingDefinitionsTyped().Count, 1, "failed rebuild preserves binding count");
         _test.True(
-            invalidResult.Revision > baselineResult.Revision,
-            "failed nested condition rebuild should advance the build revision."
-        );
-        _test.Eq(
-            registry.GetRevision(),
-            invalidResult.Revision,
-            "failed nested condition rebuild should report the active build revision."
-        );
-        EquipmentAbilityRegistryBuildResult lastResult = registry.GetLastBuildResultTyped();
-        _test.False(lastResult.Success, "last build result should retain the failed validation result.");
-        _test.Eq(
-            lastResult.Revision,
-            invalidResult.Revision,
-            "last build result revision should match the failed rebuild."
-        );
-        AssertErrorContains(
-            lastResult.Errors,
-            "EQA_CONDITION_GROUP_TYPE_INVALID",
-            "binding.invalid_nested_group"
-        );
-        AssertErrorContains(
-            invalidResult.Errors,
-            "EQA_CONDITION_GROUP_TYPE_INVALID",
-            "equipment_ability.bindings[binding.invalid_nested_group].reactions[reaction.on_hit].condition_group.groups"
-        );
-        _test.True(
-            registry.GetBindingDefinitionsTyped().ContainsKey("binding.registry_baseline"),
-            "failed nested condition rebuild should preserve the previous successful snapshot."
-        );
-        _test.False(
-            registry.GetBindingDefinitionsTyped().ContainsKey("binding.invalid_nested_group"),
-            "invalid nested condition binding should not enter the active snapshot."
+            ReferenceEquals(registry.GetBindingDefinitionsTyped()["binding.weapon.flame"], snapshot),
+            "failed rebuild preserves the last immutable snapshot"
         );
     }
 
-    private void TestInvalidContentFailsFastWithStableCodesAndPaths()
+    private void TestRuntimeVocabularyFailsClosed()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
-        EquipmentAbilityRegistryBuildResult result =
-            registry.Rebuild(new[] { BuildInvalidPack() }, BuildValidationContext());
+        using var registry = new EquipmentAbilityContentRegistry();
+        EquipmentAbilityRegistryBuildResult trigger = registry.Rebuild(
+            new[] { BuildPack(trigger: "on_future_event") },
+            BuildValidationContext()
+        );
+        _test.False(trigger.Success, "unknown trigger fails closed");
+        AssertError(trigger.Errors, "EQA_TRIGGER_UNKNOWN_ID", ".trigger");
 
-        _test.False(result.Success, "invalid pack should fail registry build.");
-        _test.False(
-            registry.GetBindingDefinitionsTyped().ContainsKey("bad.unknown_action"),
-            "invalid bindings should not enter the active typed index."
+        EquipmentAbilityRegistryBuildResult kind = registry.Rebuild(
+            new[] { BuildPack(actionKind: "future_handler") },
+            BuildValidationContext()
         );
+        _test.False(kind.Success, "unknown action kind fails closed");
+        AssertError(kind.Errors, "EQA_HANDLER_UNKNOWN_ID", "action.damage");
 
-        AssertErrorContains(result.Errors, "EQA_REFERENCE_MISSING_TRAIT", "bad.missing_trait");
-        AssertErrorContains(result.Errors, "EQA_TRIGGER_UNKNOWN_ID", "bad.unknown_trigger");
-        AssertErrorContains(result.Errors, "EQA_TIMING_UNKNOWN_ID", "bad.unknown_timing");
-        AssertErrorContains(result.Errors, "EQA_HANDLER_UNKNOWN_ID", "bad.unknown_condition");
-        AssertErrorContains(result.Errors, "EQA_HANDLER_UNKNOWN_ID", "bad.unknown_action");
-        AssertErrorContains(
-            result.Errors,
-            "EQA_HANDLER_PAYLOAD_TYPE_MISMATCH",
-            "bad.payload_mismatch"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_ACTION_REQUIRED_FIELD_MISSING",
-            "bad.missing_action_field"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_ACTION_REQUIRED_FIELD_MISSING",
-            "bad.missing_terrain_check_field"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_COMPARE_OPERATOR_INVALID",
-            "bad.invalid_terrain_check_compare"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_MOVE_COST_DELTA_INVALID",
-            "bad.invalid_terrain_move_cost"
-        );
-        AssertErrorContains(result.Errors, "EQA_REFERENCE_UNKNOWN_STATUS", "bad.unknown_status");
-        AssertErrorContains(result.Errors, "EQA_REFERENCE_UNKNOWN_SLOT", "bad.unknown_slot");
-        AssertErrorContains(result.Errors, "EQA_SLOT_WEIGHT_INVALID", "bad.invalid_slot_weight");
-        AssertErrorContains(
-            result.Errors,
-            "EQA_REFERENCE_UNKNOWN_SLOT",
-            "bad.unknown_slot_weight"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_SLOT_WEIGHT_DUPLICATE",
-            "bad.duplicate_slot_weight"
-        );
-        AssertErrorContains(result.Errors, "EQA_STATE_KEY_UNDECLARED", "bad.undeclared_state");
-        AssertErrorContains(
-            result.Errors,
-            "EQA_STATE_SYNC_SOURCE_UNDECLARED",
-            "bad.undeclared_sync_state"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_STATE_SYNC_INVALID",
-            "bad.invalid_sync_divisor"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_STATE_PERSISTENT_OWNER_INVALID",
-            "bad.invalid_persistent_state"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_GRANTED_SKILL_COMPOSITION_INVALID",
-            "bad.invalid_grant"
-        );
-        AssertErrorContains(result.Errors, "EQA_REFERENCE_UNKNOWN_SKILL", "bad.invalid_grant");
-        AssertErrorContains(
-            result.Errors,
-            "EQA_REACTION_CONFIRMATION_UNSUPPORTED",
-            "bad.confirmation"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_BATTLE_END_MUTATION_UNSUPPORTED",
-            "bad.battle_end"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_TRIGGER_TIMING_UNSUPPORTED",
-            "bad.hit_after_battle"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_TRIGGER_TIMING_UNSUPPORTED",
-            "bad.battle_end_after_hit"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_HANDLER_UNKNOWN_ID",
-            "bad.outcome_unknown_action"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_HANDLER_UNKNOWN_ID",
-            "bad.grant_availability_condition"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_HANDLER_UNKNOWN_ID",
-            "bad.overlay_unknown_condition"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_TRIGGER_UNKNOWN_ID",
-            "bad.world_unknown_trigger"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_HANDLER_UNKNOWN_ID",
-            "bad.world_unknown_action"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_GRANTED_KIND_UNSUPPORTED",
-            "bad.invalid_grant_kind"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_REFERENCE_UNKNOWN_SKILL",
-            "bad.summon_unknown_skill"
-        );
-        AssertErrorContains(
-            result.Errors,
-            "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
-            "bad.summon_unknown_damage"
-        );
-    }
-
-    private static EquipmentAbilityContentPackDef BuildValidPack(
-        StringName packId = default,
-        StringName bindingId = default,
-        int loadOrder = 10
-    )
-    {
-        if (packId == default)
-            packId = "pack.core";
-        if (bindingId == default)
-            bindingId = "binding.weapon.flame";
-
-        EquipmentAbilityContentPackDef pack = new()
+        EquipmentAbilityConditionGroupImportModel unknownFact = new()
         {
-            pack_id = packId,
-            schema_version = 1,
-            load_order = loadOrder,
-        };
-        EquipmentAbilityBindingDef binding = new()
-        {
-            binding_id = bindingId,
-            trait_id = "trait.weapon.flame",
-            override_mode = "add",
-        };
-        binding.allowed_source_kinds.Add("equipment_fixed");
-        binding.required_trait_categories.Add("weapon_feat");
-        binding.required_item_tags.Add("blade");
-        binding.supported_equipment_type_ids.Add("weapon");
-        binding.reactions.Add(
-            new EquipmentAbilityReactionDef
+            mode = "all",
+            conditions = new[]
             {
-                reaction_id = "reaction.on_hit",
-                trigger = "on_hit",
-                timing = "after_hit",
-                actions =
+                new EquipmentAbilityConditionImportModel
                 {
-                    new EquipmentAbilityActionDef
+                    condition_id = "condition.future_fact",
+                    kind = "compare_fact",
+                    payload = new CompareFactConditionPayloadImportModel
                     {
-                        action_id = "action.fire_dice",
-                        kind = "add_damage_dice",
-                        payload = new AddDamageDiceActionPayloadDef
+                        left = new EquipmentAbilityFactQueryImportModel
                         {
-                            target_selector = "attack_target",
-                            damage_type = "physical_slash",
-                            dice = new DiceExpressionDef
-                            {
-                                terms =
-                                {
-                                    new DiceExpressionTermDef
-                                    {
-                                        dice_count = 1,
-                                        dice_sides = 6,
-                                    },
-                                },
-                            },
+                            query_kind = "fact",
+                            fact_id = "future_fact",
+                            subject = "target",
+                            value_kind = "int",
                         },
-                    },
-                },
-            }
-        );
-        pack.bindings.Add(binding);
-        return pack;
-    }
-
-    private static EquipmentAbilityContentPackDef BuildInvalidPack()
-    {
-        EquipmentAbilityContentPackDef pack = new()
-        {
-            pack_id = "bad_pack",
-            schema_version = 1,
-        };
-
-        pack.bindings.Add(
-            BuildBinding(
-                bindingId: "bad.missing_trait",
-                traitId: "missing_trait",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.valid",
-                    trigger = "on_hit",
-                    timing = "after_hit",
-                }
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.unknown_trigger",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.unknown_trigger",
-                    trigger = "on_planet_align",
-                    timing = "after_hit",
-                }
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.unknown_timing",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.unknown_timing",
-                    trigger = "on_hit",
-                    timing = "during_moonrise",
-                }
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.unknown_condition",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.unknown_condition",
-                    trigger = "on_hit",
-                    timing = "after_hit",
-                    condition_group = new EquipmentAbilityConditionGroupDef
-                    {
-                        mode = "all",
-                        conditions =
+                        compare = "greater_than",
+                        right = new EquipmentAbilityFactQueryImportModel
                         {
-                            new EquipmentAbilityConditionDef
-                            {
-                                condition_id = "condition.unknown",
-                                kind = "unknown_condition",
-                            },
-                        },
-                    },
-                }
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.unknown_action",
-                reaction: ReactionWithAction(
-                    "reaction.unknown_action",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.unknown",
-                        kind = "unknown_action",
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.payload_mismatch",
-                reaction: ReactionWithAction(
-                    "reaction.payload_mismatch",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.payload_mismatch",
-                        kind = "apply_status",
-                        payload = new AddDamageDiceActionPayloadDef(),
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.missing_action_field",
-                reaction: ReactionWithAction(
-                    "reaction.missing_action_field",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.missing_field",
-                        kind = "add_damage_dice",
-                        payload = new AddDamageDiceActionPayloadDef
-                        {
-                            target_selector = "attack_target",
-                        },
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.missing_terrain_check_field",
-                reaction: ReactionWithAction(
-                    "reaction.missing_terrain_check_field",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.missing_terrain_check_field",
-                        kind = "apply_battle_terrain_effect_after_check",
-                        payload = new ApplyBattleTerrainEffectAfterCheckActionPayloadDef
-                        {
-                            anchor_selector = "attack_target",
-                            terrain_effect_id = "broken_ground",
-                            move_cost_delta = 1,
-                        },
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.invalid_terrain_check_compare",
-                reaction: ReactionWithAction(
-                    "reaction.invalid_terrain_check_compare",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.invalid_terrain_check_compare",
-                        kind = "apply_battle_terrain_effect_after_check",
-                        payload = new ApplyBattleTerrainEffectAfterCheckActionPayloadDef
-                        {
-                            anchor_selector = "attack_target",
-                            terrain_effect_id = "broken_ground",
-                            move_cost_delta = 1,
-                            check_attribute_modifier_id = "strength_modifier",
-                            check_compare = "nearly",
-                            check_threshold = 22,
-                        },
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.invalid_terrain_move_cost",
-                reaction: ReactionWithAction(
-                    "reaction.invalid_terrain_move_cost",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.invalid_terrain_move_cost",
-                        kind = "apply_battle_terrain_effect_after_check",
-                        payload = new ApplyBattleTerrainEffectAfterCheckActionPayloadDef
-                        {
-                            anchor_selector = "attack_target",
-                            terrain_effect_id = "broken_ground",
-                            move_cost_delta = 0,
-                            check_attribute_modifier_id = "strength_modifier",
-                            check_compare = "gt",
-                            check_threshold = 22,
-                        },
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.unknown_status",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.unknown_status",
-                    trigger = "on_hit",
-                    timing = "after_hit",
-                    condition_group = new EquipmentAbilityConditionGroupDef
-                    {
-                        mode = "all",
-                        conditions =
-                        {
-                            new EquipmentAbilityConditionDef
-                            {
-                                condition_id = "condition.status",
-                                kind = "has_status",
-                                payload = new HasStatusConditionPayloadDef
-                                {
-                                    subject = "target",
-                                    status_id = "missing_status",
-                                },
-                            },
-                        },
-                    },
-                    actions =
-                    {
-                        new EquipmentAbilityActionDef
-                        {
-                            action_id = "action.status",
-                            kind = "apply_status",
-                            payload = new ApplyStatusActionPayloadDef
-                            {
-                                target_selector = "attack_target",
-                                status_id = "burning",
-                                duration_turns = 1,
-                                stack_delta = 1,
-                            },
-                        },
-                    },
-                }
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.unknown_slot",
-                reaction: ReactionWithAction(
-                    "reaction.unknown_slot",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.durability",
-                        kind = "equipment_durability_damage",
-                        payload = new EquipmentDurabilityDamageActionPayloadDef
-                        {
-                            target_selector = "target_weapon",
-                            target_slots = { "left_ear" },
-                            durability_loss = 1,
-                            max_damaged_items = 1,
-                        },
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.invalid_slot_weight",
-                reaction: ReactionWithAction(
-                    "reaction.invalid_slot_weight",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.durability",
-                        kind = "equipment_durability_damage",
-                        payload = new EquipmentDurabilityDamageActionPayloadDef
-                        {
-                            target_selector = "target_weapon",
-                            slot_weights =
-                            {
-                                new EquipmentSlotWeightDef
-                                {
-                                    slot_id = "main_hand",
-                                    weight = 0,
-                                },
-                            },
-                            durability_loss = 1,
-                            max_damaged_items = 1,
-                        },
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.unknown_slot_weight",
-                reaction: ReactionWithAction(
-                    "reaction.unknown_slot_weight",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.durability",
-                        kind = "equipment_durability_damage",
-                        payload = new EquipmentDurabilityDamageActionPayloadDef
-                        {
-                            target_selector = "target_weapon",
-                            slot_weights =
-                            {
-                                new EquipmentSlotWeightDef
-                                {
-                                    slot_id = "left_ear",
-                                    weight = 1,
-                                },
-                            },
-                            durability_loss = 1,
-                            max_damaged_items = 1,
-                        },
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.duplicate_slot_weight",
-                reaction: ReactionWithAction(
-                    "reaction.duplicate_slot_weight",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.durability",
-                        kind = "equipment_durability_damage",
-                        payload = new EquipmentDurabilityDamageActionPayloadDef
-                        {
-                            target_selector = "target_weapon",
-                            slot_weights =
-                            {
-                                new EquipmentSlotWeightDef
-                                {
-                                    slot_id = "main_hand",
-                                    weight = 1,
-                                },
-                                new EquipmentSlotWeightDef
-                                {
-                                    slot_id = "main_hand",
-                                    weight = 2,
-                                },
-                            },
-                            durability_loss = 1,
-                            max_damaged_items = 1,
-                        },
-                    }
-                )
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.undeclared_state",
-                reaction: ReactionWithAction(
-                    "reaction.undeclared_state",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.state",
-                        kind = "modify_ability_state",
-                        payload = new ModifyAbilityStateActionPayloadDef
-                        {
-                            target_selector = "self",
-                            state_key = "missing_state",
-                            operation = "add_int",
-                            int_delta = 1,
-                        },
-                    }
-                )
-            )
-        );
-
-        EquipmentAbilityBindingDef badSyncState =
-            BuildBinding(
-                "bad.undeclared_sync_state",
-                reaction: ReactionWithAction(
-                    "reaction.undeclared_sync_state",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.sync_state",
-                        kind = "modify_ability_state",
-                        payload = new ModifyAbilityStateActionPayloadDef
-                        {
-                            target_selector = "self",
-                            state_key = "declared_state",
-                            operation = "add",
-                            int_delta = 1,
-                        },
-                    }
-                )
-            );
-        badSyncState.state_schemas.Add(
-            new EquipmentAbilityStateSchemaDef
-            {
-                state_key = "declared_state",
-                owner_scope = "battle_state",
-                value_kind = "int",
-                reset_timing = "per_battle",
-            }
-        );
-        badSyncState.state_schemas.Add(
-            new EquipmentAbilityStateSchemaDef
-            {
-                state_key = "tier",
-                owner_scope = "battle_state",
-                value_kind = "int",
-                reset_timing = "per_battle",
-                sync_source_state_key = "missing_sync_state",
-                sync_aggregation = "floor_div",
-                sync_int_literal = 10,
-            }
-        );
-        pack.bindings.Add(badSyncState);
-
-        EquipmentAbilityBindingDef badSyncDivisor =
-            BuildBinding(
-                "bad.invalid_sync_divisor",
-                reaction: ReactionWithAction(
-                    "reaction.invalid_sync_divisor",
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.sync_divisor",
-                        kind = "modify_ability_state",
-                        payload = new ModifyAbilityStateActionPayloadDef
-                        {
-                            target_selector = "self",
-                            state_key = "counter",
-                            operation = "add",
-                            int_delta = 1,
-                        },
-                    }
-                )
-            );
-        badSyncDivisor.state_schemas.Add(
-            new EquipmentAbilityStateSchemaDef
-            {
-                state_key = "counter",
-                owner_scope = "battle_state",
-                value_kind = "int",
-                reset_timing = "per_battle",
-            }
-        );
-        badSyncDivisor.state_schemas.Add(
-            new EquipmentAbilityStateSchemaDef
-            {
-                state_key = "tier",
-                owner_scope = "battle_state",
-                value_kind = "int",
-                reset_timing = "per_battle",
-                sync_source_state_key = "counter",
-                sync_aggregation = "floor_div",
-                sync_int_literal = 0,
-            }
-        );
-        pack.bindings.Add(badSyncDivisor);
-
-        EquipmentAbilityBindingDef badPersistent =
-            BuildBinding(
-                "bad.invalid_persistent_state",
-                reaction: ReactionWithAction(
-                    "reaction.valid_trace",
-                    BuildValidAddDamageAction("action.valid")
-                )
-            );
-        badPersistent.state_schemas.Add(
-            new EquipmentAbilityStateSchemaDef
-            {
-                state_key = "daily_use",
-                owner_scope = "battle_state",
-                value_kind = "int",
-                reset_timing = "per_world_day",
-                persist_outside_battle = true,
-            }
-        );
-        pack.bindings.Add(badPersistent);
-
-        EquipmentAbilityBindingDef badGrant =
-            BuildBinding(
-                "bad.invalid_grant",
-                reaction: ReactionWithAction(
-                    "reaction.valid_grant_probe",
-                    BuildValidAddDamageAction("action.valid_grant_probe")
-                )
-            );
-        badGrant.granted_actions.Add(
-            new EquipmentGrantedActionDef
-            {
-                granted_action_id = "",
-                granted_kind = "skill",
-                skill_id = "missing_skill",
-                skill_level = 1,
-            }
-        );
-        pack.bindings.Add(badGrant);
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.confirmation",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.confirmation",
-                    trigger = "on_hit",
-                    timing = "after_hit",
-                    requires_player_confirmation = true,
-                }
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.battle_end",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.battle_end",
-                    trigger = "on_battle_end",
-                    timing = "after_battle",
-                    actions =
-                    {
-                        new EquipmentAbilityActionDef
-                        {
-                            action_id = "action.battle_end_status",
-                            kind = "apply_status",
-                            payload = new ApplyStatusActionPayloadDef
-                            {
-                                target_selector = "self",
-                                status_id = "burning",
-                                duration_turns = 1,
-                                stack_delta = 1,
-                            },
-                        },
-                    },
-                }
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.hit_after_battle",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.hit_after_battle",
-                    trigger = "on_hit",
-                    timing = "after_battle",
-                }
-            )
-        );
-
-        pack.bindings.Add(
-            BuildBinding(
-                "bad.battle_end_after_hit",
-                reaction: new EquipmentAbilityReactionDef
-                {
-                    reaction_id = "reaction.battle_end_after_hit",
-                    trigger = "on_battle_end",
-                    timing = "after_hit",
-                }
-            )
-        );
-
-        EquipmentAbilityReactionDef outcomeUnknownAction = new()
-        {
-            reaction_id = "reaction.outcome_unknown_action",
-            trigger = "on_hit",
-            timing = "after_hit",
-            outcome_table = new EquipmentOutcomeTableDef
-            {
-                table_id = "outcome.unknown_action",
-                entries =
-                {
-                    new EquipmentOutcomeEntryDef
-                    {
-                        min_roll = 1,
-                        max_roll = 1,
-                        actions =
-                        {
-                            new EquipmentAbilityActionDef
-                            {
-                                action_id = "action.outcome_unknown",
-                                kind = "unknown_action",
-                            },
+                            query_kind = "literal",
+                            value_kind = "int",
+                            int_literal = 0,
                         },
                     },
                 },
             },
         };
-        pack.bindings.Add(BuildBinding("bad.outcome_unknown_action", outcomeUnknownAction));
-
-        EquipmentAbilityBindingDef badGrantAvailability =
-            BuildBinding(
-                "bad.grant_availability_condition",
-                reaction: ReactionWithAction(
-                    "reaction.valid_grant_availability",
-                    BuildValidAddDamageAction("action.valid_grant_availability")
-                )
-            );
-        badGrantAvailability.granted_actions.Add(
-            new EquipmentGrantedActionDef
-            {
-                granted_action_id = "grant.bad_availability",
-                granted_kind = "skill",
-                skill_id = "known_skill",
-                skill_level = 1,
-                availability_conditions = new EquipmentAbilityConditionGroupDef
-                {
-                    conditions =
-                    {
-                        new EquipmentAbilityConditionDef
-                        {
-                            condition_id = "condition.bad_grant_availability",
-                            kind = "unknown_condition",
-                        },
-                    },
-                },
-            }
+        EquipmentAbilityRegistryBuildResult fact = registry.Rebuild(
+            new[] { BuildPack(conditionGroup: unknownFact) },
+            BuildValidationContext()
         );
-        pack.bindings.Add(badGrantAvailability);
-
-        EquipmentAbilityBindingDef badOverlay =
-            BuildBinding(
-                "bad.overlay_unknown_condition",
-                reaction: ReactionWithAction(
-                    "reaction.valid_overlay_probe",
-                    BuildValidAddDamageAction("action.valid_overlay_probe")
-                )
-            );
-        badOverlay.weapon_profile_overlays.Add(
-            new EquipmentWeaponProfileOverlayDef
-            {
-                overlay_id = "overlay.bad_condition",
-                condition_group = new EquipmentAbilityConditionGroupDef
-                {
-                    conditions =
-                    {
-                        new EquipmentAbilityConditionDef
-                        {
-                            condition_id = "condition.bad_overlay",
-                            kind = "unknown_condition",
-                        },
-                    },
-                },
-            }
-        );
-        pack.bindings.Add(badOverlay);
-
-        EquipmentAbilityBindingDef badWorldTrigger =
-            BuildBinding(
-                "bad.world_unknown_trigger",
-                reaction: ReactionWithAction(
-                    "reaction.valid_world_trigger_probe",
-                    BuildValidAddDamageAction("action.valid_world_trigger_probe")
-                )
-            );
-        badWorldTrigger.world_effects.Add(
-            new EquipmentWorldEffectDef
-            {
-                world_effect_id = "world.bad_trigger",
-                trigger = "on_world_weather",
-                timing = "after_hit",
-            }
-        );
-        pack.bindings.Add(badWorldTrigger);
-
-        EquipmentAbilityBindingDef badWorldAction =
-            BuildBinding(
-                "bad.world_unknown_action",
-                reaction: ReactionWithAction(
-                    "reaction.valid_world_action_probe",
-                    BuildValidAddDamageAction("action.valid_world_action_probe")
-                )
-            );
-        badWorldAction.world_effects.Add(
-            new EquipmentWorldEffectDef
-            {
-                world_effect_id = "world.bad_action",
-                trigger = "on_hit",
-                timing = "after_hit",
-                actions =
-                {
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.world_unknown",
-                        kind = "unknown_action",
-                    },
-                },
-            }
-        );
-        pack.bindings.Add(badWorldAction);
-
-        EquipmentAbilityBindingDef badGrantKind =
-            BuildBinding(
-                "bad.invalid_grant_kind",
-                reaction: ReactionWithAction(
-                    "reaction.valid_grant_kind_probe",
-                    BuildValidAddDamageAction("action.valid_grant_kind_probe")
-                )
-            );
-        badGrantKind.granted_actions.Add(
-            new EquipmentGrantedActionDef
-            {
-                granted_action_id = "grant.invalid_kind",
-                granted_kind = "spell_like_power",
-                skill_id = "known_skill",
-                skill_level = 1,
-            }
-        );
-        pack.bindings.Add(badGrantKind);
-
-        pack.bindings.Add(
-            BuildSummonBinding(
-                "bad.summon_unknown_skill",
-                "action.summon_unknown_skill",
-                "missing_summon_skill",
-                "physical_slash"
-            )
-        );
-        pack.bindings.Add(
-            BuildSummonBinding(
-                "bad.summon_unknown_damage",
-                "action.summon_unknown_damage",
-                "known_skill",
-                "void_damage"
-            )
-        );
-
-        return pack;
+        _test.False(fact.Success, "unknown fact id fails closed");
+        AssertError(fact.Errors, "EQA_FACT_ID_UNKNOWN", ".fact_id");
     }
 
-    private static EquipmentAbilityBindingDef BuildBinding(
-        StringName bindingId,
-        EquipmentAbilityReactionDef reaction,
-        StringName traitId = default
+    private void TestWindupSkillContextSurvivesStatusExpansion()
+    {
+        EquipmentAbilityActionImportModel action = new()
+        {
+            action_id = "action.trigger_skill",
+            kind = "trigger_skill",
+            payload = new TriggerSkillActionPayloadImportModel
+            {
+                skill_id = SkillId,
+                skill_level = 1,
+                target_selector = "target",
+            },
+        };
+        using var registry = new EquipmentAbilityContentRegistry();
+        EquipmentAbilityRegistryBuildResult result = registry.Rebuild(
+            new[] { BuildPack(action: action) },
+            BuildValidationContext(windupSkill: true)
+        );
+        _test.False(result.Success, "automatic trigger_skill rejects a known windup skill");
+        AssertError(result.Errors, "EQA_REFERENCE_WINDUP_SKILL_UNSUPPORTED", ".payload.skill_id");
+    }
+
+    private static EquipmentAbilityContentPackImportModel BuildPack(
+        string traitId = TraitId,
+        string trigger = "on_hit",
+        string actionKind = "add_damage_dice",
+        EquipmentAbilityActionImportModel? action = null,
+        EquipmentAbilityConditionGroupImportModel? conditionGroup = null
     )
     {
-        if (traitId == default)
-            traitId = "trait.weapon.flame";
-        EquipmentAbilityBindingDef binding = new()
+        EquipmentAbilityActionImportModel resolvedAction = action
+            ?? new EquipmentAbilityActionImportModel
         {
-            binding_id = bindingId,
-            trait_id = traitId,
-            override_mode = "add",
-        };
-        binding.allowed_source_kinds.Add("equipment_fixed");
-        binding.required_trait_categories.Add("weapon_feat");
-        binding.required_item_tags.Add("blade");
-        binding.supported_equipment_type_ids.Add("weapon");
-        binding.reactions.Add(reaction);
-        return binding;
-    }
-
-    private static EquipmentAbilityReactionDef ReactionWithAction(
-        StringName reactionId,
-        EquipmentAbilityActionDef action
-    )
-    {
-        EquipmentAbilityReactionDef reaction = new()
-        {
-            reaction_id = reactionId,
-            trigger = "on_hit",
-            timing = "after_hit",
-        };
-        reaction.actions.Add(action);
-        return reaction;
-    }
-
-    private static EquipmentAbilityActionDef BuildValidAddDamageAction(StringName actionId) =>
-        new()
-        {
-            action_id = actionId,
-            kind = "add_damage_dice",
-            payload = new AddDamageDiceActionPayloadDef
+            action_id = "action.damage",
+            kind = actionKind,
+            payload = new AddDamageDiceActionPayloadImportModel
             {
                 target_selector = "attack_target",
                 damage_type = "physical_slash",
-                dice = new DiceExpressionDef
+                require_weapon_damage = true,
+                dice = new DiceExpressionImportModel
                 {
-                    terms =
+                    terms = new[]
                     {
-                        new DiceExpressionTermDef
+                        new DiceExpressionTermImportModel
                         {
                             dice_count = 1,
-                            dice_sides = 4,
+                            dice_sides = 6,
                         },
                     },
                 },
             },
         };
 
-    private static EquipmentAbilityBindingDef BuildSummonBinding(
-        StringName bindingId,
-        StringName actionId,
-        StringName knownSkillId,
-        StringName damageTag
-    )
-    {
-        EquipmentAbilityBindingDef binding = BuildBinding(
-            bindingId,
-            ReactionWithAction(
-                $"reaction.{bindingId}",
-                BuildSummonAction(actionId, knownSkillId, damageTag)
-            )
-        );
-        binding.state_schemas.Add(
-            new EquipmentAbilityStateSchemaDef
+        return new EquipmentAbilityContentPackImportModel
+        {
+            pack_id = "pack.core",
+            schema_version = 1,
+            load_order = 10,
+            bindings = new[]
             {
-                state_key = "test_summon_state",
-                owner_scope = "source_equipment",
-                value_kind = "int",
-                initial_int_value = 0,
-                max_int_value = 1,
-            }
-        );
-        return binding;
-    }
-
-    private static EquipmentAbilityActionDef BuildSummonAction(
-        StringName actionId,
-        StringName knownSkillId,
-        StringName damageTag
-    )
-    {
-        SummonUnitsActionPayloadDef payload = new()
-        {
-            anchor_selector = "self",
-            state_key = "test_summon_state",
-            count_dice = BuildDice(1, 1),
-            max_living_units = 1,
-            duration_tu = 60,
-            spawn_radius = 1,
-            unit_id_prefix = "test_summon",
-            unit_display_name = "Test Summon",
-            body_size_category = "small",
-            control_mode = "ally_ai",
-            cognition_kind = "instinctive",
-            hp_max = 1,
-            armor_class = 10,
-            natural_weapon_profile_type_id = "test_claws",
-            natural_weapon_damage_tag = damageTag,
-            natural_weapon_attack_range = 1,
-            natural_weapon_damage_dice = BuildDice(1, 4),
-        };
-        payload.known_active_skill_ids.Add(knownSkillId);
-        return new EquipmentAbilityActionDef
-        {
-            action_id = actionId,
-            kind = "summon_units",
-            payload = payload,
-        };
-    }
-
-    private static DiceExpressionDef BuildDice(int diceCount, int diceSides) =>
-        new()
-        {
-            terms =
-            {
-                new DiceExpressionTermDef
+                new EquipmentAbilityBindingImportModel
                 {
-                    dice_count = diceCount,
-                    dice_sides = diceSides,
+                    binding_id = "binding.weapon.flame",
+                    trait_id = traitId,
+                    override_mode = "add",
+                    allowed_source_kinds = new[] { "equipment_fixed" },
+                    required_trait_categories = new[] { "weapon_feat" },
+                    required_item_tags = new[] { "blade" },
+                    supported_equipment_type_ids = new[] { "weapon" },
+                    reactions = new[]
+                    {
+                        new EquipmentAbilityReactionImportModel
+                        {
+                            reaction_id = "reaction.on_hit",
+                            trigger = trigger,
+                            timing = "after_hit",
+                            condition_group = conditionGroup!,
+                            actions = new[] { resolvedAction },
+                        },
+                    },
                 },
             },
         };
-
-    private static EquipmentAbilityContentValidationContext BuildValidationContext()
-    {
-        return new EquipmentAbilityContentValidationContext
-        {
-            KnownTraitIds = new HashSet<StringName> { "trait.weapon.flame" },
-            KnownSkillIds = new HashSet<StringName> { "known_skill" },
-            KnownStatusIds = new HashSet<StringName> { "burning" },
-        };
     }
 
-    private static ItemDefinition BuildSourceItem(
-        StringName itemId,
-        StringName tag,
-        StringName equipmentTypeId
-    )
+    private static EquipmentAbilityContentValidationContext BuildValidationContext(
+        bool windupSkill = false
+    ) => new()
     {
-        ItemDef item = new()
-        {
-            item_id = itemId,
-            display_name = itemId.ToString(),
-            item_category = "equipment",
-            equipment_type_id = equipmentTypeId,
-        };
-        item.tags.Add(tag);
-        item.equipment_slot_ids.Add("main_hand");
-        return item.ToDefinition();
-    }
+        KnownTraitIds = new HashSet<StringName> { TraitId },
+        KnownSkillIds = new HashSet<StringName> { SkillId },
+        WindupSkillIds = windupSkill
+            ? new HashSet<StringName> { SkillId }
+            : new HashSet<StringName>(),
+        KnownStatusIds = new HashSet<StringName>(),
+    };
 
-    private static bool RejectsRequiredItemTagMutation(
-        IReadOnlySet<StringName> requiredItemTags
-    )
+    private void AssertError(IReadOnlyList<string> errors, string code, string pathFragment)
     {
-        if (requiredItemTags is not ISet<StringName> mutableTags)
-            return true;
-        try
-        {
-            mutableTags.Add("forbidden_mutation");
-            return false;
-        }
-        catch (NotSupportedException)
-        {
-            return true;
-        }
-    }
-
-
-    private void AssertContainsKey<T>(
-        IReadOnlyDictionary<StringName, T> dictionary,
-        StringName key,
-        string label
-    )
-    {
-        _test.True(dictionary.ContainsKey(key), $"{label} should contain {key}.");
-    }
-
-    private void AssertErrorContains(
-        IReadOnlyList<string> errors,
-        string code,
-        string pathFragment
-    )
-    {
-        foreach (string error in errors)
-        {
-            if ((error ?? "").Contains(code) && (error ?? "").Contains(pathFragment))
-                return;
-        }
-        _test.Fail(
-            $"Expected error containing code={code} path={pathFragment}. errors={FormatErrors(errors)}"
+        _test.True(
+            errors.Any(error =>
+                error.Contains(code, StringComparison.Ordinal)
+                && error.Contains(pathFragment, StringComparison.Ordinal)
+            ),
+            $"errors contain {code} at *{pathFragment}: {Format(errors)}"
         );
     }
 
-    private static string FormatErrors(IEnumerable<string> errors)
+    private static string Format(IReadOnlyList<string> errors) => string.Join(" | ", errors);
+
+    private sealed class FakeSourceReader : IContentJsonSourceReader
     {
-        List<string> values = new();
-        foreach (string error in errors ?? Array.Empty<string>())
-            values.Add(error ?? "");
-        return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
+        private readonly IReadOnlyList<ContentJsonSourceText> _sources;
+        internal FakeSourceReader(params ContentJsonSourceText[] sources) => _sources = sources;
+        public IReadOnlyList<ContentJsonSourceText> ReadUtf8Documents(string directoryPath) => _sources;
     }
 }

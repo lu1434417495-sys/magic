@@ -85,24 +85,17 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
         _test.Eq(BattleTerrainRules.GetDisplayName("ice"), "冰层", "ice 地形应显示为冰层。");
 
         using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_frostbite.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_frostbite_097");
         _test.True(rawItem != null, "霜咬原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "霜咬", "霜咬显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_battleaxe_base"),
-                "霜咬应继承 battleaxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 40000, "霜咬基础价格应为 40000。");
-            _test.True(rawItem.trait_ids.Contains(FrostTouchTraitId), "霜咬物品应声明霜冻之触。");
-            _test.True(rawItem.trait_ids.Contains(IceboundPathTraitId), "霜咬物品应声明冰封之路。");
-            _test.True(rawItem.trait_ids.Contains(PolarAdaptationTraitId), "霜咬物品应声明极地适应。");
+            _test.Eq(rawItem.DisplayName, "霜咬", "霜咬显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 40000, "霜咬基础价格应为 40000。");
+            _test.True(rawItem.TraitIds.Contains(FrostTouchTraitId), "霜咬物品应声明霜冻之触。");
+            _test.True(rawItem.TraitIds.Contains(IceboundPathTraitId), "霜咬物品应声明冰封之路。");
+            _test.True(rawItem.TraitIds.Contains(PolarAdaptationTraitId), "霜咬物品应声明极地适应。");
             _test.False(
-                ContainsText(rawItem.description, "温暖") || ContainsText(rawItem.description, "-2"),
+                ContainsText(rawItem.Description, "温暖") || ContainsText(rawItem.Description, "-2"),
                 "玩家说明不应包含已否掉的温暖环境攻击惩罚。"
             );
         }

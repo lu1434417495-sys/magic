@@ -75,34 +75,27 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
             "真实装备能力内容应包含风暴导体 binding。"
         );
 
-        ItemDef rawItem = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_thunderfang.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_thunderfang_086");
         _test.True(rawItem != null, "雷霆之牙原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "雷霆之牙", "雷霆之牙显示名应来自设计源。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "雷霆之牙应继承 greataxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 58000, "雷霆之牙基础价格应为 58000。");
-            _test.True(rawItem.trait_ids.Contains(ThunderSlashTraitId), "雷霆之牙应固定声明雷鸣斩 trait。");
-            _test.True(rawItem.trait_ids.Contains(ThorsHammeringTraitId), "雷霆之牙应固定声明托尔的锤打 trait。");
-            _test.True(rawItem.trait_ids.Contains(StormConductorTraitId), "雷霆之牙应固定声明风暴导体 trait。");
-            WeaponProfileDef rawProfile = rawItem.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawItem.DisplayName, "雷霆之牙", "雷霆之牙显示名应来自设计源。");
+            _test.Eq(rawItem.BasePrice, 58000, "雷霆之牙基础价格应为 58000。");
+            _test.True(rawItem.TraitIds.Contains(ThunderSlashTraitId), "雷霆之牙应固定声明雷鸣斩 trait。");
+            _test.True(rawItem.TraitIds.Contains(ThorsHammeringTraitId), "雷霆之牙应固定声明托尔的锤打 trait。");
+            _test.True(rawItem.TraitIds.Contains(StormConductorTraitId), "雷霆之牙应固定声明风暴导体 trait。");
+            WeaponProfileDefinition rawProfile = rawItem.WeaponProfile;
             _test.True(rawProfile != null, "雷霆之牙应声明武器 profile override。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.training_group, new StringName("martial"), "雷霆之牙训练组应为 martial。");
-                _test.Eq(rawProfile.range_type, new StringName("melee"), "雷霆之牙应为 melee。");
-                _test.Eq(rawProfile.family, new StringName("axe"), "雷霆之牙应属于 axe。");
-                _test.Eq(rawProfile.damage_tag, new StringName("physical_slash"), "雷霆之牙应为 slashing 伤害。");
-                _test.Eq(rawProfile.attack_range, 1, "雷霆之牙攻击距离应为 1。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_count ?? 0, 1, "雷霆之牙双手应为 1D12+2。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_sides ?? 0, 12, "雷霆之牙双手应为 1D12+2。");
-                _test.Eq(rawProfile.two_handed_dice?.flat_bonus ?? 0, 2, "雷霆之牙双手应为 1D12+2。");
+                _test.Eq(rawProfile.TrainingGroup, new StringName("martial"), "雷霆之牙训练组应为 martial。");
+                _test.Eq(rawProfile.RangeType, new StringName("melee"), "雷霆之牙应为 melee。");
+                _test.Eq(rawProfile.Family, new StringName("axe"), "雷霆之牙应属于 axe。");
+                _test.Eq(rawProfile.DamageTag, new StringName("physical_slash"), "雷霆之牙应为 slashing 伤害。");
+                _test.Eq(rawProfile.AttackRange, 1, "雷霆之牙攻击距离应为 1。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceCount ?? 0, 1, "雷霆之牙双手应为 1D12+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceSides ?? 0, 12, "雷霆之牙双手应为 1D12+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.FlatBonus ?? 0, 2, "雷霆之牙双手应为 1D12+2。");
                 _test.True(
                     ContainsStringName(rawProfile.GetPropertiesTyped(), "two_handed"),
                     "雷霆之牙应声明 two_handed 属性。"

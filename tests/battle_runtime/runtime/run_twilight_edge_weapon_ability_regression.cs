@@ -91,17 +91,10 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
         if (!fixture.ItemDefs.ContainsKey(TwilightEdgeItemId))
             return;
 
-        ItemDef rawTwilightEdge = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_scimitar_twilight_edge.tres"
-        );
+        ItemDefinition rawTwilightEdge = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_twilight_edge_005");
         _test.True(rawTwilightEdge != null, "暮光之刃原始资源应能加载。");
         if (rawTwilightEdge != null)
         {
-            _test.Eq(
-                rawTwilightEdge.base_item_id,
-                new StringName("weapon_type_scimitar_base"),
-                "暮光之刃原始资源应声明继承 scimitar 模板。"
-            );
         }
 
         BattleUnitState equipped = fixture.BuildTwilightEdgeUnit("projection");

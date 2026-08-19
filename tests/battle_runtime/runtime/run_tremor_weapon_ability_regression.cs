@@ -71,24 +71,17 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
         if (!fixture.ItemDefs.ContainsKey(TremorItemId))
             return;
 
-        ItemDef rawTremor = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_maul_tremor.tres"
-        );
+        ItemDefinition rawTremor = TestItemDefinitionLookup.GetProductionItem("weapon_unique_hammer_tremor_102");
         _test.True(rawTremor != null, "地动原始资源应能加载。");
         if (rawTremor != null)
         {
-            _test.Eq(
-                rawTremor.base_item_id,
-                new StringName("weapon_type_maul_base"),
-                "地动应继承 maul 模板。"
-            );
-            _test.Eq(rawTremor.trait_ids.Count, 3, "地动应固定声明三个 weapon trait。");
-            _test.True(rawTremor.trait_ids.Contains(ShockwaveTraitId), "地动应声明震击 trait。");
+            _test.Eq(rawTremor.TraitIds.Count, 3, "地动应固定声明三个 weapon trait。");
+            _test.True(rawTremor.TraitIds.Contains(ShockwaveTraitId), "地动应声明震击 trait。");
             _test.True(
-                rawTremor.trait_ids.Contains(GeologicResonanceTraitId),
+                rawTremor.TraitIds.Contains(GeologicResonanceTraitId),
                 "地动应声明地脉共鸣 trait。"
             );
-            _test.True(rawTremor.trait_ids.Contains(StoneOathTraitId), "地动应声明磐石之誓 trait。");
+            _test.True(rawTremor.TraitIds.Contains(StoneOathTraitId), "地动应声明磐石之誓 trait。");
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");

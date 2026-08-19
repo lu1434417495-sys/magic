@@ -75,33 +75,26 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
             "Equipment ability registry should load Complete Petrification binding."
         );
 
-        ItemDef rawRockHalberd = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_halberd_rock_halberd.tres"
-        );
+        ItemDefinition rawRockHalberd = TestItemDefinitionLookup.GetProductionItem("weapon_unique_polearm_rock_halberd_148");
         _test.True(rawRockHalberd != null, "Raw Rock Halberd resource should load.");
         if (rawRockHalberd != null)
         {
-            _test.Eq(rawRockHalberd.display_name, "岩石之戟", "Rock Halberd display name should match design.");
-            _test.Eq(
-                rawRockHalberd.base_item_id,
-                new StringName("weapon_type_halberd_base"),
-                "Rock Halberd should inherit the halberd base item."
-            );
-            _test.Eq(rawRockHalberd.base_price, 45000, "Rock Halberd base price should be 45000.");
-            WeaponProfileDef rawProfile = rawRockHalberd.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawRockHalberd.DisplayName, "岩石之戟", "Rock Halberd display name should match design.");
+            _test.Eq(rawRockHalberd.BasePrice, 45000, "Rock Halberd base price should be 45000.");
+            WeaponProfileDefinition rawProfile = rawRockHalberd.WeaponProfile;
             _test.True(rawProfile != null, "Rock Halberd should declare a weapon profile override.");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.weapon_type_id, new StringName("halberd"), "Rock Halberd weapon type should be halberd.");
-                _test.Eq(rawProfile.training_group, new StringName("martial"), "Rock Halberd training should be martial.");
-                _test.Eq(rawProfile.range_type, new StringName("melee"), "Rock Halberd range type should be melee.");
-                _test.Eq(rawProfile.family, new StringName("polearm"), "Rock Halberd family should be polearm.");
-                _test.Eq(rawProfile.damage_tag, new StringName("physical_slash"), "Rock Halberd damage tag should be physical_slash.");
-                _test.Eq(rawProfile.attack_range, 2, "Rock Halberd attack range should be 2.");
-                _test.True(rawProfile.one_handed_dice == null, "Rock Halberd should not declare one-handed damage.");
-                _test.Eq(rawProfile.two_handed_dice?.dice_count ?? 0, 1, "Rock Halberd two-handed dice should be 1D10+3.");
-                _test.Eq(rawProfile.two_handed_dice?.dice_sides ?? 0, 10, "Rock Halberd two-handed dice should be 1D10+3.");
-                _test.Eq(rawProfile.two_handed_dice?.flat_bonus ?? 0, 3, "Rock Halberd two-handed dice should be 1D10+3.");
+                _test.Eq(rawProfile.WeaponTypeId, new StringName("halberd"), "Rock Halberd weapon type should be halberd.");
+                _test.Eq(rawProfile.TrainingGroup, new StringName("martial"), "Rock Halberd training should be martial.");
+                _test.Eq(rawProfile.RangeType, new StringName("melee"), "Rock Halberd range type should be melee.");
+                _test.Eq(rawProfile.Family, new StringName("polearm"), "Rock Halberd family should be polearm.");
+                _test.Eq(rawProfile.DamageTag, new StringName("physical_slash"), "Rock Halberd damage tag should be physical_slash.");
+                _test.Eq(rawProfile.AttackRange, 2, "Rock Halberd attack range should be 2.");
+                _test.True(rawProfile.OneHandedDice == null, "Rock Halberd should not declare one-handed damage.");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceCount ?? 0, 1, "Rock Halberd two-handed dice should be 1D10+3.");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceSides ?? 0, 10, "Rock Halberd two-handed dice should be 1D10+3.");
+                _test.Eq(rawProfile.TwoHandedDice?.FlatBonus ?? 0, 3, "Rock Halberd two-handed dice should be 1D10+3.");
                 _test.True(ContainsStringName(rawProfile.GetPropertiesTyped(), "two_handed"), "Rock Halberd should declare two_handed.");
                 _test.True(ContainsStringName(rawProfile.GetPropertiesTyped(), "heavy"), "Rock Halberd should declare heavy.");
                 _test.True(ContainsStringName(rawProfile.GetPropertiesTyped(), "reach"), "Rock Halberd should declare reach.");

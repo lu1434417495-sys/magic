@@ -96,23 +96,16 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         if (!fixture.ItemDefs.ContainsKey(SacredItemId))
             return;
 
-        ItemDef rawSacred = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_warhammer_sacred.tres"
-        );
+        ItemDefinition rawSacred = TestItemDefinitionLookup.GetProductionItem("weapon_unique_warhammer_sacred_408");
         _test.True(rawSacred != null, "神圣之锤原始资源应能加载。");
         if (rawSacred != null)
         {
-            _test.Eq(
-                rawSacred.base_item_id,
-                new StringName("weapon_type_warhammer_base"),
-                "神圣之锤应继承 warhammer 模板。"
-            );
-            _test.Eq(rawSacred.display_name, "神圣之锤", "神圣之锤显示名应匹配设计。");
-            _test.Eq(rawSacred.base_price, 65000, "神圣之锤价格应为 65000。");
-            _test.True(rawSacred.trait_ids.Contains(RadiantStrikeTraitId), "物品应声明神圣辉击 trait。");
-            _test.True(rawSacred.trait_ids.Contains(UndeadJudgmentTraitId), "物品应声明不死审判 trait。");
-            _test.True(rawSacred.trait_ids.Contains(SacredHealTraitId), "物品应声明神圣治疗 trait。");
-            _test.False(rawSacred.trait_ids.Contains(FaithCostTraitId), "物品不应再声明信仰代价占位 trait。");
+            _test.Eq(rawSacred.DisplayName, "神圣之锤", "神圣之锤显示名应匹配设计。");
+            _test.Eq(rawSacred.BasePrice, 65000, "神圣之锤价格应为 65000。");
+            _test.True(rawSacred.TraitIds.Contains(RadiantStrikeTraitId), "物品应声明神圣辉击 trait。");
+            _test.True(rawSacred.TraitIds.Contains(UndeadJudgmentTraitId), "物品应声明不死审判 trait。");
+            _test.True(rawSacred.TraitIds.Contains(SacredHealTraitId), "物品应声明神圣治疗 trait。");
+            _test.False(rawSacred.TraitIds.Contains(FaithCostTraitId), "物品不应再声明信仰代价占位 trait。");
         }
 
         BattleUnitState equipped = fixture.BuildSacredUnit("projection");

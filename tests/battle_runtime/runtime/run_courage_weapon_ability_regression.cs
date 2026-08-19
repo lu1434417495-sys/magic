@@ -79,21 +79,14 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         _test.True(fixture.SkillDefs.ContainsKey(InspireSkillId), "鼓舞应落成真实 SkillDef。");
 
         using TestContentResourceLoader loader = new();
-        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_courage.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_longsword_courage");
         _test.True(rawItem != null, "勇气之刃原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "勇气之刃 item_id 不应带源表数字。");
-            _test.Eq(rawItem.display_name, "勇气之刃", "勇气之刃显示名应匹配设计源。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_longsword_base"),
-                "勇气之刃应继承 longsword 模板。"
-            );
-            _test.Eq(rawItem.base_price, 72000, "勇气之刃价格应为 72000。");
-            _test.Eq(rawItem.trait_ids.Count, 4, "勇气之刃应显式挂载 4 个特性。");
+            _test.Eq(rawItem.ItemId, ItemId, "勇气之刃 item_id 不应带源表数字。");
+            _test.Eq(rawItem.DisplayName, "勇气之刃", "勇气之刃显示名应匹配设计源。");
+            _test.Eq(rawItem.BasePrice, 72000, "勇气之刃价格应为 72000。");
+            _test.Eq(rawItem.TraitIds.Count, 4, "勇气之刃应显式挂载 4 个特性。");
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");

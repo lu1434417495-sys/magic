@@ -95,17 +95,10 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
             "真实技能内容应包含龙魂爆发装备技能。"
         );
 
-        ItemDef rawWyrmbreak = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_wyrmbreak.tres"
-        );
+        ItemDefinition rawWyrmbreak = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_wyrmbreak_007");
         _test.True(rawWyrmbreak != null, "龙骨断剑原始资源应能加载。");
         if (rawWyrmbreak != null)
         {
-            _test.Eq(
-                rawWyrmbreak.base_item_id,
-                new StringName("weapon_type_longsword_base"),
-                "龙骨断剑应继承 longsword 模板。"
-            );
         }
 
         BattleUnitState equipped = fixture.BuildWyrmbreakUnit("projection");

@@ -95,21 +95,14 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
         }
 
         using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_eternity_edge.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_longsword_eternity_edge");
         _test.True(rawItem != null, "永恒之刃原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "永恒之刃 item_id 不应包含来源编号。");
-            _test.Eq(rawItem.display_name, "永恒之刃", "永恒之刃显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_longsword_base"),
-                "永恒之刃应继承 longsword 模板。"
-            );
-            _test.Eq(rawItem.base_price, 115000, "永恒之刃价格应为 115000。");
-            _test.Eq(rawItem.trait_ids.Count, 5, "永恒之刃应固定 5 个特性。");
+            _test.Eq(rawItem.ItemId, ItemId, "永恒之刃 item_id 不应包含来源编号。");
+            _test.Eq(rawItem.DisplayName, "永恒之刃", "永恒之刃显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 115000, "永恒之刃价格应为 115000。");
+            _test.Eq(rawItem.TraitIds.Count, 5, "永恒之刃应固定 5 个特性。");
             foreach (
                 StringName traitId in new[]
                 {
@@ -121,7 +114,7 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
                 }
             )
             {
-                _test.True(rawItem.trait_ids.Contains(traitId), $"永恒之刃 item 应声明 {traitId}。");
+                _test.True(rawItem.TraitIds.Contains(traitId), $"永恒之刃 item 应声明 {traitId}。");
             }
         }
 

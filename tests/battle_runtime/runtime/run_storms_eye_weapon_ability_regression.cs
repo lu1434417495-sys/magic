@@ -78,29 +78,22 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
         );
 
         using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_storms_eye.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_storms_eye_091");
         _test.True(rawItem != null, "风暴之眼原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "风暴之眼", "风暴之眼显示名应匹配设计源。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_battleaxe_base"),
-                "风暴之眼应继承 battleaxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 50000, "风暴之眼基础价格应为 50000。");
-            _test.True(rawItem.trait_ids.Contains(LightningEdgeTraitId), "风暴之眼应声明雷刃。");
-            _test.True(rawItem.trait_ids.Contains(ThunderRiftTraitId), "风暴之眼应声明雷鸣裂击。");
-            _test.True(rawItem.trait_ids.Contains(CloudsplitterTraitId), "风暴之眼应声明裂云重劈。");
-            WeaponProfileDef rawProfile = rawItem.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawItem.DisplayName, "风暴之眼", "风暴之眼显示名应匹配设计源。");
+            _test.Eq(rawItem.BasePrice, 50000, "风暴之眼基础价格应为 50000。");
+            _test.True(rawItem.TraitIds.Contains(LightningEdgeTraitId), "风暴之眼应声明雷刃。");
+            _test.True(rawItem.TraitIds.Contains(ThunderRiftTraitId), "风暴之眼应声明雷鸣裂击。");
+            _test.True(rawItem.TraitIds.Contains(CloudsplitterTraitId), "风暴之眼应声明裂云重劈。");
+            WeaponProfileDefinition rawProfile = rawItem.WeaponProfile;
             _test.True(rawProfile != null, "风暴之眼应声明武器 profile override。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.one_handed_dice?.dice_count ?? 0, 1, "风暴之眼单手应为 1D8+1。");
-                _test.Eq(rawProfile.one_handed_dice?.dice_sides ?? 0, 8, "风暴之眼单手应为 1D8+1。");
-                _test.Eq(rawProfile.one_handed_dice?.flat_bonus ?? 0, 1, "风暴之眼单手应为 1D8+1。");
+                _test.Eq(rawProfile.OneHandedDice?.DiceCount ?? 0, 1, "风暴之眼单手应为 1D8+1。");
+                _test.Eq(rawProfile.OneHandedDice?.DiceSides ?? 0, 8, "风暴之眼单手应为 1D8+1。");
+                _test.Eq(rawProfile.OneHandedDice?.FlatBonus ?? 0, 1, "风暴之眼单手应为 1D8+1。");
                 _test.True(
                     ContainsStringName(rawProfile.GetPropertiesTyped(), "versatile"),
                     "风暴之眼应声明 versatile 属性。"

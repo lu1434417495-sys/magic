@@ -14,7 +14,6 @@ public enum EquipmentAbilityTriggerKind
 {
     OnHit,
     OnKill,
-    OnBattleEnd,
     OnGrantedSkillUsed,
     OnTurnEnd,
     OnDamageRoll,
@@ -30,7 +29,6 @@ public enum EquipmentAbilityTimingKind
     BeforeHit,
     AfterHit,
     AfterKill,
-    AfterBattle,
     AfterSkill,
     AfterTurn,
     BeforeDamage,
@@ -185,7 +183,6 @@ public sealed class EquipmentAbilityContentPackDefinition
     public IReadOnlyList<StringName> Dependencies { get; init; } = Array.Empty<StringName>();
     public IReadOnlyList<EquipmentAbilityBindingDefinition> Bindings { get; init; } =
         Array.Empty<EquipmentAbilityBindingDefinition>();
-    public string ResourcePath { get; init; } = "";
 }
 
 public sealed class EquipmentAbilityBindingDefinition
@@ -225,7 +222,6 @@ public sealed class EquipmentAbilityBindingDefinition
         Array.Empty<EquipmentWeaponProfileOverlayDefinition>();
     public IReadOnlyList<EquipmentWorldEffectDefinition> WorldEffects { get; init; } =
         Array.Empty<EquipmentWorldEffectDefinition>();
-    public string ResourcePath { get; init; } = "";
 }
 
 public sealed class EquipmentAbilityReactionDefinition
@@ -683,14 +679,6 @@ public sealed class ConsumeStatusStacksActionPayloadDefinition
     public StringName SelectionMode { get; init; } = "highest_stacks";
 }
 
-public sealed class GrantSkillActionPayloadDefinition
-    : EquipmentAbilityActionPayloadDefinition
-{
-    public StringName SkillId { get; init; } = "";
-    public int SkillLevel { get; init; }
-    public StringName AvailabilityStateKey { get; init; } = "";
-}
-
 public sealed class SummonUnitsActionPayloadDefinition
     : EquipmentAbilityActionPayloadDefinition
 {
@@ -815,7 +803,6 @@ public sealed class EquipmentGrantedActionDefinition
     public StringName DisplayCategory { get; init; } = "";
     public int DisplayPriority { get; init; }
     public EquipmentConditionGroupDefinition AvailabilityConditions { get; init; }
-    public string ResourcePath { get; init; } = "";
 }
 
 public sealed class EquipmentWeaponProfileOverlayDefinition
@@ -837,7 +824,6 @@ public sealed class EquipmentWeaponProfileOverlayDefinition
     public StringName GripOverride { get; init; } = "";
     public bool UsesTwoHandsOverride { get; init; }
     public bool IsVersatileOverride { get; init; }
-    public string ResourcePath { get; init; } = "";
 }
 
 public sealed class EquipmentWeaponDiceOverlayDefinition
@@ -927,7 +913,8 @@ public sealed class EquipmentAbilityHandlerSpec
     public int HandlerVersion { get; init; } = 1;
     public EquipmentAbilityHandlerOriginKind Origin { get; init; } =
         EquipmentAbilityHandlerOriginKind.Builtin;
-    public Type PayloadResourceType { get; init; }
+    public Type PayloadJsonDtoType { get; init; }
+    public Type PayloadImportModelType { get; init; }
     public Type PayloadDefinitionType { get; init; }
     public EquipmentAbilityMutationPolicyKind MutationPolicy { get; init; }
     public IReadOnlyList<EquipmentAbilityConsumerSupportSpec> ConsumerSupport { get; init; } =

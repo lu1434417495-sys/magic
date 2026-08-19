@@ -63,19 +63,12 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
         if (!fixture.ItemDefs.ContainsKey(FlameItemId))
             return;
 
-        ItemDef rawFlame = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_morningstar_flame.tres"
-        );
+        ItemDefinition rawFlame = TestItemDefinitionLookup.GetProductionItem("weapon_unique_morningstar_flame_208");
         _test.True(rawFlame != null, "火焰晨星原始资源应能加载。");
         if (rawFlame != null)
         {
-            _test.Eq(rawFlame.display_name, "火焰晨星", "火焰晨星显示名应来自设计源。");
-            _test.Eq(
-                rawFlame.base_item_id,
-                new StringName("weapon_type_morningstar_base"),
-                "火焰晨星应继承 morningstar 模板。"
-            );
-            _test.Eq(rawFlame.base_price, 48000, "火焰晨星基础价格应为 48000。");
+            _test.Eq(rawFlame.DisplayName, "火焰晨星", "火焰晨星显示名应来自设计源。");
+            _test.Eq(rawFlame.BasePrice, 48000, "火焰晨星基础价格应为 48000。");
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");

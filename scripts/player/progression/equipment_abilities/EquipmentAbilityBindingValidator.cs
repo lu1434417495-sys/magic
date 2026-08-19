@@ -22,7 +22,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     internal void ValidateBinding(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> loadedBindings,
         List<string> errors
@@ -114,7 +114,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateRequiredEffectiveTraits(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
@@ -163,7 +163,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateSourceKinds(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
@@ -188,7 +188,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateActivationSource(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
@@ -222,13 +222,13 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static HashSet<StringName> ValidateStateSchemas(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
         var keys = new HashSet<StringName>();
-        foreach (EquipmentAbilityStateSchemaDef schema in binding.state_schemas)
+        foreach (EquipmentAbilityStateSchemaImportModel schema in binding.state_schemas)
         {
             if (schema == null)
                 continue;
@@ -265,13 +265,13 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
             }
         }
-        foreach (EquipmentAbilityStateSchemaDef schema in binding.state_schemas)
+        foreach (EquipmentAbilityStateSchemaImportModel schema in binding.state_schemas)
             ValidateStateSchemaSync(schema, keys, path, errors);
         return keys;
     }
 
     private static void ValidateStateSchemaSync(
-        EquipmentAbilityStateSchemaDef schema,
+        EquipmentAbilityStateSchemaImportModel schema,
         HashSet<StringName> declaredStateKeys,
         string bindingPath,
         List<string> errors
@@ -359,13 +359,13 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateTemporalProgressModifiers(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
         var seenIds = new HashSet<StringName>();
-        foreach (EquipmentTemporalProgressModifierDef modifier in binding.temporal_progress_modifiers)
+        foreach (EquipmentTemporalProgressModifierImportModel modifier in binding.temporal_progress_modifiers)
         {
             if (modifier == null)
                 continue;
@@ -445,7 +445,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateCognitionCeilingModifiers(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
@@ -453,7 +453,7 @@ internal sealed class EquipmentAbilityBindingValidator
             EquipmentAbilityContentRegistry.BindingPath(binding);
         var seenIds = new HashSet<StringName>();
         foreach (
-            EquipmentCognitionCeilingModifierDef modifier
+            EquipmentCognitionCeilingModifierImportModel modifier
             in binding.cognition_ceiling_modifiers
         )
         {
@@ -504,13 +504,13 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateReactions(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
         List<string> errors
     )
     {
-        foreach (EquipmentAbilityReactionDef reaction in binding.reactions)
+        foreach (EquipmentAbilityReactionImportModel reaction in binding.reactions)
         {
             if (reaction == null)
                 continue;
@@ -554,7 +554,7 @@ internal sealed class EquipmentAbilityBindingValidator
             );
             ValidateProjectedEffectCategories(reaction, path, errors);
 
-            foreach (EquipmentAbilityActionDef action in reaction.actions)
+            foreach (EquipmentAbilityActionImportModel action in reaction.actions)
             {
                 ValidateAction(action, path, context, declaredStateKeys, trigger, errors);
             }
@@ -570,7 +570,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateProjectedEffectCategories(
-        EquipmentAbilityReactionDef reaction,
+        EquipmentAbilityReactionImportModel reaction,
         string path,
         List<string> errors
     )
@@ -621,7 +621,10 @@ internal sealed class EquipmentAbilityBindingValidator
 
         var required = new HashSet<StringName>();
         AppendRequiredProjectedEffectCategories(reaction.actions, required);
-        foreach (EquipmentOutcomeEntryDef entry in reaction.outcome_table?.entries ?? new())
+        foreach (
+            EquipmentOutcomeEntryImportModel entry
+            in reaction.outcome_table?.entries ?? Array.Empty<EquipmentOutcomeEntryImportModel>()
+        )
             AppendRequiredProjectedEffectCategories(entry?.actions, required);
         foreach (StringName category in required)
         {
@@ -637,15 +640,15 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void AppendRequiredProjectedEffectCategories(
-        IEnumerable<EquipmentAbilityActionDef> actions,
+        IEnumerable<EquipmentAbilityActionImportModel> actions,
         HashSet<StringName> required
     )
     {
         if (actions == null || required == null)
             return;
-        foreach (EquipmentAbilityActionDef action in actions)
+        foreach (EquipmentAbilityActionImportModel action in actions)
         {
-            if (action?.payload is AddDamageDiceActionPayloadDef bonusDamage)
+            if (action?.payload is AddDamageDiceActionPayloadImportModel bonusDamage)
             {
                 AppendRequiredProjectedDamageCategories(
                     bonusDamage.damage_type,
@@ -653,7 +656,7 @@ internal sealed class EquipmentAbilityBindingValidator
                     required
                 );
             }
-            else if (action?.payload is DealDamageActionPayloadDef directDamage)
+            else if (action?.payload is DealDamageActionPayloadImportModel directDamage)
             {
                 AppendRequiredProjectedDamageCategories(
                     directDamage.damage_type,
@@ -661,7 +664,7 @@ internal sealed class EquipmentAbilityBindingValidator
                     required
                 );
             }
-            else if (action?.payload is ApplyStatusActionPayloadDef status)
+            else if (action?.payload is ApplyStatusActionPayloadImportModel status)
             {
                 AppendRequiredProjectedCategories("", status.save_tag, required);
             }
@@ -670,12 +673,12 @@ internal sealed class EquipmentAbilityBindingValidator
 
     private static void AppendRequiredProjectedDamageCategories(
         StringName damageType,
-        IEnumerable<StringName> damageTags,
+        IEnumerable<string> damageTags,
         HashSet<StringName> required
     )
     {
         AppendRequiredProjectedCategories(damageType, "", required);
-        foreach (StringName damageTag in damageTags ?? Array.Empty<StringName>())
+        foreach (string damageTag in damageTags ?? Array.Empty<string>())
             AppendRequiredProjectedCategories(damageTag, "", required);
     }
 
@@ -699,7 +702,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateConditionGroup(
-        EquipmentAbilityConditionGroupDef group,
+        EquipmentAbilityConditionGroupImportModel group,
         string path,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
@@ -707,7 +710,7 @@ internal sealed class EquipmentAbilityBindingValidator
     {
         if (group == null)
             return;
-        foreach (EquipmentAbilityConditionDef condition in group.conditions)
+        foreach (EquipmentAbilityConditionImportModel condition in group.conditions)
         {
             if (condition == null)
                 continue;
@@ -722,7 +725,7 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
                 continue;
             }
-            if (condition.payload == null || !spec.PayloadResourceType.IsInstanceOfType(condition.payload))
+            if (condition.payload == null || !spec.PayloadImportModelType.IsInstanceOfType(condition.payload))
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
@@ -732,7 +735,7 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
                 continue;
             }
-            if (condition.payload is HasStatusConditionPayloadDef statusPayload)
+            if (condition.payload is HasStatusConditionPayloadImportModel statusPayload)
             {
                 ValidateStatusReference(
                     statusPayload.status_id,
@@ -741,7 +744,7 @@ internal sealed class EquipmentAbilityBindingValidator
                     errors
                 );
             }
-            else if (condition.payload is CompareFactConditionPayloadDef comparePayload)
+            else if (condition.payload is CompareFactConditionPayloadImportModel comparePayload)
             {
                 ValidateFactQuery(
                     comparePayload.left,
@@ -757,15 +760,15 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
             }
         }
-        foreach (Resource childResource in group.groups)
+        foreach (EquipmentAbilityConditionGroupImportModel child in group.groups)
         {
-            if (childResource is not EquipmentAbilityConditionGroupDef child)
+            if (child == null)
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
                     "EQA_CONDITION_GROUP_TYPE_INVALID",
                     $"{path}.groups",
-                    "nested condition group must use EquipmentAbilityConditionGroupDef"
+                    "nested condition group must not be null"
                 );
                 continue;
             }
@@ -774,7 +777,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateAction(
-        EquipmentAbilityActionDef action,
+        EquipmentAbilityActionImportModel action,
         string reactionPath,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
@@ -795,7 +798,7 @@ internal sealed class EquipmentAbilityBindingValidator
             );
             return;
         }
-        if (action.payload == null || !spec.PayloadResourceType.IsInstanceOfType(action.payload))
+        if (action.payload == null || !spec.PayloadImportModelType.IsInstanceOfType(action.payload))
         {
             EquipmentAbilityContentRegistry.AddError(
                 errors,
@@ -806,99 +809,85 @@ internal sealed class EquipmentAbilityBindingValidator
             return;
         }
         ValidateStateAccessContracts(spec.StateAccess, action.payload, declaredStateKeys, path, errors);
-        if (trigger == EquipmentAbilityTriggerKind.OnBattleEnd && spec.MutationPolicy == EquipmentAbilityMutationPolicyKind.Mutating)
-        {
-            EquipmentAbilityContentRegistry.AddError(
-                errors,
-                "EQA_BATTLE_END_MUTATION_UNSUPPORTED",
-                path,
-                "on_battle_end mutating actions require staged commit fields not present in the V1 static gate"
-            );
-        }
 
         switch (action.payload)
         {
-            case AddDamageDiceActionPayloadDef payload:
+            case AddDamageDiceActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAddDamageDicePayload(payload, context, path, errors);
                 break;
-            case ImmediateWeaponAttackActionPayloadDef payload:
+            case ImmediateWeaponAttackActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateImmediateWeaponAttackPayload(payload, context, path, errors);
                 break;
-            case DealDamageActionPayloadDef payload:
+            case DealDamageActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDealDamagePayload(payload, context, path, errors);
                 break;
-            case HealActionPayloadDef payload:
+            case HealActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateHealPayload(payload, path, errors);
                 break;
-            case HealFromFactActionPayloadDef payload:
+            case HealFromFactActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateHealFromFactPayload(payload, context, path, errors);
                 break;
-            case AttackRollBonusActionPayloadDef payload:
+            case AttackRollBonusActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAttackRollBonusPayload(payload, path, errors);
                 break;
-            case AttackRollAdvantageActionPayloadDef payload:
+            case AttackRollAdvantageActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAttackRollAdvantagePayload(payload, path, errors);
                 break;
-            case CriticalHitOverrideActionPayloadDef payload:
+            case CriticalHitOverrideActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateCriticalHitOverridePayload(payload, path, errors);
                 break;
-            case EquipmentAttackDefenseModifierDef payload:
+            case EquipmentAttackDefenseModifierImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAttackDefenseModifierPayload(payload, path, errors);
                 break;
-            case DamageRollModeOverrideActionPayloadDef payload:
+            case DamageRollModeOverrideActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDamageRollModeOverridePayload(payload, path, errors);
                 break;
-            case DamageReductionActionPayloadDef payload:
+            case DamageReductionActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDamageReductionPayload(payload, context, path, errors);
                 break;
-            case LootQuantityMultiplierActionPayloadDef payload:
+            case LootQuantityMultiplierActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateLootQuantityMultiplierPayload(payload, path, errors);
                 break;
-            case ApplyStatusActionPayloadDef payload:
+            case ApplyStatusActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateApplyStatusPayload(payload, context, path, errors);
                 break;
-            case ModifyActionPointsActionPayloadDef payload:
+            case ModifyActionPointsActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateModifyActionPointsPayload(payload, context, path, errors);
                 break;
-            case ScheduleAreaEffectActionPayloadDef payload:
+            case ScheduleAreaEffectActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateScheduleAreaEffectPayload(payload, context, path, errors);
                 break;
-            case ApplyBattleTerrainEffectAfterCheckActionPayloadDef payload:
+            case ApplyBattleTerrainEffectAfterCheckActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateApplyBattleTerrainEffectAfterCheckPayload(payload, path, errors);
                 break;
-            case ApplyEdgeFeatureActionPayloadDef payload:
+            case ApplyEdgeFeatureActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateApplyEdgeFeaturePayload(payload, path, errors);
                 break;
-            case ModifyAbilityStateActionPayloadDef payload:
+            case ModifyAbilityStateActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateModifyAbilityStatePayload(payload, path, errors);
                 break;
-            case MarkTargetActionPayloadDef payload:
+            case MarkTargetActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateMarkTargetPayload(payload, context, path, errors);
                 break;
-            case ClearStatusActionPayloadDef payload:
+            case ClearStatusActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateClearStatusPayload(payload, context, path, errors);
                 break;
-            case TriggerSkillActionPayloadDef payload:
+            case TriggerSkillActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateTriggerSkillPayload(payload, context, path, errors);
                 break;
-            case GrantSkillActionPayloadDef payload:
-                ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
-                if (payload.skill_id == "" || payload.skill_level <= 0)
-                    EquipmentAbilityContentRegistry.AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "grant_skill requires skill_id and positive skill_level");
-                break;
-            case SummonUnitsActionPayloadDef payload:
+            case SummonUnitsActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateSummonUnitsPayload(payload, context, path, errors);
                 break;
-            case ConsumeSummonedUnitsActionPayloadDef payload:
+            case ConsumeSummonedUnitsActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateConsumeSummonedUnitsPayload(payload, path, errors);
                 break;
-            case ConsumeStatusStacksActionPayloadDef payload:
+            case ConsumeStatusStacksActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateConsumeStatusStacksPayload(payload, context, path, errors);
                 break;
-            case SummonedUnitAttackRollModifierActionPayloadDef payload:
+            case SummonedUnitAttackRollModifierActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateSummonedUnitAttackRollModifierPayload(payload, path, errors);
                 break;
-            case EquipmentDurabilityDamageActionPayloadDef payload:
+            case EquipmentDurabilityDamageActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDurabilityPayload(payload, context, path, errors);
                 break;
         }
@@ -906,7 +895,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateOutcomeTable(
-        EquipmentOutcomeTableDef table,
+        EquipmentOutcomeTableImportModel table,
         string path,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
@@ -917,7 +906,7 @@ internal sealed class EquipmentAbilityBindingValidator
         if (table == null)
             return;
         int index = 0;
-        foreach (EquipmentOutcomeEntryDef entry in table.entries)
+        foreach (EquipmentOutcomeEntryImportModel entry in table.entries)
         {
             if (entry == null)
             {
@@ -925,7 +914,7 @@ internal sealed class EquipmentAbilityBindingValidator
                 continue;
             }
             string entryPath = $"{path}.entries[{index}]";
-            foreach (EquipmentAbilityActionDef action in entry.actions)
+            foreach (EquipmentAbilityActionImportModel action in entry.actions)
                 ValidateAction(action, entryPath, context, declaredStateKeys, trigger, errors);
             index++;
         }
@@ -933,7 +922,7 @@ internal sealed class EquipmentAbilityBindingValidator
 
     private static void ValidateStateAccessContracts(
         EquipmentAbilityStateAccessSpec stateAccess,
-        Resource payload,
+        IEquipmentAbilityPayloadImportModel payload,
         HashSet<StringName> declaredStateKeys,
         string path,
         List<string> errors
@@ -949,7 +938,7 @@ internal sealed class EquipmentAbilityBindingValidator
 
     private static void ValidateStateAccessContracts(
         IReadOnlyList<EquipmentAbilityStateContract> contracts,
-        Resource payload,
+        IEquipmentAbilityPayloadImportModel payload,
         HashSet<StringName> declaredStateKeys,
         string path,
         List<string> errors
@@ -971,7 +960,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateFatalIntercepts(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
         List<string> errors
@@ -981,8 +970,8 @@ internal sealed class EquipmentAbilityBindingValidator
         var seenIds = new HashSet<StringName>();
         var seenOrders = new HashSet<int>();
         foreach (
-            EquipmentFatalInterceptDef intercept
-            in binding.fatal_intercepts ?? new Godot.Collections.Array<EquipmentFatalInterceptDef>()
+            EquipmentFatalInterceptImportModel intercept
+            in binding.fatal_intercepts ?? Array.Empty<EquipmentFatalInterceptImportModel>()
         )
         {
             if (intercept == null)
@@ -1130,9 +1119,9 @@ internal sealed class EquipmentAbilityBindingValidator
 
             int actionIndex = 0;
             foreach (
-                EquipmentAbilityActionDef action
+                EquipmentAbilityActionImportModel action
                 in intercept.success_actions
-                    ?? new Godot.Collections.Array<EquipmentAbilityActionDef>()
+                    ?? Array.Empty<EquipmentAbilityActionImportModel>()
             )
             {
                 string actionPath = $"{path}.success_actions[{actionIndex}]";
@@ -1163,16 +1152,16 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateMitigationAuras(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
         string bindingPath = EquipmentAbilityContentRegistry.BindingPath(binding);
         var seenIds = new HashSet<StringName>();
         foreach (
-            EquipmentMitigationAuraDef aura
+            EquipmentMitigationAuraImportModel aura
             in binding.mitigation_auras
-                ?? new Godot.Collections.Array<EquipmentMitigationAuraDef>()
+                ?? Array.Empty<EquipmentMitigationAuraImportModel>()
         )
         {
             if (aura == null)
@@ -1234,7 +1223,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateMovementTrails(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
@@ -1242,9 +1231,9 @@ internal sealed class EquipmentAbilityBindingValidator
         string bindingPath = EquipmentAbilityContentRegistry.BindingPath(binding);
         var seenIds = new HashSet<StringName>();
         foreach (
-            EquipmentMovementTrailDef trail
+            EquipmentMovementTrailImportModel trail
             in binding.movement_trails
-                ?? new Godot.Collections.Array<EquipmentMovementTrailDef>()
+                ?? Array.Empty<EquipmentMovementTrailImportModel>()
         )
         {
             if (trail == null)
@@ -1307,8 +1296,8 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
             }
             foreach (
-                StringName damageTag
-                in trail.damage_tags ?? new Godot.Collections.Array<StringName>()
+                string damageTag
+                in trail.damage_tags ?? Array.Empty<string>()
             )
             {
                 if (DamageTagContentRules.ToDamageTagKind(damageTag) != DamageTagKind.Unknown)
@@ -1333,7 +1322,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateFatalInterceptRollGate(
-        EquipmentRollGateDef rollGate,
+        EquipmentRollGateImportModel rollGate,
         string path,
         List<string> errors
     )
@@ -1369,7 +1358,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateFatalInterceptDice(
-        DiceExpressionDef dice,
+        DiceExpressionImportModel dice,
         string path,
         List<string> errors
     )
@@ -1395,7 +1384,7 @@ internal sealed class EquipmentAbilityBindingValidator
         }
         long totalDice = 0;
         long maximum = Math.Max(dice.flat_bonus, 0);
-        foreach (DiceExpressionTermDef term in dice.terms)
+        foreach (DiceExpressionTermImportModel term in dice.terms)
         {
             if (
                 term == null
@@ -1429,14 +1418,14 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateGrantedActions(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
         var seen = new HashSet<StringName>();
-        foreach (EquipmentGrantedActionDef grant in binding.granted_actions)
+        foreach (EquipmentGrantedActionImportModel grant in binding.granted_actions)
         {
             if (grant == null)
                 continue;
@@ -1516,13 +1505,13 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateWeaponProfileOverlays(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
-        foreach (EquipmentWeaponProfileOverlayDef overlay in binding.weapon_profile_overlays)
+        foreach (EquipmentWeaponProfileOverlayImportModel overlay in binding.weapon_profile_overlays)
         {
             if (overlay == null)
                 continue;
@@ -1537,14 +1526,14 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateWorldEffects(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
-        foreach (EquipmentWorldEffectDef effect in binding.world_effects)
+        foreach (EquipmentWorldEffectImportModel effect in binding.world_effects)
         {
             if (effect == null)
                 continue;
@@ -1577,7 +1566,7 @@ internal sealed class EquipmentAbilityBindingValidator
                 context,
                 errors
             );
-            foreach (EquipmentAbilityActionDef action in effect.actions)
+            foreach (EquipmentAbilityActionImportModel action in effect.actions)
                 ValidateAction(action, effectPath, context, declaredStateKeys, trigger, errors);
         }
     }
@@ -1601,7 +1590,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     internal static void ValidateFactQuery(
-        EquipmentAbilityFactQueryDef query,
+        EquipmentAbilityFactQueryImportModel query,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1609,6 +1598,53 @@ internal sealed class EquipmentAbilityBindingValidator
     {
         if (query == null)
             return;
+        if (!EquipmentAbilityClosedVocabulary.IsKnownFactQueryKind(query.query_kind))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_QUERY_KIND_UNKNOWN",
+                $"{path}.query_kind",
+                $"fact query kind {query.query_kind} is not registered"
+            );
+            return;
+        }
+        if (query.query_kind == "fact" && !EquipmentAbilityClosedVocabulary.IsKnownFactId(query.fact_id))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_ID_UNKNOWN",
+                $"{path}.fact_id",
+                $"fact_id {query.fact_id} is not registered"
+            );
+            return;
+        }
+        if (!EquipmentAbilityClosedVocabulary.IsKnownFactSubject(query.subject))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_SUBJECT_UNKNOWN",
+                $"{path}.subject",
+                $"fact subject {query.subject} is not registered"
+            );
+        }
+        if (!EquipmentAbilityClosedVocabulary.IsKnownFactAggregation(query.aggregation))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_AGGREGATION_UNKNOWN",
+                $"{path}.aggregation",
+                $"fact aggregation {query.aggregation} is not registered"
+            );
+        }
+        if (!EquipmentAbilityClosedVocabulary.IsKnownFactValueKind(query.value_kind))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_VALUE_KIND_UNKNOWN",
+                $"{path}.value_kind",
+                $"fact value kind {query.value_kind} is not registered"
+            );
+        }
         if (query.fact_id == "status_stacks" || query.fact_id == "source_status_total_stacks")
         {
             ValidateStatusReference(query.status_id, context, $"{path}.status_id", errors);

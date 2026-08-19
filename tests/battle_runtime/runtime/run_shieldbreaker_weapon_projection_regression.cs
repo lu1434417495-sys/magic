@@ -82,17 +82,10 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
         if (!content.ItemDefs.ContainsKey(ShieldbreakerItemId))
             return;
 
-        ItemDef rawShieldbreaker = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_shieldbreaker.tres"
-        );
+        ItemDefinition rawShieldbreaker = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_shieldbreaker_098");
         _test.True(rawShieldbreaker != null, "碎盾原始资源应能加载。");
         if (rawShieldbreaker != null)
         {
-            _test.Eq(
-                rawShieldbreaker.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "碎盾原始资源应声明继承 greataxe 模板。"
-            );
         }
 
         ItemDefinition shieldbreaker = content.ItemDefs[ShieldbreakerItemId];
@@ -298,7 +291,6 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
     private void AssertShieldbreakerItemContent(ItemDefinition item)
     {
         _test.Eq(item.DisplayName, "碎盾", "碎盾 display_name 应来自真实内容。");
-        _test.Eq(item.BaseItemId, new StringName(""), "碎盾 resolved item 应已完成模板合并。");
         _test.True(item.IsWeapon(), "碎盾 resolved item 应继承 weapon equipment 类型。");
         _test.Eq(
             item.GetWeaponPhysicalDamageTag(),
