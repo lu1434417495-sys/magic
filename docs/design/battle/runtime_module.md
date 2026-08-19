@@ -370,8 +370,8 @@ AI 决策必须使用 snapshot/value object：
 - `internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplateIndexTyped() =>`
 - `internal EnemyTemplateDef GetEnemyTemplateTyped(StringName templateId)`
 - `internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainIndexTyped() =>`
-- `internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefIndexTyped() => _itemDefIndex;`
-- `internal Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotTyped()`
+- `internal IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefIndexTyped() => _itemDefIndex;`
+- `internal Dictionary<StringName, ItemDefinition> BuildItemDefIndexSnapshotTyped()`
 - `internal int GetMinBattleSurfaceHeight() => MIN_BATTLE_SURFACE_HEIGHT;`
 - `internal Dictionary<StringName, BattleRatingMemberStats> GetBattleRatingStatsTyped() =>`
 - `internal GDictionary get_battle_rating_stats()`

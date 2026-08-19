@@ -12,6 +12,7 @@
 ## 平台与生命周期
 
 - [`platform/godotsharp_lifecycle.md`](platform/godotsharp_lifecycle.md)：进程内容根、plain C# 快照、投影租约和退出屏障。
+- [`foundations/content_json_authoring.md`](foundations/content_json_authoring.md)：已迁移内容域的 JSON 导入、schema、离线校验与生成闭包边界。
 
 ## 世界与据点
 

@@ -1,20 +1,20 @@
 # 装备套装系统当前实现
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-08-12`
+> 核对日期：`2026-08-19`
 
 ## 定位
 
 套装是装备视图上的派生规则，不是新的持久装备类型。原装备实例、槽位、耐久、物品 ID 和价格继续由 `EquipmentState` / `EquipmentInstanceState` / `ItemDefinition` 拥有；套装只根据当前有效装备计算成员数、阈值属性和阈值 trait。
 
-当前正式内容目录是 `res://data/configs/gear_sets/**/*.tres`。`GearSetContentRegistry` 在进程内容构建期把 `GearSetDef` / `GearSetThresholdDef` 投影为只读 `GearSetDefinition`，并由 `ContentSnapshot` 和 `GameContentCatalog` 发布。运行期不保留 raw Resource。
+当前正式内容是 `data/configs/json/gear_sets/phoenix_rebirth_set.json`。`GearSetContentJsonAuthoringDomain` 经 strict DTO、plain ImportModel 和 domain validator 导入；`GearSetDefinitionProjector` 投影只读 `GearSetDefinition`，再由 `GearSetContentRegistry`、`ContentSnapshot` 和 `GameContentCatalog` 发布。production 不保留 gear-set Resource、adapter 或路径 provenance。
 
 ## 所有权与主链
 
 | 层 | 当前 owner | 职责 |
 |---|---|---|
-| Authoring | `GearSetDef`、`GearSetThresholdDef` | 成员、阈值、必需成员、阈值属性、阈值 trait、usage 锚点 |
-| 加载与校验 | `GearSetContentRegistry` | 校验 ID、成员物品、阈值顺序、trait 引用和锚点，并投影 immutable definition |
+| Authoring | `GearSetJsonContent` 的 strict DTO / plain ImportModel | 成员、阈值、必需成员、阈值属性、阈值 trait、usage 锚点 |
+| 加载与校验 | `GearSetContentJsonAuthoringDomain`、`GearSetContentRegistry` | 校验本域结构与阈值顺序，再用 item/trait/equipment-binding definition 索引验证跨域 ID，投影 immutable definition |
 | 进程内容 | `ContentSnapshot`、`GameContentCatalog` | 发布套装 definition 索引 |
 | 角色聚合 | `GearSetEvaluationService`、`CharacterTraitService`、`CharacterManagementModule` | 按当前装备视图计算阈值，合并属性与有效 trait |
 | 战斗投影 | `BattleUnitFactory`、`BattleEquipmentAbilityProjectionService` | 将阈值 trait 投影为 `PlayerPersistentGearSetThreshold` 能力来源 |
@@ -23,8 +23,9 @@
 | 获取转移 | `SettlementShopService`、`GameRuntimeFacade.BattleLootPort` | 在商店刷新、买卖和随机装备掉落中转移既有实例，不重新生成凤凰成员 |
 
 ```text
-GearSetDef
-  -> GearSetContentRegistry
+gear-set JSON
+  -> GearSetContentJsonAuthoringDomain
+  -> GearSetDefinitionProjector / GearSetContentRegistry
   -> ContentSnapshot / GameContentCatalog
   -> GearSetEvaluationService(current EquipmentState)
   -> threshold attributes + gear_set_threshold traits
@@ -37,7 +38,7 @@ GearSetDef
 - 耐久归零的装备不计入套装成员。
 - 阈值结构由各套装自己声明，不要求统一为 2/4、3/5/7/10 或其他固定形状；达到高阈值时，已达到的低阈值继续生效。
 - `mandatory_member_item_ids` 非空时，件数和必需成员必须同时满足。
-- 纯静态阈值属性直接 authored 在 `GearSetThresholdDef.attribute_modifiers`，Resource→Definition 投影会强制把来源规范为 `gear_set` / `gear_set::<set_id>::<threshold_id>`；需要抗性、豁免、状态或装备能力的阈值才授予 trait。同一阈值的直接属性不能与其授予 trait 重复声明同一 `attribute_id`。
+- 纯静态阈值属性写在 JSON threshold 的 `attribute_modifiers`；Definition projector 把来源规范为 `gear_set` / `gear_set::<set_id>::<threshold_id>`。需要抗性、豁免、状态或装备能力的阈值才授予 trait；同一阈值的直接属性不能与其授予 trait 重复声明同一 `attribute_id`。
 - 阈值 trait 的稳定实例键为 `gear_set::<set_id>::<threshold_id>::<trait_id>`，来源类型固定为 `GearSetThreshold`。
 - 需要保存 usage 的阈值能力绑定到一个真实装备实例。优先使用仍装备且有效的 `usage_anchor_item_id`；否则按套装成员配置顺序选择首个有效成员。
 - 战斗内换装通过 `BattleUnitFactory.RefreshEquipmentProjection(...)` 重新计算属性、trait 和装备能力来源。阈值失效后不保留其派生来源；最大生命下降沿现有资源钳制规则处理。
@@ -60,7 +61,7 @@ GearSetDef
 
 太阳涅槃的基础 command preview 单独展示治疗、伤害与目标结果；随后在新的 detached battle 子集上投影装备技能 after-use，清除余烬、施加金焰及对应后置动作通过 reaction action previews / `source_preview_after` 可见，canonical battle state 与每日账本保持不变。`source_preview_after` 只表示装备 reaction 后的来源单位，不合并基础技能自身的 HP/status 变化。致死预览同样公开凤凰候选的有序概率与条件成功动作；带 saving throw 的分支不会因平均伤害不致死而丢失候选。连续伤害段会延续每条分支的凤凰免死 usage；披风概率复活的成功分支会先写入 detached 的 `low_hp_burst_used`，再进入下一段，因此不会重复爆发。
 
-单件方面，当前已落地十个真实 `ItemDef`、对应装备能力 trait、内部/授予技能与 typed 状态。原物品 ID、槽位、价格和基础属性不变；空间距离统一使用格，持续时间统一使用 TU。
+单件方面，当前已落地十个正式 item JSON definition、对应装备能力 trait、内部/授予技能与 typed 状态。原物品 ID、槽位、价格和基础属性不变；空间距离统一使用格，持续时间统一使用 TU。
 
 | 单件 | 槽位 | 基础价格 | 当前 typed 基础属性/被动 |
 |---|---|---:|---|

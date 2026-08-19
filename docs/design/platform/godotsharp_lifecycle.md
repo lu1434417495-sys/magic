@@ -2,12 +2,16 @@
 
 日期：2026-07-10
 状态：`Current / Implemented`，已完成 Phase 6 累计验收
-核对日期：2026-07-17
+核对日期：2026-08-19
 决策：采用方案 B——进程内容根、plain C# 内容快照、短生命周期投影租约与显式退出屏障
 
 版本注记（2026-07-23）：本文中的 version 12 是 2026-07-10 生命周期迁移的历史验收基线，
 不是当前存档版本。显式 `BattleEncounter` / encounter anchor schema 落地后，当前 save/index
 版本为 `16 / 4`，并按项目兼容策略严格拒绝旧版本，不提供 migration 或 fallback。
+
+内容源注记（2026-08-19）：skills 及阶段 4 的 items、traits、equipment abilities、gear sets、recipes
+已改为 strict JSON direct-load；下文提到 raw `.tres` root 时只表示尚未迁移的 legacy content domain
+与 engine asset。已迁移 domain 的 process root 是 plain ImportModel/Definition graph，不保留 authoring Resource。
 
 ## 问题
 
@@ -55,8 +59,8 @@ finalizer drain”。
 
 1. 在 Godot native runtime 仍存活时，按确定顺序关闭所有项目 owner，再执行唯一一次最终 GC
    barrier，最后请求 `SceneTree.Quit`。
-2. `.tres` 继续作为 Godot 编辑器 authoring 格式；runtime 只消费 immutable typed C# content
-   snapshot，不长期持有业务 Resource。
+2. 每个 domain 明确拥有 authoring 格式：已迁移 domain 使用 strict JSON，剩余 legacy domain 可继续
+   使用 `.tres`；runtime 一律只消费 immutable typed C# content snapshot，不长期持有业务 Resource。
 3. runtime/save state 和 runtime service 由 plain C# class/collection owner 承载；Godot collections
    只存在于 save、UI、trace、资源导入和 Godot API 的短期投影边界。
 4. 每个 runtime-created Resource、Godot collection 和 native utility 都能追溯到一个显式 owner
@@ -126,8 +130,8 @@ session recreate，并且 wrapper 与内存会随 catalog/query/battle 次数增
 
 ### 方案 B：进程内容根 + plain snapshot + lease + pre-quit barrier
 
-保留 `.tres` authoring，由一个进程 owner 持有 canonical raw content root；加载后立即投影成
-immutable plain snapshot。runtime-created native wrapper 进入短期 lease，process shutdown 在
+保留 domain-owned authoring source，由一个进程 owner 持有 canonical JSON import graph 或尚未迁移的
+raw Resource root；加载后立即投影成 immutable plain snapshot。runtime-created native wrapper 进入短期 lease，process shutdown 在
 Godot 存活时完成 owner teardown 和 GC barrier。该方案能分阶段落地，并复用当前 typed migration。
 
 ### 方案 C：离线编译全部业务 `.tres`
@@ -148,7 +152,7 @@ Godot 存活时完成 owner teardown 和 GC barrier。该方案能分阶段落�
 2. 一个对象同一时刻只有一个实际 owner；registry 是弱引用诊断表，不是 owner。
 3. owner 先清空所有 borrower 引用，再释放 owned wrapper。
 4. session/battle/request/projection scope 不得吞入 path-backed process content。
-5. raw `.tres` immutable；默认值归一化、merge 和 derived calculation 发生在 plain projection。
+5. raw authoring source immutable；默认值归一化、展开和 derived calculation 发生在 plain import/projection。
 6. runtime state graph 不含 `Resource`、Godot Array/Dictionary 或 `Variant.Type.Object`。plain C#
    owner 可以保存下文明确允许的 Godot value type，但不能因此变成 GodotObject owner。
 7. 只有 `ApplicationLifetimeCoordinator` 可以执行 process shutdown 和最终 `SceneTree.Quit`。
@@ -789,6 +793,6 @@ coordinator participant、测试退出/量测 helper 与累计 lifecycle gate �
 - 最终状态不保留 project-level Godot wrapper suppress fallback。
 - V1 无运行时内容热重载。
 - 生命周期架构不自行改变 save schema；当前正式 save/index 为 `16 / 4`，旧版本无兼容路径。
-- raw `.tres` 是 immutable authoring source，runtime 只消费 plain snapshot。
+- strict JSON 或尚未迁移的 raw `.tres` 是 immutable authoring source，runtime 只消费 plain snapshot。
 - process shutdown 必须在 Godot 存活时完成 owner drain 与 GC barrier。
 - 完整实施拆成五个顺序阶段，每阶段单独计划、直接实现、验证和提交；本轮生命周期整改不要求 TDD。

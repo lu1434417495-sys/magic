@@ -1,9 +1,9 @@
 # 角色成长与 CharacterManagement 模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-29`
+> 核对日期：`2026-08-19`
 
-更新日期：`2026-07-29`
+更新日期：`2026-08-19`
 
 ## 目标与边界
 
@@ -134,11 +134,12 @@ godot --headless -s res://tests/text_runtime/headless/run_text_command_party_bat
 
 setup 后应建立并持有以下 typed 索引：
 
-- `Dictionary<StringName, SkillDef>`。
-- `Dictionary<StringName, ProfessionDef>`。
-- `Dictionary<StringName, AchievementDef>`。
-- `Dictionary<StringName, ItemDef>`。
-- `Dictionary<StringName, QuestDef>`。
+- `IReadOnlyDictionary<StringName, SkillDefinition>`。
+- `Dictionary<StringName, ProfessionDefinition>`。
+- `Dictionary<StringName, AchievementDefinition>`。
+- `Dictionary<StringName, ItemDefinition>`，并只向 consumer 暴露只读 view。
+- `Dictionary<StringName, GearSetDefinition>`、`Dictionary<StringName, TraitDefinition>`。
+- `Dictionary<StringName, QuestDefinition>`。
 - `ProgressionIdentityCatalogData`。
 
 这些索引只从 catalog typed view 初始化。不要在运行中扫描 public Godot dictionary projection 补 key。
@@ -257,7 +258,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public GDictionary ToDictionary()`
 - `public new void Dispose()`
 - `public PartyState GetPartyState() => _party_state;`
-- `public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _item_def_index;`
+- `public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() => _item_def_view;`
 - `public bool HasItemDefCatalog() => _item_def_index.Count > 0;`
 - `public void SetPartyState(PartyState party_state)`
 - `internal AttributeSourceContext build_attribute_source_context(StringName member_id) =>`
@@ -295,7 +296,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public void CommitBattleDeath(StringName member_id)`
 - `public void CommitBattleKo(StringName member_id) => CommitBattleDeath(member_id);`
 - `public int FlushAfterBattle() => (int)Error.Ok;`
-- `public ItemDef GetItemDef(StringName itemId) =>`
+- `public ItemDefinition GetItemDef(StringName itemId) =>`
 - `private sealed class PendingCharacterRewardEntryData`
 - `private sealed class QuestSubmitItemPreviewData`
 - `private sealed class QuestObjectiveDefData`
