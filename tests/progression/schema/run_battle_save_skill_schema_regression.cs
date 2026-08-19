@@ -20,6 +20,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
     private void Run()
     {
         TestSkillSchemaAcceptsValidSaveFields();
+        TestDragonFrightfulPresenceSaveTagContract();
         TestDamageSaveCanApplyFailureStatus();
         TestWeightedSaveFailureStatusOutcomesValidation();
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
@@ -29,6 +30,31 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         TestLevelOverridesRejectNonIntFields();
 
         RequestTestExit(_test.Finish("Battle save skill schema regression"));
+    }
+
+    private void TestDragonFrightfulPresenceSaveTagContract()
+    {
+        StringName authoredTag = "dragon_frightful_presence";
+        BattleSaveTagKind kind = BattleSaveContentRules.ToSaveTagKind(authoredTag);
+
+        _test.Eq(
+            kind,
+            BattleSaveTagKind.DragonFrightfulPresence,
+            "dragon frightful presence should map to its typed save-tag kind."
+        );
+        _test.Eq(
+            BattleSaveContentRules.ToStringName(kind),
+            authoredTag,
+            "dragon frightful presence should round-trip through the typed save-tag contract."
+        );
+        _test.True(
+            BattleSaveContentRules.IsValidSaveTag(authoredTag),
+            "dragon frightful presence should be a valid authored save tag."
+        );
+        _test.True(
+            BattleSaveContentRules.IsControlSaveTag(authoredTag),
+            "dragon frightful presence should be classified as a control save tag."
+        );
     }
 
     private void TestSkillSchemaAcceptsValidSaveFields()

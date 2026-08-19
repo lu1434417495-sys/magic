@@ -39,6 +39,7 @@ internal enum BattleSaveTagKind
     Perception,
     Intelligence,
     Willpower,
+    DragonFrightfulPresence,
 }
 
 internal enum BattleSaveAbilityKind
@@ -96,6 +97,8 @@ internal static class BattleSaveContentRules
 
     private static readonly StringName SaveTagWillpower = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower);
 
+    private static readonly StringName SaveTagDragonFrightfulPresence = "dragon_frightful_presence";
+
     private static readonly StringName AdvantageStateNormal = "normal";
 
     private static readonly StringName AdvantageStateAdvantage = "advantage";
@@ -119,7 +122,8 @@ internal static class BattleSaveContentRules
             or BattleSaveTagKind.Charm
             or BattleSaveTagKind.Illusion
             or BattleSaveTagKind.Frightened
-            or BattleSaveTagKind.Temporal;
+            or BattleSaveTagKind.Temporal
+            or BattleSaveTagKind.DragonFrightfulPresence;
 
     internal static bool IsValidSaveDcMode(StringName value) =>
         ToSaveDcMode(value) != BattleSaveDcMode.Unknown;
@@ -177,6 +181,8 @@ internal static class BattleSaveContentRules
             return BattleSaveTagKind.Intelligence;
         if (value == SaveTagWillpower)
             return BattleSaveTagKind.Willpower;
+        if (value == SaveTagDragonFrightfulPresence)
+            return BattleSaveTagKind.DragonFrightfulPresence;
         return BattleSaveTagKind.Unknown;
     }
 
@@ -243,6 +249,7 @@ internal static class BattleSaveContentRules
             BattleSaveTagKind.Perception => SaveTagPerception,
             BattleSaveTagKind.Intelligence => SaveTagIntelligence,
             BattleSaveTagKind.Willpower => SaveTagWillpower,
+            BattleSaveTagKind.DragonFrightfulPresence => SaveTagDragonFrightfulPresence,
             _ => "",
         };
     }
