@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "domain": "gear_sets",
+  "family": "phoenix_rebirth",
+  "templates": {},
+  "entries": [
+    {
+      "gear_set_id": "phoenix_rebirth_set",
+      "display_name": "凤凰重生",
+      "description": "由十件凤凰主题装备组成的蜕变套装；套装阈值为3/5/7/10件。",
+      "member_item_ids": [
+        "armor_phoenix_rebirth_head",
+        "armor_phoenix_rebirth_body",
+        "armor_phoenix_rebirth_hands",
+        "armor_phoenix_rebirth_feet",
+        "acc_phoenix_rebirth_cloak",
+        "acc_phoenix_rebirth_necklace",
+        "acc_phoenix_rebirth_ring_1",
+        "acc_phoenix_rebirth_ring_2",
+        "acc_phoenix_rebirth_trinket",
+        "acc_phoenix_rebirth_badge"
+      ],
+      "usage_anchor_item_id": "armor_phoenix_rebirth_head",
+      "thresholds": [
+        {
+          "threshold_id": "phoenix_bloodline",
+          "required_piece_count": 3,
+          "display_name": "凤凰血脉",
+          "description": "freeze 伤害减半，体质豁免检定+2。",
+          "mandatory_member_item_ids": [],
+          "attribute_modifiers": [],
+          "granted_trait_ids": ["gear_set.phoenix_rebirth.3.phoenix_bloodline"]
+        },
+        {
+          "threshold_id": "undying_heartfire",
+          "required_piece_count": 5,
+          "display_name": "不灭心火",
+          "description": "最大生命+20。",
+          "mandatory_member_item_ids": [],
+          "attribute_modifiers": [
+            {
+              "attribute_id": "hp_max",
+              "mode": "flat",
+              "value": 20,
+              "value_per_rank": 0
+            }
+          ],
+          "granted_trait_ids": []
+        },
+        {
+          "threshold_id": "ember_wings",
+          "required_piece_count": 7,
+          "display_name": "余烬展翼",
+          "description": "免疫fire伤害。每场战斗首次在正式伤害与致死仲裁结束后存活且生命不高于25%时，恢复2D8生命并进入120 TU余烬形态：移动力+1，武器、徒手或法术攻击的主直接伤害段附加1D4 fire。",
+          "mandatory_member_item_ids": [],
+          "attribute_modifiers": [],
+          "granted_trait_ids": ["gear_set.phoenix_rebirth.7.ember_wings"]
+        },
+        {
+          "threshold_id": "solar_rebirth",
+          "required_piece_count": 10,
+          "display_name": "太阳涅槃",
+          "description": "生命不高于50%时可消耗3 AP、每日一次发动：自身恢复至50%最大生命；半径3格敌人受到4D10 fire（敏捷DC17成功减半）；半径3格内生命百分比最低的至多4名其他友方恢复2D8；进入240 TU金焰形态，移动力+2且攻击主直接段附加1D10 fire。",
+          "mandatory_member_item_ids": [],
+          "attribute_modifiers": [],
+          "granted_trait_ids": ["gear_set.phoenix_rebirth.10.solar_rebirth"]
+        }
+      ]
+    }
+  ]
+}

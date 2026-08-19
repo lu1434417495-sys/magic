@@ -164,10 +164,38 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
                 new[] { directAndTraitModifier }
             ),
         };
-        using var loader = new TestContentResourceLoader();
+        GearSetImportModel overlapImport = new(
+            "invalid_attribute_overlap_set",
+            "Invalid Attribute Overlap",
+            "Fixture only.",
+            new[] { "test_helm" },
+            "test_helm",
+            new[]
+            {
+                new GearSetThresholdImportModel(
+                    "one_piece",
+                    1,
+                    "One Piece",
+                    "Invalid overlap fixture.",
+                    Array.Empty<string>(),
+                    new[]
+                    {
+                        new GearSetAttributeModifierImportModel("strength", "flat", 1, 0),
+                    },
+                    new[] { "test_overlap_trait" }
+                ),
+            }
+        );
+        string overlapJson = GearSetImportCanonicalJson.WriteDocument(
+            new ContentCanonicalJsonWriter(),
+            "attribute_overlap_fixture",
+            new[] { overlapImport }
+        );
         using var registry = new GearSetContentRegistry(
-            loader,
-            "res://tests/equipment/fixtures/gear_set_attribute_overlap"
+            "res://virtual/gear_set_attribute_overlap",
+            new SingleJsonSourceReader(
+                new ContentJsonSourceText("invalid_overlap_set.json", overlapJson)
+            )
         );
         registry.Rebuild();
         IReadOnlyList<string> errors = registry.ValidateTyped(
@@ -421,8 +449,7 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
             "Behavior fixture.",
             new StringName[] { "test_helm", "test_armor", "test_gloves", "test_boots" },
             "test_helm",
-            new[] { twoPiece, fourPiece },
-            "res://tests/equipment/test_set.tres"
+            new[] { twoPiece, fourPiece }
         );
         var items = new Dictionary<StringName, ItemDefinition>
         {
@@ -465,33 +492,16 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
     }
 
     private static ItemDefinition BuildEquipmentItem(StringName itemId, string slotId) =>
-        new(
-            itemId,
-            "",
-            itemId.ToString(),
-            "",
-            "",
-            false,
-            0,
-            0,
-            0,
-            true,
-            1,
-            "equipment",
-            Array.Empty<StringName>(),
-            Array.Empty<StringName>(),
-            Array.Empty<StringName>(),
-            Array.Empty<StringName>(),
-            Array.Empty<TraitRollGroupDefinition>(),
-            new[] { slotId },
-            Array.Empty<AttributeModifierDefinition>(),
-            "",
-            Array.Empty<string>(),
-            null,
-            "armor",
-            null,
-            -1
-        );
+        new TestItemDefinitionBuilder
+        {
+            item_id = itemId,
+            display_name = itemId.ToString(),
+            CategoryKind = ItemCategoryKind.Equipment,
+            EquipmentTypeKind = ItemEquipmentTypeKind.Armor,
+            is_stackable = false,
+            max_stack = 1,
+            equipment_slot_ids = new Godot.Collections.Array<string> { slotId },
+        }.ToDefinition();
 
     private static TraitDefinition BuildSetTraitDefinition(
         StringName traitId,
@@ -585,5 +595,16 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
         internal GearSetDefinition Set { get; }
         internal IReadOnlyDictionary<StringName, ItemDefinition> Items { get; }
         internal IReadOnlyDictionary<StringName, GearSetDefinition> GearSets { get; }
+    }
+
+    private sealed class SingleJsonSourceReader : IContentJsonSourceReader
+    {
+        private readonly IReadOnlyList<ContentJsonSourceText> _sources;
+
+        internal SingleJsonSourceReader(params ContentJsonSourceText[] sources) =>
+            _sources = sources;
+
+        public IReadOnlyList<ContentJsonSourceText> ReadUtf8Documents(string directoryPath) =>
+            _sources;
     }
 }

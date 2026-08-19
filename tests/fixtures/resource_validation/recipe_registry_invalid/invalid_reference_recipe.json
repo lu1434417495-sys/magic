@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "domain": "recipes",
+  "family": "invalid_reference_recipe_fixture",
+  "templates": {},
+  "entries": [
+    {
+      "recipe_id": "invalid_reference_recipe",
+      "display_name": "Missing item reference",
+      "description": "",
+      "inputs": [{ "item_id": "missing_item", "quantity": 1 }],
+      "output_item_id": "militia_axe",
+      "output_quantity": 1,
+      "required_facility_tags": ["forge"],
+      "failure_reason": ""
+    }
+  ]
+}

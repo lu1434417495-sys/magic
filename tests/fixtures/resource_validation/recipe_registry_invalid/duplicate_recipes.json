@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "domain": "recipes",
+  "family": "duplicate_recipe_fixtures",
+  "templates": {},
+  "entries": [
+    {
+      "recipe_id": "duplicate_recipe",
+      "display_name": "Duplicate A",
+      "description": "",
+      "inputs": [{ "item_id": "iron_ore", "quantity": 1 }],
+      "output_item_id": "militia_axe",
+      "output_quantity": 1,
+      "required_facility_tags": ["forge"],
+      "failure_reason": ""
+    },
+    {
+      "recipe_id": "duplicate_recipe",
+      "display_name": "Duplicate B",
+      "description": "",
+      "inputs": [{ "item_id": "iron_ore", "quantity": 1 }],
+      "output_item_id": "militia_axe",
+      "output_quantity": 1,
+      "required_facility_tags": ["forge"],
+      "failure_reason": ""
+    }
+  ]
+}
