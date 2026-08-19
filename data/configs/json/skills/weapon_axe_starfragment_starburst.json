@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_axe_starfragment_starburst",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_axe_starfragment_starburst",
+      "display_name": "星爆",
+      "description": "装备技能。选择地面目标，对半径2格内敌方造成2D8力场伤害；目标进行agility DC14豁免，成功则伤害减半；星辰碎片来源每世界日1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "starfragment",
+        "force",
+        "magic"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_starfragment_starburst",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 2,
+            "dice_sides": 8,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc": 14,
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          }
+        ],
+        "area_value": 2
+      },
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

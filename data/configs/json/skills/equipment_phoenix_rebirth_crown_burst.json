@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "equipment_phoenix_rebirth_crown_burst",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "equipment_phoenix_rebirth_crown_burst",
+      "display_name": "涅槃火焰爆发",
+      "description": "凤凰涅槃头冠致死拦截成功后的内部结算：对佩戴者半径3格内所有敌人造成3D10 fire。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "phoenix_rebirth",
+        "fire",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_crown_burst",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "damage_tags": [
+              "fire"
+            ],
+            "dice_count": 3,
+            "dice_sides": 10,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "area_value": 3,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "internal",
+          "equipment",
+          "phoenix_rebirth",
+          "fire"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

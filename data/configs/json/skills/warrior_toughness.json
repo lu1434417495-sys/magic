@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_toughness",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_toughness",
+      "display_name": "强健",
+      "description": "战士基础被动。纯人物生命值 \u002B20%；战斗中体力自然恢复提高 50%。装备与临时技能效果提供的生命上限不被放大。",
+      "skill_type": "passive",
+      "learn_source": "profession",
+      "tags": [
+        "warrior",
+        "passive",
+        "survival"
+      ],
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        1
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "character_hp_max_percent_bonus",
+          "value": 20,
+          "source_type": "skill",
+          "source_id": "warrior_toughness"
+        },
+        {
+          "attribute_id": "stamina_recovery_percent_bonus",
+          "value": 50,
+          "source_type": "skill",
+          "source_id": "warrior_toughness"
+        }
+      ]
+    }
+  ]
+}

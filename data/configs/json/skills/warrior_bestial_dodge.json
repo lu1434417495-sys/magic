@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_bestial_dodge",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_bestial_dodge",
+      "display_name": "兽性闪避",
+      "description": "闪避提升并可横移1格。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_bestial_dodge",
+        "range_value": 0,
+        "cooldown_tu": 40,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    }
+  ]
+}

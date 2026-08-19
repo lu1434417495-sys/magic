@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_berserk",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_berserk",
+      "display_name": "狂暴",
+      "description": "进入狂暴状态，大幅提升攻击力但防御下降。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_berserk",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 3,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        ],
+        "stamina_cost": 14,
+        "mastery_trigger_mode": "effect_applied",
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 10,
+        "strength": 50
+      }
+    }
+  ]
+}

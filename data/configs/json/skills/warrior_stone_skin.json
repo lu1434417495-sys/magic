@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_stone_skin",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_stone_skin",
+      "display_name": "岩肤架势",
+      "description": "进入岩肤防御姿态，减少物理伤害但降低移动力。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_stone_skin",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "guarding"
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "stamina_cost": 12,
+        "mastery_trigger_mode": "effect_applied",
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 60
+      }
+    }
+  ]
+}

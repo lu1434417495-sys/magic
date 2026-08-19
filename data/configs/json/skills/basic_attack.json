@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "basic_attack",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "basic_attack",
+      "display_name": "攻击",
+      "description": "基础攻击动作。使用当前武器、空手或天生武器的伤害骰与物理伤害类型。",
+      "max_level": 0,
+      "learn_source": "innate",
+      "tags": [
+        "basic",
+        "melee",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "basic_attack",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "stamina_cost": 8,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon"
+      },
+      "icon_id": "basic_attack"
+    }
+  ]
+}

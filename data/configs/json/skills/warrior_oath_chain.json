@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_oath_chain",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_oath_chain",
+      "display_name": "誓约锁链",
+      "description": "目标攻击他人时受到反伤。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_oath_chain",
+        "range_value": 2,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 22
+          }
+        },
+        "stamina_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 60,
+        "willpower": 60
+      }
+    }
+  ]
+}

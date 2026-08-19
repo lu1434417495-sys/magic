@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_flame_cyclone",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_flame_cyclone",
+      "display_name": "烈焰回旋",
+      "description": "周围2段火焰伤害。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_flame_cyclone",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "attack_roll_bonus": 0
+          },
+          "7": {
+            "aura_cost": 24
+          }
+        },
+        "area_value": 1,
+        "attack_roll_bonus": -1,
+        "aura_cost": 30
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

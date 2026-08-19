@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_spark_burst",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_spark_burst",
+      "display_name": "火星爆",
+      "description": "燃烧目标额外\u002B30%伤害。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_spark_burst",
+        "range_value": 3,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 22
+          }
+        },
+        "area_value": 1,
+        "attack_roll_bonus": -1,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 70
+      }
+    }
+  ]
+}

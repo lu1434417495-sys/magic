@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_qi_awaken",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_qi_awaken",
+      "display_name": "斗气觉醒",
+      "description": "2回合技能伤害\u002B20%射程\u002B1。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_qi_awaken",
+        "range_value": 0,
+        "cooldown_tu": 120,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 45
+          }
+        },
+        "aura_cost": 55
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

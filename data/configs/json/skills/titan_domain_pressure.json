@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "titan_domain_pressure",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "titan_domain_pressure",
+      "display_name": "Titan Domain Pressure",
+      "description": "Project titan pressure over a battlefield zone, slowing enemies caught inside it.",
+      "learn_source": "ascension",
+      "tags": [
+        "titan",
+        "ascension",
+        "domain",
+        "aoe",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "titan_domain_pressure",
+        "target_mode": "ground",
+        "range_value": 3,
+        "area_pattern": "radius",
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "area_value": 2,
+        "stamina_cost": 16,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

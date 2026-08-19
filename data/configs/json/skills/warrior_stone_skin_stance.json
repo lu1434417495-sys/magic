@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_stone_skin_stance",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_stone_skin_stance",
+      "display_name": "岩肤架势",
+      "description": "物理减伤但自身减速。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_stone_skin_stance",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 40,
+        "willpower": 20
+      }
+    }
+  ]
+}

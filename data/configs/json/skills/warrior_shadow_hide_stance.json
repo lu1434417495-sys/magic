@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shadow_hide_stance",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shadow_hide_stance",
+      "display_name": "影遁架势",
+      "description": "不攻击则隐匿，下击命中提升。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shadow_hide_stance",
+        "range_value": 0,
+        "cooldown_tu": 100,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 60,
+        "strength": 60
+      }
+    }
+  ]
+}

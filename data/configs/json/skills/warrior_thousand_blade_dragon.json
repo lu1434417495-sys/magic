@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_thousand_blade_dragon",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_thousand_blade_dragon",
+      "display_name": "千刃龙舞",
+      "description": "6段连击，击杀溢出转移相邻敌人。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "combo",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_thousand_blade_dragon",
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 4,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 42
+          }
+        },
+        "aura_cost": 50
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

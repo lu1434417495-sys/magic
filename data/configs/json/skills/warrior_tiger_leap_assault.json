@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_tiger_leap_assault",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_tiger_leap_assault",
+      "display_name": "虎跃突袭",
+      "description": "从高地/侧面发动伤害提升。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_tiger_leap_assault",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 26
+          }
+        },
+        "stamina_cost": 32
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 60,
+        "strength": 60
+      }
+    }
+  ]
+}

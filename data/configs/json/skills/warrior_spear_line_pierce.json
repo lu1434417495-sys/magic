@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_spear_line_pierce",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_spear_line_pierce",
+      "display_name": "穿阵引势",
+      "description": "直线穿刺攻击路径上的所有敌人。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_spear_line_pierce",
+        "target_mode": "ground",
+        "range_value": 2,
+        "area_pattern": "line",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 15,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 10,
+        "strength": 50
+      }
+    }
+  ]
+}

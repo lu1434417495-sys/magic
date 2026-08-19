@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_hammer_tremor_shockwave",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_hammer_tremor_shockwave",
+      "display_name": "震击",
+      "description": "装备技能。攻击近身地面，对半径2格内所有生物造成2D6雷鸣伤害；目标进行constitution DC14豁免，成功则伤害减半，失败额外倒地50TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "tremor",
+        "hammer",
+        "thunder",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_hammer_tremor_shockwave",
+        "target_mode": "ground",
+        "target_team_filter": "any",
+        "area_pattern": "radius",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "duration_tu": 50,
+            "payload": {},
+            "damage_tag": "thunder",
+            "dice_count": 2,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc": 14,
+            "save_ability": "constitution",
+            "save_failure_status_id": "prone",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          }
+        ],
+        "area_value": 2,
+        "attack_resolution_mode": "direct_effect"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

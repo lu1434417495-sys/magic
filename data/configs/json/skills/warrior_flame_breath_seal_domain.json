@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_flame_breath_seal_domain",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_flame_breath_seal_domain",
+      "display_name": "焰息断域",
+      "description": "区域禁止隐匿和传送类位移。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "control",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_flame_breath_seal_domain",
+        "range_value": 3,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 30
+          }
+        },
+        "area_value": 1,
+        "attack_roll_bonus": -1,
+        "aura_cost": 38
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

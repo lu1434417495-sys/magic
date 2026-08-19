@@ -1,0 +1,169 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "priest_aid",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "priest_aid",
+      "display_name": "援助术",
+      "description": "2环神术。选择自身所在格（4级起可选择近处地格），使范围内每名存活友军分别获得1D8\u002B3\u002B施法者意志调整值的神圣护盾。每个目标独立投骰；同族护盾取较高数值并延长持续时间，不叠加。",
+      "max_level": 5,
+      "tags": [
+        "priest",
+        "holy",
+        "support",
+        "shield",
+        "aoe"
+      ],
+      "level_description_template": "选择{range}内地格，使{area}内每名存活友军分别获得1D8\u002B3\u002B意志调整值的神圣护盾，持续{duration}TU；消耗1AP/{mp}MP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "area": "十字相邻1格",
+          "cooldown": "120",
+          "duration": "40",
+          "mp": "40",
+          "range": "自身",
+          "stamina": "18"
+        },
+        "1": {
+          "area": "3×3范围",
+          "cooldown": "120",
+          "duration": "40",
+          "mp": "40",
+          "range": "自身",
+          "stamina": "18"
+        },
+        "2": {
+          "area": "3×3范围",
+          "cooldown": "120",
+          "duration": "40",
+          "mp": "40",
+          "range": "自身",
+          "stamina": "16"
+        },
+        "3": {
+          "area": "3×3范围",
+          "cooldown": "120",
+          "duration": "50",
+          "mp": "40",
+          "range": "自身",
+          "stamina": "16"
+        },
+        "4": {
+          "area": "3×3范围",
+          "cooldown": "120",
+          "duration": "50",
+          "mp": "40",
+          "range": "1格",
+          "stamina": "14"
+        },
+        "5": {
+          "area": "3×3范围",
+          "cooldown": "100",
+          "duration": "60",
+          "mp": "40",
+          "range": "2格",
+          "stamina": "14"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "priest_aid",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "cross",
+        "mp_cost": 40,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "shield",
+            "max_skill_level": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "dice_bonus": 3,
+            "shield_family": "holy_barrier",
+            "shield_attribute_modifier_id": "willpower_modifier",
+            "shield_roll_per_target": true,
+            "effect_target_team_filter": "ally"
+          },
+          {
+            "effect_type": "shield",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "duration_tu": 50,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "dice_bonus": 3,
+            "shield_family": "holy_barrier",
+            "shield_attribute_modifier_id": "willpower_modifier",
+            "shield_roll_per_target": true,
+            "effect_target_team_filter": "ally"
+          },
+          {
+            "effect_type": "shield",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "duration_tu": 60,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "dice_bonus": 3,
+            "shield_family": "holy_barrier",
+            "shield_attribute_modifier_id": "willpower_modifier",
+            "shield_roll_per_target": true,
+            "effect_target_team_filter": "ally"
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "area_value": 1,
+            "area_pattern": "radius"
+          },
+          "2": {
+            "stamina_cost": 16
+          },
+          "4": {
+            "stamina_cost": 14,
+            "range_value": 1
+          },
+          "5": {
+            "cooldown_tu": 100,
+            "range_value": 2
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 18,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "aoe",
+          "support",
+          "shield"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        150,
+        375,
+        825,
+        1500,
+        2400
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "willpower": 120
+      },
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true,
+        "min_contingency_skill_level": 3,
+        "effect_category": "shield",
+        "allowed_target_resolvers": [
+          "owner_centered_area"
+        ]
+      }
+    }
+  ]
+}

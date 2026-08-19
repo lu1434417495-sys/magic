@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_tail_sweep",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_tail_sweep",
+      "display_name": "龙尾扫阵",
+      "description": "扫击周围敌人，将其击退。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "aoe",
+        "displacement"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_tail_sweep",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "magic"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "retreat",
+            "forced_move_distance": 1
+          }
+        ],
+        "area_value": 1,
+        "aura_cost": 25,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "strength": 100
+      }
+    }
+  ]
+}

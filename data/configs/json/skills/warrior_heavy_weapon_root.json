@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_heavy_weapon_root",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_heavy_weapon_root",
+      "display_name": "重兵扎根",
+      "description": "不能被强制位移，每回合首击伤害\u002B20%。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_heavy_weapon_root",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 0
+          }
+        }
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 40,
+        "willpower": 20
+      }
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "equipment_phoenix_rebirth_badge_blessing",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "equipment_phoenix_rebirth_badge_blessing",
+      "display_name": "凤凰祝福",
+      "description": "装备技能。消耗2 AP，使自身及半径2格内所有存活友方获得120 TU凤凰祝福：攻击附加1D6 fire；每名受益者每场战斗一次，普通致死伤害将其生命恢复1D10。每日一次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "phoenix_rebirth",
+        "support",
+        "fire",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_badge_blessing",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "display_name": "凤凰祝福",
+            "undispellable": true,
+            "effect_target_team_filter": "ally",
+            "status_id": "phoenix_blessing",
+            "stack_limit": 1,
+            "counts_as_debuff_override": true
+          }
+        ],
+        "area_value": 2,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "phoenix_rebirth",
+          "support",
+          "fire"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

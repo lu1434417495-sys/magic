@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_sunset_waltz",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_sunset_waltz",
+      "display_name": "落日圆舞",
+      "description": "每命中1人可移动1格。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_sunset_waltz",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "stamina_cost": 28
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 35,
+        "attack_roll_bonus": -1
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "agility": 90,
+        "strength": 90
+      }
+    }
+  ]
+}

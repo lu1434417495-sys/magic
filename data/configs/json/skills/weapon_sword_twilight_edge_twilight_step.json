@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_sword_twilight_edge_twilight_step",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_sword_twilight_edge_twilight_step",
+      "display_name": "暮影步",
+      "description": "装备技能。战斗时间达到70TU后可选，消耗1AP，冷却40TU，闪现至3格内地面格。使用后当前行动轮次内启用暮光切割；白天使用还会让攻击持有者的攻击检定\u002B1直到本行动轮次结束。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "twilight_edge",
+        "mobility",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_twilight_edge_twilight_step",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 3,
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "blink",
+            "forced_move_distance": 3
+          }
+        ],
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "mobility",
+          "equipment"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

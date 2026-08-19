@@ -1,0 +1,142 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "archer_long_draw",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "archer_long_draw",
+      "display_name": "满弦狙击",
+      "description": "仅限装备弓使用。选择武器有效射程内的一名敌人，进行一次标准武器攻击；命中、暴击、护甲与减伤均使用正常武器攻击链。\n使用时选择蓄力挡位。力量调整值 ≥\u002B5 / \u002B3～\u002B4 / \u002B1～\u002B2 / ≤0 时，每挡分别需要 5 / 10 / 15 / 20 TU；每挡额外消耗 8 体力并增加 1W。挡位自然上限为 max(1, ceil(体质调整值/2))。\n确认后支付费用、剩余 AP 清零并立即结束当前回合。蓄力期间行动进度冻结，体力照常恢复，且不能主动取消；单纯受到伤害不会打断。倒地、眩晕、麻痹、冻结、石化、疯狂、失衡、陨石震荡、施术者强制位移、武器变化或目标失效会打断，费用不退并进入完整冷却。目标移动不会提前打断，但完成时会重新检查目标、距离与视线；不合法则攻击落空。5级时，本技能有效射程在装备弓射程基础上增加1格。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "基础1W标准弓攻击；攻击检定{attack}；可选蓄力上限{cap}，每挡\u002B1W、\u002B8体力；消耗2AP/{stamina}基础体力，冷却{cooldown}TU；{range}",
+      "level_description_configs": {
+        "0": {
+          "attack": "\u002B1",
+          "cap": "1挡（仍受体质自然上限约束）",
+          "cooldown": "100",
+          "range": "射程随装备弓",
+          "stamina": "16"
+        },
+        "1": {
+          "attack": "\u002B1",
+          "cap": "1挡（仍受体质自然上限约束）",
+          "cooldown": "100",
+          "range": "射程随装备弓",
+          "stamina": "14"
+        },
+        "2": {
+          "attack": "\u002B1",
+          "cap": "2挡（仍受体质自然上限约束）",
+          "cooldown": "90",
+          "range": "射程随装备弓",
+          "stamina": "14"
+        },
+        "3": {
+          "attack": "\u002B2",
+          "cap": "2挡（仍受体质自然上限约束）",
+          "cooldown": "90",
+          "range": "射程随装备弓",
+          "stamina": "12"
+        },
+        "4": {
+          "attack": "\u002B2",
+          "cap": "3挡（仍受体质自然上限约束）",
+          "cooldown": "80",
+          "range": "射程随装备弓",
+          "stamina": "12"
+        },
+        "5": {
+          "attack": "\u002B3",
+          "cap": "3挡（仍受体质自然上限约束）",
+          "cooldown": "80",
+          "range": "装备弓射程\u002B1格",
+          "stamina": "10"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_long_draw",
+        "range_value": 0,
+        "ap_cost": 2,
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "stamina_cost": 14
+          },
+          "2": {
+            "cooldown_tu": 90
+          },
+          "3": {
+            "stamina_cost": 12,
+            "attack_roll_bonus": 2
+          },
+          "4": {
+            "cooldown_tu": 80
+          },
+          "5": {
+            "stamina_cost": 10,
+            "attack_roll_bonus": 3,
+            "range_value": 1
+          }
+        },
+        "weapon_range_policy": "current_weapon_plus_configured",
+        "requires_los": true,
+        "stamina_cost": 16,
+        "windup_profile": {
+          "stamina_cost_per_tier": 8,
+          "skill_level_tier_caps": [
+            1,
+            1,
+            2,
+            2,
+            3,
+            3
+          ],
+          "base_weapon_dice_multipliers": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "attack_roll_bonus": 1,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      }
+    }
+  ]
+}

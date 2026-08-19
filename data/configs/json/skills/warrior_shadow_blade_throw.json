@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shadow_blade_throw",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shadow_blade_throw",
+      "display_name": "影刃投掷",
+      "description": "向远程目标投掷影刃。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "ranged"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shadow_blade_throw",
+        "range_value": 3,
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "stamina_cost": 10,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "nonmagical"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 50,
+        "strength": 10
+      }
+    }
+  ]
+}

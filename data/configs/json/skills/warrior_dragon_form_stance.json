@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_form_stance",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_form_stance",
+      "display_name": "龙化战姿",
+      "description": "3回合移动\u002B1/近战附带30%斗气波/免疫恐惧。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_form_stance",
+        "range_value": 0,
+        "cooldown_tu": 200,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 55
+          }
+        },
+        "aura_cost": 70
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "strength": 100,
+        "willpower": 60
+      }
+    }
+  ]
+}

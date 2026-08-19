@@ -1,0 +1,227 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_spark_javelin",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_spark_javelin",
+      "display_name": "电矛术",
+      "description": "低耗雷系点射。高等级时附加感电，为链式闪击创造弹射窗口。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "lightning",
+        "setup",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，攻击检定{hit}，造成{dmg}雷电伤害{{?shock}}，附加shocked（{shock_duration}TU，强度{shock_power}）{{/shock}}。消耗1AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "2D6",
+          "duration": "60",
+          "hit": "\u002B1",
+          "mp": "60",
+          "range": "5"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "\u002B1",
+          "mp": "60",
+          "range": "5"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "\u002B1",
+          "mp": "60",
+          "range": "5"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "\u002B1",
+          "mp": "60",
+          "range": "6",
+          "shock": "true",
+          "shock_duration": "60",
+          "shock_power": "1"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "\u002B1",
+          "mp": "60",
+          "range": "6",
+          "shock": "true",
+          "shock_duration": "60",
+          "shock_power": "1"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "\u002B1",
+          "mp": "60",
+          "range": "6",
+          "shock": "true",
+          "shock_duration": "80",
+          "shock_power": "1"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "\u002B1",
+          "mp": "60",
+          "range": "6",
+          "shock": "true",
+          "shock_duration": "80",
+          "shock_power": "1"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "duration": "120",
+          "hit": "\u002B2",
+          "mp": "60",
+          "range": "7",
+          "shock": "true",
+          "shock_duration": "80",
+          "shock_power": "2"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_spark_javelin",
+        "range_value": 5,
+        "mp_cost": 60,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 2,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 3,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 4,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 5,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 6,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "shocked"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "shocked"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "shocked"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 6
+          },
+          "7": {
+            "attack_roll_bonus": 2,
+            "range_value": 7
+          }
+        },
+        "attack_roll_bonus": 1,
+        "ai_tags": [
+          "single_target",
+          "setup"
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      }
+    }
+  ]
+}

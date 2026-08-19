@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "crown_break",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "crown_break",
+      "display_name": "折冠",
+      "description": "消耗 2 点 calamity，只能对已被黑星烙印的 elite / boss 施放；断牙禁暴击，折手禁反击与追击，遮目禁闪避，持续 2 回合。",
+      "tags": [
+        "misfortune",
+        "doom",
+        "calamity",
+        "seal"
+      ],
+      "combat_profile": {
+        "skill_id": "crown_break",
+        "target_mode": "ground",
+        "range_value": 5,
+        "cast_variants": [
+          {
+            "variant_id": "broken_fang",
+            "display_name": "断牙",
+            "description": "封印 2 回合，目标无法暴击。",
+            "effect_defs": [
+              {
+                "effect_type": "status",
+                "duration_tu": 60,
+                "payload": {},
+                "status_id": "crown_break_broken_fang"
+              }
+            ]
+          },
+          {
+            "variant_id": "broken_hand",
+            "display_name": "折手",
+            "description": "封印 2 回合，目标不能反击或追击。",
+            "effect_defs": [
+              {
+                "effect_type": "status",
+                "duration_tu": 60,
+                "payload": {},
+                "status_id": "crown_break_broken_hand"
+              }
+            ]
+          },
+          {
+            "variant_id": "blinded_eye",
+            "display_name": "遮目",
+            "description": "封印 2 回合，目标无法闪避。",
+            "effect_defs": [
+              {
+                "effect_type": "status",
+                "duration_tu": 60,
+                "payload": {},
+                "status_id": "crown_break_blinded_eye"
+              }
+            ]
+          }
+        ]
+      },
+      "mastery_curve": [
+        48
+      ]
+    }
+  ]
+}

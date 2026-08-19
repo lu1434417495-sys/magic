@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_read_formation_insight",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_read_formation_insight",
+      "display_name": "破阵读势",
+      "description": "显示目标可用技能倾向。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "support"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_read_formation_insight",
+        "range_value": 5,
+        "cooldown_tu": 20,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 8
+          }
+        },
+        "stamina_cost": 14
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

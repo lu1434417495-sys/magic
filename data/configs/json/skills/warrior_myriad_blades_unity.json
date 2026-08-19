@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_myriad_blades_unity",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_myriad_blades_unity",
+      "display_name": "万刃归一",
+      "description": "消耗1000斗气发动终极一击；可在没有近战连击层数时使用，每5层近战连击使攻击检定\u002B1，命中后消耗全部近战连击并每层追加1d6伤害。10级时必定命中且不能重击。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_myriad_blades_unity",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 5,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "consumed_status_id": "melee_combo_stack",
+            "dice_per_consumed_stack": 1,
+            "dice_sides_per_stack": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 6,
+            "payload": {},
+            "dice_count": 3,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "consumed_status_id": "melee_combo_stack",
+            "dice_per_consumed_stack": 1,
+            "dice_sides_per_stack": 6
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "attack_roll_bonus": 3
+          },
+          "8": {
+            "attack_roll_bonus": 4
+          },
+          "10": {
+            "attack_resolution_mode": "force_hit_no_crit"
+          }
+        },
+        "attack_roll_bonus": 2,
+        "aura_cost": 1000,
+        "attack_roll_bonus_status_id": "melee_combo_stack",
+        "attack_roll_bonus_status_stack_divisor": 5
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "constitution": 90,
+        "strength": 150
+      }
+    }
+  ]
+}

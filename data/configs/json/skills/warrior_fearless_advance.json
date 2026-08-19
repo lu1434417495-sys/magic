@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_fearless_advance",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_fearless_advance",
+      "display_name": "无畏前压",
+      "description": "2回合进入威胁区不触发借机反击。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_fearless_advance",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 40,
+        "willpower": 20
+      }
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_prairie_fire_order",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_prairie_fire_order",
+      "display_name": "燎原号令",
+      "description": "大范围火焰领域，区域内敌人持续受到燃烧伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "aoe",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_prairie_fire_order",
+        "target_mode": "ground",
+        "range_value": 3,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "cooldown_tu": 200,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 5,
+            "payload": {},
+            "damage_tag": "fire"
+          },
+          {
+            "effect_type": "terrain_effect",
+            "duration_tu": 80,
+            "payload": {},
+            "terrain_effect_id": "prairie_fire",
+            "tick_interval_tu": 40
+          }
+        ],
+        "area_value": 2,
+        "aura_cost": 40,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 60,
+        "willpower": 120
+      }
+    }
+  ]
+}

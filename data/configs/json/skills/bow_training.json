@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "bow_training",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "bow_training",
+      "display_name": "弓术训练",
+      "description": "通过弓类武器的高质量攻击积累熟练度。",
+      "skill_type": "passive",
+      "max_level": 5,
+      "learn_source": "innate",
+      "tags": [
+        "weapon_training",
+        "bow",
+        "passive"
+      ],
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "mastery_sources": [
+        "battle"
+      ]
+    }
+  ]
+}

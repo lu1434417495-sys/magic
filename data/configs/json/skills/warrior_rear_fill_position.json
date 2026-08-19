@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_rear_fill_position",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_rear_fill_position",
+      "display_name": "后队补位",
+      "description": "目标友军向掩体或友军方向移动1格。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_rear_fill_position",
+        "range_value": 4,
+        "cooldown_tu": 20,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

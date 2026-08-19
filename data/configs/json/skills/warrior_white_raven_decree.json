@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_white_raven_decree",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_white_raven_decree",
+      "display_name": "白鸦大令",
+      "description": "友军首技能CD-1，命中提升。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "support",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_white_raven_decree",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 200,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 50
+          }
+        },
+        "area_value": 3,
+        "aura_cost": 60
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 60,
+        "willpower": 120
+      }
+    }
+  ]
+}

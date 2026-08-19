@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_fang_thrust",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_fang_thrust",
+      "display_name": "龙牙突",
+      "description": "直线穿透攻击，对路径上敌人造成伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "pierce"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_fang_thrust",
+        "target_mode": "ground",
+        "range_value": 2,
+        "area_pattern": "line",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "magic"
+          }
+        ],
+        "area_value": 1,
+        "aura_cost": 25,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 80
+      }
+    }
+  ]
+}

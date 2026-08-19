@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "dragon_frightful_presence",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "dragon_frightful_presence",
+      "display_name": "龙威",
+      "description": "巨龙释放令人窒息的威压。半径4格内的敌人进行 DC15 意志豁免（dragon_frightful_presence），失败则陷入60 TU恐惧。",
+      "learn_source": "internal",
+      "tags": [
+        "dragon",
+        "fear",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_frightful_presence",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "frightened",
+            "stack_limit": 1,
+            "save_dc": 15,
+            "save_ability": "willpower",
+            "save_failure_status_id": "frightened",
+            "save_tag": "dragon_frightful_presence",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "fear",
+              "dragon"
+            ]
+          }
+        ],
+        "area_value": 4,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "dragon",
+          "fear",
+          "control"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

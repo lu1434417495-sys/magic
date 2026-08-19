@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dark_step_swap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dark_step_swap",
+      "display_name": "暗步换位",
+      "description": "与友军或幻影交换位置。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dark_step_swap",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    }
+  ]
+}

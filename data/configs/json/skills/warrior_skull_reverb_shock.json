@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_skull_reverb_shock",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_skull_reverb_shock",
+      "display_name": "震颅余波",
+      "description": "主目标\u002B周围伤害并附加命中下降。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_skull_reverb_shock",
+        "area_pattern": "radius",
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "hex_of_frailty"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 20
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 26
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    }
+  ]
+}

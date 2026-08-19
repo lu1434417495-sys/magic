@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_clear_blade_read",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_clear_blade_read",
+      "display_name": "明刃识破",
+      "description": "攻击者命中低于80%时其攻击额外降低。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_clear_blade_read",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

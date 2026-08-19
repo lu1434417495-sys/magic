@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_qi_slash",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_qi_slash",
+      "display_name": "斗气斩",
+      "description": "基础斗气远程攻击。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "ranged",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_qi_slash",
+        "range_value": 3,
+        "area_pattern": "line",
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 6,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 8,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 10
+          }
+        },
+        "area_value": 3,
+        "attack_roll_bonus": -1,
+        "aura_cost": 14,
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_sword_oathscar_oath_judgment",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_sword_oathscar_oath_judgment",
+      "display_name": "誓约裁决",
+      "description": "装备技能。只能对拥有持有者4层誓约之印的敌人完整生效，必中造成4D6 radiant伤害，施加30TU震慑，并消耗目标的誓约之印；誓约之痕来源每场战斗1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "oathscar",
+        "oath",
+        "radiant",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_oathscar_oath_judgment",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "radiant",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_target_team_filter": "enemy",
+            "required_target_status_id": "oathscar_oath_mark",
+            "required_target_status_min_stacks": 4,
+            "required_target_status_source_selector": "source"
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 30,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "stunned",
+            "required_target_status_id": "oathscar_oath_mark",
+            "required_target_status_min_stacks": 4,
+            "required_target_status_source_selector": "source",
+            "lock_counterattack": true,
+            "lock_guard": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true
+          },
+          {
+            "effect_type": "erase_status",
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "oathscar_oath_mark",
+            "required_target_status_id": "oathscar_oath_mark",
+            "required_target_status_min_stacks": 4,
+            "required_target_status_source_selector": "source"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "weapon",
+          "radiant"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

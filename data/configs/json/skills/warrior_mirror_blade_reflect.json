@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_mirror_blade_reflect",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_mirror_blade_reflect",
+      "display_name": "镜刃反光",
+      "description": "本回合首远程物理伤害减半。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_mirror_blade_reflect",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 16
+          }
+        },
+        "aura_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

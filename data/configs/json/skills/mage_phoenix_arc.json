@@ -1,0 +1,259 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_phoenix_arc",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_phoenix_arc",
+      "display_name": "凤焰弧",
+      "description": "火焰掠过路径时优先打击血量最低的目标，若击杀则施法者获得咏唱。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "fire",
+        "output",
+        "control"
+      ],
+      "level_description_template": "造成{dmg}火焰伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area": "直线1格",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "5"
+        },
+        "1": {
+          "ap": "2",
+          "area": "直线1格",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "5"
+        },
+        "2": {
+          "ap": "2",
+          "area": "直线1格",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "5"
+        },
+        "3": {
+          "ap": "2",
+          "area": "直线1格",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "6"
+        },
+        "4": {
+          "ap": "2",
+          "area": "直线1格",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "6"
+        },
+        "5": {
+          "ap": "2",
+          "area": "直线1格",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "6"
+        },
+        "6": {
+          "ap": "2",
+          "area": "直线1格",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "6"
+        },
+        "7": {
+          "ap": "2",
+          "area": "直线1格",
+          "cooldown": "5",
+          "dmg": "8D6",
+          "duration": "120",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "6"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_phoenix_arc",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "line",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 6
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      }
+    }
+  ]
+}

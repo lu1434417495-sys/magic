@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_axe_executioner_death_sentence",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_axe_executioner_death_sentence",
+      "display_name": "死亡判决",
+      "description": "装备技能。对相邻敌人施加 60TU 死亡判决；下一次使用处刑者之斧成功命中时，该次命中变为暴击并结算 DC16 体质判决。消耗 1AP 与 60 体力，冷却 300TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "executioner",
+        "weapon",
+        "mark"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_executioner_death_sentence",
+        "cooldown_tu": 300,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "undispellable": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "executioner_death_sentence",
+            "stack_limit": 1,
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "executioner",
+              "death_sentence",
+              "mark"
+            ]
+          }
+        ],
+        "requires_los": true,
+        "stamina_cost": 60,
+        "attack_resolution_mode": "direct_effect",
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "equipment",
+          "executioner",
+          "weapon",
+          "mark"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

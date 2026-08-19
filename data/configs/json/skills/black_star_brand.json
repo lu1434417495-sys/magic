@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "black_star_brand",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "black_star_brand",
+      "display_name": "黑星烙印",
+      "description": "每战首次免费施放；之后每次施放消耗 1 点 calamity。普通敌人被封锁反击与格挡，elite/boss 则失去暴击、命中下降，并在第一次受击时被穿透部分格挡。",
+      "tags": [
+        "misfortune",
+        "doom",
+        "calamity"
+      ],
+      "combat_profile": {
+        "skill_id": "black_star_brand",
+        "range_value": 5
+      },
+      "mastery_curve": [
+        36
+      ]
+    }
+  ]
+}

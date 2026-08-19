@@ -1,0 +1,326 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_fire_wall",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_fire_wall",
+      "display_name": "火墙术",
+      "description": "在直线上制造持续火墙。火墙会周期性灼烧站在其中的敌人。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "fire",
+        "terrain",
+        "aoe",
+        "output"
+      ],
+      "level_description_template": "射程{range}，直线长度{area}，初始造成{dmg}火焰伤害，火墙持续{duration}TU，每20TU造成{tick}火伤{{?burn}}并附加灼烧{{/burn}}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area": "2",
+          "cooldown": "30",
+          "dmg": "2D6",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "4",
+          "tick": "4"
+        },
+        "1": {
+          "ap": "2",
+          "area": "2",
+          "cooldown": "30",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "4",
+          "tick": "4"
+        },
+        "2": {
+          "ap": "2",
+          "area": "2",
+          "cooldown": "30",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "4",
+          "tick": "4"
+        },
+        "3": {
+          "ap": "2",
+          "area": "2",
+          "burn": "true",
+          "cooldown": "30",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "5",
+          "tick": "6"
+        },
+        "4": {
+          "ap": "2",
+          "area": "2",
+          "burn": "true",
+          "cooldown": "30",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "5",
+          "tick": "6"
+        },
+        "5": {
+          "ap": "2",
+          "area": "3",
+          "burn": "true",
+          "cooldown": "25",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "5",
+          "tick": "8"
+        },
+        "6": {
+          "ap": "2",
+          "area": "3",
+          "burn": "true",
+          "cooldown": "25",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "5",
+          "tick": "8"
+        },
+        "7": {
+          "ap": "2",
+          "area": "3",
+          "burn": "true",
+          "cooldown": "25",
+          "dmg": "6D6",
+          "duration": "120",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "6",
+          "tick": "10"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_fire_wall",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "line",
+        "ap_cost": 2,
+        "mp_cost": 100,
+        "cooldown_tu": 30,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 2,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 3,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "terrain_effect",
+            "max_skill_level": 2,
+            "power": 4,
+            "duration_tu": 80,
+            "payload": {},
+            "tick_effect_type": "damage",
+            "display_name": "火墙",
+            "damage_tag": "fire",
+            "terrain_effect_id": "mage_fire_wall_flame",
+            "tick_interval_tu": 20
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 6,
+            "duration_tu": 100,
+            "payload": {},
+            "tick_effect_type": "damage",
+            "display_name": "火墙",
+            "damage_tag": "fire",
+            "terrain_effect_id": "mage_fire_wall_flame",
+            "tick_interval_tu": 20
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 8,
+            "duration_tu": 120,
+            "payload": {},
+            "tick_effect_type": "damage",
+            "display_name": "火墙",
+            "damage_tag": "fire",
+            "terrain_effect_id": "mage_fire_wall_flame",
+            "tick_interval_tu": 20
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 7,
+            "power": 10,
+            "duration_tu": 140,
+            "payload": {},
+            "tick_effect_type": "damage",
+            "display_name": "火墙",
+            "damage_tag": "fire",
+            "terrain_effect_id": "mage_fire_wall_flame",
+            "tick_interval_tu": 20
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 100,
+            "payload": {},
+            "tick_effect_type": "status",
+            "display_name": "火墙余焰",
+            "status_id": "burning",
+            "applied_status_duration_tu": 40,
+            "terrain_effect_id": "mage_fire_wall_burn",
+            "tick_interval_tu": 20
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "tick_effect_type": "status",
+            "display_name": "火墙余焰",
+            "status_id": "burning",
+            "applied_status_duration_tu": 60,
+            "terrain_effect_id": "mage_fire_wall_burn",
+            "tick_interval_tu": 20
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 7,
+            "power": 2,
+            "duration_tu": 140,
+            "payload": {},
+            "tick_effect_type": "status",
+            "display_name": "火墙余焰",
+            "status_id": "burning",
+            "applied_status_duration_tu": 60,
+            "terrain_effect_id": "mage_fire_wall_burn",
+            "tick_interval_tu": 20
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 25,
+            "area_value": 3,
+            "range_value": 5
+          },
+          "7": {
+            "area_value": 3,
+            "range_value": 6
+          }
+        },
+        "area_value": 2,
+        "ai_tags": [
+          "aoe",
+          "terrain",
+          "control"
+        ],
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 120,
+        "willpower": 60
+      }
+    }
+  ]
+}

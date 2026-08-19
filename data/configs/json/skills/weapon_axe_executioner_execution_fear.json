@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_axe_executioner_execution_fear",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_axe_executioner_execution_fear",
+      "display_name": "处刑余威",
+      "description": "处刑者之斧内部恐惧结算。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "executioner",
+        "fear"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_executioner_execution_fear",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "diamond",
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "frightened",
+            "stack_limit": 1,
+            "save_dc": 14,
+            "save_ability": "willpower",
+            "save_failure_status_id": "frightened",
+            "save_tag": "frightened",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "fear",
+              "executioner"
+            ]
+          }
+        ],
+        "area_value": 3,
+        "attack_resolution_mode": "direct_effect",
+        "max_target_count": 99
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

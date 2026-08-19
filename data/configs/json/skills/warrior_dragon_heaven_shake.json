@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_heaven_shake",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_heaven_shake",
+      "display_name": "龙震九天",
+      "description": "大范围斗气爆发，中心敌人受重创，外围敌人减速。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "aoe",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_heaven_shake",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "cooldown_tu": 200,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "area_value": 2,
+        "attack_roll_bonus": -10,
+        "aura_cost": 50,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 90,
+        "willpower": 90
+      }
+    }
+  ]
+}

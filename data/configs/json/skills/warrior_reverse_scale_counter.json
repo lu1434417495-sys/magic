@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_reverse_scale_counter",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_reverse_scale_counter",
+      "display_name": "逆鳞反击",
+      "description": "致命伤时保留1HP并反击120%。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_reverse_scale_counter",
+        "range_value": 0,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 16,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 10,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 30
+          }
+        },
+        "aura_cost": 38
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

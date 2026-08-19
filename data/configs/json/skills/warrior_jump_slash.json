@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_jump_slash",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_jump_slash",
+      "display_name": "跳斩",
+      "description": "位移后落地造成小范围伤害。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_jump_slash",
+        "target_mode": "ground",
+        "range_value": 3,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 2,
+            "power": 8,
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "dice_count": 1,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 10,
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "dice_count": 1,
+            "dice_sides": 8
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "power": 12,
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "dice_count": 2,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "jump",
+            "forced_move_distance": 4,
+            "jump_base_budget": 2,
+            "jump_str_scale": 0.3,
+            "jump_arc_ratio": 0.4
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 30
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 35,
+        "attack_roll_bonus": 1
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "agility": 90,
+        "strength": 90
+      }
+    }
+  ]
+}

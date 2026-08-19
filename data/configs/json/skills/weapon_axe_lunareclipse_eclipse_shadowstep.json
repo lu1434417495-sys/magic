@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_axe_lunareclipse_eclipse_shadowstep",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_axe_lunareclipse_eclipse_shadowstep",
+      "display_name": "月蚀影步",
+      "description": "装备技能。未穿重甲时，闪现至 3 格内地面格，并获得闪避 AC \u002B4，持续 60TU；消耗 1AP/45 体力，冷却 120TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "lunareclipse",
+        "weapon",
+        "mobility",
+        "dodge"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_lunareclipse_eclipse_shadowstep",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 3,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "blink",
+            "forced_move_distance": 3
+          },
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "self",
+            "status_id": "dodge_bonus_up"
+          }
+        ],
+        "stamina_cost": 45,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "mobility",
+          "equipment"
+        ],
+        "required_weapon_families": [
+          "axe"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

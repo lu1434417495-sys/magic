@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_qi_empower_strike",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_qi_empower_strike",
+      "display_name": "斗气强化攻击",
+      "description": "下一击伤害\u002B50%附带穿透。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_qi_empower_strike",
+        "range_value": 0,
+        "cooldown_tu": 20,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 18
+          }
+        },
+        "aura_cost": 22
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 70
+      }
+    }
+  ]
+}

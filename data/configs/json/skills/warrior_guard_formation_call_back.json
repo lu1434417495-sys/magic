@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_guard_formation_call_back",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_guard_formation_call_back",
+      "display_name": "护阵回呼",
+      "description": "将友军向自己方向移动最多2格。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_guard_formation_call_back",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 20
+          }
+        },
+        "stamina_cost": 26
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 80
+      }
+    }
+  ]
+}

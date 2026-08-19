@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_flame_step_light_body",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_flame_step_light_body",
+      "display_name": "焰步轻身",
+      "description": "本回合移动\u002B1且可穿越友军。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_flame_step_light_body",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 16
+          }
+        },
+        "aura_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

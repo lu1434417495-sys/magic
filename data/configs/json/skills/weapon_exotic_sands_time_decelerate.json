@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_exotic_sands_time_decelerate",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_exotic_sands_time_decelerate",
+      "display_name": "时间减速",
+      "description": "装备技能。一场战斗一次，同一行动回合限用一次；1AP，30尺内一个敌人下一行动回合 AP 归零，但仍可移动。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "sands_time",
+        "time",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_exotic_sands_time_decelerate",
+        "range_value": 6,
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "sands_time",
+          "time",
+          "weapon"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

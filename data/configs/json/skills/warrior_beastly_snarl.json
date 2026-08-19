@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_beastly_snarl",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_beastly_snarl",
+      "display_name": "猛兽怒吼",
+      "description": "周围敌人命中降低。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_beastly_snarl",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "hex_of_frailty"
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 18
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 24
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

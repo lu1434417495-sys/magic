@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_true_dragon_slash",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_true_dragon_slash",
+      "display_name": "真龙斩",
+      "description": "高代价直线终极范围技能。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_true_dragon_slash",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "line",
+        "ap_cost": 3,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 2,
+            "power": 18,
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "dice_count": 1,
+            "dice_sides": 8
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 22,
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "dice_count": 2,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "power": 26,
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "dice_count": 2,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "cooldown_tu": 15
+          },
+          "5": {
+            "ap_cost": 2
+          }
+        },
+        "area_value": 4,
+        "stamina_cost": 40,
+        "attack_roll_bonus": 2,
+        "aura_cost": 1
+      },
+      "non_core_max_level": 2,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "strength": 120,
+        "willpower": 120
+      }
+    }
+  ]
+}

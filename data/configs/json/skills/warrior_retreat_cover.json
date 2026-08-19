@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_retreat_cover",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_retreat_cover",
+      "display_name": "撤退掩护",
+      "description": "友军本回合脱离不触发反击。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_retreat_cover",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 18
+          }
+        },
+        "area_value": 2,
+        "stamina_cost": 24
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

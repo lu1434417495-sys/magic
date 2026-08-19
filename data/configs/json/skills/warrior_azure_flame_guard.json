@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_azure_flame_guard",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_azure_flame_guard",
+      "display_name": "苍焰护腕",
+      "description": "下次受近战伤害-25%，攻击者受30%斗气伤害。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_azure_flame_guard",
+        "range_value": 0,
+        "cooldown_tu": 20,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 14
+          }
+        },
+        "aura_cost": 18
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

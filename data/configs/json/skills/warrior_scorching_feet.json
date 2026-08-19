@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_scorching_feet",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_scorching_feet",
+      "display_name": "灼足",
+      "description": "灼烧目标双脚，大幅限制其移动能力。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "fire"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_scorching_feet",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 5,
+            "payload": {},
+            "damage_tag": "fire"
+          },
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "aura_cost": 15,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

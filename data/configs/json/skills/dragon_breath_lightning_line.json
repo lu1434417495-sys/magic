@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "dragon_breath_lightning_line",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "dragon_breath_lightning_line",
+      "display_name": "龙息：闪电直线",
+      "description": "沿直线喷吐闪电。目标进行体质豁免，成功则伤害减半。",
+      "learn_source": "subrace",
+      "tags": [
+        "dragon_breath",
+        "lightning"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_breath_lightning_line",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "line",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "lightning",
+            "save_dc": 12,
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "dragon_breath"
+          }
+        ],
+        "area_value": 2,
+        "delivery_categories": [
+          "breath_weapon"
+        ]
+      },
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

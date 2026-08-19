@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_heat_wave_step",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_heat_wave_step",
+      "display_name": "热浪步",
+      "description": "移动2格，起点留下热浪。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "fire"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_heat_wave_step",
+        "range_value": 0,
+        "cooldown_tu": 40,
+        "level_overrides": {
+          "2": {
+            "aura_cost": 12
+          }
+        },
+        "aura_cost": 15
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

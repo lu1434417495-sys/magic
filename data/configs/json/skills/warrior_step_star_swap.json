@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_step_star_swap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_step_star_swap",
+      "display_name": "踏星换位",
+      "description": "与相邻敌人互换位置。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_step_star_swap",
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "staggered"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    }
+  ]
+}

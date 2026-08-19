@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "archer_aimed_shot",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "archer_aimed_shot",
+      "display_name": "精准射击",
+      "description": "稳住呼吸后以弓或天生武器发动高精度远程攻击，提高攻击检定并附加技能伤害骰。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "武器伤害\u002B{skill_dice}技能骰，攻击检定{attack}，射程随弓或天生武器，消耗1AP/20体力，无冷却",
+      "level_description_configs": {
+        "0": {
+          "attack": "\u002B1",
+          "skill_dice": "1D4"
+        },
+        "1": {
+          "attack": "\u002B1",
+          "skill_dice": "1D6"
+        },
+        "2": {
+          "attack": "\u002B2",
+          "skill_dice": "1D6"
+        },
+        "3": {
+          "attack": "\u002B2",
+          "skill_dice": "1D8"
+        },
+        "4": {
+          "attack": "\u002B3",
+          "skill_dice": "1D8"
+        },
+        "5": {
+          "attack": "\u002B3",
+          "skill_dice": "2D4"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_aimed_shot",
+        "range_value": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "attack_roll_bonus": 2
+          },
+          "4": {
+            "attack_roll_bonus": 3
+          }
+        },
+        "stamina_cost": 20,
+        "attack_roll_bonus": 1,
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ],
+        "allows_natural_weapon": true
+      },
+      "icon_id": "archer_aimed_shot",
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      }
+    }
+  ]
+}

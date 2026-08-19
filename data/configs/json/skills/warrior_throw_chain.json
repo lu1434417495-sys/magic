@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_throw_chain",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_throw_chain",
+      "display_name": "摔击连环",
+      "description": "二段击退1格。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "combo"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_throw_chain",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "knockback",
+            "forced_move_distance": 1
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 24
+          }
+        },
+        "stamina_cost": 30,
+        "attack_roll_bonus": -1
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 60,
+        "strength": 60
+      }
+    }
+  ]
+}

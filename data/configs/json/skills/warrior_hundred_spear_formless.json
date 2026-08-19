@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_hundred_spear_formless",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_hundred_spear_formless",
+      "display_name": "百枪无形",
+      "description": "扇形5次随机枪影打击。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_hundred_spear_formless",
+        "range_value": 3,
+        "area_pattern": "cone",
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 6,
+            "payload": {},
+            "damage_tag": "physical_pierce",
+            "dice_count": 1,
+            "dice_sides": 6
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "attack_roll_bonus": 1
+          },
+          "8": {
+            "aura_cost": 55
+          }
+        },
+        "area_value": 5,
+        "aura_cost": 70
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "agility": 140,
+        "strength": 100
+      }
+    }
+  ]
+}

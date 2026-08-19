@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_wind_blade_slash",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_wind_blade_slash",
+      "display_name": "剑气斩",
+      "description": "斗气远程基础技。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "ranged",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_wind_blade_slash",
+        "range_value": 3,
+        "area_pattern": "line",
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 8,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 15
+          }
+        },
+        "area_value": 3,
+        "attack_roll_bonus": -1,
+        "aura_cost": 18,
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 70
+      }
+    }
+  ]
+}

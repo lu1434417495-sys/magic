@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shield_back_push_ally",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shield_back_push_ally",
+      "display_name": "盾背推送",
+      "description": "将相邻友军推送1格不触发反击。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shield_back_push_ally",
+        "cooldown_tu": 5,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 8
+          }
+        },
+        "stamina_cost": 14
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 40,
+        "willpower": 20
+      }
+    }
+  ]
+}

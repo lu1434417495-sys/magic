@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_red_scale_low_crouch",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_red_scale_low_crouch",
+      "display_name": "赤鳞低伏",
+      "description": "本回合远程命中你-20%但移动-1。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_red_scale_low_crouch",
+        "range_value": 0,
+        "cooldown_tu": 20,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 8
+          }
+        },
+        "stamina_cost": 14
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 40,
+        "strength": 20
+      }
+    }
+  ]
+}

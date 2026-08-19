@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_mirror_water",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_mirror_water",
+      "display_name": "明镜止水",
+      "description": "清除负面状态并免疫控制。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_mirror_water",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 20
+          }
+        },
+        "aura_cost": 25
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 70
+      }
+    }
+  ]
+}

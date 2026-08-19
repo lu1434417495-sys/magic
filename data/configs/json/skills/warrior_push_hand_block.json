@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_push_hand_block",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_push_hand_block",
+      "display_name": "推手封路",
+      "description": "目标不能穿过你的威胁区。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_push_hand_block",
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "strength": 40
+      }
+    }
+  ]
+}

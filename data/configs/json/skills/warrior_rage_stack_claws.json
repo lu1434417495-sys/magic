@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_rage_stack_claws",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_rage_stack_claws",
+      "display_name": "怒意叠爪",
+      "description": "2回合每次命中伤害\u002B5%最多6层。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "combo"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_rage_stack_claws",
+        "range_value": 0,
+        "cooldown_tu": 100,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 20
+          }
+        },
+        "aura_cost": 25
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 60,
+        "willpower": 60
+      }
+    }
+  ]
+}

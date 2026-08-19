@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_thunder_vein_shatter_ground",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_thunder_vein_shatter_ground",
+      "display_name": "雷纹碎地",
+      "description": "区域变成带电地，进入者受伤。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "terrain",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_thunder_vein_shatter_ground",
+        "range_value": 2,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "stamina_cost": 24
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 30
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

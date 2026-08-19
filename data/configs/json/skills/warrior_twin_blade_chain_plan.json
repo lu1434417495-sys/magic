@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_twin_blade_chain_plan",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_twin_blade_chain_plan",
+      "display_name": "双刃连环计",
+      "description": "两击全命中可移动1格。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "combo",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_twin_blade_chain_plan",
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 24
+          }
+        },
+        "stamina_cost": 30
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 60,
+        "strength": 60
+      }
+    }
+  ]
+}

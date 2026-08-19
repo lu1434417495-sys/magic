@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_dimension_swap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_dimension_swap",
+      "display_name": "移形换位",
+      "description": "选择射程内一个你能看见的其他存活单位，与其交换位置。友军无需豁免；敌人必须进行意志豁免，失败时才会交换。双方必须都能合法占据对方原位置，且交换不能穿越阻止任一方的屏障。交换不经过中间地格，不触发路径地形效果，也不造成伤害。消耗2AP/80法力/16体力，冷却180TU。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "support",
+        "control",
+        "mobility"
+      ],
+      "level_description_template": "选择射程内一个你能看见的其他存活单位，与其交换位置。友军无需豁免；敌人必须进行意志豁免，失败时才会交换。双方必须都能合法占据对方原位置，且交换不能穿越阻止任一方的屏障。交换不经过中间地格，不触发路径地形效果，也不造成伤害。消耗{ap}AP/{mp}法力/{stamina}体力，冷却{cooldown}TU。",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "cooldown": "180",
+          "mp": "80",
+          "range": "3",
+          "stamina": "16"
+        },
+        "1": {
+          "ap": "2",
+          "cooldown": "180",
+          "mp": "80",
+          "range": "3",
+          "stamina": "14"
+        },
+        "2": {
+          "ap": "2",
+          "cooldown": "180",
+          "mp": "80",
+          "range": "4",
+          "stamina": "14"
+        },
+        "3": {
+          "ap": "2",
+          "cooldown": "150",
+          "mp": "80",
+          "range": "4",
+          "stamina": "14"
+        },
+        "4": {
+          "ap": "2",
+          "cooldown": "150",
+          "mp": "70",
+          "range": "4",
+          "stamina": "14"
+        },
+        "5": {
+          "ap": "2",
+          "cooldown": "150",
+          "mp": "70",
+          "range": "5",
+          "stamina": "14"
+        },
+        "6": {
+          "ap": "2",
+          "cooldown": "150",
+          "mp": "70",
+          "range": "5",
+          "stamina": "12"
+        },
+        "7": {
+          "ap": "2",
+          "cooldown": "120",
+          "mp": "70",
+          "range": "5",
+          "stamina": "12"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_dimension_swap",
+        "target_team_filter": "any",
+        "range_pattern": "fixed",
+        "range_value": 3,
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 180,
+        "effect_defs": [
+          {
+            "effect_type": "position_swap",
+            "payload": {},
+            "effect_target_team_filter": "any",
+            "exclude_source": true,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "stamina_cost": 14
+          },
+          "2": {
+            "range_value": 4
+          },
+          "3": {
+            "cooldown_tu": 150
+          },
+          "4": {
+            "mp_cost": 70
+          },
+          "5": {
+            "range_value": 5
+          },
+          "6": {
+            "stamina_cost": 12
+          },
+          "7": {
+            "cooldown_tu": 120
+          }
+        },
+        "requires_los": true,
+        "stamina_cost": 16,
+        "mastery_trigger_mode": "effect_applied",
+        "mastery_base_amount": 10,
+        "delivery_categories": [
+          "spell",
+          "location"
+        ],
+        "selection_order_mode": "manual"
+      },
+      "icon_id": "mage_dimension_swap",
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        100,
+        250,
+        500,
+        800,
+        1200,
+        1700,
+        2300
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "agility": 50,
+        "intelligence": 90,
+        "willpower": 40
+      }
+    }
+  ]
+}

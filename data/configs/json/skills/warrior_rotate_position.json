@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_rotate_position",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_rotate_position",
+      "display_name": "轮换阵位",
+      "description": "与目标友军交换位置。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_rotate_position",
+        "range_value": 2,
+        "cooldown_tu": 40,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    }
+  ]
+}

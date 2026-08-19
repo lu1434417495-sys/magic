@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_scale_crack",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_scale_crack",
+      "display_name": "鳞纹开裂",
+      "description": "牺牲部分生命，大幅提升攻击力。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_scale_crack",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        ],
+        "mastery_trigger_mode": "effect_applied",
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 10,
+        "strength": 50
+      }
+    }
+  ]
+}

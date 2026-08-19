@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_breath_short",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_breath_short",
+      "display_name": "龙息短吐",
+      "description": "锥形龙息附加灼鳞反伤效果。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_breath_short",
+        "range_value": 3,
+        "area_pattern": "cone",
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 25
+          }
+        },
+        "area_value": 3,
+        "attack_roll_bonus": -1,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    }
+  ]
+}

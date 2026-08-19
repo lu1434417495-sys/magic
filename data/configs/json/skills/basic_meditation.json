@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "basic_meditation",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "basic_meditation",
+      "display_name": "基础冥想法",
+      "description": "最基础的冥想修炼法，用于感知、容纳并逐步增长法力。",
+      "skill_type": "passive",
+      "max_level": 5,
+      "learn_source": "player",
+      "tags": [
+        "meditation"
+      ],
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "mastery_sources": [
+        "training"
+      ],
+      "practice_tier": "basic"
+    }
+  ]
+}

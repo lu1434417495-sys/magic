@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "vajra_body",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "vajra_body",
+      "display_name": "金刚不坏",
+      "description": "被动技能。学习后永久生效，不消耗资源。0 级受到所有来源伤害减少 1 点，1 级减少 2 点；之后每 2 级提高 1 点，9 级达到减少 6 点。10 级领悟后不会被敌方强制位移。",
+      "skill_type": "passive",
+      "max_level": 10,
+      "tags": [
+        "passive",
+        "defense",
+        "body_tempering",
+        "eastern",
+        "ultimate"
+      ],
+      "icon_id": "vajra_body",
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        80,
+        180,
+        320,
+        500,
+        720,
+        980,
+        1280,
+        1620,
+        2000,
+        2440
+      ],
+      "attribute_requirements": {
+        "constitution": 14,
+        "strength": 13,
+        "willpower": 14
+      },
+      "achievement_requirements": [
+        "near_death_unbroken"
+      ],
+      "mastery_sources": [
+        "heavy_hit_taken",
+        "max_damage_die_taken",
+        "elite_or_boss_damage_taken"
+      ]
+    }
+  ]
+}

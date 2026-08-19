@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_flame_armor_break",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_flame_armor_break",
+      "display_name": "焚甲斗气",
+      "description": "以斗气火焰焚烧目标护甲，造成燃烧。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "debuff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_flame_armor_break",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "burning"
+          }
+        ],
+        "aura_cost": 20,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 60,
+        "willpower": 60
+      }
+    }
+  ]
+}

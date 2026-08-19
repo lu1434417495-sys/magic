@@ -1,0 +1,333 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_chain_lightning",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_chain_lightning",
+      "display_name": "链式闪击",
+      "description": "锁定射程5内一名敌人，以其为主目标释放链式雷电；即使没有可连锁目标也可以施放。雷电从每个已命中的单位继续跳向跳距内最近、尚未命中的存活单位，不分敌我且可能跳回施法者，不设目标数量上限，直到没有合法目标。单位在施法前已感电或站在湿地上时，从该单位发出的跳跃使用导电跳距；本次施法新施加的感电不会延长同一次连锁。每个目标分别进行敏捷豁免，技能成长会额外提高豁免DC；失败承受全额雷电伤害并感电，成功承受一半伤害且不感电。任一跳被魔法屏障阻挡时，剩余连锁停止。受保护的大失败额外消耗至多等于本次已支付法力的剩余法力、跳过全部效果且不返还已支付的AP、法力和冷却；保护次数耗尽后的大失败触发反噬，使每跳距离\u002B1。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "lightning",
+        "aoe",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程5，锁定1名敌人（没有可连锁目标也可施放）；雷电逐跳选择最近的未命中存活单位，不设目标数量上限，基础/导电跳距为{base_hop}/{conductive_hop}格。每个目标敏捷豁免（{save_dc_text}）：失败承受{dmg}雷电伤害并感电{shock_duration}TU，成功承受一半伤害且不感电。连锁不分敌我且可能命中施法者；屏障阻断任一跳时停止剩余连锁。{fumble_text}消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "160",
+          "dmg": "4D6",
+          "fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离\u002B1。",
+          "mp": "180",
+          "save_dc_text": "豁免DC无额外加值",
+          "shock_duration": "40"
+        },
+        "1": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "160",
+          "dmg": "4D6",
+          "fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离\u002B1。",
+          "mp": "180",
+          "save_dc_text": "豁免DC额外\u002B1",
+          "shock_duration": "40"
+        },
+        "2": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "160",
+          "dmg": "4D6",
+          "fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离\u002B1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外\u002B1",
+          "shock_duration": "40"
+        },
+        "3": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "160",
+          "dmg": "5D6",
+          "fumble_text": "本场有1次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离\u002B1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外\u002B1",
+          "shock_duration": "60"
+        },
+        "4": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "100",
+          "dmg": "5D6",
+          "fumble_text": "本场有1次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离\u002B1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外\u002B1",
+          "shock_duration": "60"
+        },
+        "5": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "100",
+          "dmg": "5D6",
+          "fumble_text": "本场有2次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离\u002B1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外\u002B1",
+          "shock_duration": "60"
+        },
+        "6": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "100",
+          "dmg": "5D6",
+          "fumble_text": "本场有2次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离\u002B1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外\u002B2",
+          "shock_duration": "60"
+        },
+        "7": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "100",
+          "dmg": "6D6",
+          "fumble_text": "本场有3次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离\u002B1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外\u002B2",
+          "shock_duration": "80"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_chain_lightning",
+        "range_value": 5,
+        "ap_cost": 2,
+        "mp_cost": 180,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "duration_tu": 40,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_bonus": 1,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 5,
+            "duration_tu": 60,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_bonus": 1,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 6,
+            "max_skill_level": 6,
+            "duration_tu": 60,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_bonus": 2,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "duration_tu": 80,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_bonus": 2,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "chain_damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          },
+          {
+            "effect_type": "chain_damage",
+            "min_skill_level": 1,
+            "max_skill_level": 4,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          },
+          {
+            "effect_type": "chain_damage",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          },
+          {
+            "effect_type": "chain_damage",
+            "min_skill_level": 6,
+            "max_skill_level": 6,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          },
+          {
+            "effect_type": "chain_damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "mp_cost": 160
+          },
+          "4": {
+            "cooldown_tu": 100
+          }
+        },
+        "spell_fate_mode": "control_roll",
+        "spell_critical_mode": "mp_refund",
+        "spell_critical_mp_refund_percent": 50,
+        "fumble_protection_curve": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3
+        ],
+        "ai_tags": [
+          "chain",
+          "aoe",
+          "setup"
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_exotic_sands_time_accelerate",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_exotic_sands_time_accelerate",
+      "display_name": "时间加速",
+      "description": "装备技能。一场战斗一次，同一行动回合限用一次；1AP，30尺内一个友方单位本行动回合 AP 总量翻倍。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "sands_time",
+        "time",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_exotic_sands_time_accelerate",
+        "target_team_filter": "ally",
+        "range_value": 6,
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "sands_time",
+          "time",
+          "weapon"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

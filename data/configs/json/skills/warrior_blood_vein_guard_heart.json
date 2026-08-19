@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_blood_vein_guard_heart",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_blood_vein_guard_heart",
+      "display_name": "血纹护心",
+      "description": "致命伤时保留1HP但下回合不能用终式。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "survival"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_blood_vein_guard_heart",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 18
+          }
+        },
+        "aura_cost": 22
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "archer_skirmish_step",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "archer_skirmish_step",
+      "display_name": "游击步",
+      "description": "向更安全的位置立即位移最多 2 格，并获得 预瞄，是弓箭手的基础转线手段。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "获得{status}（{duration}TU），位移{move}格，自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "5",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "预瞄"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "5",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "预瞄"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "5",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "预瞄"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "5",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "预瞄"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_skirmish_step",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "self",
+        "cooldown_tu": 5,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "archer_pre_aim"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "retreat",
+            "forced_move_distance": 2
+          }
+        ],
+        "stamina_cost": 1,
+        "target_selection_mode": "self"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ]
+    }
+  ]
+}

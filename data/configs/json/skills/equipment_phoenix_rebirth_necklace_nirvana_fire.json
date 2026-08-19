@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "equipment_phoenix_rebirth_necklace_nirvana_fire",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "equipment_phoenix_rebirth_necklace_nirvana_fire",
+      "display_name": "涅槃之火",
+      "description": "装备技能。消耗1 AP，使自身或1格内一个友方恢复3D8 HP，并移除至多一个可驱散有害魔法；传奇或不可驱散状态不受影响。每个世界日一次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "phoenix_rebirth",
+        "heal",
+        "cleanse",
+        "fire",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_necklace_nirvana_fire",
+        "target_team_filter": "ally",
+        "effect_defs": [
+          {
+            "effect_type": "heal",
+            "payload": {},
+            "dice_count": 3,
+            "dice_sides": 8,
+            "effect_target_team_filter": "ally"
+          },
+          {
+            "effect_type": "dispel_magic",
+            "payload": {},
+            "remove_harmful": true,
+            "max_status_removed": 1,
+            "effect_categories": [
+              "antimagic"
+            ],
+            "effect_target_team_filter": "ally"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "phoenix_rebirth",
+          "heal",
+          "cleanse",
+          "fire"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

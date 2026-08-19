@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_axe_echo_throw",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_axe_echo_throw",
+      "display_name": "回音投掷",
+      "description": "装备技能。选择同列或同行 6 格内地面，对使用者到目标格路径上的敌人造成 1D6\u002B1 挥砍伤害；每个实际受伤敌人为持有者获得 1 层余音，最多 5 层，持续 60TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "echo",
+        "weapon",
+        "axe",
+        "thrown"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_echo_throw",
+        "target_mode": "ground",
+        "range_value": 6,
+        "area_pattern": "line",
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "dice_count": 1,
+            "dice_sides": 6,
+            "dice_bonus": 1
+          }
+        ],
+        "weapon_range_policy": "configured",
+        "area_value": 6,
+        "stamina_cost": 40,
+        "attack_resolution_mode": "direct_effect",
+        "area_origin_mode": "caster"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

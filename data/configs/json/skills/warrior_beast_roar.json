@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_beast_roar",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_beast_roar",
+      "display_name": "猛兽怒吼",
+      "description": "发出震慑怒吼，降低周围敌人的命中。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "debuff",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_beast_roar",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "hex_of_frailty"
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 16,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 20
+      }
+    }
+  ]
+}

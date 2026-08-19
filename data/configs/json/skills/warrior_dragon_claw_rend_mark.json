@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_claw_rend_mark",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_claw_rend_mark",
+      "display_name": "龙爪裂印",
+      "description": "叠裂印最多3层，3层时目标受100%龙血伤害。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "output",
+        "mark"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_claw_rend_mark",
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "archer_repel_arrow",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "archer_repel_arrow",
+      "display_name": "震退箭",
+      "description": "使用弓进行一次标准武器攻击；命中后将目标沿射击方向击退1格。击退受地形、占位和强制位移免疫限制，无法移动时不追加伤害。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control",
+        "displacement"
+      ],
+      "level_description_template": "造成一次标准弓武器攻击伤害；命中后沿射击方向击退1格，射程随弓，消耗1AP/{stamina}体力，冷却{cooldown}TU{accuracy}",
+      "level_description_configs": {
+        "0": {
+          "accuracy": "",
+          "cooldown": "90",
+          "stamina": "36"
+        },
+        "1": {
+          "accuracy": "",
+          "cooldown": "90",
+          "stamina": "36"
+        },
+        "2": {
+          "accuracy": "",
+          "cooldown": "90",
+          "stamina": "34"
+        },
+        "3": {
+          "accuracy": "，攻击检定\u002B1",
+          "cooldown": "90",
+          "stamina": "34"
+        },
+        "4": {
+          "accuracy": "，攻击检定\u002B1",
+          "cooldown": "80",
+          "stamina": "34"
+        },
+        "5": {
+          "accuracy": "，攻击检定\u002B2",
+          "cooldown": "80",
+          "stamina": "34"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_repel_arrow",
+        "range_value": 0,
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "knockback",
+            "forced_move_distance": 1,
+            "trigger_event": "attack_hit"
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 34
+          },
+          "3": {
+            "attack_roll_bonus": 1
+          },
+          "4": {
+            "cooldown_tu": 80
+          },
+          "5": {
+            "attack_roll_bonus": 2
+          }
+        },
+        "requires_los": true,
+        "stamina_cost": 36,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "ai_tags": [
+          "single_target",
+          "control",
+          "displacement"
+        ],
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      }
+    }
+  ]
+}

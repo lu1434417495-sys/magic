@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_flame_blade_aura",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_flame_blade_aura",
+      "display_name": "炎刃附体",
+      "description": "2回合近战附加燃烧。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "fire"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_flame_blade_aura",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 18
+          }
+        },
+        "aura_cost": 22
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 70
+      }
+    }
+  ]
+}

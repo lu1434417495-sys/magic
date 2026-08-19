@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_claw_mark",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_claw_mark",
+      "display_name": "龙爪裂印",
+      "description": "留下龙爪印记，叠加后爆发伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mark"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_claw_mark",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "dragon_claw_mark",
+            "stack_behavior": "add",
+            "stack_limit": 3
+          }
+        ],
+        "stamina_cost": 13,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 10,
+        "strength": 50
+      }
+    }
+  ]
+}

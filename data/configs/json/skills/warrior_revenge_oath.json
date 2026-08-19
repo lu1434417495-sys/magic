@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_revenge_oath",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_revenge_oath",
+      "display_name": "复仇宣言",
+      "description": "标记目标，伤及友军后受到额外伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mark"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_revenge_oath",
+        "range_value": 3,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

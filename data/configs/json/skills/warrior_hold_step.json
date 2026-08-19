@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_hold_step",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_hold_step",
+      "display_name": "压阵步",
+      "description": "相邻友军防御提升，自身命中提升。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_hold_step",
+        "range_value": 0,
+        "cooldown_tu": 40,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

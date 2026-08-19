@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_scatter_formation",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_scatter_formation",
+      "display_name": "散阵号",
+      "description": "友军分散则AOE减伤20%。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_scatter_formation",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 18
+          }
+        },
+        "area_value": 3,
+        "stamina_cost": 24
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 60,
+        "willpower": 60
+      }
+    }
+  ]
+}

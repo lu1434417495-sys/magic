@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_sand_fire_trap_skill",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_sand_fire_trap_skill",
+      "display_name": "沙火陷阱",
+      "description": "敌进入受到火焰伤害并燃烧。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "trap"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_sand_fire_trap_skill",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 10
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 18
+          }
+        },
+        "aura_cost": 22
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 50,
+        "willpower": 70
+      }
+    }
+  ]
+}

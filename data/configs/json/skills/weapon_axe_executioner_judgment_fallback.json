@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_axe_executioner_judgment_fallback",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_axe_executioner_judgment_fallback",
+      "display_name": "判决重创",
+      "description": "处刑者之斧内部精英与首领判决结算。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "executioner",
+        "negative_energy"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_executioner_judgment_fallback",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "damage_tags": [
+              "negative_energy"
+            ],
+            "dice_count": 3,
+            "dice_sides": 12,
+            "effect_target_team_filter": "enemy",
+            "save_dc": 16,
+            "save_ability": "constitution",
+            "save_tag": "execute"
+          }
+        ],
+        "attack_resolution_mode": "direct_effect"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

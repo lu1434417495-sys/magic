@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_expose_weakness",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_expose_weakness",
+      "display_name": "破绽读取",
+      "description": "远程标记目标破绽，降低其闪避能力。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "debuff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_expose_weakness",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "hex_of_frailty"
+          }
+        ],
+        "stamina_cost": 12,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "willpower": 20
+      }
+    }
+  ]
+}

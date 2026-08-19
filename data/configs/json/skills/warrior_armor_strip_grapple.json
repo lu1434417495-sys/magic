@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_armor_strip_grapple",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_armor_strip_grapple",
+      "display_name": "卸甲擒拿",
+      "description": "目标防御姿态失效且不能反击。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_armor_strip_grapple",
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 22
+          }
+        },
+        "stamina_cost": 28,
+        "attack_roll_bonus": -2
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 60,
+        "willpower": 60
+      }
+    }
+  ]
+}

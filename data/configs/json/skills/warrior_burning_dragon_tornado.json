@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_burning_dragon_tornado",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_burning_dragon_tornado",
+      "display_name": "焚天龙卷",
+      "description": "拉向中心1格并燃烧3回合。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "fire",
+        "aoe",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_burning_dragon_tornado",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "cooldown_tu": 200,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 20,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 2,
+            "dice_sides": 8
+          },
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning"
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "attack_roll_bonus": 0
+          },
+          "8": {
+            "aura_cost": 65
+          }
+        },
+        "area_value": 2,
+        "attack_roll_bonus": -2,
+        "aura_cost": 80
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "strength": 100,
+        "willpower": 140
+      }
+    }
+  ]
+}

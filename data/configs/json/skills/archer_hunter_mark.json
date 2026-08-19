@@ -1,0 +1,219 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "archer_hunter_mark",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "archer_hunter_mark",
+      "display_name": "猎人标记",
+      "description": "标记一个猎物。施放者本人以武器命中该目标时，额外造成同次攻击伤害并获得猎人标记熟练度；其他单位不会触发该奖励。等级提升会增加持续时间、射程，并降低体力与冷却压力；5级额外伤害提升为2D4。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranger",
+        "mark",
+        "debuff",
+        "weapon_support"
+      ],
+      "level_description_template": "标记目标{duration}TU；施放者武器命中目标额外{bonus_damage}伤害。射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU。",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "90",
+          "duration": "60",
+          "range": "4",
+          "stamina": "20"
+        },
+        "1": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "90",
+          "duration": "60",
+          "range": "4",
+          "stamina": "20"
+        },
+        "2": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "80",
+          "duration": "70",
+          "range": "4",
+          "stamina": "19"
+        },
+        "3": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "70",
+          "duration": "80",
+          "range": "5",
+          "stamina": "18"
+        },
+        "4": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "60",
+          "duration": "100",
+          "range": "5",
+          "stamina": "17"
+        },
+        "5": {
+          "ap": "1",
+          "bonus_damage": "2D4",
+          "cooldown": "60",
+          "duration": "120",
+          "range": "6",
+          "stamina": "16"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_hunter_mark",
+        "range_value": 4,
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 1,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 2,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 70,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 3,
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 4,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 100,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 2,
+            "source_bound_weapon_bonus_damage_dice_sides": 4,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 19,
+            "cooldown_tu": 80
+          },
+          "3": {
+            "stamina_cost": 18,
+            "cooldown_tu": 70,
+            "range_value": 5
+          },
+          "4": {
+            "stamina_cost": 17,
+            "cooldown_tu": 60
+          },
+          "5": {
+            "stamina_cost": 16,
+            "range_value": 6
+          }
+        },
+        "requires_los": true,
+        "stamina_cost": 20,
+        "mastery_trigger_mode": "source_bound_weapon_bonus_damage",
+        "delivery_categories": [
+          "martial",
+          "mark",
+          "ranger"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        80,
+        180,
+        360,
+        620,
+        980
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "willpower": 20
+      }
+    }
+  ]
+}

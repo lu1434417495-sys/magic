@@ -1,0 +1,514 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_spell_disjunction",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_spell_disjunction",
+      "display_name": "裂解术",
+      "description": "单体法术伤害，附带裂解目标装备耐久的效果。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "arcane",
+        "breaker",
+        "output",
+        "control"
+      ],
+      "level_description_template": "造成{dmg}点伤害，命中后使一件装备损失{durability}耐久（意志豁免成功则不损失）。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "15",
+          "dmg": "4D6",
+          "durability": "28",
+          "duration": "0",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "5"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "15",
+          "dmg": "5D6",
+          "durability": "28",
+          "duration": "0",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "5"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "15",
+          "dmg": "5D6",
+          "durability": "28",
+          "duration": "0",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "5"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "15",
+          "dmg": "6D6",
+          "durability": "36",
+          "duration": "0",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "6"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "15",
+          "dmg": "6D6",
+          "durability": "36",
+          "duration": "0",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "6"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "7D6",
+          "durability": "44",
+          "duration": "0",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "6"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "7D6",
+          "durability": "44",
+          "duration": "0",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "6"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "8D6",
+          "durability": "56",
+          "duration": "0",
+          "hit": "\u002B0",
+          "mp": "100",
+          "range": "7"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_spell_disjunction",
+        "range_value": 5,
+        "mp_cost": 100,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "equipment_durability_damage",
+            "max_skill_level": 2,
+            "power": 28,
+            "payload": {
+              "target_slots": [
+                "main_hand",
+                "off_hand",
+                "head",
+                "body",
+                "hands",
+                "feet",
+                "cloak",
+                "necklace",
+                "ring_1",
+                "ring_2",
+                "special_trinket",
+                "badge"
+              ]
+            },
+            "require_damage_applied": true,
+            "effect_target_team_filter": "enemy",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "equipment_disjunction",
+            "equipment_durability_slot_weights": [
+              {
+                "slot_id": "hands",
+                "weight": 10
+              },
+              {
+                "slot_id": "feet",
+                "weight": 10
+              },
+              {
+                "slot_id": "cloak",
+                "weight": 10
+              },
+              {
+                "slot_id": "necklace",
+                "weight": 10
+              },
+              {
+                "slot_id": "ring_1",
+                "weight": 10
+              },
+              {
+                "slot_id": "ring_2",
+                "weight": 10
+              },
+              {
+                "slot_id": "special_trinket",
+                "weight": 10
+              },
+              {
+                "slot_id": "badge",
+                "weight": 10
+              },
+              {
+                "slot_id": "body",
+                "weight": 10
+              },
+              {
+                "slot_id": "head",
+                "weight": 20
+              },
+              {
+                "slot_id": "main_hand",
+                "weight": 30
+              },
+              {
+                "slot_id": "off_hand",
+                "weight": 20
+              }
+            ]
+          },
+          {
+            "effect_type": "equipment_durability_damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 36,
+            "payload": {
+              "target_slots": [
+                "main_hand",
+                "off_hand",
+                "head",
+                "body",
+                "hands",
+                "feet",
+                "cloak",
+                "necklace",
+                "ring_1",
+                "ring_2",
+                "special_trinket",
+                "badge"
+              ]
+            },
+            "require_damage_applied": true,
+            "effect_target_team_filter": "enemy",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "equipment_disjunction",
+            "equipment_durability_slot_weights": [
+              {
+                "slot_id": "hands",
+                "weight": 10
+              },
+              {
+                "slot_id": "feet",
+                "weight": 10
+              },
+              {
+                "slot_id": "cloak",
+                "weight": 10
+              },
+              {
+                "slot_id": "necklace",
+                "weight": 10
+              },
+              {
+                "slot_id": "ring_1",
+                "weight": 10
+              },
+              {
+                "slot_id": "ring_2",
+                "weight": 10
+              },
+              {
+                "slot_id": "special_trinket",
+                "weight": 10
+              },
+              {
+                "slot_id": "badge",
+                "weight": 10
+              },
+              {
+                "slot_id": "body",
+                "weight": 10
+              },
+              {
+                "slot_id": "head",
+                "weight": 20
+              },
+              {
+                "slot_id": "main_hand",
+                "weight": 30
+              },
+              {
+                "slot_id": "off_hand",
+                "weight": 20
+              }
+            ]
+          },
+          {
+            "effect_type": "equipment_durability_damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 44,
+            "payload": {
+              "target_slots": [
+                "main_hand",
+                "off_hand",
+                "head",
+                "body",
+                "hands",
+                "feet",
+                "cloak",
+                "necklace",
+                "ring_1",
+                "ring_2",
+                "special_trinket",
+                "badge"
+              ]
+            },
+            "require_damage_applied": true,
+            "effect_target_team_filter": "enemy",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "equipment_disjunction",
+            "equipment_durability_slot_weights": [
+              {
+                "slot_id": "hands",
+                "weight": 10
+              },
+              {
+                "slot_id": "feet",
+                "weight": 10
+              },
+              {
+                "slot_id": "cloak",
+                "weight": 10
+              },
+              {
+                "slot_id": "necklace",
+                "weight": 10
+              },
+              {
+                "slot_id": "ring_1",
+                "weight": 10
+              },
+              {
+                "slot_id": "ring_2",
+                "weight": 10
+              },
+              {
+                "slot_id": "special_trinket",
+                "weight": 10
+              },
+              {
+                "slot_id": "badge",
+                "weight": 10
+              },
+              {
+                "slot_id": "body",
+                "weight": 10
+              },
+              {
+                "slot_id": "head",
+                "weight": 20
+              },
+              {
+                "slot_id": "main_hand",
+                "weight": 30
+              },
+              {
+                "slot_id": "off_hand",
+                "weight": 20
+              }
+            ]
+          },
+          {
+            "effect_type": "equipment_durability_damage",
+            "min_skill_level": 7,
+            "power": 56,
+            "payload": {
+              "target_slots": [
+                "main_hand",
+                "off_hand",
+                "head",
+                "body",
+                "hands",
+                "feet",
+                "cloak",
+                "necklace",
+                "ring_1",
+                "ring_2",
+                "special_trinket",
+                "badge"
+              ]
+            },
+            "require_damage_applied": true,
+            "effect_target_team_filter": "enemy",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "equipment_disjunction",
+            "equipment_durability_slot_weights": [
+              {
+                "slot_id": "hands",
+                "weight": 10
+              },
+              {
+                "slot_id": "feet",
+                "weight": 10
+              },
+              {
+                "slot_id": "cloak",
+                "weight": 10
+              },
+              {
+                "slot_id": "necklace",
+                "weight": 10
+              },
+              {
+                "slot_id": "ring_1",
+                "weight": 10
+              },
+              {
+                "slot_id": "ring_2",
+                "weight": 10
+              },
+              {
+                "slot_id": "special_trinket",
+                "weight": 10
+              },
+              {
+                "slot_id": "badge",
+                "weight": 10
+              },
+              {
+                "slot_id": "body",
+                "weight": 10
+              },
+              {
+                "slot_id": "head",
+                "weight": 20
+              },
+              {
+                "slot_id": "main_hand",
+                "weight": 30
+              },
+              {
+                "slot_id": "off_hand",
+                "weight": 20
+              }
+            ]
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 10,
+            "range_value": 6
+          },
+          "7": {
+            "range_value": 7
+          }
+        },
+        "delivery_categories": [
+          "spell",
+          "antimagic"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      }
+    }
+  ]
+}

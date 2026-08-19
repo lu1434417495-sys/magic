@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_axe_rustanchor_sunk_anchor_stance",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_axe_rustanchor_sunk_anchor_stance",
+      "display_name": "沉锚守势",
+      "description": "装备技能。1AP、60体力，冷却 180TU；自身获得沉锚 120TU，免疫敌方强制位移，移动点上限 -1，并在沉锚期间减免 3 点物理伤害。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "rustanchor",
+        "weapon",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_rustanchor_sunk_anchor_stance",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 180,
+        "stamina_cost": 60,
+        "attack_resolution_mode": "direct_effect",
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "equipment",
+          "rustanchor",
+          "weapon",
+          "defense"
+        ],
+        "target_selection_mode": "self",
+        "required_weapon_families": [
+          "axe"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

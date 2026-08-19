@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_holy_dragon_charge",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_holy_dragon_charge",
+      "display_name": "圣龙冲阵",
+      "description": "沿路径冲锋，对路径上敌人造成伤害并挑衅。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "charge",
+        "tank"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_holy_dragon_charge",
+        "target_mode": "ground",
+        "range_value": 4,
+        "ap_cost": 2,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 11,
+            "payload": {},
+            "damage_tag": "magic"
+          },
+          {
+            "effect_type": "charge",
+            "payload": {}
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "taunted"
+          }
+        ],
+        "attack_roll_bonus": -5,
+        "aura_cost": 40,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 60,
+        "strength": 120
+      }
+    }
+  ]
+}

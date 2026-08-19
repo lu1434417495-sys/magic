@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shield_push_ally",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shield_push_ally",
+      "display_name": "盾背推送",
+      "description": "将相邻友军推送一格，调整站位。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "team",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shield_push_ally",
+        "target_team_filter": "ally",
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "evasive",
+            "forced_move_distance": 1
+          }
+        ],
+        "stamina_cost": 8,
+        "mastery_trigger_mode": "effect_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 30,
+        "constitution": 30
+      }
+    }
+  ]
+}

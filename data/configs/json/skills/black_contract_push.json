@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "black_contract_push",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "black_contract_push",
+      "display_name": "黑契推进",
+      "description": "主动失去生命 / Guard / 下一回合行动力，换取一次必定命中但不暴击的推进打击。",
+      "tags": [
+        "fate",
+        "misfortune",
+        "tactical",
+        "sacrifice"
+      ],
+      "combat_profile": {
+        "skill_id": "black_contract_push",
+        "range_value": 5,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "physical_blunt"
+          }
+        ],
+        "cast_variants": [
+          {
+            "variant_id": "blood_tithe",
+            "display_name": "血契",
+            "description": "主动失去生命，换取一次必定命中但不暴击的推进打击。",
+            "target_mode": "unit"
+          },
+          {
+            "variant_id": "guard_tithe",
+            "display_name": "护契",
+            "description": "主动拆解 Guard，换取一次必定命中但不暴击的推进打击。",
+            "target_mode": "unit"
+          },
+          {
+            "variant_id": "action_tithe",
+            "display_name": "行契",
+            "description": "主动透支下一回合行动力，换取一次必定命中但不暴击的推进打击。",
+            "target_mode": "unit"
+          }
+        ]
+      },
+      "mastery_curve": [
+        48
+      ]
+    }
+  ]
+}

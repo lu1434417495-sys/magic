@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_giant_rock_armor",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_giant_rock_armor",
+      "display_name": "巨岩护甲",
+      "description": "获得30%最大HP护盾。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_giant_rock_armor",
+        "range_value": 0,
+        "cooldown_tu": 120,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 22
+          }
+        },
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "willpower": 40
+      }
+    }
+  ]
+}

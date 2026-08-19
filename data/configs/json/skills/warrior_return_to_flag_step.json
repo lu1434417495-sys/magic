@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_return_to_flag_step",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_return_to_flag_step",
+      "display_name": "归旗步",
+      "description": "目标向自己移动最多2格，到达则恢复体力。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "team",
+        "recovery"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_return_to_flag_step",
+        "range_value": 5,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 80
+      }
+    }
+  ]
+}

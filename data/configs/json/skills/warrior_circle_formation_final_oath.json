@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_circle_formation_final_oath",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_circle_formation_final_oath",
+      "display_name": "圆阵终誓",
+      "description": "范围内友军获得伤害护盾，破裂时对相邻敌人造成伤害。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_circle_formation_final_oath",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 160,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 55
+          }
+        },
+        "area_value": 2,
+        "aura_cost": 70
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "constitution": 150,
+        "willpower": 90
+      }
+    }
+  ]
+}

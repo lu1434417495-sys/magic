@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_scales",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_scales",
+      "display_name": "龙鳞护体",
+      "description": "以龙鳞之力护体，减少受到的伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "qi"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_scales",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "aura_cost": 30,
+        "mastery_trigger_mode": "effect_applied",
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 120
+      }
+    }
+  ]
+}

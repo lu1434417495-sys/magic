@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "titan_colossus_form",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "titan_colossus_form",
+      "display_name": "Titan Colossus Form",
+      "description": "Briefly manifest a larger titan body during battle, increasing body size to huge until the form expires.",
+      "learn_source": "ascension",
+      "tags": [
+        "titan",
+        "ascension",
+        "giant_form",
+        "self",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "titan_colossus_form",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 200,
+        "effect_defs": [
+          {
+            "effect_type": "body_size_category_override",
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "titan_giant_form",
+            "body_size_category": "huge"
+          }
+        ],
+        "stamina_cost": 18,
+        "mastery_trigger_mode": "effect_applied",
+        "target_selection_mode": "self"
+      },
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

@@ -1,0 +1,311 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_sleep_dust",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_sleep_dust",
+      "display_name": "沉眠粉雾",
+      "description": "范围睡眠控制。睡眠会持续跳过目标行动，但目标受到生命伤害或护盾吸收伤害时立即苏醒；苏醒后须完成一次正常行动，才可再次被睡眠。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "illusion",
+        "control",
+        "sleep"
+      ],
+      "level_description_template": "在射程{range}格内选择1格，粉雾覆盖半径1格。范围内敌人进行意志豁免（法术DC修正{dc}）；失败则陷入睡眠{duration}TU：每次轮到其行动时跳过该次行动，且无法反击、格挡或获得闪避加值。睡眠期间免疫再次睡眠；受到实际生命伤害或护盾吸收伤害时立即苏醒（0伤害不会唤醒）。睡眠结束或被移除后获得“清醒”，在完成下一次正常行动前免疫睡眠；被睡眠跳过的行动不消耗“清醒”。不造成伤害，也不会令攻击者获得额外命中或暴击。消耗{ap}AP/{mp}法力/{stamina}体力，冷却{cooldown}TU。",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "160",
+          "dc": "\u002B0",
+          "duration": "60",
+          "mp": "60",
+          "range": "4",
+          "stamina": "15"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "160",
+          "dc": "\u002B1",
+          "duration": "60",
+          "mp": "60",
+          "range": "4",
+          "stamina": "15"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "160",
+          "dc": "\u002B1",
+          "duration": "60",
+          "mp": "55",
+          "range": "4",
+          "stamina": "15"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "160",
+          "dc": "\u002B1",
+          "duration": "80",
+          "mp": "55",
+          "range": "5",
+          "stamina": "15"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "160",
+          "dc": "\u002B1",
+          "duration": "80",
+          "mp": "55",
+          "range": "5",
+          "stamina": "12"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "160",
+          "dc": "\u002B1",
+          "duration": "100",
+          "mp": "50",
+          "range": "5",
+          "stamina": "12"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "160",
+          "dc": "\u002B1",
+          "duration": "100",
+          "mp": "50",
+          "range": "5",
+          "stamina": "10"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "160",
+          "dc": "\u002B2",
+          "duration": "120",
+          "mp": "50",
+          "range": "6",
+          "stamina": "10"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_sleep_dust",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "mp_cost": 60,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "sleeping",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "sleep",
+            "lock_counterattack": true,
+            "lock_guard": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true,
+            "skip_turn": true,
+            "break_on_positive_damage": true,
+            "on_removed_status_id": "wakeful",
+            "on_removed_status_save_immunity_tags": [
+              "sleep"
+            ],
+            "on_removed_status_undispellable": true,
+            "on_removed_status_consume_after_normal_turn": true,
+            "save_immunity_tags": [
+              "sleep"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "sleeping",
+            "save_dc_bonus": 1,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "sleep",
+            "lock_counterattack": true,
+            "lock_guard": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true,
+            "skip_turn": true,
+            "break_on_positive_damage": true,
+            "on_removed_status_id": "wakeful",
+            "on_removed_status_save_immunity_tags": [
+              "sleep"
+            ],
+            "on_removed_status_undispellable": true,
+            "on_removed_status_consume_after_normal_turn": true,
+            "save_immunity_tags": [
+              "sleep"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "sleeping",
+            "save_dc_bonus": 1,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "sleep",
+            "lock_counterattack": true,
+            "lock_guard": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true,
+            "skip_turn": true,
+            "break_on_positive_damage": true,
+            "on_removed_status_id": "wakeful",
+            "on_removed_status_save_immunity_tags": [
+              "sleep"
+            ],
+            "on_removed_status_undispellable": true,
+            "on_removed_status_consume_after_normal_turn": true,
+            "save_immunity_tags": [
+              "sleep"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 1,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "sleeping",
+            "save_dc_bonus": 1,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "sleep",
+            "lock_counterattack": true,
+            "lock_guard": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true,
+            "skip_turn": true,
+            "break_on_positive_damage": true,
+            "on_removed_status_id": "wakeful",
+            "on_removed_status_save_immunity_tags": [
+              "sleep"
+            ],
+            "on_removed_status_undispellable": true,
+            "on_removed_status_consume_after_normal_turn": true,
+            "save_immunity_tags": [
+              "sleep"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "sleeping",
+            "save_dc_bonus": 2,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "sleep",
+            "lock_counterattack": true,
+            "lock_guard": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true,
+            "skip_turn": true,
+            "break_on_positive_damage": true,
+            "on_removed_status_id": "wakeful",
+            "on_removed_status_save_immunity_tags": [
+              "sleep"
+            ],
+            "on_removed_status_undispellable": true,
+            "on_removed_status_consume_after_normal_turn": true,
+            "save_immunity_tags": [
+              "sleep"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "mp_cost": 55
+          },
+          "3": {
+            "range_value": 5
+          },
+          "4": {
+            "stamina_cost": 12
+          },
+          "5": {
+            "mp_cost": 50
+          },
+          "6": {
+            "stamina_cost": 10
+          },
+          "7": {
+            "range_value": 6
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 15,
+        "mastery_trigger_mode": "status_applied",
+        "delivery_categories": [
+          "spell",
+          "gas"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      }
+    }
+  ]
+}

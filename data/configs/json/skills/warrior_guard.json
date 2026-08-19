@@ -1,0 +1,164 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_guard",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_guard",
+      "display_name": "格挡",
+      "description": "进入短暂的格挡姿态。姿态期间，每次受到物理伤害时固定减少1至3点伤害，最低仍受到1点伤害；4级前移动每格额外消耗1点移动力，4级起解除该惩罚。对非物理伤害无效。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense"
+      ],
+      "level_description_template": "格挡姿态：每次受到物理伤害固定减少{guard_power}点，最低仍受到1点伤害{{?slow_power}}；移动每格额外消耗{slow_power}点移动力{{/slow_power}}；持续{duration}TU，消耗1AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "cooldown": "120",
+          "duration": "40",
+          "guard_power": "1",
+          "slow_power": "1",
+          "stamina": "20"
+        },
+        "1": {
+          "cooldown": "120",
+          "duration": "50",
+          "guard_power": "1",
+          "slow_power": "1",
+          "stamina": "20"
+        },
+        "2": {
+          "cooldown": "120",
+          "duration": "60",
+          "guard_power": "1",
+          "slow_power": "1",
+          "stamina": "20"
+        },
+        "3": {
+          "cooldown": "120",
+          "duration": "60",
+          "guard_power": "2",
+          "slow_power": "1",
+          "stamina": "20"
+        },
+        "4": {
+          "cooldown": "120",
+          "duration": "60",
+          "guard_power": "2",
+          "stamina": "20"
+        },
+        "5": {
+          "cooldown": "120",
+          "duration": "60",
+          "guard_power": "3",
+          "stamina": "20"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "warrior_guard",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "guarding"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 1,
+            "power": 1,
+            "duration_tu": 50,
+            "payload": {},
+            "status_id": "guarding"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 2,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "guarding"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 3,
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "guarding"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 4,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "guarding"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "power": 3,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "guarding"
+          },
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "slow"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 1,
+            "power": 1,
+            "duration_tu": 50,
+            "payload": {},
+            "status_id": "slow"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 2,
+            "max_skill_level": 3,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "stamina_cost": 20,
+        "mastery_trigger_mode": "incoming_physical_hit",
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        300,
+        750,
+        1650,
+        3000,
+        4800
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 60
+      }
+    }
+  ]
+}

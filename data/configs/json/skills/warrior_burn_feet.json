@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_burn_feet",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_burn_feet",
+      "display_name": "灼足",
+      "description": "减速，移动则额外受伤。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "fire"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_burn_feet",
+        "range_value": 3,
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 4,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 12
+          }
+        },
+        "aura_cost": 15
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

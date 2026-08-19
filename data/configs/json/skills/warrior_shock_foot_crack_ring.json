@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shock_foot_crack_ring",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shock_foot_crack_ring",
+      "display_name": "震足裂圈",
+      "description": "敌人离开裂圈时受到伤害。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "terrain"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shock_foot_crack_ring",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 20
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 26
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    }
+  ]
+}

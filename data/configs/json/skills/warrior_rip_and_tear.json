@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_rip_and_tear",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_rip_and_tear",
+      "display_name": "撕裂斩",
+      "description": "撕裂伤口，造成持续燃烧伤害（模拟流血）。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "dot"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_rip_and_tear",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "status_id": "burning",
+            "stack_behavior": "add",
+            "stack_limit": 3
+          }
+        ],
+        "stamina_cost": 16,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 10,
+        "strength": 50
+      }
+    }
+  ]
+}

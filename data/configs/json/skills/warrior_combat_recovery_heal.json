@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_combat_recovery_heal",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_combat_recovery_heal",
+      "display_name": "战斗回复",
+      "description": "恢复自身HP。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "recovery"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_combat_recovery_heal",
+        "range_value": 0,
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "heal",
+            "power": 2,
+            "payload": {
+              "con_mod_heal": true
+            },
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 18
+          }
+        },
+        "stamina_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "willpower": 40
+      }
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_joint_shield_close",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_joint_shield_close",
+      "display_name": "合盾闭阵",
+      "description": "相邻2\u002B友军全体正面减伤。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_joint_shield_close",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 24
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 30
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "willpower": 40
+      }
+    }
+  ]
+}

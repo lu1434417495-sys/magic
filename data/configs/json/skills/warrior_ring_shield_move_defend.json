@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_ring_shield_move_defend",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_ring_shield_move_defend",
+      "display_name": "环盾移防",
+      "description": "移动到友军邻格并提升其防御。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_ring_shield_move_defend",
+        "range_value": 2,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "willpower": 40
+      }
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_iron_torrent_slash",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_iron_torrent_slash",
+      "display_name": "铁流斩",
+      "description": "对前方横排两格敌人两段横斩。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_iron_torrent_slash",
+        "area_pattern": "line",
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "4": {
+            "stamina_cost": 30
+          }
+        },
+        "area_value": 2,
+        "stamina_cost": 38,
+        "attack_roll_bonus": -1
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    }
+  ]
+}

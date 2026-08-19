@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_bow_wolf_spirit_summon",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_bow_wolf_spirit_summon",
+      "display_name": "狼灵召唤",
+      "description": "装备技能。选择6格内盟友或自身作为锚点，召唤一只幽灵狼，持续60TU。狼牙之弓来源每世界日1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "wolf_bow",
+        "weapon",
+        "summon",
+        "wolf"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_bow_wolf_spirit_summon",
+        "target_team_filter": "ally",
+        "range_value": 6,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "equipment",
+          "weapon",
+          "summon",
+          "wolf"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

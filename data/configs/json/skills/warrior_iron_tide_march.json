@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_iron_tide_march",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_iron_tide_march",
+      "display_name": "铁潮号步",
+      "description": "自身和相邻友军移动后命中提升。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_iron_tide_march",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 16
+          }
+        },
+        "stamina_cost": 22
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 80
+      }
+    }
+  ]
+}

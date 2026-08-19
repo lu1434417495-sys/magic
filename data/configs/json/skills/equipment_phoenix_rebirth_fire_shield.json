@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "equipment_phoenix_rebirth_fire_shield",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "equipment_phoenix_rebirth_fire_shield",
+      "display_name": "释放火盾",
+      "description": "凤凰涅槃板甲的装备技能。消耗2 AP，每个世界日一次；清除板甲全部燃烧层并获得持续60 TU的凤凰火盾（AC\u002B3）。火盾期间每次成功近战命中后，攻击者受到2D6 fire，无豁免。任意燃烧层数均可使用。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "phoenix_rebirth",
+        "fire",
+        "defense",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_fire_shield",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "ap_cost": 2,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "attack_roll_penalty": 0,
+            "undispellable": true,
+            "effect_target_team_filter": "self",
+            "status_id": "phoenix_fire_shield",
+            "stack_limit": 1,
+            "counts_as_debuff_override": true
+          }
+        ],
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "phoenix_rebirth",
+          "fire",
+          "defense"
+        ],
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

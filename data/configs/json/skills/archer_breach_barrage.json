@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "archer_breach_barrage",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "archer_breach_barrage",
+      "display_name": "贯阵一矢",
+      "description": "选择相邻的上、下、左或右作为方向，沿当前弓的完整有效射程发射一箭，对路径内所有符合高度通道的存活单位逐个进行标准弓武器攻击；友军与中立单位也会受击，单位不会阻挡箭矢，阻挡视线的墙、关闭的门或边缘屏障会截断路径。以施术者所在格高度为基准：同层单位可受击且不锁定通道；首个遇到的\u002B1或-1层单位自动锁定对应方向，之后只攻击同层及该方向一层内的单位，玩家不能选择高度方向；高度差超过1或位于相反通道的单位会被跳过，且不进行攻击检定、不推进伤害衰减。首个成功命中造成等级对应的武器伤害；每次成功命中使后续目标伤害倍率降低20%，最低40%，未命中不推进衰减。消耗2AP；体力按完整有效弓射程R和力量调整值S计算：B=32\u002BR²，S≥0时为max(1,ceil(B×100/(100\u002BS²)))，S\u003C0时为ceil(B×(100\u002BS²)/100)。",
+      "max_level": 7,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "aoe"
+      ],
+      "level_description_template": "造成{damage}弓武器伤害，攻击检定{attack}；每次成功命中使后续目标倍率-20%（最低40%），射程随当前弓，体力按射程与力量动态计算，消耗2AP，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "attack": "-2",
+          "cooldown": "120",
+          "damage": "200%"
+        },
+        "1": {
+          "attack": "-2",
+          "cooldown": "120",
+          "damage": "200%"
+        },
+        "2": {
+          "attack": "-1",
+          "cooldown": "120",
+          "damage": "220%"
+        },
+        "3": {
+          "attack": "-1",
+          "cooldown": "120",
+          "damage": "240%"
+        },
+        "4": {
+          "attack": "无加值",
+          "cooldown": "120",
+          "damage": "260%"
+        },
+        "5": {
+          "attack": "无加值",
+          "cooldown": "110",
+          "damage": "280%"
+        },
+        "6": {
+          "attack": "\u002B1",
+          "cooldown": "110",
+          "damage": "290%"
+        },
+        "7": {
+          "attack": "\u002B1",
+          "cooldown": "100",
+          "damage": "300%"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_breach_barrage",
+        "target_mode": "ground",
+        "target_team_filter": "any",
+        "range_value": 0,
+        "ap_cost": 2,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "attack_roll_bonus": -1
+          },
+          "4": {
+            "attack_roll_bonus": 0
+          },
+          "5": {
+            "cooldown_tu": 110
+          },
+          "6": {
+            "attack_roll_bonus": 1
+          },
+          "7": {
+            "cooldown_tu": 100
+          }
+        },
+        "requires_los": true,
+        "directional_piercing_profile": {
+          "base_damage_percent_curve": [
+            200,
+            200,
+            220,
+            240,
+            260,
+            280,
+            290,
+            300
+          ]
+        },
+        "attack_roll_bonus": -2,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        300,
+        750,
+        1650,
+        3000,
+        4800,
+        7050,
+        9750
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 50,
+        "strength": 70
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_focus_mark",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_focus_mark",
+      "display_name": "集火标记",
+      "description": "标记目标，使其受到更多伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "debuff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_focus_mark",
+        "range_value": 4,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "marked"
+          }
+        ],
+        "stamina_cost": 12,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "willpower": 20
+      }
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_bow_windbow_gale_push",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_bow_windbow_gale_push",
+      "display_name": "风压推射",
+      "description": "装备技能。1AP、12体力，冷却 60TU；选择 6 格内敌人，不造成伤害；目标进行 strength DC14 检定，失败时沿持弓者到目标的主轴方向被推离最多 2 格。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "windbow",
+        "bow",
+        "wind",
+        "control",
+        "displacement"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_bow_windbow_gale_push",
+        "range_value": 6,
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "forced_move_mode": "knockback",
+            "forced_move_distance": 2,
+            "save_dc": 14,
+            "save_ability": "strength",
+            "save_tag": "strength"
+          }
+        ],
+        "requires_los": true,
+        "stamina_cost": 12,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "windbow",
+          "bow",
+          "wind",
+          "control",
+          "displacement",
+          "weapon"
+        ],
+        "projectile_kind": "magical",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

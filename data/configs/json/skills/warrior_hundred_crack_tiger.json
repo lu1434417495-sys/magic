@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_hundred_crack_tiger",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_hundred_crack_tiger",
+      "display_name": "百裂虎噬",
+      "description": "8段连击，每段命中后递减，流血目标不降。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "combo",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_hundred_crack_tiger",
+        "cooldown_tu": 200,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 5,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 6,
+            "max_skill_level": 7,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 8,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "attack_roll_bonus": 1
+          },
+          "8": {
+            "aura_cost": 65
+          }
+        },
+        "aura_cost": 80
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "constitution": 90,
+        "strength": 150
+      }
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shield_lamp_reveal",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shield_lamp_reveal",
+      "display_name": "盾灯照破",
+      "description": "揭示隐匿敌人并降低其闪避。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "support"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shield_lamp_reveal",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 14
+          }
+        },
+        "area_value": 2,
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 60,
+        "willpower": 60
+      }
+    }
+  ]
+}

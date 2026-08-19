@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_blood_vein_oath_kill",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_blood_vein_oath_kill",
+      "display_name": "血纹誓杀",
+      "description": "标记2回合，击杀恢复大量斗气。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "mark",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_blood_vein_oath_kill",
+        "range_value": 5,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 25
+          }
+        },
+        "aura_cost": 32
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 70,
+        "strength": 60,
+        "willpower": 50
+      }
+    }
+  ]
+}

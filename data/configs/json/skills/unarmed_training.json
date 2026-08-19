@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "unarmed_training",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "unarmed_training",
+      "display_name": "徒手训练",
+      "description": "通过徒手或天生武器的高质量攻击积累熟练度。",
+      "skill_type": "passive",
+      "max_level": 5,
+      "learn_source": "innate",
+      "tags": [
+        "weapon_training",
+        "unarmed",
+        "passive"
+      ],
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "mastery_sources": [
+        "battle"
+      ]
+    }
+  ]
+}

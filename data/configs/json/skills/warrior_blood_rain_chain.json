@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_blood_rain_chain",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_blood_rain_chain",
+      "display_name": "血雨连环",
+      "description": "击杀可跳相邻敌人继续攻击。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "combo",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_blood_rain_chain",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "max_skill_level": 6,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 32
+          }
+        },
+        "attack_roll_bonus": -1,
+        "aura_cost": 40
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "strength": 100
+      }
+    }
+  ]
+}

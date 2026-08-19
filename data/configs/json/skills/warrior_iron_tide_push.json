@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_iron_tide_push",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_iron_tide_push",
+      "display_name": "铁浪推进",
+      "description": "向前推进并攻击目标，将其击退。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "displacement"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_iron_tide_push",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "retreat",
+            "forced_move_distance": 1
+          }
+        ],
+        "stamina_cost": 12,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 10,
+        "strength": 50
+      }
+    }
+  ]
+}

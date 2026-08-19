@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_holy_shield_impact",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_holy_shield_impact",
+      "display_name": "圣盾冲击",
+      "description": "盾击目标使其眩晕，持盾命中提升。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "shield"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_holy_shield_impact",
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "staggered"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "attack_roll_bonus": 1
+          },
+          "5": {
+            "attack_roll_bonus": 2
+          }
+        },
+        "stamina_cost": 28,
+        "requires_equipped_shield": true
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 60,
+        "strength": 60
+      }
+    }
+  ]
+}

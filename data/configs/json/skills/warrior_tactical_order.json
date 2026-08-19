@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_tactical_order",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_tactical_order",
+      "display_name": "战术指令",
+      "description": "强化指定友军下次攻击的命中与伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_tactical_order",
+        "range_value": 3,
+        "cooldown_tu": 40,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 10
+          }
+        },
+        "stamina_cost": 16
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

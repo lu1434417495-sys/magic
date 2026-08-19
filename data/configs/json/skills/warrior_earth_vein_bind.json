@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_earth_vein_bind",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_earth_vein_bind",
+      "display_name": "地脉锁足",
+      "description": "令目标移动归零。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_earth_vein_bind",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "rooted",
+            "save_dc": 10,
+            "save_ability": "willpower",
+            "save_tag": "paralysis"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 14
+          }
+        },
+        "attack_roll_bonus": -1,
+        "aura_cost": 18
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

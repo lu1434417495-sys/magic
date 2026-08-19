@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_reverse_star_evade",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_reverse_star_evade",
+      "display_name": "逆星回避",
+      "description": "受近战后可移动1格。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_reverse_star_evade",
+        "range_value": 0,
+        "cooldown_tu": 20,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 10
+          }
+        },
+        "stamina_cost": 16
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    }
+  ]
+}

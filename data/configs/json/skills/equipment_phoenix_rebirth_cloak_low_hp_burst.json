@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "equipment_phoenix_rebirth_cloak_low_hp_burst",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "equipment_phoenix_rebirth_cloak_low_hp_burst",
+      "display_name": "凤凰怒火",
+      "description": "凤凰烈焰披风的内部结算：每场战斗第一次因外部非自身、非装备能力生成的正原始伤害从高于50%生命降至不高于50%时，对佩戴者半径1格内所有敌人造成2D6 fire，无豁免；即使范围内没有敌人也消耗本场次数。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "phoenix_rebirth",
+        "fire",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_cloak_low_hp_burst",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "damage_tags": [
+              "fire"
+            ],
+            "dice_count": 2,
+            "dice_sides": 6,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "area_value": 1,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "internal",
+          "equipment",
+          "phoenix_rebirth",
+          "fire"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

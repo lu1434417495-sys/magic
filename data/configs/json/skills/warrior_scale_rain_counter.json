@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_scale_rain_counter",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_scale_rain_counter",
+      "display_name": "鳞雨反击",
+      "description": "受远程攻击后反射鳞雨。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "ranged"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_scale_rain_counter",
+        "range_value": 3,
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 6,
+            "payload": {},
+            "damage_tag": "physical_pierce",
+            "dice_count": 1,
+            "dice_sides": 8
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 18
+          }
+        },
+        "aura_cost": 22,
+        "projectile_kind": "nonmagical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    }
+  ]
+}

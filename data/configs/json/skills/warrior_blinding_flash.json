@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_blinding_flash",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_blinding_flash",
+      "display_name": "炽光断视",
+      "description": "降低敌方命中。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "radiant"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_blinding_flash",
+        "range_value": 2,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "hex_of_frailty"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 16
+          }
+        },
+        "area_value": 1,
+        "attack_roll_bonus": -1,
+        "aura_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

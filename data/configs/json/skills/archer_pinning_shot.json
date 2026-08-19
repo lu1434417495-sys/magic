@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "archer_pinning_shot",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "archer_pinning_shot",
+      "display_name": "钉射",
+      "description": "射出钉足箭限制目标行动，伤害取当前弓箭武器骰，低等级阻止移动，满级改为短时踉跄。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control"
+      ],
+      "level_description_template": "造成{dmg}，命中附加{status}（{duration}TU），射程随武器，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "无加值",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "40",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "无加值",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "40",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "无加值",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "40",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "\u002B1",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "60",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "4": {
+          "ap": "1",
+          "attack": "\u002B1",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "60",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "5": {
+          "ap": "1",
+          "attack": "\u002B2",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "40",
+          "stamina": "24",
+          "status": "踉跄"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_pinning_shot",
+        "range_value": 0,
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "status",
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "pinned"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "pinned"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "staggered"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "attack_roll_bonus": 1
+          },
+          "5": {
+            "attack_roll_bonus": 2
+          }
+        },
+        "stamina_cost": 24,
+        "mastery_trigger_mode": "status_applied",
+        "ai_tags": [
+          "single_target",
+          "control"
+        ],
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "icon_id": "archer_pinning_shot",
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 20,
+        "perception": 40
+      }
+    }
+  ]
+}

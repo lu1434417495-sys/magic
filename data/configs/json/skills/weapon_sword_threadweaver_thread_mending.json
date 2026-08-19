@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_sword_threadweaver_thread_mending",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_sword_threadweaver_thread_mending",
+      "display_name": "织线修复",
+      "description": "装备技能。治疗2格内一个盟友2D8\u002B10，可拉起倒地盟友；施放者失去10HP；织命来源每场战斗1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "threadweaver",
+        "fate",
+        "heal",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_threadweaver_thread_mending",
+        "target_team_filter": "ally",
+        "range_value": 2,
+        "effect_defs": [
+          {
+            "effect_type": "heal_fatal",
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 8,
+            "dice_bonus": 10,
+            "effect_target_team_filter": "ally"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "threadweaver",
+          "weapon",
+          "heal"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

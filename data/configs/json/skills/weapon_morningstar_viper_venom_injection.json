@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_morningstar_viper_venom_injection",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_morningstar_viper_venom_injection",
+      "display_name": "毒液注入",
+      "description": "装备技能。为毒蛇晨星灌注毒液，使下一次本武器成功命中时额外追加 1D6 poison。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "viper_morningstar",
+        "weapon",
+        "buff",
+        "poison"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_morningstar_viper_venom_injection",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "equipment",
+          "weapon",
+          "buff",
+          "poison"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

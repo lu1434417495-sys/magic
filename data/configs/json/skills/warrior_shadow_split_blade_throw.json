@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shadow_split_blade_throw",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shadow_split_blade_throw",
+      "display_name": "影裂投刃",
+      "description": "目标背后有友军时命中\u002B15%。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "ranged"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shadow_split_blade_throw",
+        "range_value": 3,
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 6,
+            "payload": {},
+            "damage_tag": "physical_pierce",
+            "dice_count": 1,
+            "dice_sides": 6
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18,
+        "projectile_kind": "nonmagical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 70,
+        "strength": 50
+      }
+    }
+  ]
+}

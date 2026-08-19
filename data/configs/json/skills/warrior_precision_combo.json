@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_precision_combo",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_precision_combo",
+      "display_name": "精准连击",
+      "description": "本回合追击命中惩罚大幅降低。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "combo"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_precision_combo",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    }
+  ]
+}

@@ -1,0 +1,208 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_magic_shield",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_magic_shield",
+      "display_name": "魔力护盾",
+      "description": "为自身或盟友施加魔力护盾，使承受的法术/能量伤害减半。高等级附加护盾值。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "support",
+        "defense"
+      ],
+      "level_description_template": "射程{range}，附加magic_shield（{duration}TU），法术/能量伤害减半{{?shield}}，并获得{shield}护盾骰{{/shield}}。消耗1AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "20",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "0"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "20",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "0"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "20",
+          "duration": "60",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "0"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "20",
+          "duration": "80",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "3"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "20",
+          "duration": "80",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "3"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "15",
+          "duration": "100",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "3",
+          "shield": "2D6"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "15",
+          "duration": "100",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "3",
+          "shield": "2D6"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "15",
+          "duration": "120",
+          "hit": "\u002B0",
+          "mp": "80",
+          "range": "4",
+          "shield": "3D6"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_magic_shield",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "mp_cost": 80,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "damage_category": "magic",
+            "mitigation_tier": "half",
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "damage_category": "magic",
+            "mitigation_tier": "half",
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 1,
+            "duration_tu": 100,
+            "payload": {},
+            "damage_category": "magic",
+            "mitigation_tier": "half",
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "damage_category": "magic",
+            "mitigation_tier": "half",
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          },
+          {
+            "effect_type": "shield",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "duration_tu": 80,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "effect_target_team_filter": "ally"
+          },
+          {
+            "effect_type": "shield",
+            "min_skill_level": 7,
+            "duration_tu": 100,
+            "payload": {},
+            "dice_count": 3,
+            "dice_sides": 6,
+            "effect_target_team_filter": "ally"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 3
+          },
+          "5": {
+            "cooldown_tu": 15
+          },
+          "7": {
+            "range_value": 4
+          }
+        },
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "support",
+          "defense"
+        ],
+        "delivery_categories": [
+          "spell",
+          "force_effect"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "intelligence": 60,
+        "willpower": 100
+      },
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true,
+        "min_contingency_skill_level": 3,
+        "effect_category": "shield",
+        "allowed_target_resolvers": [
+          "self"
+        ]
+      }
+    }
+  ]
+}

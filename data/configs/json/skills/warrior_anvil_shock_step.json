@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_anvil_shock_step",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_anvil_shock_step",
+      "display_name": "砧面震步",
+      "description": "震击十字范围敌人，打乱其节奏。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_anvil_shock_step",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "cross",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 5,
+            "payload": {},
+            "damage_tag": "physical_blunt"
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 14,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "strength": 40
+      }
+    }
+  ]
+}

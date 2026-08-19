@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_light_retreat_cut",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_light_retreat_cut",
+      "display_name": "折光退切",
+      "description": "攻击后迅速后撤。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_light_retreat_cut",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "retreat",
+            "forced_move_distance": 1
+          }
+        ],
+        "stamina_cost": 12,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 50,
+        "strength": 10
+      }
+    }
+  ]
+}

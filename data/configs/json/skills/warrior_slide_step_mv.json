@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_slide_step_mv",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_slide_step_mv",
+      "display_name": "滑步",
+      "description": "横移2格不触发反击。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_slide_step_mv",
+        "range_value": 0,
+        "cooldown_tu": 5,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 8
+          }
+        },
+        "stamina_cost": 14
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "strength": 20
+      }
+    }
+  ]
+}

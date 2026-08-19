@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_azure_dragon_pierce",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_azure_dragon_pierce",
+      "display_name": "苍龙贯日",
+      "description": "超远距离直线斗气贯穿攻击。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "ranged"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_azure_dragon_pierce",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "line",
+        "ap_cost": 2,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 14,
+            "payload": {},
+            "damage_tag": "magic"
+          }
+        ],
+        "area_value": 1,
+        "attack_roll_bonus": -10,
+        "aura_cost": 40,
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 90,
+        "willpower": 90
+      }
+    }
+  ]
+}

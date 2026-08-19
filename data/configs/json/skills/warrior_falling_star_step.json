@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_falling_star_step",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_falling_star_step",
+      "display_name": "落星断步",
+      "description": "攻击目标并限制其移动。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_falling_star_step",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "slow"
+          }
+        ],
+        "stamina_cost": 12,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 30,
+        "strength": 30
+      }
+    }
+  ]
+}

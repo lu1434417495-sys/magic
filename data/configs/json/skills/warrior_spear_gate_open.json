@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_spear_gate_open",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_spear_gate_open",
+      "display_name": "枪阵空门",
+      "description": "标记空门，下名友军近战射程\u002B1。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_spear_gate_open",
+        "range_value": 2,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 14
+          }
+        },
+        "stamina_cost": 20
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

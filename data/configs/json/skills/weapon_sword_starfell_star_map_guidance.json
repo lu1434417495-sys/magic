@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "weapon_sword_starfell_star_map_guidance",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "weapon_sword_starfell_star_map_guidance",
+      "display_name": "星图指引",
+      "description": "装备技能。消耗2层你施加的星尘（优先扣除层数最多的目标），使下一次攻击检定获得优势；需要你施加的星尘总数≥2。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "starfell",
+        "weapon",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_starfell_star_map_guidance",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "equipment",
+          "weapon",
+          "buff"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

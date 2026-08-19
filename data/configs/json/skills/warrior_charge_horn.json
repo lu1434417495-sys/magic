@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_charge_horn",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_charge_horn",
+      "display_name": "冲锋号角",
+      "description": "友军下次移动\u002B1，近战伤害提升。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_charge_horn",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 100,
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 22
+          }
+        },
+        "area_value": 3,
+        "stamina_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 40,
+        "willpower": 80
+      }
+    }
+  ]
+}

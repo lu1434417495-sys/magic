@@ -1,0 +1,162 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_war_cry",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_war_cry",
+      "display_name": "战吼",
+      "description": "鼓舞自身及周围1格友军，提升攻击检定。冷却较长但AP与体力消耗低廉，对生命值低于一半的同伴效果更显著（熟练度获取翻倍）。高等级延长增益并降低体力消耗，7级时额外赋予意志检定加值。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "support"
+      ],
+      "level_description_template": "攻击检定\u002B{hit}，持续{duration}TU，消耗1AP/{stamina}体力，冷却150TU。{{?willpower}}额外意志检定\u002B{willpower}。{{/willpower}}",
+      "level_description_configs": {
+        "0": {
+          "duration": "30",
+          "hit": "\u002B1",
+          "stamina": "30"
+        },
+        "1": {
+          "duration": "60",
+          "hit": "\u002B1",
+          "stamina": "30"
+        },
+        "2": {
+          "duration": "60",
+          "hit": "\u002B1",
+          "stamina": "25"
+        },
+        "3": {
+          "duration": "90",
+          "hit": "\u002B1",
+          "stamina": "25"
+        },
+        "4": {
+          "duration": "90",
+          "hit": "\u002B1",
+          "stamina": "20"
+        },
+        "5": {
+          "duration": "90",
+          "hit": "\u002B2",
+          "stamina": "20"
+        },
+        "6": {
+          "duration": "90",
+          "hit": "\u002B2",
+          "stamina": "15"
+        },
+        "7": {
+          "duration": "120",
+          "hit": "\u002B3",
+          "stamina": "15",
+          "willpower": "1"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "warrior_war_cry",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 150,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 30,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 90,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 90,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "willpower_save_bonus_up",
+            "control_save_bonus": 1
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 25
+          },
+          "4": {
+            "stamina_cost": 20
+          },
+          "6": {
+            "stamina_cost": 15
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 30,
+        "mastery_trigger_mode": "status_applied",
+        "mastery_low_hp_bonus_multiplier": 2
+      },
+      "icon_id": "warrior_war_cry",
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 90
+      }
+    }
+  ]
+}

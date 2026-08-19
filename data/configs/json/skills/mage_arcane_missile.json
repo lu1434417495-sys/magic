@@ -1,0 +1,304 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_arcane_missile",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_arcane_missile",
+      "display_name": "奥术飞弹",
+      "description": "编排一组无需武器的奥术力场飞弹。每枚飞弹必定命中且不能暴击，可重复指定同一目标，并严格按选择顺序逐发结算；若既定目标提前倒下，分配给它的后续飞弹会消散。技能无冷却，法力与体力均按实际发射数量线性消耗。",
+      "max_level": 5,
+      "tags": [
+        "mage",
+        "magic",
+        "arcane",
+        "output"
+      ],
+      "level_description_template": "射程{range}（需要视线），可编排1至{missiles}枚力场飞弹；每枚必定命中且不能暴击，造成{dmg}力场伤害，可重复指定同一目标并按选择顺序逐发结算。无需武器。消耗1AP；每枚消耗{mp_per}法力/{stamina_per}体力，满额共{mp_total}法力/{stamina_total}体力；无冷却。动态最大等级:{dynamic_max_level}",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D4\u002B1",
+          "missiles": "3",
+          "mp_per": "10",
+          "mp_total": "30",
+          "range": "3",
+          "stamina_per": "11",
+          "stamina_total": "33"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D4\u002B1",
+          "missiles": "3",
+          "mp_per": "9",
+          "mp_total": "27",
+          "range": "4",
+          "stamina_per": "11",
+          "stamina_total": "33"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D4\u002B1",
+          "missiles": "4",
+          "mp_per": "9",
+          "mp_total": "36",
+          "range": "4",
+          "stamina_per": "10",
+          "stamina_total": "40"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D6\u002B1",
+          "missiles": "4",
+          "mp_per": "8",
+          "mp_total": "32",
+          "range": "4",
+          "stamina_per": "10",
+          "stamina_total": "40"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D6\u002B1",
+          "missiles": "5",
+          "mp_per": "8",
+          "mp_total": "40",
+          "range": "5",
+          "stamina_per": "9",
+          "stamina_total": "45"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8\u002B1",
+          "missiles": "5",
+          "mp_per": "7",
+          "mp_total": "35",
+          "range": "5",
+          "stamina_per": "9",
+          "stamina_total": "45"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8\u002B1",
+          "missiles": "5",
+          "mp_per": "6",
+          "mp_total": "30",
+          "range": "5",
+          "stamina_per": "8",
+          "stamina_total": "40"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8\u002B1",
+          "missiles": "6",
+          "mp_per": "6",
+          "mp_total": "36",
+          "range": "5",
+          "stamina_per": "8",
+          "stamina_total": "48"
+        },
+        "8": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8\u002B2",
+          "missiles": "6",
+          "mp_per": "6",
+          "mp_total": "36",
+          "range": "5",
+          "stamina_per": "7",
+          "stamina_total": "42"
+        },
+        "9": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8\u002B2",
+          "missiles": "6",
+          "mp_per": "5",
+          "mp_total": "30",
+          "range": "5",
+          "stamina_per": "7",
+          "stamina_total": "42"
+        },
+        "10": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "2D4\u002B2",
+          "missiles": "6",
+          "mp_per": "5",
+          "mp_total": "30",
+          "range": "5",
+          "stamina_per": "7",
+          "stamina_total": "42"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_arcane_missile",
+        "range_value": 3,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 4,
+            "dice_bonus": 1,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 6,
+            "dice_bonus": 1,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 7,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 8,
+            "dice_bonus": 1,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 8,
+            "max_skill_level": 9,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 8,
+            "dice_bonus": 2,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 10,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 2,
+            "dice_sides": 4,
+            "dice_bonus": 2,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "mp_cost_per_target_slot": 9,
+            "stamina_cost_per_target_slot": 11,
+            "range_value": 4
+          },
+          "2": {
+            "mp_cost_per_target_slot": 9,
+            "stamina_cost_per_target_slot": 10,
+            "max_target_count": 4
+          },
+          "3": {
+            "mp_cost_per_target_slot": 8,
+            "stamina_cost_per_target_slot": 10,
+            "max_target_count": 4
+          },
+          "4": {
+            "mp_cost_per_target_slot": 8,
+            "stamina_cost_per_target_slot": 9,
+            "range_value": 5,
+            "max_target_count": 5
+          },
+          "5": {
+            "mp_cost_per_target_slot": 7,
+            "stamina_cost_per_target_slot": 9,
+            "max_target_count": 5
+          },
+          "6": {
+            "mp_cost_per_target_slot": 6,
+            "stamina_cost_per_target_slot": 8,
+            "max_target_count": 5
+          },
+          "7": {
+            "mp_cost_per_target_slot": 6,
+            "stamina_cost_per_target_slot": 8,
+            "max_target_count": 6
+          },
+          "8": {
+            "mp_cost_per_target_slot": 6,
+            "stamina_cost_per_target_slot": 7,
+            "max_target_count": 6
+          },
+          "9": {
+            "mp_cost_per_target_slot": 5,
+            "stamina_cost_per_target_slot": 7,
+            "max_target_count": 6
+          },
+          "10": {
+            "mp_cost_per_target_slot": 5,
+            "stamina_cost_per_target_slot": 7,
+            "max_target_count": 6
+          }
+        },
+        "requires_los": true,
+        "mp_cost_per_target_slot": 10,
+        "stamina_cost_per_target_slot": 11,
+        "attack_resolution_mode": "force_hit_no_crit",
+        "ai_tags": [
+          "single_target",
+          "multi_target",
+          "reliable"
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical",
+        "target_selection_mode": "multi_unit",
+        "max_target_count": 3,
+        "allow_repeat_target": true,
+        "unit_target_resolution_mode": "ordered_slots",
+        "selection_order_mode": "manual"
+      },
+      "non_core_max_level": 3,
+      "dynamic_max_level_stat_id": "profession_rank:mage",
+      "dynamic_max_level_base": 5,
+      "dynamic_max_level_per_stat": -2,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000,
+        17000,
+        22000,
+        28000
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "intelligence": 60
+      }
+    }
+  ]
+}

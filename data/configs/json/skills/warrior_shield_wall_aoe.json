@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shield_wall_aoe",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shield_wall_aoe",
+      "display_name": "护盾墙",
+      "description": "周围友军大幅减伤。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "defense",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shield_wall_aoe",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "damage_reduction_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 25
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 35
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "willpower": 40
+      }
+    }
+  ]
+}

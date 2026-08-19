@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_thunder_ground_shatter",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_thunder_ground_shatter",
+      "display_name": "雷纹碎地",
+      "description": "轰击地面造成范围伤害，形成带电地形。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "terrain",
+        "aoe"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_thunder_ground_shatter",
+        "target_mode": "ground",
+        "range_value": 2,
+        "area_pattern": "radius",
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 9,
+            "payload": {},
+            "damage_tag": "lightning"
+          },
+          {
+            "effect_type": "terrain_effect",
+            "duration_tu": 40,
+            "payload": {},
+            "terrain_effect_id": "electrified_ground",
+            "tick_interval_tu": 40
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 18,
+        "mastery_trigger_mode": "weapon_attack_quality"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "strength": 80,
+        "willpower": 40
+      }
+    }
+  ]
+}

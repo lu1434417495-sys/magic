@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_formation_eye",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_formation_eye",
+      "display_name": "阵眼加固",
+      "description": "指定一格为阵眼，友军站在其上获得防御增益。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "terrain",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_formation_eye",
+        "target_mode": "ground",
+        "range_value": 3,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "terrain_effect",
+            "duration_tu": 80,
+            "payload": {},
+            "terrain_effect_id": "formation_eye",
+            "tick_interval_tu": 40
+          }
+        ],
+        "stamina_cost": 14,
+        "mastery_trigger_mode": "effect_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

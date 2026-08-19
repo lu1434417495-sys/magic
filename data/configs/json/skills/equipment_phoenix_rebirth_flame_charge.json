@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "equipment_phoenix_rebirth_flame_charge",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "equipment_phoenix_rebirth_flame_charge",
+      "display_name": "火焰冲锋",
+      "description": "装备技能。消耗2 AP，沿正交直线冲锋，最大距离为当前有效移动力容量的3倍；每个离开格留下持续60TU的火焰轨迹，任何进入轨迹的单位受到2D6 fire。同一移动命令只结算一次轨迹伤害。使用次数由凤凰涅槃胫甲的每日一次入口管理。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "phoenix_rebirth",
+        "mobility",
+        "charge",
+        "fire",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_flame_charge",
+        "target_mode": "ground",
+        "target_team_filter": "any",
+        "range_value": 0,
+        "ap_cost": 2,
+        "range_move_point_capacity_multiplier": 3,
+        "cast_variants": [
+          {
+            "variant_id": "flame_charge_line",
+            "display_name": "火焰冲锋",
+            "description": "选择同一行或同一列的目标格，沿该方向逐格冲锋，并在每个离开格留下火焰轨迹。",
+            "effect_defs": [
+              {
+                "effect_type": "charge",
+                "payload": {}
+              }
+            ]
+          }
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ]
+    }
+  ]
+}

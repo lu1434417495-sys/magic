@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_earth_bind",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_earth_bind",
+      "display_name": "地脉锁足",
+      "description": "用大地之力定住目标，使其无法移动。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_earth_bind",
+        "target_mode": "ground",
+        "range_value": 3,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "rooted"
+          }
+        ],
+        "attack_roll_bonus": -5,
+        "aura_cost": 15,
+        "mastery_trigger_mode": "status_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

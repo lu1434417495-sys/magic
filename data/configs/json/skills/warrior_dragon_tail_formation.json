@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_tail_formation",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_tail_formation",
+      "display_name": "龙尾扫阵",
+      "description": "击退周围敌人1格，撞墙眩晕。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "aoe",
+        "displacement"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_tail_formation",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "physical_blunt",
+            "dice_count": 1,
+            "dice_sides": 8
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "knockback",
+            "forced_move_distance": 1
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 22
+          }
+        },
+        "area_value": 1,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    }
+  ]
+}

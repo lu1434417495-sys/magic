@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_shoulder_guard_ram",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_shoulder_guard_ram",
+      "display_name": "肩甲撞击",
+      "description": "肩甲撞击使目标随机转向。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_shoulder_guard_ram",
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 16
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "strength": 40
+      }
+    }
+  ]
+}

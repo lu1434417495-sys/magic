@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_blue_dragon_pierce",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_blue_dragon_pierce",
+      "display_name": "苍龙贯日",
+      "description": "长距离穿透，每穿透一个目标伤害递减。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "qi",
+        "ranged"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_blue_dragon_pierce",
+        "range_value": 5,
+        "area_pattern": "line",
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 14,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 10,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 38
+          }
+        },
+        "area_value": 5,
+        "attack_roll_bonus": -2,
+        "aura_cost": 45,
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

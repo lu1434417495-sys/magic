@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_purify_roar",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_purify_roar",
+      "display_name": "净化怒吼",
+      "description": "清除友军减益并提升命中。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "support",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_purify_roar",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "aura_cost": 22
+          }
+        },
+        "area_value": 2,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 60,
+        "willpower": 60
+      }
+    }
+  ]
+}

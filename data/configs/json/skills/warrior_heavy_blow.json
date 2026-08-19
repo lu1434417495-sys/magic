@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_heavy_blow",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_heavy_blow",
+      "display_name": "重压斩",
+      "description": "使用具有 heavy 属性的近战武器发动一次延迟重击，命中、重击、护甲与格挡均按一次标准武器攻击结算。\n使用时选择蓄力挡位。力量调整值 ≥\u002B5 / \u002B3～\u002B4 / \u002B1～\u002B2 / ≤0 时，每挡分别需要 5 / 10 / 15 / 20 TU；每挡额外消耗 6 体力并增加 1W。挡位自然上限为 max(1, ceil(体质调整值/2))。\n确认后支付费用、剩余 AP 清零并立即结束当前回合。蓄力期间行动进度冻结，体力照常恢复，且不能主动取消；单纯受到伤害不会打断。倒地、眩晕、麻痹、冻结、石化、疯狂、失衡、陨石震荡、施术者强制位移、武器变化或目标失效会打断，费用不退并进入完整冷却。目标移动不会提前打断，但完成时会重新检查目标、距离与视线；不合法则攻击落空。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "output"
+      ],
+      "level_description_template": "{damage}；可选蓄力上限{cap}，每挡\u002B1W、\u002B6体力；基础消耗{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "cap": "1挡（仍受体质自然上限约束）",
+          "cooldown": "90",
+          "damage": "基础1W",
+          "stamina": "14"
+        },
+        "1": {
+          "cap": "1挡（仍受体质自然上限约束）",
+          "cooldown": "90",
+          "damage": "基础1W",
+          "stamina": "12"
+        },
+        "2": {
+          "cap": "2挡（仍受体质自然上限约束）",
+          "cooldown": "80",
+          "damage": "基础1W",
+          "stamina": "12"
+        },
+        "3": {
+          "cap": "2挡（仍受体质自然上限约束）",
+          "cooldown": "80",
+          "damage": "基础1W",
+          "stamina": "10"
+        },
+        "4": {
+          "cap": "3挡（仍受体质自然上限约束）",
+          "cooldown": "70",
+          "damage": "基础1W",
+          "stamina": "10"
+        },
+        "5": {
+          "cap": "不设技能上限（仍受体质自然上限约束）",
+          "cooldown": "60",
+          "damage": "基础2W",
+          "stamina": "10"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "warrior_heavy_blow",
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "stamina_cost": 12
+          },
+          "2": {
+            "cooldown_tu": 80
+          },
+          "3": {
+            "stamina_cost": 10
+          },
+          "4": {
+            "cooldown_tu": 70
+          },
+          "5": {
+            "cooldown_tu": 60
+          }
+        },
+        "stamina_cost": 14,
+        "windup_profile": {},
+        "mastery_trigger_mode": "damage_dealt",
+        "requires_heavy_weapon": true
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "strength": 40
+      }
+    }
+  ]
+}

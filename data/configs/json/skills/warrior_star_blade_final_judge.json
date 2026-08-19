@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_star_blade_final_judge",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_star_blade_final_judge",
+      "display_name": "星刃终裁",
+      "description": "若目标带有3个以上减益，造成320%伤害；否则造成基础伤害\u002B固定威能，并附加虚弱和减速。星刃流派终式。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "finisher"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_star_blade_final_judge",
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 5,
+            "power": 8,
+            "payload": {},
+            "damage_ratio_percent": 320,
+            "dice_count": 2,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "bonus_condition": "target_debuff_count"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 6,
+            "power": 12,
+            "payload": {},
+            "damage_ratio_percent": 320,
+            "dice_count": 3,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "bonus_condition": "target_debuff_count"
+          },
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "status_id": "hex_of_frailty",
+            "save_dc": 12,
+            "save_ability": "willpower",
+            "save_failure_status_id": "hex_of_frailty",
+            "save_tag": "charm"
+          },
+          {
+            "effect_type": "status",
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "slow",
+            "save_dc": 12,
+            "save_ability": "constitution",
+            "save_failure_status_id": "slow",
+            "save_tag": "paralysis"
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "attack_roll_bonus": 1
+          },
+          "8": {
+            "aura_cost": 50
+          }
+        },
+        "aura_cost": 65
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "agility": 140,
+        "strength": 100
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_twin_claw_rip",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_twin_claw_rip",
+      "display_name": "双爪开膛",
+      "description": "对流血目标额外伤害。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_twin_claw_rip",
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 24
+          }
+        },
+        "stamina_cost": 30,
+        "attack_roll_bonus": -1
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 70
+      }
+    }
+  ]
+}

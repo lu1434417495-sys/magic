@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_last_stand",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_last_stand",
+      "display_name": "不屈",
+      "description": "死战不退的肉体极限。进入战斗时自动获得免死标记，首次 HP 降至 0 时阻止死亡并立即恢复生命。Lv5 触发时清除所有负面状态；Lv7 触发后获得持续 90 TU 的所有伤害-1 效果。",
+      "skill_type": "passive",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "survival"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_last_stand",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "ap_cost": 0,
+        "mastery_trigger_mode": "effect_applied",
+        "target_selection_mode": "self",
+        "passive_effect_defs": [
+          {
+            "effect_type": "status",
+            "payload": {
+              "source_skill_id": "warrior_last_stand"
+            },
+            "status_id": "death_ward",
+            "trigger_condition": "battle_start"
+          },
+          {
+            "effect_type": "heal_fatal",
+            "payload": {},
+            "trigger_condition": "on_fatal_damage",
+            "trigger_status_id": "death_ward"
+          },
+          {
+            "effect_type": "erase_status",
+            "payload": {},
+            "trigger_condition": "on_fatal_damage",
+            "trigger_status_id": "death_ward"
+          },
+          {
+            "effect_type": "cleanse_harmful",
+            "min_skill_level": 5,
+            "payload": {},
+            "trigger_condition": "on_fatal_damage",
+            "trigger_status_id": "death_ward"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "duration_tu": 90,
+            "payload": {},
+            "status_id": "last_stand_active",
+            "trigger_condition": "on_fatal_damage",
+            "trigger_status_id": "death_ward",
+            "passive_reduction": 1
+          }
+        ]
+      },
+      "icon_id": "warrior_last_stand",
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        60,
+        150,
+        350,
+        600,
+        900,
+        1200,
+        1600
+      ],
+      "skill_level_requirements": {
+        "warrior_battle_recovery": 3
+      },
+      "attribute_requirements": {
+        "constitution": 14,
+        "willpower": 14
+      },
+      "mastery_sources": [
+        "last_stand_triggered",
+        "critical_survival"
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 80,
+        "willpower": 40
+      }
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_dragon_vein_step_ring",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_dragon_vein_step_ring",
+      "display_name": "龙脉踏响",
+      "description": "每命中1人叠龙脉最多3层提升斗气回复。",
+      "max_level": 7,
+      "tags": [
+        "warrior",
+        "melee",
+        "aoe",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_dragon_vein_step_ring",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 3,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "stamina_cost": 18
+          }
+        },
+        "area_value": 1,
+        "stamina_cost": 24
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        160,
+        400,
+        900,
+        1600,
+        2600,
+        3800,
+        5300
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "strength": 40,
+        "willpower": 30
+      }
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_muffled_thunder_crush",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_muffled_thunder_crush",
+      "display_name": "闷雷压顶",
+      "description": "目标正在蓄力/姿态时打断并眩晕。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_muffled_thunder_crush",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "thunder",
+            "dice_count": 1,
+            "dice_sides": 8
+          },
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "staggered"
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "attack_roll_bonus": 0
+          },
+          "7": {
+            "aura_cost": 32
+          }
+        },
+        "attack_roll_bonus": -1,
+        "aura_cost": 40
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

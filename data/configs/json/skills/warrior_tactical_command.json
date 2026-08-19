@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_tactical_command",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_tactical_command",
+      "display_name": "战术指令",
+      "description": "指定一名友军，提升其下次攻击的命中与伤害。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_tactical_command",
+        "target_team_filter": "ally",
+        "range_value": 3,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        ],
+        "stamina_cost": 8,
+        "mastery_trigger_mode": "effect_applied"
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 20,
+        "willpower": 40
+      }
+    }
+  ]
+}

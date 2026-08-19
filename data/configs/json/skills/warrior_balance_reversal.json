@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_balance_reversal",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_balance_reversal",
+      "display_name": "天秤反转",
+      "description": "换位\u002B眩晕，体型大则命中惩罚。",
+      "max_level": 10,
+      "tags": [
+        "warrior",
+        "melee",
+        "control",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_balance_reversal",
+        "cooldown_tu": 200,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "staggered"
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "attack_roll_bonus": 2
+          },
+          "8": {
+            "aura_cost": 65
+          }
+        },
+        "aura_cost": 80
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        360,
+        900,
+        1980,
+        3600,
+        5760,
+        8600,
+        12000,
+        16000,
+        21000,
+        26900
+      ],
+      "growth_tier": "ultimate",
+      "attribute_growth_progress": {
+        "agility": 140,
+        "strength": 100
+      }
+    }
+  ]
+}

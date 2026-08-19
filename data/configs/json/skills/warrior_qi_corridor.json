@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_qi_corridor",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_qi_corridor",
+      "display_name": "斗气回廊",
+      "description": "友军经过恢复体力，敌人经过损失体力。",
+      "max_level": 9,
+      "tags": [
+        "warrior",
+        "melee",
+        "recovery",
+        "terrain",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_qi_corridor",
+        "range_value": 3,
+        "area_pattern": "line",
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "5": {
+            "aura_cost": 22
+          }
+        },
+        "area_value": 3,
+        "aura_cost": 28
+      },
+      "non_core_max_level": 7,
+      "mastery_curve": [
+        240,
+        600,
+        1320,
+        2400,
+        3840,
+        5640,
+        7800,
+        10320,
+        13200
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "strength": 70,
+        "willpower": 110
+      }
+    }
+  ]
+}

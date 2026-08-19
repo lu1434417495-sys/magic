@@ -1,0 +1,171 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_heavy_strike",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_heavy_strike",
+      "display_name": "重击",
+      "description": "基础近战技能。使用当前近战武器或近战型天生武器重击目标，基础攻击检定\u002B1，高等级提高命中。命中时追加随等级成长的技能伤害骰，高等级附加破甲与失衡效果。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "output"
+      ],
+      "level_description_template": "攻击检定{attack}，追加{skill_dice}技能骰。体力消耗{stamina}{{?armor_break}}，命中附加破甲（{armor_duration}TU）{{/armor_break}}{{?stagger}}，二次命中成功时失衡（{stagger_duration}TU）{{/stagger}}",
+      "level_description_configs": {
+        "0": {
+          "attack": "\u002B1",
+          "skill_dice": "1D4",
+          "stamina": "30"
+        },
+        "1": {
+          "attack": "\u002B1",
+          "skill_dice": "1D6",
+          "stamina": "30"
+        },
+        "2": {
+          "attack": "\u002B1",
+          "skill_dice": "1D6",
+          "stamina": "20"
+        },
+        "3": {
+          "armor_break": "true",
+          "armor_duration": "40",
+          "attack": "\u002B1",
+          "skill_dice": "1D8",
+          "stamina": "20"
+        },
+        "4": {
+          "armor_break": "true",
+          "armor_duration": "70",
+          "attack": "\u002B2",
+          "skill_dice": "1D8",
+          "stamina": "20"
+        },
+        "5": {
+          "armor_break": "true",
+          "armor_duration": "120",
+          "attack": "\u002B3",
+          "skill_dice": "2D5",
+          "stagger": "true",
+          "stagger_duration": "60",
+          "stamina": "20"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "warrior_heavy_strike",
+        "range_value": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 3,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "armor_break"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 4,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 70,
+            "payload": {},
+            "status_id": "armor_break"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "status_id": "armor_break"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "staggered",
+            "trigger_event": "secondary_hit"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 5,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 20
+          },
+          "4": {
+            "attack_roll_bonus": 2
+          },
+          "5": {
+            "attack_roll_bonus": 3
+          }
+        },
+        "stamina_cost": 30,
+        "attack_roll_bonus": 1,
+        "allows_natural_weapon": true
+      },
+      "icon_id": "warrior_heavy_strike",
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "strength": 40
+      }
+    }
+  ]
+}

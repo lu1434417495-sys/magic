@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_vanguard_designate",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_vanguard_designate",
+      "display_name": "先锋指定",
+      "description": "目标进入威胁区时大幅减伤。",
+      "max_level": 3,
+      "tags": [
+        "warrior",
+        "melee",
+        "buff",
+        "team"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_vanguard_designate",
+        "range_value": 3,
+        "cooldown_tu": 60,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "constitution": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

@@ -1,0 +1,226 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_burning_hands",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_burning_hands",
+      "display_name": "焚掌喷流",
+      "description": "选择相邻地格确定喷流方向，对锥形范围内所有单位造成火焰伤害；敏捷豁免成功伤害减半。3级起，豁免失败者还会燃烧：同一施法者的本技能最多叠加3层；不同施法者或其他技能/效果形成独立来源，分别叠加、计时和结算。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "fire",
+        "aoe",
+        "output",
+        "control"
+      ],
+      "level_description_template": "选择相邻地格确定方向；自身前方{area}内所有单位进行敏捷豁免，失败受到{dmg}火焰伤害，成功减半{{?burn}}；失败者附加燃烧（强度{burn_power}，持续{burn_duration}TU，每{burn_tick}TU结算；同源最多3层，不同施法者或其他技能/效果独立叠加、计时和结算）{{/burn}}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area": "小锥形",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "mp": "70"
+        },
+        "1": {
+          "ap": "2",
+          "area": "小锥形",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "mp": "70"
+        },
+        "2": {
+          "ap": "2",
+          "area": "小锥形",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "mp": "70"
+        },
+        "3": {
+          "ap": "2",
+          "area": "小锥形",
+          "burn": "true",
+          "burn_duration": "20",
+          "burn_power": "1",
+          "burn_tick": "10",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "mp": "70"
+        },
+        "4": {
+          "ap": "2",
+          "area": "小锥形",
+          "burn": "true",
+          "burn_duration": "20",
+          "burn_power": "1",
+          "burn_tick": "10",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "mp": "70"
+        },
+        "5": {
+          "ap": "2",
+          "area": "大锥形",
+          "burn": "true",
+          "burn_duration": "20",
+          "burn_power": "2",
+          "burn_tick": "10",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "mp": "70"
+        },
+        "6": {
+          "ap": "2",
+          "area": "大锥形",
+          "burn": "true",
+          "burn_duration": "20",
+          "burn_power": "2",
+          "burn_tick": "10",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "mp": "70"
+        },
+        "7": {
+          "ap": "2",
+          "area": "大锥形",
+          "burn": "true",
+          "burn_duration": "30",
+          "burn_power": "2",
+          "burn_tick": "10",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "mp": "70"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_burning_hands",
+        "target_mode": "ground",
+        "area_pattern": "cone",
+        "ap_cost": 2,
+        "mp_cost": 70,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 3,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 20,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "burning",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 20,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "burning",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "power": 2,
+            "duration_tu": 30,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "burning",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {},
+          "5": {
+            "cooldown_tu": 5,
+            "area_value": 2
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "attack_resolution_mode": "direct_effect",
+        "ai_tags": [
+          "aoe",
+          "close_range"
+        ],
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      }
+    }
+  ]
+}

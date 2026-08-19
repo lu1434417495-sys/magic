@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "warrior_stone_pillar_rise",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "warrior_stone_pillar_rise",
+      "display_name": "石柱突起",
+      "description": "生成1格可摧毁障碍。",
+      "max_level": 5,
+      "tags": [
+        "warrior",
+        "melee",
+        "terrain",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "warrior_stone_pillar_rise",
+        "range_value": 3,
+        "cooldown_tu": 100,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 18
+          }
+        },
+        "aura_cost": 22
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "strength": 30,
+        "willpower": 30
+      }
+    }
+  ]
+}

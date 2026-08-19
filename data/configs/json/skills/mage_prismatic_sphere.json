@@ -1,0 +1,118 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "mage_prismatic_sphere",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_prismatic_sphere",
+      "display_name": "虹光法球",
+      "description": "在施法者所在位置创造固定虹光法球。施法者可自由出入，但不能隔着法球攻击或施法；其他单位穿越时依次承受七层效果。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "defense",
+        "control"
+      ],
+      "level_description_template": "创造固定虹光法球（半径2格，持续{duration}TU）。消耗{ap}AP/{mp}法力，冷却{cooldown}TU。",
+      "level_description_configs": {
+        "0": {
+          "ap": "3",
+          "cooldown": "30",
+          "duration": "120",
+          "mp": "160"
+        },
+        "1": {
+          "ap": "3",
+          "cooldown": "30",
+          "duration": "120",
+          "mp": "160"
+        },
+        "2": {
+          "ap": "3",
+          "cooldown": "30",
+          "duration": "120",
+          "mp": "160"
+        },
+        "3": {
+          "ap": "3",
+          "cooldown": "30",
+          "duration": "120",
+          "mp": "160"
+        },
+        "4": {
+          "ap": "3",
+          "cooldown": "30",
+          "duration": "120",
+          "mp": "160"
+        },
+        "5": {
+          "ap": "3",
+          "cooldown": "30",
+          "duration": "120",
+          "mp": "160"
+        },
+        "6": {
+          "ap": "3",
+          "cooldown": "30",
+          "duration": "120",
+          "mp": "160"
+        },
+        "7": {
+          "ap": "3",
+          "cooldown": "30",
+          "duration": "120",
+          "mp": "160"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_prismatic_sphere",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "area_pattern": "self",
+        "ap_cost": 3,
+        "mp_cost": 160,
+        "cooldown_tu": 30,
+        "effect_defs": [
+          {
+            "effect_type": "layered_barrier",
+            "duration_tu": 120,
+            "payload": {
+              "area_pattern": "diamond",
+              "profile_id": "prismatic_sphere",
+              "radius_cells": 2,
+              "save_dc": 16
+            },
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "spell",
+          "force_effect"
+        ],
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "intelligence": 100,
+        "willpower": 60
+      }
+    }
+  ]
+}
