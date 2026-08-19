@@ -14,6 +14,11 @@ internal static class ContentJsonOfflineValidationCatalog
             {
                 ContentJsonOfflineValidationSampleDomain.Create(),
                 SkillContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+                ItemContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+                TraitContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+                EquipmentAbilityContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+                GearSetContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+                RecipeContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
             }
         );
 

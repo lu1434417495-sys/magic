@@ -11,8 +11,8 @@ Build and run from the repository root:
 
 ```powershell
 dotnet build tools/content_json_validation/Magic.ContentJsonValidation.Cli.csproj
-dotnet .tmp/content_json_validation/bin/Debug/net8.0/Magic.ContentJsonValidation.Cli.dll --domain schema_fixture --input data/configs/json/schema_fixture --format json
-dotnet .tmp/content_json_validation/bin/Debug/net8.0/Magic.ContentJsonValidation.Cli.dll --domain skills --input path/to/skill.json --format json
+dotnet .tmp/content_json_validation/bin/Debug/net8.0/Magic.ContentJsonValidation.Cli.dll --domain items --input data/configs/json/items --format json
+dotnet .tmp/content_json_validation/bin/Debug/net8.0/Magic.ContentJsonValidation.Cli.dll --domain equipment_abilities --input path/to/generated/equipment_abilities --format ndjson
 ```
 
 `--input` accepts one host-filesystem `.json` file or a directory whose direct `.json` children
@@ -23,12 +23,12 @@ Exit codes are stable: `0` means valid, `1` means content diagnostics were produ
 the CLI/domain/input boundary failed. Every outcome uses protocol
 `magic.content_json.validation/v1`; no environment-dependent stack trace is written to stdout.
 
-Future migrated domains register one `ContentJsonOfflineValidationDomain<TDto,TImport>` in
-`ContentJsonOfflineValidationCatalog`. The registration must supply an explicit source-generated
-`JsonTypeInfo<TDto>` parse delegate, its typed import normalizer, and its domain-local validator.
-The CLI does not reflectively discover DTOs, perform cross-domain checks, or build a runtime
-snapshot.
+The registered production domains are `skills`, `items`, `traits`, `equipment_abilities`,
+`gear_sets`, and `recipes` (plus test-only schema fixtures). Each registration links the same
+strict DTO parser, plain import mapper, nullability policy, and domain-local validator used by the
+runtime authoring boundary. The CLI does not reflectively discover DTOs, perform cross-domain
+checks, resolve engine assets, run BattleSim, or build a runtime snapshot.
 
-The `skills` registration currently describes the stage-1a pilot import contract only: the
-committed top-level/combat/level fields and the `layered_barrier` effect payload. Its schema and
-CLI coverage intentionally do not claim that every production `.tres` skill shape has migrated.
+All six registered production domains are JSON direct-load domains. Their offline success proves
+schema and domain-local validity only; publication and generated-content admission must still run
+the repository's cross-domain and simulation gates.

@@ -26,6 +26,11 @@ internal static class ContentJsonSchemaCatalog
                         "/data/configs/json/schema_fixture/**/*.json"
                 ),
                 SkillContentJsonAuthoringDomain.SchemaRegistration,
+                ItemContentJsonAuthoringDomain.SchemaRegistration,
+                TraitContentJsonAuthoringDomain.SchemaRegistration,
+                EquipmentAbilityContentJsonAuthoringDomain.SchemaRegistration,
+                GearSetContentJsonAuthoringDomain.SchemaRegistration,
+                RecipeContentJsonAuthoringDomain.SchemaRegistration,
             }
         );
 

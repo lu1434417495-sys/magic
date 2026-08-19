@@ -39,5 +39,26 @@
     <Compile Include="../../scripts/systems/content/skills/SkillRootCombatJsonNormalizer.cs" Link="Shared/SkillRootCombatJsonNormalizer.cs" />
     <Compile Include="../../scripts/systems/content/skills/SkillJsonImportParser.cs" Link="Shared/SkillJsonImportParser.cs" />
     <Compile Include="../../scripts/systems/content/skills/SkillContentJsonAuthoringDomain.cs" Link="Shared/SkillContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemImportModels.cs" Link="Shared/ItemImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemJsonImportContracts.cs" Link="Shared/ItemJsonImportContracts.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemJsonImportParser.cs" Link="Shared/ItemJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemImportModelValidator.cs" Link="Shared/ItemImportModelValidator.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemContentJsonAuthoringDomain.cs" Link="Shared/ItemContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitImportModels.cs" Link="Shared/TraitImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitImportValueRules.cs" Link="Shared/TraitImportValueRules.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitJsonImportContracts.cs" Link="Shared/TraitJsonImportContracts.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitJsonImportParser.cs" Link="Shared/TraitJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitImportModelValidator.cs" Link="Shared/TraitImportModelValidator.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitContentJsonAuthoringDomain.cs" Link="Shared/TraitContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/player/progression/equipment_abilities/EquipmentAbilityClosedVocabulary.cs" Link="Shared/EquipmentAbilityClosedVocabulary.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityImportModels.cs" Link="Shared/EquipmentAbilityImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityJsonDtos.cs" Link="Shared/EquipmentAbilityJsonDtos.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityImportGraphMapper.cs" Link="Shared/EquipmentAbilityImportGraphMapper.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityPayloadKindCatalog.cs" Link="Shared/EquipmentAbilityPayloadKindCatalog.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilitySchemaVocabularyProviders.cs" Link="Shared/EquipmentAbilitySchemaVocabularyProviders.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityImportVocabularyValidator.cs" Link="Shared/EquipmentAbilityImportVocabularyValidator.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityContentJsonAuthoringDomain.cs" Link="Shared/EquipmentAbilityContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/systems/content/recipes/RecipeJsonContent.cs" Link="Shared/RecipeJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/gear_sets/GearSetJsonContent.cs" Link="Shared/GearSetJsonContent.cs" />
   </ItemGroup>
 </Project>

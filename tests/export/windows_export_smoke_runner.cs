@@ -14,6 +14,8 @@ public partial class windows_export_smoke_runner : Node
         "battle.terrain.marker_preview";
     private static readonly StringName SkillIconAssetId =
         "archer_aimed_shot";
+    private static readonly StringName ItemIconAssetId =
+        "ui.item.icon.default";
     private static readonly StringName SceneAssetId =
         "battle.board.prop_scene";
     private static readonly StringName ShaderAssetId =
@@ -73,6 +75,7 @@ public partial class windows_export_smoke_runner : Node
             case "success":
                 AssertProbePackaged(ProbePath);
                 AssertProductionCatalogPackaged();
+                AssertStageFourJsonPackaged();
                 return;
             case "missing_file":
                 AssertProbePackaged(MissingProbePath);
@@ -143,17 +146,26 @@ public partial class windows_export_smoke_runner : Node
             Texture2D skillIcon = resolver.ResolveContentAssetBorrowed<Texture2D>(
                 SkillIconAssetId
             );
+            Texture2D itemIcon = resolver.ResolveContentAssetBorrowed<Texture2D>(
+                ItemIconAssetId
+            );
             PackedScene scene = resolver.ResolveContentAssetBorrowed<PackedScene>(
                 SceneAssetId
             );
             Shader shader = resolver.ResolveContentAssetBorrowed<Shader>(ShaderAssetId);
-            if (texture == null || skillIcon == null || scene == null || shader == null)
+            if (
+                texture == null
+                || skillIcon == null
+                || itemIcon == null
+                || scene == null
+                || shader == null
+            )
             {
                 throw new InvalidOperationException(
                     "Production catalog returned a missing typed borrowed asset."
                 );
             }
-            if (resolver.PublishedAssetCount != 26)
+            if (resolver.PublishedAssetCount != 27)
             {
                 throw new InvalidOperationException(
                     "Production catalog published an unexpected asset count: "
@@ -162,6 +174,65 @@ public partial class windows_export_smoke_runner : Node
                 );
             }
         });
+    }
+
+    private static void AssertStageFourJsonPackaged()
+    {
+        var reader = new GodotContentJsonSourceReader();
+        AssertImportBatch(
+            "items",
+            129,
+            ItemContentJsonAuthoringDomain.CreateImportDescriptor(
+                ItemContentJsonAuthoringDomain.ProductionDirectory,
+                reader
+            ).Import()
+        );
+        AssertImportBatch(
+            "traits",
+            239,
+            TraitContentJsonAuthoringDomain.CreateImportDescriptor(
+                TraitContentJsonAuthoringDomain.ProductionDirectory,
+                reader
+            ).Import()
+        );
+        AssertImportBatch(
+            "equipment_abilities",
+            55,
+            EquipmentAbilityContentJsonAuthoringDomain.CreateImportDescriptor(
+                EquipmentAbilityContentJsonAuthoringDomain.ProductionDirectory,
+                reader
+            ).Import()
+        );
+        AssertImportBatch(
+            "gear_sets",
+            1,
+            GearSetContentJsonAuthoringDomain.CreateImportDescriptor(
+                GearSetContentJsonAuthoringDomain.ProductionDirectory,
+                reader
+            ).Import()
+        );
+        AssertImportBatch(
+            "recipes",
+            4,
+            RecipeContentJsonAuthoringDomain.CreateImportDescriptor(
+                RecipeContentJsonAuthoringDomain.ProductionDirectory,
+                reader
+            ).Import()
+        );
+    }
+
+    private static void AssertImportBatch<TImport>(
+        string domain,
+        int expectedEntryCount,
+        ContentImportBatch<TImport> batch
+    )
+    {
+        if (batch.HasErrors || batch.Entries.Count != expectedEntryCount)
+        {
+            throw new InvalidOperationException(
+                $"Packaged {domain} JSON import failed: entries={batch.Entries.Count}, diagnostics={batch.Diagnostics.Count}."
+            );
+        }
     }
 
     private static void WithProductionCatalog(Action<EngineAssetResolver> action)
