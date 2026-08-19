@@ -569,25 +569,34 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
             "应能写入 skill override schema 测试资源。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
-        registry.LoadFromDirectory(TempSkillDirectory);
-        GStringArray errors = registry.Validate();
+        GStringArray errors = TestSkillDefinitionProjection.ValidateSyntheticSkillResource(
+            skillDef,
+            "battle_save_skill_schema"
+        );
         string formattedErrors = string.Join(" | ", errors);
 
         _test.True(
-            formattedErrors.Contains("level override 1.range_value must be an int."),
+            formattedErrors.Contains(
+                "/combat_profile/level_overrides/1/range_value: Level override member must be an Int32 integer."
+            ),
             $"range_value 非 int override 应被拒绝。 errors={formattedErrors}"
         );
         _test.True(
-            formattedErrors.Contains("level override 1.attack_roll_bonus must be an int."),
+            formattedErrors.Contains(
+                "/combat_profile/level_overrides/1/attack_roll_bonus: Level override member must be an Int32 integer."
+            ),
             $"attack_roll_bonus 非 int override 应被拒绝。 errors={formattedErrors}"
         );
         _test.True(
-            formattedErrors.Contains("level override 1.area_value must be an int."),
+            formattedErrors.Contains(
+                "/combat_profile/level_overrides/1/area_value: Level override member must be an Int32 integer."
+            ),
             $"area_value 非 int override 应被拒绝。 errors={formattedErrors}"
         );
         _test.True(
-            formattedErrors.Contains("level override 1.max_target_count must be an int."),
+            formattedErrors.Contains(
+                "/combat_profile/level_overrides/1/max_target_count: Level override member must be an Int32 integer."
+            ),
             $"max_target_count 非 int override 应被拒绝。 errors={formattedErrors}"
         );
 

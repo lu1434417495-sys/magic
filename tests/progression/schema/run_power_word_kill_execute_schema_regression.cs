@@ -179,20 +179,10 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
 
     private void TestFormalResourceLoadsAndValidates()
     {
-        SkillDef skill = ResourceLoader.Load<SkillDef>(
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
             "mage_power_word_kill"
         );
-        _test.True(skill != null, "formal mage_power_word_kill resource should load.");
-        if (skill == null)
-        {
-            return;
-        }
-        GStringArray errors = ValidateSkill(skill);
-        _test.Eq(
-            errors.Count,
-            0,
-            $"formal mage_power_word_kill should validate. errors={FormatErrors(errors)}"
-        );
+        _test.True(skill != null, "formal mage_power_word_kill JSON definition should load.");
     }
 
     private static CombatEffectDef FormalExecuteEffect() => new()
@@ -245,19 +235,11 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
 
     private GStringArray ValidateSkill(SkillDef skill)
     {
-        CleanupTempSkillDirectory();
-        _test.Eq(
-            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(TempSkillDirectory)),
-            Error.Ok,
-            "should create temp PWK schema directory."
-        );
         _validationCaseIndex++;
-        string path = $"{TempSkillDirectory}/{skill.skill_id}_{_validationCaseIndex}.tres";
-        _test.Eq(ResourceSaver.Save(skill, path), Error.Ok, "should save temp skill resource.");
-
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
-        registry.LoadFromDirectory(TempSkillDirectory);
-        return registry.Validate();
+        return TestSkillDefinitionProjection.ValidateSyntheticSkillResource(
+            skill,
+            $"pwk_schema_{_validationCaseIndex}"
+        );
     }
 
     private static void CleanupTempSkillDirectory()

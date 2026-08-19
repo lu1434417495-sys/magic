@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System;
 using Godot;
+using GStringArray = Godot.Collections.Array<string>;
 
 internal static class TestSkillDefinitionProjection
 {
@@ -16,6 +17,25 @@ internal static class TestSkillDefinitionProjection
         if (!Definitions.Value.TryGetValue(id, out SkillDefinition definition))
             throw new KeyNotFoundException($"Skill JSON catalog does not contain '{skillId}'.");
         return definition;
+    }
+
+    internal static GStringArray ValidateSyntheticSkillResource(
+        SkillDef skill,
+        string sourceLabel = "<synthetic-skill>"
+    )
+    {
+        var errors = new GStringArray();
+        var context = new JsonContentEntryContext("skill", "", sourceLabel, "");
+        ContentImportStageResult<SkillImportModel> result =
+            SkillResourceProjectionAdapter.TryAdapt(context, skill);
+        foreach (ContentJsonDiagnostic diagnostic in result.Diagnostics)
+            errors.Add($"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}");
+        if (!result.HasValue)
+            return errors;
+        var validator = new SkillImportModelValidator();
+        foreach (string message in validator.ValidateMessages(result.Value))
+            errors.Add(message);
+        return errors;
     }
 
     private static IReadOnlyDictionary<StringName, SkillDefinition> LoadDefinitions()

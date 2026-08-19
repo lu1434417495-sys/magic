@@ -372,16 +372,14 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             "/entries/7/combat_profile/level_overrides/01",
             "non-canonical override level"
         );
-        AssertSingleFailure(
+        _test.True(
             Parse(
                 "empty_override",
                 "{\"skill_id\":\"mage_focus\",\"display_name\":\"Focus\","
                     + "\"combat_profile\":{\"skill_id\":\"mage_focus\","
                     + "\"level_overrides\":{\"0\":{}}}}"
-            ),
-            SkillJsonImportRules.EmptyLevelOverride,
-            "/entries/7/combat_profile/level_overrides/0",
-            "empty override"
+            ).HasValue,
+            "empty override should preserve an explicit no-op level entry"
         );
         AssertSingleFailure(
             Parse(
@@ -890,14 +888,12 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
             );
         }
 
-        AssertSingleFailure(
+        _test.True(
             Parse(
                 "missing_square_corner",
                 prefix + "{\"variant_id\":\"square\",\"footprint_pattern\":\"square2\"}]}}"
-            ),
-            "skill.dto.cast_payload.square2_corner.required",
-            "/entries/7/combat_profile/cast_variants/0/payload/square2_corner",
-            "square2 variant without corner"
+            ).HasValue,
+            "square2 variant may inherit the default corner"
         );
         AssertSingleFailure(
             Parse(

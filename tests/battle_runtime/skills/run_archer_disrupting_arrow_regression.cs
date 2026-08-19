@@ -431,12 +431,12 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
 
     private void TestSchemaRejectsMissingReactionSkillReference()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new SkillContentRegistry(loader, loadDefaultContent: false);
-        registry.LoadFromDirectory(InvalidReactionReferenceDirectory);
-        GStringArray errors = registry.Validate();
+        IReadOnlyList<string> errors =
+            ContentValidationRunner.ValidateSkillResourceFixtureDirectory(
+                InvalidReactionReferenceDirectory
+            ).Errors;
         _test.True(
-            ErrorsContain(errors, "references missing reaction skill"),
+            string.Join(" | ", errors).Contains("references missing reaction skill"),
             "不存在的反应技能引用必须在内容加载期被拒绝。"
         );
     }

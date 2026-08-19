@@ -1023,11 +1023,9 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
 
     private void TestFormalFlawReadOverrideMigrationPreservesEffectiveBehavior()
     {
-        using var loader = new TestContentResourceLoader();
-        SkillDef resource = loader.LoadCanonical<SkillDef>(
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
             "warrior_flaw_read"
         );
-        SkillDefinition skill = SkillDefinition.FromResource(resource);
         CombatSkillDefinition combat = skill.CombatProfile;
 
         _test.True(combat != null, "Flaw Read should retain its combat profile.");

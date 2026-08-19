@@ -112,7 +112,7 @@ internal static partial class SkillResourceProjectionAdapter
         LevelDescriptionConfigs = LevelDescriptionConfigs(context, skill.level_description_configs, diagnostics),
         CombatProfile = skill.combat_profile == null
             ? null
-            : BuildCombatDto(context, skill.combat_profile, diagnostics),
+            : BuildCombatDto(context, skill.combat_profile, Text(skill.skill_id), diagnostics),
         ContingencyAutomationProfile = skill.contingency_automation_profile == null
             ? null
             : BuildContingencyDto(context, skill.contingency_automation_profile, diagnostics),
@@ -121,10 +121,13 @@ internal static partial class SkillResourceProjectionAdapter
     private static CombatSkillJsonDto BuildCombatDto(
         JsonContentEntryContext context,
         CombatSkillDef combat,
+        string fallbackSkillId,
         List<ContentJsonDiagnostic> diagnostics
     ) => new()
     {
-        SkillId = Text(combat.skill_id),
+        SkillId = SkillJsonImportValueRules.IsSnakeCaseId(Text(combat.skill_id))
+            ? Text(combat.skill_id)
+            : fallbackSkillId,
         TargetMode = Text(combat.target_mode),
         TargetTeamFilter = Text(combat.target_team_filter),
         ExcludedTargetCreatureTypeTags = Texts(combat.excluded_target_creature_type_tags),
@@ -607,7 +610,7 @@ internal static partial class SkillResourceProjectionAdapter
         foreach (StringName value in values) result.Add(Text(value));
         return result;
     }
-    private static string Text(StringName value) => value.ToString();
+    private static string Text(StringName value) => value?.ToString() ?? "";
     private static bool TryStrictText(Variant value, out string text)
     {
         if (value.VariantType is Variant.Type.String or Variant.Type.StringName) { text = value.AsString(); return true; }

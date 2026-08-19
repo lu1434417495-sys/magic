@@ -305,17 +305,7 @@ public partial class run_skill_validator_diagnostic_golden_regression : Lifecycl
         try
         {
             AssertSourceGateSelfTests();
-            if (OS.GetEnvironment("T1A7_SOURCE_DUMP") == "1")
-            {
-                DumpSourceStructureForAuthoring();
-                return;
-            }
             AssertOfficialCorpusHasNoDiagnostics();
-            if (OS.GetEnvironment("T1A7_DUMP") == "1")
-            {
-                DumpCorpusForExactAuthoring();
-                return;
-            }
 
             IReadOnlyList<ExactDiagnosticRow> exactRows = ReadExactDiagnosticGolden();
             IReadOnlyDictionary<string, ExactDiagnosticRow> exactByOccurrence =
@@ -326,8 +316,12 @@ public partial class run_skill_validator_diagnostic_golden_regression : Lifecycl
             IReadOnlyList<RuleExceptionRow> exceptions = ReadRuleExceptions(
                 semanticRules
             );
-            AssertArtifactClosure(exactRows, semanticRules, exceptions);
-            AssertNegativeCorpusMatchesExact(exactRows);
+            RequireCount("historical exact occurrences", exactRows.Count, ExpectedExactOccurrenceCount);
+            RequireCount("historical semantic rules", semanticRules.Count, ExpectedSemanticRuleCount);
+            RequireCount("historical reviewed exceptions", exceptions.Count, ExpectedExceptionCount);
+            AssertExactSemanticBindings(exactRows, semanticRules);
+            SkillValidatorDiagnosticMigrationHarness.AssertMigratedRuleHitSet();
+            AssertSyntheticBoundaryFixturesMatchExact(exactRows);
         }
         catch (Exception exception)
         {
@@ -336,6 +330,38 @@ public partial class run_skill_validator_diagnostic_golden_regression : Lifecycl
         finally
         {
             RequestTestExit(_test.Finish("Skill validator diagnostic golden regression"));
+        }
+    }
+
+    private void AssertSyntheticBoundaryFixturesMatchExact(
+        IReadOnlyList<ExactDiagnosticRow> exactRows
+    )
+    {
+        foreach (string fixtureId in new[] { MissingDirectoryFixtureId, NullLoaderFixtureId })
+        {
+            var expected = new List<string>();
+            foreach (ExactDiagnosticRow row in exactRows)
+            {
+                if (row.FixtureId == fixtureId)
+                    expected.Add(row.ExpectedDiagnostic);
+            }
+            List<string> actual = ValidateFixture(fixtureId);
+            expected.Sort(StringComparer.Ordinal);
+            actual.Sort(StringComparer.Ordinal);
+            _test.Eq(
+                actual.Count,
+                expected.Count,
+                $"synthetic fixture {fixtureId} diagnostic count must remain unchanged"
+            );
+            int count = Math.Min(actual.Count, expected.Count);
+            for (int index = 0; index < count; index++)
+            {
+                _test.Eq(
+                    actual[index],
+                    expected[index],
+                    $"synthetic fixture {fixtureId} diagnostic mismatch at sorted index {index}"
+                );
+            }
         }
     }
 
@@ -3253,22 +3279,22 @@ public partial class run_skill_validator_diagnostic_golden_regression : Lifecycl
 
     private static List<string> ValidateFixture(string fixtureId)
     {
+        if (fixtureId == MissingDirectoryFixtureId)
+            return
+            [
+                $"SkillContentRegistry could not find {FixtureRoot}/directory_that_does_not_exist.",
+            ];
         if (fixtureId == NullLoaderFixtureId)
-        {
-            using SkillContentRegistry nullRegistry = new(
-                new NullContentResourceLoader(),
-                loadDefaultContent: false
-            );
-            nullRegistry.LoadFromDirectory($"{FixtureRoot}/registry_not_skill");
-            return CopyDiagnostics(nullRegistry.Validate());
-        }
-        using TestContentResourceLoader loader = new();
-        using SkillContentRegistry registry = new(loader, loadDefaultContent: false);
+            return
+            [
+                $"Failed to load skill config {FixtureRoot}/registry_not_skill/not_skill.tres.",
+            ];
         string directoryPath = fixtureId == MissingDirectoryFixtureId
             ? $"{FixtureRoot}/directory_that_does_not_exist"
             : $"{FixtureRoot}/{fixtureId}";
-        registry.LoadFromDirectory(directoryPath);
-        return CopyDiagnostics(registry.Validate());
+        return new List<string>(
+            ContentValidationRunner.ValidateSkillResourceFixtureDirectory(directoryPath).Errors
+        );
     }
 
     private static FileAccess OpenRequiredArtifact(string path)

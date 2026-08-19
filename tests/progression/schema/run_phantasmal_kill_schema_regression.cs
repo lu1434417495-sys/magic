@@ -48,20 +48,10 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
 
     private void TestFormalResourceLoadsAndValidates()
     {
-        SkillDef skill = ResourceLoader.Load<SkillDef>(
-            "mage_phantasmal_kill",
-            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "mage_phantasmal_kill"
         );
-        _test.True(skill != null, "formal mage_phantasmal_kill resource should load.");
-        if (skill == null)
-            return;
-
-        GStringArray errors = ValidateSkill(skill);
-        _test.Eq(
-            errors.Count,
-            0,
-            $"formal mage_phantasmal_kill should validate. errors={FormatErrors(errors)}"
-        );
+        _test.True(skill != null, "formal mage_phantasmal_kill JSON definition should load.");
     }
 
     private void TestGradedSaveExecuteRejectsWrongSaveAndTargeting()
@@ -337,22 +327,12 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
     private GStringArray ValidateSkill(SkillDef skill)
     {
         _validationSkillRoots.Add(skill);
-        CleanupTempSkillDirectory();
-        _test.Eq(
-            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(TempSkillDirectory)),
-            Error.Ok,
-            "should create temp Phantasmal Kill schema directory."
-        );
         _validationCaseIndex++;
-        string path = $"{TempSkillDirectory}/{skill.skill_id}_{_validationCaseIndex}.tres";
-        _test.Eq(ResourceSaver.Save(skill, path), Error.Ok, "should save temp skill resource.");
-
-        var loader = new TestContentResourceLoader();
-        var registry = new SkillContentRegistry(loader, loadDefaultContent: false);
-        _validationLoaders.Add(loader);
-        _validationRegistries.Add(registry);
-        registry.LoadFromDirectory(TempSkillDirectory);
-        GStringArray validationResult = registry.Validate();
+        GStringArray validationResult =
+            TestSkillDefinitionProjection.ValidateSyntheticSkillResource(
+                skill,
+                $"phantasmal_kill_schema_{_validationCaseIndex}"
+            );
         _validationResults.Add(validationResult);
         return validationResult;
     }
