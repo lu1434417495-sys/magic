@@ -69,7 +69,6 @@ public partial class run_non_ai_content_snapshot_regression : LifecycleTestScene
             value is EnemyTemplateDef
             || value is EnemyAiBrainDef
             || value is WildEncounterRosterDef
-            || value is BattleSimProfileDef
         )
         {
             _test.Fail($"{path} retains authored enemy Resource {type.FullName}.");

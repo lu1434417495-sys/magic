@@ -115,14 +115,14 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
     {
         QuestDefinition invalidQuest = BuildInvalidQuestDefinition();
 
-        Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
+        Dictionary<StringName, QuestDefinition> typedQuests = new()
         {
             [invalidQuest.QuestId] = invalidQuest,
         };
         List<string> registrationErrors = new() { "typed registration error" };
 
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
-            typedQuestDefs,
+            typedQuests,
             _snapshot.Items,
             _snapshot.Skills,
             _snapshot.EnemyTemplates,
@@ -183,13 +183,13 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
                 ),
             ]
         );
-        Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
+        Dictionary<StringName, QuestDefinition> typedQuests = new()
         {
             [danglingEncounterQuest.QuestId] = danglingEncounterQuest,
         };
 
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
-            typedQuestDefs,
+            typedQuests,
             _snapshot.Items,
             _snapshot.Skills,
             _snapshot.EnemyTemplates,
@@ -286,13 +286,13 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         );
         _test.True(
             errors.Contains(
-                "Quest negative_encounter_growth_stage_quest: QuestDef negative_encounter_growth_stage_quest 的 objective defeat_wolves 的 encounter_growth_stage 不能为负数。"
+                "Quest negative_encounter_growth_stage_quest: Quest negative_encounter_growth_stage_quest 的 objective defeat_wolves 的 encounter_growth_stage 不能为负数。"
             ),
             $"负 encounter_growth_stage 应被拒绝。 errors={FormatErrors(errors)}"
         );
         _test.True(
             errors.Contains(
-                "Quest unbound_encounter_growth_stage_quest: QuestDef unbound_encounter_growth_stage_quest 的 objective defeat_wolves 只有绑定接取遭遇时才能配置 encounter_growth_stage。"
+                "Quest unbound_encounter_growth_stage_quest: Quest unbound_encounter_growth_stage_quest 的 objective defeat_wolves 只有绑定接取遭遇时才能配置 encounter_growth_stage。"
             ),
             $"未绑定 encounter 时不得单独配置 growth stage。 errors={FormatErrors(errors)}"
         );
@@ -319,12 +319,12 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
             listingChannels: [new StringName("npc_offer")]
         );
 
-        Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
+        Dictionary<StringName, QuestDefinition> typedQuests = new()
         {
             [npcQuest.QuestId] = npcQuest,
         };
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
-            typedQuestDefs,
+            typedQuests,
             _snapshot.Items,
             _snapshot.Skills,
             _snapshot.EnemyTemplates

@@ -60,5 +60,25 @@
     <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityContentJsonAuthoringDomain.cs" Link="Shared/EquipmentAbilityContentJsonAuthoringDomain.cs" />
     <Compile Include="../../scripts/systems/content/recipes/RecipeJsonContent.cs" Link="Shared/RecipeJsonContent.cs" />
     <Compile Include="../../scripts/systems/content/gear_sets/GearSetJsonContent.cs" Link="Shared/GearSetJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/enemies/EnemyContentJsonContracts.cs" Link="Shared/EnemyContentJsonContracts.cs" />
+    <Compile Include="../../scripts/systems/content/enemies/EnemyContentJsonImportParser.cs" Link="Shared/EnemyContentJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/content/enemies/EnemyContentJsonAuthoringDomains.cs" Link="Shared/EnemyContentJsonAuthoringDomains.cs" />
+    <Compile Include="../../scripts/systems/content/enemies/EnemyContentImportValidator.Rules.cs" Link="Shared/EnemyContentImportValidator.Rules.cs" />
+    <Compile Include="../../scripts/systems/battle/content/BattleEncounterJsonContracts.cs" Link="Shared/BattleEncounterJsonContracts.cs" />
+    <Compile Include="../../scripts/systems/battle/content/BattleEncounterJsonImportParser.cs" Link="Shared/BattleEncounterJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/battle/content/BattleEncounterImportValidator.cs" Link="Shared/BattleEncounterImportValidator.cs" />
+    <Compile Include="../../scripts/player/progression/BarrierJsonContracts.cs" Link="Shared/BarrierJsonContracts.cs" />
+    <Compile Include="../../scripts/player/progression/BarrierJsonImportParser.cs" Link="Shared/BarrierJsonImportParser.cs" />
+    <Compile Include="../../scripts/player/progression/BarrierImportValidator.cs" Link="Shared/BarrierImportValidator.cs" />
+    <Compile Include="../../scripts/systems/battle/core/special_profiles/BattleSpecialProfileJsonContracts.cs" Link="Shared/BattleSpecialProfileJsonContracts.cs" />
+    <Compile Include="../../scripts/systems/battle/core/special_profiles/BattleSpecialProfileJsonImportParser.cs" Link="Shared/BattleSpecialProfileJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/battle/core/special_profiles/BattleSpecialProfileImportValidator.cs" Link="Shared/BattleSpecialProfileImportValidator.cs" />
+    <Compile Include="../../scripts/player/progression/ProfessionIdentityJsonContracts.cs" Link="Shared/ProfessionIdentityJsonContracts.cs" />
+    <Compile Include="../../scripts/player/progression/ProfessionIdentityJsonImport.cs" Link="Shared/ProfessionIdentityJsonImport.cs" />
+    <Compile Include="../../scripts/player/progression/QuestJsonContent.cs" Link="Shared/QuestJsonContent.cs" />
+    <Compile Include="../../scripts/player/progression/ContingencyJsonContent.cs" Link="Shared/ContingencyJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/battle_sim/BattleSimJsonContent.cs" Link="Shared/BattleSimJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/world/WorldJsonContracts.cs" Link="Shared/WorldJsonContracts.cs" />
+    <Compile Include="../../scripts/systems/content/world/WorldJsonImport.cs" Link="Shared/WorldJsonImport.cs" />
   </ItemGroup>
 </Project>

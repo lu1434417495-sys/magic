@@ -10,29 +10,44 @@ using System.Text.Json.Serialization;
 internal static class ContentJsonSchemaCatalog
 {
     private static readonly IReadOnlyList<ContentJsonSchemaDomainRegistration> Domains =
-        Array.AsReadOnly(
-            new[]
-            {
-                new ContentJsonSchemaDomainRegistration(
-                    domainId: "schema_fixture",
-                    schemaVersion: 1,
-                    documentDtoType: typeof(ContentJsonSchemaSampleDocumentDto),
-                    title: "Magic content JSON schema exporter fixture",
-                    description:
-                        "Minimal non-gameplay domain proving the shared DTO-reflected content JSON schema contract. Future migration domains register their real document DTO here.",
-                    trackedSchemaPath:
-                        "res://data/schemas/content/schema_fixture.schema.json",
-                    contentFileMatch:
-                        "/data/configs/json/schema_fixture/**/*.json"
-                ),
-                SkillContentJsonAuthoringDomain.SchemaRegistration,
-                ItemContentJsonAuthoringDomain.SchemaRegistration,
-                TraitContentJsonAuthoringDomain.SchemaRegistration,
-                EquipmentAbilityContentJsonAuthoringDomain.SchemaRegistration,
-                GearSetContentJsonAuthoringDomain.SchemaRegistration,
-                RecipeContentJsonAuthoringDomain.SchemaRegistration,
-            }
-        );
+        BuildDomains();
+
+    private static IReadOnlyList<ContentJsonSchemaDomainRegistration> BuildDomains()
+    {
+        var domains = new List<ContentJsonSchemaDomainRegistration>
+        {
+            new(
+                domainId: "schema_fixture",
+                schemaVersion: 1,
+                documentDtoType: typeof(ContentJsonSchemaSampleDocumentDto),
+                title: "Magic content JSON schema exporter fixture",
+                description:
+                    "Minimal non-gameplay domain proving the shared DTO-reflected content JSON schema contract. Future migration domains register their real document DTO here.",
+                trackedSchemaPath: "res://data/schemas/content/schema_fixture.schema.json",
+                contentFileMatch: "/data/configs/json/schema_fixture/**/*.json"
+            ),
+            SkillContentJsonAuthoringDomain.SchemaRegistration,
+            ItemContentJsonAuthoringDomain.SchemaRegistration,
+            TraitContentJsonAuthoringDomain.SchemaRegistration,
+            EquipmentAbilityContentJsonAuthoringDomain.SchemaRegistration,
+            GearSetContentJsonAuthoringDomain.SchemaRegistration,
+            RecipeContentJsonAuthoringDomain.SchemaRegistration,
+            EnemyContentJsonDomains.BrainSchemaRegistration,
+            EnemyContentJsonDomains.TemplateSchemaRegistration,
+            EnemyContentJsonDomains.RosterSchemaRegistration,
+            BattleEncounterJsonDomain.SchemaRegistration,
+            BarrierJsonDomains.ProfileSchemaRegistration,
+            BarrierJsonDomains.LayerSchemaRegistration,
+            BattleSpecialProfileJsonDomains.ManifestSchemaRegistration,
+            BattleSpecialProfileJsonDomains.ProfileSchemaRegistration,
+            QuestJsonContentDomain.SchemaRegistration,
+            ContingencyJsonContentDomain.SchemaRegistration,
+        };
+        domains.AddRange(ProfessionIdentityJsonDomains.SchemaRegistrations);
+        domains.AddRange(BattleSimJsonContentDomains.SchemaRegistrations);
+        domains.AddRange(WorldJsonDomains.SchemaRegistrations);
+        return Array.AsReadOnly(domains.ToArray());
+    }
 
     internal static IReadOnlyList<ContentJsonSchemaDomainRegistration> All => Domains;
 

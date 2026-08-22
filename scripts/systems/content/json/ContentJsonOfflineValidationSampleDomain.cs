@@ -9,18 +9,31 @@ using System.Text.Json.Serialization;
 internal static class ContentJsonOfflineValidationCatalog
 {
     private static readonly IReadOnlyList<IContentJsonOfflineValidationDomain> Domains =
-        Array.AsReadOnly<IContentJsonOfflineValidationDomain>(
-            new IContentJsonOfflineValidationDomain[]
-            {
-                ContentJsonOfflineValidationSampleDomain.Create(),
-                SkillContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
-                ItemContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
-                TraitContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
-                EquipmentAbilityContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
-                GearSetContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
-                RecipeContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
-            }
-        );
+        BuildDomains();
+
+    private static IReadOnlyList<IContentJsonOfflineValidationDomain> BuildDomains()
+    {
+        var domains = new List<IContentJsonOfflineValidationDomain>
+        {
+            ContentJsonOfflineValidationSampleDomain.Create(),
+            SkillContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+            ItemContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+            TraitContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+            EquipmentAbilityContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+            GearSetContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+            RecipeContentJsonAuthoringDomain.CreateOfflineValidationDomain(),
+        };
+        domains.AddRange(EnemyContentJsonAuthoringDomains.CreateOfflineDomains());
+        domains.AddRange(BattleEncounterJsonAuthoringDomains.CreateOfflineDomains());
+        domains.AddRange(BarrierJsonAuthoringDomains.CreateOfflineDomains());
+        domains.AddRange(BattleSpecialProfileJsonAuthoringDomains.CreateOfflineDomains());
+        domains.AddRange(ProfessionIdentityJsonImport.CreateOfflineDomains());
+        domains.AddRange(QuestJsonContentDomain.CreateOfflineDomains());
+        domains.AddRange(ContingencyJsonContentDomain.CreateOfflineDomains());
+        domains.AddRange(BattleSimJsonContentDomains.CreateOfflineDomains());
+        domains.AddRange(WorldJsonImport.CreateOfflineDomains());
+        return Array.AsReadOnly(domains.ToArray());
+    }
 
     internal static IReadOnlyList<IContentJsonOfflineValidationDomain> All => Domains;
 

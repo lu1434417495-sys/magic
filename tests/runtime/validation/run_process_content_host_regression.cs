@@ -53,9 +53,7 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
         _test.Eq(host.Epoch, epoch, "idempotent build should preserve epoch");
         _test.True(
             Throws<InvalidOperationException>(() =>
-                host.LoadCanonical<Resource>(
-                    "res://data/configs/world_map/./test_world_map_config.tres"
-                )
+                host.LoadCanonical<Resource>("res://scenes/main/./login_screen.tscn")
             ),
             "authored loads should be rejected after seal"
         );
