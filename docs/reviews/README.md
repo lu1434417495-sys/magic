@@ -8,8 +8,8 @@
 
 新一轮检视应另建文档，不要向活台账机械补行；它只接受“保留决策”和“结论关闭”两类写入。
 
-当前测试有效性整改结果见 [`test_case_effectiveness_followup_2026-08-08.html`](test_case_effectiveness_followup_2026-08-08.html)：逐项记录 38 个源码文本扫描归零、11 个有效性目标、25 条异步处理记录（A05 后续删除，当前 24 个入口）与第二轮 R01–R18 的实际测试代码整改，并把旧审计中 118 条 non-independent helper/aggregator 记录按 52 个文件完整列出。本轮共整改 48 个 distinct routine runner（44 个既有 + 4 个新增）和 2 个 Python tooling 文件；根构建 0 warning / 0 error，新增入口聚焦 4/4、tooling 34/34、最终常规套件 427/427 PASS（451.2 秒）。首次全量 426/427、457.3 秒及 resource-validation 测试路径修正轨迹也保留在报告中。
+测试有效性审计链已全部闭环并标记为解决：`test_case_effectiveness_audit_2026-08-06.html`（初审：65 ineffective / 198 partial / 327 diagnostic / 38 文本扫描违规）、`test_text_scan_remediation_2026-08-07.html`（38 个文本扫描违规清零）、`test_ineffective_case_remediation_2026-08-07.html`（29/29 CLOSED）、`test_case_effectiveness_followup_2026-08-08.html`（最终跟进：Implemented · verified，最终常规套件 427/427 PASS）。因全部问题已关闭，这四份报告已于 2026-08-16 移除，可用 `git log -- docs/reviews/test_case_effectiveness_audit_2026-08-06.html` 等找回。
 
 427 个常规 runner 的完整方法级追溯见 [`test_case_method_effectiveness_audit_2026-08-08.html`](test_case_method_effectiveness_audit_2026-08-08.html)：当前动态重算得到 2,146 个可达 `Test*` 方法与 26 个 inline runner，共 2,172 条；逐条列出文件/行号、实际 Act、直接 oracle/断言摘要和三分区人工审查结论。自动提取仅用于定位展示，不作为测试有效性判定。报告同时明确保留测试暴露的 production gap：facade 尚未把 advance batch 的 report entries 持久化到 `BattleState` snapshot，本轮未修改 production。
 
-常规测试重复性整改见 [`test_duplicate_case_audit_2026-08-08.html`](test_duplicate_case_audit_2026-08-08.html)：逐项核对实际 Act、fixture、oracle 与失败模式后，已落实 22 组高置信重复整改、删除 3 个无效/结构约束用例并重写 1 个名实不符用例；该页的 426 项结果是上一批整改完成时的历史快照，当前权威 inventory 与末轮完整套件结果为 427/427 PASS。
+常规测试重复性整改（原 `test_duplicate_case_audit_2026-08-08.html`）已全部落实并标记为解决：22 组高置信重复整改、删除 3 个无效/结构约束用例并重写 1 个名实不符用例，末轮完整套件 427/427 PASS。报告已于 2026-08-16 移除，可用 `git log -- docs/reviews/test_duplicate_case_audit_2026-08-08.html` 找回。

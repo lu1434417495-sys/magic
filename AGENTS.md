@@ -6,34 +6,8 @@ This is a Godot 4.6 project. Core scenes live in `scenes/`, gameplay code in `sc
 ## Design Context Workflow
 Before writing a design plan or changing code, read `docs/design/project_context_units.md`. Use it as the repository context map for loading related scenes, scripts, data, and tests before making changes. After any code change, update `docs/design/project_context_units.md` if the affected runtime relationships, ownership boundaries, or recommended read sets have changed.
 
-## Repository CLI Policy
-`python tools/magic_dev.py` is the canonical entry point for repository-level inspection, impact analysis, build, test, and validation workflows.
-
-Before composing a PowerShell pipeline or directly orchestrating `git`, `dotnet`, `godot`, `rg`, or filesystem enumeration for one of those workflows, run:
-
-```bash
-python tools/magic_dev.py capabilities --json
-```
-
-When the capability output reports an operation as supported, Codex **must** use the matching CLI subcommand and **must not** reproduce the same workflow with direct PowerShell or a sequence of separate commands. PowerShell may only be used to launch the CLI for that operation.
-
-Canonical operations are:
-
-```bash
-python tools/magic_dev.py status
-python tools/magic_dev.py affected
-python tools/magic_dev.py test --path <path>
-python tools/magic_dev.py verify
-python tools/magic_dev.py full
-```
-
-If the CLI file is absent or the required capability is not supported, Codex must:
-
-1. State `CLI_GAP: <missing capability>` before using a fallback.
-2. Use only the smallest direct command needed; dense PowerShell pipelines are forbidden.
-3. Record the CLI gap in the final response.
-
-If a supported CLI operation fails, Codex must preserve and report the original failure. It must not silently reimplement the same workflow in PowerShell. Diagnose or repair the CLI first; if progress requires a direct fallback, label it `CLI_FALLBACK: <reason>` and keep the fallback minimal.
+## Command Execution
+Use direct, single-purpose commands for repository inspection and validation. Avoid dense PowerShell pipelines, nested shell quoting, and long command chains. When a workflow genuinely needs branching, reusable state, or non-trivial orchestration, use or add a task-specific script instead of introducing a mandatory wrapper or capability preflight around `git`, `rg`, `dotnet`, or `godot`.
 
 ## Documentation Status & Placement
 Treat `docs/design/` as current implementation truth: it may contain only code-verified architecture, module specifications, and implementation documents. Put unimplemented, partially implemented, mixed current/future, or still-debated designs under `docs/proposals/`; put gameplay/content authoring under `docs/content/`, point-in-time audits under `docs/reviews/`, exploratory work under `docs/discussions/`, and superseded material under `docs/archive/`. When a proposal lands, update or create a current system document under `docs/design/<system>/`; do not move a mixed roadmap into `docs/design/` while it still contains future phases. Keep `docs/design/project_context_units.md` as the loading index and link its context units to the relevant current detail documents.
