@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:barriers:v1",
+  "title": "Magic barrier profile JSON authoring schema",
+  "description": "Strict barrier profiles referencing canonical barrier layer IDs.",
+  "$ref": "#/$defs/BarrierProfileJsonDocumentDto",
+  "$defs": {
+    "BarrierProfileJsonDocumentDto": {
+      "description": "Barrier profile document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "barriers"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BarrierProfileJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BarrierProfileJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "BarrierProfileJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anchor_mode": {
+          "type": "string"
+        },
+        "area_pattern": {
+          "type": "string"
+        },
+        "catch_all_projected_effects": {
+          "type": "boolean"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "layer_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "radius_cells": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "anchor_mode",
+        "area_pattern",
+        "catch_all_projected_effects",
+        "display_name",
+        "duration_tu",
+        "layer_ids",
+        "profile_id",
+        "radius_cells"
+      ]
+    },
+    "BarrierProfileJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BarrierProfileJsonDto"
+        },
+        {
+          "$ref": "#/$defs/BarrierProfileJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "BarrierProfileJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anchor_mode": {
+          "type": "string"
+        },
+        "area_pattern": {
+          "type": "string"
+        },
+        "catch_all_projected_effects": {
+          "type": "boolean"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "layer_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "radius_cells": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "BarrierProfileJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anchor_mode": {
+          "type": "string"
+        },
+        "area_pattern": {
+          "type": "string"
+        },
+        "catch_all_projected_effects": {
+          "type": "boolean"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "layer_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "radius_cells": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "profile_id",
+        "template"
+      ]
+    }
+  }
+}

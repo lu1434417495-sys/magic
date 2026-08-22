@@ -416,10 +416,23 @@ public partial class run_battle_escape_objective_regression
             new[] { largeAlly },
             new[] { enemy }
         );
-        fixture.State
-            .GetCell(new Vector2I(3, 0))
-            ?.SetEdgeFeature(Vector2I.Right, BattleEdgeFeatureState.MakeWall());
-        fixture.State.MarkRuntimeEdgesDirty();
+        _test.True(
+            fixture.State.PutTemporaryEdgeFeature(
+                new BattleTemporaryEdgeFeatureState
+                {
+                    OriginCoord = new Vector2I(3, 0),
+                    Direction = Vector2I.Right,
+                    BindingId = "escape_objective_test_wall",
+                    ActionId = "escape_objective_test_wall",
+                    CreatedAtTu = 0,
+                    ExpiresAtTu = 100,
+                    Feature = BattleEdgeFeatureState.MakeWall(),
+                },
+                refreshExisting: false,
+                maxActiveEdges: 0
+            ),
+            "测试前提：内部阻断临时墙应可写入。"
+        );
 
         _test.False(
             fixture.Runtime.InitializeBattleObjective(

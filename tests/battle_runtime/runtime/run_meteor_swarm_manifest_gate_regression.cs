@@ -1,323 +1,175 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 public partial class run_meteor_swarm_manifest_gate_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
-    public override void _Initialize()
+    public override void _Initialize() => RunAfterProcessStartup(Run);
+
+    private void Run()
     {
-        TestResult exitCode = Run();
-        RequestTestExit(exitCode);
-    }
-
-    private TestResult Run()
-    {
-        using var contentLoader = new TestContentResourceLoader();
-        using var progressionRegistry = new ProgressionContentRegistry(contentLoader);
-        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
-            progressionRegistry.GetSkillDefinitionsTyped();
-        SkillDefinition meteorSkillDefinition = GetSkillDefinition(
-            typedSkillDefinitions,
-            "mage_meteor_swarm"
-        );
-        _test.True(meteorSkillDefinition != null, "陨星雨 DTO 应存在。");
-        _test.True(
-            meteorSkillDefinition?.CombatProfile != null,
-            "陨星雨应声明 combat_profile。"
-        );
-        if (meteorSkillDefinition == null || meteorSkillDefinition.CombatProfile == null)
-            return Finish();
-
-        CombatSkillDefinition combatProfile = meteorSkillDefinition.CombatProfile;
-        _test.Eq(
-            combatProfile.SpecialResolutionProfileId.ToString(),
-            "meteor_swarm",
-            "陨星雨应切到 meteor_swarm special profile。"
-        );
-        _test.Eq(
-            combatProfile.EffectDefinitions.Count,
-            0,
-            "陨星雨不应保留 executable effect_defs。"
-        );
-        _test.Eq(
-            combatProfile.AreaPattern.ToString(),
-            "radius",
-            "陨星雨 shell 应保留 square-radius area metadata。"
-        );
-        _test.Eq(combatProfile.AreaValue, 3, "陨星雨 shell 的最外层应为 7x7。");
-
-        using var registry = new BattleSpecialProfileRegistry(contentLoader);
-        registry.Rebuild(typedSkillDefinitions);
-        IReadOnlyList<string> typedErrors = registry.ValidateTyped();
-        Godot.Collections.Array<string> errors = registry.Validate();
-        _test.Eq(
-            FormatArray(typedErrors),
-            FormatArray(errors),
-            "battle special profile registry typed/public validation errors 应保持一致。"
-        );
-        _test.True(errors.Count == 0, $"正式 battle special profile manifest 应通过校验：{FormatArray(errors)}");
-        IBattleSpecialProfileView profileView = registry.BuildRuntimeProfileView();
-        _test.True(
-            profileView.TryGetMeteorSwarmProfile(
-                "meteor_swarm",
-                out MeteorSwarmProfileData meteorProfileData
-            ),
-            "battle special profile typed view 应包含 meteor_swarm profile。"
-        );
-        _test.Eq(
-            meteorProfileData?.profile_id.ToString() ?? "",
-            "meteor_swarm",
-            "typed view 应保留 hardcoded meteor_swarm profile id。"
-        );
-        _test.True(
-            meteorProfileData?.impact_components.Count >= 4,
-            "meteor_swarm typed view 应声明 impact components。"
-        );
-        _test.True(
-            meteorProfileData?.terrain_profiles.Count >= 5,
-            "meteor_swarm typed view 应声明 terrain profiles。"
-        );
-
-        Resource profileResource = contentLoader.LoadCanonical<MeteorSwarmProfile>(
-            "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
-        );
-        _test.True(profileResource != null, "registry authoring boundary 应持有已加载 profile_resource。");
-        var meteorProfile = profileResource as MeteorSwarmProfile;
-        _test.True(meteorProfile != null, "profile_resource 应为 MeteorSwarmProfile。");
-        if (meteorProfile != null)
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            GameSessionTestFactory.GetProcessSnapshot().Skills;
+        SkillDefinition meteorSkill = skillDefinitions.GetValueOrDefault("mage_meteor_swarm");
+        _test.True(meteorSkill?.CombatProfile != null, "Meteor swarm skill definition must exist.");
+        if (meteorSkill?.CombatProfile == null)
         {
-            _test.True(
-                meteorProfile.impact_components.Count >= 4,
-                "meteor_swarm profile 应声明 typed impact components。"
-            );
-            _test.True(
-                meteorProfile.terrain_profiles.Count >= 5,
-                "meteor_swarm profile 应声明 typed terrain profiles。"
-            );
+            RequestTestExit(_test.Finish("Meteor swarm manifest gate regression"));
+            return;
         }
 
-        TestManifestValidatorRejectsUnknownSaveProfile(profileResource);
-        TestManifestValidatorRejectsDuplicateComponentId(profileResource);
-        TestManifestValidatorRejectsComponentRingOutsideRadius(profileResource);
-        TestManifestValidatorRejectsTerrainRingOutsideRadius(profileResource);
-        TestRegistryUsesExactSkillDefinitionKeys(meteorSkillDefinition, contentLoader);
-        TestGateAllowsValidManifest(meteorSkillDefinition, profileView);
-        TestGateFailsClosedForInvalidManifest(meteorSkillDefinition);
+        _test.Eq(meteorSkill.CombatProfile.SpecialResolutionProfileId,
+            new StringName("meteor_swarm"),
+            "Meteor swarm must reference its special profile by ID.");
+        _test.Eq(meteorSkill.CombatProfile.EffectDefinitions.Count, 0,
+            "Special-profile skills must not retain executable effect_defs.");
 
-        return Finish();
+        using var registry = new BattleSpecialProfileRegistry();
+        registry.Rebuild(skillDefinitions);
+        IReadOnlyList<string> errors = registry.ValidateTyped();
+        _test.Eq(errors.Count, 0,
+            $"Production JSON special-profile registry must validate: {string.Join(" | ", errors)}");
+        _test.Eq(string.Join(" | ", registry.Validate()), string.Join(" | ", errors),
+            "Typed and public registry diagnostics must stay equivalent.");
+
+        IBattleSpecialProfileView profileView = registry.BuildRuntimeProfileView();
+        _test.True(profileView.TryGetMeteorSwarmProfile(
+                "meteor_swarm", out MeteorSwarmProfileData profile),
+            "Runtime view must publish meteor_swarm by profile ID.");
+        _test.Eq(profile?.profile_id ?? new StringName(""), new StringName("meteor_swarm"),
+            "Projected profile ID must be stable.");
+        _test.True(profile?.impact_components.Count >= 4,
+            "Projected meteor profile must preserve impact components.");
+        _test.True(profile?.terrain_profiles.Count >= 5,
+            "Projected meteor profile must preserve terrain profiles.");
+
+        TestPureImportValidation();
+        TestRegistryUsesExactSkillDefinitionKeys(meteorSkill);
+        TestGateAllowsValidManifest(meteorSkill, profileView);
+        TestGateFailsClosedForMissingProfile(meteorSkill);
+        RequestTestExit(_test.Finish("Meteor swarm manifest gate regression"));
     }
 
-    private void TestRegistryUsesExactSkillDefinitionKeys(
-        SkillDefinition meteorSkillDefinition,
-        IContentResourceLoader contentLoader
+    private void TestPureImportValidation()
+    {
+        var reader = new GodotContentJsonSourceReader();
+        ContentImportBatch<BattleSpecialProfileImportModel> batch =
+            BattleSpecialProfileJsonAuthoringDomains
+                .CreateProfileDescriptor(BattleSpecialProfileJsonDomains.ProfileDirectory, reader)
+                .Import();
+        _test.Eq(batch.Diagnostics.Count, 0,
+            $"Canonical profile JSON must import: {FormatDiagnostics(batch.Diagnostics)}");
+        _test.Eq(batch.Entries.Count, 1, "Canonical profile JSON must contain one profile.");
+        if (batch.Entries.Count != 1)
+            return;
+
+        ContentImportEntry<BattleSpecialProfileImportModel> entry = batch.Entries[0];
+        MeteorSwarmProfileImportModel source = entry.Import.MeteorSwarm;
+        MeteorSwarmImpactComponentImportModel[] components = source.ImpactComponents.ToArray();
+        MeteorSwarmTerrainProfileImportModel[] terrain = source.TerrainProfiles.ToArray();
+
+        components[0] = components[0] with { SaveProfileId = "legacy_dex_save" };
+        AssertSingleDiagnostic(
+            entry.Context,
+            entry.Import with { MeteorSwarm = source with { ImpactComponents = components } },
+            BattleSpecialProfileJsonRules.ValueUnsupported,
+            "/profile/payload/impact_components/0/save_profile_id",
+            "Unknown save profile must fail in the pure import validator."
+        );
+
+        components = source.ImpactComponents.ToArray();
+        components[1] = components[1] with { ComponentId = components[0].ComponentId };
+        AssertSingleDiagnostic(
+            entry.Context,
+            entry.Import with { MeteorSwarm = source with { ImpactComponents = components } },
+            BattleSpecialProfileJsonRules.DuplicateId,
+            "/profile/payload/impact_components/1/component_id",
+            "Duplicate component ID must fail in the pure import validator."
+        );
+
+        components = source.ImpactComponents.ToArray();
+        components[0] = components[0] with { RingMax = source.Radius + 1 };
+        AssertSingleDiagnostic(
+            entry.Context,
+            entry.Import with { MeteorSwarm = source with { ImpactComponents = components } },
+            BattleSpecialProfileJsonRules.ValueOutOfRange,
+            "/profile/payload/impact_components/0",
+            "Component ring outside radius must fail in the pure import validator."
+        );
+
+        terrain[0] = terrain[0] with { RingMax = source.Radius + 1 };
+        AssertSingleDiagnostic(
+            entry.Context,
+            entry.Import with { MeteorSwarm = source with { TerrainProfiles = terrain } },
+            BattleSpecialProfileJsonRules.ValueOutOfRange,
+            "/profile/payload/terrain_profiles/0",
+            "Terrain ring outside radius must fail in the pure import validator."
+        );
+    }
+
+    private void AssertSingleDiagnostic(
+        JsonContentEntryContext context,
+        BattleSpecialProfileImportModel import,
+        string expectedRule,
+        string expectedPointerSuffix,
+        string label
     )
     {
-        var wrongKeySkillDefinitions = new Dictionary<StringName, SkillDefinition>
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics =
+            BattleSpecialProfileImportValidator.ValidateProfile(context, import);
+        _test.Eq(diagnostics.Count, 1,
+            $"{label} diagnostics={FormatDiagnostics(diagnostics)}");
+        if (diagnostics.Count != 1)
+            return;
+        _test.Eq(diagnostics[0].RuleId, expectedRule, label);
+        _test.True(diagnostics[0].JsonPointer.EndsWith(expectedPointerSuffix,
+                StringComparison.Ordinal),
+            $"{label} pointer={diagnostics[0].JsonPointer}");
+    }
+
+    private void TestRegistryUsesExactSkillDefinitionKeys(SkillDefinition meteorSkill)
+    {
+        using var registry = new BattleSpecialProfileRegistry();
+        registry.Rebuild(new Dictionary<StringName, SkillDefinition>
         {
-            [new StringName("wrong_meteor_swarm_key")] = meteorSkillDefinition,
-        };
-        using var registry = new BattleSpecialProfileRegistry(contentLoader);
-        registry.Rebuild(wrongKeySkillDefinitions);
-
-        _test.False(
-            registry.BuildRuntimeProfileView().TryGetMeteorSwarmProfile(
-                "meteor_swarm",
-                out MeteorSwarmProfileData _
-            ),
-            "special profile registry 应把错误 key 的 skill_defs 判为无效输入。"
-        );
-    }
-
-    private void TestManifestValidatorRejectsUnknownSaveProfile(Resource profileResource)
-    {
-        MeteorSwarmProfile profile = DuplicateProfile(profileResource, "save profile 负例前置");
-        if (profile == null || profile.impact_components.Count == 0)
-            return;
-
-        profile.impact_components[0].save_profile_id = "legacy_dex_save";
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        AssertExactErrors(
-            errors,
-            new[]
-            {
-                "MeteorSwarmProfile.impact_components[0].save_profile_id is unsupported: legacy_dex_save.",
-            },
-            "manifest validator 应只报告未知 save_profile_id"
-        );
-    }
-
-    private void TestManifestValidatorRejectsDuplicateComponentId(Resource profileResource)
-    {
-        MeteorSwarmProfile profile = DuplicateProfile(profileResource, "duplicate component_id 负例前置");
-        if (profile == null || profile.impact_components.Count < 2)
-            return;
-
-        profile.impact_components[1].component_id = profile.impact_components[0].component_id;
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        AssertExactErrors(
-            errors,
-            new[]
-            {
-                $"MeteorSwarmProfile.impact_components[1].component_id is duplicated: {profile.impact_components[0].component_id}.",
-            },
-            "manifest validator 应只报告重复 impact component_id"
-        );
-    }
-
-    private void TestManifestValidatorRejectsComponentRingOutsideRadius(Resource profileResource)
-    {
-        MeteorSwarmProfile profile = DuplicateProfile(profileResource, "component ring 负例前置");
-        if (profile == null || profile.impact_components.Count == 0)
-            return;
-
-        profile.impact_components[0].ring_max = 4;
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        AssertExactErrors(
-            errors,
-            new[]
-            {
-                "MeteorSwarmProfile.impact_components[0] ring range is invalid or outside radius.",
-            },
-            "manifest validator 应只报告越过 7x7 半径的 impact component ring"
-        );
-    }
-
-    private void TestManifestValidatorRejectsTerrainRingOutsideRadius(Resource profileResource)
-    {
-        MeteorSwarmProfile profile = DuplicateProfile(profileResource, "terrain ring 负例前置");
-        if (profile == null || profile.terrain_profiles.Count == 0)
-            return;
-
-        Godot.Collections.Dictionary terrainProfile = profile.terrain_profiles[0].AsGodotDictionary().Duplicate(true);
-        terrainProfile["ring_max"] = 4;
-        profile.terrain_profiles[0] = terrainProfile;
-        var validator = new BattleSpecialProfileManifestValidator();
-        Godot.Collections.Array<string> errors = validator.ValidateMeteorSwarmProfile(profile, true);
-        AssertExactErrors(
-            errors,
-            new[]
-            {
-                "MeteorSwarmProfile.terrain_profiles[0] ring range is invalid or outside radius.",
-            },
-            "manifest validator 应只报告越过 7x7 半径的 terrain profile ring"
-        );
+            ["wrong_meteor_swarm_key"] = meteorSkill,
+        });
+        _test.True(registry.ValidateTyped().Count > 0,
+            "Wrong skill-definition key must invalidate the manifest graph.");
+        _test.False(registry.BuildRuntimeProfileView().TryGetMeteorSwarmProfile(
+                "meteor_swarm", out _),
+            "Invalid manifest graph must publish an empty runtime view.");
     }
 
     private void TestGateAllowsValidManifest(
-        SkillDefinition meteorSkillDefinition,
+        SkillDefinition meteorSkill,
         IBattleSpecialProfileView profileView
     )
     {
         var gate = new BattleSpecialProfileGate();
         gate.Setup(profileView);
-        BattleSpecialProfileGateResult allowedResult = gate.PreviewSkill(
-            meteorSkillDefinition,
-            new BattleCommand(),
-            new BattleUnitState(),
-            new BattleState()
-        );
-        _test.True(allowedResult.Allowed, "manifest gate 通过时应允许进入 meteor resolver。");
-        _test.Eq(
-            allowedResult.ProfileId.ToString(),
-            "meteor_swarm",
-            "manifest gate result 应暴露 typed profile id。"
-        );
+        BattleSpecialProfileGateResult result = gate.PreviewSkill(
+            meteorSkill, new BattleCommand(), new BattleUnitState(), new BattleState());
+        _test.True(result.Allowed, "Valid JSON manifest must allow the meteor resolver.");
+        _test.Eq(result.ProfileId, new StringName("meteor_swarm"),
+            "Gate result must expose the typed profile ID.");
     }
 
-    private void TestGateFailsClosedForInvalidManifest(SkillDefinition meteorSkillDefinition)
+    private void TestGateFailsClosedForMissingProfile(SkillDefinition meteorSkill)
     {
-        var invalidGate = new BattleSpecialProfileGate();
-        invalidGate.Setup(BattleSpecialProfileRuntimeView.Empty);
-        BattleSpecialProfileGateResult blockedResult = invalidGate.PreviewSkill(
-            meteorSkillDefinition,
-            new BattleCommand(),
-            new BattleUnitState(),
-            new BattleState()
-        );
-        _test.False(blockedResult.Allowed, "manifest gate 失败时应 fail closed。");
-        _test.Eq(
-            blockedResult.PlayerMessage,
-            "该禁咒配置未通过校验，暂时无法施放。",
-            "manifest gate fail closed 文案应稳定。"
-        );
-        _test.True(
-            blockedResult.DebugDetails.ContainsKey("errors"),
-            "manifest gate fail closed 应保留 typed debug details。"
-        );
-        Godot.Collections.Dictionary payload =
-            BattleSpecialProfileGateResultProjection.Project(blockedResult);
-        _test.Eq(
-            GetString(payload, "player_message"),
-            "该禁咒配置未通过校验，暂时无法施放。",
-            "gate result projection 仅作为 Godot 边界投影。"
-        );
+        var gate = new BattleSpecialProfileGate();
+        gate.Setup(BattleSpecialProfileRuntimeView.Empty);
+        BattleSpecialProfileGateResult result = gate.PreviewSkill(
+            meteorSkill, new BattleCommand(), new BattleUnitState(), new BattleState());
+        _test.False(result.Allowed, "Missing profile must fail closed.");
+        _test.Eq(result.PlayerMessage, "该禁咒配置未通过校验，暂时无法施放。",
+            "Fail-closed player message must stay stable.");
     }
 
-    private TestResult Finish() => _test.Finish("Meteor swarm manifest gate regression");
-
-    private static string GetString(Godot.Collections.Dictionary source, string key)
-    {
-        if (source == null || !source.ContainsKey(key))
-            return "";
-        return source[key].ToString();
-    }
-
-    private static SkillDefinition GetSkillDefinition(
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        StringName skillId
-    )
-    {
-        if (
-            skillDefinitions == null
-            || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
-        )
-            return null;
-        return skillDefinition;
-    }
-
-    private MeteorSwarmProfile DuplicateProfile(Resource profileResource, string preconditionLabel)
-    {
-        var profile = TestResourceOwnership.Own(
-            (profileResource as MeteorSwarmProfile)?.Duplicate(true) as MeteorSwarmProfile,
-            $"meteor_swarm_manifest_gate.duplicate_profile.{preconditionLabel}"
-        );
-        _test.True(profile != null, $"{preconditionLabel}：profile 应能 duplicate。");
-        return profile;
-    }
-
-    private static string FormatArray(Godot.Collections.Array<string> values)
-    {
-        return values == null ? "[]" : string.Join(", ", values);
-    }
-
-    private static string FormatArray(IEnumerable<string> values)
-    {
-        if (values == null)
-            return "";
-        return string.Join(", ", values);
-    }
-
-    private void AssertExactErrors(
-        Godot.Collections.Array<string> actual,
-        IReadOnlyList<string> expected,
-        string label
-    )
-    {
-        _test.Eq(
-            actual?.Count ?? -1,
-            expected?.Count ?? -1,
-            $"{label}：诊断数量应精确匹配。actual={FormatArray(actual)}"
-        );
-        if (actual == null || expected == null || actual.Count != expected.Count)
-            return;
-
-        for (int i = 0; i < expected.Count; i++)
-            _test.Eq(actual[i], expected[i], $"{label}：第 {i + 1} 条诊断应精确匹配。");
-    }
-
+    private static string FormatDiagnostics(IEnumerable<ContentJsonDiagnostic> diagnostics) =>
+        string.Join(" | ", diagnostics.Select(value =>
+            $"{value.RuleId}:{value.JsonPointer}:{value.Message}"));
 }

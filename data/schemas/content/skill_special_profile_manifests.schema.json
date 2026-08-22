@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:skill_special_profile_manifests:v1",
+  "title": "Magic battle special profile manifest JSON authoring schema",
+  "description": "Strict profile-ID-only ownership and runtime resolver manifest contract.",
+  "$ref": "#/$defs/BattleSpecialProfileManifestJsonDocumentDto",
+  "$defs": {
+    "BattleSpecialProfileDeferredCapabilityJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capability_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capability_id",
+        "status"
+      ]
+    },
+    "BattleSpecialProfileManifestJsonDocumentDto": {
+      "description": "Battle special profile manifest document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "skill_special_profile_manifests"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSpecialProfileManifestJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BattleSpecialProfileManifestJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "BattleSpecialProfileManifestJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deferred_capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSpecialProfileDeferredCapabilityJsonDto"
+          }
+        },
+        "owning_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "presentation_metadata": {
+          "$ref": "#/$defs/BattleSpecialProfilePresentationMetadataJsonDto"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "runtime_read_policy": {
+          "type": "string"
+        },
+        "runtime_resolver_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "integer"
+        },
+        "sunset_hard_block_date": {
+          "type": "string"
+        },
+        "sunset_warning_date": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deferred_capabilities",
+        "owning_skill_ids",
+        "presentation_metadata",
+        "profile_id",
+        "runtime_read_policy",
+        "runtime_resolver_id",
+        "schema_version",
+        "sunset_hard_block_date",
+        "sunset_warning_date"
+      ]
+    },
+    "BattleSpecialProfileManifestJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BattleSpecialProfileManifestJsonDto"
+        },
+        {
+          "$ref": "#/$defs/BattleSpecialProfileManifestJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "BattleSpecialProfileManifestJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deferred_capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSpecialProfileDeferredCapabilityJsonDto"
+          }
+        },
+        "owning_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "presentation_metadata": {
+          "$ref": "#/$defs/BattleSpecialProfilePresentationMetadataJsonDto__partial"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "runtime_read_policy": {
+          "type": "string"
+        },
+        "runtime_resolver_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "integer"
+        },
+        "sunset_hard_block_date": {
+          "type": "string"
+        },
+        "sunset_warning_date": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "BattleSpecialProfileManifestJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deferred_capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSpecialProfileDeferredCapabilityJsonDto"
+          }
+        },
+        "owning_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "presentation_metadata": {
+          "$ref": "#/$defs/BattleSpecialProfilePresentationMetadataJsonDto__partial"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "runtime_read_policy": {
+          "type": "string"
+        },
+        "runtime_resolver_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "integer"
+        },
+        "sunset_hard_block_date": {
+          "type": "string"
+        },
+        "sunset_warning_date": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "profile_id",
+        "template"
+      ]
+    },
+    "BattleSpecialProfilePresentationMetadataJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coverage_shape_id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "radius": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "coverage_shape_id",
+        "display_name",
+        "radius"
+      ]
+    },
+    "BattleSpecialProfilePresentationMetadataJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coverage_shape_id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "radius": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

@@ -530,7 +530,15 @@ internal sealed class BattleMeteorSwarmResolver
                         false,
                         skillId: plan.skill_id,
                         dispatchEvents: false
-                    ).WithBattleState(State())
+                    )
+                        .WithBattleState(State())
+                        .WithDamageOriginKind(
+                            BattleDamageOriginContentRules.ResolveProducerOrigin(
+                                BattleDamageOriginKind.MainDirectEffect,
+                                plan.source_unit,
+                                target_unit
+                            )
+                        )
                 );
             outcome.AddComponent(component);
             outcome.total_damage += damageResolution.Damage;
@@ -702,7 +710,16 @@ internal sealed class BattleMeteorSwarmResolver
                 plan.source_unit,
                 target_unit,
                 new[] { effectDefinition },
-                DamageResolutionContext.ForSkill(plan.skill_id).WithBattleState(State())
+                DamageResolutionContext
+                    .ForSkill(plan.skill_id)
+                    .WithBattleState(State())
+                    .WithDamageOriginKind(
+                        BattleDamageOriginContentRules.ResolveProducerOrigin(
+                            BattleDamageOriginKind.MainDirectEffect,
+                            plan.source_unit,
+                            target_unit
+                        )
+                    )
             );
     }
 
@@ -1670,7 +1687,15 @@ internal sealed class BattleMeteorSwarmResolver
         return damageResolver.PreviewDamageEffectOnWorkingSetTyped(
             working_set,
             effectDefinition,
-            DamageResolutionContext.ForSkill(plan != null ? plan.skill_id : DEFAULT_SKILL_ID),
+            DamageResolutionContext
+                .ForSkill(plan != null ? plan.skill_id : DEFAULT_SKILL_ID)
+                .WithDamageOriginKind(
+                    BattleDamageOriginContentRules.ResolveProducerOrigin(
+                        BattleDamageOriginKind.MainDirectEffect,
+                        plan?.source_unit,
+                        working_set?.TargetPreview
+                    )
+                ),
             roll_mode,
             save_mode
         );

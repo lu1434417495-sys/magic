@@ -39,26 +39,4 @@ public sealed class BarrierLayerDefinition
     public IReadOnlyList<StringName> BreakerSkillIds { get; }
     public IReadOnlyList<BarrierOutcomeDefinition> PassageOutcomes { get; }
 
-    internal static BarrierLayerDefinition FromResource(BarrierLayerDef source, string path)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        return new BarrierLayerDefinition(
-            source.layer_id,
-            source.display_name,
-            source.order,
-            ProgressionDefinitionProjection.CopyBorrowedValues(
-                source.BlockedCategoriesProjectionBorrowed,
-                path + ".blocked_categories"
-            ),
-            ProgressionDefinitionProjection.CopyBorrowedValues(
-                source.BreakerSkillIdsProjectionBorrowed,
-                path + ".breaker_skill_ids"
-            ),
-            ProgressionDefinitionProjection.ProjectBorrowedValues(
-                source.PassageOutcomesProjectionBorrowed,
-                path + ".passage_outcomes",
-                BarrierOutcomeDefinition.FromResource
-            )
-        );
-    }
 }
