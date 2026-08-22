@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_data_context_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
     private readonly TestHarness _test = new();
     private readonly List<GodotProjectionLease<GDictionary>> _payloadLeases = new();
 
@@ -656,7 +656,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 ["generated_submap"] = new GDictionary
                 {
                     ["display_name"] = "Generated Map",
-                    ["generation_config_path"] = TestWorldConfig,
+                    ["world_generation_id"] = TestWorldConfig,
                     ["return_hint_text"] = "Return later",
                     ["is_generated"] = false,
                     ["player_coord"] = new Vector2I(-1, -1),
@@ -756,40 +756,37 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
 
     private static WorldGenerationDefinition BuildConfig()
     {
-        WorldMapGenerationConfig source = new()
-        {
-            world_size_in_chunks = new Vector2I(1, 1),
-            chunk_size = new Vector2I(4, 4),
-            player_start_coord = new Vector2I(1, 1),
-        };
-        return TestWorldGenerationDefinitionFactory.Project(
-            "res://tests/world_map/runtime/data_context_generation.tres",
-            source
+        return TestWorldGenerationDefinitionFactory.Create(
+            "data_context",
+            worldSizeInChunks: new Vector2I(1, 1),
+            chunkSize: new Vector2I(4, 4),
+            playerStartCoord: new Vector2I(1, 1)
         );
     }
 
     private static WorldGenerationDefinition BuildConfig(
         string submapId,
-        string generationConfigPath
+        string worldGenerationId
     )
     {
-        WorldMapGenerationConfig source = new()
-        {
-            world_size_in_chunks = new Vector2I(1, 1),
-            chunk_size = new Vector2I(4, 4),
-            player_start_coord = new Vector2I(1, 1),
-        };
-        source.mounted_submaps.Add(
-            new MountedSubmapConfig
-            {
-                submap_id = submapId,
-                display_name = submapId,
-                generation_config_path = generationConfigPath,
-            }
+        WorldGenerationDefinition child = TestWorldGenerationDefinitionFactory.Load(
+            new StringName(worldGenerationId)
         );
-        return TestWorldGenerationDefinitionFactory.Project(
-            $"res://tests/world_map/runtime/data_context_{submapId}_generation.tres",
-            source
+        return TestWorldGenerationDefinitionFactory.Create(
+            new StringName($"data_context_{submapId}"),
+            worldSizeInChunks: new Vector2I(1, 1),
+            chunkSize: new Vector2I(4, 4),
+            playerStartCoord: new Vector2I(1, 1),
+            mountedSubmaps: new[]
+            {
+                new MountedSubmapDefinition(
+                    new StringName(submapId),
+                    submapId,
+                    child.GenerationId,
+                    "点击任意地点返回原位置。",
+                    child
+                ),
+            }
         );
     }
 

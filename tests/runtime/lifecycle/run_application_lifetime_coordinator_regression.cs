@@ -7,7 +7,7 @@ using Godot;
 public partial class run_application_lifetime_coordinator_regression : LifecycleTestSceneTree
 {
     private const string TestWorldMapConfigPath =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
 
     private sealed class FakeParticipant : IApplicationShutdownParticipant
     {

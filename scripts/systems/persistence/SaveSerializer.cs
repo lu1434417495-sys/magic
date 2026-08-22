@@ -13,7 +13,7 @@ internal sealed class SaveDecodeResult
         WorldData = new Dictionary<string, object>(StringComparer.Ordinal);
         PartyState = new PartyState();
         ActiveSaveId = "";
-        GenerationConfigPath = "";
+        WorldGenerationId = "";
         PlayerFactionId = "player";
     }
 
@@ -22,7 +22,7 @@ internal sealed class SaveDecodeResult
         Dictionary<string, object> worldData,
         PartyState partyState,
         string activeSaveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         Vector2I playerCoord,
         string playerFactionId
     )
@@ -33,7 +33,7 @@ internal sealed class SaveDecodeResult
         WorldData = worldData ?? new Dictionary<string, object>(StringComparer.Ordinal);
         PartyState = partyState ?? new PartyState();
         ActiveSaveId = activeSaveId ?? "";
-        GenerationConfigPath = generationConfigPath ?? "";
+        WorldGenerationId = worldGenerationId;
         PlayerCoord = playerCoord;
         PlayerFactionId = playerFactionId ?? "player";
     }
@@ -43,7 +43,7 @@ internal sealed class SaveDecodeResult
     internal Dictionary<string, object> WorldData { get; }
     internal PartyState PartyState { get; }
     internal string ActiveSaveId { get; }
-    internal string GenerationConfigPath { get; }
+    internal StringName WorldGenerationId { get; }
     internal Vector2I PlayerCoord { get; }
     internal string PlayerFactionId { get; }
 }
@@ -65,7 +65,7 @@ public sealed class SaveSerializer
 
     internal GodotProjectionLease<GDictionary> BuildSavePayloadLease(
         string activeSaveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         IReadOnlyDictionary<string, object> activeSaveMeta,
         IReadOnlyDictionary<string, object> worldData,
         Vector2I playerCoord,
@@ -81,7 +81,7 @@ public sealed class SaveSerializer
         );
         return BuildSavePayloadFromWorldStateLease(
             activeSaveId,
-            generationConfigPath,
+            worldGenerationId,
             activeSaveMeta,
             worldState,
             partyState,
@@ -92,7 +92,7 @@ public sealed class SaveSerializer
 
     internal GodotProjectionLease<GDictionary> BuildTrustedSavePayloadLease(
         string activeSaveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         IReadOnlyDictionary<string, object> activeSaveMeta,
         IReadOnlyDictionary<string, object> worldData,
         Vector2I playerCoord,
@@ -111,7 +111,7 @@ public sealed class SaveSerializer
         };
         return BuildSavePayloadFromWorldStateLease(
             activeSaveId,
-            generationConfigPath,
+            worldGenerationId,
             activeSaveMeta,
             worldState,
             partyState,
@@ -122,7 +122,7 @@ public sealed class SaveSerializer
 
     private GodotProjectionLease<GDictionary> BuildSavePayloadFromWorldStateLease(
         string activeSaveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         IReadOnlyDictionary<string, object> activeSaveMeta,
         Dictionary<string, object> worldState,
         PartyState partyState,
@@ -134,7 +134,7 @@ public sealed class SaveSerializer
         {
             ["version"] = _save_version,
             ["save_id"] = activeSaveId,
-            ["generation_config_path"] = generationConfigPath,
+            ["world_generation_id"] = worldGenerationId.ToString(),
             ["world_state"] = worldState,
             ["party_state"] = SerializePartyStatePlain(partyState),
             ["meta"] = BuildMetaPayloadPlain(savedAtUnixTime),
@@ -165,7 +165,7 @@ public sealed class SaveSerializer
 
     internal bool TryDecodePayload(
         IReadOnlyDictionary<string, object> payload,
-        string generationConfigPath,
+        StringName worldGenerationId,
         IReadOnlyDictionary<string, object> saveMeta,
         out SaveDecodeResult result
     )
@@ -185,7 +185,7 @@ public sealed class SaveSerializer
         {
             "version",
             "save_id",
-            "generation_config_path",
+            "world_generation_id",
             "world_state",
             "party_state",
             "meta",
@@ -199,17 +199,13 @@ public sealed class SaveSerializer
             || !TryReadPlainString(payload, "save_id", out string activeSaveId)
             || !TryReadPlainString(
                 payload,
-                "generation_config_path",
-                out string payloadGenerationConfigPath
+                "world_generation_id",
+                out string payloadWorldGenerationId
             )
         )
             return false;
         if (
-            !string.Equals(
-                payloadGenerationConfigPath,
-                generationConfigPath,
-                StringComparison.Ordinal
-            )
+            new StringName(payloadWorldGenerationId) != worldGenerationId
             || !string.Equals(
                 activeSaveId,
                 ReadPlainString(normalizedRequestedMeta, "save_id"),
@@ -272,13 +268,13 @@ public sealed class SaveSerializer
                 StringComparison.Ordinal
             )
             || !string.Equals(
-                ReadPlainString(normalizedMeta, "generation_config_path"),
-                generationConfigPath,
+                ReadPlainString(normalizedMeta, "world_generation_id"),
+                worldGenerationId.ToString(),
                 StringComparison.Ordinal
             )
             || !string.Equals(
-                ReadPlainString(normalizedRequestedMeta, "generation_config_path"),
-                generationConfigPath,
+                ReadPlainString(normalizedRequestedMeta, "world_generation_id"),
+                worldGenerationId.ToString(),
                 StringComparison.Ordinal
             )
         )
@@ -306,7 +302,7 @@ public sealed class SaveSerializer
             worldData,
             partyState,
             activeSaveId,
-            generationConfigPath,
+            worldGenerationId,
             playerCoord,
             playerFactionId
         );
@@ -316,7 +312,7 @@ public sealed class SaveSerializer
     internal Dictionary<string, object> BuildSaveMetaPlain(
         string saveId,
         string displayName,
-        string generationConfigPath,
+        StringName worldGenerationId,
         StringName presetId,
         string presetName,
         Vector2I worldSizeCells,
@@ -330,7 +326,7 @@ public sealed class SaveSerializer
             ["display_name"] = string.IsNullOrEmpty(displayName) ? saveId ?? "" : displayName,
             ["world_preset_id"] = presetId.ToString(),
             ["world_preset_name"] = presetName ?? "",
-            ["generation_config_path"] = generationConfigPath ?? "",
+            ["world_generation_id"] = worldGenerationId.ToString(),
             ["world_size_cells"] = worldSizeCells,
             ["created_at_unix_time"] = createdAtUnixTime,
             ["updated_at_unix_time"] = updatedAtUnixTime,
@@ -352,7 +348,7 @@ public sealed class SaveSerializer
             "display_name",
             "world_preset_id",
             "world_preset_name",
-            "generation_config_path",
+            "world_generation_id",
             "world_size_cells",
             "created_at_unix_time",
             "updated_at_unix_time",
@@ -373,8 +369,8 @@ public sealed class SaveSerializer
             || !TryReadPlainString(rawMeta, "world_preset_name", out string worldPresetName)
             || !TryReadPlainString(
                 rawMeta,
-                "generation_config_path",
-                out string generationConfigPath
+                "world_generation_id",
+                out string worldGenerationId
             )
             || !TryReadPlainInt(rawMeta, "created_at_unix_time", out int createdAt)
             || !TryReadPlainInt(rawMeta, "updated_at_unix_time", out int updatedAt)
@@ -387,11 +383,11 @@ public sealed class SaveSerializer
 
         displayName = displayName.Trim();
         worldPresetName = worldPresetName.Trim();
-        generationConfigPath = generationConfigPath.Trim();
+        worldGenerationId = worldGenerationId.Trim();
         if (
             displayName.Length == 0
             || worldPresetName.Length == 0
-            || generationConfigPath.Length == 0
+            || worldGenerationId.Length == 0
             || worldSizeCells.X <= 0
             || worldSizeCells.Y <= 0
             || createdAt <= 0
@@ -407,7 +403,7 @@ public sealed class SaveSerializer
             ["display_name"] = displayName,
             ["world_preset_id"] = worldPresetId,
             ["world_preset_name"] = worldPresetName,
-            ["generation_config_path"] = generationConfigPath,
+            ["world_generation_id"] = worldGenerationId,
             ["world_size_cells"] = worldSizeCells,
             ["created_at_unix_time"] = createdAt,
             ["updated_at_unix_time"] = updatedAt,
@@ -425,7 +421,7 @@ public sealed class SaveSerializer
         {
             "version",
             "save_id",
-            "generation_config_path",
+            "world_generation_id",
             "world_state",
             "party_state",
             "meta",
@@ -439,8 +435,8 @@ public sealed class SaveSerializer
             || !TryReadPlainString(payload, "save_id", out string saveId)
             || !TryReadPlainString(
                 payload,
-                "generation_config_path",
-                out string generationConfigPath
+                "world_generation_id",
+                out string worldGenerationId
             )
             || !TryReadPlainDictionary(payload, "save_slot_meta", out var rawSaveMeta)
             || !TryNormalizeSaveMetaPlain(rawSaveMeta, out Dictionary<string, object> normalized)
@@ -450,18 +446,18 @@ public sealed class SaveSerializer
         }
 
         saveId = saveId.Trim();
-        generationConfigPath = generationConfigPath.Trim();
+        worldGenerationId = worldGenerationId.Trim();
         if (
             saveId.Length == 0
-            || generationConfigPath.Length == 0
+            || worldGenerationId.Length == 0
             || !string.Equals(
                 ReadPlainString(normalized, "save_id"),
                 saveId,
                 StringComparison.Ordinal
             )
             || !string.Equals(
-                ReadPlainString(normalized, "generation_config_path"),
-                generationConfigPath,
+                ReadPlainString(normalized, "world_generation_id"),
+                worldGenerationId,
                 StringComparison.Ordinal
             )
         )

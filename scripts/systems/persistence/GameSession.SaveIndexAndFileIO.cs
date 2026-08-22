@@ -400,7 +400,7 @@ public partial class GameSession
             "display_name",
             "world_preset_id",
             "world_preset_name",
-            "generation_config_path",
+            "world_generation_id",
             "world_size_cells",
             "created_at_unix_time",
             "updated_at_unix_time",
@@ -541,14 +541,13 @@ public partial class GameSession
                     )
                 )
                     continue;
-                string generationConfigPath = ReadPlainString(
-                    saveMeta,
-                    "generation_config_path"
+                StringName worldGenerationId = new(
+                    ReadPlainString(saveMeta, "world_generation_id")
                 );
                 if (
                     !_save_serializer.TryDecodePayload(
                         plainPayload,
-                        generationConfigPath,
+                        worldGenerationId,
                         saveMeta,
                         out SaveDecodeResult decodeResult
                     )

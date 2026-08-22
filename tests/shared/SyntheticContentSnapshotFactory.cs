@@ -26,7 +26,8 @@ internal sealed class SyntheticContentSnapshotSeed
     internal IReadOnlyDictionary<StringName, RecipeDefinition> Recipes { get; set; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> EquipmentAbilityPacks { get; set; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; set; }
-    internal IReadOnlyDictionary<string, WorldGenerationDefinition> WorldGenerations { get; set; }
+    internal IReadOnlyDictionary<StringName, WorldPresetDefinition> WorldPresets { get; set; }
+    internal IReadOnlyDictionary<StringName, WorldGenerationDefinition> WorldGenerations { get; set; }
     internal IBattleSpecialProfileView BattleSpecialProfiles { get; set; }
     internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; set; }
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains { get; set; }
@@ -66,7 +67,8 @@ internal static class SyntheticContentSnapshotFactory
             OrEmpty(seed.Recipes),
             OrEmpty(seed.EquipmentAbilityPacks),
             OrEmpty(seed.EquipmentAbilityBindings),
-            seed.WorldGenerations ?? new Dictionary<string, WorldGenerationDefinition>(StringComparer.Ordinal),
+            OrEmpty(seed.WorldPresets),
+            OrEmpty(seed.WorldGenerations),
             seed.BattleSpecialProfiles ?? BattleSpecialProfileRuntimeView.Empty,
             OrEmpty(seed.EnemyTemplates),
             OrEmpty(seed.EnemyBrains),
@@ -103,6 +105,7 @@ internal static class SyntheticContentSnapshotFactory
             Recipes = source.Recipes,
             EquipmentAbilityPacks = source.EquipmentAbilityPacks,
             EquipmentAbilityBindings = source.EquipmentAbilityBindings,
+            WorldPresets = source.WorldPresets,
             WorldGenerations = source.WorldGenerations,
             BattleSpecialProfiles = source.BattleSpecialProfiles,
             EnemyTemplates = source.EnemyTemplates,

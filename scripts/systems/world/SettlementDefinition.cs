@@ -78,45 +78,6 @@ public sealed class SettlementDefinition
             _ => "未知",
         };
 
-    internal static SettlementDefinition FromResource(SettlementConfig source, string path)
-    {
-        if (source == null)
-            throw WorldDefinitionProjection.Invalid(path, "resource is null");
-        return new SettlementDefinition(
-            WorldDefinitionProjection.RequireString(
-                source.settlement_id,
-                path + ".settlement_id"
-            ).Trim(),
-            WorldDefinitionProjection.RequireString(
-                source.display_name,
-                path + ".display_name"
-            ),
-            source.tier,
-            WorldDefinitionProjection.ProjectResources<
-                FacilitySlotConfig,
-                FacilitySlotDefinition
-            >(
-                source.FacilitySlotsProjectionBorrowed,
-                path + ".facility_slots",
-                FacilitySlotDefinition.FromResource
-            ),
-            WorldDefinitionProjection.CopyStrings(
-                source.GuaranteedFacilityIdsProjectionBorrowed,
-                path + ".guaranteed_facility_ids",
-                trim: true
-            ),
-            WorldDefinitionProjection.ProjectResources<
-                WeightedFacilityEntry,
-                WeightedFacilityDefinition
-            >(
-                source.OptionalFacilityPoolProjectionBorrowed,
-                path + ".optional_facility_pool",
-                WeightedFacilityDefinition.FromResource
-            ),
-            source.max_optional_facilities
-        );
-    }
-
     internal static SettlementTierKind ToTierKind(int tier) =>
         tier >= (int)SettlementTierKind.Village && tier <= (int)SettlementTierKind.Metropolis
             ? (SettlementTierKind)tier

@@ -326,7 +326,7 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         return _is_quest_listed_for_settlement(quest_definition, settlement_template_id);
     }
 
-    // 悬赏必须按据点绑定（listing_settlement_ids = SettlementConfig.settlement_id 白名单）。
+    // 悬赏必须按据点绑定（listing_settlement_ids = SettlementDefinition.TemplateId / JSON settlement_id 白名单）。
     // 未绑定或据点不匹配的悬赏在本板不可见；validator 已保证正式内容非空绑定。
     private static bool _is_quest_listed_for_settlement(
         QuestDefinition quest_definition,

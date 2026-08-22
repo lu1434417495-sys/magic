@@ -4,7 +4,7 @@ public partial class run_battle_seed_source_regression : LifecycleTestSceneTree
 {
     private const int LifecycleSoakSeed = 0x5A17_2026;
     private const string TestWorldConfig =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
 
     private readonly TestHarness _test = new();
 

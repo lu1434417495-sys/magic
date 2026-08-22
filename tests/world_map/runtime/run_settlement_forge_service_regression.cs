@@ -7,8 +7,8 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_settlement_forge_service_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
-    private const string AshenIntersectionConfigPath = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
+    private const string TestConfigPath = "test";
+    private const string AshenIntersectionConfigPath = "ashen_intersection";
 
     private readonly TestHarness _test = new();
     private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
@@ -311,7 +311,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
         GameSession gameSession = await InstallGameSession("ForgeGameSession");
         try
         {
-            int createError = gameSession.CreateNewSave(TestConfigPath, "forge_spawn_service", "大师重铸入口验证");
+            int createError = gameSession.CreateNewSave(TestConfigPath, "test", "大师重铸入口验证");
             _test.Eq(createError, (int)Error.Ok, "创建带重铸入口验证的新世界应成功。");
             if (createError == (int)Error.Ok)
             {
@@ -345,7 +345,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
         GameSession gameSession = await InstallGameSession("AshenForgeGameSession");
         try
         {
-            int createError = gameSession.CreateNewSave(AshenIntersectionConfigPath, "generic_forge_spawn_service", "通用 forge 入口验证");
+            int createError = gameSession.CreateNewSave(AshenIntersectionConfigPath, "ashen_intersection", "通用 forge 入口验证");
             _test.Eq(createError, (int)Error.Ok, "创建灰烬交界世界应成功。");
             if (createError == (int)Error.Ok)
             {

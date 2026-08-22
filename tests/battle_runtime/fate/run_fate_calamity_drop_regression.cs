@@ -2,7 +2,7 @@ using Godot;
 
 public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private static readonly StringName StatusBlackStarBrandElite = "black_star_brand_elite";
     private static readonly StringName StatusDoomSentenceVerdict = "doom_sentence_verdict";

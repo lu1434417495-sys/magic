@@ -7,16 +7,11 @@ public sealed class WorldMapSpawnSystem
 {
     private const string EncounterKindSingle = "single";
     private const string EncounterKindSettlement = "settlement";
-    private const string DefaultMainWorldSettlementNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_settlement_name_pool.tres";
-    private const string DefaultMainWorldTownNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_town_name_pool.tres";
-    private const string DefaultMainWorldCityNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_city_name_pool.tres";
-    private const string DefaultMainWorldCapitalNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_capital_name_pool.tres";
-    private const string DefaultMainWorldMetropolisNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
+    private static readonly StringName DefaultMainWorldSettlementNamePoolId = "village";
+    private static readonly StringName DefaultMainWorldTownNamePoolId = "town";
+    private static readonly StringName DefaultMainWorldCityNamePoolId = "city";
+    private static readonly StringName DefaultMainWorldCapitalNamePoolId = "capital";
+    private static readonly StringName DefaultMainWorldMetropolisNamePoolId = "metropolis";
 
     private static readonly Dictionary<string, string> ServiceActionIdByInteraction = new(
         StringComparer.Ordinal
@@ -185,7 +180,7 @@ public sealed class WorldMapSpawnSystem
     {
         public string SubmapId { get; init; } = "";
         public string DisplayName { get; init; } = "";
-        public string GenerationConfigPath { get; init; } = "";
+        public StringName WorldGenerationId { get; init; } = "";
         public string ReturnHintText { get; init; } = "";
         public bool IsGenerated { get; init; }
         public Vector2I PlayerCoord { get; init; } = new(-1, -1);
@@ -1779,7 +1774,7 @@ public sealed class WorldMapSpawnSystem
     private List<string> BuildDefaultMainWorldSettlementDisplayNames()
     {
         return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldSettlementNamePoolPath,
+            DefaultMainWorldSettlementNamePoolId,
             "default main-world settlement"
         );
     }
@@ -1787,7 +1782,7 @@ public sealed class WorldMapSpawnSystem
     private List<string> BuildDefaultMainWorldTownDisplayNames()
     {
         return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldTownNamePoolPath,
+            DefaultMainWorldTownNamePoolId,
             "default main-world town"
         );
     }
@@ -1795,7 +1790,7 @@ public sealed class WorldMapSpawnSystem
     private List<string> BuildDefaultMainWorldCityDisplayNames()
     {
         return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldCityNamePoolPath,
+            DefaultMainWorldCityNamePoolId,
             "default main-world city"
         );
     }
@@ -1803,7 +1798,7 @@ public sealed class WorldMapSpawnSystem
     private List<string> BuildDefaultMainWorldCapitalDisplayNames()
     {
         return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldCapitalNamePoolPath,
+            DefaultMainWorldCapitalNamePoolId,
             "default main-world capital"
         );
     }
@@ -1811,12 +1806,12 @@ public sealed class WorldMapSpawnSystem
     private List<string> BuildDefaultMainWorldMetropolisDisplayNames()
     {
         return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldMetropolisNamePoolPath,
+            DefaultMainWorldMetropolisNamePoolId,
             "default main-world metropolis"
         );
     }
 
-    private List<string> BuildShuffledDisplayNamesFromPool(string resourcePath, string warningLabel)
+    private List<string> BuildShuffledDisplayNamesFromPool(StringName poolId, string warningLabel)
     {
         if (
             _generationDefinition == null
@@ -1825,14 +1820,14 @@ public sealed class WorldMapSpawnSystem
             return new List<string>();
         if (
             !_generationDefinition.SettlementNamePools.TryGetValue(
-                ContentPathCanonicalizer.Canonicalize(resourcePath),
+                poolId,
                 out WorldMapSettlementNamePoolDefinition namePool
             )
             || namePool == null
         )
         {
             GameLog.Warning(
-                $"Unable to resolve {warningLabel} name pool from projected content {resourcePath}.",
+                $"Unable to resolve {warningLabel} name pool ID {poolId} from projected content.",
                 "world.spawn.name_pool_missing",
                 "world"
             );
@@ -1984,7 +1979,7 @@ public sealed class WorldMapSpawnSystem
                 {
                     SubmapId = submapDefinition.SubmapId.ToString(),
                     DisplayName = submapDefinition.DisplayName,
-                    GenerationConfigPath = submapDefinition.GenerationConfigPath,
+                    WorldGenerationId = submapDefinition.WorldGenerationId,
                     ReturnHintText = submapDefinition.ReturnHintText,
                     IsGenerated = false,
                     PlayerCoord = new Vector2I(-1, -1),

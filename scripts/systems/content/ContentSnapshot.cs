@@ -32,7 +32,8 @@ internal sealed class ContentSnapshot
         IReadOnlyDictionary<StringName, RecipeDefinition> recipes,
         IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> equipmentAbilityPacks,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
-        IReadOnlyDictionary<string, WorldGenerationDefinition> worldGenerations,
+        IReadOnlyDictionary<StringName, WorldPresetDefinition> worldPresets,
+        IReadOnlyDictionary<StringName, WorldGenerationDefinition> worldGenerations,
         IBattleSpecialProfileView battleSpecialProfiles,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates = null,
         IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyBrains = null,
@@ -76,7 +77,8 @@ internal sealed class ContentSnapshot
         Recipes = Freeze(recipes);
         EquipmentAbilityPacks = Freeze(equipmentAbilityPacks);
         EquipmentAbilityBindings = Freeze(equipmentAbilityBindings);
-        WorldGenerations = Freeze(worldGenerations, StringComparer.Ordinal);
+        WorldPresets = Freeze(worldPresets);
+        WorldGenerations = Freeze(worldGenerations);
         BattleSpecialProfiles = battleSpecialProfiles ?? BattleSpecialProfileRuntimeView.Empty;
         EnemyTemplates = Freeze(enemyTemplates);
         EnemyBrains = Freeze(enemyBrains);
@@ -108,7 +110,8 @@ internal sealed class ContentSnapshot
     internal IReadOnlyDictionary<StringName, RecipeDefinition> Recipes { get; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> EquipmentAbilityPacks { get; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; }
-    internal IReadOnlyDictionary<string, WorldGenerationDefinition> WorldGenerations { get; }
+    internal IReadOnlyDictionary<StringName, WorldPresetDefinition> WorldPresets { get; }
+    internal IReadOnlyDictionary<StringName, WorldGenerationDefinition> WorldGenerations { get; }
     internal IBattleSpecialProfileView BattleSpecialProfiles { get; }
     internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; }
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains { get; }

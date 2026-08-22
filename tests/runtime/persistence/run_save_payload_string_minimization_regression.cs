@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_save_payload_string_minimization_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
     private const string SaveDirectory = "user://saves";
 
     private readonly TestHarness _test = new();
@@ -45,7 +45,7 @@ public partial class run_save_payload_string_minimization_regression : Lifecycle
             using GodotProjectionLease<GDictionary> payloadLease =
                 serializer.BuildSavePayloadLease(
                 gameSession.GetActiveSaveId(),
-                gameSession.GetGenerationConfigPath(),
+                gameSession.GetWorldGenerationId(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 gameSession.CaptureWorldDataPlain(),
                 gameSession.GetPlayerCoord(),
@@ -61,7 +61,7 @@ public partial class run_save_payload_string_minimization_regression : Lifecycle
             );
 
             AssertType(DictGet(payload, "save_id"), Variant.Type.StringName, "save_id 在正式 payload 中应保存为 StringName。");
-            AssertType(DictGet(payload, "generation_config_path"), Variant.Type.StringName, "generation_config_path 在正式 payload 中应保存为 StringName。");
+            AssertType(DictGet(payload, "world_generation_id"), Variant.Type.StringName, "world_generation_id 在正式 payload 中应保存为 StringName。");
             GDictionary saveMeta = DictDictionary(payload, "save_slot_meta");
             AssertType(DictGet(saveMeta, "display_name"), Variant.Type.StringName, "save_slot_meta.display_name 在正式 payload 中应保存为 StringName。");
 
@@ -153,7 +153,7 @@ public partial class run_save_payload_string_minimization_regression : Lifecycle
             );
             bool decoded = serializer.TryDecodePayload(
                 payloadPlain,
-                gameSession.GetGenerationConfigPath(),
+                gameSession.GetWorldGenerationId(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );

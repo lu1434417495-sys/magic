@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "domain": "world_presets",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "preset_id": "test",
+      "display_name": "测试",
+      "size_label": "200 x 200",
+      "generation_id": "test"
+    },
+    {
+      "preset_id": "ashen_intersection",
+      "display_name": "灰烬交界",
+      "size_label": "100 x 100",
+      "generation_id": "ashen_intersection"
+    },
+    {
+      "preset_id": "small",
+      "display_name": "小型",
+      "size_label": "1000 x 1000",
+      "generation_id": "small"
+    },
+    {
+      "preset_id": "medium",
+      "display_name": "中型",
+      "size_label": "1500 x 1500",
+      "generation_id": "medium"
+    },
+    {
+      "preset_id": "giant",
+      "display_name": "巨型",
+      "size_label": "2000 x 2000",
+      "generation_id": "giant"
+    }
+  ]
+}

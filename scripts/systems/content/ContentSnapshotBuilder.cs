@@ -7,14 +7,6 @@ using Godot;
 
 internal sealed class ContentSnapshotBuilder
 {
-    private static readonly string[] BattleSimProfilePaths =
-    {
-        "res://data/configs/battle_sim/profiles/baseline.tres",
-        "res://data/configs/battle_sim/profiles/mist_controller_aggressive.tres",
-        "res://data/configs/battle_sim/profiles/ranged_suppressor_cautious.tres",
-        "res://data/configs/battle_sim/profiles/pinning_shot_blocked.tres",
-    };
-
     private readonly IContentResourceLoader _loader;
 
     internal ContentSnapshotBuilder(IContentResourceLoader loader)
@@ -28,14 +20,14 @@ internal sealed class ContentSnapshotBuilder
             throw new ArgumentOutOfRangeException(nameof(epoch), epoch, "Snapshot epoch must be positive.");
 
         using var progression = new ProgressionContentRegistry(_loader);
-        using var barrier = new BarrierContentRegistry(_loader);
+        using var barrier = new BarrierContentRegistry();
         using var items = new ItemContentRegistry();
         using var gearSets = new GearSetContentRegistry();
         using var recipes = new RecipeContentRegistry();
-        using var specialProfiles = new BattleSpecialProfileRegistry(_loader);
-        using var enemies = new EnemyContentRegistry(_loader, loadDefaultContent: false);
-        using var battleEncounters = new BattleEncounterContentRegistry(_loader);
-        var faith = new FaithContentRegistry(_loader);
+        using var specialProfiles = new BattleSpecialProfileRegistry();
+        using var enemies = new EnemyContentRegistry(loadDefaultContent: false);
+        using var battleEncounters = new BattleEncounterContentRegistry();
+        var faith = new FaithContentRegistry();
 
         items.Rebuild();
         gearSets.Rebuild();
@@ -81,10 +73,15 @@ internal sealed class ContentSnapshotBuilder
                 : new ReadOnlyDictionary<StringName, BattleEncounterDefinition>(
                     new Dictionary<StringName, BattleEncounterDefinition>()
                 );
+        var battleSimProfiles = new BattleSimProfileContentRegistry();
+        battleSimProfiles.Rebuild();
         IReadOnlyDictionary<StringName, BattleSimProfileDefinition> simulationProfileDefinitions =
-            BattleSimProfileAuthoringLoader.LoadDefinitions(_loader, BattleSimProfilePaths);
-        IReadOnlyDictionary<string, WorldGenerationDefinition> worldGenerations =
-            BuildWorldGenerations();
+            battleSimProfiles.GetDefinitions();
+        var worlds = new WorldContentRegistry();
+        worlds.Rebuild();
+        IReadOnlyDictionary<StringName, WorldPresetDefinition> worldPresets = worlds.GetPresets();
+        IReadOnlyDictionary<StringName, WorldGenerationDefinition> worldGenerations =
+            worlds.GetGenerations();
 
         var validationErrors = new List<string>();
         AppendErrors(validationErrors, progression.ValidateTyped());
@@ -103,6 +100,8 @@ internal sealed class ContentSnapshotBuilder
         AppendErrors(validationErrors, specialProfiles.ValidateTyped());
         AppendErrors(validationErrors, enemies.ValidateTyped());
         AppendErrors(validationErrors, battleEncounterValidationErrors);
+        AppendErrors(validationErrors, battleSimProfiles.GetValidationErrors());
+        AppendErrors(validationErrors, worlds.GetValidationErrors());
         AppendErrors(
             validationErrors,
             ItemTraitContentValidator.Validate(itemDefinitions, traitDefinitions)
@@ -157,6 +156,7 @@ internal sealed class ContentSnapshotBuilder
             recipes.GetRecipeDefsTyped(),
             progression.GetEquipmentAbilityPackDefinitionsTyped(),
             progression.GetEquipmentAbilityBindingDefinitionsTyped(),
+            worldPresets,
             worldGenerations,
             specialProfiles.BuildRuntimeProfileView(),
             enemyDefinitions.EnemyTemplates,
@@ -167,61 +167,20 @@ internal sealed class ContentSnapshotBuilder
         );
     }
 
-    private IReadOnlyDictionary<string, WorldGenerationDefinition> BuildWorldGenerations()
-    {
-        var definitions = new Dictionary<string, WorldGenerationDefinition>(StringComparer.Ordinal);
-        foreach (WorldPresetRegistry.WorldPresetInfo preset in WorldPresetRegistry.ListPresetsTyped())
-        {
-            if (preset == null || string.IsNullOrWhiteSpace(preset.GenerationConfigPath))
-                throw new InvalidDataException("World preset entries must declare generation config paths.");
-
-            string canonicalPath = ContentPathCanonicalizer.Canonicalize(
-                preset.GenerationConfigPath
-            );
-            WorldMapGenerationConfig resource = _loader.LoadCanonical<WorldMapGenerationConfig>(
-                canonicalPath
-            );
-            WorldGenerationDefinition definition = WorldGenerationDefinition.FromResource(
-                canonicalPath,
-                resource,
-                _loader
-            );
-            IndexWorldGeneration(definitions, definition);
-        }
-        return new ReadOnlyDictionary<string, WorldGenerationDefinition>(definitions);
-    }
-
-    private static void IndexWorldGeneration(
-        IDictionary<string, WorldGenerationDefinition> definitions,
-        WorldGenerationDefinition definition
-    )
-    {
-        ArgumentNullException.ThrowIfNull(definition);
-        string canonicalPath = ContentPathCanonicalizer.Canonicalize(definition.CanonicalPath);
-        if (definitions.ContainsKey(canonicalPath))
-            return;
-        definitions.Add(canonicalPath, definition);
-        foreach (MountedSubmapDefinition mountedSubmap in definition.MountedSubmaps)
-        {
-            if (mountedSubmap?.Generation != null)
-                IndexWorldGeneration(definitions, mountedSubmap.Generation);
-        }
-    }
-
     private static void AppendWorldValidationErrors(
         ICollection<string> errors,
-        IReadOnlyDictionary<string, WorldGenerationDefinition> worldGenerations,
+        IReadOnlyDictionary<StringName, WorldGenerationDefinition> worldGenerations,
         IReadOnlyCollection<StringName> battleEncounterIds
     )
     {
         var validator = new WorldMapContentValidator();
-        foreach ((string path, WorldGenerationDefinition definition) in worldGenerations)
+        foreach ((StringName generationId, WorldGenerationDefinition definition) in worldGenerations)
         {
             AppendErrors(
                 errors,
                 validator.ValidateGenerationConfigTyped(
                     definition,
-                    path,
+                    generationId.ToString(),
                     battleEncounterIds
                 )
             );

@@ -6,22 +6,15 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_shared_content_injection_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
-    private const string SmallWorldConfig = "res://data/configs/world_map/small_world_map_config.tres";
-    private const string MediumWorldConfig = "res://data/configs/world_map/medium_world_map_config.tres";
-    private const string DemoWorldConfig = "res://data/configs/world_map/demo_world_map_config.tres";
-    private const string SharedSettlementBundlePath =
-        "res://data/configs/world_map/shared/main_world_default_settlement_bundle.tres";
-    private const string SharedSettlementNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_settlement_name_pool.tres";
-    private const string SharedTownNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_town_name_pool.tres";
-    private const string SharedCityNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_city_name_pool.tres";
-    private const string SharedCapitalNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_capital_name_pool.tres";
-    private const string SharedMetropolisNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
+    private const string TestWorldConfig = "test";
+    private const string SmallWorldConfig = "small";
+    private const string MediumWorldConfig = "medium";
+    private const string DemoWorldConfig = "giant";
+    private static readonly StringName SharedSettlementNamePoolId = "village";
+    private static readonly StringName SharedTownNamePoolId = "town";
+    private static readonly StringName SharedCityNamePoolId = "city";
+    private static readonly StringName SharedCapitalNamePoolId = "capital";
+    private static readonly StringName SharedMetropolisNamePoolId = "metropolis";
 
     private readonly TestHarness _test = new();
     private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
@@ -281,7 +274,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         {
             int createError = gameSession.CreateNewSave(
                 TestWorldConfig,
-                "generation_rollback_original",
+                "test",
                 "生成定义回滚原世界"
             );
             _test.Eq(createError, (int)Error.Ok, "generation definition 回滚测试应先创建原世界。");
@@ -291,11 +284,11 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             WorldGenerationDefinition originalDefinition =
                 gameSession.GetGenerationDefinition();
             string originalSaveId = gameSession.GetActiveSaveId();
-            string originalPath = gameSession.GetGenerationConfigPath();
+            StringName originalGenerationId = gameSession.GetWorldGenerationId();
 
             int failedCreateError = gameSession.CreateNewSave(
                 SmallWorldConfig,
-                "generation_rollback_candidate",
+                "small",
                 "生成定义回滚候选世界",
                 new GDictionary { ["bloodline_id"] = "invalid_unpaired_bloodline" }
             );
@@ -306,8 +299,8 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
                 "非法的单边 bloodline payload 应让候选世界创建失败。"
             );
             _test.Eq(
-                gameSession.GetGenerationConfigPath(),
-                originalPath,
+                gameSession.GetWorldGenerationId(),
+                originalGenerationId,
                 "候选世界失败后应恢复原 active generation path。"
             );
             _test.True(
@@ -692,31 +685,31 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
 
     private void TestSharedSettlementNamePoolExposes1000UniqueNames()
     {
-        AssertNamePool(SharedSettlementNamePoolPath, 1000, "", "", "共享据点名称池");
+        AssertNamePool(SharedSettlementNamePoolId, 1000, "", "", "共享据点名称池");
     }
 
     private void TestSharedTownNamePoolExposes500UniqueNames()
     {
-        AssertNamePool(SharedTownNamePoolPath, 500, "镇", "", "共享城镇名称池");
+        AssertNamePool(SharedTownNamePoolId, 500, "镇", "", "共享城镇名称池");
     }
 
     private void TestSharedCityNamePoolExposes300UniqueNames()
     {
-        AssertNamePool(SharedCityNamePoolPath, 300, "城", "", "共享城市名称池");
+        AssertNamePool(SharedCityNamePoolId, 300, "城", "", "共享城市名称池");
     }
 
     private void TestSharedCapitalNamePoolExposes100UniqueNames()
     {
-        AssertNamePool(SharedCapitalNamePoolPath, 100, "王都", "王国", "共享主城名称池");
+        AssertNamePool(SharedCapitalNamePoolId, 100, "王都", "王国", "共享主城名称池");
     }
 
     private void TestSharedMetropolisNamePoolExposes50UniqueNames()
     {
-        AssertNamePool(SharedMetropolisNamePoolPath, 50, "帝都", "帝国", "共享都会名称池");
+        AssertNamePool(SharedMetropolisNamePoolId, 50, "帝都", "帝国", "共享都会名称池");
     }
 
     private void AssertNamePool(
-        string path,
+        StringName poolId,
         int expectedCount,
         string expectedSuffix,
         string expectedContainedText,
@@ -725,7 +718,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
     {
         WorldGenerationDefinition definition = GetProcessWorldDefinition(TestWorldConfig);
         definition.SettlementNamePools.TryGetValue(
-            ContentPathCanonicalizer.Canonicalize(path),
+            poolId,
             out WorldMapSettlementNamePoolDefinition namePool
         );
         _test.True(namePool != null, $"{label}应能在 host build 时完成投影。");
@@ -760,7 +753,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
     }
 
     private WorldGenerationDefinition BuildWildSpawnDensityDefinition(
-        string canonicalPath,
+        StringName generationId,
         IReadOnlyList<WildSpawnRuleDefinition> wildSpawnRules
     )
     {
@@ -771,7 +764,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             return null;
         }
         return new WorldGenerationDefinition(
-            ContentPathCanonicalizer.Canonicalize(canonicalPath),
+            generationId,
             source.Seed,
             source.WorldSizeInChunks,
             source.ChunkSize,
@@ -779,7 +772,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             source.PlayerVisionRange,
             source.ProceduralGenerationEnabled,
             proceduralWildSpawnChunkChanceDenominator: 1,
-            injectDefaultMainWorldContent: false,
+            sharedContentId: "",
             source.ProceduralVillageCount,
             source.ProceduralTownCount,
             source.ProceduralCityCount,
@@ -803,9 +796,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             source.WorldEvents,
             defaultSettlementBundle: null,
             defaultWildSpawnBundle: null,
-            new Dictionary<string, WorldMapSettlementNamePoolDefinition>(
-                StringComparer.Ordinal
-            )
+            new Dictionary<StringName, WorldMapSettlementNamePoolDefinition>()
         );
     }
 
@@ -836,7 +827,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
     )
     {
         GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
-        int createError = gameSession.CreateNewSave(configPath, saveId, displayName);
+        int createError = gameSession.CreateNewSave(configPath, configPath, displayName);
         _test.Eq(createError, (int)Error.Ok, errorMessage);
         if (createError != (int)Error.Ok)
         {
@@ -856,13 +847,12 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         gameSession.Dispose();
     }
 
-    private static WorldGenerationDefinition GetProcessWorldDefinition(string resourcePath)
+    private static WorldGenerationDefinition GetProcessWorldDefinition(StringName generationId)
     {
-        string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
         return GameSessionTestFactory
             .GetProcessSnapshot()
             .WorldGenerations.TryGetValue(
-                canonicalPath,
+                generationId,
                 out WorldGenerationDefinition definition
             )
             ? definition

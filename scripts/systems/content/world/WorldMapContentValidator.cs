@@ -24,7 +24,7 @@ public class WorldMapContentValidator
             generationDefinition,
             label,
             SnapshotIds(battleEncounterIds),
-            new HashSet<string>(StringComparer.Ordinal)
+            new HashSet<StringName>()
         );
     }
 
@@ -41,12 +41,13 @@ public class WorldMapContentValidator
         WorldGenerationDefinition definition,
         string label,
         IReadOnlyCollection<StringName> battleEncounterIds,
-        HashSet<string> validatedPaths
+        HashSet<StringName> validatedGenerationIds
     )
     {
         var errors = new List<string>();
-        string canonicalPath = definition.CanonicalPath ?? "";
-        if (canonicalPath.Length > 0 && !validatedPaths.Add(canonicalPath))
+        if (definition.GenerationId == "")
+            errors.Add($"World generation definition {label} is missing generation_id.");
+        else if (!validatedGenerationIds.Add(definition.GenerationId))
             return errors;
 
         Vector2I worldSizeInChunks = definition.WorldSizeInChunks;
@@ -94,7 +95,7 @@ public class WorldMapContentValidator
             definition.MountedSubmaps,
             label,
             battleEncounterIds,
-            validatedPaths,
+            validatedGenerationIds,
             errors
         );
         ValidateWorldEventDefinitions(
@@ -453,7 +454,7 @@ public class WorldMapContentValidator
         IReadOnlyList<MountedSubmapDefinition> submaps,
         string label,
         IReadOnlyCollection<StringName> battleEncounterIds,
-        HashSet<string> validatedPaths,
+        HashSet<StringName> validatedGenerationIds,
         List<string> errors
     )
     {
@@ -475,17 +476,24 @@ public class WorldMapContentValidator
                     $"World generation config {label} has duplicate mounted submap_id {submapId}."
                 );
             }
-            if (string.IsNullOrWhiteSpace(submap.GenerationConfigPath))
+            if (submap.WorldGenerationId == "")
             {
                 errors.Add(
-                    $"World mounted submap {submapId} in {label} is missing generation_config_path."
+                    $"World mounted submap {submapId} in {label} is missing world_generation_id."
                 );
                 continue;
             }
             if (submap.Generation == null)
             {
                 errors.Add(
-                    $"World mounted submap {submapId} in {label} failed to project generation_config_path {submap.GenerationConfigPath}."
+                    $"World mounted submap {submapId} in {label} failed to resolve world_generation_id {submap.WorldGenerationId}."
+                );
+                continue;
+            }
+            if (submap.Generation.GenerationId != submap.WorldGenerationId)
+            {
+                errors.Add(
+                    $"World mounted submap {submapId} in {label} resolved generation_id {submap.Generation.GenerationId} instead of {submap.WorldGenerationId}."
                 );
                 continue;
             }
@@ -493,9 +501,9 @@ public class WorldMapContentValidator
                 errors,
                 ValidateGenerationDefinitionInternal(
                     submap.Generation,
-                    submap.Generation.CanonicalPath,
+                    submap.WorldGenerationId.ToString(),
                     battleEncounterIds,
-                    validatedPaths
+                    validatedGenerationIds
                 )
             );
         }
@@ -566,20 +574,19 @@ public class WorldMapContentValidator
     {
         if (!definition.InjectDefaultMainWorldContent)
             return;
-        string[] requiredPaths =
+        StringName[] requiredPoolIds =
         {
-            WorldGenerationDefinition.DefaultMainWorldSettlementNamePoolPath,
-            WorldGenerationDefinition.DefaultMainWorldTownNamePoolPath,
-            WorldGenerationDefinition.DefaultMainWorldCityNamePoolPath,
-            WorldGenerationDefinition.DefaultMainWorldCapitalNamePoolPath,
-            WorldGenerationDefinition.DefaultMainWorldMetropolisNamePoolPath,
+            WorldGenerationDefinition.DefaultMainWorldSettlementNamePoolId,
+            WorldGenerationDefinition.DefaultMainWorldTownNamePoolId,
+            WorldGenerationDefinition.DefaultMainWorldCityNamePoolId,
+            WorldGenerationDefinition.DefaultMainWorldCapitalNamePoolId,
+            WorldGenerationDefinition.DefaultMainWorldMetropolisNamePoolId,
         };
-        foreach (string resourcePath in requiredPaths)
+        foreach (StringName poolId in requiredPoolIds)
         {
-            string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
             if (
                 !definition.SettlementNamePools.TryGetValue(
-                    canonicalPath,
+                    poolId,
                     out WorldMapSettlementNamePoolDefinition namePool
                 )
                 || namePool == null
@@ -587,7 +594,7 @@ public class WorldMapContentValidator
             )
             {
                 errors.Add(
-                    $"World generation config {label} has empty settlement name pool {canonicalPath}."
+                    $"World generation config {label} has empty settlement name pool {poolId}."
                 );
             }
         }

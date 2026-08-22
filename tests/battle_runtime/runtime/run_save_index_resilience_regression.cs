@@ -5,10 +5,10 @@ using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
 public partial class run_save_index_resilience_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
     private const string SaveDirectory = "user://saves";
     private const string SaveIndexPath = "user://saves/index.dat";
-    private const int SaveIndexVersion = 4;
+    private const int SaveIndexVersion = 5;
     private const FileAccess.CompressionMode SaveCompressionMode = FileAccess.CompressionMode.Zstd;
 
     private readonly TestHarness _test = new();
@@ -68,6 +68,7 @@ public partial class run_save_index_resilience_regression : LifecycleTestSceneTr
 
     private void TestSaveIndexSchemaRejectsOldEntryShapes()
     {
+        _test.Eq(SaveIndexVersion, 5, "阶段 7 save index schema 应为 5。");
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         _test.Eq((Error)gameSession.ClearPersistedGame(), Error.Ok, "save index schema 回归前应能清理旧存档目录。");
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -145,6 +146,36 @@ public partial class run_save_index_resilience_regression : LifecycleTestSceneTr
         }
         _test.True(gameSession.ListSaveSlotsPlain().Count > 0, "字符串 version index 被拒绝后，应能从正式 save payload 重建列表。");
         AssertSaveIndexFileUsesCurrentSchema("字符串 version index 被拒绝后");
+
+        var oldVersionPayload = new Dictionary<string, object>(
+            System.StringComparer.Ordinal
+        )
+        {
+            ["version"] = 4,
+            ["saves"] = serializedEntries,
+        };
+        using GodotProjectionLease<GDictionary> oldVersionLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                oldVersionPayload,
+                "save-index-v4-fixture",
+                LifetimeDomain.Request,
+                "run_save_index_resilience_regression.v4",
+                minimizeStrings: true
+            );
+        using (FileAccess oldVersionFile = FileAccess.OpenCompressed(
+                   SaveIndexPath,
+                   FileAccess.ModeFlags.Write,
+                   SaveCompressionMode
+               ))
+        {
+            _test.True(oldVersionFile != null, "应能写入 save index 4 夹具。");
+            oldVersionFile?.StoreVar(oldVersionLease.Value, false);
+        }
+        _test.True(
+            gameSession.ListSaveSlotsPlain().Count > 0,
+            "save index 4 被拒绝后，应能从当前 save 20 payload 重建列表。"
+        );
+        AssertSaveIndexFileUsesCurrentSchema("save index 4 被拒绝后");
 
         Cleanup(gameSession);
     }

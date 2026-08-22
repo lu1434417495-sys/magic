@@ -456,9 +456,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
             seed =>
             {
                 seed.Quests = new Dictionary<StringName, QuestDefinition>();
-                seed.WorldGenerations = new Dictionary<string, WorldGenerationDefinition>(
-                    StringComparer.Ordinal
-                );
+                seed.WorldGenerations = new Dictionary<StringName, WorldGenerationDefinition>();
                 seed.EnemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
                     seed.EnemyTemplates
                 )

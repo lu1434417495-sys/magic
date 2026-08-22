@@ -1,0 +1,765 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:world_generations:v1",
+  "title": "Magic world generation JSON authoring schema",
+  "description": "Strict path-free world generation configuration keyed by stable IDs.",
+  "$ref": "#/$defs/WorldGenerationJsonDocumentDto",
+  "$defs": {
+    "WorldEventJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "discovery_condition_id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "event_type": {
+          "type": "string",
+          "enum": [
+            "enter_submap"
+          ]
+        },
+        "prompt_text": {
+          "type": "string"
+        },
+        "prompt_title": {
+          "type": "string"
+        },
+        "target_submap_id": {
+          "type": "string"
+        },
+        "world_coord": {
+          "$ref": "#/$defs/WorldVector2IJsonDto"
+        }
+      },
+      "required": [
+        "discovery_condition_id",
+        "display_name",
+        "event_id",
+        "event_type",
+        "prompt_text",
+        "prompt_title",
+        "target_submap_id",
+        "world_coord"
+      ]
+    },
+    "WorldFacilityJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_slot_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bound_service_npcs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilityNpcJsonDto"
+          }
+        },
+        "category": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "facility_id": {
+          "type": "string"
+        },
+        "interaction_type": {
+          "type": "string"
+        },
+        "min_settlement_tier": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "allowed_slot_tags",
+        "bound_service_npcs",
+        "category",
+        "display_name",
+        "facility_id",
+        "interaction_type",
+        "min_settlement_tier"
+      ]
+    },
+    "WorldFacilityNpcJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "interaction_script_id": {
+          "type": "string"
+        },
+        "local_slot_id": {
+          "type": "string"
+        },
+        "npc_id": {
+          "type": "string"
+        },
+        "service_type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "display_name",
+        "interaction_script_id",
+        "local_slot_id",
+        "npc_id",
+        "service_type"
+      ]
+    },
+    "WorldFacilitySlotJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "local_coord": {
+          "$ref": "#/$defs/WorldVector2IJsonDto"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "slot_id": {
+          "type": "string"
+        },
+        "slot_tag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_coord",
+        "required",
+        "slot_id",
+        "slot_tag"
+      ]
+    },
+    "WorldGenerationJsonDocumentDto": {
+      "description": "World generation document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "world_generations"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldGenerationJsonDto__authoring_generation_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/WorldGenerationJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "WorldGenerationJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capital_spacing_cells": {
+          "type": "integer"
+        },
+        "chunk_size": {
+          "$ref": "#/$defs/WorldVector2IJsonDto"
+        },
+        "city_spacing_cells": {
+          "type": "integer"
+        },
+        "facility_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilityJsonDto"
+          }
+        },
+        "generation_id": {
+          "type": "string"
+        },
+        "guarantee_starting_wild_encounter": {
+          "type": "boolean"
+        },
+        "metropolis_spacing_cells": {
+          "type": "integer"
+        },
+        "mounted_submaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldMountedSubmapJsonDto"
+          }
+        },
+        "player_start_coord": {
+          "$ref": "#/$defs/WorldVector2IJsonDto"
+        },
+        "player_vision_range": {
+          "type": "integer"
+        },
+        "procedural_capital_count": {
+          "type": "integer"
+        },
+        "procedural_city_count": {
+          "type": "integer"
+        },
+        "procedural_generation_enabled": {
+          "type": "boolean"
+        },
+        "procedural_metropolis_count": {
+          "type": "integer"
+        },
+        "procedural_town_count": {
+          "type": "integer"
+        },
+        "procedural_village_count": {
+          "type": "integer"
+        },
+        "procedural_wild_spawn_chunk_chance_denominator": {
+          "type": "integer"
+        },
+        "procedural_world_stronghold_count": {
+          "type": "integer"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "settlement_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementDistributionJsonDto"
+          }
+        },
+        "settlement_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementJsonDto"
+          }
+        },
+        "shared_content_id": {
+          "type": "string"
+        },
+        "starting_wild_spawn_max_distance": {
+          "type": "integer"
+        },
+        "starting_wild_spawn_min_distance": {
+          "type": "integer"
+        },
+        "town_spacing_cells": {
+          "type": "integer"
+        },
+        "village_spacing_cells": {
+          "type": "integer"
+        },
+        "wild_monster_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldWildSpawnJsonDto"
+          }
+        },
+        "world_events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldEventJsonDto"
+          }
+        },
+        "world_size_in_chunks": {
+          "$ref": "#/$defs/WorldVector2IJsonDto"
+        },
+        "world_stronghold_spacing_cells": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "capital_spacing_cells",
+        "chunk_size",
+        "city_spacing_cells",
+        "facility_library",
+        "generation_id",
+        "guarantee_starting_wild_encounter",
+        "metropolis_spacing_cells",
+        "mounted_submaps",
+        "player_start_coord",
+        "player_vision_range",
+        "procedural_capital_count",
+        "procedural_city_count",
+        "procedural_generation_enabled",
+        "procedural_metropolis_count",
+        "procedural_town_count",
+        "procedural_village_count",
+        "procedural_wild_spawn_chunk_chance_denominator",
+        "procedural_world_stronghold_count",
+        "seed",
+        "settlement_distribution",
+        "settlement_library",
+        "shared_content_id",
+        "starting_wild_spawn_max_distance",
+        "starting_wild_spawn_min_distance",
+        "town_spacing_cells",
+        "village_spacing_cells",
+        "wild_monster_distribution",
+        "world_events",
+        "world_size_in_chunks",
+        "world_stronghold_spacing_cells"
+      ]
+    },
+    "WorldGenerationJsonDto__authoring_generation_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WorldGenerationJsonDto"
+        },
+        {
+          "$ref": "#/$defs/WorldGenerationJsonDto__templated_generation_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "WorldGenerationJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capital_spacing_cells": {
+          "type": "integer"
+        },
+        "chunk_size": {
+          "$ref": "#/$defs/WorldVector2IJsonDto__partial"
+        },
+        "city_spacing_cells": {
+          "type": "integer"
+        },
+        "facility_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilityJsonDto"
+          }
+        },
+        "generation_id": {
+          "type": "string"
+        },
+        "guarantee_starting_wild_encounter": {
+          "type": "boolean"
+        },
+        "metropolis_spacing_cells": {
+          "type": "integer"
+        },
+        "mounted_submaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldMountedSubmapJsonDto"
+          }
+        },
+        "player_start_coord": {
+          "$ref": "#/$defs/WorldVector2IJsonDto__partial"
+        },
+        "player_vision_range": {
+          "type": "integer"
+        },
+        "procedural_capital_count": {
+          "type": "integer"
+        },
+        "procedural_city_count": {
+          "type": "integer"
+        },
+        "procedural_generation_enabled": {
+          "type": "boolean"
+        },
+        "procedural_metropolis_count": {
+          "type": "integer"
+        },
+        "procedural_town_count": {
+          "type": "integer"
+        },
+        "procedural_village_count": {
+          "type": "integer"
+        },
+        "procedural_wild_spawn_chunk_chance_denominator": {
+          "type": "integer"
+        },
+        "procedural_world_stronghold_count": {
+          "type": "integer"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "settlement_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementDistributionJsonDto"
+          }
+        },
+        "settlement_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementJsonDto"
+          }
+        },
+        "shared_content_id": {
+          "type": "string"
+        },
+        "starting_wild_spawn_max_distance": {
+          "type": "integer"
+        },
+        "starting_wild_spawn_min_distance": {
+          "type": "integer"
+        },
+        "town_spacing_cells": {
+          "type": "integer"
+        },
+        "village_spacing_cells": {
+          "type": "integer"
+        },
+        "wild_monster_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldWildSpawnJsonDto"
+          }
+        },
+        "world_events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldEventJsonDto"
+          }
+        },
+        "world_size_in_chunks": {
+          "$ref": "#/$defs/WorldVector2IJsonDto__partial"
+        },
+        "world_stronghold_spacing_cells": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "WorldGenerationJsonDto__templated_generation_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capital_spacing_cells": {
+          "type": "integer"
+        },
+        "chunk_size": {
+          "$ref": "#/$defs/WorldVector2IJsonDto__partial"
+        },
+        "city_spacing_cells": {
+          "type": "integer"
+        },
+        "facility_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilityJsonDto"
+          }
+        },
+        "generation_id": {
+          "type": "string"
+        },
+        "guarantee_starting_wild_encounter": {
+          "type": "boolean"
+        },
+        "metropolis_spacing_cells": {
+          "type": "integer"
+        },
+        "mounted_submaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldMountedSubmapJsonDto"
+          }
+        },
+        "player_start_coord": {
+          "$ref": "#/$defs/WorldVector2IJsonDto__partial"
+        },
+        "player_vision_range": {
+          "type": "integer"
+        },
+        "procedural_capital_count": {
+          "type": "integer"
+        },
+        "procedural_city_count": {
+          "type": "integer"
+        },
+        "procedural_generation_enabled": {
+          "type": "boolean"
+        },
+        "procedural_metropolis_count": {
+          "type": "integer"
+        },
+        "procedural_town_count": {
+          "type": "integer"
+        },
+        "procedural_village_count": {
+          "type": "integer"
+        },
+        "procedural_wild_spawn_chunk_chance_denominator": {
+          "type": "integer"
+        },
+        "procedural_world_stronghold_count": {
+          "type": "integer"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "settlement_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementDistributionJsonDto"
+          }
+        },
+        "settlement_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementJsonDto"
+          }
+        },
+        "shared_content_id": {
+          "type": "string"
+        },
+        "starting_wild_spawn_max_distance": {
+          "type": "integer"
+        },
+        "starting_wild_spawn_min_distance": {
+          "type": "integer"
+        },
+        "town_spacing_cells": {
+          "type": "integer"
+        },
+        "village_spacing_cells": {
+          "type": "integer"
+        },
+        "wild_monster_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldWildSpawnJsonDto"
+          }
+        },
+        "world_events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldEventJsonDto"
+          }
+        },
+        "world_size_in_chunks": {
+          "$ref": "#/$defs/WorldVector2IJsonDto__partial"
+        },
+        "world_stronghold_spacing_cells": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "generation_id",
+        "template"
+      ]
+    },
+    "WorldMountedSubmapJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "generation_id": {
+          "type": "string"
+        },
+        "return_hint_text": {
+          "type": "string"
+        },
+        "submap_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "display_name",
+        "generation_id",
+        "return_hint_text",
+        "submap_id"
+      ]
+    },
+    "WorldSettlementDistributionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "country_id": {
+          "type": "string"
+        },
+        "faction_id": {
+          "type": "string"
+        },
+        "preferred_origin": {
+          "$ref": "#/$defs/WorldVector2IJsonDto"
+        },
+        "settlement_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "country_id",
+        "faction_id",
+        "preferred_origin",
+        "settlement_id"
+      ]
+    },
+    "WorldSettlementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "facility_slots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilitySlotJsonDto"
+          }
+        },
+        "guaranteed_facility_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_optional_facilities": {
+          "type": "integer"
+        },
+        "optional_facility_pool": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldWeightedFacilityJsonDto"
+          }
+        },
+        "settlement_id": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "display_name",
+        "facility_slots",
+        "guaranteed_facility_ids",
+        "max_optional_facilities",
+        "optional_facility_pool",
+        "settlement_id",
+        "tier"
+      ]
+    },
+    "WorldVector2IJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "WorldVector2IJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      }
+    },
+    "WorldWeightedFacilityJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "facility_id": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "facility_id",
+        "weight"
+      ]
+    },
+    "WorldWildSpawnJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chunk_coords": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldVector2IJsonDto"
+          }
+        },
+        "density_per_chunk": {
+          "type": "integer"
+        },
+        "encounter_profile_id": {
+          "type": "string"
+        },
+        "min_distance_to_settlement": {
+          "type": "integer"
+        },
+        "monster_name": {
+          "type": "string"
+        },
+        "region_tag": {
+          "type": "string"
+        },
+        "settlement_encounter_display_name": {
+          "type": "string"
+        },
+        "settlement_encounter_profile_id": {
+          "type": "string"
+        },
+        "vision_range": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "chunk_coords",
+        "density_per_chunk",
+        "encounter_profile_id",
+        "min_distance_to_settlement",
+        "monster_name",
+        "region_tag",
+        "settlement_encounter_display_name",
+        "settlement_encounter_profile_id",
+        "vision_range"
+      ]
+    }
+  }
+}

@@ -76,6 +76,7 @@ public partial class windows_export_smoke_runner : Node
                 AssertProbePackaged(ProbePath);
                 AssertProductionCatalogPackaged();
                 AssertStageFourJsonPackaged();
+                AssertWorldJsonCatalogPackaged();
                 return;
             case "missing_file":
                 AssertProbePackaged(MissingProbePath);
@@ -165,7 +166,7 @@ public partial class windows_export_smoke_runner : Node
                     "Production catalog returned a missing typed borrowed asset."
                 );
             }
-            if (resolver.PublishedAssetCount != 27)
+            if (resolver.PublishedAssetCount != 30)
             {
                 throw new InvalidOperationException(
                     "Production catalog published an unexpected asset count: "
@@ -231,6 +232,55 @@ public partial class windows_export_smoke_runner : Node
         {
             throw new InvalidOperationException(
                 $"Packaged {domain} JSON import failed: entries={batch.Entries.Count}, diagnostics={batch.Diagnostics.Count}."
+            );
+        }
+    }
+
+    private static void AssertWorldJsonCatalogPackaged()
+    {
+        var registry = new WorldContentRegistry();
+        registry.Rebuild();
+        if (registry.GetValidationErrors().Count != 0)
+        {
+            throw new InvalidOperationException(
+                "Packaged world JSON registry reported validation errors: "
+                    + string.Join(" | ", registry.GetValidationErrors())
+            );
+        }
+
+        var presets = registry.GetPresets();
+        var generations = registry.GetGenerations();
+        if (presets.Count != 5 || generations.Count != 6)
+        {
+            throw new InvalidOperationException(
+                $"Packaged world JSON registry count mismatch: presets={presets.Count}, generations={generations.Count}."
+            );
+        }
+        if (
+            !presets.TryGetValue("ashen_intersection", out WorldPresetDefinition preset)
+            || preset.GenerationId != "ashen_intersection"
+            || !generations.TryGetValue(
+                preset.GenerationId,
+                out WorldGenerationDefinition rootGeneration
+            )
+            || rootGeneration.MountedSubmaps.Count != 1
+            || rootGeneration.MountedSubmaps[0].WorldGenerationId != "ashen_wastes"
+        )
+        {
+            throw new InvalidOperationException(
+                "Packaged world preset/root/mounted generation stable-ID closure is invalid."
+            );
+        }
+        if (
+            !generations.TryGetValue("test", out WorldGenerationDefinition sharedGeneration)
+            || sharedGeneration.SharedContentId != "main_world_defaults"
+            || sharedGeneration.EffectiveSettlementLibrary.Count == 0
+            || sharedGeneration.EffectiveFacilityLibrary.Count == 0
+            || sharedGeneration.EffectiveWildSpawnRules.Count == 0
+        )
+        {
+            throw new InvalidOperationException(
+                "Packaged world_shared JSON did not project into the test generation."
             );
         }
     }

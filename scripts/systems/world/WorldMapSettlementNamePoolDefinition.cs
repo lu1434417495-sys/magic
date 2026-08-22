@@ -12,21 +12,6 @@ public sealed class WorldMapSettlementNamePoolDefinition
 
     public IReadOnlyList<string> BuildUniqueDisplayNames() => DisplayNames;
 
-    internal static WorldMapSettlementNamePoolDefinition FromResource(
-        WorldMapSettlementNamePool source,
-        string path
-    )
-    {
-        if (source == null)
-            throw WorldDefinitionProjection.Invalid(path, "resource is null");
-        return new WorldMapSettlementNamePoolDefinition(
-            WorldDefinitionProjection.CopyStrings(
-                source.SettlementDisplayNamesProjectionBorrowed,
-                path + ".settlement_display_names"
-            )
-        );
-    }
-
     private static IReadOnlyList<string> BuildUniqueDisplayNames(
         IReadOnlyList<string> displayNames
     )

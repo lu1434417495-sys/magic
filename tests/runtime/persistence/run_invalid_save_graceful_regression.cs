@@ -5,8 +5,8 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
-    private const string InvalidGenerationConfigPath = "user://invalid_generation_config_resource.tres";
+    private const string TestWorldConfig = "test";
+    private static readonly StringName InvalidWorldGenerationId = "missing_generation";
     private const FileAccess.CompressionMode SaveCompressionMode = FileAccess.CompressionMode.Zstd;
 
     private readonly TestHarness _test = new();
@@ -25,24 +25,18 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
         TestLoadSaveReturnsDoesNotExistWhenCachedPayloadDisappears();
         TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot();
         TestCreateNewSaveAcceptsValidCreationIdentityPayload();
+        TestWorldGenerationIdentityRequiresCurrentSaveSchema();
         TestSaveIndexVersionRequiresExactInt();
         RequestTestExit(_test.Finish("Invalid save graceful regression"));
     }
 
     private void TestCreateNewSaveRejectsInvalidGenerationConfigWithoutQuit()
     {
-        RemoveUserFileIfExists(InvalidGenerationConfigPath);
-        Error saveResourceError = ResourceSaver.Save(new Resource(), InvalidGenerationConfigPath);
-        _test.Eq(saveResourceError, Error.Ok, "坏 generation config 回归前置：应能写入可加载但类型错误的资源。");
-        if (saveResourceError != Error.Ok)
-            return;
-
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
-        Error createError = (Error)gameSession.CreateNewSave(InvalidGenerationConfigPath);
-        _test.Eq(createError, Error.CantOpen, "类型错误的 generation config 应通过 create_new_save() 返回错误，不应中止进程。");
-        _test.False(gameSession.HasActiveWorld(), "类型错误的 generation config 不应留下 active world。");
+        Error createError = (Error)gameSession.CreateNewSave(InvalidWorldGenerationId);
+        _test.Eq(createError, Error.CantOpen, "缺失 generation ID 应通过 create_new_save() 返回错误，不应中止进程。");
+        _test.False(gameSession.HasActiveWorld(), "缺失 generation ID 不应留下 active world。");
         CleanupTestSession(gameSession);
-        RemoveUserFileIfExists(InvalidGenerationConfigPath);
     }
 
     private void TestLoadSaveRejectsBadWorldDataWithoutQuit()
@@ -299,13 +293,121 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
         _test.False(serializer.IsSaveIndexBoolValue(true), "save index version 不应接受 bool。");
     }
 
+    private void TestWorldGenerationIdentityRequiresCurrentSaveSchema()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "world generation save schema 回归前置：应能创建测试存档。");
+            if (createError != Error.Ok)
+                return;
+
+            SaveSerializer serializer = gameSession._save_serializer;
+            Dictionary<string, object> saveMeta = gameSession.CaptureActiveSaveMetaPlain();
+            Dictionary<string, object> payload;
+            using (GodotProjectionLease<GDictionary> payloadLease = BuildPayloadForSession(gameSession))
+            {
+                payload = RuntimePlainPayload.RestoreSaveDictionary(
+                    payloadLease.Value,
+                    "invalid-save-world-generation-schema.payload"
+                );
+            }
+
+            _test.Eq(SaveSchemaVersions.SaveVersion, 20, "阶段 7 顶层 save schema 应为 20。");
+            _test.True(
+                serializer.TryDecodePayload(
+                    payload,
+                    gameSession.GetWorldGenerationId(),
+                    saveMeta,
+                    out _
+                ),
+                "当前 save 20 + world_generation_id payload 应可解码。"
+            );
+
+            Dictionary<string, object> oldVersionPayload =
+                RuntimePlainPayload.CloneDictionary(payload);
+            oldVersionPayload["version"] = 19;
+            _test.False(
+                serializer.TryDecodePayload(
+                    oldVersionPayload,
+                    gameSession.GetWorldGenerationId(),
+                    saveMeta,
+                    out _
+                ),
+                "save 19 必须被精确版本门拒绝，不能迁移到 save 20。"
+            );
+
+            Dictionary<string, object> oldPathPayload =
+                RuntimePlainPayload.CloneDictionary(payload);
+            oldPathPayload.Remove("world_generation_id");
+            oldPathPayload["generation_config_path"] = TestWorldConfig;
+            _test.False(
+                serializer.TryDecodePayload(
+                    oldPathPayload,
+                    gameSession.GetWorldGenerationId(),
+                    saveMeta,
+                    out _
+                ),
+                "旧 generation_config_path payload 必须被拒绝，不能作为 world_generation_id 别名。"
+            );
+
+            Dictionary<string, object> mixedIdentityPayload =
+                RuntimePlainPayload.CloneDictionary(payload);
+            mixedIdentityPayload["generation_config_path"] = TestWorldConfig;
+            _test.False(
+                serializer.TryDecodePayload(
+                    mixedIdentityPayload,
+                    gameSession.GetWorldGenerationId(),
+                    saveMeta,
+                    out _
+                ),
+                "同时含新旧 world identity 键的 payload 必须被精确字段门拒绝。"
+            );
+
+            Dictionary<string, object> unknownIdentityPayload =
+                RuntimePlainPayload.CloneDictionary(payload);
+            unknownIdentityPayload["future_world_identity"] = TestWorldConfig;
+            _test.False(
+                serializer.TryDecodePayload(
+                    unknownIdentityPayload,
+                    gameSession.GetWorldGenerationId(),
+                    saveMeta,
+                    out _
+                ),
+                "含未知 world identity 键的 payload 必须被精确字段门拒绝。"
+            );
+
+            Dictionary<string, object> oldPathMeta =
+                RuntimePlainPayload.CloneDictionary(saveMeta);
+            oldPathMeta.Remove("world_generation_id");
+            oldPathMeta["generation_config_path"] = TestWorldConfig;
+            _test.False(
+                serializer.TryNormalizeSaveMetaPlain(oldPathMeta, out _),
+                "旧 generation_config_path save meta 必须被精确字段门拒绝。"
+            );
+
+            Dictionary<string, object> emptyGenerationMeta =
+                RuntimePlainPayload.CloneDictionary(saveMeta);
+            emptyGenerationMeta["world_generation_id"] = "";
+            _test.False(
+                serializer.TryNormalizeSaveMetaPlain(emptyGenerationMeta, out _),
+                "空 world_generation_id save meta 必须被拒绝。"
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
     private static GodotProjectionLease<GDictionary> BuildPayloadForSession(
         GameSession gameSession
     )
     {
         return gameSession._save_serializer.BuildSavePayloadLease(
             gameSession.GetActiveSaveId(),
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId(),
             gameSession.CaptureActiveSaveMetaPlain(),
             gameSession.CaptureWorldDataPlain(),
             gameSession.GetPlayerCoord(),
