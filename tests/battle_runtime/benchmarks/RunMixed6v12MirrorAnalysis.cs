@@ -7,7 +7,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
     private const int DefaultSimulationTimeoutSeconds = 30 * 60;
-    private const string ScenarioPath = "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres";
+    private const string DefaultScenarioId = "mixed_6v12_mirror_simulation";
 
     private readonly TestHarness _test = new();
     private bool _progressEnabled = true;
@@ -72,22 +72,19 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             );
         }
 
-        // Opt-in arena override: SCENARIO_FILE lets a 6v12 *variant* (e.g. the two-archer
-        // roster) reuse this runner. Unset = the immutable mixed_6v12_mirror_simulation.
-        string scenarioPath = OS.HasEnvironment("SCENARIO_FILE")
-            ? OS.GetEnvironment("SCENARIO_FILE").StripEdges()
-            : ScenarioPath;
-        if (string.IsNullOrEmpty(scenarioPath))
-            scenarioPath = ScenarioPath;
-        BattleSimScenarioDef scenarioResource =
-            ResourceLoader.Load<BattleSimScenarioDef>(scenarioPath);
-        if (scenarioResource == null)
+        // Opt-in arena override: SCENARIO_ID lets a cataloged 6v12 variant reuse this runner.
+        string scenarioId = OS.HasEnvironment("SCENARIO_ID")
+            ? OS.GetEnvironment("SCENARIO_ID").StripEdges()
+            : DefaultScenarioId;
+        if (string.IsNullOrEmpty(scenarioId))
+            scenarioId = DefaultScenarioId;
+        var scenarioCatalog = new BattleSimContentCatalog();
+        scenarioCatalog.Rebuild();
+        if (!scenarioCatalog.TryGetScenario(scenarioId, out BattleSimScenarioDefinition scenario))
         {
-            GameLog.Error($"Failed to load scenario: {scenarioPath}", "bench.scenario.load_failed", "bench");
+            GameLog.Error($"Failed to load scenario id: {scenarioId}", "bench.scenario.load_failed", "bench");
             return 1;
         }
-        BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
-        scenarioResource = null;
 
         ContentSnapshot contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
         var contentProvider = new BattleSimContentProvider(contentSnapshot);
@@ -107,7 +104,8 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             return 1;
         }
 
-        // Opt-in tuning hook: when AI_PROFILE_OVERRIDE_FILE points to an authored profile,
+        // Opt-in tuning hook: AI_PROFILE_OVERRIDE_ID selects an authored JSON profile;
+        // AI_PROFILE_OVERRIDE_DIRECTORY may point at a temporary JSON authoring directory.
         // its override_patches (incl. faction_ai_score_profile) are applied. Unset = the
         // immutable empty baseline, so the standard 6v12 matchup is unchanged.
         BattleSimProfileDefinition baseline =
@@ -883,16 +881,20 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
     private static BattleSimProfileDefinition LoadOverrideProfile()
     {
-        if (!OS.HasEnvironment("AI_PROFILE_OVERRIDE_FILE"))
+        if (!OS.HasEnvironment("AI_PROFILE_OVERRIDE_ID"))
             return null;
-        string path = OS.GetEnvironment("AI_PROFILE_OVERRIDE_FILE").StripEdges();
-        if (string.IsNullOrEmpty(path))
+        string profileId = OS.GetEnvironment("AI_PROFILE_OVERRIDE_ID").StripEdges();
+        if (string.IsNullOrEmpty(profileId))
             return null;
-        BattleSimProfileDef authoredProfile = ResourceLoader.Load<BattleSimProfileDef>(path);
-        BattleSimProfileDefinition profile = authoredProfile?.ToDefinition();
-        if (profile == null)
+        var registry = new BattleSimProfileContentRegistry();
+        if (OS.HasEnvironment("AI_PROFILE_OVERRIDE_DIRECTORY"))
+            registry.LoadFromDirectory(OS.GetEnvironment("AI_PROFILE_OVERRIDE_DIRECTORY").StripEdges());
+        else
+            registry.Rebuild();
+        registry.TryGetDefinition(profileId, out BattleSimProfileDefinition profile);
+        if (profile is null)
             GameLog.Error(
-                $"AI_PROFILE_OVERRIDE_FILE could not be loaded: {path}",
+                $"AI_PROFILE_OVERRIDE_ID could not be loaded: {profileId}",
                 "bench.override.load_failed",
                 "bench"
             );

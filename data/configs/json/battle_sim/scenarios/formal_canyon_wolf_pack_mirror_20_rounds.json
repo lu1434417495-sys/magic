@@ -1,0 +1,233 @@
+{
+  "schema": 1,
+  "domain": "battle_sim_scenarios",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "scenario_id": "formal_canyon_wolf_pack_mirror_20_rounds",
+      "display_name": "Formal Canyon Wolf Pack Mirror 10 Rounds",
+      "description": "正式 canyon 地图上 2 只狼对 2 只狼，双方都使用 melee_aggressor 狼系 AI，固定 10 个 seed 做镜像对战。",
+      "map_size": {
+        "x": 19,
+        "y": 11
+      },
+      "terrain_profile_id": "canyon",
+      "use_formal_terrain_generation": true,
+      "world_coord": {
+        "x": 7,
+        "y": 11
+      },
+      "ally_units": [
+        {
+          "unit_id": "ally_wolf_01",
+          "source_member_id": "",
+          "display_name": "盟狼01",
+          "faction_id": "player",
+          "control_mode": "ai",
+          "ai_brain_id": "melee_aggressor",
+          "ai_state_id": "engage",
+          "coord": {
+            "x": 0,
+            "y": 1
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 24,
+          "current_mp": 0,
+          "current_stamina": 12,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 24,
+            "mp_max": 0,
+            "stamina_max": 12,
+            "action_points": 2,
+            "attack_bonus": 8
+          },
+          "skill_ids": [
+            "charge",
+            "warrior_heavy_strike"
+          ],
+          "skill_level_map": {
+            "charge": 1,
+            "warrior_heavy_strike": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 6,
+            "agility": 7,
+            "constitution": 5,
+            "perception": 5,
+            "intelligence": 3,
+            "willpower": 4
+          }
+        },
+        {
+          "unit_id": "ally_wolf_02",
+          "source_member_id": "",
+          "display_name": "盟狼02",
+          "faction_id": "player",
+          "control_mode": "ai",
+          "ai_brain_id": "melee_aggressor",
+          "ai_state_id": "engage",
+          "coord": {
+            "x": 0,
+            "y": 2
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 24,
+          "current_mp": 0,
+          "current_stamina": 12,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 24,
+            "mp_max": 0,
+            "stamina_max": 12,
+            "action_points": 2,
+            "attack_bonus": 8
+          },
+          "skill_ids": [
+            "charge",
+            "warrior_heavy_strike"
+          ],
+          "skill_level_map": {
+            "charge": 1,
+            "warrior_heavy_strike": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 6,
+            "agility": 7,
+            "constitution": 5,
+            "perception": 5,
+            "intelligence": 3,
+            "willpower": 4
+          }
+        }
+      ],
+      "enemy_units": [
+        {
+          "unit_id": "enemy_wolf_01",
+          "source_member_id": "",
+          "display_name": "敌狼01",
+          "faction_id": "hostile",
+          "control_mode": "ai",
+          "ai_brain_id": "melee_aggressor",
+          "ai_state_id": "engage",
+          "coord": {
+            "x": 18,
+            "y": 8
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 24,
+          "current_mp": 0,
+          "current_stamina": 12,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 24,
+            "mp_max": 0,
+            "stamina_max": 12,
+            "action_points": 2,
+            "attack_bonus": 8
+          },
+          "skill_ids": [
+            "charge",
+            "warrior_heavy_strike"
+          ],
+          "skill_level_map": {
+            "charge": 1,
+            "warrior_heavy_strike": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 6,
+            "agility": 7,
+            "constitution": 5,
+            "perception": 5,
+            "intelligence": 3,
+            "willpower": 4
+          }
+        },
+        {
+          "unit_id": "enemy_wolf_02",
+          "source_member_id": "",
+          "display_name": "敌狼02",
+          "faction_id": "hostile",
+          "control_mode": "ai",
+          "ai_brain_id": "melee_aggressor",
+          "ai_state_id": "engage",
+          "coord": {
+            "x": 18,
+            "y": 9
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 24,
+          "current_mp": 0,
+          "current_stamina": 12,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 24,
+            "mp_max": 0,
+            "stamina_max": 12,
+            "action_points": 2,
+            "attack_bonus": 8
+          },
+          "skill_ids": [
+            "charge",
+            "warrior_heavy_strike"
+          ],
+          "skill_level_map": {
+            "charge": 1,
+            "warrior_heavy_strike": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 6,
+            "agility": 7,
+            "constitution": 5,
+            "perception": 5,
+            "intelligence": 3,
+            "willpower": 4
+          }
+        }
+      ],
+      "cell_overrides": [],
+      "timeline_ticks_per_step": 1,
+      "tu_per_tick": 5,
+      "max_iterations": 1500,
+      "manual_policy": "wait",
+      "trace_enabled": false,
+      "seeds": [
+        5101,
+        5102,
+        5103,
+        5104,
+        5105,
+        5106,
+        5107,
+        5108,
+        5109,
+        5110
+      ]
+    }
+  ]
+}

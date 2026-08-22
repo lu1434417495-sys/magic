@@ -8,8 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
-    private const string ScenarioPath =
-        "res://data/configs/battle_sim/scenarios/longsword_3v3_mirror_simulation.tres";
+    private static readonly StringName ScenarioId = "longsword_3v3_mirror_simulation";
 
     private readonly TestHarness _test = new();
 
@@ -38,15 +37,13 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
         bool progressEnabled = ReadBoolEnvironment("PROGRESS", string.IsNullOrEmpty(outputPath));
         var artifactWriter = new BattleSimAnalysisArtifactFileWriter();
 
-        BattleSimScenarioDef scenarioResource =
-            ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
-        if (scenarioResource == null)
+        var scenarioCatalog = new BattleSimContentCatalog();
+        scenarioCatalog.Rebuild();
+        if (!scenarioCatalog.TryGetScenario(ScenarioId, out BattleSimScenarioDefinition scenarioDefinition))
         {
             ConsoleProcessOutput.WriteFailure("Failed to load scenario");
             return 1;
         }
-        BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
-        scenarioResource = null;
 
         var contentProvider = new BattleSimContentProvider(
             GameSessionTestFactory.GetProcessSnapshot()

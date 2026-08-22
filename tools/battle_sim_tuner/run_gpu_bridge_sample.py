@@ -4,7 +4,7 @@ This is a short end-to-end proof run:
   1. evaluate a few real 6v12 BattleAiScoreProfile candidates through Godot,
   2. train the mandatory CUDA surrogate from those real observations,
   3. rank a large candidate pool on GPU,
-  4. export the top-ranked BattleAiScoreProfile .tres.
+  4. export the top-ranked BattleAiScoreProfile .json.
 
 It is intentionally small and noisy. Use it to validate the pipeline wiring, not
 to make balance conclusions.
@@ -19,14 +19,14 @@ import random
 from typing import Any, Mapping, Sequence
 
 from .evaluator import Fitness, REPO_ROOT, evaluate_6v12_batch
-from .export_score_profile import write_score_profile_tres
+from .export_score_profile import write_score_profile_json
 from .gpu_surrogate import rank_candidates, require_cuda, train_surrogate
 from .objective import DEFAULT_MAX_ITERATIONS as MAX_ITER
 from .objective import FORMULA as OBJECTIVE_FORMULA
 from .objective import score_fitness
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
-SCENARIO = "res://data/configs/battle_sim/scenarios/mixed_6v12_two_archer.tres"
+SCENARIO = "mixed_6v12_two_archer"
 FACTION = "player"
 
 
@@ -126,7 +126,7 @@ def main() -> None:
         workers_per_candidate=args.workers_per_candidate,
         count_per_worker=args.count_per_worker,
         profile_prefix="gpu_bridge_real_sample",
-        scenario_file=SCENARIO,
+        scenario_id=SCENARIO,
     )
 
     observations_path = os.path.join(args.output_dir, "observations.jsonl")
@@ -152,8 +152,8 @@ def main() -> None:
         output_json=ranked_path,
         seed=args.seed + 1,
     )
-    top_profile_path = os.path.join(args.output_dir, "top_ranked_score_profile.tres")
-    write_score_profile_tres(top_profile_path, ranked[0]["genome"])
+    top_profile_path = os.path.join(args.output_dir, "top_ranked_score_profile.json")
+    write_score_profile_json(top_profile_path, ranked[0]["genome"])
 
     result_path = os.path.join(args.output_dir, "result.json")
     with open(result_path, "w", encoding="utf-8") as fh:

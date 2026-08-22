@@ -159,7 +159,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
 
     private static BattleSimScenarioDefinition BuildReadyQueueScenario()
     {
-        var scenario = new BattleSimScenarioDef
+        var scenario = new BattleSimTestScenarioBuilder
         {
             scenario_id = "simulation_ready_queue_regression",
             display_name = "Simulation Ready Queue Regression",
@@ -170,8 +170,8 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
             manual_policy = "wait",
             trace_enabled = true,
             seeds = new[] { 707 },
-            ally_units = new GArray { BuildReadyQueueUnit("zz_player_dummy", "玩家木桩", "player", "manual", new Vector2I(4, 1)) },
-            enemy_units = new GArray
+            ally_units = new List<object> { BuildReadyQueueUnit("zz_player_dummy", "玩家木桩", "player", "manual", new Vector2I(4, 1)) },
+            enemy_units = new List<object>
             {
                 BuildReadyQueueUnit("aa_hostile_one", "敌方一号", "hostile", "ai", new Vector2I(0, 1)),
                 BuildReadyQueueUnit("ab_hostile_two", "敌方二号", "hostile", "ai", new Vector2I(1, 1)),
@@ -180,7 +180,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         return scenario.ToDefinition();
     }
 
-    private static BattleSimUnitSpec BuildReadyQueueUnit(
+    private static BattleSimTestUnitBuilder BuildReadyQueueUnit(
         StringName unitId,
         string displayName,
         StringName factionId,
@@ -188,7 +188,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         Vector2I coord
     )
     {
-        return new BattleSimUnitSpec
+        return new BattleSimTestUnitBuilder
         {
             unit_id = unitId,
             display_name = displayName,
@@ -211,7 +211,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
 
     private static BattleSimScenarioDefinition BuildScenario()
     {
-        return new BattleSimScenarioDef
+        return new BattleSimTestScenarioBuilder
         {
             scenario_id = "simulation_regression_archer",
             display_name = "Simulation Regression Archer",
@@ -221,21 +221,21 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
             max_iterations = 40,
             manual_policy = "wait",
             seeds = new[] { 101, 102 },
-            ally_units = new GArray
+            ally_units = new List<object>
             {
                 BuildManualUnit("player_a", "玩家A", new Vector2I(4, 2)),
                 BuildManualUnit("player_b", "玩家B", new Vector2I(5, 2)),
             },
-            enemy_units = new GArray
+            enemy_units = new List<object>
             {
                 BuildEnemyArcher("mist_harrier_sim", "雾沼猎压者", new Vector2I(1, 2)),
             },
         }.ToDefinition();
     }
 
-    private static BattleSimUnitSpec BuildManualUnit(StringName unitId, string displayName, Vector2I coord)
+    private static BattleSimTestUnitBuilder BuildManualUnit(StringName unitId, string displayName, Vector2I coord)
     {
-        return new BattleSimUnitSpec
+        return new BattleSimTestUnitBuilder
         {
             unit_id = unitId,
             display_name = displayName,
@@ -254,9 +254,9 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         };
     }
 
-    private static BattleSimUnitSpec BuildEnemyArcher(StringName unitId, string displayName, Vector2I coord)
+    private static BattleSimTestUnitBuilder BuildEnemyArcher(StringName unitId, string displayName, Vector2I coord)
     {
-        return new BattleSimUnitSpec
+        return new BattleSimTestUnitBuilder
         {
             unit_id = unitId,
             display_name = displayName,
@@ -334,32 +334,32 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
     }
 
     private static BattleSimProfileDefinition BuildBaselineProfile()
-    {
-        return new BattleSimProfileDef
-        {
-            profile_id = "baseline",
-            display_name = "Baseline",
-        }.ToDefinition();
-    }
+        => new(
+            "baseline",
+            "Baseline",
+            "",
+            BattleAiScoreProfileDefinition.Default,
+            System.Array.Empty<BattleSimOverridePatchDefinition>()
+        );
 
     private static BattleSimProfileDefinition BuildSuppressiveFireBlockedProfile()
-    {
-        return new BattleSimProfileDef
-        {
-            profile_id = "pinning_only",
-            display_name = "Pinning Only",
-            override_patches = new GArray
+        => new(
+            "pinning_only",
+            "Pinning Only",
+            "",
+            BattleAiScoreProfileDefinition.Default,
+            new[]
             {
-                new GDictionary
-                {
-                    ["target_type"] = "skill",
-                    ["target_id"] = "archer_suppressive_fire",
-                    ["path"] = "combat_profile.stamina_cost",
-                    ["value"] = 999,
-                },
-            },
-        }.ToDefinition();
-    }
+                new BattleSimOverridePatchDefinition(
+                    "skill",
+                    "archer_suppressive_fire",
+                    "",
+                    "",
+                    "combat_profile.stamina_cost",
+                    999
+                ),
+            }
+        );
 
     private static GArray GetArray(GDictionary source, string key)
     {

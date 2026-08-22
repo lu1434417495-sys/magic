@@ -1,5 +1,5 @@
 """Step-4 follow-up: GPU-rank a candidate pool against a trained surrogate and
-export the top genome as a BattleAiScoreProfile .tres (the champion to promote).
+export the top genome as a BattleAiScoreProfile .json (the champion to promote).
 
 Pairs with train_surrogate_from_central.py (which produced model+metadata). Requires
 CUDA (rank_candidates calls require_cuda). Does NOT run on import.
@@ -10,7 +10,7 @@ CUDA (rank_candidates calls require_cuda). Does NOT run on import.
         --count 250000 --top-k 16 \
         --output-dir ../.tmp_tuner/rank_attrition
 
-The exported .tres is a candidate only — gate it with promote_gate.py (step 5)
+The exported .json is a candidate only — gate it with promote_gate.py (step 5)
 before adopting it as a shipped profile.
 """
 
@@ -40,7 +40,7 @@ def main() -> None:
             center_genome = json.load(fh)
 
     # Lazy import so --help works without CUDA/torch.
-    from .export_score_profile import write_score_profile_tres
+    from .export_score_profile import write_score_profile_json
     from .gpu_surrogate import rank_candidates
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -57,12 +57,12 @@ def main() -> None:
         center_genome=center_genome,
     )
     top = ranked[0]
-    champion_tres = os.path.join(args.output_dir, "champion_score_profile.tres")
-    write_score_profile_tres(champion_tres, top["genome"])
+    champion_json = os.path.join(args.output_dir, "champion_score_profile.json")
+    write_score_profile_json(champion_json, top["genome"])
 
     print(f"ranked {args.count} candidates -> top {len(ranked)} ({ranked_json})")
     print(f"top predicted_objective = {top['predicted_objective']:+.4f}")
-    print(f"exported champion profile: {champion_tres}")
+    print(f"exported champion profile: {champion_json}")
     print("NEXT: gate it with promote_gate.py before adopting (surrogate scores are not ground truth).")
 
 

@@ -6,9 +6,13 @@ internal static class TestResourceOwnership
     private static GodotTransientResourceScope _scope;
 
     internal static T Own<T>(T resource, string reason)
-        where T : Resource
+        where T : class
     {
-        return GetScope().Own(resource, reason);
+        if (resource is Resource godotResource)
+            GetScope().Own(godotResource, reason);
+        else
+            GetScope().OwnWrapper(resource, reason);
+        return resource;
     }
 
     internal static T OwnWrapper<T>(T wrapper, string reason)

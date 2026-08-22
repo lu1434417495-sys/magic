@@ -18,12 +18,12 @@ import random
 import subprocess
 
 from .evaluator import DATASET_PATH, REPO_ROOT, evaluate_6v12
-from .export_score_profile import write_score_profile_tres
+from .export_score_profile import write_score_profile_json
 from .objective import DEFAULT_MAX_ITERATIONS
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
 GPU_PYTHON_DEFAULT = "/home/luchaoli/venvs/cuda-op/bin/python"
-SCENARIO = "res://data/configs/battle_sim/scenarios/mixed_6v12_two_archer.tres"
+SCENARIO = "mixed_6v12_two_archer"
 OBJECTIVE_WEIGHTS = {
     "win": 20.0,
     "loss": 8.0,
@@ -601,7 +601,7 @@ def main() -> None:
             workers=args.confirm_workers,
             count_per_worker=args.confirm_count_per_worker,
             profile_id=f"two_archer_6v12_history_retest_{idx}",
-            scenario_file=args.scenario,
+            scenario_id=args.scenario,
             timeout=args.eval_timeout,
         )
         obj = _objective_from_fit(fit)
@@ -627,7 +627,7 @@ def main() -> None:
             }
             _write_json(os.path.join(args.output_dir, "best_genome.json"), best_genome)
             _write_json(os.path.join(args.output_dir, "best_real_fitness.json"), best_fit_payload)
-            write_score_profile_tres(os.path.join(args.output_dir, "best_score_profile.tres"), best_genome)
+            write_score_profile_json(os.path.join(args.output_dir, "best_score_profile.json"), best_genome)
         if _passes_target(
             fit,
             target_win_rate=args.target_win_rate,
@@ -653,7 +653,7 @@ def main() -> None:
             }
             _write_json(os.path.join(args.output_dir, "champion_genome.json"), best_genome)
             _write_json(os.path.join(args.output_dir, "champion_fitness.json"), best_fit_payload)
-            write_score_profile_tres(os.path.join(args.output_dir, "champion_score_profile.tres"), best_genome)
+            write_score_profile_json(os.path.join(args.output_dir, "champion_score_profile.json"), best_genome)
             break
 
     full_dim_rounds = 0
@@ -792,7 +792,7 @@ def main() -> None:
                 workers=args.eval_workers,
                 count_per_worker=args.eval_count_per_worker,
                 profile_id=f"two_archer_6v12_auto_r{rnd}_c{idx}",
-                scenario_file=args.scenario,
+                scenario_id=args.scenario,
                 timeout=args.eval_timeout,
             )
             obj = _objective_from_fit(fit)
@@ -822,7 +822,7 @@ def main() -> None:
                 }
                 _write_json(os.path.join(args.output_dir, "best_genome.json"), best_genome)
                 _write_json(os.path.join(args.output_dir, "best_real_fitness.json"), best_fit_payload)
-                write_score_profile_tres(os.path.join(args.output_dir, "best_score_profile.tres"), best_genome)
+                write_score_profile_json(os.path.join(args.output_dir, "best_score_profile.json"), best_genome)
 
             if fit.win_rate >= args.target_win_rate and fit.n >= 20:
                 print(
@@ -836,7 +836,7 @@ def main() -> None:
                     workers=args.confirm_workers,
                     count_per_worker=args.confirm_count_per_worker,
                     profile_id=f"two_archer_6v12_auto_confirm_r{rnd}_c{idx}",
-                    scenario_file=args.scenario,
+                    scenario_id=args.scenario,
                     timeout=args.eval_timeout,
                 )
                 confirm_obj = _objective_from_fit(confirm)
@@ -872,8 +872,8 @@ def main() -> None:
                     confirmed = True
                     _write_json(os.path.join(args.output_dir, "champion_genome.json"), best_genome)
                     _write_json(os.path.join(args.output_dir, "champion_fitness.json"), best_fit_payload)
-                    write_score_profile_tres(
-                        os.path.join(args.output_dir, "champion_score_profile.tres"),
+                    write_score_profile_json(
+                        os.path.join(args.output_dir, "champion_score_profile.json"),
                         best_genome,
                     )
                     break
@@ -887,7 +887,7 @@ def main() -> None:
         _write_json(os.path.join(args.output_dir, "best_genome.json"), best_genome)
         if best_fit_payload is not None:
             _write_json(os.path.join(args.output_dir, "best_real_fitness.json"), best_fit_payload)
-        write_score_profile_tres(os.path.join(args.output_dir, "best_score_profile.tres"), best_genome)
+        write_score_profile_json(os.path.join(args.output_dir, "best_score_profile.json"), best_genome)
 
     rows_after = _count_rows(
         args.dataset,
@@ -901,9 +901,9 @@ def main() -> None:
         flush=True,
     )
     if confirmed:
-        print(f"champion: {os.path.join(args.output_dir, 'champion_score_profile.tres')}", flush=True)
+        print(f"champion: {os.path.join(args.output_dir, 'champion_score_profile.json')}", flush=True)
     elif best_genome is not None:
-        print(f"best_so_far: {os.path.join(args.output_dir, 'best_score_profile.tres')}", flush=True)
+        print(f"best_so_far: {os.path.join(args.output_dir, 'best_score_profile.json')}", flush=True)
     raise SystemExit(0 if confirmed else 2)
 
 

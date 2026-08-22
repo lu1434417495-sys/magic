@@ -389,16 +389,20 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
 
     private void TestMixed6v12TypedEnemyHandoffPreservesRuntimeProjection()
     {
-        const string scenarioPath =
-            "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres";
         BattleSimFormalCombatFixture fixture = BuildFixture(
             BattleSimFormalCombatFixture.ROSTER_MIXED_6V12
         );
         if (!EquipTemporalWeaponForTypedHandoff(fixture))
             return;
-        BattleSimScenarioDefinition scenario;
-        using (var loader = new TestContentResourceLoader())
-            scenario = loader.LoadCanonical<BattleSimScenarioDef>(scenarioPath).ToDefinition();
+        var scenarioCatalog = new BattleSimContentCatalog();
+        scenarioCatalog.Rebuild();
+        scenarioCatalog.TryGetScenario(
+            "mixed_6v12_mirror_simulation",
+            out BattleSimScenarioDefinition scenario
+        );
+        _test.True(scenario != null, "mixed 6v12 scenario 应通过 JSON catalog 按 ID 加载。");
+        if (scenario == null)
+            return;
 
         var runtime = new BattleRuntimeModule();
         BattleState state = null;

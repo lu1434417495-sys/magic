@@ -9,7 +9,7 @@ it first with validate_scenario.py).
 
     battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.promote_gate \
         --candidate ../.tmp_tuner/rank_attrition/ranked.json \
-        --scenario res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres \
+        --scenario attrition_sustain_2v2 \
         --workers 16
 
 --candidate accepts either a ranked.json (top genome used) or a plain genome json.
@@ -24,7 +24,7 @@ from .evaluator import evaluate_genome, record_sample, score_runs
 from .objective import DEFAULT_MAX_ITERATIONS, score_fitness
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
-DEFAULT_SCENARIO = "res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres"
+DEFAULT_SCENARIO = "attrition_sustain_2v2"
 
 
 def _eval_high_r(genome, specs, scenario, *, faction, target_runs, workers, timeout, profile_id):
