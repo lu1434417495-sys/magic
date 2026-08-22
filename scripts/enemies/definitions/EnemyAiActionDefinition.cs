@@ -29,7 +29,7 @@ internal abstract class EnemyAiActionDefinition
     internal virtual string BuildSignature() =>
         $"{Kind}|{ActionId}|{ScoreBucketId}|{ActionIntent}|skills={string.Join(",", DeclaredSkillIds)}";
 
-    internal static EnemyAiActionDefinition FromResource(EnemyAiAction source)
+    internal static EnemyAiActionDefinition FromTypedBuilder(EnemyAiAction source)
     {
         ArgumentNullException.ThrowIfNull(source);
         return source switch
@@ -226,11 +226,4 @@ internal static class EnemyDefinitionCollections
         return new ReadOnlyDictionary<TKey, TValue>(copy);
     }
 
-    internal static long ResolveResourceUid(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-            return ResourceUid.InvalidId;
-        long uid = ResourceLoader.GetResourceUid(path);
-        return uid == ResourceUid.InvalidId ? ResourceUid.InvalidId : uid;
-    }
 }

@@ -15,7 +15,7 @@ internal enum EnemyAiTransitionPredicate
 
 [Tool]
 [GlobalClass]
-public partial class EnemyAiTransitionConditionDef : Resource
+public partial class EnemyAiTransitionConditionDef : RefCounted
 {
     private const int HpBasisPointsDenominator = 10000;
     private static readonly StringName PredicateAlways = "always";

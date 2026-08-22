@@ -80,11 +80,10 @@ internal sealed class EnemyTemplateDefinition
                 );
     }
 
-    private EnemyTemplateDefinition(
+    internal EnemyTemplateDefinition(
         StringName templateId,
         string displayName,
-        string battleSpriteTexturePath,
-        long battleSpriteTextureUid,
+        StringName battleSpriteAssetId,
         StringName brainId,
         StringName initialStateId,
         int enemyCount,
@@ -115,8 +114,7 @@ internal sealed class EnemyTemplateDefinition
     {
         TemplateId = templateId;
         DisplayName = displayName ?? "";
-        BattleSpriteTexturePath = battleSpriteTexturePath ?? "";
-        BattleSpriteTextureUid = battleSpriteTextureUid;
+        BattleSpriteAssetId = battleSpriteAssetId;
         BrainId = brainId;
         InitialStateId = initialStateId;
         EnemyCount = enemyCount;
@@ -147,8 +145,7 @@ internal sealed class EnemyTemplateDefinition
 
     internal StringName TemplateId { get; }
     internal string DisplayName { get; }
-    internal string BattleSpriteTexturePath { get; }
-    internal long BattleSpriteTextureUid { get; }
+    internal StringName BattleSpriteAssetId { get; }
     internal StringName BrainId { get; }
     internal StringName InitialStateId { get; }
     internal int EnemyCount { get; }
@@ -205,15 +202,12 @@ internal sealed class EnemyTemplateDefinition
     internal int GetSkillLevelTyped(StringName skillId, int fallback = 1) =>
         GetSkillLevel(skillId, fallback);
 
-    internal static EnemyTemplateDefinition FromResource(
+    internal static EnemyTemplateDefinition FromTypedBuilder(
         EnemyTemplateDef source,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         ArgumentNullException.ThrowIfNull(source);
-        string texturePath = source.battle_sprite_texture?.ResourcePath ?? "";
-        if (!string.IsNullOrWhiteSpace(texturePath))
-            texturePath = ContentPathCanonicalizer.Canonicalize(texturePath);
         var skillLevels = new Dictionary<StringName, int>();
         if (source.skill_level_map != null)
         {
@@ -245,8 +239,7 @@ internal sealed class EnemyTemplateDefinition
         return new EnemyTemplateDefinition(
             source.template_id,
             source.display_name,
-            texturePath,
-            EnemyDefinitionCollections.ResolveResourceUid(texturePath),
+            source.battle_sprite_asset_id,
             source.brain_id,
             source.initial_state_id,
             source.enemy_count,

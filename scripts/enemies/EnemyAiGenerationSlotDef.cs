@@ -60,7 +60,7 @@ internal enum EnemyAiGenerationSuppressionPolicy
 
 [Tool]
 [GlobalClass]
-public partial class EnemyAiGenerationSlotDef : Resource
+public partial class EnemyAiGenerationSlotDef : RefCounted
 {
     [Export]
     public StringName slot_id = "";

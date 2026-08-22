@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
-public partial class EnemyAiAction : Resource
+public partial class EnemyAiAction : RefCounted
 {
     [Export]
     public StringName action_id { get; set; } = "";
@@ -37,7 +37,7 @@ public partial class EnemyAiAction : Resource
     }
 
     internal EnemyAiActionDefinition ToDefinition() =>
-        EnemyAiActionDefinition.FromResource(this);
+        EnemyAiActionDefinition.FromTypedBuilder(this);
 
     internal Godot.Collections.Array<string> ValidateSkillReferences(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions

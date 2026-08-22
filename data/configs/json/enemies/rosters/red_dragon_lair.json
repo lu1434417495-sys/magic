@@ -1,0 +1,33 @@
+{
+  "domain": "encounter_rosters",
+  "entries": [
+    {
+      "display_name": "\u7EA2\u9F99\u5DE2\u7A74",
+      "growth_step_interval": 1,
+      "initial_stage": 0,
+      "profile_id": "red_dragon_lair",
+      "stages": [
+        {
+          "stage": 0,
+          "unit_entries": [
+            {
+              "actor_id": "red_dragon_boss",
+              "count": 1,
+              "display_name": "",
+              "template_id": "red_dragon"
+            },
+            {
+              "actor_id": "",
+              "count": 2,
+              "display_name": "",
+              "template_id": "kobold_skirmisher"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "family": "red_dragon_lair",
+  "schema": 1,
+  "templates": {}
+}

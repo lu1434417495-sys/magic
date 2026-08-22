@@ -1,0 +1,68 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0,
+        "natural_armor_ac_bonus": 2
+      },
+      "base_attribute_overrides": {
+        "agility": 15,
+        "constitution": 16,
+        "intelligence": 5,
+        "perception": 14,
+        "strength": 16,
+        "willpower": 10
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "battle.unit.enemy.wolf_alpha",
+      "body_size": 2,
+      "brain_id": "pack_leader",
+      "cognition_kind": "instinctive",
+      "creature_level": 4,
+      "damage_resistances": {},
+      "display_name": "\u8352\u72FC\u5934\u76EE",
+      "drop_entries": [
+        {
+          "drop_entry_id": "alpha_hide",
+          "drop_type": "item",
+          "item_id": "beast_hide",
+          "quantity": 2
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 3,
+      "hit_die_sides": 10,
+      "initial_state_id": "hunt",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [
+        "charm"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [
+        "frightened"
+      ],
+      "skill_ids": [
+        "basic_attack",
+        "charge",
+        "wolf_alpha_hamstring_bite",
+        "wolf_alpha_dominance_howl",
+        "wolf_alpha_cull_the_weak"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "beast",
+        "wolf",
+        "bite"
+      ],
+      "target_rank": "elite",
+      "template_id": "wolf_alpha"
+    }
+  ],
+  "family": "wolf_alpha",
+  "schema": 1,
+  "templates": {}
+}

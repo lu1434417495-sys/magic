@@ -1,0 +1,63 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 10,
+        "constitution": 18,
+        "intelligence": 5,
+        "perception": 9,
+        "strength": 18,
+        "willpower": 7
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 3,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 6,
+      "damage_resistances": {
+        "acid": "double",
+        "fire": "double"
+      },
+      "display_name": "\u5DE8\u9B54\u6495\u88C2\u8005",
+      "drop_entries": [
+        {
+          "drop_entry_id": "troll_blood",
+          "drop_type": "item",
+          "item_id": "healing_herb",
+          "quantity": 2
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 12,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "basic_attack"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "giant",
+        "troll",
+        "beast",
+        "claw"
+      ],
+      "target_rank": "elite",
+      "template_id": "troll_ravager"
+    }
+  ],
+  "family": "troll_ravager",
+  "schema": 1,
+  "templates": {}
+}

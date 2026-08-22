@@ -831,10 +831,10 @@ public sealed class BattleBoardController : IDisposable
 
     private Texture2D _resolve_unit_sprite_texture(BattleBoardUnitSnapshot unitState)
     {
-        string path = unitState?.BattleSpriteTexturePath ?? "";
-        return string.IsNullOrEmpty(path)
+        StringName assetId = unitState?.BattleSpriteAssetId ?? "";
+        return assetId == ""
             ? null
-            : _load_authored_content_texture_from_png_during_migration(path);
+            : EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(assetId);
     }
 
     // 贴图缩放后的可见高度(像素,token 本地坐标)。与 _attach_unit_sprite_visuals 的
@@ -1795,14 +1795,6 @@ public sealed class BattleBoardController : IDisposable
         _load_texture_from_png(
             codeOwnedPath,
             EngineAssetAccess.ResolveCodeAssetBorrowed<Texture2D>
-        );
-
-    private Texture2D _load_authored_content_texture_from_png_during_migration(
-        string authoredContentPath
-    ) =>
-        _load_texture_from_png(
-            authoredContentPath,
-            EngineAssetAccess.ResolveAuthoredContentPathBorrowedDuringMigration<Texture2D>
         );
 
     private Texture2D _load_texture_from_png(

@@ -4,7 +4,7 @@ using Godot;
 using VT = Godot.Variant.Type;
 
 [GlobalClass]
-public partial class EnemyTemplateDef : Resource
+public partial class EnemyTemplateDef : RefCounted
 {
     private static readonly StringName DROP_TYPE_ITEM = "item",
         DROP_TYPE_RANDOM_EQUIPMENT = "random_equipment";
@@ -34,7 +34,7 @@ public partial class EnemyTemplateDef : Resource
     public string display_name { get; set; } = "";
 
     [Export]
-    public Texture2D battle_sprite_texture { get; set; }
+    public StringName battle_sprite_asset_id { get; set; } = "";
 
     [Export]
     public StringName brain_id { get; set; } = "";
@@ -218,7 +218,7 @@ public partial class EnemyTemplateDef : Resource
 
     internal EnemyTemplateDefinition ToDefinition(
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
-    ) => EnemyTemplateDefinition.FromResource(this, itemDefinitions);
+    ) => EnemyTemplateDefinition.FromTypedBuilder(this, itemDefinitions);
 
     internal int GetFootprintCellCountTyped()
     {

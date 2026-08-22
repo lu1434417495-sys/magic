@@ -1,0 +1,70 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "deflection_bonus": 4,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 17,
+        "constitution": 14,
+        "intelligence": 6,
+        "perception": 17,
+        "strength": 10,
+        "willpower": 11
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "ranged_suppressor",
+      "cognition_kind": "instinctive",
+      "creature_level": 5,
+      "damage_resistances": {
+        "fire": "double",
+        "physical_pierce": "half"
+      },
+      "display_name": "\u96FE\u6CBC\u730E\u538B\u8005",
+      "drop_entries": [
+        {
+          "drop_entry_id": "mist_herb",
+          "drop_type": "item",
+          "item_id": "moonfern_sample",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 4,
+      "hit_die_sides": 8,
+      "initial_state_id": "pressure",
+      "natural_weapon_attack_range": 5,
+      "natural_weapon_damage_tag": "physical_pierce",
+      "save_advantage_tags": [
+        "illusion"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "archer_suppressive_fire",
+        "archer_pinning_shot",
+        "archer_harrier_mark",
+        "archer_aimed_shot",
+        "basic_attack"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "beast",
+        "mist",
+        "harrier",
+        "magical_beast"
+      ],
+      "target_rank": "normal",
+      "template_id": "mist_harrier"
+    }
+  ],
+  "family": "mist_harrier",
+  "schema": 1,
+  "templates": {}
+}

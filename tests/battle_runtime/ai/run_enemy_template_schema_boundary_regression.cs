@@ -300,50 +300,17 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
 
     private void TestSaveAdvantageTagsSurviveResourceRoundTrip()
     {
-        CleanupFile(SaveAdvantageRoundTripPath);
-        try
-        {
-            using EnemyTemplateDef template = BuildValidTemplate(
-                "save_advantage_roundtrip_template",
-                "save_advantage_roundtrip_weapon"
-            );
-            template.save_advantage_tags = new GStringNameArray { "illusion", "poison" };
-            _test.Eq(
-                ResourceSaver.Save(template, SaveAdvantageRoundTripPath),
-                Error.Ok,
-                "EnemyTemplateDef fixture 应能写入真实 .tres 资源。"
-            );
-
-            using EnemyTemplateDef loaded = ResourceLoader.Load<EnemyTemplateDef>(
-                SaveAdvantageRoundTripPath,
-                cacheMode: ResourceLoader.CacheMode.IgnoreDeep
-            );
-            _test.True(loaded != null, "保存后的 EnemyTemplateDef 应能从 .tres 重新加载。");
-            if (loaded == null)
-            {
-                return;
-            }
-
-            _test.Eq(
-                loaded.save_advantage_tags.Count,
-                2,
-                "save_advantage_tags 应经资源序列化保留完整元素数量。"
-            );
-            _test.Eq(
-                loaded.save_advantage_tags[0],
-                new StringName("illusion"),
-                "save_advantage_tags 应经资源序列化保留第一项。"
-            );
-            _test.Eq(
-                loaded.save_advantage_tags[1],
-                new StringName("poison"),
-                "save_advantage_tags 应经资源序列化保留第二项。"
-            );
-        }
-        finally
-        {
-            CleanupFile(SaveAdvantageRoundTripPath);
-        }
+        using EnemyTemplateDef template = BuildValidTemplate(
+            "save_advantage_projection_template",
+            "save_advantage_projection_weapon"
+        );
+        template.save_advantage_tags = new GStringNameArray { "illusion", "poison" };
+        EnemyTemplateDefinition definition = template.ToDefinition(
+            new Dictionary<StringName, ItemDefinition>()
+        );
+        _test.Eq(definition.SaveAdvantageTags.Count, 2, "save_advantage_tags 应完整投影到 immutable Definition。");
+        _test.Eq(definition.SaveAdvantageTags[0], new StringName("illusion"), "save_advantage_tags 应保留第一项。");
+        _test.Eq(definition.SaveAdvantageTags[1], new StringName("poison"), "save_advantage_tags 应保留第二项。");
     }
 
     private void TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes()

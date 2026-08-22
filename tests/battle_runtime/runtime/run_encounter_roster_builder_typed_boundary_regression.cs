@@ -213,6 +213,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
                 System.Array.Empty<StringName>(),
                 System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
                 System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+                System.Array.Empty<TraitSaveTagBonusEntryDefinition>(),
                 System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
                 System.Array.Empty<TraitRollValueSchemaEntryDefinition>()
             ),
