@@ -5,16 +5,9 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_progression_content_registry_typed_regression : LifecycleTestSceneTree
 {
-    private static readonly string[] AggregatedRegistryContentPrefixes =
+    private static readonly string[] ResourceLoadedContentPrefixes =
     {
-        "res://data/configs/professions/",
-        "res://data/configs/races/",
-        "res://data/configs/subraces/",
         "res://data/configs/traits/",
-        "res://data/configs/age_profiles/",
-        "res://data/configs/bloodlines/",
-        "res://data/configs/ascensions/",
-        "res://data/configs/stage_advancements/",
     };
 
     private readonly TestHarness _test = new();
@@ -68,7 +61,27 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             "contingency getter 应暴露 Definition snapshot。"
         );
 
-        foreach (string contentPrefix in AggregatedRegistryContentPrefixes)
+        var jsonBackedDefinitionCounts = new (string Domain, int Count)[]
+        {
+            ("professions", registry.GetProfessionDefsTyped().Count),
+            ("races", registry.GetRaceDefsTyped().Count),
+            ("subraces", registry.GetSubraceDefsTyped().Count),
+            ("age_profiles", registry.GetAgeProfileDefsTyped().Count),
+            ("bloodlines", registry.GetBloodlineDefsTyped().Count),
+            ("bloodline stages", registry.GetBloodlineStageDefsTyped().Count),
+            ("ascensions", registry.GetAscensionDefsTyped().Count),
+            ("ascension stages", registry.GetAscensionStageDefsTyped().Count),
+            ("stage_advancements", registry.GetStageAdvancementDefsTyped().Count),
+        };
+        foreach ((string domain, int count) in jsonBackedDefinitionCounts)
+        {
+            _test.True(
+                count > 0,
+                $"聚合 registry 应暴露 JSON-backed {domain} immutable definitions。"
+            );
+        }
+
+        foreach (string contentPrefix in ResourceLoadedContentPrefixes)
         {
             _test.True(
                 loader.CountLoadedPathsUnder(contentPrefix) > 0,
@@ -92,7 +105,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
         );
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
 
-        foreach (string contentPrefix in AggregatedRegistryContentPrefixes)
+        foreach (string contentPrefix in ResourceLoadedContentPrefixes)
         {
             _test.Eq(
                 loader.CountLoadedPathsUnder(contentPrefix),
@@ -357,6 +370,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             [
                 new TraitRollValueSchemaEntryDefinition(
@@ -446,6 +460,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             Array.Empty<TraitRollValueSchemaEntryDefinition>()
         );

@@ -8,13 +8,11 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_resource_validation_regression : LifecycleTestSceneTree
 {
     private const string OFFICIAL_SKILL_DIRECTORY = "res://data/configs/json/skills";
-    private const string OFFICIAL_PROFESSION_DIRECTORY = "res://data/configs/professions";
+    private const string OFFICIAL_PROFESSION_DIRECTORY =
+        "res://data/configs/json/professions";
     private const string OFFICIAL_RECIPE_DIRECTORY = "res://data/configs/recipes";
-    private const string OFFICIAL_ENEMY_SEED_PATH = "res://data/configs/enemies/enemy_content_seed.tres";
     private const string SKILL_INVALID_DIRECTORY = "res://tests/progression/fixtures/skill_registry_invalid";
     private const string SKILL_VALID_DIRECTORY = "res://tests/progression/fixtures/skill_registry_valid";
-    private const string PROFESSION_INVALID_DIRECTORY =
-        "res://tests/progression/fixtures/profession_registry_invalid";
     private const string ITEM_INVALID_DIRECTORY =
         "res://tests/fixtures/resource_validation/item_registry_invalid";
     private const string ITEM_TEMPLATE_INVALID_ITEM_DIRECTORY =
@@ -27,34 +25,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         "res://tests/fixtures/resource_validation/item_registry_template_isolated/templates";
     private const string RECIPE_INVALID_DIRECTORY =
         "res://tests/fixtures/resource_validation/recipe_registry_invalid";
-    private const string IDENTITY_INVALID_RACE_DIRECTORY =
-        "res://tests/progression/fixtures/identity_registry_invalid/races";
-    private const string IDENTITY_INVALID_SUBRACE_DIRECTORY =
-        "res://tests/progression/fixtures/identity_registry_invalid/subraces";
-    private const string TRAIT_INVALID_DIRECTORY =
-        "res://tests/progression/fixtures/trait_registry_invalid";
-    private const string IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY =
-        "res://tests/progression/fixtures/identity_registry_invalid/stage_advancements";
-    private const string ENEMY_MISSING_ID_SEED_PATH =
-        "res://tests/fixtures/enemy_content/missing_template_id/enemy_content_seed.tres";
-    private const string ENEMY_DUPLICATE_ID_SEED_PATH =
-        "res://tests/fixtures/enemy_content/duplicate_template_id/enemy_content_seed.tres";
-    private const string ENEMY_INVALID_REFERENCE_SEED_PATH =
-        "res://tests/fixtures/enemy_content/invalid_roster/enemy_content_seed.tres";
-    private const string ENEMY_INCOMPLETE_SEED_PATH =
-        "res://tests/fixtures/enemy_content/incomplete_seed/enemy_content_seed.tres";
-    private const string ENEMY_INCOMPLETE_BRAIN_DIRECTORY =
-        "res://tests/fixtures/enemy_content/incomplete_seed/brains";
-    private const string ENEMY_INCOMPLETE_TEMPLATE_DIRECTORY =
-        "res://tests/fixtures/enemy_content/incomplete_seed/templates";
-    private const string ENEMY_INCOMPLETE_ROSTER_DIRECTORY =
-        "res://tests/fixtures/enemy_content/incomplete_seed/rosters";
-    private const string ENEMY_INVALID_INITIAL_STAGE_SEED_PATH =
-        "res://tests/fixtures/enemy_content/invalid_roster_initial_stage/enemy_content_seed.tres";
-    private const string ENEMY_INVALID_SKILL_LEVEL_MAP_SEED_PATH =
-        "res://tests/fixtures/enemy_content/invalid_skill_level_map/enemy_content_seed.tres";
-    private const string BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT =
-        "user://rv/bsp";
+    private const string BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT = "user://rv/bsp";
 
     private readonly TestHarness _test = new();
     private readonly List<string> _reports = new();
@@ -86,8 +57,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         TestFormalPhantasmalKillResource(typedSkillDefinitions);
 
         ValidationDomainResult officialItemResult = ContentValidationRunner.ValidateOfficialItemContent();
-        ValidationDomainResult officialEnemyResult = ContentValidationRunner.ValidateEnemySeed(
-            OFFICIAL_ENEMY_SEED_PATH,
+        ValidationDomainResult officialEnemyResult = ContentValidationRunner.ValidateEnemyJson(
             typedItemDefs,
             typedSkillDefinitions
         );
@@ -150,24 +120,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         ValidationDomainResult validSkillResult = ContentValidationRunner.ValidateSkillResourceFixtureDirectory(
             SKILL_VALID_DIRECTORY
         );
-        ValidationDomainResult professionResult = ContentValidationRunner.ValidateProfessionDirectory(
-            PROFESSION_INVALID_DIRECTORY,
-            typedSkillDefinitions
-        );
-        ValidationDomainResult identityResult = ContentValidationRunner.ValidateIdentityDirectories(
-            "invalid_identity_directories",
-            ["res://data/configs/races", IDENTITY_INVALID_RACE_DIRECTORY],
-            ["res://data/configs/subraces", IDENTITY_INVALID_SUBRACE_DIRECTORY],
-            ["res://data/configs/traits", TRAIT_INVALID_DIRECTORY],
-            ["res://data/configs/age_profiles"],
-            ["res://data/configs/bloodlines"],
-            ["res://data/configs/ascensions"],
-            [
-                "res://data/configs/stage_advancements",
-                IDENTITY_INVALID_STAGE_ADVANCEMENT_DIRECTORY,
-            ],
-            typedSkillDefinitions
-        );
         ValidationDomainResult itemResult = ContentValidationRunner.ValidateItemDirectories(
             "isolated_invalid_items",
             [ITEM_INVALID_DIRECTORY]
@@ -181,43 +133,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             RECIPE_INVALID_DIRECTORY,
             itemDefs
         );
-        ValidationDomainResult enemyMissingResult = ContentValidationRunner.ValidateEnemySeed(
-            ENEMY_MISSING_ID_SEED_PATH,
-            typedItemDefs,
-            typedSkillDefinitions
-        );
-        ValidationDomainResult enemyDuplicateResult = ContentValidationRunner.ValidateEnemySeed(
-            ENEMY_DUPLICATE_ID_SEED_PATH,
-            typedItemDefs,
-            typedSkillDefinitions
-        );
-        ValidationDomainResult enemyInvalidReferenceResult =
-            ContentValidationRunner.ValidateEnemySeed(
-                ENEMY_INVALID_REFERENCE_SEED_PATH,
-                typedItemDefs,
-                typedSkillDefinitions
-            );
-        ValidationDomainResult enemyIncompleteSeedResult =
-            ContentValidationRunner.ValidateEnemySeedWithDirectoryCompleteness(
-                ENEMY_INCOMPLETE_SEED_PATH,
-                ENEMY_INCOMPLETE_TEMPLATE_DIRECTORY,
-                ENEMY_INCOMPLETE_BRAIN_DIRECTORY,
-                ENEMY_INCOMPLETE_ROSTER_DIRECTORY,
-                typedItemDefs,
-                typedSkillDefinitions
-            );
-        ValidationDomainResult enemyInvalidInitialStageResult =
-            ContentValidationRunner.ValidateEnemySeed(
-                ENEMY_INVALID_INITIAL_STAGE_SEED_PATH,
-                typedItemDefs,
-                typedSkillDefinitions
-            );
-        ValidationDomainResult enemyInvalidSkillLevelMapResult =
-            ContentValidationRunner.ValidateEnemySeed(
-                ENEMY_INVALID_SKILL_LEVEL_MAP_SEED_PATH,
-                typedItemDefs,
-                typedSkillDefinitions
-            );
         ValidationDomainResult battleSpecialMissingManifestResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_missing_manifest",
@@ -232,85 +147,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                     "phantom_profile"
                 ),
                 PrepareEmptyBattleSpecialProfileManifestDir("unknown_profile_missing_manifest")
-            );
-        ValidationDomainResult battleSpecialDuplicateProfileResult =
-            ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
-                "battle_special_profile_duplicate_profile",
-                typedSkillDefinitions,
-                PrepareBattleSpecialProfileManifestDir(
-                    "duplicate_profile",
-                    new List<GDictionary>
-                    {
-                        new()
-                        {
-                            ["file_name"] = "a",
-                            ["profile_id"] = "meteor_swarm",
-                            ["owning_skill_ids"] = new GArray { "mage_meteor_swarm" },
-                            ["profile_resource"] = BuildValidMeteorSwarmProfile(),
-                        },
-                        new()
-                        {
-                            ["file_name"] = "b",
-                            ["profile_id"] = "meteor_swarm",
-                            ["owning_skill_ids"] = new GArray { "mage_meteor_swarm" },
-                            ["profile_resource"] = BuildValidMeteorSwarmProfile(),
-                        },
-                    }
-                )
-            );
-        ValidationDomainResult battleSpecialWrongResourceResult =
-            ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
-                "battle_special_profile_wrong_resource_type",
-                typedSkillDefinitions,
-                PrepareBattleSpecialProfileManifestDir(
-                    "wrong_resource_type",
-                    new List<GDictionary>
-                    {
-                        new()
-                        {
-                            ["file_name"] = "wrong_resource",
-                            ["profile_id"] = "meteor_swarm",
-                            ["owning_skill_ids"] = new GArray { "mage_meteor_swarm" },
-                            ["profile_resource"] = new Resource(),
-                        },
-                    }
-                )
-            );
-        ValidationDomainResult battleSpecialMissingOwnerResult =
-            ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
-                "battle_special_profile_missing_owner",
-                typedSkillDefinitions,
-                PrepareBattleSpecialProfileManifestDir(
-                    "missing_owner",
-                    new List<GDictionary>
-                    {
-                        new()
-                        {
-                            ["file_name"] = "missing_owner",
-                            ["profile_id"] = "meteor_swarm",
-                            ["owning_skill_ids"] = new GArray { "missing_skill" },
-                            ["profile_resource"] = BuildValidMeteorSwarmProfile(),
-                        },
-                    }
-                )
-            );
-        ValidationDomainResult battleSpecialBadSchemaResult =
-            ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
-                "battle_special_profile_bad_schema",
-                typedSkillDefinitions,
-                PrepareBattleSpecialProfileManifestDir(
-                    "bad_schema",
-                    new List<GDictionary>
-                    {
-                        new()
-                        {
-                            ["file_name"] = "bad_schema",
-                            ["profile_id"] = "meteor_swarm",
-                            ["owning_skill_ids"] = new GArray { "mage_meteor_swarm" },
-                            ["profile_resource"] = BuildBadSchemaMeteorSwarmProfile(),
-                        },
-                    }
-                )
             );
         ValidationDomainResult worldResult = ContentValidationRunner.ValidateWorldGenerationConfig(
             "invalid_world_generation_config",
@@ -329,23 +165,11 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             new[]
             {
                 skillResult,
-                professionResult,
-                identityResult,
                 itemResult,
                 itemTemplateResult,
                 recipeResult,
-                enemyMissingResult,
-                enemyDuplicateResult,
-                enemyInvalidReferenceResult,
-                enemyIncompleteSeedResult,
-                enemyInvalidInitialStageResult,
-                enemyInvalidSkillLevelMapResult,
                 battleSpecialMissingManifestResult,
                 battleSpecialUnknownProfileResult,
-                battleSpecialDuplicateProfileResult,
-                battleSpecialWrongResourceResult,
-                battleSpecialMissingOwnerResult,
-                battleSpecialBadSchemaResult,
                 worldResult,
                 questResult,
             }
@@ -376,49 +200,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         _test.True(validSkillResult.ErrorCount == 0, "合法技能 targeting fixture 不应产生 validation 错误。");
 
         AssertContainsErrors(
-            professionResult,
-            "非法职业目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate profession_id registered: duplicate_profession",
-            "invalid_bab_progression_profession.bab_progression",
-            "missing_id_profession.tres is missing profession_id",
-            "illegal_reference_profession references missing skill missing_skill",
-            "illegal_reference_profession references missing profession phantom_profession",
-            "illegal_reference_profession grants missing skill missing_skill"
-        );
-
-        AssertContainsErrors(
-            identityResult,
-            "非法身份目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate race_id registered: duplicate_identity_race",
-            "invalid_damage_resistance_race.damage_resistances",
-            "missing_id_race.tres is missing race_id",
-            "parent_mismatch_race.default_subrace_id must be a non-empty StringName",
-            "invalid_charge_scope_trait.charge_scope",
-            "bad_attribute_modifier_trait.attribute_modifiers[0].attribute_id",
-            "bad_attribute_modifier_trait.attribute_modifiers[0].mode uses unsupported value bad_mode",
-            "fixed_source_roll_schema_trait.roll_value_schema requires an instance source",
-            "fixed_source_roll_schema_trait.roll_value_schema cannot be used by fixed sources",
-            "identity_attribute_trait.attribute_modifiers must be empty for identity traits",
-            "invalid_save_tags_trait.save_advantage_tags[1] duplicates save tag poison",
-            "invalid_save_tags_trait.save_disadvantage_tags[0] entry not_a_save_tag",
-            "invalid_save_tags_trait.save_immunity_tags[0] entry sleep_immunity uses removed suffix syntax",
-            "invalid_save_tags_trait.passive_status_effects[0].save_immunity_tags[1] duplicates save tag magic",
-            "missing_source_kind_trait.allowed_source_kinds must include at least one allowed_source_kind",
-            "Trait missing_text_trait.display_name",
-            "Trait missing_text_trait.description",
-            "unsupported_dispatch_trait.trigger_type on_crit has no dispatch coverage",
-            "invalid_target_axis_stage_advancement uses unsupported target_axis unlisted_axis",
-            "invalid_reference_race trait_ids references missing trait missing_trait",
-            "invalid_reference_race references missing age_profile missing_age_profile",
-            "invalid_reference_race references missing default_subrace missing_subrace",
-            "invalid_reference_race references missing subrace missing_subrace",
-            "parent_mismatch_race subrace parent_mismatch_subrace parent_race_id must be parent_mismatch_race",
-            "invalid_reference_subrace trait_ids references missing trait missing_trait",
-            "invalid_reference_subrace references missing parent_race missing_parent_race",
-            "parent_mismatch_subrace parent_race human must list this subrace in subrace_ids"
-        );
-
-        AssertContainsErrors(
             itemResult,
             "非法物品目录中的每个独立 fixture 规则都必须被命中。",
             "Duplicate item_id registered: duplicate_item",
@@ -446,49 +227,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             "missing_id_recipe.tres is missing recipe_id"
         );
 
-        AssertDomainIs(enemyMissingResult, "enemy", "缺失 template_id 的 enemy fixture 应稳定归入 enemy domain。");
-        AssertDomainIs(enemyDuplicateResult, "enemy", "重复 template_id 的 enemy fixture 应稳定归入 enemy domain。");
-        AssertDomainIs(enemyInvalidReferenceResult, "enemy", "非法 roster 引用的 enemy fixture 应稳定归入 enemy domain。");
-        AssertDomainIs(enemyIncompleteSeedResult, "enemy", "遗漏 seed entry 的 enemy fixture 应稳定归入 enemy domain。");
-        AssertDomainIs(enemyInvalidInitialStageResult, "enemy", "initial_stage 不匹配的 roster fixture 应稳定归入 enemy domain。");
-        AssertDomainIs(enemyInvalidSkillLevelMapResult, "enemy", "skill_level_map 非法的 template fixture 应稳定归入 enemy domain。");
-        AssertContainsErrors(
-            enemyMissingResult,
-            "missing template id fixture 必须命中目标规则。",
-            "Enemy template is missing template_id."
-        );
-        AssertContainsErrors(
-            enemyDuplicateResult,
-            "duplicate template fixture 必须命中目标规则，而不是依赖其余 schema 噪声。",
-            "Duplicate enemy template_id registered: duplicate_enemy"
-        );
-        AssertContainsErrors(
-            enemyInvalidReferenceResult,
-            "invalid roster fixture 必须命中 missing template 规则。",
-            "Wild encounter roster invalid_roster stage 0 references missing template missing_template."
-        );
-        AssertContainsErrors(
-            enemyIncompleteSeedResult,
-            "incomplete seed fixture 的三类目录遗漏都必须被命中。",
-            "missing enemy_ai_brains entry for",
-            "missing enemy_templates entry for",
-            "missing wild_encounter_rosters entry for"
-        );
-        AssertContainsErrors(
-            enemyInvalidInitialStageResult,
-            "initial_stage fixture 必须命中 stage 规则，而不是依赖 missing-template 噪声。",
-            "invalid_initial_stage_roster initial_stage 3 does not match any declared stage"
-        );
-        AssertContainsErrors(
-            enemyInvalidSkillLevelMapResult,
-            "skill_level_map fixture 的每种非法 key/value 都必须被命中。",
-            "skill_level_map key 123 must be a StringName",
-            "skill_level_map key string_key_skill must be a StringName",
-            "skill_level_map key phantom_skill does not match any declared skill_id",
-            "skill_level_map[charge] must be an int",
-            "skill_level_map[warrior_heavy_strike] must be >= 1"
-        );
-
         AssertContainsErrors(
             battleSpecialMissingManifestResult,
             "特殊技能 missing-manifest fixture 必须命中目标规则。",
@@ -499,28 +237,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             "特殊技能 unknown-profile fixture 必须命中目标规则。",
             "Battle special profile phantom_profile is missing manifest for skill phantom_special_skill."
         );
-        AssertContainsErrors(
-            battleSpecialDuplicateProfileResult,
-            "特殊技能 duplicate-profile fixture 必须命中目标规则。",
-            "Duplicate battle special profile_id registered: meteor_swarm"
-        );
-        AssertContainsErrors(
-            battleSpecialWrongResourceResult,
-            "特殊技能 wrong-resource fixture 必须命中目标规则。",
-            "Battle special profile meteor_swarm profile_resource must be MeteorSwarmProfile."
-        );
-        AssertContainsErrors(
-            battleSpecialMissingOwnerResult,
-            "特殊技能 missing-owner fixture 的缺失引用和 owner 交叉表都必须被命中。",
-            "Battle special profile meteor_swarm references missing owning skill missing_skill.",
-            "Battle special profile meteor_swarm manifest does not own skill mage_meteor_swarm."
-        );
-        AssertContainsErrors(
-            battleSpecialBadSchemaResult,
-            "特殊技能 bad-schema fixture 必须命中拼写错误，而不是依赖不完整 profile 噪声。",
-            "MeteorSwarmProfile.terrain_profiles[0] uses misspelled accuracy_modifer_spec."
-        );
-
         AssertContainsErrors(
             worldResult,
             "非法世界 fixture 的三条独立边界都必须被命中。",
@@ -793,127 +509,14 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 
     private string PrepareEmptyBattleSpecialProfileManifestDir(string fixtureId)
     {
-        return PrepareBattleSpecialProfileManifestDir(fixtureId, Array.Empty<GDictionary>());
-    }
-
-    private string PrepareBattleSpecialProfileManifestDir(
-        string fixtureId,
-        IReadOnlyList<GDictionary> manifestSpecs
-    )
-    {
         string fixtureRoot = $"{BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT}/{fixtureId}";
         RemoveDirRecursive(fixtureRoot);
         string manifestDir = $"{fixtureRoot}/manifests";
-        string profileDir = $"{fixtureRoot}/profiles";
         Error manifestError = DirAccess.MakeDirRecursiveAbsolute(
             ProjectSettings.GlobalizePath(manifestDir)
         );
-        Error profileError = DirAccess.MakeDirRecursiveAbsolute(
-            ProjectSettings.GlobalizePath(profileDir)
-        );
         _test.True(manifestError == Error.Ok, "应能创建 battle special profile manifest fixture 目录。");
-        _test.True(profileError == Error.Ok, "应能创建 battle special profile profile fixture 目录。");
-
-        for (int specIndex = 0; specIndex < manifestSpecs.Count; specIndex++)
-        {
-            GDictionary spec = manifestSpecs[specIndex];
-            string fileName = DictString(spec, "file_name", $"manifest_{specIndex}");
-            Resource profileResource = spec.ContainsKey("profile_resource")
-                ? spec["profile_resource"].AsGodotObject() as Resource
-                : null;
-            Resource savedProfile = null;
-            if (profileResource != null)
-            {
-                string profilePath = $"{profileDir}/{fileName}_profile.tres";
-                Error profileSaveError = ResourceSaver.Save(profileResource, profilePath);
-                _test.True(profileSaveError == Error.Ok, "应能保存 battle special profile fixture profile。");
-                savedProfile = ResourceLoader.Load(profilePath);
-            }
-
-            StringName profileId = ToStringName(
-                GetDictValueOrDefault(spec, "profile_id", "meteor_swarm")
-            );
-            BattleSpecialProfileManifest manifest = new()
-            {
-                profile_id = profileId,
-                schema_version = DictInt(spec, "schema_version", 1),
-                owning_skill_ids = ToStringNameArray(
-                    GetDictValueOrDefault(spec, "owning_skill_ids", new GArray { "mage_meteor_swarm" })
-                ),
-                runtime_resolver_id = ToStringName(
-                    GetDictValueOrDefault(spec, "runtime_resolver_id", profileId)
-                ),
-                profile_resource = savedProfile,
-                runtime_read_policy = ToStringName(
-                    GetDictValueOrDefault(spec, "runtime_read_policy", "forbidden")
-                ),
-            };
-            string manifestPath = $"{manifestDir}/{fileName}.tres";
-            Error manifestSaveError = ResourceSaver.Save(manifest, manifestPath);
-            _test.True(manifestSaveError == Error.Ok, "应能保存 battle special profile fixture manifest。");
-        }
         return manifestDir;
-    }
-
-    private static MeteorSwarmProfile BuildValidMeteorSwarmProfile()
-    {
-        return new MeteorSwarmProfile
-        {
-            coverage_shape_id = "square_7x7",
-            radius = 3,
-            impact_components = new Godot.Collections.Array<MeteorSwarmImpactComponent>
-            {
-                new()
-                {
-                    component_id = "fixture_impact",
-                    role_label = "fixture",
-                    damage_tag = "fire",
-                    base_power = 1,
-                    ring_min = 0,
-                    ring_max = 3,
-                },
-            },
-            terrain_profiles = new GArray
-            {
-                new GDictionary
-                {
-                    ["terrain_profile_id"] = "fixture_terrain",
-                    ["ring_min"] = 0,
-                    ["ring_max"] = 3,
-                    ["move_cost_delta"] = 0,
-                    ["lifetime_policy"] = "battle",
-                    ["duration_tu"] = 0,
-                    ["tick_interval_tu"] = 0,
-                    ["tick_effect_type"] = "none",
-                    ["render_overlay_id"] = "fixture_overlay",
-                },
-            },
-            friendly_fire_soft_expected_hp_percent = 10,
-            friendly_fire_hard_expected_hp_percent = 25,
-            friendly_fire_hard_worst_case_hp_percent = 50,
-        };
-    }
-
-    private static MeteorSwarmProfile BuildBadSchemaMeteorSwarmProfile()
-    {
-        MeteorSwarmProfile profile = BuildValidMeteorSwarmProfile();
-        profile.terrain_profiles = new GArray
-        {
-            new GDictionary
-            {
-                ["terrain_profile_id"] = "meteor_swarm_dust",
-                ["ring_min"] = 0,
-                ["ring_max"] = 2,
-                ["move_cost_delta"] = 0,
-                ["lifetime_policy"] = "timed",
-                ["duration_tu"] = 50,
-                ["tick_interval_tu"] = 5,
-                ["tick_effect_type"] = "none",
-                ["accuracy_modifer_spec"] = new GDictionary { ["modifier_delta"] = -2 },
-                ["render_overlay_id"] = "meteor_dust_cloud",
-            },
-        };
-        return profile;
     }
 
     private static Godot.Collections.Array<StringName> ToStringNameArray(object valuesOption)
@@ -1099,20 +702,13 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 
     private static WorldGenerationDefinition BuildInvalidWorldGenerationDefinition()
     {
-        const string resourcePath =
-            "res://synthetic/resource_validation_invalid_world_generation.tres";
-        using TestContentResourceLoader loader = new();
-        using WorldMapGenerationConfig source = new()
-        {
-            world_size_in_chunks = Vector2I.Zero,
-            chunk_size = Vector2I.Zero,
-            starting_wild_spawn_min_distance = 2,
-            starting_wild_spawn_max_distance = 1,
-        };
-        loader.RegisterCanonical(resourcePath, source);
-        WorldMapGenerationConfig canonicalSource =
-            loader.LoadCanonical<WorldMapGenerationConfig>(resourcePath);
-        return canonicalSource.ToDefinition(resourcePath, loader);
+        return TestWorldGenerationDefinitionFactory.Create(
+            "resource_validation_invalid_world",
+            worldSizeInChunks: Vector2I.Zero,
+            chunkSize: Vector2I.Zero,
+            startingWildSpawnMinDistance: 2,
+            startingWildSpawnMaxDistance: 1
+        );
     }
 
     private static Godot.Collections.Array<GDictionary> DuplicateDictArray(

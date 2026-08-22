@@ -183,7 +183,7 @@ internal static class ContentValidationRunner
     )
     {
         using ProfessionContentRegistry registry = new(
-            new TestContentResourceLoader(),
+            new GodotContentJsonSourceReader(),
             loadDefaultContent: false
         );
         registry.Setup(skillDefinitions, directoryPath);
@@ -197,13 +197,13 @@ internal static class ContentValidationRunner
     {
         return ValidateIdentityDirectories(
             label,
-            ["res://data/configs/races"],
-            ["res://data/configs/subraces"],
+            [ProfessionIdentityJsonDomains.RaceDirectory],
+            [ProfessionIdentityJsonDomains.SubraceDirectory],
             ["res://data/configs/traits"],
-            ["res://data/configs/age_profiles"],
-            ["res://data/configs/bloodlines"],
-            ["res://data/configs/ascensions"],
-            ["res://data/configs/stage_advancements"],
+            [ProfessionIdentityJsonDomains.AgeProfileDirectory],
+            [ProfessionIdentityJsonDomains.BloodlineDirectory],
+            [ProfessionIdentityJsonDomains.AscensionDirectory],
+            [ProfessionIdentityJsonDomains.StageAdvancementDirectory],
             skillDefinitions ?? new Dictionary<StringName, SkillDefinition>()
         );
     }
@@ -318,34 +318,14 @@ internal static class ContentValidationRunner
         return BuildDomainResult("recipe", directoryPath, registry.Validate());
     }
 
-    public static ValidationDomainResult ValidateEnemySeed(
-        string seedResourcePath,
+    public static ValidationDomainResult ValidateEnemyJson(
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
-        using TestContentResourceLoader loader = new();
-        using EnemyContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.ConfigureSeedResource(seedResourcePath, rebuildNow: false, validateSeedDirCompleteness: false);
+        using EnemyContentRegistry registry = new(loadDefaultContent: false);
         RebuildEnemyRegistry(registry, itemDefinitions, skillDefinitions);
-        return BuildDomainResult("enemy", seedResourcePath, registry.Validate());
-    }
-
-    public static ValidationDomainResult ValidateEnemySeedWithDirectoryCompleteness(
-        string seedResourcePath,
-        string templateDirectory,
-        string brainDirectory,
-        string rosterDirectory,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
-    )
-    {
-        using TestContentResourceLoader loader = new();
-        using EnemyContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.ConfigureDirectories(templateDirectory, brainDirectory, rosterDirectory, false);
-        registry.ConfigureSeedResource(seedResourcePath, rebuildNow: false, validateSeedDirCompleteness: true);
-        RebuildEnemyRegistry(registry, itemDefinitions, skillDefinitions);
-        return BuildDomainResult("enemy", seedResourcePath, registry.Validate());
+        return BuildDomainResult("enemy", "code_owned_json", registry.Validate());
     }
 
     private static void RebuildEnemyRegistry(
@@ -370,8 +350,7 @@ internal static class ContentValidationRunner
         string manifestDirectory = ""
     )
     {
-        using TestContentResourceLoader loader = new();
-        using BattleSpecialProfileRegistry registry = new(loader);
+        using BattleSpecialProfileRegistry registry = new();
         if (!string.IsNullOrEmpty(manifestDirectory))
             registry.SetManifestDirectory(manifestDirectory);
         registry.Rebuild(skillDefinitions);
@@ -382,38 +361,24 @@ internal static class ContentValidationRunner
         IEnumerable<StringName> battleEncounterIds = null
     )
     {
-        using TestContentResourceLoader loader = new();
+        var registry = new WorldContentRegistry();
+        registry.Rebuild();
         WorldMapContentValidator validator = new();
         var errors = new List<string>();
-        foreach (WorldPresetRegistry.WorldPresetInfo preset in WorldPresetRegistry.ListPresetsTyped())
+        AppendUniqueErrors(errors, registry.GetValidationErrors());
+        foreach (
+            (StringName generationId, WorldGenerationDefinition definition)
+            in registry.GetGenerations()
+        )
         {
-            string resourcePath = preset?.GenerationConfigPath ?? "";
-            try
-            {
-                string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
-                WorldMapGenerationConfig source = loader.LoadCanonical<WorldMapGenerationConfig>(
-                    canonicalPath
-                );
-                WorldGenerationDefinition definition = source.ToDefinition(canonicalPath, loader);
-                AppendUniqueErrors(
-                    errors,
-                    validator.ValidateGenerationConfigTyped(
-                        definition,
-                        canonicalPath,
-                        battleEncounterIds
-                    )
-                );
-            }
-            catch (Exception exception)
-            {
-                AppendUniqueErrors(
-                    errors,
-                    new[]
-                    {
-                        $"World preset {resourcePath} projection failed: {exception.Message}",
-                    }
-                );
-            }
+            AppendUniqueErrors(
+                errors,
+                validator.ValidateGenerationConfigTyped(
+                    definition,
+                    generationId.ToString(),
+                    battleEncounterIds
+                )
+            );
         }
         return BuildDomainResult(
             "world",
@@ -491,7 +456,7 @@ internal static class ContentValidationRunner
     private static RaceContentRegistry BuildRaceRegistry(string[] directoryPaths)
     {
         RaceContentRegistry registry = new(
-            new TestContentResourceLoader(),
+            new GodotContentJsonSourceReader(),
             loadDefaultContent: false
         );
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
@@ -501,7 +466,7 @@ internal static class ContentValidationRunner
     private static SubraceContentRegistry BuildSubraceRegistry(string[] directoryPaths)
     {
         SubraceContentRegistry registry = new(
-            new TestContentResourceLoader(),
+            new GodotContentJsonSourceReader(),
             loadDefaultContent: false
         );
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
@@ -521,7 +486,7 @@ internal static class ContentValidationRunner
     private static AgeContentRegistry BuildAgeRegistry(string[] directoryPaths)
     {
         AgeContentRegistry registry = new(
-            new TestContentResourceLoader(),
+            new GodotContentJsonSourceReader(),
             loadDefaultContent: false
         );
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
@@ -531,7 +496,7 @@ internal static class ContentValidationRunner
     private static BloodlineContentRegistry BuildBloodlineRegistry(string[] directoryPaths)
     {
         BloodlineContentRegistry registry = new(
-            new TestContentResourceLoader(),
+            new GodotContentJsonSourceReader(),
             loadDefaultContent: false
         );
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
@@ -541,7 +506,7 @@ internal static class ContentValidationRunner
     private static AscensionContentRegistry BuildAscensionRegistry(string[] directoryPaths)
     {
         AscensionContentRegistry registry = new(
-            new TestContentResourceLoader(),
+            new GodotContentJsonSourceReader(),
             loadDefaultContent: false
         );
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
@@ -553,7 +518,7 @@ internal static class ContentValidationRunner
     )
     {
         StageAdvancementContentRegistry registry = new(
-            new TestContentResourceLoader(),
+            new GodotContentJsonSourceReader(),
             loadDefaultContent: false
         );
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));

@@ -17,6 +17,144 @@
           "/data/configs/json/skills/**/*.json"
         ],
         "url": "./data/schemas/content/skills.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/enemies/brains/**/*.json"
+        ],
+        "url": "./data/schemas/content/enemy_ai_brains.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/enemies/templates/**/*.json"
+        ],
+        "url": "./data/schemas/content/enemy_templates.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/enemies/rosters/**/*.json"
+        ],
+        "url": "./data/schemas/content/encounter_rosters.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/battle_encounters/**/*.json"
+        ],
+        "url": "./data/schemas/content/battle_encounters.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/barriers/**/*.json"
+        ],
+        "url": "./data/schemas/content/barriers.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/barrier_layers/**/*.json"
+        ],
+        "url": "./data/schemas/content/barrier_layers.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/skill_special_profiles/manifests/**/*.json"
+        ],
+        "url": "./data/schemas/content/skill_special_profile_manifests.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/skill_special_profiles/profiles/**/*.json"
+        ],
+        "url": "./data/schemas/content/skill_special_profiles.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/quests/**/*.json"
+        ],
+        "url": "./data/schemas/content/quests.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/contingency_templates/**/*.json"
+        ],
+        "url": "./data/schemas/content/contingency_templates.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/professions/**/*.json"
+        ],
+        "url": "./data/schemas/content/professions.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/races/**/*.json"
+        ],
+        "url": "./data/schemas/content/races.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/subraces/**/*.json"
+        ],
+        "url": "./data/schemas/content/subraces.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/faith/**/*.json"
+        ],
+        "url": "./data/schemas/content/faith.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/age_profiles/**/*.json"
+        ],
+        "url": "./data/schemas/content/age_profiles.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/bloodlines/**/*.json"
+        ],
+        "url": "./data/schemas/content/bloodlines.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/ascensions/**/*.json"
+        ],
+        "url": "./data/schemas/content/ascensions.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/stage_advancements/**/*.json"
+        ],
+        "url": "./data/schemas/content/stage_advancements.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/battle_sim/profiles/**/*.json"
+        ],
+        "url": "./data/schemas/content/battle_sim_profiles.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/battle_sim/scenarios/**/*.json"
+        ],
+        "url": "./data/schemas/content/battle_sim_scenarios.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/world_presets/**/*.json"
+        ],
+        "url": "./data/schemas/content/world_presets.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/world_generations/**/*.json"
+        ],
+        "url": "./data/schemas/content/world_generations.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/world_shared/**/*.json"
+        ],
+        "url": "./data/schemas/content/world_shared.schema.json"
       }
     ]
   }

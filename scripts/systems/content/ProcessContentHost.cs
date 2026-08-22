@@ -247,6 +247,10 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
             artifact.Snapshot.Skills,
             engineAssets
         );
+        EnemySpriteAssetCatalogValidator.ThrowIfInvalid(
+            artifact.Snapshot.EnemyTemplates,
+            engineAssets
+        );
         return artifact;
     }
 
