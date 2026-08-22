@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "side_herb_moonfern",
+      "display_name": "月蕨寻觅",
+      "description": "月蕨只在迷雾边缘生长。医师说它对抗灰烬毒素有奇效——如果真有那种东西的话。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "contract",
+        "side"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "gather_moonfern",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "moonfern_sample",
+            "target_value": 2
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 80
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "antidote_herb",
+            "quantity": 3
+          }
+        }
+      ]
+    }
+  ]
+}

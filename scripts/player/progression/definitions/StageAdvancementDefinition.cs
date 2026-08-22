@@ -60,43 +60,6 @@ public sealed class StageAdvancementDefinition
     public bool GrantsTraits { get; }
     public bool GrantsBodySizeChange { get; }
     internal StageAdvancementTargetAxis TargetAxisKind =>
-        StageAdvancementModifier.ToTargetAxis(TargetAxis);
+        StageAdvancementContentRules.ToTargetAxis(TargetAxis);
 
-    internal static StageAdvancementDefinition FromResource(
-        StageAdvancementModifier source,
-        string path
-    )
-    {
-        IdentityDefinitionProjection.RequireResource(
-            source,
-            path,
-            nameof(StageAdvancementModifier)
-        );
-        return new StageAdvancementDefinition(
-            source.modifier_id,
-            IdentityDefinitionProjection.CopyString(source.display_name, $"{path}.display_name"),
-            source.target_axis,
-            source.stage_offset,
-            source.max_stage_id,
-            IdentityDefinitionProjection.CopyStringNames(
-                source.AppliesToRaceIdsBorrowed,
-                $"{path}.applies_to_race_ids"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.AppliesToSubraceIdsBorrowed,
-                $"{path}.applies_to_subrace_ids"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.AppliesToBloodlineIdsBorrowed,
-                $"{path}.applies_to_bloodline_ids"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.AppliesToAscensionIdsBorrowed,
-                $"{path}.applies_to_ascension_ids"
-            ),
-            source.grants_attributes,
-            source.grants_traits,
-            source.grants_body_size_change
-        );
-    }
 }

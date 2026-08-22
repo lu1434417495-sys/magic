@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "main_ashen_gate",
+      "display_name": "灰烬之门",
+      "description": "裂隙无法被封印——因为它不是意外。穿过它，你会闻到三百年前的硝烟。另一侧有人（或者什么东西）在等你。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "main_story",
+        "contract"
+      ],
+      "accept_requirements": [
+        {
+          "kind": "quest_completed",
+          "payload": {
+            "quest_id": "main_crack_seal"
+          }
+        }
+      ],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "report_to_board",
+          "kind": "settlement_action",
+          "payload": {
+            "target_id": "service_contract_board",
+            "target_value": 1
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 1000
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "hero",
+            "entries": [
+              {
+                "kind": "skill_unlock",
+                "payload": {
+                  "target_id": "warrior_backstep",
+                  "amount": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

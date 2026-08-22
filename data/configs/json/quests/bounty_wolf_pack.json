@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "bounty_wolf_pack",
+      "display_name": "狼群悬赏",
+      "description": "商道附近的荒狼群又聚集起来了。清理它们，赏金归你。",
+      "provider_kind": "service_bounty_registry",
+      "provider_interaction_id": "service_bounty_registry",
+      "listing_channels": [
+        "bounty_registry"
+      ],
+      "listing_settlement_ids": [
+        "template_town",
+        "template_city",
+        "template_capital",
+        "template_world_stronghold",
+        "template_metropolis"
+      ],
+      "tags": [
+        "bounty",
+        "repeatable",
+        "main_world"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": true,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_wolves",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "wolf_pack",
+            "target_value": 5
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 100
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "beast_hide",
+            "quantity": 2
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "side_dispatch_delivery",
+      "display_name": "封缄急件",
+      "description": "一份封缄的急件需要送到邻镇。路途不长，但最近不太平。小心保管。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "contract",
+        "side"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "deliver_dispatch",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "sealed_dispatch",
+            "target_value": 1
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 60
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "hero",
+            "entries": [
+              {
+                "kind": "attribute_progress",
+                "payload": {
+                  "target_id": "perception",
+                  "amount": 10
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,23 +1,22 @@
 using System.Collections.Generic;
-using System.IO;
 using Godot;
 
 public class AscensionContentRegistry : IdentityContentRegistryBase
 {
-    private const string AscensionConfigDirectoryPath = "res://data/configs/ascensions";
+    private const string AscensionConfigDirectoryPath = ProfessionIdentityJsonDomains.AscensionDirectory;
 
     private readonly Dictionary<StringName, AscensionDefinition> _ascension_defs = new();
     private readonly Dictionary<StringName, AscensionStageDefinition> _ascension_stage_defs = new();
+    private readonly IContentJsonSourceReader _jsonSourceReader;
 
-    internal AscensionContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal AscensionContentRegistry(bool loadDefaultContent = true)
+        : this(new GodotContentJsonSourceReader(), loadDefaultContent) { }
 
-    internal AscensionContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
-    )
-        : base(resourceLoader)
+    internal AscensionContentRegistry(IContentJsonSourceReader jsonSourceReader, bool loadDefaultContent = true)
+        : base()
     {
+        _jsonSourceReader = jsonSourceReader
+            ?? throw new System.ArgumentNullException(nameof(jsonSourceReader));
         _registry_label = "AscensionContentRegistry";
         if (loadDefaultContent)
             Rebuild();
@@ -36,7 +35,7 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
         _ascension_stage_defs.Clear();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
-            _scan_directory(directoryPath);
+            ImportDirectory(directoryPath);
         foreach (var e in _collect_validation_errors())
             _validation_errors.Add(e);
     }
@@ -53,98 +52,36 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
         _ascension_stage_defs.Clear();
     }
 
-    protected override void _register_resource(string resourcePath)
+    private void ImportDirectory(string directoryPath)
     {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
+        ContentImportBatch<AscensionImportModel> batch = ProfessionIdentityJsonImport
+            .CreateAscensionDescriptor(directoryPath, _jsonSourceReader)
+            .Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            _validation_errors.Add(ProfessionIdentityJsonImport.FormatDiagnostic(diagnostic));
+        foreach (ContentImportEntry<AscensionImportModel> entry in batch.Entries)
         {
-            _validation_errors.Add($"Failed to load ascension config {resourcePath}.");
-            return;
-        }
-        if (resource is AscensionDef ascensionDef)
-        {
-            _register_ascension(resourcePath, ascensionDef);
-            return;
-        }
-        if (resource is AscensionStageDef stageDef)
-        {
-            _register_ascension_stage(resourcePath, stageDef);
-            return;
-        }
-        _validation_errors.Add(
-            $"Ascension config {resourcePath} is not an AscensionDef or AscensionStageDef."
-        );
-    }
-
-    private void _register_ascension(string resourcePath, AscensionDef ascensionDef)
-    {
-        if (ascensionDef == null)
-        {
-            _validation_errors.Add(
-                $"Ascension config {resourcePath} failed to cast to AscensionDef."
-            );
-            return;
-        }
-        if (ascensionDef.ascension_id == "")
-        {
-            _validation_errors.Add($"Ascension config {resourcePath} is missing ascension_id.");
-            return;
-        }
-        if (_ascension_defs.ContainsKey(ascensionDef.ascension_id))
-        {
-            _validation_errors.Add(
-                $"Duplicate ascension_id registered: {ascensionDef.ascension_id}"
-            );
-            return;
-        }
-        try
-        {
-            AscensionDefinition definition = AscensionDefinition.FromResource(
-                ascensionDef,
-                $"ascension.{ascensionDef.ascension_id}"
-            );
-            _ascension_defs.Add(definition.AscensionId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validation_errors.Add(
-                $"Ascension config {resourcePath} projection failed: {exception.Message}"
-            );
-        }
-    }
-
-    private void _register_ascension_stage(string resourcePath, AscensionStageDef stageDef)
-    {
-        if (stageDef == null)
-        {
-            _validation_errors.Add(
-                $"Ascension stage config {resourcePath} failed to cast to AscensionStageDef."
-            );
-            return;
-        }
-        if (stageDef.stage_id == "")
-        {
-            _validation_errors.Add($"Ascension stage config {resourcePath} is missing stage_id.");
-            return;
-        }
-        if (_ascension_stage_defs.ContainsKey(stageDef.stage_id))
-        {
-            _validation_errors.Add($"Duplicate ascension stage_id registered: {stageDef.stage_id}");
-            return;
-        }
-        try
-        {
-            AscensionStageDefinition definition = AscensionStageDefinition.FromResource(
-                stageDef,
-                $"ascension_stage.{stageDef.stage_id}"
-            );
-            _ascension_stage_defs.Add(definition.StageId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validation_errors.Add(
-                $"Ascension stage config {resourcePath} projection failed: {exception.Message}"
-            );
+            try
+            {
+                if (entry.Import.Kind == "ascension")
+                {
+                    AscensionDefinition definition = ProfessionIdentityDefinitionProjector.ProjectAscension(entry.Import);
+                    if (!_ascension_defs.TryAdd(definition.AscensionId, definition))
+                        _validation_errors.Add($"Duplicate ascension_id registered: {definition.AscensionId}");
+                }
+                else
+                {
+                    AscensionStageDefinition definition = ProfessionIdentityDefinitionProjector.ProjectAscensionStage(entry.Import);
+                    if (!_ascension_stage_defs.TryAdd(definition.StageId, definition))
+                        _validation_errors.Add($"Duplicate ascension stage_id registered: {definition.StageId}");
+                }
+            }
+            catch (System.Exception exception)
+            {
+                _validation_errors.Add(
+                    $"Ascension JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                );
+            }
         }
     }
 

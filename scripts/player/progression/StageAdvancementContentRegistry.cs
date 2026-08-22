@@ -1,23 +1,22 @@
 using System.Collections.Generic;
-using System.IO;
 using Godot;
 
 public class StageAdvancementContentRegistry : IdentityContentRegistryBase
 {
     private const string StageAdvancementConfigDirectoryPath =
-        "res://data/configs/stage_advancements";
+        ProfessionIdentityJsonDomains.StageAdvancementDirectory;
 
     private readonly Dictionary<StringName, StageAdvancementDefinition> _stage_advancement_defs = new();
+    private readonly IContentJsonSourceReader _jsonSourceReader;
 
-    internal StageAdvancementContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal StageAdvancementContentRegistry(bool loadDefaultContent = true)
+        : this(new GodotContentJsonSourceReader(), loadDefaultContent) { }
 
-    internal StageAdvancementContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
-    )
-        : base(resourceLoader)
+    internal StageAdvancementContentRegistry(IContentJsonSourceReader jsonSourceReader, bool loadDefaultContent = true)
+        : base()
     {
+        _jsonSourceReader = jsonSourceReader
+            ?? throw new System.ArgumentNullException(nameof(jsonSourceReader));
         _registry_label = "StageAdvancementContentRegistry";
         if (loadDefaultContent)
             Rebuild();
@@ -35,7 +34,7 @@ public class StageAdvancementContentRegistry : IdentityContentRegistryBase
         _stage_advancement_defs.Clear();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
-            _scan_directory(directoryPath);
+            ImportDirectory(directoryPath);
         foreach (var e in _collect_validation_errors())
             _validation_errors.Add(e);
     }
@@ -48,49 +47,27 @@ public class StageAdvancementContentRegistry : IdentityContentRegistryBase
         _stage_advancement_defs.Clear();
     }
 
-    protected override void _register_resource(string resourcePath)
+    private void ImportDirectory(string directoryPath)
     {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
+        ContentImportBatch<StageAdvancementImportModel> batch = ProfessionIdentityJsonImport
+            .CreateStageAdvancementDescriptor(directoryPath, _jsonSourceReader)
+            .Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            _validation_errors.Add(ProfessionIdentityJsonImport.FormatDiagnostic(diagnostic));
+        foreach (ContentImportEntry<StageAdvancementImportModel> entry in batch.Entries)
         {
-            _validation_errors.Add($"Failed to load stage advancement config {resourcePath}.");
-            return;
-        }
-        if (resource is not StageAdvancementModifier modifier)
-        {
-            _validation_errors.Add(
-                $"Stage advancement config {resourcePath} is not a StageAdvancementModifier."
-            );
-            return;
-        }
-        if (modifier.modifier_id == "")
-        {
-            _validation_errors.Add(
-                $"Stage advancement config {resourcePath} is missing modifier_id."
-            );
-            return;
-        }
-        if (_stage_advancement_defs.ContainsKey(modifier.modifier_id))
-        {
-            _validation_errors.Add(
-                $"Duplicate stage advancement modifier_id registered: {modifier.modifier_id}"
-            );
-            return;
-        }
-
-        try
-        {
-            StageAdvancementDefinition definition = StageAdvancementDefinition.FromResource(
-                modifier,
-                $"stage_advancement.{modifier.modifier_id}"
-            );
-            _stage_advancement_defs.Add(definition.ModifierId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validation_errors.Add(
-                $"Stage advancement config {resourcePath} projection failed: {exception.Message}"
-            );
+            try
+            {
+                StageAdvancementDefinition definition = ProfessionIdentityDefinitionProjector.Project(entry.Import);
+                if (!_stage_advancement_defs.TryAdd(definition.ModifierId, definition))
+                    _validation_errors.Add($"Duplicate stage advancement modifier_id registered: {definition.ModifierId}");
+            }
+            catch (System.Exception exception)
+            {
+                _validation_errors.Add(
+                    $"Stage advancement JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                );
+            }
         }
     }
 

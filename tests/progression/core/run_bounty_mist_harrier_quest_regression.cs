@@ -14,8 +14,7 @@ public partial class run_bounty_mist_harrier_quest_regression : LifecycleTestSce
     {
         try
         {
-            using TestContentResourceLoader loader = new();
-            QuestDefinition quest = LoadQuest(loader);
+            QuestDefinition quest = LoadQuest();
             TestAuthoredBountyContract(quest);
             TestCrossBattleProgressClaimAndRepeat(quest);
         }
@@ -87,7 +86,7 @@ public partial class run_bounty_mist_harrier_quest_regression : LifecycleTestSce
             _test.Eq(objective.ObjectiveId, ObjectiveId, "清剿目标 ID 应稳定。");
             _test.Eq(
                 objective.ObjectiveType,
-                QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
+                QuestContentKinds.ToStringName(QuestObjectiveKind.DefeatEnemy),
                 "《迷雾猎手》应跨战累计普通 defeat_enemy 事件。"
             );
             _test.Eq(
@@ -104,7 +103,7 @@ public partial class run_bounty_mist_harrier_quest_regression : LifecycleTestSce
             QuestRewardDefinition reward = quest.Rewards[0];
             _test.Eq(
                 reward.RewardType,
-                QuestDef.ToStringName(QuestRewardKind.Gold),
+                QuestContentKinds.ToStringName(QuestRewardKind.Gold),
                 "《迷雾猎手》应奖励金币。"
             );
             _test.Eq(reward.GoldAmount, 250, "《迷雾猎手》应奖励250金币。");
@@ -180,11 +179,13 @@ public partial class run_bounty_mist_harrier_quest_regression : LifecycleTestSce
         );
     }
 
-    private static QuestDefinition LoadQuest(TestContentResourceLoader loader)
+    private static QuestDefinition LoadQuest()
     {
-        const string path = "res://data/configs/quests/bounty_mist_harrier.tres";
-        QuestDef resource = loader.LoadCanonical<QuestDef>(path);
-        return resource != null ? QuestDefinition.FromResource(resource, path) : null;
+        var registry = new QuestContentRegistry();
+        registry.Rebuild();
+        return registry.TryGetDefinition(QuestId, out QuestDefinition definition)
+            ? definition
+            : null;
     }
 
     private static CharacterManagementModule BuildManager(
@@ -211,7 +212,7 @@ public partial class run_bounty_mist_harrier_quest_regression : LifecycleTestSce
         StringName encounterId
     ) =>
         QuestProgressService.QuestProgressEventData.CreateProgressByObjectiveTarget(
-            QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
+            QuestContentKinds.ToStringName(QuestObjectiveKind.DefeatEnemy),
             enemyTemplateId,
             count,
             worldStep,

@@ -51,33 +51,4 @@ public sealed class BloodlineStageDefinition
     public IReadOnlyList<RacialGrantedSkillDefinition> RacialGrantedSkills { get; }
     public IReadOnlyList<string> TraitSummary { get; }
 
-    internal static BloodlineStageDefinition FromResource(
-        BloodlineStageDef source,
-        string path
-    )
-    {
-        IdentityDefinitionProjection.RequireResource(source, path, nameof(BloodlineStageDef));
-        return new BloodlineStageDefinition(
-            source.stage_id,
-            source.bloodline_id,
-            IdentityDefinitionProjection.CopyString(source.display_name, $"{path}.display_name"),
-            IdentityDefinitionProjection.CopyString(source.description, $"{path}.description"),
-            IdentityDefinitionProjection.CopyAttributeModifiers(
-                source.AttributeModifiersBorrowed,
-                $"{path}.attribute_modifiers"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.TraitIdsBorrowed,
-                $"{path}.trait_ids"
-            ),
-            IdentityDefinitionProjection.CopyRacialGrantedSkills(
-                source.RacialGrantedSkillsBorrowed,
-                $"{path}.racial_granted_skills"
-            ),
-            IdentityDefinitionProjection.CopyStrings(
-                source.TraitSummaryBorrowed,
-                $"{path}.trait_summary"
-            )
-        );
-    }
 }

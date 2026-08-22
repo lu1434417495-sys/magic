@@ -48,27 +48,4 @@ public sealed class AgeStageRuleDefinition
     public bool SelectableInCreation { get; }
     public bool ReachableByAging { get; }
 
-    internal static AgeStageRuleDefinition FromResource(AgeStageRule source, string path)
-    {
-        IdentityDefinitionProjection.RequireResource(source, path, nameof(AgeStageRule));
-        return new AgeStageRuleDefinition(
-            source.stage_id,
-            IdentityDefinitionProjection.CopyString(source.display_name, $"{path}.display_name"),
-            IdentityDefinitionProjection.CopyString(source.description, $"{path}.description"),
-            IdentityDefinitionProjection.CopyAttributeModifiers(
-                source.AttributeModifiersBorrowed,
-                $"{path}.attribute_modifiers"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.TraitIdsBorrowed,
-                $"{path}.trait_ids"
-            ),
-            IdentityDefinitionProjection.CopyStrings(
-                source.TraitSummaryBorrowed,
-                $"{path}.trait_summary"
-            ),
-            source.selectable_in_creation,
-            source.reachable_by_aging
-        );
-    }
 }

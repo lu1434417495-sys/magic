@@ -148,44 +148,30 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         AttributeSourceContext context = new()
         {
             unit_progress = progress,
-            race_def = TestProgressionDefinitionProjection.Race(
-                MakeRace(Modifier("strength", 1))
-            ),
-            subrace_def = TestProgressionDefinitionProjection.Subrace(
-                MakeSubrace(Modifier("strength", 2))
-            ),
-            age_stage_rule = TestProgressionDefinitionProjection.AgeStageRule(
-                MakeAgeStageRule("old", Modifier("constitution", 3))
-            ),
+            race_def = MakeRace(Modifier("strength", 1)),
+            subrace_def = MakeSubrace(Modifier("strength", 2)),
+            age_stage_rule = MakeAgeStageRule("old", Modifier("constitution", 3)),
             age_stage_source_type = "stage_advancement",
             age_stage_source_id = "growth_boon",
-            bloodline_def = TestProgressionDefinitionProjection.Bloodline(
-                MakeBloodline(
+            bloodline_def = MakeBloodline(
                     "titan",
                     new[] { new StringName("titan_awakened") },
                     Modifier("willpower", 1)
-                )
             ),
-            bloodline_stage_def = TestProgressionDefinitionProjection.BloodlineStage(
-                MakeBloodlineStage(
+            bloodline_stage_def = MakeBloodlineStage(
                     "titan_awakened",
                     "titan",
                     Modifier("strength", 4)
-                )
             ),
-            ascension_def = TestProgressionDefinitionProjection.Ascension(
-                MakeAscension(
+            ascension_def = MakeAscension(
                     "dragon_ascension",
                     new[] { new StringName("dragon_awakened") }
-                )
             ),
-            ascension_stage_def = TestProgressionDefinitionProjection.AscensionStage(
-                MakeAscensionStage(
+            ascension_stage_def = MakeAscensionStage(
                     "dragon_awakened",
                     "dragon_ascension",
                     Modifier("intelligence", 5),
                     Modifier("perception", 6)
-                )
             ),
             versatility_pick = "agility",
         };
@@ -207,16 +193,9 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         UnitProgress progress = MakeProgress("boundary");
         progress.unit_base_attributes.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
 
-        ProfessionDef profession = new()
-        {
-            profession_id = "warrior",
-            max_rank = 3,
-            bab_progression = "full",
-        };
-        profession.attribute_modifiers = new Godot.Collections.Array<AttributeModifier>
-        {
-            Modifier("strength", 1, valuePerRank: 1),
-        };
+        ProfessionDefinition profession = MakeProfession(
+            "warrior", BuildAttributeModifierDefinitions(Modifier("strength", 1, valuePerRank: 1))
+        );
         SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
             "toughness",
             skillType: "passive",
@@ -228,7 +207,7 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
 
         UnitProfessionProgress professionProgress = new()
         {
-            profession_id = profession.profession_id,
+            profession_id = profession.ProfessionId,
             rank = 2,
             is_active = true,
         };
@@ -238,7 +217,7 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
             skill_id = skill.SkillId,
             is_learned = true,
             skill_level = 0,
-            profession_granted_by = profession.profession_id,
+            profession_granted_by = profession.ProfessionId,
         };
         progress.SetSkillProgress(skillProgress);
 
@@ -256,12 +235,10 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
                 {
                     [skill.SkillId] = skill,
                 },
-                profession_defs = TestProgressionDefinitionProjection.Professions(
-                    new Dictionary<StringName, ProfessionDef>
-                    {
-                        [profession.profession_id] = profession,
-                    }
-                ),
+                profession_defs = new Dictionary<StringName, ProfessionDefinition>
+                {
+                    [profession.ProfessionId] = profession,
+                },
                 equipment_state = new[] { equipmentHp },
                 passive_state = System.Array.Empty<AttributeModifierDefinition>(),
                 temporary_effects = new[] { temporaryHp },
@@ -308,20 +285,13 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
             }
         );
 
-        ProfessionDef profession = new()
-        {
-            profession_id = "strict_warrior",
-            max_rank = 3,
-            bab_progression = "full",
-        };
-        profession.attribute_modifiers = new Godot.Collections.Array<AttributeModifier>
-        {
-            Modifier("strength", 2),
-        };
+        ProfessionDefinition profession = MakeProfession(
+            "strict_warrior", BuildAttributeModifierDefinitions(Modifier("strength", 2))
+        );
         progress.SetProfessionProgress(
             new UnitProfessionProgress
             {
-                profession_id = profession.profession_id,
+                profession_id = profession.ProfessionId,
                 rank = 2,
                 is_active = true,
             }
@@ -336,12 +306,10 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
                 {
                     [new StringName("wrong_toughness_key")] = skill,
                 },
-                profession_defs = TestProgressionDefinitionProjection.Professions(
-                    new Dictionary<StringName, ProfessionDef>
-                    {
-                        [new StringName("wrong_profession_key")] = profession,
-                    }
-                ),
+                profession_defs = new Dictionary<StringName, ProfessionDefinition>
+                {
+                    [new StringName("wrong_profession_key")] = profession,
+                },
             }
         );
 
@@ -514,70 +482,51 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
 
     private static ProgressionIdentityCatalogData MakeIdentityCatalog()
     {
-        RaceDef race = MakeRace(Modifier("strength", 1));
-        SubraceDef subrace = MakeSubrace(Modifier("agility", 2));
-        AgeProfileDef ageProfile = new()
-        {
-            profile_id = "human_age",
-            race_id = "human",
-            creation_stage_ids = new Godot.Collections.Array<StringName> { "adult" },
-            default_age_by_stage = new GDictionary { ["adult"] = 18 },
-        };
-        ageProfile.stage_rules = new Godot.Collections.Array<AgeStageRule>
-        {
-            MakeAgeStageRule("adult"),
-            MakeAgeStageRule("middle_age"),
-            MakeAgeStageRule("old", Modifier("constitution", 4)),
-        };
-        BloodlineDef bloodline = MakeBloodline(
+        RaceDefinition race = MakeRace(Modifier("strength", 1));
+        SubraceDefinition subrace = MakeSubrace(Modifier("agility", 2));
+        AgeProfileDefinition ageProfile = new(
+            "human_age", "human", 0, 12, 16, 18, 35, 55, 75, 100,
+            new[]
+            {
+                MakeAgeStageRule("adult"), MakeAgeStageRule("middle_age"),
+                MakeAgeStageRule("old", Modifier("constitution", 4)),
+            },
+            new[] { new StringName("adult") },
+            new Dictionary<StringName, int> { ["adult"] = 18 }
+        );
+        BloodlineDefinition bloodline = MakeBloodline(
             "titan",
             new[] { new StringName("titan_awakened") },
             Modifier("willpower", 3)
         );
-        BloodlineStageDef bloodlineStage = MakeBloodlineStage("titan_awakened", "titan");
-        StageAdvancementModifier growthBoon = new()
-        {
-            modifier_id = "growth_boon",
-            display_name = "Growth Boon",
-            target_axis = "full",
-            stage_offset = 2,
-            max_stage_id = "old",
-            applies_to_race_ids = new Godot.Collections.Array<StringName> { "human" },
-        };
+        BloodlineStageDefinition bloodlineStage = MakeBloodlineStage("titan_awakened", "titan");
+        StageAdvancementDefinition growthBoon = new(
+            "growth_boon", "Growth Boon", "full", 2, "old",
+            new[] { new StringName("human") }, Array.Empty<StringName>(),
+            Array.Empty<StringName>(), Array.Empty<StringName>(), true, false, false
+        );
 
         return new ProgressionIdentityCatalogData(
-            TestProgressionDefinitionProjection.Races(
-                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
-            ),
-            TestProgressionDefinitionProjection.Subraces(
-                new Dictionary<StringName, SubraceDef> { [subrace.subrace_id] = subrace }
-            ),
-            TestProgressionDefinitionProjection.AgeProfiles(
-                new Dictionary<StringName, AgeProfileDef>
+            new Dictionary<StringName, RaceDefinition> { [race.RaceId] = race },
+            new Dictionary<StringName, SubraceDefinition> { [subrace.SubraceId] = subrace },
+            new Dictionary<StringName, AgeProfileDefinition>
                 {
-                    [ageProfile.profile_id] = ageProfile,
-                }
-            ),
-            TestProgressionDefinitionProjection.Bloodlines(
-                new Dictionary<StringName, BloodlineDef>
+                    [ageProfile.ProfileId] = ageProfile,
+                },
+            new Dictionary<StringName, BloodlineDefinition>
                 {
-                    [bloodline.bloodline_id] = bloodline,
-                }
-            ),
-            TestProgressionDefinitionProjection.BloodlineStages(
-                new Dictionary<StringName, BloodlineStageDef>
+                    [bloodline.BloodlineId] = bloodline,
+                },
+            new Dictionary<StringName, BloodlineStageDefinition>
                 {
-                    [bloodlineStage.stage_id] = bloodlineStage,
-                }
-            ),
+                    [bloodlineStage.StageId] = bloodlineStage,
+                },
             new Dictionary<StringName, AscensionDefinition>(),
             new Dictionary<StringName, AscensionStageDefinition>(),
-            TestProgressionDefinitionProjection.StageAdvancements(
-                new Dictionary<StringName, StageAdvancementModifier>
+            new Dictionary<StringName, StageAdvancementDefinition>
                 {
-                    [growthBoon.modifier_id] = growthBoon,
+                    [growthBoon.ModifierId] = growthBoon,
                 }
-            )
         );
     }
 
@@ -603,111 +552,97 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
         return progress;
     }
 
-    private static RaceDef MakeRace(params AttributeModifier[] modifiers)
-    {
-        RaceDef race = new()
-        {
-            race_id = "human",
-            display_name = "Human",
-            description = "Fixture race.",
-            age_profile_id = "human_age",
-            default_subrace_id = "high_human",
-            subrace_ids = new Godot.Collections.Array<StringName> { "high_human" },
-            body_size_category = "medium",
-            base_speed = 6,
-            attribute_modifiers = ResourceModifiers(modifiers),
-        };
-        return race;
-    }
+    private static RaceDefinition MakeRace(params AttributeModifier[] modifiers) =>
+        new(
+            "human", "Human", "Fixture race.", "human_age", "high_human",
+            new[] { new StringName("high_human") }, "medium", 6,
+            BuildAttributeModifierDefinitions(modifiers), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            Array.Empty<StringName>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName>(), Array.Empty<StringName>(), Array.Empty<string>()
+        );
 
-    private static SubraceDef MakeSubrace(params AttributeModifier[] modifiers)
-    {
-        return new SubraceDef
-        {
-            subrace_id = "high_human",
-            parent_race_id = "human",
-            display_name = "High Human",
-            description = "Fixture subrace.",
-            attribute_modifiers = TypedModifiers(modifiers),
-        };
-    }
+    private static SubraceDefinition MakeSubrace(params AttributeModifier[] modifiers) =>
+        new(
+            "high_human", "human", "High Human", "Fixture subrace.", "", 0,
+            BuildAttributeModifierDefinitions(modifiers), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            Array.Empty<StringName>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName>(), Array.Empty<StringName>(), Array.Empty<string>()
+        );
 
-    private static AgeStageRule MakeAgeStageRule(
+    private static AgeStageRuleDefinition MakeAgeStageRule(
         StringName stageId,
         params AttributeModifier[] modifiers
     )
     {
-        return new AgeStageRule
-        {
-            stage_id = stageId,
-            display_name = stageId.ToString(),
-            description = "Fixture age stage.",
-            attribute_modifiers = ResourceModifiers(modifiers),
-        };
+        return new AgeStageRuleDefinition(
+            stageId, stageId.ToString(), "Fixture age stage.",
+            BuildAttributeModifierDefinitions(modifiers), Array.Empty<StringName>(),
+            Array.Empty<string>(), true, true
+        );
     }
 
-    private static BloodlineDef MakeBloodline(
+    private static BloodlineDefinition MakeBloodline(
         StringName bloodlineId,
         IEnumerable<StringName> stageIds,
         params AttributeModifier[] modifiers
     )
     {
-        BloodlineDef bloodline = new()
-        {
-            bloodline_id = bloodlineId,
-            display_name = bloodlineId.ToString(),
-            description = "Fixture bloodline.",
-            attribute_modifiers = ResourceModifiers(modifiers),
-        };
-        foreach (StringName stageId in stageIds)
-            bloodline.stage_ids.Add(stageId);
-        return bloodline;
+        return new BloodlineDefinition(
+            bloodlineId, bloodlineId.ToString(), "Fixture bloodline.",
+            new List<StringName>(stageIds), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), BuildAttributeModifierDefinitions(modifiers),
+            Array.Empty<string>()
+        );
     }
 
-    private static BloodlineStageDef MakeBloodlineStage(
+    private static BloodlineStageDefinition MakeBloodlineStage(
         StringName stageId,
         StringName bloodlineId,
         params AttributeModifier[] modifiers
     )
     {
-        return new BloodlineStageDef
-        {
-            stage_id = stageId,
-            bloodline_id = bloodlineId,
-            display_name = stageId.ToString(),
-            description = "Fixture bloodline stage.",
-            attribute_modifiers = ResourceModifiers(modifiers),
-        };
+        return new BloodlineStageDefinition(
+            stageId, bloodlineId, stageId.ToString(), "Fixture bloodline stage.",
+            BuildAttributeModifierDefinitions(modifiers), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<string>()
+        );
     }
 
-    private static AscensionDef MakeAscension(StringName ascensionId, IEnumerable<StringName> stageIds)
+    private static AscensionDefinition MakeAscension(StringName ascensionId, IEnumerable<StringName> stageIds)
     {
-        AscensionDef ascension = new()
-        {
-            ascension_id = ascensionId,
-            display_name = ascensionId.ToString(),
-            description = "Fixture ascension.",
-        };
-        foreach (StringName stageId in stageIds)
-            ascension.stage_ids.Add(stageId);
-        return ascension;
+        return new AscensionDefinition(
+            ascensionId, ascensionId.ToString(), "Fixture ascension.", new List<StringName>(stageIds),
+            Array.Empty<StringName>(), Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<StringName>(),
+            Array.Empty<StringName>(), Array.Empty<StringName>(), Array.Empty<string>(), false, false
+        );
     }
 
-    private static AscensionStageDef MakeAscensionStage(
+    private static AscensionStageDefinition MakeAscensionStage(
         StringName stageId,
         StringName ascensionId,
         params AttributeModifier[] modifiers
     )
     {
-        return new AscensionStageDef
-        {
-            stage_id = stageId,
-            ascension_id = ascensionId,
-            display_name = stageId.ToString(),
-            description = "Fixture ascension stage.",
-            attribute_modifiers = ResourceModifiers(modifiers),
-        };
+        return new AscensionStageDefinition(
+            stageId, ascensionId, stageId.ToString(), "Fixture ascension stage.",
+            BuildAttributeModifierDefinitions(modifiers), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), "", Array.Empty<string>()
+        );
     }
+
+    private static ProfessionDefinition MakeProfession(
+        StringName professionId,
+        IReadOnlyList<AttributeModifierDefinition> modifiers
+    ) =>
+        new(
+            professionId, professionId.ToString(), "Fixture profession.", 3, 8,
+            "full", true, "", null,
+            Array.Empty<ProfessionRankRequirementDefinition>(),
+            Array.Empty<ProfessionGrantedSkillDefinition>(), modifiers,
+            Array.Empty<ProfessionActiveConditionDefinition>(), "auto", "count_when_hidden"
+        );
 
     private static AttributeModifier Modifier(
         StringName attributeId,

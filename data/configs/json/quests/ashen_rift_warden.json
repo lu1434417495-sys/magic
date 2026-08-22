@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "ashen_rift_warden",
+      "display_name": "裂隙守望者",
+      "description": "有人在维持裂隙的开放。消灭那些守护裂隙的编织者和迷雾兽——也许能延缓两个世界的融合。",
+      "provider_kind": "service_bounty_registry",
+      "provider_interaction_id": "service_bounty_registry",
+      "listing_channels": [
+        "bounty_registry"
+      ],
+      "listing_settlement_ids": [
+        "charred_cathedral",
+        "silverlight_metropolis"
+      ],
+      "tags": [
+        "ashen_intersection",
+        "abyss",
+        "bounty"
+      ],
+      "accept_requirements": [
+        {
+          "kind": "quest_completed",
+          "payload": {
+            "quest_id": "ashen_abyss_survival"
+          }
+        }
+      ],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_weavers",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_weaver",
+            "target_value": 5
+          }
+        },
+        {
+          "objective_id": "defeat_beasts",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_beast",
+            "target_value": 3
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 2000
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "calamity_shard",
+            "quantity": 3
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "hero",
+            "entries": [
+              {
+                "kind": "attribute_progress",
+                "payload": {
+                  "target_id": "strength",
+                  "amount": 10
+                }
+              },
+              {
+                "kind": "attribute_progress",
+                "payload": {
+                  "target_id": "agility",
+                  "amount": 10
+                }
+              },
+              {
+                "kind": "attribute_progress",
+                "payload": {
+                  "target_id": "constitution",
+                  "amount": 10
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

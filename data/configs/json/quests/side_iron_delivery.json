@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "side_iron_delivery",
+      "display_name": "铁矿运送",
+      "description": "村里的铁匠急需原料。帮他收集一些铁矿，他会给你一把像样的武器。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "contract",
+        "side"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "deliver_iron",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "iron_ore",
+            "target_value": 5
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 100
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "bronze_sword",
+            "quantity": 1
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,20 +1,22 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using Godot;
 
 internal sealed class FaithContentRegistry
 {
-    private const string ConfigDirectory = "res://data/configs/faith";
+    private const string ConfigDirectory = ProfessionIdentityJsonDomains.FaithDirectory;
 
     private readonly Dictionary<StringName, FaithDeityDefinition> _faithDeityDefs = new();
     private readonly List<string> _validationErrors = new();
-    private readonly IContentResourceLoader _resourceLoader;
+    private readonly IContentJsonSourceReader _jsonSourceReader;
 
-    internal FaithContentRegistry(IContentResourceLoader resourceLoader)
+    internal FaithContentRegistry()
+        : this(new GodotContentJsonSourceReader()) { }
+
+    internal FaithContentRegistry(IContentJsonSourceReader jsonSourceReader)
     {
-        _resourceLoader = resourceLoader
-            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+        _jsonSourceReader = jsonSourceReader
+            ?? throw new System.ArgumentNullException(nameof(jsonSourceReader));
     }
 
     public void Rebuild()
@@ -26,7 +28,7 @@ internal sealed class FaithContentRegistry
     {
         _faithDeityDefs.Clear();
         _validationErrors.Clear();
-        ScanDirectory(directoryPath);
+        ImportDirectory(directoryPath);
         CollectValidationErrorsInto(_validationErrors);
     }
 
@@ -43,83 +45,27 @@ internal sealed class FaithContentRegistry
     internal IReadOnlyList<string> GetValidationErrors() =>
         new List<string>(_validationErrors);
 
-    private void ScanDirectory(string directoryPath)
+    private void ImportDirectory(string directoryPath)
     {
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
+        ContentImportBatch<FaithImportModel> batch = ProfessionIdentityJsonImport
+            .CreateFaithDescriptor(directoryPath, _jsonSourceReader)
+            .Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            _validationErrors.Add(ProfessionIdentityJsonImport.FormatDiagnostic(diagnostic));
+        foreach (ContentImportEntry<FaithImportModel> entry in batch.Entries)
         {
-            _validationErrors.Add($"FaithService could not open {directoryPath}.");
-            return;
-        }
-
-        try
-        {
-            directory.ListDirBegin();
-            while (true)
+            try
             {
-                string entryName = directory.GetNext();
-                if (string.IsNullOrEmpty(entryName))
-                    break;
-                if (entryName == "." || entryName == "..")
-                    continue;
-
-                string entryPath = $"{directoryPath}/{entryName}";
-                if (directory.CurrentIsDir())
-                {
-                    ScanDirectory(entryPath);
-                    continue;
-                }
-                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                    continue;
-                RegisterDeityResource(entryPath);
+                FaithDeityDefinition definition = ProfessionIdentityDefinitionProjector.Project(entry.Import);
+                if (!_faithDeityDefs.TryAdd(definition.DeityId, definition))
+                    _validationErrors.Add($"Duplicate faith deity_id registered: {definition.DeityId}");
             }
-            directory.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
-        }
-    }
-
-    private void RegisterDeityResource(string resourcePath)
-    {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
-        {
-            _validationErrors.Add($"Failed to load faith config {resourcePath}.");
-            return;
-        }
-        if (resource is not FaithDeityDef deityDef)
-        {
-            _validationErrors.Add(
-                $"Faith config {resourcePath} failed to cast to FaithDeityDef."
-            );
-            return;
-        }
-        if (deityDef.deity_id == "")
-        {
-            _validationErrors.Add($"Faith config {resourcePath} is missing deity_id.");
-            return;
-        }
-        if (_faithDeityDefs.ContainsKey(deityDef.deity_id))
-        {
-            _validationErrors.Add($"Duplicate faith deity_id registered: {deityDef.deity_id}");
-            return;
-        }
-
-        try
-        {
-            FaithDeityDefinition definition = FaithDeityDefinition.FromResource(
-                deityDef,
-                resourcePath
-            );
-            _faithDeityDefs.Add(definition.DeityId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validationErrors.Add(
-                $"Faith config {resourcePath} projection failed: {exception.Message}"
-            );
+            catch (System.Exception exception)
+            {
+                _validationErrors.Add(
+                    $"Faith JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                );
+            }
         }
     }
 

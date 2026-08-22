@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "main_mist_investigation",
+      "display_name": "迷雾调查",
+      "description": "巡逻队在裂隙边缘发现了一种灰色的雾。那不是自然现象——雾里有建筑轮廓，不属于这个世界。收集现场证据。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "main_story",
+        "contract"
+      ],
+      "accept_requirements": [
+        {
+          "kind": "quest_completed",
+          "payload": {
+            "quest_id": "main_border_patrol"
+          }
+        }
+      ],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "collect_insignia",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "bandit_insignia",
+            "target_value": 2
+          }
+        },
+        {
+          "objective_id": "collect_moonfern",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "moonfern_sample",
+            "target_value": 1
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 300
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "hero",
+            "entries": [
+              {
+                "kind": "knowledge_unlock",
+                "payload": {
+                  "target_id": "mist_lore",
+                  "amount": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

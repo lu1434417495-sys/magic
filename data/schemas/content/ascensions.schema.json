@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:ascensions:v1",
+  "title": "Magic ascensions JSON authoring schema",
+  "description": "Strict ascensions contract. Cross-domain relations are content IDs.",
+  "$ref": "#/$defs/AscensionJsonDocumentDto",
+  "$defs": {
+    "AscensionEntryJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AscensionEntryJsonDto__ascension"
+        },
+        {
+          "$ref": "#/$defs/AscensionEntryJsonDto__stage"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "ascension": "#/$defs/AscensionEntryJsonDto__ascension",
+          "stage": "#/$defs/AscensionEntryJsonDto__stage"
+        }
+      }
+    },
+    "AscensionEntryJsonDto__ascension": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "ascension"
+        },
+        "payload": {
+          "$ref": "#/$defs/AscensionJsonDto"
+        }
+      },
+      "required": [
+        "entry_id",
+        "kind",
+        "payload"
+      ]
+    },
+    "AscensionEntryJsonDto__authoring_entry_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AscensionEntryJsonDto"
+        },
+        {
+          "$ref": "#/$defs/AscensionEntryJsonDto__templated_entry_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "AscensionEntryJsonDto__stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "stage"
+        },
+        "payload": {
+          "$ref": "#/$defs/AscensionStageJsonDto"
+        }
+      },
+      "required": [
+        "entry_id",
+        "kind",
+        "payload"
+      ]
+    },
+    "AscensionEntryJsonDto__templated_entry_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/Object__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "entry_id",
+        "template"
+      ]
+    },
+    "AscensionJsonDocumentDto": {
+      "description": "Ascension and ascension-stage JSON document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "ascensions"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AscensionEntryJsonDto__authoring_entry_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/AscensionEntryJsonDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "AscensionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_bloodline_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed_race_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed_subrace_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ascension_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "racial_granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RacialGrantedSkillJsonDto"
+          }
+        },
+        "replaces_age_growth": {
+          "type": "boolean"
+        },
+        "stage_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suppresses_original_race_traits": {
+          "type": "boolean"
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "allowed_bloodline_ids",
+        "allowed_race_ids",
+        "allowed_subrace_ids",
+        "ascension_id",
+        "description",
+        "display_name",
+        "racial_granted_skills",
+        "replaces_age_growth",
+        "stage_ids",
+        "suppresses_original_race_traits",
+        "trait_ids",
+        "trait_summary"
+      ]
+    },
+    "AscensionStageJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ascension_id": {
+          "type": "string"
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "body_size_category_override": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "racial_granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RacialGrantedSkillJsonDto"
+          }
+        },
+        "stage_id": {
+          "type": "string"
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ascension_id",
+        "attribute_modifiers",
+        "body_size_category_override",
+        "description",
+        "display_name",
+        "racial_granted_skills",
+        "stage_id",
+        "trait_ids",
+        "trait_summary"
+      ]
+    },
+    "IdentityAttributeModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "mode",
+        "source_id",
+        "source_type",
+        "value",
+        "value_per_rank"
+      ]
+    },
+    "Object__partial": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {}
+    },
+    "RacialGrantedSkillJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "charge_kind": {
+          "type": "string"
+        },
+        "charges": {
+          "type": "integer"
+        },
+        "minimum_skill_level": {
+          "type": "integer"
+        },
+        "skill_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "charge_kind",
+        "charges",
+        "minimum_skill_level",
+        "skill_id"
+      ]
+    }
+  }
+}

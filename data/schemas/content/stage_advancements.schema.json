@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:stage_advancements:v1",
+  "title": "Magic stage_advancements JSON authoring schema",
+  "description": "Strict stage_advancements contract. Cross-domain relations are content IDs.",
+  "$ref": "#/$defs/StageAdvancementJsonDocumentDto",
+  "$defs": {
+    "StageAdvancementJsonDocumentDto": {
+      "description": "Stage advancement JSON document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "stage_advancements"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StageAdvancementJsonDto__authoring_modifier_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/StageAdvancementJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "StageAdvancementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "applies_to_ascension_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_bloodline_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_race_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_subrace_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "grants_attributes": {
+          "type": "boolean"
+        },
+        "grants_body_size_change": {
+          "type": "boolean"
+        },
+        "grants_traits": {
+          "type": "boolean"
+        },
+        "max_stage_id": {
+          "type": "string"
+        },
+        "modifier_id": {
+          "type": "string"
+        },
+        "stage_offset": {
+          "type": "integer"
+        },
+        "target_axis": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "applies_to_ascension_ids",
+        "applies_to_bloodline_ids",
+        "applies_to_race_ids",
+        "applies_to_subrace_ids",
+        "display_name",
+        "grants_attributes",
+        "grants_body_size_change",
+        "grants_traits",
+        "max_stage_id",
+        "modifier_id",
+        "stage_offset",
+        "target_axis"
+      ]
+    },
+    "StageAdvancementJsonDto__authoring_modifier_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StageAdvancementJsonDto"
+        },
+        {
+          "$ref": "#/$defs/StageAdvancementJsonDto__templated_modifier_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "StageAdvancementJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "applies_to_ascension_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_bloodline_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_race_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_subrace_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "grants_attributes": {
+          "type": "boolean"
+        },
+        "grants_body_size_change": {
+          "type": "boolean"
+        },
+        "grants_traits": {
+          "type": "boolean"
+        },
+        "max_stage_id": {
+          "type": "string"
+        },
+        "modifier_id": {
+          "type": "string"
+        },
+        "stage_offset": {
+          "type": "integer"
+        },
+        "target_axis": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "StageAdvancementJsonDto__templated_modifier_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "applies_to_ascension_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_bloodline_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_race_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applies_to_subrace_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "grants_attributes": {
+          "type": "boolean"
+        },
+        "grants_body_size_change": {
+          "type": "boolean"
+        },
+        "grants_traits": {
+          "type": "boolean"
+        },
+        "max_stage_id": {
+          "type": "string"
+        },
+        "modifier_id": {
+          "type": "string"
+        },
+        "stage_offset": {
+          "type": "integer"
+        },
+        "target_axis": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "modifier_id",
+        "template"
+      ]
+    }
+  }
+}

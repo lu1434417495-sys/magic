@@ -52,7 +52,7 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         );
 
         FaithDeityDefinition fortunaDef = faithService.GetFaithDeityDef(FortunaDeityId);
-        _test.True(fortunaDef != null, "应能加载 Fortuna FaithDeityDef。");
+        _test.True(fortunaDef != null, "应能加载 Fortuna FaithDeityDefinition。");
         if (fortunaDef == null)
             return;
 
@@ -210,7 +210,7 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
     {
         var faithService = new FaithService(_faithDefinitions);
         FaithDeityDefinition misfortuneDef = faithService.GetFaithDeityDef(MisfortuneDeityId);
-        _test.True(misfortuneDef != null, "应能加载 Misfortune FaithDeityDef。");
+        _test.True(misfortuneDef != null, "应能加载 Misfortune FaithDeityDefinition。");
         if (misfortuneDef == null)
             return;
 
@@ -363,37 +363,30 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
 
     private void TestFaithRankValidationRejectsUnsupportedRewardEntries()
     {
-        var validRank = new FaithRankDef
-        {
-            rank_index = 1,
-            rank_name = "合法阶位",
-            reward_entries = new()
+        IReadOnlyList<string> validErrors = ValidateFaithRewardEntries(
+            new FaithRankRewardJsonDto
             {
-                new GDictionary
-                {
-                    ["entry_type"] = "attribute_delta",
-                    ["target_id"] = FaithLuckBonusStatId,
-                    ["amount"] = 1,
-                },
-            },
-        };
-        _test.True(validRank.Validate().Count == 0, "faith custom stat 的 attribute_delta 奖励应保持合法。");
+                EntryType = "attribute_delta",
+                TargetId = FaithLuckBonusStatId,
+                Amount = 1,
+            }
+        );
+        _test.Eq(validErrors.Count, 0, "faith custom stat 的 attribute_delta 奖励应保持合法。");
 
-        var invalidRank = new FaithRankDef
-        {
-            rank_index = 1,
-            rank_name = "非法阶位",
-            reward_entries = new()
+        IReadOnlyList<string> invalidErrors = ValidateFaithRewardEntries(
+            new FaithRankRewardJsonDto
             {
-                new GDictionary
-                {
-                    ["entry_type"] = "skill_level",
-                    ["target_id"] = "charge",
-                    ["amount"] = 1,
-                },
+                EntryType = "attribute_delta",
+                TargetId = FaithLuckBonusStatId,
+                Amount = 1,
             },
-        };
-        Godot.Collections.Array<string> invalidErrors = invalidRank.Validate();
+            new FaithRankRewardJsonDto
+            {
+                EntryType = "skill_level",
+                TargetId = "charge",
+                Amount = 1,
+            }
+        );
         _test.Eq(
             invalidErrors.Count,
             1,
@@ -403,10 +396,47 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         {
             _test.Eq(
                 invalidErrors[0],
-                "Faith rank 1 contains unsupported reward entry_type skill_level.",
-                "FaithRankDef.validate 应精确拒绝 unsupported reward entry_type。"
+                "Faith deity validation_fixture: Faith rank 1 contains unsupported reward entry_type skill_level.",
+                "Faith JSON production registry 应精确拒绝 unsupported reward entry_type。"
             );
         }
+    }
+
+    private static IReadOnlyList<string> ValidateFaithRewardEntries(
+        params FaithRankRewardJsonDto[] rewardEntries
+    )
+    {
+        string entry = IdentityJsonTestDocuments.Entry(
+            new FaithDeityJsonDto
+            {
+                DeityId = "validation_fixture",
+                DisplayName = "Validation fixture",
+                FacilityId = "test_facility",
+                ServiceTypeLabel = "Test faith service",
+                PowerDomainTags = System.Array.Empty<string>(),
+                RankProgressStatId = FaithLuckBonusStatId,
+                RankDefs = new[]
+                {
+                    new FaithRankJsonDto
+                    {
+                        RankIndex = 1,
+                        RankName = "Fixture rank",
+                        RequiredGold = 0,
+                        RequiredLevel = 0,
+                        RequiredCustomStatId = "",
+                        RequiredCustomStatMinValue = 0,
+                        RequiredAchievementId = "",
+                        RewardEntries = rewardEntries,
+                    },
+                },
+            },
+            ProfessionIdentityJsonSerializerContext.Default.FaithDeityJsonDto
+        );
+        var registry = new FaithContentRegistry(
+            new IdentityJsonTestSourceReader(ProfessionIdentityJsonDomains.FaithDomain, entry)
+        );
+        registry.LoadFromDirectory("test://faith_validation");
+        return registry.GetValidationErrors();
     }
 
     private static PartyState BuildPartyState()

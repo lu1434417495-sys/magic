@@ -1,0 +1,444 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:races:v1",
+  "title": "Magic races JSON authoring schema",
+  "description": "Strict races contract. Cross-domain relations are content IDs.",
+  "$ref": "#/$defs/RaceJsonDocumentDto",
+  "$defs": {
+    "IdentityAttributeModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "mode",
+        "source_id",
+        "source_type",
+        "value",
+        "value_per_rank"
+      ]
+    },
+    "RaceJsonDocumentDto": {
+      "description": "Race JSON document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "races"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RaceJsonDto__authoring_race_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/RaceJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "RaceJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "age_profile_id": {
+          "type": "string"
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "base_speed": {
+          "type": "integer"
+        },
+        "body_size_category": {
+          "type": "string"
+        },
+        "damage_resistances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "default_subrace_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "dialogue_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "proficiency_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "race_id": {
+          "type": "string"
+        },
+        "racial_granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RacialGrantedSkillJsonDto"
+          }
+        },
+        "racial_trait_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subrace_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "vision_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "age_profile_id",
+        "attribute_modifiers",
+        "base_speed",
+        "body_size_category",
+        "damage_resistances",
+        "default_subrace_id",
+        "description",
+        "dialogue_tags",
+        "display_name",
+        "proficiency_tags",
+        "race_id",
+        "racial_granted_skills",
+        "racial_trait_summary",
+        "save_advantage_tags",
+        "save_disadvantage_tags",
+        "save_immunity_tags",
+        "subrace_ids",
+        "trait_ids",
+        "vision_tags"
+      ]
+    },
+    "RaceJsonDto__authoring_race_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RaceJsonDto"
+        },
+        {
+          "$ref": "#/$defs/RaceJsonDto__templated_race_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "RaceJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "age_profile_id": {
+          "type": "string"
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "base_speed": {
+          "type": "integer"
+        },
+        "body_size_category": {
+          "type": "string"
+        },
+        "damage_resistances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "default_subrace_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "dialogue_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "proficiency_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "race_id": {
+          "type": "string"
+        },
+        "racial_granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RacialGrantedSkillJsonDto"
+          }
+        },
+        "racial_trait_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subrace_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "vision_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "RaceJsonDto__templated_race_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "age_profile_id": {
+          "type": "string"
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "base_speed": {
+          "type": "integer"
+        },
+        "body_size_category": {
+          "type": "string"
+        },
+        "damage_resistances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "default_subrace_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "dialogue_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "proficiency_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "race_id": {
+          "type": "string"
+        },
+        "racial_granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RacialGrantedSkillJsonDto"
+          }
+        },
+        "racial_trait_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subrace_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "vision_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "race_id",
+        "template"
+      ]
+    },
+    "RacialGrantedSkillJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "charge_kind": {
+          "type": "string"
+        },
+        "charges": {
+          "type": "integer"
+        },
+        "minimum_skill_level": {
+          "type": "integer"
+        },
+        "skill_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "charge_kind",
+        "charges",
+        "minimum_skill_level",
+        "skill_id"
+      ]
+    }
+  }
+}

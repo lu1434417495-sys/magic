@@ -8,7 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_contingency_charge_transaction_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
     private static readonly StringName GemId = "special_contingency_gem";
 
     private readonly TestHarness _test = new();

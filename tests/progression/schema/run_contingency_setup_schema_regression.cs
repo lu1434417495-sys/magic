@@ -279,7 +279,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         Dictionary<string, object> saveMeta = serializer.BuildSaveMetaPlain(
             "save_contingency_schema",
             "Schema Test",
-            "res://data/configs/world_map/default_world_generation.tres",
+            "default",
             "default",
             "Default",
             new Vector2I(8, 8),
@@ -290,7 +290,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         using GodotProjectionLease<GDictionary> payloadLease =
             serializer.BuildSavePayloadLease(
             "save_contingency_schema",
-            "res://data/configs/world_map/default_world_generation.tres",
+            "default",
             saveMeta,
             RuntimePlainPayload.RestoreSaveDictionary(worldData, "test.world_data"),
             Vector2I.Zero,
@@ -305,7 +305,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         payload["version"] = 10;
         bool decoded = serializer.TryDecodePayload(
             payload,
-            "res://data/configs/world_map/default_world_generation.tres",
+            "default",
             saveMeta,
             out SaveDecodeResult decodeResult
         );

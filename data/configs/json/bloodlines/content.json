@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "domain": "bloodlines",
+  "family": "canonical",
+  "templates": {},
+  "entries": [
+    {
+      "entry_id": "empty_bloodline",
+      "kind": "bloodline",
+      "payload": {
+        "bloodline_id": "empty_bloodline",
+        "display_name": "Empty Bloodline",
+        "description": "Minimal nullable seed proving bloodline content may load without stages.",
+        "stage_ids": [],
+        "trait_ids": [],
+        "racial_granted_skills": [],
+        "attribute_modifiers": [],
+        "trait_summary": []
+      }
+    },
+    {
+      "entry_id": "titan",
+      "kind": "bloodline",
+      "payload": {
+        "bloodline_id": "titan",
+        "display_name": "Titan Blood",
+        "description": "A mythic bloodline carrying the dormant pressure of ancient titans. It is not a normal creation race and must be granted by story, reward, or debug tooling.",
+        "stage_ids": [
+          "titan_awakened"
+        ],
+        "trait_ids": [],
+        "racial_granted_skills": [],
+        "attribute_modifiers": [
+          {
+            "attribute_id": "constitution",
+            "mode": "flat",
+            "value": 1,
+            "value_per_rank": 0,
+            "source_type": "bloodline",
+            "source_id": "titan"
+          },
+          {
+            "attribute_id": "willpower",
+            "mode": "flat",
+            "value": 1,
+            "value_per_rank": 0,
+            "source_type": "bloodline",
+            "source_id": "titan"
+          }
+        ],
+        "trait_summary": [
+          "Dormant titan blood: constitution +1, willpower +1.",
+          "Advanced titan growth is handled by bloodline stage or ascension content, not ordinary race selection."
+        ]
+      }
+    },
+    {
+      "entry_id": "titan_awakened",
+      "kind": "stage",
+      "payload": {
+        "stage_id": "titan_awakened",
+        "bloodline_id": "titan",
+        "display_name": "Titan Blood Awakened",
+        "description": "The first stable awakening of titan blood: the body becomes heavier, forceful, and harder to break, while the character remains in their original race and body-size rules.",
+        "attribute_modifiers": [
+          {
+            "attribute_id": "strength",
+            "mode": "flat",
+            "value": 2,
+            "value_per_rank": 0,
+            "source_type": "bloodline",
+            "source_id": "titan_awakened"
+          },
+          {
+            "attribute_id": "constitution",
+            "mode": "flat",
+            "value": 2,
+            "value_per_rank": 0,
+            "source_type": "bloodline",
+            "source_id": "titan_awakened"
+          },
+          {
+            "attribute_id": "willpower",
+            "mode": "flat",
+            "value": 1,
+            "value_per_rank": 0,
+            "source_type": "bloodline",
+            "source_id": "titan_awakened"
+          }
+        ],
+        "trait_ids": [],
+        "racial_granted_skills": [],
+        "trait_summary": [
+          "Awakened titan blood: strength +2, constitution +2, willpower +1.",
+          "This stage does not change body size; giant or divine form belongs to later ascension content."
+        ]
+      }
+    }
+  ]
+}

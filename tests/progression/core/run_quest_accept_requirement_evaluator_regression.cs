@@ -29,7 +29,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestNoRequirementsAccepts()
 	{
 		PartyState partyState = new();
-		QuestDefinition questDef = BuildQuestDef("no_req_quest", "无需求任务");
+		QuestDefinition questDef = BuildQuest("no_req_quest", "无需求任务");
 		QuestAcceptRequirementEvaluator evaluator = new();
 		QuestAcceptContext context = BuildContext(partyState, new Dictionary<StringName, QuestDefinition>());
 
@@ -40,7 +40,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestQuestCompletedRequirement()
 	{
 		PartyState partyState = new();
-		QuestDefinition targetQuest = BuildQuestDef(
+		QuestDefinition targetQuest = BuildQuest(
 			"target_quest",
 			"目标任务",
 			new GDictionary
@@ -49,7 +49,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 				["quest_id"] = "pre_req"
 			}
 		);
-		QuestDefinition preReqQuest = BuildQuestDef("pre_req", "前置任务");
+		QuestDefinition preReqQuest = BuildQuest("pre_req", "前置任务");
 		var questDefs = new Dictionary<StringName, QuestDefinition>
 		{
 			["target_quest"] = targetQuest,
@@ -74,7 +74,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestQuestActiveRequirement()
 	{
 		PartyState partyState = new();
-		QuestDefinition targetQuest = BuildQuestDef(
+		QuestDefinition targetQuest = BuildQuest(
 			"target_quest",
 			"目标任务",
 			new GDictionary
@@ -83,7 +83,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 				["quest_id"] = "pre_req"
 			}
 		);
-		QuestDefinition preReqQuest = BuildQuestDef("pre_req", "前置任务");
+		QuestDefinition preReqQuest = BuildQuest("pre_req", "前置任务");
 		var questDefs = new Dictionary<StringName, QuestDefinition>
 		{
 			["target_quest"] = targetQuest,
@@ -110,7 +110,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestQuestNotCompletedRequirement()
 	{
 		PartyState partyState = new();
-		QuestDefinition targetQuest = BuildQuestDef(
+		QuestDefinition targetQuest = BuildQuest(
 			"target_quest",
 			"目标任务",
 			new GDictionary
@@ -119,7 +119,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 				["quest_id"] = "pre_req"
 			}
 		);
-		QuestDefinition preReqQuest = BuildQuestDef("pre_req", "前置任务");
+		QuestDefinition preReqQuest = BuildQuest("pre_req", "前置任务");
 		var questDefs = new Dictionary<StringName, QuestDefinition>
 		{
 			["target_quest"] = targetQuest,
@@ -144,7 +144,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestMultipleRequirements()
 	{
 		PartyState partyState = new();
-		QuestDefinition targetQuest = BuildQuestDef(
+		QuestDefinition targetQuest = BuildQuest(
 			"target_quest",
 			"目标任务",
 			new GDictionary
@@ -161,8 +161,8 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 		var questDefs = new Dictionary<StringName, QuestDefinition>
 		{
 			["target_quest"] = targetQuest,
-			["pre_req_a"] = BuildQuestDef("pre_req_a", "前置任务 A"),
-			["pre_req_b"] = BuildQuestDef("pre_req_b", "前置任务 B"),
+			["pre_req_a"] = BuildQuest("pre_req_a", "前置任务 A"),
+			["pre_req_b"] = BuildQuest("pre_req_b", "前置任务 B"),
 		};
 		QuestAcceptRequirementEvaluator evaluator = new();
 		QuestAcceptContext context = BuildContext(partyState, questDefs);
@@ -185,7 +185,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestMissingQuestId()
 	{
 		PartyState partyState = new();
-		QuestDefinition targetQuest = BuildQuestDef(
+		QuestDefinition targetQuest = BuildQuest(
 			"target_quest",
 			"目标任务",
 			new GDictionary
@@ -208,7 +208,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestUnknownRequirementType()
 	{
 		PartyState partyState = new();
-		QuestDefinition targetQuest = BuildQuestDef(
+		QuestDefinition targetQuest = BuildQuest(
 			"target_quest",
 			"目标任务",
 			new GDictionary
@@ -232,7 +232,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestDisplayNameResolution()
 	{
 		PartyState partyState = new();
-		QuestDefinition targetQuest = BuildQuestDef(
+		QuestDefinition targetQuest = BuildQuest(
 			"target_quest",
 			"目标任务",
 			new GDictionary
@@ -241,7 +241,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 				["quest_id"] = "known_pre_req"
 			}
 		);
-		QuestDefinition knownPreReq = BuildQuestDef("known_pre_req", "已知前置任务");
+		QuestDefinition knownPreReq = BuildQuest("known_pre_req", "已知前置任务");
 		var questDefs = new Dictionary<StringName, QuestDefinition>
 		{
 			["target_quest"] = targetQuest,
@@ -254,10 +254,10 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 		_test.False(result.CanAccept, "未完成的已知前置任务应拒绝接取。");
 		_test.True(
 			result.DisabledReason.Contains("已知前置任务"),
-			"拒绝原因应使用 QuestDef 的 display_name。"
+			"拒绝原因应使用 Quest 的 display_name。"
 		);
 
-		QuestDefinition targetWithUnknown = BuildQuestDef(
+		QuestDefinition targetWithUnknown = BuildQuest(
 			"target_unknown",
 			"目标未知任务",
 			new GDictionary
@@ -280,7 +280,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 	private void TestResultFields()
 	{
 		PartyState partyState = new();
-		QuestDefinition targetQuest = BuildQuestDef(
+		QuestDefinition targetQuest = BuildQuest(
 			"target_quest",
 			"目标任务",
 			new GDictionary
@@ -309,7 +309,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 		);
 	}
 
-	private static QuestDefinition BuildQuestDef(
+	private static QuestDefinition BuildQuest(
 		StringName questId,
 		string displayName,
 		params GDictionary[] requirements

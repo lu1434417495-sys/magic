@@ -427,104 +427,50 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
 
     private static ProgressionIdentityCatalogData MakeCreationContentSource()
     {
-        RaceDef raceDef = new() { race_id = "human", body_size_category = "medium" };
-
-        SubraceDef subraceDef = new()
-        {
-            subrace_id = "common_human",
-            parent_race_id = raceDef.race_id,
-            body_size_category_override = "large",
-        };
-        raceDef.default_subrace_id = subraceDef.subrace_id;
-        raceDef.subrace_ids = new GStringNameArray { subraceDef.subrace_id };
-
-        SubraceDef wrongParentSubraceDef = new()
-        {
-            subrace_id = "wrong_parent",
-            parent_race_id = "elf",
-        };
-
-        BloodlineDef titanBloodlineDef = new() { bloodline_id = "titan" };
-        titanBloodlineDef.stage_ids = new GStringNameArray { "titan_awakened" };
-        BloodlineStageDef titanBloodlineStageDef = new()
-        {
-            stage_id = "titan_awakened",
-            bloodline_id = titanBloodlineDef.bloodline_id,
-        };
-
-        BloodlineDef dragonBloodlineDef = new() { bloodline_id = "dragon" };
-        dragonBloodlineDef.stage_ids = new GStringNameArray { "dragon_awakened" };
-        BloodlineStageDef dragonBloodlineStageDef = new()
-        {
-            stage_id = "dragon_awakened",
-            bloodline_id = dragonBloodlineDef.bloodline_id,
-        };
-
-        AscensionDef ascensionDef = new() { ascension_id = "titan" };
-        ascensionDef.stage_ids = new GStringNameArray { "titan_avatar" };
-        AscensionStageDef ascensionStageDef = new()
-        {
-            stage_id = "titan_avatar",
-            ascension_id = ascensionDef.ascension_id,
-            body_size_category_override = "huge",
-        };
-
-        AscensionDef bloodlineLockedAscensionDef = new()
-        {
-            ascension_id = "bloodline_locked_ascension",
-        };
-        bloodlineLockedAscensionDef.stage_ids = new GStringNameArray
-        {
-            "bloodline_locked_awakened",
-        };
-        bloodlineLockedAscensionDef.allowed_bloodline_ids = new GStringNameArray { "titan" };
-
-        AscensionStageDef bloodlineLockedStageDef = new()
-        {
-            stage_id = "bloodline_locked_awakened",
-            ascension_id = bloodlineLockedAscensionDef.ascension_id,
-        };
+        RaceDefinition raceDef = MakeIdentityOptionRace("human", "common_human", new[] { "common_human" });
+        SubraceDefinition subraceDef = MakeIdentityOptionSubrace("common_human", "human", "large");
+        SubraceDefinition wrongParentSubraceDef = MakeIdentityOptionSubrace("wrong_parent", "elf");
+        BloodlineDefinition titanBloodlineDef = MakeBloodline("titan", "titan_awakened");
+        BloodlineStageDefinition titanBloodlineStageDef = MakeBloodlineStage("titan_awakened", "titan");
+        BloodlineDefinition dragonBloodlineDef = MakeBloodline("dragon", "dragon_awakened");
+        BloodlineStageDefinition dragonBloodlineStageDef = MakeBloodlineStage("dragon_awakened", "dragon");
+        AscensionDefinition ascensionDef = MakeAscension("titan", "titan_avatar", Array.Empty<StringName>());
+        AscensionStageDefinition ascensionStageDef = MakeAscensionStage("titan_avatar", "titan", "huge");
+        AscensionDefinition bloodlineLockedAscensionDef = MakeAscension(
+            "bloodline_locked_ascension", "bloodline_locked_awakened", new[] { new StringName("titan") }
+        );
+        AscensionStageDefinition bloodlineLockedStageDef = MakeAscensionStage(
+            "bloodline_locked_awakened", "bloodline_locked_ascension", ""
+        );
 
         return new ProgressionIdentityCatalogData(
-            TestProgressionDefinitionProjection.Races(
-                new Dictionary<StringName, RaceDef> { [raceDef.race_id] = raceDef }
-            ),
-            TestProgressionDefinitionProjection.Subraces(
-                new Dictionary<StringName, SubraceDef>
+            new Dictionary<StringName, RaceDefinition> { [raceDef.RaceId] = raceDef },
+            new Dictionary<StringName, SubraceDefinition>
                 {
-                    [subraceDef.subrace_id] = subraceDef,
-                    [wrongParentSubraceDef.subrace_id] = wrongParentSubraceDef,
-                }
-            ),
+                    [subraceDef.SubraceId] = subraceDef,
+                    [wrongParentSubraceDef.SubraceId] = wrongParentSubraceDef,
+                },
             new Dictionary<StringName, AgeProfileDefinition>(),
-            TestProgressionDefinitionProjection.Bloodlines(
-                new Dictionary<StringName, BloodlineDef>
+            new Dictionary<StringName, BloodlineDefinition>
                 {
-                    [titanBloodlineDef.bloodline_id] = titanBloodlineDef,
-                    [dragonBloodlineDef.bloodline_id] = dragonBloodlineDef,
-                }
-            ),
-            TestProgressionDefinitionProjection.BloodlineStages(
-                new Dictionary<StringName, BloodlineStageDef>
+                    [titanBloodlineDef.BloodlineId] = titanBloodlineDef,
+                    [dragonBloodlineDef.BloodlineId] = dragonBloodlineDef,
+                },
+            new Dictionary<StringName, BloodlineStageDefinition>
                 {
-                    [titanBloodlineStageDef.stage_id] = titanBloodlineStageDef,
-                    [dragonBloodlineStageDef.stage_id] = dragonBloodlineStageDef,
-                }
-            ),
-            TestProgressionDefinitionProjection.Ascensions(
-                new Dictionary<StringName, AscensionDef>
+                    [titanBloodlineStageDef.StageId] = titanBloodlineStageDef,
+                    [dragonBloodlineStageDef.StageId] = dragonBloodlineStageDef,
+                },
+            new Dictionary<StringName, AscensionDefinition>
                 {
-                    [ascensionDef.ascension_id] = ascensionDef,
-                    [bloodlineLockedAscensionDef.ascension_id] = bloodlineLockedAscensionDef,
-                }
-            ),
-            TestProgressionDefinitionProjection.AscensionStages(
-                new Dictionary<StringName, AscensionStageDef>
+                    [ascensionDef.AscensionId] = ascensionDef,
+                    [bloodlineLockedAscensionDef.AscensionId] = bloodlineLockedAscensionDef,
+                },
+            new Dictionary<StringName, AscensionStageDefinition>
                 {
-                    [ascensionStageDef.stage_id] = ascensionStageDef,
-                    [bloodlineLockedStageDef.stage_id] = bloodlineLockedStageDef,
-                }
-            ),
+                    [ascensionStageDef.StageId] = ascensionStageDef,
+                    [bloodlineLockedStageDef.StageId] = bloodlineLockedStageDef,
+                },
             new Dictionary<StringName, StageAdvancementDefinition>()
         );
     }
@@ -546,29 +492,26 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
 
     private static ProgressionIdentityCatalogData MakeIdentityOptionCatalog()
     {
-        RaceDef human = MakeIdentityOptionRace(
+        RaceDefinition human = MakeIdentityOptionRace(
             "human",
             "common_human",
             new[] { "common_human", "noble_human", "wrong_parent", "missing_subrace" }
         );
-        RaceDef orphanRace = MakeIdentityOptionRace("orphan_race", "", Array.Empty<string>());
-        RaceDef invalidDefaultRace = MakeIdentityOptionRace(
+        RaceDefinition orphanRace = MakeIdentityOptionRace("orphan_race", "", Array.Empty<string>());
+        RaceDefinition invalidDefaultRace = MakeIdentityOptionRace(
             "invalid_default_race",
             "parent_only_invalid_default",
             new[] { "valid_for_invalid_default" }
         );
 
         return new ProgressionIdentityCatalogData(
-            TestProgressionDefinitionProjection.Races(
-                new Dictionary<StringName, RaceDef>
+            new Dictionary<StringName, RaceDefinition>
                 {
-                    [human.race_id] = human,
-                    [orphanRace.race_id] = orphanRace,
-                    [invalidDefaultRace.race_id] = invalidDefaultRace,
-                }
-            ),
-            TestProgressionDefinitionProjection.Subraces(
-                new Dictionary<StringName, SubraceDef>
+                    [human.RaceId] = human,
+                    [orphanRace.RaceId] = orphanRace,
+                    [invalidDefaultRace.RaceId] = invalidDefaultRace,
+                },
+            new Dictionary<StringName, SubraceDefinition>
                 {
                 [new StringName("common_human")] = MakeIdentityOptionSubrace(
                     "common_human",
@@ -594,8 +537,7 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
                     "valid_for_invalid_default",
                     "invalid_default_race"
                 ),
-                }
-            ),
+                },
             new Dictionary<StringName, AgeProfileDefinition>(),
             new Dictionary<StringName, BloodlineDefinition>(),
             new Dictionary<StringName, BloodlineStageDefinition>(),
@@ -605,35 +547,53 @@ public partial class run_character_creation_service_regression : LifecycleTestSc
         );
     }
 
-    private static RaceDef MakeIdentityOptionRace(
+    private static RaceDefinition MakeIdentityOptionRace(
         StringName raceId,
         StringName defaultSubraceId,
         IEnumerable<string> subraceIds
     )
     {
-        RaceDef race = new()
-        {
-            race_id = raceId,
-            display_name = raceId.ToString(),
-            age_profile_id = "human_age_profile",
-            default_subrace_id = defaultSubraceId,
-            body_size_category = "medium",
-        };
+        List<StringName> ids = new();
         foreach (string subraceId in subraceIds)
-            race.subrace_ids.Add(subraceId);
-        return race;
+            ids.Add(subraceId);
+        return new RaceDefinition(
+            raceId, raceId.ToString(), "Fixture race.", "human_age_profile", defaultSubraceId,
+            ids, "medium", 6, Array.Empty<AttributeModifierDefinition>(), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            Array.Empty<StringName>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName>(), Array.Empty<StringName>(), Array.Empty<string>()
+        );
     }
 
-    private static SubraceDef MakeIdentityOptionSubrace(
+    private static SubraceDefinition MakeIdentityOptionSubrace(
         StringName subraceId,
-        StringName parentRaceId
+        StringName parentRaceId,
+        StringName bodySizeOverride = default
     ) =>
-        new()
-        {
-            subrace_id = subraceId,
-            parent_race_id = parentRaceId,
-            display_name = subraceId.ToString(),
-        };
+        new(
+            subraceId, parentRaceId, subraceId.ToString(), "Fixture subrace.", bodySizeOverride,
+            0, Array.Empty<AttributeModifierDefinition>(), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            Array.Empty<StringName>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName>(), Array.Empty<StringName>(), Array.Empty<string>()
+        );
+
+    private static BloodlineDefinition MakeBloodline(StringName id, StringName stageId) =>
+        new(id, id.ToString(), "Fixture bloodline.", new[] { stageId }, Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<AttributeModifierDefinition>(), Array.Empty<string>());
+
+    private static BloodlineStageDefinition MakeBloodlineStage(StringName id, StringName owner) =>
+        new(id, owner, id.ToString(), "Fixture bloodline stage.", Array.Empty<AttributeModifierDefinition>(),
+            Array.Empty<StringName>(), Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<string>());
+
+    private static AscensionDefinition MakeAscension(StringName id, StringName stageId, IReadOnlyList<StringName> bloodlines) =>
+        new(id, id.ToString(), "Fixture ascension.", new[] { stageId }, Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<StringName>(), Array.Empty<StringName>(),
+            bloodlines, Array.Empty<string>(), false, false);
+
+    private static AscensionStageDefinition MakeAscensionStage(StringName id, StringName owner, StringName size) =>
+        new(id, owner, id.ToString(), "Fixture ascension stage.", Array.Empty<AttributeModifierDefinition>(),
+            Array.Empty<StringName>(), Array.Empty<RacialGrantedSkillDefinition>(), size, Array.Empty<string>());
 
     private static PartyMemberState MakeExistingMemberState()
     {

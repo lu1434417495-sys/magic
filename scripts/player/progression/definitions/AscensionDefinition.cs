@@ -72,43 +72,4 @@ public sealed class AscensionDefinition
     public bool ReplacesAgeGrowth { get; }
     public bool SuppressesOriginalRaceTraits { get; }
 
-    internal static AscensionDefinition FromResource(AscensionDef source, string path)
-    {
-        IdentityDefinitionProjection.RequireResource(source, path, nameof(AscensionDef));
-        return new AscensionDefinition(
-            source.ascension_id,
-            IdentityDefinitionProjection.CopyString(source.display_name, $"{path}.display_name"),
-            IdentityDefinitionProjection.CopyString(source.description, $"{path}.description"),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.StageIdsBorrowed,
-                $"{path}.stage_ids"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.TraitIdsBorrowed,
-                $"{path}.trait_ids"
-            ),
-            IdentityDefinitionProjection.CopyRacialGrantedSkills(
-                source.RacialGrantedSkillsBorrowed,
-                $"{path}.racial_granted_skills"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.AllowedRaceIdsBorrowed,
-                $"{path}.allowed_race_ids"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.AllowedSubraceIdsBorrowed,
-                $"{path}.allowed_subrace_ids"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.AllowedBloodlineIdsBorrowed,
-                $"{path}.allowed_bloodline_ids"
-            ),
-            IdentityDefinitionProjection.CopyStrings(
-                source.TraitSummaryBorrowed,
-                $"{path}.trait_summary"
-            ),
-            source.replaces_age_growth,
-            source.suppresses_original_race_traits
-        );
-    }
 }

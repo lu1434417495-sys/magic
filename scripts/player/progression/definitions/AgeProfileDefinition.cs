@@ -57,32 +57,4 @@ public sealed class AgeProfileDefinition
     public IReadOnlyList<StringName> CreationStageIds { get; }
     public IReadOnlyDictionary<StringName, int> DefaultAgeByStage { get; }
 
-    internal static AgeProfileDefinition FromResource(AgeProfileDef source, string path)
-    {
-        IdentityDefinitionProjection.RequireResource(source, path, nameof(AgeProfileDef));
-        return new AgeProfileDefinition(
-            source.profile_id,
-            source.race_id,
-            source.child_age,
-            source.teen_age,
-            source.young_adult_age,
-            source.adult_age,
-            source.middle_age,
-            source.old_age,
-            source.venerable_age,
-            source.max_natural_age,
-            IdentityDefinitionProjection.CopyAgeStageRules(
-                source.StageRulesBorrowed,
-                $"{path}.stage_rules"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.CreationStageIdsBorrowed,
-                $"{path}.creation_stage_ids"
-            ),
-            IdentityDefinitionProjection.CopyStringNameIntMap(
-                source.DefaultAgeByStageBorrowed,
-                $"{path}.default_age_by_stage"
-            )
-        );
-    }
 }

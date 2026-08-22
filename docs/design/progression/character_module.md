@@ -47,12 +47,12 @@ UnitProgress 是技能/职业成长 owner：
 ## 内容定义
 
 - `SkillDef` / `CombatSkillDef`：技能 id、等级上限、消耗、目标、效果、special profile id。
-- `ProfessionDef`：职业 id、rank gate、promotion requirement、granted skills、属性成长。
+- `ProfessionDefinition`：职业 id、rank gate、promotion requirement、granted skills、属性成长；由 `professions` strict JSON domain 唯一投影。
 - `AchievementDef`：触发条件、progress key、reward。
-- `QuestDef`：provider、objectives、rewards、accept/complete/claim 条件。
+- `QuestDefinition`：provider、objectives、rewards、accept/complete/claim 条件；由 `quests` strict JSON domain 唯一投影。
 - identity catalog：race/subrace/age/bloodline/faith/barrier/ascension/stage advancement 等 typed 定义。
 
-所有 runtime 查询都应使用 typed `StringName` key。registry/content seed 可以在 process snapshot 构建期把资源字典投成 typed catalog；建卡候选、建卡提交与身份校验只接收不可变 `ProgressionIdentityCatalogData`，runtime 不接收 `ProgressionContentRegistry`，也不使用 string-key fallback。
+所有 runtime 查询都应使用 typed `StringName` key。职业、任务、race/subrace/age/bloodline/ascension/faith/stage advancement registry 在 process snapshot 构建期从固定 JSON 目录投影 typed catalog；建卡候选、建卡提交与身份校验只接收不可变 `ProgressionIdentityCatalogData`，runtime 不接收 `ProgressionContentRegistry`、JSON DTO/import model 或 string-key fallback。
 
 ## CharacterManagementModule Setup
 
@@ -135,11 +135,11 @@ godot --headless -s res://tests/text_runtime/headless/run_text_command_party_bat
 setup 后应建立并持有以下 typed 索引：
 
 - `IReadOnlyDictionary<StringName, SkillDefinition>`。
-- `Dictionary<StringName, ProfessionDefinition>`。
-- `Dictionary<StringName, AchievementDefinition>`。
-- `Dictionary<StringName, ItemDefinition>`，并只向 consumer 暴露只读 view。
-- `Dictionary<StringName, GearSetDefinition>`、`Dictionary<StringName, TraitDefinition>`。
-- `Dictionary<StringName, QuestDefinition>`。
+- `IReadOnlyDictionary<StringName, ProfessionDefinition>`。
+- `IReadOnlyDictionary<StringName, AchievementDefinition>`。
+- `IReadOnlyDictionary<StringName, ItemDefinition>`。
+- `IReadOnlyDictionary<StringName, GearSetDefinition>`、`IReadOnlyDictionary<StringName, TraitDefinition>`。
+- `IReadOnlyDictionary<StringName, QuestDefinition>`。
 - `ProgressionIdentityCatalogData`。
 
 这些索引只从 catalog typed view 初始化。不要在运行中扫描 public Godot dictionary projection 补 key。
@@ -172,7 +172,7 @@ setup 后应建立并持有以下 typed 索引：
 
 职业进度应包含 profession id、rank、exp、promotion records。转职流程：
 
-1. 根据 ProfessionDef.rank gates 和 requirements 计算候选。
+1. 根据 `ProfessionDefinition` 的 rank gates 和 requirements 计算候选。
 2. 生成 PendingProfessionChoice，记录 target rank map、trigger skill ids、候选职业。
 3. UI 提交 profession id 后再次校验候选仍合法。
 4. 写 UnitProfessionProgress、授予 profession granted skills、属性成长和奖励。
@@ -305,13 +305,11 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `private sealed class QuestRewardData`
 - `public static QuestRewardData Missing() =>`
 - `public static QuestRewardData FromDictionary(GDictionary questData)`
-- `public static QuestRewardData FromQuestDef(QuestDef questDef)`
 - `private sealed class QuestRewardEntryData`
 - `internal GArray CloneEntries() => _entries.Duplicate(true);`
 - `public static IReadOnlyList<QuestRewardEntryData> FromArray(GArray rewardEntries)`
 - `public static QuestRewardEntryData FromVariant(Variant value)`
 - `public static QuestRewardEntryData FromDictionary(GDictionary data)`
-- `public static QuestRewardEntryData FromQuestRewardEntry(QuestDef.RewardEntryData entry)`
 - `private sealed class QuestRewardPreviewData`
 - `internal GArray CloneItemRewards() => _itemRewards.Duplicate(true);`
 - `public List<StringName> CloneWarehouseDepositItemIds() =>`
@@ -600,7 +598,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public int RecordObjectiveProgress(StringName objectiveId, int delta)`
 - `public bool IsObjectiveComplete(StringName objectiveId, int targetValue = 0)`
 - `public bool IsObjectiveComplete(StringName objectiveId)`
-- `public bool HasCompletedAllObjectives(QuestDef questDef)`
+- `public bool HasCompletedAllObjectives(QuestDefinition questDef)`
 - `public void MarkAccepted(int worldStep = -1)`
 - `public void MarkCompleted(int worldStep = -1)`
 - `public void MarkRewardClaimed(int worldStep = -1)`
