@@ -39,19 +39,6 @@ internal sealed class BattleSpecialProfileRuntimeView : IBattleSpecialProfileVie
         );
     }
 
-    internal static BattleSpecialProfileRuntimeView ForMeteorSwarm(
-        StringName profileId,
-        MeteorSwarmProfile profile
-    )
-    {
-        MeteorSwarmProfileData data = MeteorSwarmProfileData.FromResource(profileId, profile);
-        var profiles = new Dictionary<StringName, MeteorSwarmProfileData>
-        {
-            [profileId] = data,
-        };
-        return new BattleSpecialProfileRuntimeView(profiles);
-    }
-
     public bool TryGetMeteorSwarmProfile(
         StringName profileId,
         out MeteorSwarmProfileData profile

@@ -42,7 +42,7 @@ public sealed class BarrierProfileDefinition
     public bool CatchAllProjectedEffects { get; }
     public IReadOnlyList<BarrierLayerDefinition> Layers { get; }
 
-    internal BarrierAnchorMode AnchorModeKind => BarrierProfileDef.ToAnchorMode(AnchorMode);
+    internal BarrierAnchorMode AnchorModeKind => BarrierKinds.ToAnchorMode(AnchorMode);
     internal BattleAreaPattern AreaPatternKind => BattleTypedNames.ToAreaPattern(AreaPattern);
 
     public IReadOnlyList<BarrierLayerDefinition> GetOrderedLayers()
@@ -54,22 +54,4 @@ public sealed class BarrierProfileDefinition
             : new ReadOnlyCollection<BarrierLayerDefinition>(result);
     }
 
-    internal static BarrierProfileDefinition FromResource(BarrierProfileDef source, string path)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        return new BarrierProfileDefinition(
-            source.profile_id,
-            source.display_name,
-            source.anchor_mode,
-            source.area_pattern,
-            source.radius_cells,
-            source.duration_tu,
-            source.catch_all_projected_effects,
-            ProgressionDefinitionProjection.ProjectBorrowedValues(
-                source.LayersProjectionBorrowed,
-                path + ".layers",
-                BarrierLayerDefinition.FromResource
-            )
-        );
-    }
 }

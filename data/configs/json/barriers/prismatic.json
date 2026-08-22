@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "domain": "barriers",
+  "family": "prismatic",
+  "templates": {
+    "single_ward": {
+      "profile_id": "template_only",
+      "display_name": "",
+      "anchor_mode": "fixed",
+      "area_pattern": "diamond",
+      "radius_cells": 1,
+      "duration_tu": 40,
+      "catch_all_projected_effects": false,
+      "layer_ids": []
+    }
+  },
+  "entries": [
+    {
+      "profile_id": "prismatic_blue_ward",
+      "template": "single_ward",
+      "display_name": "虹光·湛蓝屏障",
+      "layer_ids": ["blue"]
+    },
+    {
+      "profile_id": "prismatic_green_ward",
+      "template": "single_ward",
+      "display_name": "虹光·翠绿屏障",
+      "layer_ids": ["green"]
+    },
+    {
+      "profile_id": "prismatic_indigo_ward",
+      "template": "single_ward",
+      "display_name": "虹光·靛青屏障",
+      "layer_ids": ["indigo"]
+    },
+    {
+      "profile_id": "prismatic_orange_ward",
+      "template": "single_ward",
+      "display_name": "虹光·橙耀屏障",
+      "layer_ids": ["orange"]
+    },
+    {
+      "profile_id": "prismatic_red_ward",
+      "template": "single_ward",
+      "display_name": "虹光·赤红屏障",
+      "layer_ids": ["red"]
+    },
+    {
+      "profile_id": "prismatic_sphere",
+      "display_name": "虹光法球",
+      "anchor_mode": "fixed",
+      "area_pattern": "diamond",
+      "radius_cells": 2,
+      "duration_tu": 120,
+      "catch_all_projected_effects": false,
+      "layer_ids": ["red", "orange", "yellow", "green", "blue", "indigo", "violet"]
+    },
+    {
+      "profile_id": "prismatic_violet_ward",
+      "template": "single_ward",
+      "display_name": "虹光·紫晶屏障",
+      "layer_ids": ["violet"]
+    },
+    {
+      "profile_id": "prismatic_yellow_ward",
+      "template": "single_ward",
+      "display_name": "虹光·金黄屏障",
+      "layer_ids": ["yellow"]
+    }
+  ]
+}

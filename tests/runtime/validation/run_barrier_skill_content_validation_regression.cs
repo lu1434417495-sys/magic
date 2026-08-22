@@ -13,7 +13,7 @@ public partial class run_barrier_skill_content_validation_regression : Lifecycle
         {
             using var loader = new TestContentResourceLoader();
             using var progression = new ProgressionContentRegistry(loader);
-            using var barriers = new BarrierContentRegistry(loader);
+            using var barriers = new BarrierContentRegistry();
 
             IReadOnlyDictionary<StringName, SkillDefinition> officialSkills =
                 progression.GetSkillDefinitionsTyped();

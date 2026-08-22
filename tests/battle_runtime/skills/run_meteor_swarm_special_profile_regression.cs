@@ -79,13 +79,18 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         bool nullProfileRejected = false;
         try
         {
-            BattleSpecialProfileRuntimeView.ForMeteorSwarm("meteor_swarm", null);
+            _ = new BattleSpecialProfileRuntimeView(
+                new Dictionary<StringName, MeteorSwarmProfileData>
+                {
+                    ["meteor_swarm"] = null,
+                }
+            );
         }
-        catch (ArgumentNullException)
+        catch (ArgumentException)
         {
             nullProfileRejected = true;
         }
-        _test.True(nullProfileRejected, "typed profile projection 应对 null Resource fail-fast。");
+        _test.True(nullProfileRejected, "typed profile projection 应对 null Definition fail-fast。");
     }
 
     private void TestTargetPlanUsesSquare7x7AndEdgeClipping()
