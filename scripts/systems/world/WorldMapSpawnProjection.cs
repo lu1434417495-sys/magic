@@ -315,7 +315,7 @@ internal static class WorldMapSpawnProjection
         {
             ["submap_id"] = mountedSubmap.SubmapId,
             ["display_name"] = mountedSubmap.DisplayName,
-            ["generation_config_path"] = mountedSubmap.GenerationConfigPath,
+            ["world_generation_id"] = mountedSubmap.WorldGenerationId.ToString(),
             ["return_hint_text"] = mountedSubmap.ReturnHintText,
             ["is_generated"] = mountedSubmap.IsGenerated,
             ["player_coord"] = mountedSubmap.PlayerCoord,

@@ -139,12 +139,24 @@ public partial class LoginScreen : Control
         if (!_validate_start_scene_path())
             return;
 
+        GameSession gameSession = _get_game_session();
+        if (gameSession == null)
+        {
+            _show_error("未找到 GameSession。");
+            return;
+        }
         var presets = new GDictionaryArray();
-        foreach (WorldPresetRegistry.WorldPresetInfo presetData in WorldPresetRegistry.ListPresetsTyped())
+        foreach (WorldPresetDefinition presetData in gameSession.GetWorldPresets().Values)
         {
             if (presetData.PresetId == TEST_PRESET_ID)
                 continue;
-            presets.Add(presetData.ToDictionary());
+            presets.Add(new GDictionary
+            {
+                ["preset_id"] = presetData.PresetId,
+                ["display_name"] = presetData.DisplayName,
+                ["size_label"] = presetData.SizeLabel,
+                ["world_generation_id"] = presetData.GenerationId,
+            });
         }
 
         if (presets.Count == 0)
@@ -287,16 +299,21 @@ public partial class LoginScreen : Control
         if (!_validate_start_scene_path())
             return;
 
-        if (!WorldPresetRegistry.TryGetPresetTyped(preset_id, out var presetData))
+        GameSession gameSession = _get_game_session();
+        if (gameSession == null)
+        {
+            _show_error("未找到 GameSession。");
+            return;
+        }
+        if (!gameSession.TryGetWorldPreset(preset_id, out WorldPresetDefinition presetData))
         {
             _show_error("未找到对应的世界预设。");
             return;
         }
 
-        string generationConfigPath = presetData.GenerationConfigPath;
-        if (string.IsNullOrEmpty(generationConfigPath))
+        if (presetData.GenerationId == "")
         {
-            _show_error("世界预设缺少生成配置路径。");
+            _show_error("世界预设缺少生成配置 ID。");
             return;
         }
 
@@ -330,20 +347,17 @@ public partial class LoginScreen : Control
     private Error CreateSaveForPreset(StringName preset_id, GDictionary character_creation_payload)
     {
         character_creation_payload ??= new GDictionary();
-        if (!WorldPresetRegistry.TryGetPresetTyped(preset_id, out var presetData))
-            return Error.DoesNotExist;
-
-        string generationConfigPath = presetData.GenerationConfigPath;
-        if (string.IsNullOrEmpty(generationConfigPath))
-            return Error.InvalidData;
-
         GameSession gameSession = _get_game_session();
         if (gameSession == null)
             return Error.Unconfigured;
+        if (!gameSession.TryGetWorldPreset(preset_id, out WorldPresetDefinition presetData))
+            return Error.DoesNotExist;
+        if (presetData.GenerationId == "")
+            return Error.InvalidData;
 
         return (Error)
             gameSession.CreateNewSave(
-                generationConfigPath,
+                presetData.GenerationId,
                 preset_id,
                 string.IsNullOrEmpty(presetData.DisplayName) ? "世界" : presetData.DisplayName,
                 character_creation_payload

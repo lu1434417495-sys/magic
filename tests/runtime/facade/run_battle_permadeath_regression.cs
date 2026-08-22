@@ -5,7 +5,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private readonly TestHarness _test = new();
 

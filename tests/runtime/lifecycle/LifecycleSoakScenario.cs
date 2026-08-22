@@ -9,7 +9,7 @@ using GDictionary = Godot.Collections.Dictionary;
 internal sealed class LifecycleSoakScenario
 {
     private const string TestWorldConfig =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
     private const int FixedBattleSeed = 0x5A17_2026;
     private const int MaximumBattleAdvanceCount = 64;
 
@@ -115,8 +115,8 @@ internal sealed class LifecycleSoakScenario
             $"cycle {cycle}: CreateNewSave failed with {(Error)createError}."
         );
         Require(
-            GameSession.CurrentSaveVersion == 18,
-            $"cycle {cycle}: lifecycle soak requires save version 18."
+            GameSession.CurrentSaveVersion == 20,
+            $"cycle {cycle}: lifecycle soak requires save version 20."
         );
 
         GameRuntimeFacade facade = new(new FixedBattleSeedSource(FixedBattleSeed));

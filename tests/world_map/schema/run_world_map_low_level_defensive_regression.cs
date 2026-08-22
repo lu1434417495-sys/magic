@@ -15,7 +15,7 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
 
     private TestResult Run()
     {
-        TestWorldPresetRegistryListsAndFindsTypedPresets();
+        TestWorldJsonRegistryListsAndFindsTypedPresets();
         TestGridFootprintStateUsesPublicBehavior();
         TestVisibilityRebuildIgnoresForeignFactionSources();
         TestFogPersistentRevisionOnlyTracksPersistentChanges();
@@ -24,25 +24,21 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
         return _test.Finish("World map low-level defensive regression");
     }
 
-    private void TestWorldPresetRegistryListsAndFindsTypedPresets()
+    private void TestWorldJsonRegistryListsAndFindsTypedPresets()
     {
-        IReadOnlyList<WorldPresetRegistry.WorldPresetInfo> presets =
-            WorldPresetRegistry.ListPresetsTyped();
-        _test.True(presets.Count > 0, "WorldPresetRegistry typed 目录应继续暴露预设列表。");
+        var registry = new WorldContentRegistry();
+        registry.Rebuild();
+        IReadOnlyDictionary<StringName, WorldPresetDefinition> presets = registry.GetPresets();
+        _test.Eq(registry.GetValidationErrors().Count, 0, "world JSON registry 不应包含导入错误。");
+        _test.True(presets.Count > 0, "world JSON registry 应暴露 typed 预设列表。");
         _test.True(
-            WorldPresetRegistry.TryGetPresetTyped("test", out var testPreset),
-            "WorldPresetRegistry typed 查询应继续找到 test 预设。"
+            presets.TryGetValue("test", out WorldPresetDefinition testPreset),
+            "world JSON registry typed 查询应找到 test 预设。"
         );
         _test.Eq(
             testPreset?.DisplayName,
             "测试",
-            "WorldPresetRegistry typed 查询应保留 test 预设名称。"
-        );
-        GDictionary projectedTestPreset = WorldPresetRegistry.GetPreset("test");
-        _test.Eq(
-            projectedTestPreset["display_name"].AsString(),
-            testPreset?.DisplayName,
-            "WorldPresetRegistry Dictionary 投影应只反映 typed 预设数据。"
+            "world JSON registry typed 查询应保留 test 预设名称。"
         );
     }
 

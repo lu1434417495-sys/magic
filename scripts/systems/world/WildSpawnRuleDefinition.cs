@@ -43,32 +43,4 @@ public sealed class WildSpawnRuleDefinition
     public IReadOnlyList<Vector2I> ChunkCoords { get; }
     public StringName FactionId => HostileFactionId;
 
-    internal static WildSpawnRuleDefinition FromResource(
-        WildSpawnRule source,
-        string path
-    )
-    {
-        if (source == null)
-            throw WorldDefinitionProjection.Invalid(path, "resource is null");
-        return new WildSpawnRuleDefinition(
-            WorldDefinitionProjection.RequireString(
-                source.region_tag,
-                path + ".region_tag"
-            ).Trim(),
-            WorldDefinitionProjection.RequireString(
-                source.monster_name,
-                path + ".monster_name"
-            ),
-            source.encounter_profile_id,
-            source.settlement_encounter_profile_id,
-            source.settlement_encounter_display_name,
-            source.density_per_chunk,
-            source.min_distance_to_settlement,
-            source.vision_range,
-            WorldDefinitionProjection.CopyValues(
-                source.ChunkCoordsProjectionBorrowed,
-                path + ".chunk_coords"
-            )
-        );
-    }
 }

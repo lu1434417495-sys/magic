@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_save_projection_lease_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
     private const string SaveIndexPath = "user://saves/index.dat";
 
     private readonly TestHarness _test = new();
@@ -334,7 +334,7 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
                     "display_name",
                     "world_preset_id",
                     "world_preset_name",
-                    "generation_config_path",
+                    "world_generation_id",
                     "world_size_cells",
                     "created_at_unix_time",
                     "updated_at_unix_time"
@@ -365,7 +365,7 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
                 payload,
                 "version",
                 "save_id",
-                "generation_config_path",
+                "world_generation_id",
                 "world_state",
                 "party_state",
                 "meta",
@@ -373,7 +373,11 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
             ),
             "save v18 顶层 key shape 应保持不变。"
         );
-        _test.Eq(PlainInt(payload, "version", -1), 18, "save version 应保持 18。");
+        _test.Eq(
+            PlainInt(payload, "version", -1),
+            SaveSchemaVersions.SaveVersion,
+            "save payload 的 version 应与 SaveSchemaVersions.SaveVersion 一致。"
+        );
         IReadOnlyDictionary<string, object> worldState = PlainDictionary(
             payload,
             "world_state"
@@ -446,7 +450,7 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
     {
         return gameSession._save_serializer.BuildSavePayloadLease(
             gameSession.GetActiveSaveId(),
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId(),
             gameSession.CaptureActiveSaveMetaPlain(),
             gameSession.CaptureWorldDataPlain(),
             gameSession.GetPlayerCoord(),

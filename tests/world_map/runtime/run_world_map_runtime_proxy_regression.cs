@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_runtime_proxy_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
 
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,6 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
     private sealed class RuntimeFixture : IDisposable
     {
         public GameRuntimeFacade Runtime { get; init; }
-        public WorldMapGenerationConfig GenerationConfig { get; init; }
         public GDictionary ItemDefs { get; init; }
 
         public void Dispose()
@@ -414,12 +413,8 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
     {
         Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
         GDictionary itemDefs = BuildItemDefs();
-        WorldMapGenerationConfig generationConfig = new();
         WorldGenerationDefinition generationDefinition =
-            TestWorldGenerationDefinitionFactory.Project(
-                "res://tests/world_map/runtime/runtime_proxy_generation.tres",
-                generationConfig
-            );
+            TestWorldGenerationDefinitionFactory.Create("runtime_proxy_fixture");
         GameRuntimeFacade runtime = new()
         {
             _generation_definition = generationDefinition,
@@ -457,7 +452,6 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         return new RuntimeFixture
         {
             Runtime = runtime,
-            GenerationConfig = generationConfig,
             ItemDefs = itemDefs,
         };
     }

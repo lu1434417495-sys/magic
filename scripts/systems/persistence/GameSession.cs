@@ -182,9 +182,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     internal string _active_save_id = "";
     internal string _active_save_path = "";
     private readonly Dictionary<string, object> _activeSaveMeta = new(StringComparer.Ordinal);
-    internal string _generation_config_path = "";
+    internal StringName _world_generation_id = "";
     internal WorldGenerationDefinition _generation_definition;
-    private string _bound_generation_definition_path = "";
+    private StringName _bound_world_generation_id = "";
     private WorldGenerationDefinition _bound_generation_definition;
     private readonly Dictionary<string, object> _worldData = new(StringComparer.Ordinal);
     internal Vector2I _player_coord = Vector2I.Zero;
@@ -548,21 +548,20 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     {
         _generation_definition = null;
         _bound_generation_definition = null;
-        _bound_generation_definition_path = "";
+        _bound_world_generation_id = "";
         _contentValidationSnapshotData = new ContentValidationSnapshotData();
     }
 
-    public int EnsureWorldReady(string generation_config_path)
+    public int EnsureWorldReady(StringName world_generation_id)
     {
-        generation_config_path = ContentPathCanonicalizer.Canonicalize(generation_config_path);
         int contentValidationError = RequireContentValidationForRuntime("ensure_world_ready");
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
-        if (_has_active_world && _generation_config_path == generation_config_path)
+        if (_has_active_world && _world_generation_id == world_generation_id)
             return (int)Error.Ok;
-        if (TryLoadGameState(generation_config_path))
+        if (TryLoadGameState(world_generation_id))
             return (int)Error.Ok;
-        return StartNewGame(generation_config_path);
+        return StartNewGame(world_generation_id);
     }
 
     private GameRoot EnsureGameRoot()
@@ -582,33 +581,32 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         return _game_root;
     }
 
-    public int StartNewGame(string generation_config_path)
+    public int StartNewGame(StringName world_generation_id)
     {
-        string presetName = WorldPresetRegistry.GetFallbackPresetName(generation_config_path);
-        return CreateNewSave(generation_config_path, "", presetName, null);
+        return CreateNewSave(world_generation_id, "", "世界", null);
     }
 
-    public int CreateNewSave(string generation_config_path)
+    public int CreateNewSave(StringName world_generation_id)
     {
-        return CreateNewSave(generation_config_path, "", "", null);
+        return CreateNewSave(world_generation_id, "", "", null);
     }
 
-    public int CreateNewSave(string generation_config_path, StringName preset_id)
+    public int CreateNewSave(StringName world_generation_id, StringName preset_id)
     {
-        return CreateNewSave(generation_config_path, preset_id, "", null);
+        return CreateNewSave(world_generation_id, preset_id, "", null);
     }
 
     public int CreateNewSave(
-        string generation_config_path,
+        StringName world_generation_id,
         StringName preset_id,
         string preset_name
     )
     {
-        return CreateNewSave(generation_config_path, preset_id, preset_name, null);
+        return CreateNewSave(world_generation_id, preset_id, preset_name, null);
     }
 
     public int CreateNewSave(
-        string generation_config_path,
+        StringName world_generation_id,
         StringName preset_id,
         string preset_name,
         GDictionary character_creation_payload
@@ -618,16 +616,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         if (contentValidationError != (int)Error.Ok)
             return contentValidationError;
 
-        if (string.IsNullOrEmpty(generation_config_path))
+        if (world_generation_id == "")
         {
             throw new InvalidOperationException(
-                "GameSession requires a generation config path."
+                "GameSession requires a world generation ID."
             );
         }
-        generation_config_path = ContentPathCanonicalizer.Canonicalize(generation_config_path);
 
         WorldGenerationDefinition generationDefinition = ResolveBoundGenerationDefinition(
-            generation_config_path
+            world_generation_id
         );
         if (generationDefinition == null)
             return (int)Error.CantOpen;
@@ -637,7 +634,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         GDictionary previousRuntimeState = previousRuntimeStateLease.Value;
         WorldGenerationDefinition previousGenerationDefinition = _generation_definition;
 
-        int prepareError = PrepareNewWorld(generation_config_path, generationDefinition);
+        int prepareError = PrepareNewWorld(world_generation_id, generationDefinition);
         if (prepareError != (int)Error.Ok)
         {
             RestoreRuntimeState(previousRuntimeState, previousGenerationDefinition);
@@ -672,13 +669,15 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
         _active_save_id = saveId;
         _active_save_path = BuildSaveFilePath(saveId);
-        string resolvedPresetName = string.IsNullOrEmpty(preset_name)
-            ? WorldPresetRegistry.GetFallbackPresetName(generation_config_path)
-            : preset_name;
+        string resolvedPresetName = ResolvePresetName(
+            preset_id,
+            world_generation_id,
+            preset_name
+        );
         ReplaceActiveSaveMetaPlain(BuildSaveMetaPlain(
             saveId,
             saveId,
-            generation_config_path,
+            world_generation_id,
             preset_id,
             resolvedPresetName,
             generationDefinition.GetWorldSizeCells(),
@@ -697,7 +696,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
                     new Dictionary<string, object>(StringComparer.Ordinal)
                     {
                         ["save_id"] = _active_save_id,
-                        ["generation_config_path"] = generation_config_path,
+                        ["world_generation_id"] = world_generation_id.ToString(),
                         ["preset_id"] = preset_id.ToString(),
                         ["preset_name"] = preset_name,
                     },
@@ -750,25 +749,25 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             );
         }
         if (
-            !plainPayload.TryGetValue("generation_config_path", out object generationPathValue)
-            || generationPathValue is not string generationConfigPath
+            !plainPayload.TryGetValue("world_generation_id", out object generationIdValue)
+            || generationIdValue is not string worldGenerationIdText
         )
         {
             throw new InvalidOperationException(
-                $"Save slot {save_id} is missing generation_config_path."
+                $"Save slot {save_id} is missing world_generation_id."
             );
         }
 
-        generationConfigPath = generationConfigPath.Trim();
-        if (string.IsNullOrEmpty(generationConfigPath))
+        StringName worldGenerationId = new(worldGenerationIdText.Trim());
+        if (worldGenerationId == "")
         {
             throw new InvalidOperationException(
-                $"Save slot {save_id} is missing generation_config_path."
+                $"Save slot {save_id} is missing world_generation_id."
             );
         }
 
         WorldGenerationDefinition generationDefinition = ResolveBoundGenerationDefinition(
-            generationConfigPath
+            worldGenerationId
         );
         if (generationDefinition == null)
             return (int)Error.CantOpen;
@@ -780,7 +779,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         _pending_load_error_reason = "";
         int loadError = LoadCurrentPayload(
             plainPayload,
-            generationConfigPath,
+            worldGenerationId,
             generationDefinition,
             saveMeta
         );
@@ -795,7 +794,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
                     {
                         ["save_id"] = save_id,
                         ["save_path"] = savePath,
-                        ["generation_config_path"] = generationConfigPath,
+                        ["world_generation_id"] = worldGenerationId.ToString(),
                     },
                     "GameSession.session.save.load.ok"
                 )
@@ -851,7 +850,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     internal void ConfigureRuntimeWorldForTests(
         string saveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         GDictionary worldData,
         PartyState partyState,
         string saveKind = "runtime_test",
@@ -864,14 +863,14 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         _active_save_id = saveId ?? "";
         _active_save_path = BuildSaveFilePath(_active_save_id);
         if (generationDefinition != null)
-            BindGenerationDefinition(generationConfigPath, generationDefinition);
+            BindGenerationDefinition(worldGenerationId, generationDefinition);
         WorldGenerationDefinition resolvedGenerationDefinition =
-            ResolveBoundGenerationDefinition(generationConfigPath);
+            ResolveBoundGenerationDefinition(worldGenerationId);
         if (resolvedGenerationDefinition == null)
             throw new InvalidOperationException(
                 "Runtime world tests require the bound snapshot to contain the requested WorldGenerationDefinition."
             );
-        _generation_config_path = ContentPathCanonicalizer.Canonicalize(generationConfigPath);
+        _world_generation_id = worldGenerationId;
         _generation_definition = resolvedGenerationDefinition;
         ReplaceWorldDataPayload(worldData);
         _player_coord = Vector2I.Zero;
@@ -884,7 +883,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         ReplaceActiveSaveMetaPlain(BuildSaveMetaPlain(
             _active_save_id,
             _active_save_id,
-            _generation_config_path,
+            _world_generation_id,
             saveKind,
             displayName,
             mapSize ?? new Vector2I(8, 8),
@@ -914,26 +913,24 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     }
 
     internal void BindGenerationDefinition(
-        string canonicalPath,
+        StringName worldGenerationId,
         WorldGenerationDefinition definition
     )
     {
         ArgumentNullException.ThrowIfNull(definition);
-        string normalizedPath = ContentPathCanonicalizer.Canonicalize(canonicalPath);
-        string definitionPath = ContentPathCanonicalizer.Canonicalize(definition.CanonicalPath);
-        if (!string.Equals(normalizedPath, definitionPath, StringComparison.Ordinal))
+        if (worldGenerationId == "" || definition.GenerationId != worldGenerationId)
         {
             throw new InvalidOperationException(
-                $"World generation definition path mismatch: requested {normalizedPath}, definition {definitionPath}."
+                $"World generation definition ID mismatch: requested {worldGenerationId}, definition {definition.GenerationId}."
             );
         }
-        _bound_generation_definition_path = normalizedPath;
+        _bound_world_generation_id = worldGenerationId;
         _bound_generation_definition = definition;
     }
 
     public WorldGenerationDefinition GetGenerationDefinition() => _generation_definition;
 
-    public string GetGenerationConfigPath() => _generation_config_path;
+    public StringName GetWorldGenerationId() => _world_generation_id;
 
     internal void ReplaceWorldDataPayloadForRuntimeRestore(GDictionary worldData)
     {
@@ -1457,19 +1454,16 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         );
     }
 
-    private bool TryLoadGameState(string generation_config_path)
+    private bool TryLoadGameState(StringName worldGenerationId)
     {
-        if (string.IsNullOrEmpty(generation_config_path))
+        if (worldGenerationId == "")
             return false;
 
         foreach (Dictionary<string, object> saveMeta in LoadSaveIndexEntriesPlain())
         {
             if (
-                !string.Equals(
-                    ReadPlainString(saveMeta, "generation_config_path"),
-                    generation_config_path,
-                    StringComparison.Ordinal
-                )
+                new StringName(ReadPlainString(saveMeta, "world_generation_id"))
+                != worldGenerationId
             )
                 continue;
             string candidateSaveId = ReadPlainString(saveMeta, "save_id");
@@ -1482,7 +1476,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
                     new Dictionary<string, object>(StringComparer.Ordinal)
                     {
                         ["save_id"] = candidateSaveId,
-                        ["generation_config_path"] = generation_config_path,
+                        ["world_generation_id"] = worldGenerationId.ToString(),
                     },
                     "GameSession.session.save.autoload.skip_bad_candidate"
                 )
@@ -1492,7 +1486,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     }
 
     private int PrepareNewWorld(
-        string generation_config_path,
+        StringName worldGenerationId,
         WorldGenerationDefinition generation_definition
     )
     {
@@ -1522,7 +1516,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             return (int)Error.InvalidData;
         }
 
-        _generation_config_path = ContentPathCanonicalizer.Canonicalize(generation_config_path);
+        _world_generation_id = worldGenerationId;
         _generation_definition = generation_definition;
         ReplaceWorldDataPlain(normalizedWorldData);
         _player_coord = worldBuild.PlayerStartCoord;
@@ -1561,7 +1555,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         ReplaceActiveSaveMetaPlain(BuildSaveMetaPlain(
             _active_save_id,
             displayName,
-            _generation_config_path,
+            _world_generation_id,
             new StringName(ReadPlainString(_activeSaveMeta, "world_preset_id")),
             ReadPlainString(_activeSaveMeta, "world_preset_name"),
             _generation_definition != null
@@ -1585,7 +1579,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     private int LoadCurrentPayload(
         IReadOnlyDictionary<string, object> payload,
-        string generation_config_path,
+        StringName worldGenerationId,
         WorldGenerationDefinition generation_definition,
         IReadOnlyDictionary<string, object> save_meta
     )
@@ -1593,7 +1587,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         if (
             !_save_serializer.TryDecodePayload(
                 payload,
-                generation_config_path,
+                worldGenerationId,
                 save_meta,
                 out SaveDecodeResult decodeResult
             )
@@ -1635,7 +1629,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         _active_save_id = decodeResult.ActiveSaveId;
         _active_save_path = BuildSaveFilePath(_active_save_id);
         ReplaceActiveSaveMetaPlain(decodeResult.ActiveSaveMeta);
-        _generation_config_path = decodeResult.GenerationConfigPath;
+        _world_generation_id = decodeResult.WorldGenerationId;
         _generation_definition = generation_definition;
         ReplaceWorldDataPlain(decodeResult.WorldData);
         _player_coord = decodeResult.PlayerCoord;
@@ -1733,7 +1727,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     {
         return _save_serializer.BuildTrustedSavePayloadLease(
             _active_save_id,
-            _generation_config_path,
+            _world_generation_id,
             _activeSaveMeta,
             _worldData,
             _player_coord,
@@ -1746,7 +1740,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     private Dictionary<string, object> BuildSaveMetaPlain(
         string save_id,
         string display_name,
-        string generation_config_path,
+        StringName world_generation_id,
         StringName preset_id,
         string preset_name,
         Vector2I world_size_cells,
@@ -1757,7 +1751,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         return _save_serializer.BuildSaveMetaPlain(
             save_id,
             display_name,
-            generation_config_path,
+            world_generation_id,
             preset_id,
             preset_name,
             world_size_cells,
@@ -1809,34 +1803,16 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     }
 
     private WorldGenerationDefinition ResolveBoundGenerationDefinition(
-        string generationConfigPath
+        StringName worldGenerationId
     )
     {
-        string canonicalPath;
-        try
-        {
-            canonicalPath = ContentPathCanonicalizer.Canonicalize(generationConfigPath);
-        }
-        catch (ArgumentException exception)
-        {
-            PushSessionError(
-                "session.config.definition_unavailable",
-                $"GameSession rejected generation config path {generationConfigPath}.",
-                Json.Stringify(
-                    new GDictionary
-                    {
-                        ["generation_config_path"] = generationConfigPath ?? "",
-                        ["exception_type"] = exception.GetType().Name,
-                    }
-                )
-            );
+        if (worldGenerationId == "")
             return null;
-        }
         ContentSnapshot snapshot = _contentSnapshot;
         if (
             snapshot == null
             || !snapshot.WorldGenerations.TryGetValue(
-                canonicalPath,
+                worldGenerationId,
                 out WorldGenerationDefinition definition
             )
             || definition == null
@@ -1844,19 +1820,55 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         {
             PushSessionError(
                 "session.config.definition_unavailable",
-                $"GameSession snapshot has no world generation definition for {canonicalPath}.",
+                $"GameSession snapshot has no world generation definition for {worldGenerationId}.",
                 StringifyPlainContext(
                     new Dictionary<string, object>(StringComparer.Ordinal)
                     {
-                        ["generation_config_path"] = canonicalPath,
+                        ["world_generation_id"] = worldGenerationId.ToString(),
                     },
                     "GameSession.session.config.definition_unavailable"
                 )
             );
             return null;
         }
-        BindGenerationDefinition(canonicalPath, definition);
+        BindGenerationDefinition(worldGenerationId, definition);
         return definition;
+    }
+
+    internal bool TryGetWorldPreset(StringName presetId, out WorldPresetDefinition preset)
+    {
+        preset = null;
+        return presetId != ""
+            && _contentSnapshot != null
+            && _contentSnapshot.WorldPresets.TryGetValue(presetId, out preset)
+            && preset != null;
+    }
+
+    internal IReadOnlyDictionary<StringName, WorldPresetDefinition> GetWorldPresets() =>
+        _contentSnapshot?.WorldPresets
+        ?? new Dictionary<StringName, WorldPresetDefinition>();
+
+    private string ResolvePresetName(
+        StringName presetId,
+        StringName worldGenerationId,
+        string explicitName
+    )
+    {
+        if (presetId != "")
+        {
+            if (!TryGetWorldPreset(presetId, out WorldPresetDefinition preset))
+                throw new InvalidOperationException($"World preset {presetId} does not exist.");
+            if (preset.GenerationId != worldGenerationId)
+            {
+                throw new InvalidOperationException(
+                    $"World preset {presetId} references generation {preset.GenerationId}, not {worldGenerationId}."
+                );
+            }
+            return !string.IsNullOrWhiteSpace(explicitName)
+                ? explicitName
+                : preset.DisplayName;
+        }
+        return !string.IsNullOrWhiteSpace(explicitName) ? explicitName : "世界";
     }
 
     public int ReadSavePayload(
@@ -1885,7 +1897,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             ["active_save_id"] = _active_save_id,
             ["active_save_path"] = _active_save_path,
             ["active_save_meta"] = RuntimePlainPayload.CloneDictionary(_activeSaveMeta),
-            ["generation_config_path"] = _generation_config_path,
+            ["world_generation_id"] = _world_generation_id.ToString(),
             ["world_data"] = RuntimePlainPayload.CloneDictionary(_worldData),
             ["player_coord"] = _player_coord,
             ["player_faction_id"] = _player_faction_id,
@@ -1944,11 +1956,11 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
                 )
             );
         }
-        string restoredGenerationPath = GetString(state, "generation_config_path");
-        _generation_config_path = restoredGenerationPath;
-        _generation_definition = DefinitionMatchesPath(
+        StringName restoredGenerationId = new(GetString(state, "world_generation_id"));
+        _world_generation_id = restoredGenerationId;
+        _generation_definition = DefinitionMatchesId(
             generationDefinition,
-            restoredGenerationPath
+            restoredGenerationId
         )
             ? generationDefinition
             : null;
@@ -1989,25 +2001,14 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         }
     }
 
-    private static bool DefinitionMatchesPath(
+    private static bool DefinitionMatchesId(
         WorldGenerationDefinition definition,
-        string generationConfigPath
+        StringName worldGenerationId
     )
     {
-        if (definition == null || string.IsNullOrWhiteSpace(generationConfigPath))
-            return false;
-        try
-        {
-            return string.Equals(
-                ContentPathCanonicalizer.Canonicalize(definition.CanonicalPath),
-                ContentPathCanonicalizer.Canonicalize(generationConfigPath),
-                StringComparison.Ordinal
-            );
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
+        return definition != null
+            && worldGenerationId != ""
+            && definition.GenerationId == worldGenerationId;
     }
 
     private void ResetRuntimeState(bool dispose_current_party_state = true)
@@ -2016,7 +2017,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         _active_save_id = "";
         _active_save_path = "";
         ClearActiveSaveMetaPayload();
-        _generation_config_path = "";
+        _world_generation_id = "";
         _generation_definition = null;
         ClearWorldDataPayload();
         _player_coord = Vector2I.Zero;

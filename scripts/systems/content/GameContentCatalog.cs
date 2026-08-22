@@ -32,6 +32,8 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions;
     private IReadOnlyDictionary<StringName, GearSetDefinition> _gearSetDefinitions;
     private IReadOnlyDictionary<StringName, RecipeDefinition> _recipeDefinitions;
+    private IReadOnlyDictionary<StringName, WorldPresetDefinition> _worldPresets;
+    private IReadOnlyDictionary<StringName, WorldGenerationDefinition> _worldGenerations;
     private IReadOnlyDictionary<StringName, EnemyTemplateDefinition> _enemyTemplateDefinitions;
     private IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> _enemyBrainDefinitions;
     private IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> _encounterRosterDefinitions;
@@ -81,6 +83,8 @@ public sealed class GameContentCatalog
         _itemDefinitions = snapshot.Items;
         _gearSetDefinitions = snapshot.GearSets;
         _recipeDefinitions = snapshot.Recipes;
+        _worldPresets = snapshot.WorldPresets;
+        _worldGenerations = snapshot.WorldGenerations;
         _enemyTemplateDefinitions = snapshot.EnemyTemplates;
         _enemyBrainDefinitions = snapshot.EnemyBrains;
         _encounterRosterDefinitions = snapshot.EncounterRosters;
@@ -106,6 +110,8 @@ public sealed class GameContentCatalog
         _itemDefinitions = EmptyTyped<ItemDefinition>();
         _gearSetDefinitions = EmptyTyped<GearSetDefinition>();
         _recipeDefinitions = EmptyTyped<RecipeDefinition>();
+        _worldPresets = EmptyTyped<WorldPresetDefinition>();
+        _worldGenerations = EmptyTyped<WorldGenerationDefinition>();
         _enemyTemplateDefinitions = EmptyTyped<EnemyTemplateDefinition>();
         _enemyBrainDefinitions = EmptyTyped<EnemyAiBrainDefinition>();
         _encounterRosterDefinitions = EmptyTyped<WildEncounterRosterDefinition>();
@@ -184,6 +190,12 @@ public sealed class GameContentCatalog
 
     public IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped() =>
         _recipeDefinitions;
+
+    internal IReadOnlyDictionary<StringName, WorldPresetDefinition> GetWorldPresets() =>
+        _worldPresets;
+
+    internal IReadOnlyDictionary<StringName, WorldGenerationDefinition> GetWorldGenerations() =>
+        _worldGenerations;
 
     internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> GetEnemyTemplateDefinitions() =>
         _enemyTemplateDefinitions;

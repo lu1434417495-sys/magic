@@ -24,13 +24,13 @@ public partial class GameSession
         ContentSnapshot snapshot = RequireContentSnapshot();
         var errors = new List<string>();
         var validator = new WorldMapContentValidator();
-        foreach ((string path, WorldGenerationDefinition definition) in snapshot.WorldGenerations)
+        foreach ((StringName generationId, WorldGenerationDefinition definition) in snapshot.WorldGenerations)
         {
             AppendErrors(
                 errors,
                 validator.ValidateGenerationConfigTyped(
                     definition,
-                    path,
+                    generationId.ToString(),
                     snapshot.BattleEncounters.Keys
                 )
             );

@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_runtime_settlement_command_handler_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
 
     private readonly TestHarness _test = new();
 
@@ -1181,7 +1181,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         GameSession gameSession = await InstallGameSession("ResearchRouteGameSession");
         try
         {
-            int createError = gameSession.CreateNewSave(TestConfigPath, "research_route_service", "研究入口验证");
+            int createError = gameSession.CreateNewSave(TestConfigPath, "test", "研究入口验证");
             _test.Eq(createError, (int)Error.Ok, "创建 research 入口验证世界应成功。");
             if (createError == (int)Error.Ok)
             {

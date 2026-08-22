@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
     private static readonly PackedScene WorldMapScene = GD.Load<PackedScene>(
         "res://scenes/main/world_map.tscn"
     );

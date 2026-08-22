@@ -256,7 +256,7 @@ internal sealed class WorldRuntimeData
             {
                 ["submap_id"] = entry.Key,
                 ["display_name"] = submap.DisplayName,
-                ["generation_config_path"] = submap.GenerationConfigPath,
+                ["world_generation_id"] = submap.WorldGenerationId.ToString(),
                 ["return_hint_text"] = submap.ReturnHintText,
                 ["is_generated"] = submap.IsGenerated,
                 ["player_coord"] = submap.PlayerCoord,

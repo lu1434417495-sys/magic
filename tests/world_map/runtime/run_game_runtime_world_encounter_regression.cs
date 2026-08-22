@@ -156,15 +156,11 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
 
     private static WorldGenerationDefinition BuildConfig()
     {
-        WorldMapGenerationConfig source = new()
-        {
-            world_size_in_chunks = new Vector2I(1, 1),
-            chunk_size = new Vector2I(4, 4),
-            player_start_coord = Vector2I.Zero,
-        };
-        return TestWorldGenerationDefinitionFactory.Project(
-            "res://tests/world_map/runtime/world_encounter_generation.tres",
-            source
+        return TestWorldGenerationDefinitionFactory.Create(
+            "world_encounter_fixture",
+            worldSizeInChunks: new Vector2I(1, 1),
+            chunkSize: new Vector2I(4, 4),
+            playerStartCoord: Vector2I.Zero
         );
     }
 

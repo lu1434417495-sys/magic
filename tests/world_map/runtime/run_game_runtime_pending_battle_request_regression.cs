@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_game_runtime_pending_battle_request_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
     private readonly TestHarness _test = new();
 
     public override void _Initialize()

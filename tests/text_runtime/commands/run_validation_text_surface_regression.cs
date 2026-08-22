@@ -214,17 +214,16 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
             -1
         );
 
-    private static IReadOnlyDictionary<string, WorldGenerationDefinition> BuildInvalidWorldGenerations(
-        IReadOnlyDictionary<string, WorldGenerationDefinition> source
+    private static IReadOnlyDictionary<StringName, WorldGenerationDefinition> BuildInvalidWorldGenerations(
+        IReadOnlyDictionary<StringName, WorldGenerationDefinition> source
     )
     {
-        var result = new Dictionary<string, WorldGenerationDefinition>(
-            source ?? new Dictionary<string, WorldGenerationDefinition>(),
-            StringComparer.Ordinal
+        var result = new Dictionary<StringName, WorldGenerationDefinition>(
+            source ?? new Dictionary<StringName, WorldGenerationDefinition>()
         );
-        foreach ((string path, WorldGenerationDefinition definition) in result)
+        foreach ((StringName generationId, WorldGenerationDefinition definition) in result)
         {
-            result[path] = CloneWithMissingSettlement(definition);
+            result[generationId] = CloneWithMissingSettlement(definition);
             return result;
         }
         throw new InvalidOperationException(
@@ -236,7 +235,7 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
         WorldGenerationDefinition source
     ) =>
         new(
-            source.CanonicalPath,
+            source.GenerationId,
             source.Seed,
             source.WorldSizeInChunks,
             source.ChunkSize,
@@ -244,7 +243,7 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
             source.PlayerVisionRange,
             source.ProceduralGenerationEnabled,
             source.ProceduralWildSpawnChunkChanceDenominator,
-            source.InjectDefaultMainWorldContent,
+            source.SharedContentId,
             source.ProceduralVillageCount,
             source.ProceduralTownCount,
             source.ProceduralCityCount,

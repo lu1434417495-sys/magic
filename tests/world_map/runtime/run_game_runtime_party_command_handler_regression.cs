@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_runtime_party_command_handler_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
 
     private readonly TestHarness _test = new();
 

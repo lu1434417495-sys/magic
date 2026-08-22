@@ -76,7 +76,7 @@ WorldMapSystem / SettlementWindow / ShopWindow
 - 商店类：`service:basic_supply`、`service:local_trade`、`service:city_market`、`service:military_supply`、`service:grand_auction` 打开 shop modal，买卖由 shop 命令处理。
 - `service:repair_gear` / `service:master_reforge`：打开 forge modal 或执行装备耐久/重铸服务。
 - `service:stagecoach` / `service:world_gate_travel`：打开目的地列表或执行旅行，必须更新玩家坐标和 world data。
-- `service:contract_board`：打开任务板，任务列表来自 typed `QuestDef` 和 party quest state。
+- `service:contract_board`：打开任务板，任务列表来自 typed `QuestDefinition` 和 party quest state。
 - `service:village_rumor` / `service:intel_network`：调用 `WorldMapFogSystem` reveal，写回 active fog state。
 - `service:research` / `service:unlock_archive`：读写据点研究状态并可能解锁内容或任务进度。
 
@@ -106,7 +106,7 @@ WorldMapSystem / SettlementWindow / ShopWindow
 
 ## 与任务、奖励和进度的桥接
 
-- 合同板显示基于 typed `QuestDef` 和 party quest state；不要把 quest def 转 dictionary 后再回读。
+- 合同板显示基于 typed `QuestDefinition` 和 party quest state；不要把 quest definition 转 dictionary 后再回读。
 - 任务提交、领取、物品提交通过 `GameRuntimeQuestCommandHandler` / `CharacterManagementModule` typed payload。
 - settlement service 可发 quest progress event，但必须包含 world step、action id、settlement id/source id 等 typed 上下文。
 - 服务奖励应进入统一 reward flow 或 warehouse service，不在 UI 里直接改 party。
@@ -214,7 +214,7 @@ forge modal 负责展示可修理/重铸/制作项。commit 时通过 `PartyWare
 
 ### 任务板
 
-contract board 只展示 typed QuestDef 中 provider/settlement 条件匹配的任务。accept/submit/claim 走 quest command handler。任务板自己不改 QuestState。
+contract board 只展示 typed `QuestDefinition` 中 provider/settlement 条件匹配的任务。accept/submit/claim 走 quest command handler。任务板自己不改 QuestState。
 
 ### 传闻 / 情报
 

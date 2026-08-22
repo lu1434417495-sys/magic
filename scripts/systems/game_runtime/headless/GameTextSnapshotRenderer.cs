@@ -104,7 +104,7 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"active_save_id={GetString(session, "active_save_id")}",
-            $"generation_config={GetString(session, "generation_config_path")}",
+            $"world_generation_id={GetString(session, "world_generation_id")}",
             $"world_loaded={FormatBool(ReadExactBool(session, "world_loaded"))}",
         };
         foreach (GDictionary preset in Dictionaries(GetArray(session, "presets")))

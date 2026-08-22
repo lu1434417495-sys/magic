@@ -3,7 +3,7 @@ using Godot;
 
 public partial class run_game_session_random_start_skill_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private readonly TestHarness _test = new();
 

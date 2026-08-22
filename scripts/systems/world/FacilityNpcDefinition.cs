@@ -23,32 +23,4 @@ public sealed class FacilityNpcDefinition
     public string ServiceType { get; }
     public string InteractionScriptId { get; }
     public string LocalSlotId { get; }
-
-    internal static FacilityNpcDefinition FromResource(
-        FacilityNpcConfig source,
-        string path
-    )
-    {
-        if (source == null)
-            throw WorldDefinitionProjection.Invalid(path, "resource is null");
-        return new FacilityNpcDefinition(
-            WorldDefinitionProjection.RequireString(source.npc_id, path + ".npc_id").Trim(),
-            WorldDefinitionProjection.RequireString(
-                source.display_name,
-                path + ".display_name"
-            ),
-            WorldDefinitionProjection.RequireString(
-                source.service_type,
-                path + ".service_type"
-            ),
-            WorldDefinitionProjection.RequireString(
-                source.interaction_script_id,
-                path + ".interaction_script_id"
-            ),
-            WorldDefinitionProjection.RequireString(
-                source.local_slot_id,
-                path + ".local_slot_id"
-            )
-        );
-    }
 }

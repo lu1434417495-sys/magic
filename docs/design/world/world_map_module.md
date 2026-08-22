@@ -1,9 +1,9 @@
 # 世界地图模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-29`
+> 核对日期：`2026-08-22`
 
-更新日期：`2026-07-29`
+更新日期：`2026-08-22`
 
 ## 目标与边界
 
@@ -11,7 +11,7 @@
 
 世界地图模块覆盖：
 
-- 世界预设与 `WorldMapGenerationConfig` 静态资源读取。
+- `world_presets`、`world_generations`、`world_shared` 严格 JSON 内容读取与稳定 ID 解析。
 - 根世界与挂载子地图的生成、激活、返回与持久化。
 - 世界格网、据点 footprint 占用、4 邻接移动与坐标换算。
 - 玩家坐标、选中坐标、世界时间步、迷雾可见性与探索状态。
@@ -29,7 +29,7 @@
 
 ```text
 LoginScreen / Save
-  -> GameSession(active world, generation config, party, content catalog)
+  -> GameSession(active world generation ID, party, content catalog)
   -> scenes/main/world_map.tscn
     -> WorldMapSystem(scene adapter)
       -> GameRuntimeFacade(runtime owner)
@@ -45,11 +45,19 @@ LoginScreen / Save
 
 所有正式运行期状态由 `GameRuntimeFacade` 及其领域 sidecar 拥有；`WorldMapSystem` 是 Godot 场景适配器，只负责节点绑定、信号接线、输入转命令、窗口显示和根据 runtime snapshot 重绘。`WorldMapView` 只读取已经注入的 grid/fog/world data，不拥有世界规则。
 
-## 静态资源契约
+## 静态内容契约
 
-### WorldMapGenerationConfig
+### 严格 JSON 域与投影
 
-每个世界预设或子地图配置必须是 `WorldMapGenerationConfig` 资源。字段语义：
+世界内容只来自三个严格 JSON 域：
+
+- `data/configs/json/world_presets/*.json`：`preset_id -> generation_id` 与登录界面展示元数据。
+- `data/configs/json/world_generations/*.json`：以 `generation_id` 为主键的世界生成配置。
+- `data/configs/json/world_shared/*.json`：以 `shared_content_id` 为主键的共享据点、设施、野外遭遇和名称池。
+
+`WorldContentRegistry` 是唯一导入与投影入口：先按 schema 严格反序列化为 import model，再解析 `shared_content_id`、mounted submap `generation_id` 及 preset `generation_id` 的跨域引用，最后发布 `WorldPresetDefinition` 和递归不可变的 `WorldGenerationDefinition`。未知字段、重复稳定 ID、缺失引用或 generation 环都会使内容快照构建失败。运行时不加载 `.tres`，不接受资源路径，也没有旧路径 fallback。
+
+每个根世界或子地图由非空稳定 `generation_id` 标识。`WorldGenerationDefinition` 的主要字段语义：
 
 | 字段 | 类型 | 语义 |
 |---|---|---|
@@ -63,35 +71,36 @@ LoginScreen / Save
 | `*_spacing_cells` | `int` | 各 tier 程序化据点最小曼哈顿间距参考值。|
 | `guarantee_starting_wild_encounter` | `bool` | 是否保证起点附近有野外遭遇。|
 | `starting_wild_spawn_min_distance` / `max_distance` | `int` | 起始野怪距离范围，min 不得大于 max。|
-| `settlement_library` | `Array<Resource>` | 可引用的 `SettlementConfig` 模板。|
-| `facility_library` | `Array<Resource>` | 可引用的 `FacilityConfig` 模板。|
-| `settlement_distribution` | `Array<Resource>` | 固定据点分布规则。|
-| `wild_monster_distribution` | `Array<Resource>` | 野外遭遇生成规则。|
-| `mounted_submaps` | `Array<Resource>` | 根世界可挂载的子地图定义。|
-| `world_events` | `Array<Resource>` | 世界事件定义，如进入子地图入口。|
+| `shared_content_id` | `StringName` | 可选共享世界内容 ID；非空时必须命中 `world_shared`。|
+| `settlement_library` | `IReadOnlyList<SettlementDefinition>` | 当前 generation 自有的据点模板。|
+| `facility_library` | `IReadOnlyList<FacilityDefinition>` | 当前 generation 自有的设施模板。|
+| `settlement_distribution` | `IReadOnlyList<SettlementDistributionDefinition>` | 固定据点分布规则。|
+| `wild_monster_distribution` | `IReadOnlyList<WildSpawnRuleDefinition>` | 野外遭遇生成规则。|
+| `mounted_submaps` | `IReadOnlyList<MountedSubmapDefinition>` | 根世界可挂载的子地图；只引用稳定 generation ID。|
+| `world_events` | `IReadOnlyList<WorldEventDefinition>` | 世界事件定义，如进入子地图入口。|
 
 派生值：`world_size_cells = world_size_in_chunks * chunk_size`。所有世界坐标均为 cell 坐标，左上角为 `(0, 0)`，合法范围为 `0 <= x < width` 且 `0 <= y < height`。
 
-### 据点与设施资源
+### 据点与设施 definition
 
-- `SettlementConfig`：`settlement_id` 是模板 id；`tier` 取 `VILLAGE=0`、`TOWN=1`、`CITY=2`、`CAPITAL=3`、`WORLD_STRONGHOLD=4`、`METROPOLIS=5`。
-- `SettlementDistributionRule.country_id` 是固定据点的国家归属 id；空字符串表示该据点没有国家归属。它与 `faction_id` 是两个独立维度。
+- `SettlementDefinition.TemplateId` 来自 JSON `settlement_id`；`tier` 取 `VILLAGE=0`、`TOWN=1`、`CITY=2`、`CAPITAL=3`、`WORLD_STRONGHOLD=4`、`METROPOLIS=5`。
+- `SettlementDistributionDefinition.CountryId` 是固定据点的国家归属 id；空字符串表示该据点没有国家归属。它与 `FactionId` 是两个独立维度。
 - 据点 footprint 由 tier 决定：村 `1x1`，镇/城 `2x2`，主城 `3x3`，世界据点 `4x4`，都会 `5x5`。
 - `facility_slots` 定义设施在据点 footprint 内的本地坐标和 slot tag；`guaranteed_facility_ids` 必定尝试放置；`optional_facility_pool` 最多放置 `max_optional_facilities` 个。
-- `FacilityConfig.facility_id` 是设施模板 id；`interaction_type` 通过固定表映射为服务 action id，例如 `party_warehouse -> service:warehouse`、`service_contract_board -> service:contract_board`、`service_stagecoach -> service:stagecoach`。
-- `FacilityNpcConfig` 可绑定服务 NPC；服务窗口展示和 action dispatch 依赖 `service_type`、`interaction_script_id`、`local_slot_id`。
+- `FacilityDefinition.TemplateId` 来自 JSON `facility_id`；`InteractionType` 通过固定表映射为服务 action id，例如 `party_warehouse -> service:warehouse`、`service_contract_board -> service:contract_board`、`service_stagecoach -> service:stagecoach`。
+- `FacilityNpcDefinition` 可绑定服务 NPC；服务窗口展示和 action dispatch 依赖 `ServiceType`、`InteractionScriptId`、`LocalSlotId`。
 
-### 野外遭遇、事件与子地图资源
+### 野外遭遇、事件与子地图 definition
 
-- `WildSpawnRule` 生成 `EncounterAnchorData`：`region_tag`、`monster_name`、正式 `encounter_profile_id`、`density_per_chunk`、`min_distance_to_settlement`、`vision_range`、可选 `chunk_coords`；据点型生成可另声明 `settlement_encounter_profile_id/display_name`。敌方 roster 由 `BattleEncounterDefinition` 解析，不存入 anchor。
-- `WorldEventConfig` 当前正式事件类型只有 `enter_submap`；必须提供 `event_id`、`display_name`、`world_coord`、`target_submap_id`、提示标题和正文。
-- `MountedSubmapConfig` 由根世界保存：`submap_id`、`display_name`、`generation_config_path`、`return_hint_text`。子地图第一次进入时延迟生成，并把生成后的 `world_data` 写回根世界的 `mounted_submaps[submap_id]`。
+- `WildSpawnRuleDefinition` 生成 `EncounterAnchorData`：`region_tag`、`monster_name`、正式 `encounter_profile_id`、`density_per_chunk`、`min_distance_to_settlement`、`vision_range`、可选 `chunk_coords`；据点型生成可另声明 `settlement_encounter_profile_id/display_name`。敌方 roster 由 `BattleEncounterDefinition` 解析，不存入 anchor。
+- `WorldEventDefinition` 当前正式事件类型只有 `enter_submap`；必须提供 `event_id`、`display_name`、`world_coord`、`target_submap_id`、提示标题和正文。
+- `MountedSubmapDefinition` 由根世界保存：`submap_id`、`display_name`、`world_generation_id`、`return_hint_text`。authoring JSON 中对应引用字段为 `generation_id`；子地图第一次进入时从已发布 snapshot 按 ID 解析并延迟生成，生成后的 `world_data` 写回根世界的 `mounted_submaps[submap_id]`。
 
 ## 持久化 world_data schema
 
 世界生成输出和存档中的世界数据是 `Dictionary`。根世界和每个子地图的 `world_data` 使用同一主体 schema：
 
-根字段名称与 required/optional/array/string 分类由 `WorldRuntimeSaveSchema` 唯一声明，`WorldRuntimeData` 的 canonical 读写和 `SaveSerializer` 的磁盘边界校验共同消费。nested settlement、event、resource node、mounted submap 与 return-stack entry 的字段集合归各自 typed record；serializer 只负责递归顺序与可定位错误，不再复制 record 字段表。当前顶层存档版本为 SaveVersion 18。
+根字段名称与 required/optional/array/string 分类由 `WorldRuntimeSaveSchema` 唯一声明，`WorldRuntimeData` 的 canonical 读写和 `SaveSerializer` 的磁盘边界校验共同消费。nested settlement、event、resource node、mounted submap 与 return-stack entry 的字段集合归各自 typed record；serializer 只负责递归顺序与可定位错误，不再复制 record 字段表。当前顶层存档版本为 `SaveVersion 20`，存档索引版本为 `SaveIndexVersion 5`；两者只接受当前精确版本。版本 19 / 4 及更早数据不会迁移，旧 world 路径字段也不会被别名接纳。
 
 | key | 类型 | 说明 |
 |---|---|---|
@@ -158,7 +167,7 @@ encounter_profile_id, growth_stage, suppressed_until_step
    - 先应用 `settlement_distribution` 中的固定规则。按 `preferred_origin` 放置对应模板，失败则跳过或尝试后续规则。
    - 若 `procedural_generation_enabled`，按 tier 目标数量继续放置；候选坐标必须在世界内、footprint 未占用，并满足对应 tier spacing。
    - 每个成功据点都调用 `gridSystem.RegisterFootprint(entity_id, origin, footprint_size)`。
-   - 据点 id 和 entity id 必须稳定、可存档；固定分布由资源顺序决定，程序化分布由本次 `map_seed` 与配置共同决定。
+   - 据点 id 和 entity id 必须稳定、可存档；固定分布由 definition 顺序决定，程序化分布由本次 `map_seed` 与配置共同决定。
    - 起始据点优先取包含/邻近 `player_start_coord` 的据点；若没有则取第一个玩家起始据点或配置坐标。
 4. 为据点填充设施：
    - guaranteed facility 按 id 从 facility library 解析。
@@ -167,12 +176,12 @@ encounter_profile_id, growth_stage, suppressed_until_step
    - 从设施和 NPC 构建 `available_services`，action id 使用固定映射表。
 5. 生成世界 NPC：根据服务 NPC 或专门规则投影成 `world_npcs`，其坐标必须合法且不破坏据点 footprint。
 6. 生成野外遭遇：
-   - 对每条 `WildSpawnRule`，在指定 chunk 或全世界 chunk 中按 `density_per_chunk` 生成候选。
+   - 对每条 `WildSpawnRuleDefinition`，在指定 chunk 或全世界 chunk 中按 `density_per_chunk` 生成候选。
    - 候选必须在世界内、不是据点占用格、距离所有据点至少 `min_distance_to_settlement` 对应的 blocked-cell 半径；当前实现按欧氏距离平方过滤。
    - 若 `guarantee_starting_wild_encounter`，在起点 min/max 距离环内补一个合法遭遇。
    - 输出 `EncounterAnchorData`，`encounter_kind=single`、`is_cleared=false`、`growth_stage=0`、`suppressed_until_step=0`。
-7. 生成世界事件：复制 `WorldEventConfig` 为实例字典；`enter_submap` 事件必须引用存在的 mounted submap。
-8. 生成 mounted submap entries：每个 entry 初始 `is_generated=false`，保留 config path、display name、return hint；不立即生成子地图 world_data。
+7. 生成世界事件：投影 `WorldEventDefinition` 为实例数据；`enter_submap` 事件必须引用存在的 mounted submap。
+8. 生成 mounted submap entries：每个 entry 初始 `is_generated=false`，保留 `world_generation_id`、display name、return hint；不立即生成子地图 world_data。
 9. 输出 `WorldBuildData.ToDictionary()`，并包含 `world_step=0`、空 `active_submap_id`、空 `submap_return_stack`。
 
 ## Grid 系统
@@ -313,14 +322,14 @@ proxy 在命令后负责调用 render target 的 `RenderFromRuntime(refreshWorld
 | 字段 | 来源 / 规则 |
 |---|---|
 | `entity_id` | `"settlement_" + settlement_id`。|
-| `template_id` | `SettlementConfig.GetTemplateId()` 去空白后的值。|
+| `template_id` | `SettlementDefinition.TemplateId` 去空白后的值。|
 | `settlement_id` | 始终为 `template_id_XX`，序号从 `01` 开始；同模板多实例必须不冲突。|
 | `display_name` | 模板名、默认名称池或 fallback；必须非空可显示。|
-| `tier` / `tier_name` | 来自 `SettlementConfig.tier` / `GetTierName()`。|
+| `tier` / `tier_name` | 来自 `SettlementDefinition.Tier` / `GetTierName()`。|
 | `faction_id` | 固定分布用规则 faction；程序化起始村为 `player`，其他默认为 `neutral`。|
 | `country_id` | 固定分布使用规则中的国家 id；当前程序化据点写入空字符串，即无国家归属。不得从 faction、显示名或名称池推导。|
 | `origin` | footprint 左上角 cell。|
-| `footprint_size` | `SettlementConfig.GetFootprintSize()`。|
+| `footprint_size` | `SettlementDefinition.GetFootprintSize()`。|
 | `is_player_start` | 程序化起始村 true；固定分布通常 false，除非生成逻辑显式指定。|
 | `settlement_state` | 起始状态字典；起始据点 `visited=true`，非起始据点 `visited=false`，并写入 reputation、shop seed、last refresh step。|
 | `facilities` | 放置成功的设施实例数组。|
@@ -335,10 +344,10 @@ proxy 在命令后负责调用 render target 的 `RenderFromRuntime(refreshWorld
 
 1. 每个 facility 只能占用一个 slot；`usedSlotIds` 防止重复占位。
 2. slot 必须在 settlement footprint 内；`world_coord = settlement_origin + local_coord`。
-3. `FacilityConfig.min_settlement_tier` 大于 settlement tier 时不能放置。
+3. `FacilityDefinition.MinSettlementTier` 大于 settlement tier 时不能放置。
 4. `allowed_slot_tags` 非空时，slot tag 必须命中。
 5. guaranteed facilities 先放置；optional pool 在剩余 slot 中按数量上限放置。
-6. optional facility 按 `WeightedFacilityEntry.weight` 加权随机抽取；权重总和 <= 0 时停止抽取，成功放置后从 optional pool 移除同 facility id，避免重复抽中。
+6. optional facility 按 `WeightedFacilityDefinition.Weight` 加权随机抽取；权重总和 <= 0 时停止抽取，成功放置后从 optional pool 移除同 facility id，避免重复抽中。
 7. 服务 action id 优先由 NPC 的 `interaction_script_id` 查固定映射；未命中时把 `service_type` 转 snake_case 并生成 `service:<service_type>`，service_type 为空时使用 `service:service`。
 8. 生成器不追加虚构的仓库 fallback；`service:warehouse` 只能来自 authored NPC 的 `party_warehouse` 交互。tier 0 村庄可以没有据点仓库服务；全队仓库仍可由独立的 `party warehouse` 命令打开，不能据此伪造 settlement service。
 
@@ -352,7 +361,7 @@ mounted submap entry 必须包含：
 
 - `submap_id`：非空稳定 id。
 - `display_name`：展示名；为空时 fallback 到 id。
-- `generation_config_path`：Godot 资源路径；第一次进入时用 `GD.Load<Resource>` 读取，类型必须是 `WorldMapGenerationConfig`。
+- `world_generation_id`：非空稳定 ID；第一次进入时从 `ContentSnapshot.WorldGenerations` 精确查询，缺失即失败，不做路径加载或 fallback。
 - `return_hint_text`：子地图内提示文本，默认“点击任意地点返回原位置。”。
 - `is_generated`：初始 false，生成后 true。
 - `world_data`：未生成时为空字典，生成后为子地图 world data。
@@ -364,18 +373,18 @@ mounted submap entry 必须包含：
 
 `BuildLibraries()` 每次生成前必须清空以下缓存：facility id map、settlement id map、默认 bundle、默认 wild spawn bundle、各 tier 名称池、resolved facility/settlement/wild spawn 列表。解析顺序：
 
-1. 加载默认 main world settlement bundle、wild spawn bundle 和名称池资源。
-2. 如果 `inject_default_main_world_content=true`，把默认 bundle 中的 library/distribution 附加到当前 config 有效列表。
-3. 把 `generation_config.facility_library` 与默认 facility library 合并为 `_resolvedFacilityLibrary`。
-4. 把 `generation_config.settlement_library` 与默认 settlement library 合并为 `_resolvedSettlementLibrary`。
-5. 把 `generation_config.wild_monster_distribution` 与默认 wild spawn bundle 合并为 `_resolvedWildSpawnRules`。
-6. 对 facility 和 settlement 建 `template_id -> config` 字典；空 id 资源跳过，重复 id 后写入者覆盖先写入者。
+1. 从 `WorldGenerationDefinition.DefaultSettlementBundle`、`DefaultWildSpawnBundle` 和 `SettlementNamePools` 读取已解析的共享内容。
+2. 如果 `SharedContentId` 非空，把共享 bundle 中的 library/distribution 附加到当前 definition 有效列表。
+3. 把 `FacilityLibrary` 与默认 facility library 合并为 `_resolvedFacilityLibrary`。
+4. 把 `SettlementLibrary` 与默认 settlement library 合并为 `_resolvedSettlementLibrary`。
+5. 把 `WildMonsterDistribution` 与默认 wild spawn bundle 合并为 `_resolvedWildSpawnRules`。
+6. 对 facility 和 settlement 建 `template_id -> definition` 字典；空 id 项跳过；重复 id 已在 JSON 导入/内容校验阶段拒绝。
 
 ### 固定据点生成
 
 固定生成只消费 `settlement_distribution`：
 
-1. 遍历每个 `SettlementDistributionRule` 资源。
+1. 遍历每个 `SettlementDistributionDefinition`。
 2. 读取 `settlement_id` 并从 settlement library 找模板；找不到则跳过。
 3. 使用 `preferred_origin`、规则 `faction_id` 与规则 `country_id` 创建实例；空 `country_id` 保持为空，不做推导。
 4. 若 `gridSystem.CanPlaceFootprint(origin, footprint)` 失败，记录错误并跳过该实例。
@@ -415,7 +424,7 @@ mounted submap entry 必须包含：
 - blocked cells 使用欧氏距离平方 `< minDistance^2` 的区域，而不是曼哈顿距离；这点要与当前实现一致。
 - 候选还必须在世界内、未被 settlement footprint 占用、未与已选 encounter 重叠。
 
-固定生成与程序化生成对 `WildSpawnRule.chunk_coords` 的语义不同，重建时必须区分：
+固定生成与程序化生成对 `WildSpawnRuleDefinition.ChunkCoords` 的语义不同，重建时必须区分：
 
 - 固定世界（`procedural_generation_enabled=false`）：只遍历规则里的 `chunk_coords`；如果某条规则没有 chunk 坐标，该规则不会生成普通野怪。
 - 程序化世界：遍历全部 world chunks，并按 chunk 的 Y 位置选择 procedural wild spawn rule；每个 chunk 先用 `procedural_wild_spawn_chunk_chance_denominator` 做概率门控，命中后才尝试生成 `density_per_chunk` 个锚点。

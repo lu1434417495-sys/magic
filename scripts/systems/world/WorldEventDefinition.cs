@@ -52,28 +52,4 @@ public sealed class WorldEventDefinition
     internal static bool IsEnterSubmapEventType(StringName eventType) =>
         ToEventTypeKind(eventType) == WorldEventTypeKind.EnterSubmap;
 
-    internal static WorldEventDefinition FromResource(WorldEventConfig source, string path)
-    {
-        if (source == null)
-            throw WorldDefinitionProjection.Invalid(path, "resource is null");
-        return new WorldEventDefinition(
-            source.event_id,
-            WorldDefinitionProjection.RequireString(
-                source.display_name,
-                path + ".display_name"
-            ),
-            source.world_coord,
-            source.event_type,
-            source.target_submap_id,
-            source.discovery_condition_id,
-            WorldDefinitionProjection.RequireString(
-                source.prompt_title,
-                path + ".prompt_title"
-            ),
-            WorldDefinitionProjection.RequireString(
-                source.prompt_text,
-                path + ".prompt_text"
-            )
-        );
-    }
 }

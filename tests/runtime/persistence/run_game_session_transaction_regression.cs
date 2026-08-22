@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_session_transaction_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
     private const string SaveIndexPath = "user://saves/index.dat";
     private const string IndexDegradedEventId =
         "session.save.index.degraded_after_payload_commit";
