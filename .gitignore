@@ -38,6 +38,7 @@ __pycache__/
 tmp/
 tmp_*.json
 tmp_*_llm_packet/
+.tmp_battle_sim/
 tests/battle_runtime/reports/
 tests/battle_runtime/benchmarks/profiles/
 .vscode/
