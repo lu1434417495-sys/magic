@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>内容 JSON 迁移 · 分步任务书</title>
+<style>
+:root{--bg:#fbfbf9;--fg:#1c1b19;--mut:#5f5b54;--line:#ddd9d2;--card:#fff;--accent:#8a4b2a;--warn:#8a2a2a;--ok:#2a6a3f;--code:#f2f0ec}
+@media (prefers-color-scheme:dark){:root{--bg:#17171a;--fg:#e6e3de;--mut:#9c968d;--line:#32312f;--card:#1e1e21;--accent:#d99a6c;--warn:#e08a8a;--ok:#7fc79b;--code:#26262a}}
+*{box-sizing:border-box}
+body{margin:0;padding:2rem 1.25rem 6rem;background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,"Segoe UI",system-ui,"Microsoft YaHei",sans-serif}
+main{max-width:52rem;margin:0 auto}
+h1{font-size:1.65rem;margin:0 0 .25rem;letter-spacing:-.01em}
+h2{font-size:1.25rem;margin:2.75rem 0 .75rem;padding-bottom:.4rem;border-bottom:2px solid var(--line)}
+h3{font-size:1rem;margin:1.75rem 0 .5rem}
+.sub{color:var(--mut);margin:0 0 2rem}
+code{background:var(--code);padding:.1em .35em;border-radius:3px;font:.88em ui-monospace,Consolas,monospace}
+pre{background:var(--code);padding:.7rem .9rem;border-radius:5px;overflow-x:auto;font:.85rem/1.5 ui-monospace,Consolas,monospace}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.92rem;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:.45rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--code);font-weight:600}
+.task{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:5px;padding:.9rem 1.1rem;margin:1rem 0}
+.task h4{margin:0 0 .5rem;font-size:1rem}
+.task h4 .id{color:var(--accent);font:.9rem ui-monospace,Consolas,monospace;margin-right:.5rem}
+.meta{color:var(--mut);font-size:.85rem;margin:0 0 .6rem}
+.task dl{margin:.5rem 0 0;font-size:.93rem}
+.task dt{font-weight:600;margin-top:.6rem;color:var(--mut);font-size:.82rem;letter-spacing:.03em}
+.task dd{margin:.15rem 0 0}
+.task ul,.task ol{margin:.15rem 0;padding-left:1.3rem}
+.task li{margin:.2rem 0}
+.gate{background:var(--card);border:2px solid var(--ok);border-radius:5px;padding:.8rem 1.1rem;margin:1.4rem 0}
+.gate h4{margin:0 0 .4rem;color:var(--ok);font-size:1rem}
+.warn{border-left-color:var(--warn)}
+.warn h4 .id{color:var(--warn)}
+.trap{color:var(--warn)}
+.rule{background:var(--card);border:1px solid var(--line);border-radius:5px;padding:.9rem 1.1rem;margin:1rem 0}
+.rule ol{margin:0;padding-left:1.4rem}
+.rule li{margin:.45rem 0}
+.note{color:var(--mut);font-size:.9rem;border-left:2px solid var(--line);padding-left:.8rem;margin:1rem 0}
+</style>
+</head>
+<body>
+<main>
+
+<h1>内容 JSON 迁移 · 分步任务书</h1>
+<p class="sub">配套设计文档：<code>docs/proposals/migrations/content_json_direct_load.md</code>（v1.4）。本文件只负责拆分与排序，<strong>设计细节一律以该文档为准</strong>，两者冲突时以设计文档为准并回报冲突。</p>
+
+<h2 id="how">如何使用</h2>
+<p>任务按 ID 顺序执行。每个任务是一次独立会话的工作量，完成后提交一次。<strong>标注「闸门」的地方必须停下</strong>，把结果报告给用户后再继续，不要自行判定通过并推进。</p>
+<p>每个任务卡包含：依赖、目标、范围、步骤、验收、陷阱。<strong>陷阱一栏是本仓库已经踩过的坑</strong>，不是泛泛提醒，请逐条确认。</p>
+
+<h2 id="global">全局约束</h2>
+<div class="rule">
+<ol>
+<li><strong>日志禁止 <code>GD.Print</code></strong>。一律使用 <code>GameLog</code> 或 <code>ConsoleProcessOutput</code>，临时探针也不例外。仓库有静态检查会拦。</li>
+<li><strong>禁止用 <code>git checkout</code> 回退文件</strong>。工作树中常有其它未提交的并行改动，会被一起抹掉。需要回退时用文件移动或手工反向编辑。</li>
+<li><strong>读 <code>res://</code> 下的文件必须走 Godot <code>FileAccess</code></strong>，禁止 <code>System.IO</code>。后者在编辑器里能跑、在导出包里读不到（内容在 <code>.pck</code> 内）。同理目录用 <code>DirAccess</code>，且不要先经 <code>ProjectSettings.GlobalizePath</code>——该方法对 <code>res://</code> 在导出项目中无效。</li>
+<li><strong><code>.tres</code> 中的 <code>Array&lt;T&gt;</code> 导出属性必须显式写出</strong>，空数组也要写成 <code>Array[ExtResource("x")]([])</code> 并保留对应 <code>[ext_resource]</code> 脚本引用。整个省略会在 GC 阶段 <code>gchandle.is_released()</code> fatal（exit 3221225501），<strong>报错栈全在引擎内部、不指向任何文件</strong>。</li>
+<li><strong>不要为了整洁删除 <code>Resource</code> 子类上的 <code>[Export]</code> 属性</strong>，即使全仓无 <code>.tres</code> 引用它。实测会让内容校验回归在 finalizer 阶段约 80% 概率崩。要禁止某个取值就在 validator 层 fail-closed，字段留着。</li>
+<li><strong>内容校验回归的崩溃要跑 5 次统计通过率</strong>。这类崩溃单跑可能通过、成组才崩，且 <code>--jobs 1</code> 同样崩——不是并行写入问题，别往那个方向排查。</li>
+<li><strong>不加兼容层</strong>。禁止旧 schema 别名、静默 fallback、双查找、legacy 字段支持。仓库政策要求先与用户确认，本方案已明确不做。</li>
+<li><strong>不在迁移提交里顺手改数值</strong>。机械转换与内容调整分开提交。</li>
+<li><strong>基础六项属性不允许被扣减</strong>。若某任务看起来需要写入基础属性，先停下确认——引擎只读不写是规则，不是缺口。</li>
+<li>代码改动后按需更新 <code>docs/design/project_context_units.md</code>；提交信息用 Conventional Commits（<code>feat:</code> / <code>fix:</code> / <code>refactor:</code> / <code>docs:</code>）。</li>
+</ol>
+</div>
+
+<h3>常用命令</h3>
+<pre><code>dotnet build magic.csproj
+python tests/run_regression_suite.py
+godot --headless -s res://tests/&lt;domain&gt;/&lt;runner&gt;.cs</code></pre>
+<p class="note">全量回归请<strong>前台分块跑</strong>。放后台约两分钟就会误报「完成」。战斗模拟与平衡 runner 不属于常规全量，除非任务明确要求，否则不要带上。</p>
+
+<h2 id="p">P 阶段 · 前置修复（不依赖本方案，可先做）</h2>
+
+<div class="task warn">
+<h4><span class="id">P1</span>修复 <code>res://</code> 目录发现守卫</h4>
+<p class="meta">依赖：无 · 预计：小</p>
+<dl>
+<dt>目标</dt><dd>让内容目录发现在导出包中可用。当前写法只在编辑器下成立。</dd>
+<dt>范围</dt><dd><code>scripts/</code> 下所有 <code>DirExistsAbsolute</code> 调用点（约 14 处、16 个文件），含 Skill / Item / Recipe / Enemy / Quest / Profession / Progression / GearSet / Barrier / BattleEncounter / SpecialProfile / ContingencyTemplate / Identity 等 registry。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>先确认问题：<code>ProjectSettings.GlobalizePath("res://…")</code> 在导出项目中不适用，会得到可执行文件目录下一个不存在的原生路径，导致守卫返回 false、发现逻辑直接返回、内容一个都不加载。</li>
+<li>grep 出全部调用点，<strong>逐个检查路径协议</strong>。</li>
+<li>只改 <code>res://</code> 的站点：去掉 <code>GlobalizePath</code>，直接以 <code>res://</code> 路径判存在，或删掉预检查、依赖 <code>DirAccess.Open</code> 返回 null 的既有分支。</li>
+<li>保留原有校验错误文案，除非某条消息因此不可达。</li>
+</ol></dd>
+<dt>验收</dt><dd>全量回归通过；<code>scripts/</code> 下不再有对 <code>res://</code> 路径调用 <code>GlobalizePath</code> 后判存在的写法。</dd>
+<dt class="trap">陷阱</dt><dd class="trap"><code>FileIOCoordinator.cs</code> 与 <code>GameSession.SaveIndexAndFileIO.cs</code> 也匹配同一模式，但它们操作 <code>user://</code>——<code>GlobalizePath</code> 对 <code>user://</code> <strong>是有效的</strong>，不要改。<code>AiTraceRecorder.cs</code> 写非 res 路径，同样先确认再动。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">P2</span>记录 <code>.tres</code> 冷启动基线</h4>
+<p class="meta">依赖：无 · 预计：小</p>
+<dl>
+<dt>目标</dt><dd>为后续「JSON 启动解析成本」提供对照基准。没有基线就没有判据。</dd>
+<dt>步骤</dt><dd>选一个 headless 入口，测量完整 <code>ContentSnapshot</code> 构建的耗时与分配，重复若干次取稳定值，把方法与数字记进设计文档 11.8。</dd>
+<dt>验收</dt><dd>基线数字与测量方法可复现，写进文档。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">只报相对变化。同机同入口才有可比性，不要跨机器比绝对值。</dd>
+</dl>
+</div>
+
+<h2 id="t0">阶段 0 · 跨域基础设施</h2>
+<p>本阶段不碰任何业务内容，只建地基。<strong>作者工具（T0.7 / T0.8）是一等交付</strong>，不是收尾项——LLM 生成的可行性取决于它们。</p>
+
+<div class="task">
+<h4><span class="id">T0.1</span>JSON 文档加载器与 IO 分层</h4>
+<p class="meta">依赖：无 · 参考：设计文档 5.1.1、5.2</p>
+<dl>
+<dt>目标</dt><dd>建立文件发现与 UTF-8 读取，并把 Godot 依赖压缩到单一薄层。</dd>
+<dt>范围</dt><dd>新建 <code>scripts/systems/content/json/ContentJsonDocumentLoader.cs</code>。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>IO 层：<code>FileAccess</code> 读字节、<code>DirAccess</code> 发现文件，只有一个方法，可被测试替身注入。</li>
+<li>文档层：解析 envelope（<code>schema</code> / <code>domain</code> / <code>family</code> / <code>templates</code> / <code>entries</code>），拒绝未知根字段。</li>
+<li>诊断：source label 格式 <code>file.json#entry_id</code>，附 JSON pointer。source label <strong>只用于诊断</strong>，不得进入 import model、Definition、snapshot 或存档。</li>
+<li>重复 entry ID 聚合报告，不是遇到第一个就抛。</li>
+</ol></dd>
+<dt>验收</dt><dd>UTF-8、schema/domain 校验、未知根字段、重复 entry ID 四类文档测试通过；解析层以下的测试不依赖 Godot。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不要用 <code>System.IO</code>（全局约束 3）。<code>JsonDocument</code> 在单文件解析结束时释放，<code>JsonNode</code> 不得逃出解析调用栈。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T0.2</span>文件内 template 合并器</h4>
+<p class="meta">依赖：T0.1 · 参考：设计文档 6.2</p>
+<dl>
+<dt>目标</dt><dd>实现文件内模板合并，仅此一种去重手段。</dd>
+<dt>范围</dt><dd>新建 <code>scripts/systems/content/json/ContentJsonTemplateMerger.cs</code>。</dd>
+<dt>步骤</dt><dd>按设计文档 6.2 的合并表实现：对象递归合并、数组整体替换、标量显式覆盖（<code>0</code>/<code>false</code>/空串都是有效值）、键缺失保留模板值、<code>null</code> 仅用于 schema 声明可空的字段、多级 template 允许链式继承但必须检测环与未知模板。</dd>
+<dt>验收</dt><dd>对象合并、数组替换、显式零值、null、环、未知 template 六类测试通过。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不实现数组 append/remove/merge-by 指令、跨文件 template、template import、条件模板或对象共享引用。这些都是明确禁止项，加上去会让 schema 无法闭合。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T0.3</span>共享 canonical JSON writer</h4>
+<p class="meta">依赖：T0.1 · 参考：设计文档 11.2</p>
+<dl>
+<dt>目标</dt><dd>一个 writer 同时服务 parity 比较、Definition golden 和转换器实际产出。</dd>
+<dt>范围</dt><dd>新建 <code>scripts/systems/content/json/ContentCanonicalJsonWriter.cs</code>。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>输出必须直接是目标 schema 的合法文档，不是「用于比较的调试表示」。</li>
+<li>对象键按 schema 声明顺序输出（不按字母序，保证产出文件可读）；数组保持源顺序。</li>
+<li>浮点用可逆表示，不截固定小数。</li>
+<li>enum / value object 输出稳定业务字符串。</li>
+<li>省略等于 DTO 默认值的字段。</li>
+<li>不输出 source label、文件路径、UID 或任何诊断字段。</li>
+<li>parity 比较使用键序无关比较；文件产出使用声明顺序。<strong>这是同一 writer 的两种消费方式，不要写成两个 writer。</strong></li>
+</ol></dd>
+<dt>验收</dt><dd>writer 往返测试：任意 import model → JSON → import model 逐字段一致；浮点边界值可逆。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">「省略默认值」与「键缺失继承模板值」会相互作用。writer 阶段没有 template 所以安全，但要在代码注释里写明这个前提，后续 template 提取任务依赖它。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T0.4</span>domain descriptor 与 import batch 契约</h4>
+<p class="meta">依赖：T0.1 · 参考：设计文档 5.2、5.2.1、5.2.2</p>
+<dl>
+<dt>目标</dt><dd>定义单域链路的注册形态，并明确它<strong>不</strong>负责跨域顺序。</dd>
+<dt>范围</dt><dd>新建 <code>JsonContentDomainDescriptor.cs</code>、<code>ContentImportBatch.cs</code>。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>descriptor 只拥有：source discovery → 文档加载 → template 合并 → DTO 解析 → import model → domain-local 校验。</li>
+<li>跨域构建顺序保留在 <code>ContentSnapshotBuilder</code> 的现有显式编排中。<strong>不要写通用拓扑排序。</strong></li>
+<li>需要外域输入的校验与投影保留现有显式签名，由 builder 传参。</li>
+<li>import batch 携带聚合诊断，不是遇错即抛。</li>
+</ol></dd>
+<dt>验收</dt><dd>descriptor 可注册一个空的示例 domain 并跑通空链路；<code>ContentSnapshotBuilder</code> 的既有依赖顺序未被改动。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">现有 builder 是显式依赖图，不是 domain 循环：recipe 依赖 item，special profile 依赖 skill，enemy 依赖 item+skill，encounter 依赖 enemy roster/template，且有一部分 item 由技能合成、没有 source 文件。任何「每域一个 descriptor 就够了」的设计都会在后续阶段撞墙。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T0.5</span>引擎资产 catalog 与 ID resolver</h4>
+<p class="meta">依赖：无 · 参考：设计文档 8.1–8.3</p>
+<dl>
+<dt>目标</dt><dd>建立 asset ID 到 typed Godot 资源的解析边界。这是唯一保留 Resource authoring 的地方。</dd>
+<dt>范围</dt><dd>新建 <code>EngineAssetCatalogDef.cs</code>、四个 typed entry Def、<code>EngineAssetCatalogBootstrap</code>；扩展 <code>EngineAssetResolver.cs</code>。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>catalog root 分别导出 <code>Array&lt;EngineTextureAssetEntryDef&gt;</code>、<code>Array&lt;EngineSceneAssetEntryDef&gt;</code>、<code>Array&lt;EngineAudioAssetEntryDef&gt;</code>、<code>Array&lt;EngineShaderAssetEntryDef&gt;</code>。<strong>不要用 polymorphic <code>Array&lt;Resource&gt;</code>。</strong></li>
+<li>每类 entry 只含稳定 <code>asset_id</code> 与对应明确类型的 Resource 属性。</li>
+<li>resolver 构建 <code>asset_id → borrowed typed Resource</code> 只读索引；asset ID 重复、目标缺失、类型不符必须报错。</li>
+<li>catalog root 由现有 process engine-asset 生命周期拥有；quiesce 后拒绝新 path load 但保持已发布 snapshot 的 ID 查询合同。</li>
+</ol></dd>
+<dt>验收</dt><dd>asset ID 唯一性、同一底层资产不登记多个 ID、类型不符报错、optional 空值、quiesce/shutdown 五类测试通过。<strong>跑完整回归分组，并重复 5 次统计通过率。</strong></dd>
+<dt class="trap">陷阱</dt><dd class="trap">这是全局约束 4 和 5 的高发区。四个数组里初期很可能有一两个为空——空数组必须显式写出并保留 ext_resource 绑定，否则 <code>gchandle.is_released()</code> fatal，且报错不指向任何文件。单跑通过不算数。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T0.6</span>拆分 resolver API：内容 ID 与代码路径</h4>
+<p class="meta">依赖：T0.5 · 参考：设计文档 8.3</p>
+<dl>
+<dt>目标</dt><dd>让「内容给的 ID」和「代码自己拥有的路径」在类型与命名上无法混用。</dd>
+<dt>步骤</dt><dd>提供 <code>ResolveContentAssetBorrowed&lt;T&gt;(StringName assetId)</code> 与 <code>ResolveCodeAssetBorrowed&lt;T&gt;(string codeOwnedPath)</code> 两个分名入口；后者只允许代码自身拥有的场景、shader 或 bootstrap 常量使用。</dd>
+<dt>验收</dt><dd>内容字段无法传入 code-path API（编译期或运行期均可，但必须有测试覆盖）。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">现有 <code>EngineAssetResolver.ResolveBorrowed&lt;T&gt;(string resourcePath)</code> 是路径入口，改造时不要一刀切改签名——先确认现有调用方各属哪一类。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T0.7</span>JSON Schema 导出器</h4>
+<p class="meta">依赖：T0.4 · 参考：设计文档 11.7 · <strong>生成能力的前提</strong></p>
+<dl>
+<dt>目标</dt><dd>从代码侧 DTO 与 closed kind spec 生成 JSON Schema，作为作者与生成方的唯一契约来源。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>由 DTO 反射生成，<strong>禁止手写 schema</strong>——手写必然与 DTO 发散。</li>
+<li>每个 domain 一份，随 DTO 变更重新生成并纳入版本控制。</li>
+<li>覆盖字段名、必填、枚举取值、按 kind 的 payload 形状。</li>
+<li>内容文件<strong>不引用</strong> schema 文件路径（违反路径禁令）；编辑器侧靠工作区配置做 glob 关联。</li>
+</ol></dd>
+<dt>验收</dt><dd>导出的 schema 与 DTO 同步的测试；schema 变化能被 CI 检出。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">因为 DTO 用 <code>JsonUnmappedMemberHandling.Disallow</code>，schema <strong>必须完整准确</strong>，否则生成方会被合法字段挡住。schema 描述不足是后续误报的主因，宁可写详细。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T0.8</span>离线校验 CLI</h4>
+<p class="meta">依赖：T0.1–T0.4、T0.7 · 参考：设计文档 11.7 · <strong>生成能力的前提</strong></p>
+<dl>
+<dt>目标</dt><dd>不启动游戏即可校验内容文件，秒级反馈。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>只跑「文档解析 → template 合并 → DTO strict parse → domain-local 校验」。</li>
+<li>输入可以是单文件或整域。</li>
+<li>诊断输出 <code>file.json#entry_id</code> + JSON pointer + <strong>稳定规则标识</strong>，格式与运行时诊断一致，且必须机器可读（后续要作为生成方的修复输入）。</li>
+<li>跨域校验<strong>不</strong>由 CLI 承担，也不要假装能承担——那需要完整 snapshot。</li>
+</ol></dd>
+<dt>验收</dt><dd>对故意构造的错误文件产出可定位到字段的诊断；诊断格式有测试锁定（后续生成闭环依赖它稳定）。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">诊断文本会成为机器接口。一旦生成闭环接上，随意改文案就是破坏接口——所以要用稳定规则标识而不是靠匹配文案。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T0.9</span>Windows 导出 preset 与 smoke runner</h4>
+<p class="meta">依赖：T0.5 · 参考：设计文档 12.4 · <strong>绿地基建</strong></p>
+<dl>
+<dt>目标</dt><dd>建立受版本控制的导出配置，并证明 asset catalog 能在真实导出包中加载。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>新增 <code>export_presets.cfg</code>，至少一个 Windows Desktop smoke preset。</li>
+<li><strong>确认 <code>.json</code> 的打包机制</strong>：项目内 png/jpg/csv/svg/fbx/glb 都有 <code>.import</code>，<code>.json</code> 一个都没有，说明它是非资源文件、不会像 <code>.tres</code> 那样自动打包，需要非资源文件过滤显式包含。把结论写进 preset 注释。</li>
+<li>smoke runner：从导出产物启动，缺文件 / 缺 catalog entry / 类型错误导致非零退出。</li>
+<li>导出产物写临时目录，不提交二进制包。</li>
+</ol></dd>
+<dt>验收</dt><dd><strong>DG-0 只卡最小项</strong>：导出包能启动，且 typed asset catalog root 与其引用资产被正确打包。构建完整 ContentSnapshot 的完整 smoke 属于各域完成定义，不是本任务的验收线。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">这是本仓库<strong>第一次真正导出</strong>（此前无 preset、<code>scripts/</code> 下无任何 editor/template 分支）。很可能撞上一批与 JSON 无关的既有导出断裂（P1 是已知的一个，未必是唯一一个）。<strong>这部分排障时间单独记，不要算进 JSON 迁移工作量</strong>，也不要因此判定方案有问题。遇到超出本任务范围的断裂，记录下来并向用户报告，不要顺手扩大改动。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-0 — 停下并报告</h4>
+<p>同时满足才进入域迁移：纯基础设施测试通过；asset catalog 的 process owner 行为正确（含 5 次通过率统计）；导出最小项通过；<strong>不存在任何 JSON authoring Resource 或通用反射 binder</strong>。</p>
+<p>完整导出 smoke <strong>不是</strong> DG-0 前置。若导出基建未就绪但最小项通过，可以开始 T1a，但不得进入阶段 2。</p>
+</div>
+
+<h2 id="t1a">阶段 1a · 技能 import model 与转换器闭合</h2>
+<p>本阶段只证明「JSON 能无损表达技能」，<strong>不触碰 validator</strong>。目的是在付出重构成本之前先证伪 schema 设计。</p>
+
+<div class="task">
+<h4><span class="id">T1a.1</span>SkillImportModel 与 SkillJsonDto 骨架</h4>
+<p class="meta">依赖：DG-0 · 参考：设计文档 5.3</p>
+<dl>
+<dt>目标</dt><dd>建立技能域的 canonical import model 与 JSON 格式契约。</dd>
+<dt>步骤</dt><dd>建立 <code>SkillImportModel</code>、<code>CombatSkillImportModel</code>、<code>CombatEffectImportModel</code>、<code>SkillLevelOverrideImportModel</code> 及 DTO。DTO 用 <code>System.Text.Json</code>、显式 <code>JsonPropertyName</code> 固定 snake_case、<code>JsonUnmappedMemberHandling.Disallow</code>、required 缺失即报错。</dd>
+<dt>验收</dt><dd>unknown member disallow、required、数字范围、ID 格式四类 DTO 测试通过。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不要用把 C# enum 名直接暴露到 JSON 的通用 enum converter——业务字符串由 domain typed rule 转换。<code>Godot.Collections.*</code> 不得进入 import model。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T1a.2</span>typed 化 level_overrides 与 level_description_configs</h4>
+<p class="meta">依赖：T1a.1 · 参考：设计文档 2.5、5.3 · <strong>会改 Definition 公开形状</strong></p>
+<dl>
+<dt>目标</dt><dd>消除 <code>object</code> 弱类型残留。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li><code>level_overrides</code> → <code>SortedDictionary&lt;int, CombatSkillLevelOverrideImportModel&gt;</code>。</li>
+<li><code>level_description_configs</code> → <code>SortedDictionary&lt;int, SkillDescriptionVariables&gt;</code>。</li>
+<li><strong>同一提交内</strong>改 <code>SkillDefinition</code> 的对应属性与全部消费者。</li>
+</ol></dd>
+<dt>验收</dt><dd>无 <code>object</code> 值的字典残留在 import model 或 Definition 上；相关行为回归通过。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">这不是 import 边界的局部改动——<code>SkillDefinition.LevelOverrides</code> 当前就是 <code>IReadOnlyDictionary&lt;int, IReadOnlyDictionary&lt;string, object&gt;&gt;</code>，改它等于改 Definition 的公开契约。<strong>不允许保留 <code>object</code> 版本作为过渡重载。</strong> 动手前重新统计消费者，不要依赖本文件给的数字。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T1a.3</span>layered_barrier 的 effect payload spec</h4>
+<p class="meta">依赖：T1a.1 · 参考：设计文档 7.2</p>
+<dl>
+<dt>目标</dt><dd>为第一个 effect type 建立 typed payload 契约，验证 kind→payload 模式。</dd>
+<dt>步骤</dt><dd>把现有 <code>params</code>（<code>area_pattern</code> / <code>profile_id</code> / <code>radius_cells</code> / <code>save_dc</code>）转为 typed payload；JSON 侧字段名为 <code>payload</code>。payload key 集合由单一 spec 拥有；未知 kind、缺 payload、多余字段、少必填字段一律 fail-fast。</dd>
+<dt>验收</dt><dd>kind 测试四类通过；<code>JsonNode</code>/<code>JsonElement</code>/<code>object</code> 不逃逸出解析栈。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">禁止 <code>Type.GetType</code>、类名反射注册、按字段形状猜类型、按 ID 文本猜类型、未知 kind 回退基类。<code>params</code> 全库只有约 52 处、22 个文件，规模比想象中小，不要过度设计。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T1a.4</span>SkillTresImportAdapter</h4>
+<p class="meta">依赖：T1a.1–T1a.3 · 参考：设计文档 5.4</p>
+<dl>
+<dt>目标</dt><dd>把现有技能 authoring Resource 转成同一个 import model。这是转换器的前半段。</dd>
+<dt>步骤</dt><dd>只做 Resource → import model 的读取转换。不得把 raw Resource、Godot collection 或 ResourcePath 留进 model。legacy <code>params</code> 在此转为 typed payload。</dd>
+<dt>验收</dt><dd>对现有技能 <code>.tres</code> 全量跑通，产出 plain import model。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">adapter 不含业务规则，只做搬运。业务规则留在 validator（1b 才动）。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T1a.5</span>skill icon_id 接入 asset catalog</h4>
+<p class="meta">依赖：T0.5、T1a.4</p>
+<dl>
+<dt>目标</dt><dd><code>icon_id</code> 的语义固定为 asset ID。</dd>
+<dt>步骤</dt><dd>现有 <code>icon_id</code> 已是稳定 ID（如 <code>archer_aimed_shot</code>），非路径。本任务是把它接到 catalog 解析，并把展示层从内容路径改为 asset ID resolver。</dd>
+<dt>验收</dt><dd>技能图标在 UI 正常显示；Definition 与 runtime 不再传播资产路径。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">先校验同一底层资产没有登记多个 asset ID。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T1a.6</span>转换器接入与 7 个虹彩屏障 round-trip</h4>
+<p class="meta">依赖：T0.3、T1a.4 · 参考：设计文档 11.1、11.3、11.6</p>
+<dl>
+<dt>目标</dt><dd>打通 <code>.tres → TresAdapter → ImportModel → canonical writer → .json</code>，并证明闭合。</dd>
+<dt>步骤</dt><dd>
+<ol>
+<li>转换器是 headless Godot 入口（读 <code>.tres</code> 需要 Godot 资源系统），<strong>不得自己解析 <code>.tres</code> 文本</strong>。</li>
+<li>转换器 = TresAdapter + canonical writer 的组合，<strong>没有第三段逻辑</strong>。</li>
+<li>按 domain 调用；默认写临时目录，<code>--in-place</code> 才写 <code>data/</code>；任一 entry 失败即整域非零退出，不产出部分结果。</li>
+<li>round-trip 断言：<code>canonical(tres→ImportModel) == canonical(转换器json→ImportModel)</code>，对 7 个 prismatic ward 逐 entry 执行。</li>
+</ol></dd>
+<dt>验收</dt><dd>7 个技能 round-trip 逐字段一致；产出 JSON 无类名、路径、UID、加载器语法。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">round-trip 闭合<strong>不证明语义正确</strong>——如果 adapter 读错字段，两侧会一致地错。真正看守语义的是 T1a.7 的语料与行为回归。仓库历史上有过手写文本格式化的一次性内容脚本，<strong>不要重复那种做法</strong>。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T1a.7</span>技能 validator 的 diagnostic golden 语料</h4>
+<p class="meta">依赖：无（可与 T1a.1–6 并行）· 参考：设计文档 12.2 · <strong>整条链上最关键的一步</strong></p>
+<dl>
+<dt>目标</dt><dd>在重构之前固化 validator 的现有诊断行为。<strong>本任务只记录，不改 validator。</strong></dd>
+<dt>步骤</dt><dd>
+<ol>
+<li><strong>正例语料</strong>：用当前 validator 对全量真实内容跑一遍，记录诊断输出（正常应为空，空也要固定下来）。</li>
+<li><strong>反例语料</strong>：为 validator 中<strong>每一条规则分支</strong>构造至少一个触发用例，记录其诊断，形成受版本控制的 fixture 集。</li>
+<li><strong>规则清点</strong>：反例逐条对应规则分支，缺一条即视为语料未完成。</li>
+<li>语料建立在 <code>.tres</code> 侧（当前唯一 source）。</li>
+</ol></dd>
+<dt>验收</dt><dd>规则分支与反例用例的对应表完整；语料可重复执行并产出稳定结果。</dd>
+<dt class="trap">陷阱</dt><dd class="trap"><code>SkillCombatProfileValidator.cs</code> 是三千行量级，规则分散。<strong>若某条规则无法构造反例，说明它是死规则</strong>——单独提交删除，不要带着搬走。这条语料是后续唯一能发现「重构静默丢规则」的手段；双层 parity 对此在构造上不可见（两侧共用同一 validator）。在 LLM 生成量级下，丢一条规则会放大成上千条错误内容。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T1a.8</span>技能 schema 导出与 CLI 覆盖</h4>
+<p class="meta">依赖：T0.7、T0.8、T1a.1</p>
+<dl>
+<dt>目标</dt><dd>技能域接入作者工具链。</dd>
+<dt>步骤</dt><dd>导出技能 JSON Schema；离线校验 CLI 支持技能域；确认诊断带稳定规则标识。</dd>
+<dt>验收</dt><dd>对故意写错的技能 JSON，CLI 能秒级定位到字段。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-1a — 停下并报告</h4>
+<p>7 个试点的 <code>.tres</code> 与转换器产出 JSON 在 import model 上逐字段一致；JSON 不含类名、路径或类型字段；diagnostic 语料建立完成且规则清点无缺口。</p>
+<p><strong>不过则回到 schema 设计</strong>——此时尚未付出 validator 重构成本，这正是拆分 1a/1b 的意义。</p>
+</div>
+
+<h2 id="t1b">阶段 1b · 技能 validator/projector 迁移</h2>
+<p>全方案单笔体量最大的重构，产出主要是校验诊断。<strong>不允许与阶段 2 的内容扩散合并推进。</strong></p>
+
+<div class="task warn">
+<h4><span class="id">T1b.1</span>拆出 import-model validator</h4>
+<p class="meta">依赖：DG-1a · 参考：设计文档 5.4</p>
+<dl>
+<dt>目标</dt><dd>把 Resource-bound 校验搬到 import model 上，规则集合不变。</dd>
+<dt>验收</dt><dd>对 T1a.7 的反例语料，<strong>规则命中集合与重构前完全一致</strong>（诊断文案可差异化，命中集合不可）。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">语料比对不通过时<strong>先修 validator，不要修语料</strong>。这是唯一的看守，改语料等于拆掉它。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T1b.2</span>拆出 import-model-to-definition projector</h4>
+<p class="meta">依赖：T1b.1</p>
+<dl>
+<dt>目标</dt><dd>投影逻辑只留一份。</dd>
+<dt>步骤</dt><dd><code>FromResource</code> 收敛为薄适配入口，<strong>不保留第二套投影逻辑</strong>；删除 1a 期间的临时转接层。</dd>
+<dt>验收</dt><dd>Definition golden 两条 source 路径一致；execution / preview / AI / UI 回归通过。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">一旦发现 adapter 与 JSON importer 形成了两套业务投影，<strong>立刻停止并报告</strong>——这是设计文档列出的停止条件之一。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T1b.3</span>barrier 交叉校验与行为回归</h4>
+<p class="meta">依赖：T1b.2</p>
+<dl>
+<dt>验收</dt><dd>barrier cross-validation 通过；技能 execution、preview、AI、UI/HUD、headless snapshot 回归全绿；<strong>两条内容读取链路（snapshot 与会话内重投影）都已核对</strong>。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">这两条读取链路的差异是<strong>有意设计</strong>，不是重复实现。<strong>不要顺手合并。</strong> 若迁移后出现差异，先确认差异是否本来就存在。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-1b — 停下并报告</h4>
+<p>diagnostic 规则命中集合一致、Definition golden 一致、行为回归通过，才扩大全技能域。</p>
+</div>
+
+<h2 id="t2">阶段 2 · 技能全域（701 个文件）</h2>
+
+<div class="task">
+<h4><span class="id">T2.1</span>按 effect type 分批建立 payload spec</h4>
+<p class="meta">依赖：DG-1b</p>
+<dl>
+<dt>目标</dt><dd>覆盖全部 effect type（全库约 75 个不同取值，实施时重新统计）。</dd>
+<dt>步骤</dt><dd>分批推进，每批建立若干 effect type 的 typed payload spec，每批独立验收。</dd>
+<dt>验收</dt><dd>每批覆盖 execution、preview、AI 和描述文案。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不要一次性做完 75 个。分批的意义是让回归失败可二分定位。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T2.2</span>机械转换（独立提交）</h4>
+<p class="meta">依赖：T2.1 各批 · 参考：设计文档 11.5</p>
+<dl>
+<dt>步骤</dt><dd>跑转换器产出到临时目录 → round-trip 全量验收 → <code>--in-place</code> 写入 <code>data/</code>，作为<strong>只含机械转换的一个提交</strong>。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">round-trip 不过就修 adapter 或 writer，<strong>不要手改产出文件</strong>。不要在这个提交里改任何数值。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T2.3</span>family 聚合与 template 提取（各自独立提交）</h4>
+<p class="meta">依赖：T2.2</p>
+<dl>
+<dt>步骤</dt><dd>先做 family 聚合与文件合并（建议每文件 20–40 entry，以真实 diff 手感调整），复跑 round-trip 后提交；再做 template 提取，复跑 round-trip 后提交。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">template 提取<strong>不是纯格式化</strong>：writer 会省略等于默认值的字段，而模板中出现的键在子 entry 缺失时会被继承，语义会静默改变。<strong>模板中出现的键，所有子 entry 必须显式写出，即使等于默认值。</strong></dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T2.4</span>删除技能 .tres source 与 TresAdapter</h4>
+<p class="meta">依赖：T2.3 · 参考：设计文档 11.5</p>
+<dl>
+<dt>步骤</dt><dd>删除技能 <code>.tres</code> source、TresAdapter、转换器调用路径、该域 host root、无剩余用途的 Skill authoring Resource 类；更新 lifecycle/content root 回归基线。</dd>
+<dt>验收</dt><dd>lifecycle 测试显示 root count 相应下降；<code>data/configs/skills</code> 下无 <code>.tres</code>；测试中该域路径字面量清零。</dd>
+<dt class="trap">陷阱</dt><dd class="trap"><strong>顺序不可颠倒。</strong> 本任务一旦执行，<code>.tres</code> 与 adapter 消失，round-trip 失去比较基准，T2.3 的人工整理将无法再被验证。整理必须全部先完成。<br>另：测试中携带大量 <code>res://data/configs/…</code> 路径字面量（全仓去重后上百个），fixture 必须改为 <strong>ID 驱动</strong>，不能只是把 <code>.tres</code> 换成 <code>.json</code>。</dd>
+</dl>
+</div>
+
+<h2 id="t3">阶段 3 · 技能生成闭环上线</h2>
+<p>技能一进 JSON 就能开始生成，不必等装备。这是近期驱动的第一个交付点。</p>
+
+<div class="task">
+<h4><span class="id">T3.1</span>打通四级拦截</h4>
+<p class="meta">依赖：阶段 2 完成 · 参考：设计文档 11.9</p>
+<dl>
+<dt>目标</dt><dd>把 schema、domain validator、跨域 ID、战斗模拟四级串成一条可自动执行的链。</dd>
+<dt>步骤</dt><dd>前三级已在 T0.7/T0.8 与阶段 1b 就位；本任务负责串联并确定失败退出码与产出格式。</dd>
+<dt>验收</dt><dd>四级中任一级失败都能给出可定位诊断且非零退出。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T3.2</span>诊断机器可读化</h4>
+<p class="meta">依赖：T3.1</p>
+<dl>
+<dt>步骤</dt><dd>前三级诊断统一为结构化输出：<code>file.json#entry_id</code> + JSON pointer + 稳定规则标识 + 期望/实际。目标是可直接作为修复输入回喂，不是给人读的日志行。</dd>
+<dt>验收</dt><dd>诊断格式有测试锁定；规则标识稳定，不随文案变化。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T3.3</span>接入战斗模拟抽检</h4>
+<p class="meta">依赖：T3.1</p>
+<dl>
+<dt>目标</dt><dd>拦住「结构合法但强度离谱」——schema 与 validator 对此完全无能为力。</dd>
+<dt>步骤</dt><dd>接既有 <code>scripts/systems/battle/sim/</code> 设施（runner、content provider、override applier、metrics、analysis output），<strong>不要新建模拟器</strong>。确定技能强度的判定口径与告警阈值。</dd>
+<dt>验收</dt><dd>能对一批技能跑出可比较的强度指标，并对明显离群项告警。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">战斗模拟 runner <strong>不属于常规全量回归</strong>，不要把它加进 <code>run_regression_suite.py</code> 的默认路径。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T3.4</span>小批量实跑与误报率统计</h4>
+<p class="meta">依赖：T3.2、T3.3</p>
+<dl>
+<dt>步骤</dt><dd>用一小批生成技能实跑闭环，统计各级拦截率与<strong>误报率</strong>。</dd>
+<dt>验收</dt><dd>拿到分级统计数字。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">生成方反复犯的错，<strong>多数是 schema 表达不足而非模型问题</strong>。先补 schema 描述，不要急着加 validator 规则——后者会把合法内容也挡掉。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T3.5</span>据实跑结果补 schema 与规则</h4>
+<p class="meta">依赖：T3.4</p>
+<dl>
+<dt>验收</dt><dd>误报率下降到可接受水平；被拒条目的诊断足以定位到字段。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-3 — 停下并报告</h4>
+<p>一批生成技能能在<strong>无人工修补</strong>的情况下走完四级拦截并入库；被拒条目的诊断足以定位到字段。</p>
+<p>未达成则<strong>不扩大生成规模</strong>，也不进入装备闭包生成。</p>
+</div>
+
+<h2 id="t4">阶段 4 · 装备闭包</h2>
+<p>装备生成需要的是一组域而非单个 item 域。生成的装备会引用特质、装备能力、套装与配方，任何一个还在 <code>.tres</code>，生成方就闭合不了。因此同批推进。</p>
+
+<div class="task">
+<h4><span class="id">T4.1</span>ItemDef.icon → icon_asset_id</h4>
+<p class="meta">依赖：DG-3、T0.5</p>
+<dl>
+<dt>步骤</dt><dd>当前 <code>ItemDef.icon</code> 是 <code>string</code> 路径，迁为 asset ID。通过 catalog 反向索引把旧路径映射成 ID，不做字符串猜测。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">保留字段级「旧值 → 新 ID」的迁移清单，供核对。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T4.2</span>ItemImportModel 与既有 template 链</h4>
+<p class="meta">依赖：T4.1</p>
+<dl>
+<dt>步骤</dt><dd>现有 item template 链先经 TresAdapter <strong>解析成最终展开的</strong> <code>ItemImportModel</code>；转换器产出完整 entry，旧 template 链不带进 JSON。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">现有合并逻辑有逐字段维护、哨兵值和数组语义不一致的问题，转换时要逐项确认语义，不要假设 <code>0</code> 一定代表「未设置」。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T4.3</span>item validator 的 diagnostic golden 语料</h4>
+<p class="meta">依赖：T4.2 · 与 T1a.7 同一模式</p>
+<dl>
+<dt>步骤</dt><dd>重构 item validator <strong>之前</strong>建立语料：正例 + 逐规则反例 + 规则清点。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">同 T1a.7。不要因为 item 域比 skill 小就跳过这一步——装备是生成的主要目标，validator 是唯一质量地基。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T4.4</span>equipment abilities 迁移</h4>
+<p class="meta">依赖：T4.2 · 参考：设计文档 7.2</p>
+<dl>
+<dt>步骤</dt><dd>现有 <code>condition.kind</code> / <code>action.kind</code> spec 改接 plain payload import model；约 35 个 payload Def 逐个对应 import DTO。<strong>JSON 不构造现有 payload Resource。</strong></dd>
+<dt>验收</dt><dd>kind 词汇完整导出到 schema——<strong>这是生成方的动作词表</strong>，缺一项就是生成方少一种可用能力。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不要引入额外的 handler 标识，沿用现有 kind 与 handler spec。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T4.5</span>traits 迁移</h4>
+<p class="meta">依赖：T4.2</p>
+<dl>
+<dt>目标</dt><dd>约 239 个文件。装备普遍引用特质，且新装备常需要新特质，<strong>不能滞后于装备</strong>。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">豁免标签字段是裸标签语义，带后缀写法会报错——迁移时不要「修复」成 <code>X_immunity</code> 形式。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T4.6</span>gear sets 与 recipes 迁移</h4>
+<p class="meta">依赖：T4.4、T4.5</p>
+<dl>
+<dt>步骤</dt><dd>gear set 到物品、trait、equipment ability binding 的引用全部走 ID；recipe 对 item definition 的依赖保持在 builder 的显式编排中，不塞进 descriptor。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T4.7</span>装备闭包接入生成闭环</h4>
+<p class="meta">依赖：T4.3–T4.6</p>
+<dl>
+<dt>验收</dt><dd>装备生成能在四级拦截下闭合，且生成方<strong>只需 schema 与 ID 列表、不需要读取任何 <code>.tres</code></strong>。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T4.8</span>删除 item/装备域 .tres source 与旧合并代码</h4>
+<p class="meta">依赖：T4.7</p>
+<dl>
+<dt>步骤</dt><dd>删除 <code>MergeWithTemplate</code> 等旧合并代码与各域 Resource source、TresAdapter；测试 fixture 改 ID 驱动。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">同 T2.4：删除必须在全部人工整理完成之后。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-4 — 停下并报告</h4>
+<p>装备生成闭合，生成方不再需要接触任何 <code>.tres</code>。至此近期驱动的目标达成，后续阶段服务终态。</p>
+</div>
+
+<h2 id="stage5">阶段 5 · 敌人、AI brain/action 与 roster</h2>
+<p class="note">本阶段已按 2026-08-19 的当前代码重新细化：正式内容为 9 个 brain、40 个 template、5 个 roster；三个域可在阶段 4 之外独立推进，但必须一起切换 production source，不能留下 seed 或 Resource 投影旁路。</p>
+
+<div class="task warn">
+<h4><span class="id">T5.1</span>敌人域 preflight 与字段闭包</h4>
+<p class="meta">依赖：DG-0 · 可与阶段 4 并行</p>
+<dl>
+<dt>步骤</dt><dd>重新清点 brain、template、roster、12 种 action、嵌套 state / generation slot / transition、掉落与战斗装备字段；记录所有 path、Resource 多态与跨域引用。</dd>
+<dt>验收</dt><dd>字段清单覆盖 production Resource、Definition、registry、snapshot、roster builder、AI assembler/evaluator、mutation diagnostics、battle board 与 UI；现有未提交敌人内容也纳入转换输入。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不能把当前文件数当长期 schema 约束，也不能从脚本类名或资源路径推断 action kind。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T5.2</span>三个严格 JSON 域与 code-owned discovery</h4>
+<p class="meta">依赖：T5.1 · 复用：T0.1–T0.8</p>
+<dl>
+<dt>步骤</dt><dd>为 <code>enemy_ai_brains</code>、<code>enemy_templates</code>、<code>encounter_rosters</code> 建立 strict DTO、plain import model、schema registration 与离线校验入口；production 从三个固定 JSON 目录发现内容。</dd>
+<dt>验收</dt><dd>发现顺序稳定、重复 ID fail closed、诊断定位到 <code>file.json#entry_id</code> 与 JSON pointer；不再需要 seed 清单或目录内 <code>.tres</code> 扫描。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T5.3</span>EnemyAiActionKind 12 分支 closed spec</h4>
+<p class="meta">依赖：T5.2</p>
+<dl>
+<dt>步骤</dt><dd>JSON action 固定为 <code>kind + payload</code>；每个 <code>EnemyAiActionKind</code> 对应唯一 payload DTO、import model 与具体 Definition 构造分支。</dd>
+<dt>验收</dt><dd>schema 完整导出 12 个 kind；未知 kind、错配 payload、额外字段、非法 selector / distance reference / action family 在 snapshot 发布前被拒绝。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不得用字段形状、action_id、技能 ID 或旧 Resource 类型名猜测 kind。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T5.4</span>brain import validator 与 Definition projector</h4>
+<p class="meta">依赖：T5.3</p>
+<dl>
+<dt>步骤</dt><dd>把 state、generation slot、transition、score profile 的业务校验迁到 plain import/Definition 边界；projector 直接构造 immutable brain graph。</dd>
+<dt>验收</dt><dd>state/action/slot/rule 唯一性、skill compatibility、默认 state、closed enum 与 score profile 字段逐项保持；runtime assembler 只消费 Definition。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T5.5</span>template 与 roster import validator/projector</h4>
+<p class="meta">依赖：T5.2、T5.4</p>
+<dl>
+<dt>步骤</dt><dd>迁移属性、认知、抗性、技能等级、装备、掉落、派生武器、stage/unit entry 与跨表校验；template 只按 brain/item/skill Definition，roster 只按 template ID 验证。</dd>
+<dt>验收</dt><dd>unit snapshot、战斗装备、掉落、growth stage 与 actor_id 行为保持；不存在 Resource 或 Godot Dictionary 形式的正式内容真相源。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T5.6</span>全量机械转换与 Definition parity</h4>
+<p class="meta">依赖：T5.4、T5.5</p>
+<dl>
+<dt>步骤</dt><dd>把当前 9 brain、40 template、5 roster 机械转换成 canonical JSON；转换前后的完整 Definition graph 做逐字段 parity，并覆盖 AI plan、roster 与 runtime 行为。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">机械转换不顺带改平衡数值；工作树中已经存在的敌人内容改动必须按当前值进入 JSON。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T5.7</span>battle_sprite_asset_id 全链接入</h4>
+<p class="meta">依赖：T5.5 · 复用：T0.5、T0.6</p>
+<dl>
+<dt>步骤</dt><dd>把 template、Definition、roster builder、unit snapshot/state、mutation diagnostics、render snapshot 与 battle board 的 sprite path 改成 <code>battle_sprite_asset_id</code>，所需纹理登记到 engine asset catalog。</dd>
+<dt>验收</dt><dd>展示只通过 catalog 的 typed <code>Texture2D</code> resolver；JSON、Definition、runtime state、trace 与 UI 均不保存或回退到资产路径。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T5.8</span>production cutover 与 Resource source 清理</h4>
+<p class="meta">依赖：T5.6、T5.7</p>
+<dl>
+<dt>步骤</dt><dd>production snapshot 切到三个 JSON domain；删除 enemy seed、brain/template/roster <code>.tres</code>、action/nested authoring Resource 子类、TresAdapter 与 migration-only 反向索引；fixture 改为 JSON 或 plain Definition 构造。</dd>
+<dt>验收</dt><dd>production 构建不再加载敌人域 Resource；schema/CLI、registry、AI plan/evaluator、mutation guard、roster/runtime、battle board/UI 与 Windows export 相关回归通过。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不得保留“仅供测试”的 production Resource 旁路，也不得用兼容 alias、路径 fallback 或两套 projector 掩盖遗漏。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-5 — 停下并报告</h4>
+<p>敌人、AI brain/action 与 roster 已由 code-owned JSON discovery 独占加载；12 种 action closed spec、完整 Definition parity、sprite asset ID 全链与行为回归通过；enemy 域不再存在 <code>.tres</code> source、seed 或 Resource authoring 子类。未满足任一项则不得宣称阶段 5 完成。</p>
+</div>
+
+<h2 id="stage6">阶段 6 · 剩余配置域</h2>
+<p class="note">本阶段已按 2026-08-19 的当前代码重新细化。盘点基线为 15 个顶层 authoring family、17 个严格 JSON domain、152 个 <code>.tres</code> 文件（其中 battle encounter seed 不是内容 entry）：battle encounter 11 + seed、barrier profile 8、barrier layer 7、special profile/manifest 2、quest 37、profession 7、race 11、subrace 31、faith 2、bloodline 3、ascension 3、age profile 11、stage advancement 1、contingency template 2、BattleSim profile 4、scenario 11。trait/item/enemy 等跨域引用消费其当前 Definition index，source 迁移仍分别属于阶段 4/5，不能由阶段 6 重复接管。</p>
+
+<div class="task warn">
+<h4><span class="id">T6.1</span>阶段 6 preflight 与逐域完成台账</h4>
+<p class="meta">依赖：DG-0 · 可与阶段 4/5 并行</p>
+<dl>
+<dt>步骤</dt><dd>逐域清点 production Resource、嵌套 Resource、多态分支、路径、跨域 ID、registry、snapshot、runtime consumer 与现有回归；固定每个域的 entry 数、Definition parity 与 source 清理条件。</dd>
+<dt>验收</dt><dd>十五个顶层 family、十七个 JSON domain 分别有完成定义；不能用一条“长尾批次通过”替代逐域证据。阶段 4 的 trait/item 与阶段 5 的 enemy/roster 只作为 Definition 依赖，不形成双重所有权。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">当前文件数是迁移证据，不是 schema 上限；不得按文件名、ID 文本或字段形状推断 kind。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T6.2</span>BattleObjectiveKind 九分支 closed spec</h4>
+<p class="meta">依赖：T6.1</p>
+<dl>
+<dt>步骤</dt><dd>建立 <code>BattleObjectiveKind</code> 与 <code>kind + payload</code>，穷尽 elimination、boss、defense、control、escape、escort、intercept、rescue、node_operation；DTO、import model 与 Definition projector 每个 kind 一一对应。</dd>
+<dt>验收</dt><dd>schema 导出九个互斥分支；未知 kind、错配 payload、额外字段与非法 objective 参数在 snapshot 发布前 fail closed；runtime 继续只消费现有 typed objective Definition。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不得把 Resource 类型名写进 JSON，也不得从 payload 字段反推 objective kind。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.3</span>battle encounter JSON discovery 与跨表校验</h4>
+<p class="meta">依赖：T6.2 · 跨域：enemy roster/template Definition index</p>
+<dl>
+<dt>步骤</dt><dd>把 encounter、world resolution 与 objective 投影到 immutable Definition；registry 改为固定 JSON 目录 discovery，删除 seed 清单。</dd>
+<dt>验收</dt><dd>11 个 encounter Definition parity；重复 encounter ID、缺失 roster/template、非法 objective/world resolution 在发布前拒绝；world/battle runtime 不持有 JSON DTO 或 Resource。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.4</span>barrier profile / layer 关系归一化</h4>
+<p class="meta">依赖：T6.1 · 跨域：skill Definition index</p>
+<dl>
+<dt>步骤</dt><dd>layer 与 profile 分为严格 JSON domain；profile 只保存稳定 layer ID，不嵌套或引用 Resource/path；projector 组装 immutable layer/profile Definition 图。</dd>
+<dt>验收</dt><dd>7 个 layer 与 8 个 profile Definition parity；重复/缺失 layer、顺序冲突与 outcome 规则仍由同一 validator fail closed；技能、preview、AI 与 execution 继续借用同一 barrier Definition 图。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.5</span>special profile manifest / profile ID 化</h4>
+<p class="meta">依赖：T6.1 · 跨域：skill Definition index</p>
+<dl>
+<dt>步骤</dt><dd>manifest 只声明 skill ID、profile kind 与 profile ID；profile 由 closed kind payload 投影 typed runtime view，不传播 <code>ResourcePath</code>。</dd>
+<dt>验收</dt><dd>Meteor Swarm manifest/profile Definition parity；gate、preview、execution 与 AI 从 ID-keyed runtime view 取值；生产状态、trace 和诊断不含 profile 路径。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.6</span>profession JSON 域</h4>
+<p class="meta">依赖：T6.1 · 跨域：skill/trait Definition index</p>
+<dl>
+<dt>验收</dt><dd>7 个 profession 的 rank、promotion requirement、rank gate、granted skill 与 active condition 逐字段 Definition parity；registry 由 code-owned JSON discovery 独占加载。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.7</span>race / subrace / age profile JSON 域</h4>
+<p class="meta">依赖：T6.1 · 跨域：trait Definition index</p>
+<dl>
+<dt>步骤</dt><dd>三个域分别导入，subrace 只按 race ID 关联，race/subrace 的 trait 引用只保留 trait ID，age profile 只保留 typed 年龄段数据。</dd>
+<dt>验收</dt><dd>11 race、31 subrace、11 age profile 各自 Definition parity；缺失 race/trait/age profile 与非法年龄区间逐域 fail closed。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.8</span>faith JSON 域</h4>
+<p class="meta">依赖：T6.1 · 跨域：skill/trait Definition index</p>
+<dl>
+<dt>验收</dt><dd>2 个 deity 的 rank、requirement、grant 与规则逐字段 Definition parity；faith registry 不再扫描或保留 Resource。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.9</span>bloodline / ascension / stage advancement JSON 域</h4>
+<p class="meta">依赖：T6.1 · 跨域：skill/trait/identity Definition index</p>
+<dl>
+<dt>步骤</dt><dd>三个域分别导入；stage/nested modifier 归一化为 plain typed import model，关系只使用 ID。</dd>
+<dt>验收</dt><dd>3 bloodline、3 ascension、1 stage advancement 各自 Definition parity；stage 唯一性、父子引用、grant 与 modifier 约束在发布前校验。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T6.10</span>quest JSON 域与跨系统关系闭包</h4>
+<p class="meta">依赖：T6.1 · 跨域：item/skill/enemy/encounter/roster Definition index</p>
+<dl>
+<dt>步骤</dt><dd>objective、accept requirement、reward、provider/listing、failure/restart 与 learn source 全部进入 strict typed DTO/import model；跨域引用只保存 ID。</dd>
+<dt>验收</dt><dd>37 个 quest Definition parity；现有 <code>QuestContentValidator</code> 的跨表规则与 progression-safe reward 行为保持；provider、claim、pending character reward、save/runtime/headless consumer 不持有 Resource。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不得为方便 JSON 导入而减弱 growth tier、学习来源、重复奖励、目标角色或构筑选择校验。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.11</span>contingency template JSON 域</h4>
+<p class="meta">依赖：T6.1 · 跨域：skill Definition index</p>
+<dl>
+<dt>验收</dt><dd>2 个 template 的 trigger、target resolver、stored spell/material cost 逐字段 Definition parity；setup、save、headless 与 battle lifecycle 只消费 immutable template Definition。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T6.12</span>BattleSim profile / scenario code-owned discovery</h4>
+<p class="meta">依赖：T6.1 · 跨域：skill/item/enemy/AI Definition index</p>
+<dl>
+<dt>步骤</dt><dd>4 个 profile 与 11 个 scenario 分域严格导入；profile override patch、scenario unit/equipment seed 进入 plain typed import model；删除 <code>ContentSnapshotBuilder</code> 与 runner 中固定 <code>.tres</code> 路径。</dd>
+<dt>验收</dt><dd>Definition parity、重复 ID 与引用校验通过；普通 runner、formal fixture、analysis 与生成技能 BattleSim gate 只消费 Definition，不保留 Resource/path。数值模拟仍是 opt-in，不进入 routine full suite。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T6.13</span>共享 schema、离线 CLI、snapshot 与跨域编排</h4>
+<p class="meta">依赖：T6.3–T6.12</p>
+<dl>
+<dt>步骤</dt><dd>全部阶段 6 domain 注册 schema/export check 与离线 validator；<code>ContentSnapshotBuilder</code> 按 Definition 依赖顺序组装并验证，source label 只用于诊断。</dd>
+<dt>验收</dt><dd>每个 domain 可独立离线校验并输出 <code>file.json#entry_id</code> + JSON pointer + 稳定 rule ID；process snapshot 只发布 immutable Definition graph，不发布 DTO/import model。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T6.14</span>production cutover、Resource source 清理与累计证据</h4>
+<p class="meta">依赖：T6.13</p>
+<dl>
+<dt>步骤</dt><dd>删除阶段 6 的 152 个 <code>.tres</code>、seed、只服务这些域的 Resource authoring 子类/TresAdapter 与固定路径；fixture 改 JSON 或 plain Definition 构造。</dd>
+<dt>验收</dt><dd>阶段 6 各旧目录无 <code>.tres</code>；production search 无这些路径或 Resource loader；逐域 schema/import/parity/行为回归、process snapshot/lifecycle 与 Windows export JSON 打包证据通过。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不得保留 test-only production Resource 旁路、兼容 alias、静默 fallback、路径反查或第二套 projector；阶段 4/5/7 的剩余 <code>.tres</code> 不计入本阶段完成，但必须在报告中单列。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-6 — 停下并报告</h4>
+<p>阶段 6 的十五个顶层 family、十七个 JSON domain 已由 code-owned JSON discovery 独占加载；BattleObjectiveKind 九分支、barrier layer ID、special profile ID、所有长尾 Definition parity、跨域校验、离线 schema/CLI、process snapshot、行为回归与 Windows export 证据通过；阶段 6 Resource source、seed、adapter 与固定路径已删除。任一域缺证据都不得宣称阶段 6 完成，也不得进入阶段 7 的破坏性 world/save schema 迁移。</p>
+</div>
+
+<h2 id="stage-7">阶段 7 · world JSON 与不兼容 save schema</h2>
+<p class="note">本阶段按 2026-08-22 当前代码重新拆分。它是唯一允许主动破坏旧存档格式的阶段：运行时与持久化只保留稳定 ID；旧版本明确拒绝，不添加 alias、迁移、路径 fallback 或双读。</p>
+
+<div class="task">
+<h4><span class="id">T7.1</span>world source、owner 与 save 字段账本</h4>
+<p class="meta">依赖：DG-6 · 范围：5 preset、6 generation、1 shared content、13 个旧 world <code>.tres</code></p>
+<dl>
+<dt>步骤</dt><dd>逐字段登记 preset、generation、mounted submap、settlement/facility、wild spawn、event 与 name pool；登记 snapshot、登录 UI、headless、runtime、world data、save payload/meta/index 的当前 owner 和路径语义。</dd>
+<dt>验收</dt><dd>三域边界、稳定 ID、跨域引用、source 数量与所有 consumer 可由当前代码和 source 复核；确认 <code>generation_config_path</code>、basename preset fallback 及 mounted submap path 是本阶段必须删除的隐藏路径语义。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T7.2</span>world_presets / world_generations / world_shared 严格 JSON 域</h4>
+<p class="meta">依赖：T7.1</p>
+<dl>
+<dt>步骤</dt><dd>建立三个 code-owned discovery domain、strict typed DTO/import model、schema 注册与离线 CLI；preset 只引用 <code>generation_id</code>，generation 只引用 <code>shared_content_id</code> 与 mounted <code>generation_id</code>。</dd>
+<dt>验收</dt><dd>5/6/1 条目分别可独立 schema/export check 与离线校验；未知字段、重复 ID、空 ID、缺失引用、递归 mounted submap 与非法数值 fail closed，并输出稳定 source label、JSON pointer 与 rule ID。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T7.3</span>单一 projector、Definition parity 与跨域闭包</h4>
+<p class="meta">依赖：T7.2</p>
+<dl>
+<dt>步骤</dt><dd>三个 import model 经唯一 <code>WorldContentRegistry</code> 投影为 immutable preset/generation Definition graph；共享内容、name pool 与 mounted submap 只按 typed ID 关联。</dd>
+<dt>验收</dt><dd>旧 13 source 与 JSON 投影的全部可观察字段逐项 parity；缺失 shared/generation/name pool、重复定义与 mounted cycle 在 snapshot 发布前拒绝；production 不存在第二套 Resource projector。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T7.4</span>snapshot、catalog、登录 UI 与 headless 稳定 ID cutover</h4>
+<p class="meta">依赖：T7.3</p>
+<dl>
+<dt>步骤</dt><dd><code>ContentSnapshot</code> 发布 ID-keyed preset/generation Definition；catalog、登录世界选择、headless session 与 new-game 入口只消费 snapshot/catalog。</dd>
+<dt>验收</dt><dd>无静态 preset 路径 manifest、硬编码 <code>.tres</code>、basename 显示名或路径反查；缺失 preset/generation 明确失败，UI 与 headless 选择同一稳定 ID。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T7.5</span>root world 与 mounted submap runtime/data 字段改为 world_generation_id</h4>
+<p class="meta">依赖：T7.4 · 破坏性字段变更</p>
+<dl>
+<dt>步骤</dt><dd>将 GameSession、GameRuntimeFacade、WorldMapSpawnSystem/Projection、WorldMapDataContext 与 WorldRuntimeData 的 generation path owner 改为 typed <code>world_generation_id</code>；mounted submap 同样持久化 child generation ID。</dd>
+<dt>验收</dt><dd>root 与 mounted submap 的生成、投影、重建、spawn、settlement、facility、event 与 wild spawn 行为保持；production state、diagnostic 与 payload 不含 generation 配置路径。</dd>
+<dt class="trap">陷阱</dt><dd class="trap">不得把路径塞进 ID、保留 path-to-ID 反向索引，或在缺失 ID 时选择默认 generation。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T7.6</span>save payload/meta/index 不兼容升级</h4>
+<p class="meta">依赖：T7.5 · <code>SaveVersion 19 → 20</code> · <code>SaveIndexVersion 4 → 5</code></p>
+<dl>
+<dt>步骤</dt><dd>payload、meta 与 index 的 <code>generation_config_path</code> 统一替换为 <code>world_generation_id</code>；精确版本门禁、必需键集合、序列化结果与诊断同步升级。</dd>
+<dt>验收</dt><dd>新档 round-trip、索引重建、列表与 load 成功；19/4 及更旧版本、旧键、混合新旧键、未知键与缺失 ID 明确拒绝；无兼容读取、自动迁移、alias 或 silent fallback。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T7.7</span>删除 world Resource source、authoring 类与路径 registry</h4>
+<p class="meta">依赖：T7.6</p>
+<dl>
+<dt>步骤</dt><dd>删除 13 个 world <code>.tres</code>、只服务它们的 Resource authoring 类、Tres projector、旧 <code>WorldPresetRegistry</code> 与固定路径；fixture 改 JSON 或 plain Definition 构造。</dd>
+<dt>验收</dt><dd><code>data/configs/world_map</code> 无 <code>.tres</code>；production search 无旧 Resource 类型、<code>FromResource</code>、<code>generation_config_path</code>、world preset/generation <code>.tres</code> 路径或 basename fallback。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T7.8</span>累计验证、设计真相更新与交付审计</h4>
+<p class="meta">依赖：T7.7</p>
+<dl>
+<dt>步骤</dt><dd>更新 world/save 当前设计与 context read set；执行三域 schema/CLI、import/parity、snapshot/lifecycle、world behavior、save strict rejection、build、routine full suite 与 Windows export JSON 打包验证。</dd>
+<dt>验收</dt><dd>所有证据绑定当前 worktree 与命令结果；集中搜索证明路径语义与 Resource source 已消失；完整 suite 的 unrelated failure、timeout 或未执行 export 必须单列，不能写成 PASS。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-7 — 停下并报告</h4>
+<p>world 三个 JSON domain 已由 code-owned discovery 独占加载；preset、root generation 与 mounted submap 全部使用稳定 ID；SaveVersion 20、SaveIndexVersion 5 的新档 round-trip 与旧版本严格拒绝证据通过；13 个 world Resource source、authoring/projector、静态路径 registry 与 basename fallback 已删除；schema/CLI、parity、snapshot/lifecycle、world behavior、routine full suite 与 Windows export 证据已报告。未满足任一项不得宣称阶段 7 完成，也不得进入阶段 8。</p>
+</div>
+
+<h2 id="later">阶段 8 · 后续（届时重新细化）</h2>
+<p class="note">阶段 8 仍是方向性描述，开始前必须按当时实际代码重新拆任务。</p>
+
+<table>
+<thead><tr><th>阶段</th><th>内容</th><th>要点</th></tr></thead>
+<tbody>
+<tr><td>8</td><td>终态清理</td><td>删除全部 content Resource loader/discovery 分支、全部 TresAdapter、migration-only 反向索引；确认 <code>ProcessContentHost</code> 只剩 snapshot 发布与 engine asset catalog owner；更新 <code>docs/design/</code> 与 <code>project_context_units.md</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="stop">停止条件</h2>
+<p>触发任意一条时<strong>停止扩大范围并向用户报告</strong>，不要用临时兼容层继续推进：</p>
+<div class="rule">
+<ol>
+<li>需要在 JSON 里写路径、类型名或通用引用语法才能继续；</li>
+<li>需要 pathless Resource 才能复用现有 validator；</li>
+<li>无法让 <code>.tres</code> 与 JSON 汇合到同一 import model；</li>
+<li>转换器在某域无法达成 round-trip 全量闭合，且原因是 authoring 语义本身无法用 JSON 表达；</li>
+<li>diagnostic golden 语料无法覆盖某个 validator 的规则分支；</li>
+<li>domain kind 只能靠字段形状或 ID 文本猜测；</li>
+<li>Windows 实际导出无法证明 JSON / catalog / 依赖完整；</li>
+<li>world 阶段仍需要路径兼容、别名或静默 fallback；</li>
+<li>发现 Resource adapter 与 JSON importer 形成了两套业务投影。</li>
+</ol>
+</div>
+
+<h2 id="numbers">文中数字的地位</h2>
+<p class="note">本文件与设计文档中的所有统计数字（文件数、规则数、调用点数）都是提案期快照，<strong>只用于工作量估算，不是验收基准</strong>。每个任务开始前请重新统计当时的实际值，并在报告中给出新数字。</p>
+
+</main>
+</body>
+</html>

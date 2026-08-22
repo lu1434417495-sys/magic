@@ -694,21 +694,25 @@ Phase G 另外修改（`dynamic` / helper / `[GlobalClass]`）：
 - headless snapshot key、排序和 plain scalar 类型不变。
 - 关闭窗口和 application shutdown 不新增 `GodotObject` lease/finalizer 问题。
 
-每个 Phase 先运行对应 focused runner；跨完据点、仓库、人物信息和 fate 后再运行：
+每个 Phase 先构建一次，再用现有回归 runner 的 `--pattern` 运行对应 focused runner：
 
 ```bash
-python tools/magic_dev.py verify
+dotnet build magic.csproj
+python tests/run_regression_suite.py --pattern <focused-runner-name>
 ```
 
 最终合并前运行：
 
 ```bash
-python tools/magic_dev.py full
+dotnet build magic.csproj
+python tests/run_regression_suite.py --jobs auto
 ```
 
 常规 full 不包含 BattleSim、benchmark 或 E2E；本迁移无需数值模拟。
 
 ### 实际验证记录（2026-08-15，Phase F-G 收尾）
+
+> 以下 `magic_dev.py` 行是当日实际执行记录，保留用于历史追溯；该工具后来已移除，当前验证使用上面的直接命令。
 
 - `dotnet build`：0 警告 0 错误（含 architecture analyzer）。
 - Phase F focused：`tests/progression/fate`、`tests/battle_runtime/fate`（9 个）、`tests/world_map/runtime`（含 settlement command handler）全绿。
@@ -732,7 +736,7 @@ python tools/magic_dev.py full
 - headless plain snapshot 由 typed owner 单向生成且回归保持稳定。
 - helper 只保留真实 Variant/Godot collection 边界所需的方法；是否整文件删除由最终零调用事实决定。
 - `[GlobalClass]` audit 有逐类 scene/resource/GDScript 证据，不以文件名或继承层级批量猜测。
-- focused regressions、`magic_dev.py verify` 和 `magic_dev.py full` 均有实际结果记录。
+- focused regressions、构建和 routine full suite 均有实际结果记录。
 - `docs/design/world/settlement_module.md` 与 `docs/design/project_context_units.md` 已更新为落地后的当前事实。
 
 以上条件在 2026-08-15 Phase F-G 收尾后全部满足（验证记录见第 8 节，唯一未绿的 3 个用例属并行的行动节奏改动）。设计文档同步范围：

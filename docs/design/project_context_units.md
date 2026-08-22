@@ -27,7 +27,7 @@
 - 运行时业务态由 plain C# typed owner（DTO / 服务 / typed 集合）承载；`Godot.Collections.Dictionary` / `Array` 只在 save/schema、UI/window、资源导入、Godot API 这些边界短暂投影，不作为长期真相源。
 - runtime helper / service 默认是 plain C# `IDisposable`，不用 `RefCounted` / `GlobalClass` 或 GodotObject validity/dispose 生命周期（少数声明 Godot Signal 的除外）。
 - fixed schema 名称（枚举式固定值）优先由 enum/typed 规则拥有，不恢复 public GD helper 或字符串白名单；正式内容 key 是 `StringName`，不从 string key 或 value 内 id 回建索引。
-- 静态内容（`.tres`）经各 `*ContentRegistry` 载入、校验并投影为 typed 定义，再由进程级 `ContentSnapshot` 冻结发布；session、catalog、runtime 与 BattleSim 只借用 typed definition 索引，不回读 authored Resource 或弱类型 content payload。
+- 静态内容经各 `*ContentRegistry` 从 code-owned JSON 或尚未迁移的 `.tres` authoring source 载入、校验并投影为 typed 定义，再由进程级 `ContentSnapshot` 冻结发布；session、catalog、runtime 与 BattleSim 只借用 typed definition 索引，不回读 DTO/import model、authored Resource 或弱类型 content payload。
 
 ## 全局排除
 
@@ -105,7 +105,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scenes/ui/character_creation_window.tscn`
   - `scripts/ui/CharacterCreationWindow.cs`
   - `scripts/ui/DisplaySettingsService.cs`
-  - `scripts/systems/content/world/WorldPresetRegistry.cs`
+  - `scripts/systems/content/world/WorldContentRegistry.cs`
+  - `scripts/systems/content/world/WorldJsonContracts.cs`
+  - `scripts/systems/content/world/WorldJsonImport.cs`
+  - `scripts/systems/world/WorldPresetDefinition.cs`
+  - `data/configs/json/world_presets/*.json`
 - 负责：启动入口、世界预设入口、存档选择、显示设置、建卡入口。
 - 适合：开始菜单、建卡 UI、预设入口、存档列表、显示设置。
 - 邻接单元：CU-02、CU-03、CU-14。
@@ -137,7 +141,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/player/progression/*ContentRegistry.cs`
   - `scripts/player/warehouse/*ContentRegistry.cs`
   - `scripts/enemies/EnemyContentRegistry.cs`
-  - `scripts/enemies/EnemyContentSeed.cs`
+  - `scripts/systems/content/enemies/*.cs`
+  - `scripts/systems/content/EnemySpriteAssetCatalogValidator.cs`
   - `scripts/enemies/definitions/*.cs`
   - `scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs`
   - `scripts/systems/platform/GodotObjectOwnership.cs`
@@ -151,8 +156,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 细节文档：
   - `docs/design/platform/godotsharp_lifecycle.md`
 - 负责：application shutdown、active save、slot meta、save payload/index、进程内容构建与全局会话边界。
-- 内容快照边界：`ApplicationLifetimeCoordinator` 拥有唯一 `ProcessContentHost`；host 先从 `EngineAssetCatalogBootstrap` 的唯一代码路径加载并锚定 typed engine-asset catalog root、发布 `asset_id -> borrowed typed Resource` 只读索引，再按 canonical path 加载 authored content Resource；`ContentSnapshotBuilder` 在同一个同步构建作用域内完成 registry 校验与 typed 投影，`SkillIconAssetCatalogValidator` 随后在同一 publication project 内确认每个非空 `SkillDefinition.IconId` 已登记且目标为 `Texture2D`，全部成功后才 seal 一个跨 session 复用的 immutable `ContentSnapshot`。图标校验失败会走既有 rollback，不能发布 snapshot、epoch 或 sealed 状态。敌方模板、AI brain/action graph、wild encounter roster、正式 `BattleEncounterDefinition` 与 BattleSim profile 和其他静态内容一起发布为 definition 索引；`BattleEncounterDefinition` 汇合 roster、objective 和 success/failure/draw 世界处理，world anchor 只持有其 id。`EnemyContentRegistry` / `BattleEncounterContentRegistry` 只存在于该构建作用域。`GameSession`、`GameRoot`、`GameContentCatalog`、world/battle runtime 与 BattleSim 不持有 raw registry 或 authored Resource mirror；内容读入口不设 legacy catalog，production lifecycle 的 legacy debt 必须保持为零。engine-asset catalog root、entry 与 typed asset 由 `EngineAssetResolver` 的 process 生命周期拥有；quiescing 后拒绝新的 path load，但已发布 ID 的 borrowed 查询保持可用，shutdown 清空 ID 索引后释放 catalog root。
-- engine-asset 解析边界：内容消费者只以 `StringName asset_id` 查询已发布 catalog，代码自有 scene/shader/bootstrap 路径只走分名的 `res://` 入口；skill `icon_id` 已完成 asset-ID 投影与 catalog 解析，不得回退到 `skill_id`、拼接内容路径或经过 authored-path migration seam。尚未投影为 asset ID 的 authored item/enemy 展示路径只能经过显式迁移 seam，不能流入 code-owned path 入口。
+- 内容快照边界：`ApplicationLifetimeCoordinator` 拥有唯一 `ProcessContentHost`；host 先从 `EngineAssetCatalogBootstrap` 的唯一代码路径加载并锚定 typed engine-asset catalog root、发布 `asset_id -> borrowed typed Resource` 只读索引，再由各 registry 从自身 canonical Resource 或 code-owned JSON source 导入内容；`ContentSnapshotBuilder` 在同一个同步构建作用域内完成校验与 typed 投影，`SkillIconAssetCatalogValidator` 与 `EnemySpriteAssetCatalogValidator` 随后在同一 publication project 内确认 skill icon 和 enemy battle sprite 的非空 asset ID 已登记且目标为 `Texture2D`，全部成功后才 seal 一个跨 session 复用的 immutable `ContentSnapshot`。资产校验失败会走既有 rollback，不能发布 snapshot、epoch 或 sealed 状态。敌方模板、AI brain/action graph、wild encounter roster、正式 `BattleEncounterDefinition` 与 BattleSim profile 和其他静态内容一起发布为 definition 索引；`BattleEncounterDefinition` 汇合 roster、objective 和 success/failure/draw 世界处理，world anchor 只持有其 id。`EnemyContentRegistry` / `BattleEncounterContentRegistry` 只存在于该构建作用域。`GameSession`、`GameRoot`、`GameContentCatalog`、world/battle runtime 与 BattleSim 不持有 raw registry、JSON DTO/import model 或 authored Resource mirror；内容读入口不设 legacy catalog，production lifecycle 的 legacy debt 必须保持为零。engine-asset catalog root、entry 与 typed asset 由 `EngineAssetResolver` 的 process 生命周期拥有；quiescing 后拒绝新的 path load，但已发布 ID 的 borrowed 查询保持可用，shutdown 清空 ID 索引后释放 catalog root。
+- engine-asset 解析边界：内容消费者只以 `StringName asset_id` 查询已发布 catalog，代码自有 scene/shader/bootstrap 路径只走分名的 `res://` 入口；skill `icon_id` 与 enemy `battle_sprite_asset_id` 已完成 asset-ID 投影与 catalog 解析，不得回退到内容 id、拼接内容路径或经过 authored-path migration seam。尚未投影为 asset ID 的 authored item 展示路径只能经过显式迁移 seam，不能流入 code-owned path 入口。
 - 生命周期边界：`ApplicationLifetimeCoordinator` 是进程内 shutdown state、owner drain、finalizer barrier 与最终 `SceneTree.Quit` 的唯一 owner，拥有并关闭唯一 `ProcessContentHost`，按 Runtime、Session 阶段关闭顶层 participant；退出后的 stderr、进程返回码与 GodotSharp fatal marker 由 CU-19 的外层 runner 判定，不回写进程内 report。`GameSession` 只登记为 snapshot borrower，关闭时先解绑 `GameRoot` / `GameContentCatalog` 再注销 borrower，不重建任何 content registry。`NativeLeaseScope` 显式拥有 runtime 创建的 pathless native wrapper，`GodotProjectionLease` 显式拥有短期 Godot collection 投影并只弱登记 borrowed child；两者都通过 lifecycle audit 记录 owner/domain，不遍历对象图。`WorldMapSystem` / `HeadlessGameTestSession` 作为 Runtime participant 登记到 coordinator 并关闭各自持有的 runtime graph，`GameSession` 作为 Session participant 关闭 session graph，子服务由这些顶层 owner 递归释放而不独立注册。`GameSession` 是会话根、持有 `GameRoot`；`GameContentCatalog` 是正式内容类型的组合根读入口，借用 process snapshot 并带 revision，生命周期绑定 owning `GameRoot`（root dispose 后 catalog 失效）。
 - 持久化边界：`SaveRepository` 拥有底层 save 文件 IO，`GameSession` 拥有 active save / schema / meta / index 归并；原子替换成功的 `<save_id>.dat` 是唯一权威提交点，`index.dat` 只是可从合法 payload 重建的派生缓存。payload 提交后 index 写失败只记录稳定 warning、失效 session cache 并等待后续列表读取重建，不得向调用方报告保存失败或触发运行时事务回滚。save/slot-index 的 session cache 与读回结果保持 plain C# graph，写入时才创建 Request-domain `GodotProjectionLease`，每个 nested collection 由同一 lease 显式拥有；`FileAccess` / `DirAccess` 由 Request-domain `NativeLeaseScope` 拥有，并在 remove/rename 前显式关闭文件句柄。`GetVar(false)` 结果必须在 file/Variant 仍存活时立即还原为 plain/typed state，不让 raw Godot payload 逃逸。`world_data` 的 runtime owner 是 `WorldRuntimeData`，只在 save payload 入口/出口投影。子 payload 破坏性 schema 变化时同步升级 owning save version，且只接受当前版本、不做 legacy 兼容迁移。
 - `world_data` 根字段集合由 `scripts/systems/world/WorldRuntimeSaveSchema.cs` 唯一声明，`WorldRuntimeData` 的读写与 `SaveSerializer` 的边界校验共同消费该 owner；字段语义与 nested record 校验继续归各自 typed world owner。
@@ -182,37 +187,37 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 #### Quest Content（任务内容）
 
-- Source: `data/configs/quests/*.tres`
+- Source: `data/configs/json/quests/*.json`
 - Loader: `QuestContentRegistry` (called from `ProgressionContentRegistry.Build`)
-- Authoring schema owner: `QuestDef`; runtime value owner: `QuestDefinition`
+- Authoring schema/import owner: `QuestJsonContentDomain`; runtime value owner: `QuestDefinition`
 - Validator: `QuestContentValidator`
 - Accept requirement evaluator: `QuestAcceptRequirementEvaluator`
 - 接取遭遇绑定：击败目标可在 objective 中成对声明 `encounter_profile_id` / `encounter_display_name`；正式内容快照交叉校验 battle encounter 引用，运行时由 quest command port 创建稳定 encounter anchor。
 - Recommended reads before changes:
-  - `scripts/player/progression/QuestDef.cs`
+  - `scripts/player/progression/QuestJsonContent.cs`
   - `scripts/player/progression/QuestContentRegistry.cs`
   - `scripts/player/progression/ProgressionContentRegistry.cs`
   - `scripts/player/progression/QuestContentValidator.cs`
   - `scripts/player/progression/QuestProviderContentRules.cs`
   - `scripts/systems/progression/QuestAcceptRequirementEvaluator.cs`
 
-### CU-03 世界配置资源与预设数据
+### CU-03 世界 JSON 配置与预设数据
 
 - 文件：
-  - `scripts/systems/content/world/WorldMap*Config.cs`
-  - `scripts/systems/content/world/Settlement*.cs`
-  - `scripts/systems/content/world/Facility*.cs`
-  - `scripts/systems/content/world/WildSpawnRule.cs`
-  - `scripts/systems/content/world/*.cs`
+  - `scripts/systems/content/world/WorldJsonContracts.cs`
+  - `scripts/systems/content/world/WorldJsonImport.cs`
+  - `scripts/systems/content/world/WorldContentRegistry.cs`
   - `scripts/systems/world/*Definition.cs`
   - `scripts/systems/content/ContentSnapshot.cs`
   - `scripts/systems/content/ContentSnapshotBuilder.cs`
-  - `data/configs/world_map/*.tres`
-  - `data/configs/world_map/shared/*.tres`
+  - `data/configs/json/world_presets/*.json`
+  - `data/configs/json/world_generations/*.json`
+  - `data/configs/json/world_shared/*.json`
+  - `data/schemas/content/world_*.schema.json`
 - 细节文档：
   - `docs/design/world/world_map_module.md`
-- 负责：world preset、世界生成配置、据点/设施/野外遭遇的静态资源与内容校验。
-- 边界：`WorldMap*Config` / settlement / facility / wild-spawn Resource 只属于 process host 的同步 authoring/load 阶段；`WorldGenerationDefinition.FromResource(...)` 在 seal 前递归 canonical-load mounted submap 与 formal default bundle，检测 canonical path cycle，并生成完整 immutable definition graph。`WorldMapContentValidator` 的正式入口只校验 typed graph；`GameSession` 保存 generation path/id 并借用 snapshot 中的 definition，`WorldMapDataContext`、spawn/runtime/facade/UI 不在运行期加载或保留 raw world Resource。
+- 负责：world preset、世界生成配置、据点/设施/野外遭遇的严格 JSON authoring、跨域引用与内容校验。
+- 边界：`WorldContentRegistry` 是三个 world JSON 域的唯一导入/投影入口；它在 seal 前解析 `shared_content_id`、preset/mounted generation ID，检测缺失引用与 generation cycle，并生成完整 immutable definition graph。`WorldMapContentValidator` 的正式入口只校验 typed graph；`GameSession` 只保存 `world_generation_id` 并借用 snapshot 中的 definition，`WorldMapDataContext`、spawn/runtime/facade/UI 不加载或保留 authored DTO、import model、Resource 或路径。旧 `.tres` world authoring 与路径 fallback 已删除。
 - 适合：世界预设、设施分布、遭遇配置、世界内容校验。
 - 邻接单元：CU-01、CU-02、CU-04。
 
@@ -225,8 +230,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/world/EncounterAnchorData.cs`
   - `scripts/systems/world/WorldMapResourceNodeData.cs`
   - `scripts/systems/world/WildEncounterGrowthSystem.cs`
-  - `scripts/systems/content/world/WorldEventConfig.cs`
-  - `scripts/systems/content/world/MountedSubmapConfig.cs`
+  - `scripts/systems/world/WorldEventDefinition.cs`
+  - `scripts/systems/world/MountedSubmapDefinition.cs`
 - 细节文档：
   - `docs/design/world/world_map_module.md`
   - `docs/design/world/settlement_module.md`
@@ -446,7 +451,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `docs/design/progression/fate_runtime.md`
   - `docs/design/progression/equipment_sets.md`
 - 负责：角色管理门面、奖励归并、成就/任务推进、身份与成长桥接。
-- 边界：`QuestProgressService` 是 accept/progress/complete/claim/fail 的业务编排 owner；失败输入使用 typed `QuestFailureRequest`，失败重启只消费内容 definition 投影出的 `CanRestartAfterFailure`，不复用成功后的 `is_repeatable`。`PartyContingencySetupService` 是世界侧 contingency setup save/charge/clear/status mutation owner；setup 模板是内容，authored 在 `data/configs/contingency_templates/*.tres`（`ContingencySetupTemplateDef`，经 `ContingencyTemplateContentRegistry` 载入），充能材料与预留 MP 公式的单一出处是 `ContingencyContentRules`。`CharacterBattleWritebackService` 拥有战斗结束后 consumed setup 与战后 HP/MP/death/装备回收/roster 移除的写回。`CharacterManagementModule` 经 `ProgressionServiceFactory` 构建 transient `ProgressionService` 图，是门面而非规则宿主。`CharacterTraitService.BuildEffectiveTraits(...)` 在显式 battle-local equipment override 上重新评估套装阈值，并以 `GearSetThreshold` source 和稳定 threshold key 合入有效 trait；`CharacterManagementModule` 同步把激活阈值属性并入角色属性快照，不缓存另一份套装状态。
+- 边界：`QuestProgressService` 是 accept/progress/complete/claim/fail 的业务编排 owner；失败输入使用 typed `QuestFailureRequest`，失败重启只消费内容 definition 投影出的 `CanRestartAfterFailure`，不复用成功后的 `is_repeatable`。`PartyContingencySetupService` 是世界侧 contingency setup save/charge/clear/status mutation owner；setup 模板来自 `data/configs/json/contingency_templates/*.json`，由 `ContingencyTemplateContentRegistry` 导入 immutable Definition，充能材料与预留 MP 公式的单一出处是 `ContingencyContentRules`。`CharacterBattleWritebackService` 拥有战斗结束后 consumed setup 与战后 HP/MP/death/装备回收/roster 移除的写回。`CharacterManagementModule` 经 `ProgressionServiceFactory` 构建 transient `ProgressionService` 图，是门面而非规则宿主。`CharacterTraitService.BuildEffectiveTraits(...)` 在显式 battle-local equipment override 上重新评估套装阈值，并以 `GearSetThreshold` source 和稳定 threshold key 合入有效 trait；`CharacterManagementModule` 同步把激活阈值属性并入角色属性快照，不缓存另一份套装状态。
 - 单场任务目标边界：`defeat_enemy_in_single_battle` 只消费带非空 encounter id 的单场 `defeat_enemy` 聚合事件；本场 delta 未达到正式 target 时不写部分进度，达到时一次写满。普通 `defeat_enemy` 继续跨事件累计。
 - 适合：奖励入账、任务推进、成就记录、跨系统成长接线。
 - 邻接单元：CU-06、CU-08、CU-09、CU-10、CU-11、CU-13、CU-14、CU-15、CU-19。
@@ -483,17 +488,10 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/content/skills/CombatDirectionalPiercingDefinition.cs`
   - `scripts/systems/content/skills/CombatApproachAttackDefinition.cs`
   - `data/configs/json/skills/*.json`
-  - `data/configs/professions/*.tres`
-  - `data/configs/races/*.tres`
-  - `data/configs/subraces/*.tres`
   - `data/configs/traits/*.tres`
-  - `data/configs/bloodlines/*.tres`
-  - `data/configs/ascensions/*.tres`
-  - `data/configs/stage_advancements/*.tres`
-  - `data/configs/barriers/*.tres`
-  - `data/configs/barrier_layers/**/*.tres`
-  - `data/configs/faith/*.tres`
-  - `data/configs/quests/*.tres`
+  - `data/configs/json/{professions,races,subraces,age_profiles,bloodlines,ascensions,stage_advancements,faith}/**/*.json`
+  - `data/configs/json/{barriers,barrier_layers,quests,contingency_templates}/**/*.json`
+  - `data/configs/json/skill_special_profiles/{manifests,profiles}/**/*.json`
   - `data/configs/gear_sets/**/*.tres`
 - 细节文档：
   - `docs/design/progression/trait_system.md`
@@ -503,10 +501,10 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `docs/design/progression/equipment_sets.md`
 - 负责：技能、职业、种族、通用 trait、任务、血脉、升华、信仰等静态内容与内容校验。
 - 技能图标边界：`SkillDef.icon_id` / `SkillDefinition.IconId` 只表示 engine-asset catalog ID；空值明确表示无图标，不以 `skill_id` 补写。process snapshot 发布前由 `SkillIconAssetCatalogValidator` 校验所有非空 ID 已登记为 `Texture2D`，不把资源路径或 Godot `Texture2D` wrapper 带入 definition graph。
-- 边界：`TraitDef` / `TraitContentRegistry` / `data/configs/traits/*.tres` 是通用 trait authoring 边界，source scope、effect/stack/charge/roll schema、typed passive 投影字段（如 save advantage tags、damage resistance entries、`passive_status_effects`）等固定值由 `TraitContentRules` / registry 校验（trait effect 配置须显式 typed 字段）。`GearSetDef` / `GearSetThresholdDef` / `GearSetContentRegistry` 是套装成员和非统一阈值的 authoring 边界；只允许引用正式 item/trait definition，并投影为 `GearSetDefinition`，不修改或复制成员 `ItemDef`。任务失败后的重启规则由 `QuestDef.failure_policy` 的 closed enum mapping（`terminal/restartable`）唯一拥有，`QuestDefinition` 只向上层投影 `CanRestartAfterFailure` 语义事实，不能用 `is_repeatable` 代替。contingency template 投影/充能公式归 `ContingencyContentRules`；灾厄技能闭集与时间状态 id/tag/release-effect 判定分别归 `MisfortuneContentRules` / `TemporalStatusContentRules`，authoring validator 与 battle runtime 共同消费，内容层不反向调用 runtime service。progression、identity、quest、faith、barrier、gear-set 与 contingency registry 只在 `ContentSnapshotBuilder` 的同步加载作用域内读取 authored Resource，并立即投影为递归只读的 `*Definition`；跨表校验完成后 registry 释放 raw 引用，process host seal 一个共享 snapshot。`BarrierSkillContentValidator` 在 seal 前用 projected definition 索引双向校验 `layered_barrier` 的 profile 引用与屏障层 breaker skill 引用。`ProgressionContentRegistry`、`GameSession`、`GameContentCatalog`、character/runtime/UI 与 battle service 不保存、重建或回投这些 raw Resource；session A/B 必须复用同一 epoch 与 definition object graph。`BattleBarrierService` 通过 catalog 注入 `BarrierProfileDefinition` 索引，`FaithService` 通过构造函数注入 `FaithDeityDefinition` 索引。跨表校验只消费已经投影出的 definition 索引；raw `SkillDef` 和其他 authored Resource 只在资源加载、字段校验、`*Definition.FromResource(...)` 这类明确 Resource-boundary 触达。只供通用运行时内部结算引用、不得进入任何学习路径的技能使用 `learn_source = internal`，不能借用 `innate` 表达隐藏性。
+- 边界：`TraitDef` / `TraitContentRegistry` / `data/configs/traits/*.tres` 是通用 trait authoring 边界，source scope、effect/stack/charge/roll schema、typed passive 投影字段（如 save advantage tags、damage resistance entries、`passive_status_effects`）等固定值由 `TraitContentRules` / registry 校验（trait effect 配置须显式 typed 字段）。`GearSetDef` / `GearSetThresholdDef` / `GearSetContentRegistry` 是套装成员和非统一阈值的 authoring 边界；只允许引用正式 item/trait definition，并投影为 `GearSetDefinition`，不修改或复制成员 `ItemDef`。身份/成长、任务、信仰、屏障、特殊技能 profile 与 contingency template 均从 code-owned JSON 经 strict DTO、plain import model、单一 projector 发布 immutable Definition；JSON 跨域关系只保存内容 ID，不保存 Resource path、类型名或 authored Resource。任务失败后的重启规则由 quest closed import kind（`terminal/restartable`）唯一拥有，`QuestDefinition` 只向上层投影 `CanRestartAfterFailure` 语义事实，不能用 `is_repeatable` 代替。contingency template 投影/充能公式归 `ContingencyContentRules`；灾厄技能闭集与时间状态 id/tag/release-effect 判定分别归 `MisfortuneContentRules` / `TemporalStatusContentRules`，authoring validator 与 battle runtime 共同消费，内容层不反向调用 runtime service。上述 JSON registry 与仍属 Resource authoring 的 trait/gear-set registry 只存在于 `ContentSnapshotBuilder` 的同步构建作用域；跨表校验完成后 process host seal 一个共享 snapshot。`BarrierSkillContentValidator` 在 seal 前用 projected definition 索引双向校验 `layered_barrier` 的 profile 引用与屏障层 breaker skill 引用。`ProgressionContentRegistry`、`GameSession`、`GameContentCatalog`、character/runtime/UI 与 battle service 不保存、重建或回投 DTO/import model/Resource；session A/B 必须复用同一 epoch 与 definition object graph。`BattleBarrierService` 通过 catalog 注入 `BarrierProfileDefinition` 索引，`FaithService` 通过构造函数注入 `FaithDeityDefinition` 索引。只供通用运行时内部结算引用、不得进入任何学习路径的技能使用 `learn_source = internal`，不能借用 `innate` 表达隐藏性。
 - 技能加载/校验/投影边界：`SkillContentRegistry` 只从 `data/configs/json/skills` 导入 family JSON，负责 import/definition 索引和错误编排。`SkillJsonImportParser` 是 production source 到 `SkillImportModel` 的唯一入口；业务规则唯一从 `SkillImportModelValidator` 进入 Definition validator 组，Definition 字段映射唯一归 `SkillDefinitionProjector`。正式 session/catalog/runtime 只读 process `ContentSnapshot.Skills`。`SkillResourceProjectionAdapter` 与 Resource validator 只服务 synthetic/test fixture，不参与 production publication gate。
 - 生成技能验证边界：`SkillGenerationValidationService` 按 schema/strict import → domain-local definition rules → process snapshot 跨域引用 → 注入的 BattleSim gate 固定顺序短路；每段拒绝使用独立非零退出码。schema 门复用 `SkillContentJsonAuthoringDomain` 的 document/template/parser 组合但不重复业务校验；导出 schema 的 `mp_cost`、damage/save tag、effect category 与 attribute-growth 描述同时承担生成约束提示。domain 的通用错误仍保留 `skill.validation.domain_rule`，成长预算使用稳定 `skill.validation.attribute_growth_total` 并定位 `/attribute_growth_progress`、给出期望/实际总量。跨域门只消费 candidate definition 与已发布 `ContentSnapshot`，不会发布或修改 snapshot。`SkillGenerationValidationProtocol` 的独立 v1 JSON/NDJSON 把 stage、`file.json#entry_id`、JSON pointer、稳定 rule ID、expected/actual 固定为机器修复契约，既有离线 validation v1 文本不随之漂移。BattleSim 具体采样和异常阈值由 CU-20 的 adapter 拥有，不能加入 routine regression。
-- 屏障层复用边界：可被多个 `BarrierProfileDef` 组合使用的 canonical `BarrierLayerDef` 放在 `data/configs/barrier_layers/`，由 profile 通过外部 Resource 引用；完整屏障与单层技能不得各复制一份阻挡类别、破解技能或穿越结果。
+- 屏障层复用边界：canonical barrier layer 位于 `data/configs/json/barrier_layers/`，profile JSON 只按 `layer_id` 引用；`BarrierDefinitionProjector` 是解析 ID 并组合 immutable layer/profile Definition 的唯一 owner。完整屏障与单层技能不得各复制一份阻挡类别、破解技能或穿越结果。
 - CombatEffect 内容边界：多伤害段与目标分类倍率必须走 `CombatDamageSegmentDef` / `CombatTargetDamageMultiplierRuleDef` → `CombatEffectDefinition.ExtraDamageSegments` / `TargetDamageMultiplierRules` typed 投影；`chain_damage` 的基础/导电跳距、包含主目标的目标上限、导电状态/地形与反噬跳距加值走 `CombatEffectDef.chain_*` → immutable `CombatChainDamageDefinition`，旧连锁 `params` 不提供兼容别名；来源绑定的武器额外骰走 `CombatEffectDef.source_bound_weapon_bonus_damage_dice_*` → `BattleStatusEffectState`，由 `BattleDamageResolver` 按状态 `source_unit_id` 与真实武器伤害结算；只对特定心智生效的效果走 `CombatEffectDef.required_target_min_cognition` → `CombatEffectDefinition.RequiredTargetMinCognition` 封闭投影，不从 INT、tag 或描述文本推断；使用者主动直线后撤走 `CombatEffectDef.source_retreat_distance` → `CombatEffectDefinition.SourceRetreatDistance`，方向属于单次 `BattleCommand`，不得塞进 `params` 或技能 id 文本；production 内容校验由 `SkillImportModelValidator` 及其 Definition validator 组负责。
 - 状态生命周期内容边界：status/apply-status 的行动跳过、正伤害解除和解除后 successor 必须走 `CombatEffectDef.skip_turn` / `break_on_positive_damage` / `on_removed_status_*` → immutable `CombatEffectDefinition`；successor 豁免 tag、不可驱散与正常行动后消费均是 typed 字段。校验拒绝非状态效果携带、缺失/递归 successor 及非法 save tag；正式转换、伤害/护盾触发、timeline 消费、preview 与 AI 归 CU-15/CU-16，不按技能 id 分支。
 - 豁免失败随机状态内容边界：伤害效果可用 `CombatEffectDef.save_failure_status_outcomes` 配置 `CombatWeightedStatusOutcomeDef` 加权池，并投影为递归只读的 `CombatWeightedStatusOutcomeDefinition`；每个 outcome 必须有唯一 id、正权重和单个无独立触发/等级窗/嵌套豁免的 status/apply_status 子效果，且与旧的单一 `save_failure_status_id` 互斥。池只声明通用内容，不从技能 id、状态显示名或描述文本推断分支。
@@ -700,8 +698,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 文件：
   - `scripts/enemies/WildEncounterRoster*.cs`
   - `scripts/systems/battle/content/BattleEncounter*.cs`
-  - `scripts/systems/battle/content/Battle*ObjectiveDef.cs`
-  - `scripts/systems/battle/content/BattleScenarioActorDef.cs`
+  - `scripts/systems/battle/content/BattleEncounterJson*.cs`
+  - `scripts/systems/battle/content/BattleEncounterDefinitionProjector.cs`
   - `scripts/systems/battle/objectives/BattleEncounterDefinition.cs`
   - `scripts/systems/battle/terrain/BattleTerrainGenerator.cs`
   - `scripts/systems/battle/terrain/BattleTerrainLayout.cs`
@@ -709,11 +707,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/world/EncounterRosterBuilder.cs`
   - `scripts/systems/world/WildEncounterGrowthSystem.cs`
   - `scripts/systems/battle/core/BattleBoardPropCatalog.cs`
-  - `data/configs/enemies/rosters/*.tres`
-  - `data/configs/battle_encounters/*.tres`
+  - `data/configs/json/enemies/rosters/*.json`
+  - `data/configs/json/battle_encounters/*.json`
   - `assets/main/battle/terrain/canyon/*.png`
 - 负责：正式 battle encounter、战斗地形生成、wild encounter roster 装配、prop 注入。
-- 边界：`BattleEncounterDef` 是 roster/objective/world resolution 的遭遇级 authoring owner；anchor 只持 `encounter_profile_id`，不得持有或回退到旧 `enemy_roster_template_id`。`WildEncounterRosterDef` / stage / unit entry 只属于 authoring 与 snapshot 投影边界；`EncounterRosterBuilder`、`WildEncounterGrowthSystem` 与 battle runtime 只消费 `BattleEncounterDefinition` / `WildEncounterRosterDefinition` / `EnemyTemplateDefinition` / `EnemyAiBrainDefinition`，并生成 battle-only plain state，不保留 authored Resource。正式战斗通过 `BuildEnemyUnitStatesFromDefinitions(...)` 接收 typed unit；`BuildEnemyUnitsFromDefinitionsLease(...)` 只服务仍要求 Godot collection 的同步投影边界，不能作为 battle runtime 内部 handoff，否则会丢失 canonical schema 刻意不持有的 runtime-only 状态。
+- 边界：`battle_encounters` strict JSON domain 是 roster/objective/world resolution 的遭遇级 authoring owner；九种 objective 以 `BattleObjectiveKind + payload` closed union 导入，`BattleEncounterDefinitionProjector` 是唯一 Definition 分派点。anchor 只持 `encounter_profile_id`，不得持有或回退到旧 `enemy_roster_template_id`。enemy roster 同样来自 stage 5 JSON Definition graph；`EncounterRosterBuilder`、`WildEncounterGrowthSystem` 与 battle runtime 只消费 `BattleEncounterDefinition` / `WildEncounterRosterDefinition` / `EnemyTemplateDefinition` / `EnemyAiBrainDefinition`，并生成 battle-only plain state，不保留 authored Resource。正式战斗通过 `BuildEnemyUnitStatesFromDefinitions(...)` 接收 typed unit；`BuildEnemyUnitsFromDefinitionsLease(...)` 只服务仍要求 Godot collection 的同步投影边界，不能作为 battle runtime 内部 handoff，否则会丢失 canonical schema 刻意不持有的 runtime-only 状态。
 - 地形运行时边界：`BattleTerrainGenerator.GenerateTyped(...)` 从短期 Godot context 读取生成参数，但正式输出 owner 是 `BattleTerrainLayout`；surface cells、双方出生点、锚点、地图尺寸和 profile 全程保持 managed typed state，不得在生成器内部投影为 Godot Dictionary 后再解析。`BattleUnitFactory` 只把 context 中显式出生点覆盖复制为 `List<Vector2I>`；`BattleRuntimeModule` 通过 `TakeCells()` 一次性把 cell ownership 移交给 `BattleState`，由 `BattleState.SetCells(..., rebuildColumns: true)` 生成 canonical cell columns。未移交的 cells 由 layout 关闭，移交后 layout 只关闭出生点列表，禁止同一 cell graph 被双重释放。地形 seed 只决定地形生成，combat RNG 仍保持独立真随机。
 - Objective 内容边界：Boss/Intercept authoring 引用 roster entry 的稳定 `actor_id`，非空 actor 在每个 stage 必须唯一且 `count == 1`，并投影为 battle-only `encounter_actor_id`，不替换运行时 unit id；managed definition 省略 actor 时必须规范化为空 `StringName`，不能把 null 带入 battle payload。Rescue/Escort/Defense authoring 引用 encounter 自有 `scenario_actor.actor_id`；scenario actor 必须引用正式 enemy template，并配置稳定入口 zone id、类型化边和纵深。Defense 还声明正数且按 5 TU 对齐的相对 `duration_tu`，不复用 actor 字段表达静态节点或波次。Escape/Escort/Intercept 出口同样只配置稳定 zone id、类型化边和纵深，不配置依赖地图尺寸的裸坐标。NodeOperation authoring 由 objective 自有的 `operation_nodes` 声明任意正数个稳定 node id、显示名、zone id、类型化边和纵深，拒绝空字段及重复 node id，不借用 scenario actor/unit 表示静态节点。Control authoring 由 `control_zones` 声明任意正数个稳定 zone id、显示名、类型化边和纵深，并声明按 5 TU 对齐的正数目标分；运行时再拒绝实际地图上重叠或双方无完整 footprint 合法落点的区域。默认世界随机权重与 canonical encounter seed 分开决策。
 - 适合：canyon 地形、spawn/roster、战斗 props、地形 profile。
@@ -803,7 +801,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 慢例 fixture 边界：同一 runner 内反复构建独立业务 runtime、但只读正式静态内容时，在 coordinator `_Ready()` 完成后的首个 `ProcessFrame` 借用进程级 immutable `ContentSnapshot`，不为每个 case 重建 content registry；runner 使用强类型 C# 事件的一次性回调，不使用字符串 deferred method dispatch。每个 case 仍独立创建并释放 `PartyState`、`CharacterManagementModule`、`BattleRuntimeModule` 与 battle state，不能共享可变运行态换取速度。
 - 输出协议边界：C# runner、benchmark、capture 和交互工具不直接调用 `GD.Print*` / `GD.Push*` 或散落的 `Console.Write*`。断言与结构化诊断走 `GameLog`；PASS/FAIL、shutdown report、外层 runner marker、交互式 REPL 等要求原样保留或供机器解析的行统一走 `ConsoleProcessOutput`，其文本不进入 session sink，也不受结构化日志格式或等级过滤影响。
 - 性能回归边界：performance baseline/benchmark 是 opt-in 诊断入口，不进入 routine full suite；正式比较必须区分完整战斗基线与 bounded diagnostic，不能用 iteration-budget 提前结束的样本覆盖 formal baseline。
-- Windows 导出 smoke 边界：受版本控制的 `export_presets.cfg` 显式包含没有 `.import` sidecar 的 JSON 非资源文件；`tests/export` 只从真实 Windows Desktop 导出 EXE/PCK 启动，工作目录与源码树隔离，并验证 production typed engine-asset catalog root、其引用资产和预期失败退出码。官方 release template 不开放 editor-only `--script`/scene override，因此 runner 只在临时导出目录生成 `override.cfg`，把 main scene 与两个 autoload 指向 test-only owner，不修改 production project/lifecycle；导出二进制与 override 只存在于系统临时目录，不进入版本控制。
+- Windows 导出 smoke 边界：受版本控制的 `export_presets.cfg` 显式包含没有 `.import` sidecar 的 JSON 非资源文件；`tests/export` 只从真实 Windows Desktop 导出 EXE/PCK 启动，工作目录与源码树隔离，并验证 production typed engine-asset catalog root、其引用资产、world 三个 JSON 域的 registry rebuild、preset/root/mounted/shared 稳定 ID 闭包和预期失败退出码。官方 release template 不开放 editor-only `--script`/scene override，因此 runner 只在临时导出目录生成 `override.cfg`，把 main scene 与两个 autoload 指向 test-only owner，不修改 production project/lifecycle；导出二进制与 override 只存在于系统临时目录，不进入版本控制。
 - 适合：补回归、跑局部验证、定位改动影响面。
 - 邻接单元：按业务域补 CU-10、CU-12、CU-15、CU-17、CU-18、CU-21。
 
@@ -814,14 +812,15 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/enemies/actions/*.cs`
   - `scripts/enemies/definitions/*.cs`
   - `scripts/systems/battle/ai/BattleAiScoreProfile.cs`
-  - `scripts/systems/battle/sim/BattleSimProfileDef.cs`
+  - `scripts/systems/content/battle_sim/BattleSimProfileContentRegistry.cs`
+  - `scripts/systems/content/battle_sim/BattleSimProfileDefinitionProjector.cs`
   - `scripts/systems/battle/sim/BattleSimProfileDefinition.cs`
   - `scripts/systems/battle/sim/BattleSimOverridePatchDefinition.cs`
   - `scripts/systems/battle/sim/BattleSimTuningParameterCatalog.cs`
-  - `scripts/systems/battle/sim/BattleSimScenarioDef.cs`
+  - `scripts/systems/battle/sim/BattleSimContentCatalog.cs`
+  - `scripts/systems/battle/sim/BattleSimContentDefinitionProjector.cs`
   - `scripts/systems/battle/sim/BattleSimScenarioDefinition.cs`
   - `scripts/systems/battle/sim/BattleSimScenarioUnitEntry.cs`
-  - `scripts/systems/battle/sim/BattleSimUnitSpec.cs`
   - `scripts/systems/battle/sim/BattleSimUnitDefinition.cs`
   - `scripts/systems/battle/sim/BattleSimExecutionLoop.cs`
   - `scripts/systems/battle/sim/BattleSimTerminationKind.cs`
@@ -836,30 +835,35 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/sim/generation/*.cs`
   - `scripts/systems/content/ContentSnapshot.cs`
   - `scripts/systems/content/ContentSnapshotBuilder.cs`
+  - `scripts/systems/content/enemies/*.cs`
+  - `scripts/systems/content/EnemySpriteAssetCatalogValidator.cs`
   - `scripts/systems/world/EncounterRosterBuilder.cs`
-  - `data/configs/enemies/enemy_content_seed.tres`
-  - `data/configs/enemies/brains/*.tres`
-  - `data/configs/enemies/templates/*.tres`
-  - `data/configs/enemies/rosters/*.tres`
-  - `data/configs/battle_sim/profiles/*.tres`
-  - `data/configs/battle_sim/scenarios/*.tres`
+  - `data/configs/json/enemies/brains/*.json`
+  - `data/configs/json/enemies/templates/*.json`
+  - `data/configs/json/enemies/rosters/*.json`
+  - `data/schemas/content/enemy_ai_brains.schema.json`
+  - `data/schemas/content/enemy_templates.schema.json`
+  - `data/schemas/content/encounter_rosters.schema.json`
+  - `data/configs/json/battle_sim/profiles/*.json`
+  - `data/configs/json/battle_sim/scenarios/*.json`
+  - `scripts/systems/content/battle_sim/*.cs`
   - `tools/battle_sim_tuner/score_weight_catalog.py`
   - `tools/battle_sim_tuner/score_weight_space.json`
 - 细节文档：
   - `docs/design/battle/ai_score_parameters.md`
   - `docs/design/battle/balance_simulation.md`
 - 负责：敌方模板、AI brain/state/action、generation slot、transition rule、wild encounter roster，以及 BattleSim profile/scenario/unit 的 authoring schema、加载期校验与 immutable definition 投影。
-- 敌方内容边界：`EnemyContentSeed`、`EnemyTemplateDef`、`EnemyAiBrainDef`、各 action Resource 与 `WildEncounterRosterDef` 只由 `ProcessContentHost` 作为 canonical authored roots 持有，并且只在同步加载/校验阶段供 registry 读取；`EnemyContentRegistry.ProjectDefinitions(...)` 在 snapshot seal 前递归投影 `EnemyTemplateDefinition`、`EnemyAiBrainDefinition`、具体 `*ActionDefinition`、generation/transition definitions 与 `WildEncounterRosterDefinition`。`ContentSnapshot` 冻结这些索引后，session、catalog、world、battle 与 headless runtime 只借用同一 definition graph，不存在 raw enemy catalog 或 session 级 registry mirror。
-- 敌方战斗装备边界：`EnemyTemplateDef.battle_equipment_entries` 只接受 typed `EnemyBattleEquipmentDef`，逐项声明装备槽、正式 item、稀有度与该稀有度允许范围内的初始耐久，并投影为 immutable `EnemyBattleEquipmentDefinition`；槽位兼容、占用冲突和 item 引用在内容加载期 fail closed。`EncounterRosterBuilder` 通过 `EnemyBattleEquipmentProjectionService` 为每个敌方单位创建带稳定 battle-only instance id 的独立 `EquipmentState`，并把装备属性并入初始快照；摧毁后 `BattleUnitFactory.RefreshEquipmentProjection(...)` 重新计算敌方属性与装备能力来源。该状态只属于本场战斗，不写回模板、战利品或下一场战斗。
-- AI authoring 边界：`EnemyAiActionDefinition.FromResource(...)` 是 action Resource 到具体 definition 类型的唯一分派点；`EnemyAiBrainDefinition` 冻结 state/action/generation/transition 与 score profile 图。新 action 类型需要同时检查 authoring schema、definition 投影以及 CU-16 的 assembler/evaluator/dispatch，但实际战斗算法只属于 CU-16，不能放回 Resource 类。
-- BattleSim profile 边界：`BattleSimProfileDef` 及其弱类型 `override_patches` 只在加载入口转换为 `BattleSimProfileDefinition` / `BattleSimOverridePatchDefinition`；正式 profile 随 process snapshot 发布，simulation runtime 与 report 只传递 definition。具体 patch 的 typed copy-on-write 规则归 CU-16。AI score tuner 的标量路径与搜索边界由 `score_weight_space.json` 统一拥有，Python `score_weight_catalog.py` 与 C# `BattleSimTuningParameterCatalog` 都只把该结构化目录投影为各自的 typed spec，不扫描另一端源码来推断契约。
-- BattleSim scenario/unit 边界：`BattleSimScenarioDef` / `BattleSimUnitSpec` 只属于同步 `.tres` authoring/import；入口立即调用 `ToDefinition()`，深拷贝并冻结为 `BattleSimScenarioDefinition` / `BattleSimUnitDefinition`。unit definition 同时持有 canonical plain snapshot 与私有的规范化 equipment-projection seed；后者只保存 normal runtime 语义，不复用 mutation-exact diagnostic，也不扩 70-key codec。plain/programmatic producer 通过 `BattleSimScenarioUnitEntry.FromProjectedState(...)` 才能把已存在的非空 seed 带入 scenario；当前 authored `BattleSimUnitSpec` 不生成 equipment ability/temporal/cognition-ceiling 内容。runner、execution loop、report/file/trace projection 与 benchmark 在投影后只持有 definition；普通 Runner 每次 run 从单位 definition 重建互不共享的 `BattleUnitState`，重新安装 seed 后为双方建立 fresh typed roster，runtime start context 不再重复携带单位 payload。formal fixture 同样使用无场景单位 payload 的 runtime context，并把 fresh hostile units 作为 enemy-only typed roster 一次性移交；仍调用 `BuildStartContextLease()` 的显式 payload 测试或专项 benchmark 才继续属于 canonical legacy start 边界。path-backed scenario 由 `ResourceLoader` 缓存管理，benchmark 只丢弃局部 borrower，不手工 `Dispose()` / `Free()`。
+- 敌方内容边界：production discovery 由 `EnemyContentJsonDomains` 固定拥有三个 JSON 目录；`EnemyContentRegistry` 分别运行 strict DTO parser、plain import validator 与 `EnemyContentDefinitionProjector`，直接发布 `EnemyTemplateDefinition`、`EnemyAiBrainDefinition`、具体 `*ActionDefinition`、generation/transition definitions 与 `WildEncounterRosterDefinition`。三个域不存在 seed、目录扫描配置、`.tres` source 或 Resource adapter 旁路。`ContentSnapshot` 冻结这些索引后，session、catalog、world、battle 与 headless runtime 只借用同一 definition graph，不持有 JSON DTO/import model 或 session 级 registry mirror。
+- 敌方战斗装备边界：template JSON 的 `battle_equipment_entries` 逐项声明装备槽、正式 item、稀有度与该稀有度允许范围内的初始耐久，并投影为 immutable `EnemyBattleEquipmentDefinition`；槽位兼容、占用冲突和 item 引用在内容加载期 fail closed。`EncounterRosterBuilder` 通过 `EnemyBattleEquipmentProjectionService` 为每个敌方单位创建带稳定 battle-only instance id 的独立 `EquipmentState`，并把装备属性并入初始快照；摧毁后 `BattleUnitFactory.RefreshEquipmentProjection(...)` 重新计算敌方属性与装备能力来源。该状态只属于本场战斗，不写回模板、战利品或下一场战斗。
+- AI authoring 边界：brain JSON action 固定为 `kind + payload`，`EnemyAiActionClosedKindSchemaSpec` 对十二种 `EnemyAiActionKind` 提供穷尽且互斥的 payload DTO，`EnemyContentDefinitionProjector` 是 payload 到具体 definition 类型的唯一分派点；`EnemyAiBrainDefinition` 冻结 state/action/generation/transition 与 score profile 图。新 action 类型需要同时更新 closed schema、严格 parser、Definition projector 以及 CU-16 的 assembler/evaluator/dispatch；实际战斗算法只属于 CU-16，不能放回导入 DTO。
+- BattleSim profile 边界：`BattleSimProfileContentRegistry` 从 `battle_sim_profiles` strict JSON domain 导入 plain model，`BattleSimProfileDefinitionProjector` 唯一投影 `BattleSimProfileDefinition` / typed override patch；正式 profile 随 process snapshot 发布，simulation runtime 与 report 只传递 definition。具体 patch 的 typed copy-on-write 规则归 CU-16。AI score tuner 的标量路径与搜索边界由 `score_weight_space.json` 统一拥有，Python `score_weight_catalog.py` 与 C# `BattleSimTuningParameterCatalog` 都只把该结构化目录投影为各自的 typed spec，不扫描另一端源码来推断契约。
+- BattleSim scenario/unit 边界：`BattleSimContentCatalog` 只从 `battle_sim_scenarios` strict JSON domain 按 ID 发现 scenario，入口经 plain import model 和 `BattleSimContentDefinitionProjector` 深拷贝、冻结为 `BattleSimScenarioDefinition` / `BattleSimUnitDefinition`。unit definition 同时持有 canonical plain snapshot 与私有的规范化 equipment-projection seed；后者只保存 normal runtime 语义，不复用 mutation-exact diagnostic，也不扩 70-key codec。plain/programmatic producer 通过 `BattleSimScenarioUnitEntry.FromProjectedState(...)` 才能把已存在的非空 seed 带入 scenario。runner、execution loop、report/file/trace projection 与 benchmark 在投影后只持有 definition；普通 Runner 每次 run 从单位 definition 重建互不共享的 `BattleUnitState`，重新安装 seed后为双方建立 fresh typed roster。scenario catalog 是 opt-in tooling owner，不进入 routine regression，也不存在 path-backed scenario Resource 生命周期。
 - BattleSim 结果有效性边界：`BattleSimExecutionLoop` 是单局终止类别的唯一 owner，明确区分 battle ended、idle stall、iteration budget exhausted 与 invalid runtime；run/report projection 保留所有尝试供诊断，但 `BattleSimReportBuilder` 的正常胜率、均值、技能/action/faction totals 只消费 battle-ended runs。`run_count` 表示尝试数，`completed_run_count` 才是统计分母；任何 unfinished run 都使 scenario `is_complete=false`，正式 balance CLI 写完诊断报告后以非零退出。
 - 生成技能 BattleSim 门禁边界：`scripts/systems/battle/sim/generation` 是 content 层 `ISkillGenerationBattleSimulationGate` 的唯一 tooling adapter；`BattleSimContentProvider` 可借用同一 snapshot 的敌人、屏障与 profile，同时用只读 combined skill index 覆盖技能视图，不修改或重新发布 process snapshot。每个可采样的 enemy-targeted damage candidate 与同 surface benchmark 使用相同单位 id、属性、武器、AI brain、地图和 20 个固定 seed，各自进入现有 `BattleSimRunner`；ground、multi-unit、普通远程/魔法 unit、近战 unit 分别绑定 `mage_fireball`、`mage_arcane_missile`、`mage_frost_bolt`、`basic_attack`，multi-unit 使用真正声明对应 action family 的 `ranged_archer` brain。双方资源按 candidate 1 级单次完整成本提供三次容量（资源最低 120、最高 10000，AP 最高 8），iteration budget 固定 2000；资源只保证可测，不改技能成本。只有双方至少各 20 个 completed samples 且 candidate 至少被尝试 3 次才进入强度判定。比较口径固定为 ally win-rate delta basis points 与 ally damage-per-completed-run ratio basis points；高离群阈值为 `+3500 bp / 22500 bp`，低离群阈值为 `-3500 bp / 4500 bp`，任一越界均产生定位到 candidate `combat_profile` 的稳定诊断。该 runner 只由 opt-in `/simulation/` 回归和生成验证工具调用，不进入 routine regression。
 - BattleSim 文件输出边界：`BattleSimRunner` 只编排正式报告生成并在成功后公布路径，`BattleSimReportFileWriter` 是正式 report、trace 与 trace summary 的写盘 owner；它为每批输出分配同秒不冲突的唯一名称，检查打开、逐次写入与 flush 结果，失败时恢复报告输出状态并清理本批次残缺文件。专项 analysis/benchmark 的 main、trace 与 profile 产物统一委托 `BattleSimAnalysisArtifactFileWriter` 复用同一个 checked `GodotBattleSimOutputFileSink`，再由 plain typed completion status 裁决退出码；任一必需产物失败优先返回 `1`，批次未完成但产物完整返回 `2`。
-- 跨表校验边界：敌方内容需要 skill/item catalog 时消费加载边界已经投影好的 `SkillDefinition` / `ItemDefinition` 索引，不由 `EnemyTemplateDef` 提供 raw `SkillDef` / `ItemDef` 到 runtime 的投影。AI brain/action 校验负责不随单位等级变化的 action kind、target route、selection mode 与 cast-option 形状契约；`EnemyTemplateDef` 再以自身 `skill_ids` / `skill_level_map` 对实际会使用的 action-skill 对执行等级校验，确认该等级已有匹配变体，且 unit 命令的 base + variant 有效效果能被正式 unit execution pipeline 接受。unit effect 可执行集合由内容定义层的 `scripts/systems/content/skills/BattleUnitSkillDefinitionExecutionRules.cs` 唯一声明，内容校验与正式 orchestrator 共享该谓词，避免两套 allow-list 漂移。
+- 跨表校验边界：敌方内容需要 skill/item catalog 时只消费加载边界已经投影好的 `SkillDefinition` / `ItemDefinition` 索引。AI brain/action import 与 definition 校验负责不随单位等级变化的 action kind、target route、selection mode 与 cast-option 形状契约；template import/definition 边界再以 `skill_ids` / `skill_level_map` 对实际会使用的 action-skill 对执行等级校验。unit effect 可执行集合由内容定义层的 `scripts/systems/content/skills/BattleUnitSkillDefinitionExecutionRules.cs` 唯一声明，内容校验与正式 orchestrator 共享该谓词，避免两套 allow-list 漂移。
 - 敌方技能等级生成边界：模板显式 `skill_level_map` 仍表示固定等级；`generated_core_skill_count` 声明需要从非基础、可升级技能中随机达到核心等级的数量。`EncounterRosterBuilder` 在构建 `BattleUnitState` 时把 battle seed、模板 id 与单位序号交给通用 `EnemySkillLevelGenerationService`，服务按每项技能自己的 `non_core_max_level/max_level` 生成等级，只把确定性随机结果写入该单位的 known-skill level state，不按具体敌人 id 分支，也不回写 authored Resource/immutable definition。相同 battle seed 必须可复现，不同 seed 或同场不同单位可形成不同组合；生成后的技能等级随既有 unit snapshot/save 路径持久化，AI、preview 与执行只读取冻结后的单位状态。
-- 敌方认知内容边界：每个 `EnemyTemplateDef` 必须显式声明封闭 `cognition_kind` 并投影为 `EnemyTemplateDefinition.CognitionKind`，`EncounterRosterBuilder` 再写入单位基础认知；不能按 INT、creature tag、AI brain 或模板名称推断。召唤动作同样必须显式声明召唤单位基础认知。当前正式内容以亡灵躯壳为 `mindless`、普通野兽与元素生物为 `instinctive`、能理解语义和意图的敌人为 `sapient`；具体模板仍逐项 author，不由分类规则自动继承。
+- 敌方认知与贴图边界：每个 template JSON 必须显式声明封闭 `cognition_kind` 并投影为 `EnemyTemplateDefinition.CognitionKind`，`EncounterRosterBuilder` 再写入单位基础认知；不能按 INT、creature tag、AI brain 或模板名称推断。非空 `battle_sprite_asset_id` 必须在 engine asset catalog 登记为 `Texture2D`，沿 template Definition、roster builder、`BattleUnitState`、canonical/detached/mutation projection、render snapshot 到 battle board 始终传递 ID，运行时状态不保存 `res://` 路径。召唤动作同样必须显式声明召唤单位基础认知。当前正式内容以亡灵躯壳为 `mindless`、普通野兽与元素生物为 `instinctive`、能理解语义和意图的敌人为 `sapient`；具体模板仍逐项 author，不由分类规则自动继承。
 - 适合：新敌人、敌方技能表、AI 状态与动作、roster 内容、BattleSim profile/scenario/unit authoring。
 - 邻接单元：CU-02、CU-10、CU-15、CU-16、CU-17、CU-18。
 
