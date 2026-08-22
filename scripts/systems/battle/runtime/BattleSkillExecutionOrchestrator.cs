@@ -2076,6 +2076,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 SkillId = skillDefinition?.SkillId ?? new StringName(""),
                 EventBatch = batch,
                 ForceHitAllowCrit = forceHitAllowCrit,
+                DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
             };
             if (forceHitNoCrit)
             {
@@ -2116,6 +2117,13 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                                 skillDefinition?.SkillId ?? new StringName("")
                             ),
                             1
+                        )
+                    )
+                    .WithDamageOriginKind(
+                        BattleDamageOriginContentRules.ResolveProducerOrigin(
+                            BattleDamageOriginKind.MainDirectEffect,
+                            active_unit,
+                            target_unit
                         )
                     )
                     .WithDamageApplicationHookContext(

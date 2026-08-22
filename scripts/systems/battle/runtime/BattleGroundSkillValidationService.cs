@@ -929,21 +929,7 @@ internal class BattleGroundSkillValidationService
         {
             return "目标方向的视线被屏障阻挡。";
         }
-        if (HasBlockingLosEdge(sourceView.Coord, targetCoords[0]))
-        {
-            return "目标方向的视线被边缘地形阻挡。";
-        }
         return "";
-    }
-
-    private bool HasBlockingLosEdge(Vector2I sourceCoord, Vector2I targetCoord)
-    {
-        return !BattleUnitLineOfSightRules.HasLineOfSight(
-            State,
-            GridService,
-            sourceCoord,
-            targetCoord
-        );
     }
 
     private static string GetCasterTargetVectorLineValidationMessage(

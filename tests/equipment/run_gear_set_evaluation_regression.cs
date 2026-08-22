@@ -17,6 +17,10 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
         TestBrokenAndDuplicateMembersDoNotIncreasePieceCount();
         TestWrongMemberSlotAndOccupiedFootprintDoNotCount();
         TestContentValidationRejectsDuplicateAttributeOwnership();
+        TestContentValidationRejectsCrossSetMembership();
+        TestContentValidationRejectsBindingWithoutGearSetSourceKind();
+        TestContentValidationRejectsUnrecognizedThresholdAttribute();
+        TestContentValidationRequiresUniqueAnchorForPersistentUsage();
         TestFullSetUsesConfiguredAnchorAndEmitsEveryActiveThreshold();
         TestCharacterTraitProjectionKeepsThresholdSourceAndStableKey();
         TestCharacterManagementAppliesActiveThresholdAttributes();
@@ -187,6 +191,244 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
             foundOverlap,
             "Gear-set content validation must reject an attribute authored both directly and through a granted trait."
         );
+    }
+
+    private void TestContentValidationRejectsCrossSetMembership()
+    {
+        TestFixture fixture = BuildFixture();
+        IReadOnlyList<string> errors = ValidateFixtureDirectory(
+            "res://tests/equipment/fixtures/gear_set_cross_set_membership",
+            fixture.Items,
+            new Dictionary<StringName, TraitDefinition>(),
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>()
+        );
+        _test.True(
+            HasErrorContaining(errors, "is already a member of gear set cross_set_fixture_a"),
+            "Gear-set content validation must reject an item that appears in two sets."
+        );
+    }
+
+    private void TestContentValidationRejectsBindingWithoutGearSetSourceKind()
+    {
+        TestFixture fixture = BuildFixture();
+        const string fixtureDirectory = "res://tests/equipment/fixtures/gear_set_binding_source_kind";
+        var traitDefinitions = new Dictionary<StringName, TraitDefinition>
+        {
+            ["test_gear_binding_trait"] = BuildSetTraitDefinition("test_gear_binding_trait"),
+        };
+
+        var foreignSourceBinding = new EquipmentAbilityBindingDefinition
+        {
+            BindingId = "binding.test_gear_binding_trait",
+            TraitId = "test_gear_binding_trait",
+            AllowedSourceKinds = EquipmentAbilityReadOnlySet<StringName>.From(
+                new StringName[] { TraitContentRules.ToStringName(TraitSourceKind.EquipmentFixed) }
+            ),
+        };
+        IReadOnlyList<string> rejected = ValidateFixtureDirectory(
+            fixtureDirectory,
+            fixture.Items,
+            traitDefinitions,
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>
+            {
+                [foreignSourceBinding.BindingId] = foreignSourceBinding,
+            }
+        );
+        _test.True(
+            HasErrorContaining(rejected, "does not allow gear_set_threshold"),
+            "A binding referencing a threshold trait without gear_set_threshold must be rejected."
+        );
+
+        IReadOnlyList<string> noBinding = ValidateFixtureDirectory(
+            fixtureDirectory,
+            fixture.Items,
+            traitDefinitions,
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>()
+        );
+        _test.Eq(
+            noBinding.Count,
+            0,
+            "A threshold trait without any binding is legal content (pure passive trait)."
+        );
+
+        var matchingBinding = new EquipmentAbilityBindingDefinition
+        {
+            BindingId = "binding.test_gear_binding_trait",
+            TraitId = "test_gear_binding_trait",
+            AllowedSourceKinds = EquipmentAbilityReadOnlySet<StringName>.From(
+                new StringName[]
+                {
+                    TraitContentRules.ToStringName(TraitSourceKind.GearSetThreshold),
+                }
+            ),
+        };
+        IReadOnlyList<string> accepted = ValidateFixtureDirectory(
+            fixtureDirectory,
+            fixture.Items,
+            traitDefinitions,
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>
+            {
+                [matchingBinding.BindingId] = matchingBinding,
+            }
+        );
+        _test.Eq(
+            accepted.Count,
+            0,
+            "A binding that explicitly allows gear_set_threshold must be accepted."
+        );
+    }
+
+    private void TestContentValidationRejectsUnrecognizedThresholdAttribute()
+    {
+        TestFixture fixture = BuildFixture();
+        IReadOnlyList<string> errors = ValidateFixtureDirectory(
+            "res://tests/equipment/fixtures/gear_set_modifier_domain",
+            fixture.Items,
+            new Dictionary<StringName, TraitDefinition>(),
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>()
+        );
+        _test.True(
+            HasErrorContaining(
+                errors,
+                "attribute_id resistance_fire is not a recognized"
+            ),
+            "A threshold modifier without a canonical attribute consumer must be rejected."
+        );
+        bool validSetErrored = false;
+        foreach (string error in errors)
+        {
+            if (error.Contains("Gear set valid_modifier_domain_set.", StringComparison.Ordinal))
+            {
+                validSetErrored = true;
+                break;
+            }
+        }
+        _test.False(
+            validSetErrored,
+            "A threshold modifier with a recognized canonical attribute id must be accepted. Errors: "
+                + string.Join(" | ", errors)
+        );
+    }
+
+    private void TestContentValidationRequiresUniqueAnchorForPersistentUsage()
+    {
+        const string fixtureDirectory = "res://tests/equipment/fixtures/gear_set_anchor_uniqueness";
+        var traitDefinitions = new Dictionary<StringName, TraitDefinition>
+        {
+            ["test_anchor_usage_trait"] = BuildSetTraitDefinition("test_anchor_usage_trait"),
+        };
+        var plainItems = new Dictionary<StringName, ItemDefinition>
+        {
+            ["test_helm"] = BuildEquipmentItem("test_helm", "head"),
+        };
+        var uniqueItems = new Dictionary<StringName, ItemDefinition>
+        {
+            ["test_helm"] = BuildEquipmentItem(
+                "test_helm",
+                "head",
+                new StringName[] { WorldUniqueEquipmentContentRules.WorldUniqueEquipmentTag }
+            ),
+        };
+
+        EquipmentAbilityBindingDefinition persistentBinding = BuildGrantedActionBinding(
+            EquipmentAbilityUsagePeriodKind.PerWorldDay
+        );
+        IReadOnlyList<string> rejected = ValidateFixtureDirectory(
+            fixtureDirectory,
+            plainItems,
+            traitDefinitions,
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>
+            {
+                [persistentBinding.BindingId] = persistentBinding,
+            }
+        );
+        _test.True(
+            HasErrorContaining(rejected, "must be tagged world_unique_equipment"),
+            "A set granting a persistent world-period action must require a world-unique anchor."
+        );
+
+        IReadOnlyList<string> accepted = ValidateFixtureDirectory(
+            fixtureDirectory,
+            uniqueItems,
+            traitDefinitions,
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>
+            {
+                [persistentBinding.BindingId] = persistentBinding,
+            }
+        );
+        _test.Eq(
+            accepted.Count,
+            0,
+            "A world-unique anchor item must satisfy the persistent-usage anchor constraint."
+        );
+
+        EquipmentAbilityBindingDefinition battleScopedBinding = BuildGrantedActionBinding(
+            EquipmentAbilityUsagePeriodKind.PerBattle
+        );
+        IReadOnlyList<string> battleScoped = ValidateFixtureDirectory(
+            fixtureDirectory,
+            plainItems,
+            traitDefinitions,
+            new Dictionary<StringName, EquipmentAbilityBindingDefinition>
+            {
+                [battleScopedBinding.BindingId] = battleScopedBinding,
+            }
+        );
+        _test.Eq(
+            battleScoped.Count,
+            0,
+            "A non-persistent granted action must not require a world-unique anchor."
+        );
+    }
+
+    private static EquipmentAbilityBindingDefinition BuildGrantedActionBinding(
+        EquipmentAbilityUsagePeriodKind usagePeriodKind
+    ) =>
+        new()
+        {
+            BindingId = "binding.test_anchor_usage_trait",
+            TraitId = "test_anchor_usage_trait",
+            AllowedSourceKinds = EquipmentAbilityReadOnlySet<StringName>.From(
+                new StringName[]
+                {
+                    TraitContentRules.ToStringName(TraitSourceKind.GearSetThreshold),
+                }
+            ),
+            GrantedActions = new[]
+            {
+                new EquipmentGrantedActionDefinition
+                {
+                    GrantedActionId = "grant.test_anchor_usage_trait.daily",
+                    GrantedKind = EquipmentGrantedActionKind.Skill,
+                    SkillId = "test_anchor_usage_skill",
+                    SkillLevel = 1,
+                    UsagePeriodKind = usagePeriodKind,
+                    MaxUsesPerPeriod = 1,
+                },
+            },
+        };
+
+    private static IReadOnlyList<string> ValidateFixtureDirectory(
+        string directoryPath,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingDefinitions
+    )
+    {
+        using var loader = new TestContentResourceLoader();
+        using var registry = new GearSetContentRegistry(loader, directoryPath);
+        registry.Rebuild();
+        return registry.ValidateTyped(itemDefinitions, traitDefinitions, bindingDefinitions);
+    }
+
+    private static bool HasErrorContaining(IReadOnlyList<string> errors, string fragment)
+    {
+        foreach (string error in errors)
+        {
+            if (error.Contains(fragment, StringComparison.Ordinal))
+                return true;
+        }
+        return false;
     }
 
     private void TestFullSetUsesConfiguredAnchorAndEmitsEveryActiveThreshold()
@@ -464,7 +706,11 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
             throw new InvalidOperationException($"Could not equip {itemId} in {slotId}.");
     }
 
-    private static ItemDefinition BuildEquipmentItem(StringName itemId, string slotId) =>
+    private static ItemDefinition BuildEquipmentItem(
+        StringName itemId,
+        string slotId,
+        IReadOnlyList<StringName> tags = null
+    ) =>
         new(
             itemId,
             "",
@@ -478,7 +724,7 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
             true,
             1,
             "equipment",
-            Array.Empty<StringName>(),
+            tags ?? Array.Empty<StringName>(),
             Array.Empty<StringName>(),
             Array.Empty<StringName>(),
             Array.Empty<StringName>(),
@@ -517,6 +763,7 @@ public partial class run_gear_set_evaluation_regression : LifecycleTestSceneTree
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             Array.Empty<TraitRollValueSchemaEntryDefinition>()
         );

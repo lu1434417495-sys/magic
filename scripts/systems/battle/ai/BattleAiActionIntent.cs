@@ -228,7 +228,6 @@ internal static class BattleAiActionIntent
             or BattleEffectKind.Height
             or BattleEffectKind.HeightDelta
             or BattleEffectKind.TerrainEffect
-            or BattleEffectKind.EdgeClear
             or BattleEffectKind.DispelMagic => true,
             _ => false,
         };

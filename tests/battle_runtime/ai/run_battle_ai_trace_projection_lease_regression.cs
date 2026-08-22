@@ -887,7 +887,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         {
             AssertKeyOrder(
                 lease.Value,
-                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_texture_path,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
+                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_asset_id,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,save_bonus_by_tag,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
                 "real unit snapshot"
             );
             using GDictionary projectedCooldowns =
@@ -931,8 +931,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             // 2026-08-15 行动节奏敏捷派生：action_threshold 默认值 120 -> 40，payload 短 1 字符。
             AssertFingerprint(
                 lease.Value,
-                2125,
-                "431a5edd92b1c8d5db9fa6a53dc573c7ed17883a7fe21fb070f21f237099c3a5",
+                2144,
+                "3f7ade499303a2112b528546c9ba69c4c58b2c33845fea84448314c79c3b94f5",
                 "full real unit snapshot payload"
             );
         }
@@ -992,8 +992,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             // 同上：action_threshold 默认值 120 -> 40。
             AssertFingerprint(
                 reportLease.Value,
-                17344,
-                "5ca26a54affe9fb0ef6466507d15d65c0887be347eb80ed3d78785f4e9d220f6",
+                17363,
+                "9822d94d170b31b4d6f824a7e47e3438c5033c5957883beb0c8cf689f870f6b8",
                 "full simulation report payload"
             );
         }

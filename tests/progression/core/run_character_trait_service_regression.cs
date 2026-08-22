@@ -193,14 +193,26 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
                 member_id = "hero",
                 display_name = "Hero",
             };
-            RaceDef raceResource = new()
-            {
-                race_id = "human",
-                trait_ids = new Godot.Collections.Array<StringName> { "identity_watch" },
-            };
-            _raceDefinition = RaceDefinition.FromResource(
-                raceResource,
-                "test.character_trait.race"
+            _raceDefinition = new RaceDefinition(
+                "human",
+                "Human",
+                "Test-only human race.",
+                "",
+                "",
+                System.Array.Empty<StringName>(),
+                "medium",
+                6,
+                System.Array.Empty<AttributeModifierDefinition>(),
+                new[] { new StringName("identity_watch") },
+                System.Array.Empty<RacialGrantedSkillDefinition>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
+                new Dictionary<StringName, StringName>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<string>()
             );
             _member.trait_instances.Add(
                 TraitInstanceState.Create(

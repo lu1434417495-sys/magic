@@ -19,7 +19,8 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
         TestSelectedCommitSaveSuccessReturnsResolvedResultWithoutMutation();
         TestConfiguredWeightMapDoesNotDefaultUnweightedSlot();
         TestOccupiedSlotSelectionReportsMatchedSlot();
-        TestTypedCombatEffectSlotWeightsBuildSelectorQueryDespiteLegacyParams();
+        TestTypedCombatEffectSlotWeightsBuildSelectorQuery();
+        TestLegacySlotWeightMapFailsAtImportBoundary();
 
         RequestTestExit(_test.Finish("Equipment durability selected target regression"));
     }
@@ -249,7 +250,7 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
         );
     }
 
-    private void TestTypedCombatEffectSlotWeightsBuildSelectorQueryDespiteLegacyParams()
+    private void TestTypedCombatEffectSlotWeightsBuildSelectorQuery()
     {
         using BattleDamageResolver resolver = new();
         BattleUnitState target = BuildUnit("legacy_weight_target", "enemy");
@@ -258,8 +259,7 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
         CombatEffectDefinition effect = DisjunctionEffectFromResource(
             7,
             targetSlots: Names("main_hand"),
-            typedSlotWeights: CombatEffectSlotWeights(("main_hand", 1)),
-            slotWeightMap: WeightMap(("off_hand", 5))
+            typedSlotWeights: CombatEffectSlotWeights(("main_hand", 1))
         );
         _test.Eq(
             effect.EquipmentDurabilitySlotWeights.Count,
@@ -292,6 +292,44 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             selection.TotalWeight,
             1,
             "typed selector query should preserve the typed main_hand weight."
+        );
+    }
+
+    private void TestLegacySlotWeightMapFailsAtImportBoundary()
+    {
+        using var legacyEffect = new CombatEffectDef
+        {
+            effect_type = "equipment_durability_damage",
+            power = 7,
+            effect_target_team_filter = "enemy",
+            save_dc_mode = "caster_spell",
+            save_ability = "willpower",
+            save_dc_source_ability = "intelligence",
+            save_tag = "equipment_disjunction",
+            require_damage_applied = true,
+            equipment_durability_slot_weights = CombatEffectSlotWeights(("main_hand", 1)),
+            @params = new GDictionary
+            {
+                ["max_damaged_items"] = 1,
+                ["slot_weight_map"] = WeightMap(("off_hand", 5)),
+                ["target_slots"] = Names("main_hand"),
+            },
+        };
+        string rejection = "";
+        try
+        {
+            CombatEffectDefinition.FromResource(
+                legacyEffect,
+                "test.equipment_durability_selected_target.legacy_slot_weight_map"
+            );
+        }
+        catch (System.IO.InvalidDataException exception)
+        {
+            rejection = exception.Message;
+        }
+        _test.True(
+            rejection.Contains("/payload/slot_weight_map"),
+            "legacy params.slot_weight_map must fail at the canonical import boundary."
         );
     }
 
@@ -395,8 +433,7 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
     private static CombatEffectDefinition DisjunctionEffectFromResource(
         int power,
         GStringNameArray targetSlots = null,
-        Godot.Collections.Array<CombatEffectSlotWeightDef> typedSlotWeights = null,
-        GDictionary slotWeightMap = null
+        Godot.Collections.Array<CombatEffectSlotWeightDef> typedSlotWeights = null
     ) =>
         CombatEffectDefinition.FromResource(
             new CombatEffectDef
@@ -414,7 +451,6 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
                 @params = new GDictionary
                 {
                     ["max_damaged_items"] = 1,
-                    ["slot_weight_map"] = slotWeightMap ?? WeightMap(("main_hand", 1)),
                     ["target_slots"] = targetSlots ?? Names("main_hand"),
                 },
             },

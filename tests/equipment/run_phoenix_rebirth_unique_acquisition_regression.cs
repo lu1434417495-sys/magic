@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_phoenix_rebirth_unique_acquisition_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
 
     private readonly TestHarness _test = new();
 

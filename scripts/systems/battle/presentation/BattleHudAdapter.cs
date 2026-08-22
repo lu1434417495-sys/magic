@@ -238,8 +238,86 @@ public sealed class BattleHudAdapter : IDisposable
             barrierSummaryText: BuildBarrierSummaryText(barrierSnapshots),
             objectiveProgress: new BattleHudObjectiveProgressSnapshot(
                 new BattleStateReadView(battle_state).ObjectiveProgress
-            )
+            ),
+            gearSetSummaries: BuildGearSetSummaries(focusUnit)
         );
+    }
+
+    private IReadOnlyList<BattleHudGearSetSummarySnapshot> BuildGearSetSummaries(
+        BattleUnitState focusUnit
+    )
+    {
+        var summaries = new List<BattleHudGearSetSummarySnapshot>();
+        IBattleHudContext context = _context;
+        if (
+            context == null
+            || focusUnit == null
+            || IsEmpty(focusUnit.source_member_id)
+        )
+        {
+            return summaries.AsReadOnly();
+        }
+        GearSetEvaluationSnapshot evaluation = context.EvaluateUnitGearSets(focusUnit);
+        if (evaluation == null || evaluation.ActiveSets.Count == 0)
+            return summaries.AsReadOnly();
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions =
+            GearSetGrantedActionProjection.Build(
+                evaluation,
+                focusUnit.GetEquipmentView(),
+                context.GetEquipmentAbilityBindings(),
+                context.GetTraitDefinitions(),
+                GetItemDefinitions(),
+                GetSkillDefinitions(),
+                GetBattleWorldStep()
+            );
+        foreach (GearSetActivationSummary set in evaluation.ActiveSets)
+        {
+            if (set == null)
+                continue;
+            var thresholds = new List<BattleHudGearSetThresholdSnapshot>();
+            foreach (GearSetThresholdStatus threshold in set.Thresholds)
+            {
+                if (threshold == null)
+                    continue;
+                thresholds.Add(
+                    new BattleHudGearSetThresholdSnapshot(
+                        threshold.ThresholdId.ToString(),
+                        threshold.DisplayName ?? "",
+                        threshold.RequiredPieceCount,
+                        threshold.IsActive
+                    )
+                );
+            }
+            var actions = new List<BattleHudGearSetGrantedActionSnapshot>();
+            foreach (GearSetGrantedActionSummary action in grantedActions)
+            {
+                if (action == null || action.GearSetId != set.GearSetId)
+                    continue;
+                actions.Add(
+                    new BattleHudGearSetGrantedActionSnapshot(
+                        action.GrantedActionId.ToString(),
+                        action.SkillId.ToString(),
+                        action.DisplayName ?? "",
+                        EquipmentAbilityUsagePeriodKinds.ToStringName(action.UsagePeriodKind).ToString(),
+                        action.MaxUsesPerPeriod,
+                        action.IsAvailable,
+                        action.RemainingUses,
+                        action.DisabledReason.ToString()
+                    )
+                );
+            }
+            summaries.Add(
+                new BattleHudGearSetSummarySnapshot(
+                    set.GearSetId.ToString(),
+                    set.DisplayName ?? "",
+                    set.EquippedPieceCount,
+                    set.TotalPieceCount,
+                    thresholds,
+                    actions
+                )
+            );
+        }
+        return summaries.AsReadOnly();
     }
 
     private static IReadOnlyList<BattleHudBarrierSnapshot> BuildBarrierSnapshots(

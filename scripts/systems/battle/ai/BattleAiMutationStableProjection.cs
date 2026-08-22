@@ -67,8 +67,6 @@ internal static class BattleAiMutationStableProjection
                 : StableValue.FromArray(StableTerrainEffectArray(cell.timed_terrain_effects))
         );
         result.Set("flow_direction", StableValue.FromVector2I(cell.flow_direction));
-        result.Set("edge_feature_east", StableValue.FromMap(StableEdgeFeature(cell.edge_feature_east)));
-        result.Set("edge_feature_south", StableValue.FromMap(StableEdgeFeature(cell.edge_feature_south)));
         return result;
     }
 

@@ -46,6 +46,21 @@ public partial class run_damage_context_typed_regression : LifecycleTestSceneTre
             return Array.Empty<BattleEquipmentAbilityMitigationAuraResult>();
         }
 
+        public IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+            BattleEquipmentAbilityMitigationTierContext context
+        )
+        {
+            LastDamageQueryState = context?.BattleState;
+            return Array.Empty<BattleEquipmentAbilityMitigationTierResult>();
+        }
+
+        public IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+            CollectBonusDamageDiceForEffect(BattleEquipmentAbilityDirectDamageContext context)
+        {
+            LastDamageQueryState = context?.BattleState;
+            return Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>();
+        }
+
         public bool ResolveAttackCheck(BattleEquipmentAbilityAttackCheckContext context) => false;
 
         public BattleEquipmentAbilityAfterHitResult ResolveAfterHit(

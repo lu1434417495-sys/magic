@@ -820,6 +820,22 @@ internal sealed class EquipmentAbilityBindingValidator
         {
             case AddDamageDiceActionPayloadDef payload:
                 EquipmentAbilityPayloadValidators.ValidateAddDamageDicePayload(payload, context, path, errors);
+                // inherit_primary 由 per-main-direct-effect query 继承当前主 effect 的 canonical
+                // damage tag；该 query 只在 origin=main_direct_effect 的 on_damage_roll/before_damage
+                // 挂点运行，其他 trigger 下 inherit_primary 永远解析不到主 tag，fail-closed 拒绝。
+                if (
+                    EquipmentAbilityDamageTypeModeContentRules.ToKind(payload.damage_type_mode)
+                        == EquipmentAbilityDamageTypeModeKind.InheritPrimary
+                    && trigger != EquipmentAbilityTriggerKind.OnDamageRoll
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_DAMAGE_TYPE_MODE_INHERIT_TRIGGER_UNSUPPORTED",
+                        $"{path}.payload.damage_type_mode",
+                        "add_damage_dice damage_type_mode inherit_primary requires the on_damage_roll trigger (main direct effect origin)"
+                    );
+                }
                 break;
             case ImmediateWeaponAttackActionPayloadDef payload:
                 EquipmentAbilityPayloadValidators.ValidateImmediateWeaponAttackPayload(payload, context, path, errors);
@@ -850,6 +866,9 @@ internal sealed class EquipmentAbilityBindingValidator
                 break;
             case DamageReductionActionPayloadDef payload:
                 EquipmentAbilityPayloadValidators.ValidateDamageReductionPayload(payload, context, path, errors);
+                break;
+            case GrantMitigationTierActionPayloadDef payload:
+                EquipmentAbilityPayloadValidators.ValidateGrantMitigationTierPayload(payload, context, path, errors);
                 break;
             case LootQuantityMultiplierActionPayloadDef payload:
                 EquipmentAbilityPayloadValidators.ValidateLootQuantityMultiplierPayload(payload, path, errors);
@@ -1522,17 +1541,303 @@ internal sealed class EquipmentAbilityBindingValidator
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seenOverlayIds = new HashSet<StringName>();
         foreach (EquipmentWeaponProfileOverlayDef overlay in binding.weapon_profile_overlays)
         {
             if (overlay == null)
                 continue;
             string overlayPath = $"{path}.weapon_profile_overlays[{overlay.overlay_id}]";
+            StringName overlayId = ProgressionDataUtils.to_string_name(overlay.overlay_id);
+            if (overlayId == "")
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_ID_MISSING",
+                    $"{path}.weapon_profile_overlays",
+                    "weapon profile overlay_id must not be empty"
+                );
+            }
+            else if (!seenOverlayIds.Add(overlayId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_ID_DUPLICATE",
+                    overlayPath,
+                    $"weapon profile overlay_id {overlayId} must be unique within the binding"
+                );
+            }
             ValidateConditionGroup(
                 overlay.condition_group,
                 $"{overlayPath}.condition_group",
                 context,
                 errors
             );
+            ValidateOverlayProjectionSafeConditions(
+                overlay.condition_group,
+                $"{overlayPath}.condition_group",
+                errors
+            );
+            StringName gripOverride = ProgressionDataUtils.to_string_name(overlay.grip_override);
+            if (
+                gripOverride != ""
+                && gripOverride != BattleUnitState.ToStringName(BattleWeaponGripKind.OneHanded)
+                && gripOverride != BattleUnitState.ToStringName(BattleWeaponGripKind.TwoHanded)
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_GRIP_INVALID",
+                    $"{overlayPath}.grip_override",
+                    $"grip_override {overlay.grip_override} must be one_handed or two_handed"
+                );
+            }
+            StringName damageTagOverride = ProgressionDataUtils.to_string_name(
+                overlay.physical_damage_tag_override
+            );
+            if (
+                damageTagOverride != ""
+                && ItemDefinition.ToWeaponPhysicalDamageTagKind(damageTagOverride)
+                    == WeaponPhysicalDamageTagKind.Unknown
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_DAMAGE_TAG_INVALID",
+                    $"{overlayPath}.physical_damage_tag_override",
+                    $"physical_damage_tag_override {overlay.physical_damage_tag_override} is not a weapon physical damage tag"
+                );
+            }
+            if (
+                overlay.min_attack_range > 0
+                && overlay.max_attack_range > 0
+                && overlay.max_attack_range < overlay.min_attack_range
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_RANGE_CLAMP_INVALID",
+                    $"{overlayPath}.max_attack_range",
+                    "max_attack_range must not be smaller than min_attack_range"
+                );
+            }
+            ValidateOverlayWeaponFilter(
+                overlay.required_weapon_families,
+                $"{overlayPath}.required_weapon_families",
+                errors
+            );
+            ValidateOverlayWeaponFilter(
+                overlay.required_weapon_type_ids,
+                $"{overlayPath}.required_weapon_type_ids",
+                errors
+            );
+            ValidateWeaponDiceOverlay(
+                overlay.one_handed_dice_overlay,
+                $"{overlayPath}.one_handed_dice_overlay",
+                errors
+            );
+            ValidateWeaponDiceOverlay(
+                overlay.two_handed_dice_overlay,
+                $"{overlayPath}.two_handed_dice_overlay",
+                errors
+            );
+        }
+    }
+
+    private static void ValidateOverlayWeaponFilter(
+        Godot.Collections.Array<StringName> values,
+        string path,
+        List<string> errors
+    )
+    {
+        if (values == null)
+            return;
+        var seen = new HashSet<StringName>();
+        for (int index = 0; index < values.Count; index++)
+        {
+            StringName value = ProgressionDataUtils.to_string_name(values[index]);
+            if (value == "" || !seen.Add(value))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_WEAPON_FILTER_INVALID",
+                    $"{path}[{index}]",
+                    "weapon filter entries must be non-empty and unique"
+                );
+            }
+        }
+    }
+
+    private static void ValidateWeaponDiceOverlay(
+        EquipmentWeaponDiceOverlayDef diceOverlay,
+        string path,
+        List<string> errors
+    )
+    {
+        if (diceOverlay == null)
+            return;
+        if (
+            !EquipmentAbilityDefinitionProjection.TryParseWeaponDiceOverlayMode(
+                diceOverlay.mode,
+                out EquipmentWeaponDiceOverlayModeKind mode
+            )
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_OVERLAY_DICE_MODE_INVALID",
+                $"{path}.mode",
+                $"dice overlay mode {diceOverlay.mode} must be none, add or override"
+            );
+            return;
+        }
+        if (
+            diceOverlay.dice_sides_override != 0
+            && diceOverlay.dice_sides_override <= 1
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_OVERLAY_DICE_SIDES_INVALID",
+                $"{path}.dice_sides_override",
+                "dice_sides_override must be 0 (keep) or greater than 1"
+            );
+        }
+        if (mode == EquipmentWeaponDiceOverlayModeKind.Add)
+        {
+            if (diceOverlay.dice_override != null)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_DICE_OVERRIDE_UNEXPECTED",
+                    $"{path}.dice_override",
+                    "dice_override requires mode override"
+                );
+            }
+            if (
+                diceOverlay.dice_count_delta == 0
+                && diceOverlay.dice_sides_override == 0
+                && diceOverlay.flat_bonus_delta == 0
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_DICE_ADD_EMPTY",
+                    path,
+                    "add dice overlay requires at least one non-zero delta or sides override"
+                );
+            }
+            return;
+        }
+        if (mode == EquipmentWeaponDiceOverlayModeKind.None)
+        {
+            if (
+                diceOverlay.dice_count_delta != 0
+                || diceOverlay.dice_sides_override != 0
+                || diceOverlay.flat_bonus_delta != 0
+                || diceOverlay.dice_override != null
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_DICE_NONE_FIELDS_SET",
+                    path,
+                    "none dice overlay must not set deltas or dice_override"
+                );
+            }
+            return;
+        }
+        // override 模式下 ApplyDiceOverlay 只消费 dice_override，deltas 与 sides override 会被
+        // 静默丢弃；与 add / none 分支一样做互斥校验，避免作者写了不生效的字段。
+        if (
+            diceOverlay.dice_count_delta != 0
+            || diceOverlay.dice_sides_override != 0
+            || diceOverlay.flat_bonus_delta != 0
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_OVERLAY_DICE_OVERRIDE_DELTAS_SET",
+                path,
+                "override dice overlay must not set dice_count_delta, dice_sides_override or flat_bonus_delta"
+            );
+        }
+        DiceExpressionDef diceOverride = diceOverlay.dice_override;
+        if (
+            diceOverride == null
+            || diceOverride.terms == null
+            || diceOverride.terms.Count != 1
+            || diceOverride.terms[0] == null
+            || diceOverride.terms[0].count_bonus_fact != null
+            || diceOverride.terms[0].dice_count <= 0
+            || diceOverride.terms[0].dice_sides <= 1
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_OVERLAY_DICE_OVERRIDE_INVALID",
+                $"{path}.dice_override",
+                "override dice overlay requires exactly one fixed term with dice_count > 0, dice_sides > 1 and no count_bonus_fact"
+            );
+        }
+    }
+
+    private void ValidateOverlayProjectionSafeConditions(
+        EquipmentAbilityConditionGroupDef group,
+        string path,
+        List<string> errors
+    )
+    {
+        if (group == null)
+            return;
+        foreach (EquipmentAbilityConditionDef condition in group.conditions)
+        {
+            if (condition == null)
+                continue;
+            string conditionPath = $"{path}.conditions[{condition.condition_id}]";
+            if (condition.kind != "has_equipment_tag")
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_OVERLAY_CONDITION_NOT_PROJECTION_SAFE",
+                    conditionPath,
+                    $"condition {condition.kind} is not projection-safe and cannot gate a weapon profile overlay"
+                );
+                continue;
+            }
+            if (condition.payload is HasEquipmentTagConditionPayloadDef payload)
+            {
+                StringName subject = ProgressionDataUtils.to_string_name(payload.subject);
+                if (
+                    subject != ""
+                    && subject != "source"
+                    && subject != "self"
+                    && subject != "holder"
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_OVERLAY_CONDITION_NOT_PROJECTION_SAFE",
+                        $"{conditionPath}.payload.subject",
+                        "overlay has_equipment_tag conditions only support the source unit subject"
+                    );
+                }
+                if (
+                    ProgressionDataUtils.to_string_name(payload.equipment_selector) == ""
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_OVERLAY_CONDITION_NOT_PROJECTION_SAFE",
+                        $"{conditionPath}.payload.equipment_selector",
+                        "overlay has_equipment_tag conditions require an equipment selector"
+                    );
+                }
+            }
+        }
+        foreach (Resource childResource in group.groups)
+        {
+            if (childResource is EquipmentAbilityConditionGroupDef child)
+                ValidateOverlayProjectionSafeConditions(child, $"{path}.groups", errors);
         }
     }
 

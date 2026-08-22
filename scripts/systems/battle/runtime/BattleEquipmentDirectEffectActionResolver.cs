@@ -82,9 +82,10 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             DamageResolutionContext
                 .Empty()
                 .WithBattleState(battleState)
+                .WithDamageOriginKind(BattleDamageOriginKind.EquipmentDirectReaction)
                 .WithDamageApplicationHookContext(
                     batch,
-                    BattleEffectOrigin.EquipmentAbility()
+                    BattleEffectOrigin.EquipmentDirectReaction()
                 )
         );
         return resolvedTarget;
@@ -122,7 +123,10 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             sourceUnit,
             resolvedTarget,
             effects,
-            DamageResolutionContext.Empty().WithBattleState(battleState)
+            DamageResolutionContext
+                .Empty()
+                .WithBattleState(battleState)
+                .WithDamageOriginKind(BattleDamageOriginKind.EquipmentDirectReaction)
         );
         if (resolvedTarget.GetCurrentHp() == previousHp && resolvedTarget.IsAlive() == previousAlive)
             return null;
@@ -465,6 +469,62 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
                 ResolveBonusDamageLinkedSetStateActions(activeBinding, reaction, context);
                 resolvedLinkedStateActions = true;
             }
+        }
+    }
+
+    // §8.4 per-main-direct-effect 收集：与 on_hit 旧路径的关键区别是不消费 once scope、
+    // 不写 linked set state（query 纯读取），跨段重复进入时自然重复产出。
+    // require_weapon_damage 沿用同一 payload 字段语义：为 true 且本段不含武器伤害时跳过。
+    internal void CollectBonusDamageDiceForEffectActions(
+        BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding,
+        EquipmentAbilityReactionDefinition reaction,
+        BattleEquipmentAbilityDirectDamageContext context,
+        EquipmentAbilityFactContext factContext,
+        List<BattleEquipmentAbilityBonusDamageDiceResult> result
+    )
+    {
+        EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
+        foreach (EquipmentAbilityActionDefinition action in reaction.Actions ?? Array.Empty<EquipmentAbilityActionDefinition>())
+        {
+            if (
+                action == null
+                || action.Kind != BattleEquipmentAbilityRuntimeService.ActionKindAddDamageDice
+                || action.PayloadDefinition is not AddDamageDiceActionPayloadDefinition dicePayload
+                || (dicePayload.RequireWeaponDamage && !context.IncludesWeaponDamage)
+                || !_conditionEvaluator.ConditionGroupPasses(
+                    action.ConditionGroup,
+                    context.SourceUnit,
+                    context.TargetUnit,
+                    factContext,
+                    activeBinding
+                )
+            )
+            {
+                continue;
+            }
+            if (
+                !_owner.RollGatePasses(
+                    action.RollGate,
+                    binding.BindingId,
+                    reaction.ReactionId,
+                    action.ActionId,
+                    forcedRollValue: 0,
+                    result: null
+                )
+            )
+            {
+                continue;
+            }
+            AppendBonusDamageDiceResult(
+                activeBinding,
+                binding,
+                action,
+                dicePayload,
+                context.SourceUnit,
+                context.TargetUnit,
+                factContext,
+                result
+            );
         }
     }
 

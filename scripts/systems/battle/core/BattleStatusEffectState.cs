@@ -216,6 +216,17 @@ public class BattleStatusEffectState
     public List<StringName> status_tags { get; set; } = new();
     public Dictionary<StringName, int> save_bonus_by_tag { get; set; } = new();
 
+    // §8.7 opt-in source-bound buff 清除：apply_status 装备动作在投影状态时记录
+    // typed provenance（battle-local，不进入字典 codec / 世界存档）。
+    // remove_on_source_deactivated 为 authoring 显式 opt-in；provenance 精确匹配
+    // 失效 source（kind + effective key + binding）时才允许清理。
+    public bool remove_on_source_deactivated { get; set; }
+    public StringName source_provenance_unit_id { get; set; } = "";
+    public StringName source_provenance_source_kind { get; set; } = "";
+    public StringName source_provenance_effective_key { get; set; } = "";
+    public StringName source_provenance_binding_id { get; set; } = "";
+    public StringName source_provenance_action_id { get; set; } = "";
+
     public bool IsEmpty()
     {
         return status_id == "";
@@ -575,6 +586,12 @@ public class BattleStatusEffectState
             save_immunity_tags = BuildStringNameList(save_immunity_tags),
             status_tags = BuildStringNameList(status_tags),
             save_bonus_by_tag = BuildStringNameIntMap(save_bonus_by_tag),
+            remove_on_source_deactivated = remove_on_source_deactivated,
+            source_provenance_unit_id = source_provenance_unit_id,
+            source_provenance_source_kind = source_provenance_source_kind,
+            source_provenance_effective_key = source_provenance_effective_key,
+            source_provenance_binding_id = source_provenance_binding_id,
+            source_provenance_action_id = source_provenance_action_id,
         };
         duplicate.SetParamsTyped(_params);
         duplicate.ReplaceSourceContributionsTyped(_sourceContributions);

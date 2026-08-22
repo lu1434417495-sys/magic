@@ -468,12 +468,15 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             "res://data/configs/traits/brave.tres"
         );
         TraitDefinition traitDefinition = TraitDefinition.FromResource(traitResource);
-        EnemyTemplateDef enemyTemplate = loader.LoadCanonical<EnemyTemplateDef>(
-            "res://data/configs/enemies/templates/zombie_shambler.tres"
+        using var enemyRegistry = new EnemyContentRegistry(loadDefaultContent: false);
+        enemyRegistry.Rebuild(
+            new EnemyContentValidationContext(
+                new Dictionary<StringName, ItemDefinition> { [itemDefinition.ItemId] = itemDefinition },
+                new Dictionary<StringName, SkillDefinition> { [skillDefinition.SkillId] = skillDefinition }
+            )
         );
-        EnemyAiBrainDef enemyBrain = loader.LoadCanonical<EnemyAiBrainDef>(
-            "res://data/configs/enemies/brains/melee_aggressor.tres"
-        );
+        EnemyTemplateDefinition enemyTemplate = enemyRegistry.GetEnemyTemplatesTyped()["zombie_shambler"];
+        EnemyAiBrainDefinition enemyBrain = enemyRegistry.GetEnemyAiBrainsTyped()["melee_aggressor"];
         var equipmentBinding = new EquipmentAbilityBindingDefinition
         {
             BindingId = "borrower_teardown_binding",
@@ -499,16 +502,11 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             },
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [enemyTemplate.template_id] = enemyTemplate.ToDefinition(
-                    new Dictionary<StringName, ItemDefinition>
-                    {
-                        [itemDefinition.ItemId] = itemDefinition,
-                    }
-                ),
+                [enemyTemplate.TemplateId] = enemyTemplate,
             },
             new Dictionary<StringName, EnemyAiBrainDefinition>
             {
-                [enemyBrain.brain_id] = enemyBrain.ToDefinition(),
+                [enemyBrain.BrainId] = enemyBrain,
             }
         );
     }

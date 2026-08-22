@@ -14,7 +14,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
     private void Run()
     {
         TestProjectsTypedEquipmentDurabilitySlotWeights();
-        TestLegacyParamsSlotWeightMapIsNotProjected();
+        TestLegacyParamsSlotWeightMapFailsAtImportBoundary();
         TestSkillContentValidationUsesTypedSlotWeights();
 
         RequestTestExit(_test.Finish("Combat effect equipment durability schema regression"));
@@ -62,7 +62,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
         );
     }
 
-    private void TestLegacyParamsSlotWeightMapIsNotProjected()
+    private void TestLegacyParamsSlotWeightMapFailsAtImportBoundary()
     {
         CombatEffectDef resource = BuildDurabilityEffectResource();
         resource.@params["slot_weight_map"] = new GDictionary
@@ -70,15 +70,21 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
             [new StringName("main_hand")] = 99,
         };
 
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
-            resource,
-            "test.combat_effect_durability.legacy_param"
-        );
-
-        _test.Eq(
-            definition.EquipmentDurabilitySlotWeights.Count,
-            0,
-            "legacy params.slot_weight_map should not project into typed durability slot weights."
+        string rejection = "";
+        try
+        {
+            CombatEffectDefinition.FromResource(
+                resource,
+                "test.combat_effect_durability.legacy_param"
+            );
+        }
+        catch (System.IO.InvalidDataException exception)
+        {
+            rejection = exception.Message;
+        }
+        _test.True(
+            rejection.Contains("/payload/slot_weight_map"),
+            "legacy params.slot_weight_map should fail at the canonical import boundary."
         );
     }
 

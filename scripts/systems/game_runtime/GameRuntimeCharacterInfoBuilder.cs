@@ -294,11 +294,18 @@ internal sealed class GameRuntimeCharacterInfoBuilder
             unit.source_member_id,
             unit.GetEquipmentView()
         );
-        return BuildGearSetEntries(snapshot);
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions =
+            _query.BuildGearSetGrantedActionSummaries(
+                unit.source_member_id,
+                unit.GetEquipmentView(),
+                snapshot
+            );
+        return BuildGearSetEntries(snapshot, grantedActions);
     }
 
     internal static IReadOnlyList<GameRuntimeCharacterInfoEntry> BuildGearSetEntries(
-        GearSetEvaluationSnapshot snapshot
+        GearSetEvaluationSnapshot snapshot,
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions = null
     )
     {
         if (snapshot == null || snapshot.ActiveSets.Count == 0)
@@ -326,6 +333,10 @@ internal sealed class GameRuntimeCharacterInfoBuilder
                     line += $"\n{threshold.Description}";
                 thresholdLines.Add(line);
             }
+            foreach (string actionLine in BuildGearSetGrantedActionLines(set.GearSetId, grantedActions))
+            {
+                thresholdLines.Add(actionLine);
+            }
             entries.Add(
                 GameRuntimeCharacterInfoEntry.Pair(
                     setName,
@@ -335,6 +346,57 @@ internal sealed class GameRuntimeCharacterInfoBuilder
             );
         }
         return entries.AsReadOnly();
+    }
+
+    private static IReadOnlyList<string> BuildGearSetGrantedActionLines(
+        StringName gearSetId,
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions
+    )
+    {
+        var lines = new List<string>();
+        foreach (
+            GearSetGrantedActionSummary action in grantedActions
+                ?? System.Array.Empty<GearSetGrantedActionSummary>()
+        )
+        {
+            if (action == null || action.GearSetId != gearSetId)
+                continue;
+            string line = string.Format("技能「{0}」", action.DisplayName);
+            if (action.RemainingUses >= 0)
+            {
+                line += string.Format(
+                    "：{0}剩余 {1}/{2} 次",
+                    FormatUsagePeriodLabel(action.UsagePeriodKind),
+                    action.RemainingUses,
+                    action.MaxUsesPerPeriod
+                );
+            }
+            if (!action.IsAvailable)
+                line += string.Format("（{0}）", FormatDisabledReasonText(action.DisabledReason));
+            lines.Add(line);
+        }
+        return lines;
+    }
+
+    private static string FormatUsagePeriodLabel(EquipmentAbilityUsagePeriodKind kind)
+    {
+        return kind switch
+        {
+            EquipmentAbilityUsagePeriodKind.PerWorldDay => "今日",
+            EquipmentAbilityUsagePeriodKind.PerWorldMonth => "本月",
+            EquipmentAbilityUsagePeriodKind.PerBattle => "本场战斗",
+            _ => "当前周期",
+        };
+    }
+
+    private static string FormatDisabledReasonText(StringName disabledReason)
+    {
+        if (disabledReason == GearSetGrantedActionProjection.UsageExhaustedReason)
+            return "次数已用完";
+        if (disabledReason == GearSetGrantedActionProjection.UsageUnavailableReason)
+            return "当前不可用";
+        string raw = disabledReason?.ToString() ?? "";
+        return string.IsNullOrEmpty(raw) ? "当前不可用" : raw;
     }
 
     internal IReadOnlyList<GameRuntimeCharacterInfoEntry> BuildBattleCharacterEquipmentEntries(

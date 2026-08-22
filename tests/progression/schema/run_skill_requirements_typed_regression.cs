@@ -47,7 +47,6 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
             prerequisite,
             validReference,
             badLearnRequirement,
-            badSkillLevelRequirement,
             badAttributeRequirement,
             badUpgradeSources
         );
@@ -55,9 +54,28 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
         AssertOnlyValidationErrors(
             errors,
             "Skill invalid_learn_requirement references missing skill missing_skill in learn_requirements.",
-            "Skill invalid_skill_level_requirement requires integer value for charge in skill_level_requirements.",
             "Skill invalid_attribute_requirement references unsupported attribute hp_max in attribute_requirements.",
             "Skill invalid_upgrade_sources references missing skill missing_upgrade_skill in upgrade_source_skill_ids."
+        );
+
+        ContentImportStageResult<SkillImportModel> invalidRequirementImport =
+            SkillResourceProjectionAdapter.TryAdapt(
+                new JsonContentEntryContext(
+                    SkillContentJsonAuthoringDomain.DomainId,
+                    badSkillLevelRequirement.skill_id.ToString(),
+                    "test.skill_requirements.invalid_skill_level_requirement",
+                    "/entries/0"
+                ),
+                badSkillLevelRequirement
+            );
+        string importErrors = "";
+        foreach (ContentJsonDiagnostic diagnostic in invalidRequirementImport.Diagnostics)
+            importErrors += $"{diagnostic.RuleId} {diagnostic.JsonPointer}: {diagnostic.Message} | ";
+        _test.True(
+            !invalidRequirementImport.HasValue
+                && importErrors.Contains("skill.tres.invalid_resource")
+                && importErrors.Contains("/entries/0/skill_level_requirements"),
+            $"non-int skill requirement should fail at the canonical import boundary. errors={importErrors}"
         );
     }
 

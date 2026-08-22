@@ -23,6 +23,7 @@ public enum EquipmentAbilityTriggerKind
     OnHitReceived,
     OnAttackCheck,
     OnTargetMarkExpired,
+    OnAttackHit,
 }
 
 public enum EquipmentAbilityTimingKind
@@ -365,6 +366,8 @@ public sealed class AddDamageDiceActionPayloadDefinition
     public StringName TargetSelector { get; init; } = "";
     public DiceExpressionDefinition Dice { get; init; }
     public StringName DamageType { get; init; } = "";
+    public StringName DamageTypeMode { get; init; } =
+        EquipmentAbilityDamageTypeModeContentRules.Explicit;
     public bool RequireWeaponDamage { get; init; } = true;
     public bool Subtract { get; init; }
     public StringName ReplacementGroupId { get; init; } = "";
@@ -486,6 +489,15 @@ public sealed class DamageReductionActionPayloadDefinition
     public string Label { get; init; } = "";
 }
 
+public sealed class GrantMitigationTierActionPayloadDefinition
+    : EquipmentAbilityActionPayloadDefinition
+{
+    public StringName TargetSelector { get; init; } = "";
+    public StringName MitigationTier { get; init; } = "";
+    public IReadOnlyList<StringName> DamageTags { get; init; } = Array.Empty<StringName>();
+    public string Label { get; init; } = "";
+}
+
 public sealed class LootQuantityMultiplierActionPayloadDefinition
     : EquipmentAbilityActionPayloadDefinition
 {
@@ -536,6 +548,7 @@ public sealed class ApplyStatusActionPayloadDefinition
     public StringName SaveAbility { get; init; } = "";
     public StringName SaveTag { get; init; } = "";
     public bool ApplyOnSaveFailure { get; init; }
+    public bool RemoveOnSourceDeactivated { get; init; }
 }
 
 public sealed class ModifyActionPointsActionPayloadDefinition
@@ -840,9 +853,17 @@ public sealed class EquipmentWeaponProfileOverlayDefinition
     public string ResourcePath { get; init; } = "";
 }
 
+public enum EquipmentWeaponDiceOverlayModeKind
+{
+    None,
+    Add,
+    Override,
+}
+
 public sealed class EquipmentWeaponDiceOverlayDefinition
 {
-    public StringName Mode { get; init; } = "";
+    public EquipmentWeaponDiceOverlayModeKind Mode { get; init; } =
+        EquipmentWeaponDiceOverlayModeKind.None;
     public int DiceCountDelta { get; init; }
     public int DiceSidesOverride { get; init; }
     public int FlatBonusDelta { get; init; }

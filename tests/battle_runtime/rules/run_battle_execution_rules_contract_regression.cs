@@ -19,6 +19,7 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
         var effect = TestResourceOwnership.Own(
             new CombatEffectDef
             {
+                effect_type = "execute",
                 threshold_base_value = 12,
                 threshold_level_anchor = 3,
                 threshold_level_bonus_per_delta = 4,

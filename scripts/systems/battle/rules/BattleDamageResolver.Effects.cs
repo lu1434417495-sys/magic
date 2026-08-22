@@ -460,7 +460,9 @@ public partial class BattleDamageResolver
         MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
             targetUnit,
             resolvedDamageTag,
-            battleState: damageContext?.BattleState
+            battleState: damageContext?.BattleState,
+            sourceUnit: sourceUnit,
+            damageContext: damageContext
         );
         StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;

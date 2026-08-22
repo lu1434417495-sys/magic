@@ -21,5 +21,14 @@ internal interface IGameRuntimeCharacterInfoQuery
         EquipmentState equipmentStateOverride
     ) => GearSetEvaluationSnapshot.Empty;
 
+    // Granted-action visibility for the gear-set summary (remaining uses and disabled
+    // reason). When an override view is given it must be the same view the evaluation
+    // ran on, e.g. the battle-local unit equipment view during battle.
+    System.Collections.Generic.IReadOnlyList<GearSetGrantedActionSummary> BuildGearSetGrantedActionSummaries(
+        StringName memberId,
+        EquipmentState equipmentStateOverride,
+        GearSetEvaluationSnapshot evaluation
+    ) => System.Array.Empty<GearSetGrantedActionSummary>();
+
     GDictionary GetIdentitySummary(StringName memberId);
 }

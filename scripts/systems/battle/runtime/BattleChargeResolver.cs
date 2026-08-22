@@ -1009,6 +1009,7 @@ internal sealed class BattleChargeResolver
                         BattleState = State,
                         SkillId = skillDefinition?.SkillId ?? new StringName(""),
                         EventBatch = batch,
+                        DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
                     }
                 );
             }
@@ -1021,6 +1022,13 @@ internal sealed class BattleChargeResolver
                     DamageResolutionContext
                         .ForSkill(skillDefinition?.SkillId ?? new StringName(""))
                         .WithBattleState(State)
+                        .WithDamageOriginKind(
+                            BattleDamageOriginContentRules.ResolveProducerOrigin(
+                                BattleDamageOriginKind.MainDirectEffect,
+                                activeUnit,
+                                targetUnit
+                            )
+                        )
                 );
             }
             if (pathStepParameters.ResolveAsWeaponAttack)

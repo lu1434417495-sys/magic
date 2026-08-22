@@ -115,7 +115,8 @@ public partial class BattleDamageResolver
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition,
         DamageResolutionContext damageContext,
-        out IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> extraEquipmentBonusRolls
+        out IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> extraEquipmentBonusRolls,
+        int sourceEffectOrdinal = 0
     )
     {
         extraEquipmentBonusRolls = Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
@@ -181,6 +182,21 @@ public partial class BattleDamageResolver
                 !DicePoolRollIsEmpty(weaponRoll),
                 rollMode
             );
+        // §8.4：每次主直接伤害结算查询一次 per-effect 加骰，与 weapon-hit 旧 query
+        // 的 tagged roll 按同一 damage tag 合并，进入本段相同倍率/save/mitigation 管线。
+        equipmentBonusRolls = MergeEquipmentAbilityTaggedBonusRolls(
+            equipmentBonusRolls,
+            RollEquipmentAbilityDirectEffectBonusDamageDiceByTag(
+                sourceUnit,
+                targetUnit,
+                effectDefinition,
+                damageContext,
+                damageTag,
+                !DicePoolRollIsEmpty(weaponRoll),
+                sourceEffectOrdinal,
+                rollMode
+            )
+        );
         bonusDamageRoll = CombineDicePoolRolls(
             bonusDamageRoll,
             FindEquipmentAbilityBonusDamageRoll(equipmentBonusRolls, damageTag)
@@ -267,7 +283,10 @@ public partial class BattleDamageResolver
             damageTag,
             effectDefinition?.MitigationBypassDamageTags,
             effectDefinition?.MitigationBypassTiers,
-            damageContext?.BattleState
+            damageContext?.BattleState,
+            sourceUnit,
+            damageContext,
+            effectDefinition
         );
         StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;
@@ -463,7 +482,10 @@ public partial class BattleDamageResolver
             damageTag,
             mitigationBypassDamageTags,
             mitigationBypassTiers,
-            damageContext?.BattleState
+            damageContext?.BattleState,
+            sourceUnit,
+            damageContext,
+            effectDefinition
         );
         StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;
@@ -668,7 +690,10 @@ public partial class BattleDamageResolver
             damageTag,
             effectDefinition.MitigationBypassDamageTags,
             effectDefinition.MitigationBypassTiers,
-            damageContext?.BattleState
+            damageContext?.BattleState,
+            sourceUnit,
+            damageContext,
+            effectDefinition
         );
         StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;
@@ -787,6 +812,11 @@ public partial class BattleDamageResolver
 
         DicePoolRollResult bonusDamageRoll = taggedRoll.Roll;
         bool criticalHit = damageContext?.CriticalHit == true;
+        // §8.4 origin 防递归：equipment bonus 追加段对 mitigation query 显式标注
+        // equipment_bonus，不冒充 main_direct_effect，也不再触发 per-effect 加骰。
+        DamageResolutionContext bonusDamageContext =
+            (damageContext ?? DamageResolutionContext.Empty())
+                .WithDamageOriginKind(BattleDamageOriginKind.EquipmentBonus);
         int baseDamage = bonusDamageRoll.TotalWithBonus;
         double offenseMultiplier = BuildOffenseMultiplier(
             sourceUnit,
@@ -799,7 +829,10 @@ public partial class BattleDamageResolver
             damageTag,
             taggedRoll.MitigationBypassDamageTags,
             taggedRoll.MitigationBypassTiers,
-            damageContext?.BattleState
+            bonusDamageContext.BattleState,
+            sourceUnit,
+            bonusDamageContext,
+            effectDefinition
         );
         StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;

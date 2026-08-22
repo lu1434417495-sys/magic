@@ -128,7 +128,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             $"选择该正交方向上的首个敌人；每次命中后沿原方向继续最多 {continuationRange} 格，最多攻击 {plan.Targets.Count}/{skillDefinition.CombatProfile.GetEffectiveMaxTargetCount(skillLevel)} 个目标。"
         );
         preview.AddLogLine(
-            $"后续每段累计承受 -{followUpPenalty} 攻击检定；任一段落空，或遇到友军、阻挡视线的边、墙体或屏障时立即停止。"
+            $"后续每段累计承受 -{followUpPenalty} 攻击检定；任一段落空，或遇到友军、战场边界或屏障时立即停止。"
         );
         preview.AddLogLine(
             $"消耗 {costs.ApCost}AP/{costs.MpCost}法力，冷却 {costs.CooldownTu}TU。{plan.StopMessage}"

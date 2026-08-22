@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"armor.dragon_scale.hands.dragon_rend"
+display_name = "逆鳞撕裂"
+description = "龙鳞护手使装备者每次近战武器命中 dragon 类型生物时，该段主直接伤害额外 +1D4，伤害标签继承主武器伤害。"
+categories = Array[StringName]([&"equipment_ability"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

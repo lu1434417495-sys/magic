@@ -23,6 +23,8 @@
 | Phase 0–3 规则底座与技能池 | ✅ 已落地并超额 | 技能资源已扩展到 700+ `.tres`，内容侧复用同一 effect/status/shape 模板 |
 | Phase 4 优势/劣势 | ✅ 已落地（实现路径与本文件原计划不同） | 双骰取高/取低在 `scripts/systems/battle/rules/BattleHitResolver.cs`（`_roll_attack_die` + `NormalizeAdvantageState`）；来源合成在 `BattleAttackCheckPolicyService` 的 modifier bundle，由状态（`AttackRollAdvantage`）与装备能力驱动，而非新建 `battle_roll_disposition_resolver` 文件；回归为 `tests/battle_runtime/runtime/run_battle_state_disadvantage_regression.cs`、`tests/battle_runtime/ai/run_battle_ai_advantage_behavior_regression.cs`、`tests/battle_runtime/fate/run_fate_attack_formula_regression.cs`；HUD 劣势文案见 `BattleHudAdapter` |
 | Phase 6 前半：Saving Throw | ✅ 已提前落地 | `scripts/systems/battle/rules/BattleSaveResolver.cs`（法术 DC 基数 8 + 属性修正 + save advantage state）+ `BattleDamageResolver.SaveBranch.cs`；回归为 `tests/battle_runtime/runtime/run_battle_save_resolver_regression.cs`、`tests/progression/schema/run_battle_save_skill_schema_regression.cs` |
+| 边墙（authored edge feature） | ✅ 已移除并完成残留清理（2026-08-16） | 格上静态边特征（墙/门/闸门）、接缝墙地图模板与 `edge_clear` 效果已删除。残留清理同日完成：`BattleUnitLineOfSightRules`（恒 true）整个文件删除、4 个退化调用点收敛；`BattleCellState.edge_feature_east/south` 从 state 与存档 schema 移除（SaveVersion 18→19）；`blocks_los` / `feature_blocks_los` 虽已无消费者但**保留**——移除 `ApplyEdgeFeatureActionPayloadDef` 的该 `[Export]` 会让 `run_resource_validation_regression` 以约 80% 概率在 GC finalizer 崩溃（`Handle is not initialized`；实测与 `.tres` 引用无关，清 `.godot` 缓存也无效，恢复该 export 后 5/5 通过），改由 validator fail-closed 拒绝内容配置；`BattleDirectionalPiercingPlan.BlockedBeforeCoord` 不可达链与 `BattleEdgeService.HasFeatureBetween` 孤儿方法删除。边界阻断唯一语义是虹光法球系的 layered barrier。虚空斧 `apply_edge_feature` 临时边特征保留，是 runtime feature face 的唯一来源。**不要顺手删 `CombatSkillDef.requires_los`**：它不属于这条链路，仍在门禁地面技能的 barrier 穿越校验 |
+| `mage_passwall` 效果体 | ⚠️ 空壳待接回（2026-08-16） | 移除边墙时该技能曾被一并删除，导致虹光法球绿色层 `breaker_skill_ids` 变空、永久无法破解（破层唯一提交点 `BattleBarrierService._BreakActiveLayer` 的两个调用方都以 `_SkillBreaksLayer` 为门，`passage_outcomes` 不破层）。已恢复技能与 green.tres 绑定，但 `edge_clear` 无运行时、cast variant 的 `effect_defs` 目前为空。**空效果体不会真正破层**：ground 目标走 `BattleBarrierService` 的地面效果裁剪路径，该路径要求技能自身的单位/地形效果产生跨界地格，零效果时直接 `continue`。待规划中的 R4 格级障碍物落地后，用「移除格级障碍物」效果接回该技能；在此之前绿色层实战仍不可破。另注：当前没有任何职业/书籍/任务授予 `mage_passwall`，接回时需一并补授予渠道 |
 
 原计划中技能级 `roll_disposition` 导出字段**未实现且已被替代**：优势/劣势经状态与装备能力进入攻击检定（内容示例：`warrior_one_inch_advantage.tres`、`weapon_sword_cowardice_scurry.tres`），`CombatSkillDef` 没有也不计划保留该字段，除非下节决策项另有结论。
 
@@ -64,7 +66,7 @@
 **设计决定（2026-08-16）**：
 
 - 战场需要“石头”这类**占一整格**的障碍物；玩家心智单位是格，边特征（墙）不承载这个语义
-- 障碍物**只阻断站位与通行，不阻断视线**——远程/法术可以越过石头攻击；视线阻断仍专属边特征 `wall`
+- 障碍物**只阻断站位与通行，不阻断视线**——远程/法术可以越过石头攻击；游戏已无任何 LOS 阻断机制（边墙已于 2026-08-16 移除）
 - 掩体不走障碍物路线（已由 R1 的森林格承载），障碍物不提供 AC 加成
 
 **实现边界**：

@@ -148,6 +148,7 @@ public sealed partial class AddDamageDiceActionPayloadDef : Resource
     [Export] public StringName target_selector { get; set; } = "";
     [Export] public DiceExpressionDef dice { get; set; }
     [Export] public StringName damage_type { get; set; } = "";
+    [Export] public StringName damage_type_mode { get; set; } = "explicit";
     [Export] public bool require_weapon_damage { get; set; } = true;
     [Export] public bool subtract { get; set; }
     [Export] public StringName replacement_group_id { get; set; } = "";
@@ -246,6 +247,15 @@ public sealed partial class DamageReductionActionPayloadDef : Resource
 }
 
 [GlobalClass]
+public sealed partial class GrantMitigationTierActionPayloadDef : Resource
+{
+    [Export] public StringName target_selector { get; set; } = "";
+    [Export] public StringName mitigation_tier { get; set; } = "";
+    [Export] public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
+    [Export] public string label { get; set; } = "";
+}
+
+[GlobalClass]
 public sealed partial class LootQuantityMultiplierActionPayloadDef : Resource
 {
     [Export] public StringName target_selector { get; set; } = "";
@@ -295,6 +305,7 @@ public sealed partial class ApplyStatusActionPayloadDef : Resource
     [Export] public StringName save_ability { get; set; } = "";
     [Export] public StringName save_tag { get; set; } = "";
     [Export] public bool apply_on_save_failure { get; set; }
+    [Export] public bool remove_on_source_deactivated { get; set; }
 }
 
 [GlobalClass]

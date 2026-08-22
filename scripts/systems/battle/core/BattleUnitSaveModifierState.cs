@@ -65,7 +65,8 @@ internal readonly record struct BattleUnitSaveModifierReadView(
     BattleSaveModifierTagReadView AdvantageTags,
     BattleSaveModifierTagReadView DisadvantageTags,
     BattleSaveModifierTagReadView ImmunityTags,
-    BattleSaveAbilityBonusReadView BonusByAbility
+    BattleSaveAbilityBonusReadView BonusByAbility,
+    BattleSaveAbilityBonusReadView BonusByTag
 )
 {
     internal static BattleUnitSaveModifierReadView MissingOwner =>
@@ -74,6 +75,7 @@ internal readonly record struct BattleUnitSaveModifierReadView(
             new BattleSaveModifierTagReadView(null),
             new BattleSaveModifierTagReadView(null),
             new BattleSaveModifierTagReadView(null),
+            new BattleSaveAbilityBonusReadView(null),
             new BattleSaveAbilityBonusReadView(null)
         );
 }
@@ -83,25 +85,28 @@ internal readonly record struct BattleUnitSaveModifierSnapshot(
     StringNameList AdvantageTags,
     StringNameList DisadvantageTags,
     StringNameList ImmunityTags,
-    BattleStringNameIntMap BonusByAbility
+    BattleStringNameIntMap BonusByAbility,
+    BattleStringNameIntMap BonusByTag
 )
 {
     internal static BattleUnitSaveModifierSnapshot Present(
         StringNameList advantageTags,
         StringNameList disadvantageTags,
         StringNameList immunityTags,
-        BattleStringNameIntMap bonusByAbility
+        BattleStringNameIntMap bonusByAbility,
+        BattleStringNameIntMap bonusByTag
     ) =>
         new(
             true,
             advantageTags,
             disadvantageTags,
             immunityTags,
-            bonusByAbility
+            bonusByAbility,
+            bonusByTag
         );
 
     internal static BattleUnitSaveModifierSnapshot MissingOwner =>
-        new(false, null, null, null, null);
+        new(false, null, null, null, null, null);
 }
 
 internal sealed class BattleUnitSaveModifierState
@@ -110,6 +115,7 @@ internal sealed class BattleUnitSaveModifierState
     private StringNameList _disadvantageTags = new();
     private StringNameList _immunityTags = new();
     private BattleStringNameIntMap _bonusByAbility = new();
+    private BattleStringNameIntMap _bonusByTag = new();
 
     internal BattleUnitSaveModifierReadView GetReadView() =>
         new(
@@ -117,17 +123,19 @@ internal sealed class BattleUnitSaveModifierState
             new BattleSaveModifierTagReadView(_advantageTags),
             new BattleSaveModifierTagReadView(_disadvantageTags),
             new BattleSaveModifierTagReadView(_immunityTags),
-            new BattleSaveAbilityBonusReadView(_bonusByAbility)
+            new BattleSaveAbilityBonusReadView(_bonusByAbility),
+            new BattleSaveAbilityBonusReadView(_bonusByTag)
         );
 
     internal void ResetNormalized() =>
-        ReplaceNormalized(null, null, null, null);
+        ReplaceNormalized(null, null, null, null, null);
 
     internal void ReplaceNormalized(
         IEnumerable<StringName> advantageTags,
         IEnumerable<StringName> disadvantageTags,
         IEnumerable<StringName> immunityTags,
-        IReadOnlyDictionary<StringName, int> bonusByAbility
+        IReadOnlyDictionary<StringName, int> bonusByAbility,
+        IReadOnlyDictionary<StringName, int> bonusByTag
     )
     {
         StringNameList normalizedAdvantageTags = NormalizeTags(
@@ -141,11 +149,14 @@ internal sealed class BattleUnitSaveModifierState
         );
         BattleStringNameIntMap normalizedBonusByAbility =
             NormalizeBonuses(bonusByAbility);
+        BattleStringNameIntMap normalizedBonusByTag =
+            NormalizeBonuses(bonusByTag);
 
         _advantageTags = normalizedAdvantageTags;
         _disadvantageTags = normalizedDisadvantageTags;
         _immunityTags = normalizedImmunityTags;
         _bonusByAbility = normalizedBonusByAbility;
+        _bonusByTag = normalizedBonusByTag;
     }
 
     internal void ReplaceTagsNormalized(
@@ -173,6 +184,11 @@ internal sealed class BattleUnitSaveModifierState
         IReadOnlyDictionary<StringName, int> bonusByAbility
     ) =>
         _bonusByAbility = NormalizeBonuses(bonusByAbility);
+
+    internal void ReplaceTagBonusesNormalized(
+        IReadOnlyDictionary<StringName, int> bonusByTag
+    ) =>
+        _bonusByTag = NormalizeBonuses(bonusByTag);
 
     internal void AppendTagsNormalized(
         IEnumerable<StringName> advantageTags,
@@ -213,6 +229,16 @@ internal sealed class BattleUnitSaveModifierState
             ? bonus
             : fallback;
 
+    internal int GetTagBonus(
+        StringName tag,
+        int fallback = 0
+    ) =>
+        !IsEmpty(tag)
+        && _bonusByTag != null
+        && _bonusByTag.TryGetValue(tag, out int bonus)
+            ? bonus
+            : fallback;
+
     internal bool AddAbilityBonusNormalized(
         StringName ability,
         int bonus
@@ -232,7 +258,8 @@ internal sealed class BattleUnitSaveModifierState
             _advantageTags?.Duplicate(),
             _disadvantageTags?.Duplicate(),
             _immunityTags?.Duplicate(),
-            _bonusByAbility?.Clone()
+            _bonusByAbility?.Clone(),
+            _bonusByTag?.Clone()
         );
 
     internal void RestoreRaw(
@@ -243,6 +270,7 @@ internal sealed class BattleUnitSaveModifierState
         _disadvantageTags = snapshot.DisadvantageTags?.Duplicate();
         _immunityTags = snapshot.ImmunityTags?.Duplicate();
         _bonusByAbility = snapshot.BonusByAbility?.Clone();
+        _bonusByTag = snapshot.BonusByTag?.Clone();
     }
 
     internal BattleUnitSaveModifierState DuplicateState() =>
@@ -256,6 +284,8 @@ internal sealed class BattleUnitSaveModifierState
                 _immunityTags?.Duplicate() ?? new StringNameList(),
             _bonusByAbility =
                 _bonusByAbility?.Clone() ?? new BattleStringNameIntMap(),
+            _bonusByTag =
+                _bonusByTag?.Clone() ?? new BattleStringNameIntMap(),
         };
 
     internal static BattleUnitSaveModifierState FromRaw(

@@ -33,10 +33,15 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
         return ReadOnly(
             new Dictionary<StringName, EquipmentAbilityHandlerSpec>
             {
+                // §8.4：add_damage_dice 同时服务 weapon-hit（on_hit）与 per-main-direct-effect
+                // （on_damage_roll/before_damage）query；两条 query 都在 canonical 伤害结算管线内
+                // 纯读取运行，execute/preview/AI 共用同一 ResolveDamageOutcome 路径，期望值按
+                // 预计实际主伤害结算次数逐段累计。
                 ["add_damage_dice"] = Action(
                     "add_damage_dice",
                     typeof(AddDamageDiceActionPayloadDef),
-                    typeof(AddDamageDiceActionPayloadDefinition)
+                    typeof(AddDamageDiceActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["immediate_weapon_attack"] = Action(
                     "immediate_weapon_attack",
@@ -92,6 +97,12 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     "damage_reduction",
                     typeof(DamageReductionActionPayloadDef),
                     typeof(DamageReductionActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
+                ),
+                ["grant_mitigation_tier"] = Action(
+                    "grant_mitigation_tier",
+                    typeof(GrantMitigationTierActionPayloadDef),
+                    typeof(GrantMitigationTierActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["loot_quantity_multiplier"] = Action(
@@ -259,6 +270,13 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     Trigger = EquipmentAbilityTriggerKind.OnAttackCheck,
                     AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
                         new[] { EquipmentAbilityTimingKind.AfterAttackCheck }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnAttackHit] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnAttackHit,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterHit }
                     ),
                 },
                 [EquipmentAbilityTriggerKind.OnTargetMarkExpired] = new()

@@ -36,11 +36,24 @@ internal static class EquipmentAbilityPayloadValidators
         List<string> errors
     )
     {
+        EquipmentAbilityDamageTypeModeKind damageTypeMode =
+            EquipmentAbilityDamageTypeModeContentRules.ToKind(payload.damage_type_mode);
+        if (!EquipmentAbilityDamageTypeModeContentRules.IsValid(damageTypeMode))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_DAMAGE_TYPE_MODE_INVALID",
+                $"{path}.payload.damage_type_mode",
+                $"add_damage_dice damage_type_mode {payload.damage_type_mode} is not supported; expected explicit or inherit_primary"
+            );
+        }
+        bool inheritPrimary =
+            damageTypeMode == EquipmentAbilityDamageTypeModeKind.InheritPrimary;
         bool hasDiceTerm = payload.dice != null && payload.dice.terms.Count > 0;
         bool hasFlatBonus = payload.dice != null && payload.dice.flat_bonus > 0;
         if (
             payload.target_selector == ""
-            || payload.damage_type == ""
+            || (!inheritPrimary && payload.damage_type == "")
             || payload.dice == null
             || (!hasDiceTerm && !hasFlatBonus)
         )
@@ -49,7 +62,21 @@ internal static class EquipmentAbilityPayloadValidators
                 errors,
                 "EQA_ACTION_REQUIRED_FIELD_MISSING",
                 path,
-                "add_damage_dice requires target_selector, damage_type, and dice terms or positive flat_bonus"
+                inheritPrimary
+                    ? "add_damage_dice requires target_selector and dice terms or positive flat_bonus"
+                    : "add_damage_dice requires target_selector, damage_type, and dice terms or positive flat_bonus"
+            );
+        }
+        if (
+            inheritPrimary
+            && (payload.damage_type != "" || (payload.damage_tags?.Count ?? 0) > 0)
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_DAMAGE_TYPE_MODE_INHERIT_CONFLICT",
+                $"{path}.payload.damage_type_mode",
+                "add_damage_dice damage_type_mode inherit_primary forbids an explicit damage_type or damage_tags"
             );
         }
         if (
@@ -594,6 +621,66 @@ internal static class EquipmentAbilityPayloadValidators
                 "EQA_DAMAGE_REDUCTION_TARGET_SELECTOR_UNSUPPORTED",
                 $"{path}.payload.target_selector",
                 $"damage_reduction target_selector {payload.target_selector} is not supported"
+            );
+        }
+    }
+
+    internal static void ValidateGrantMitigationTierPayload(
+        GrantMitigationTierActionPayloadDef payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.target_selector == ""
+            || payload.mitigation_tier == ""
+            || (payload.damage_tags?.Count ?? 0) == 0
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "grant_mitigation_tier requires target_selector, mitigation_tier, and at least one damage tag"
+            );
+        }
+        ValidateDamageTagArray(
+            payload.damage_tags,
+            context,
+            $"{path}.payload.damage_tags",
+            errors
+        );
+        DamageMitigationTierKind tierKind = DamageTagContentRules.ToMitigationTierKind(
+            payload.mitigation_tier
+        );
+        if (
+            payload.mitigation_tier != ""
+            && tierKind
+                is DamageMitigationTierKind.Unknown
+                    or DamageMitigationTierKind.Normal
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_GRANT_MITIGATION_TIER_INVALID",
+                $"{path}.payload.mitigation_tier",
+                $"grant_mitigation_tier mitigation_tier must be one of half, double, immune"
+            );
+        }
+        if (
+            payload.target_selector != ""
+            && payload.target_selector != "self"
+            && payload.target_selector != "holder"
+            && payload.target_selector != "defender"
+            && payload.target_selector != "damage_target"
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_GRANT_MITIGATION_TIER_TARGET_SELECTOR_UNSUPPORTED",
+                $"{path}.payload.target_selector",
+                $"grant_mitigation_tier target_selector {payload.target_selector} is not supported"
             );
         }
     }
@@ -1530,6 +1617,18 @@ internal static class EquipmentAbilityPayloadValidators
                 "EQA_ACTION_INVALID_VALUE",
                 $"{path}.payload.render_layers",
                 "apply_edge_feature render_layers must be >= 0"
+            );
+        }
+        // 边墙移除后（2026-08-16）没有任何 LOS 阻断消费者，blocks_los 会被静默忽略。
+        // 字段本身保留（移除该 [Export] 会触发 Godot mono finalizer 崩溃，见
+        // docs/proposals/battle/skill_runtime_expansion.md），改为在内容期 fail-closed 拒绝。
+        if (payload.blocks_los)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.blocks_los",
+                "apply_edge_feature blocks_los has no runtime consumer since edge walls were removed; leave it false"
             );
         }
         if (!IsValidEdgeEndpointSelector(payload.from_selector, sourceOnly: true))

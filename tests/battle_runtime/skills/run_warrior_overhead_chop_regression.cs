@@ -367,5 +367,15 @@ public partial class run_warrior_overhead_chop_regression : LifecycleTestSceneTr
             BattleEquipmentAbilityMitigationAuraContext context
         ) => Array.Empty<BattleEquipmentAbilityMitigationAuraResult>();
 
+        public IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+            BattleEquipmentAbilityMitigationTierContext context
+        ) => Array.Empty<BattleEquipmentAbilityMitigationTierResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+            CollectBonusDamageDiceForEffect(BattleEquipmentAbilityDirectDamageContext context)
+        {
+            return Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>();
+        }
+
     }
 }

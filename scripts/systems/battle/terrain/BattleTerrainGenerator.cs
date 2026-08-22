@@ -504,12 +504,6 @@ public class BattleTerrainGenerator : IDisposable
         try
         {
             RelaxOrdinarySlopeDeltas(cells, mapSize);
-            AuthorSeamWall(
-                cells,
-                mapSize,
-                gateX,
-                new HashSet<int> { laneY, Math.Min(laneY + 1, mapSize.Y - 1) }
-            );
             Vector2I playerCoord = FirstDryCoord(cells, new Vector2I(1, laneY));
             Vector2I enemyCoord = FirstDryCoord(cells, new Vector2I(mapSize.X - 2, laneY));
             AddStandardProps(
@@ -583,12 +577,6 @@ public class BattleTerrainGenerator : IDisposable
         try
         {
             RelaxOrdinarySlopeDeltas(cells, mapSize);
-            AuthorSeamWall(
-                cells,
-                mapSize,
-                holdLineX,
-                new HashSet<int> { openingY }
-            );
             Vector2I playerCoord = FirstDryCoord(cells, new Vector2I(1, openingY));
             Vector2I enemyCoord = FirstDryCoord(cells, new Vector2I(mapSize.X - 2, openingY));
             AddStandardProps(
@@ -1002,10 +990,6 @@ public class BattleTerrainGenerator : IDisposable
                 {
                     continue;
                 }
-                if (EdgeHasAuthoredMoveBlock(cell, offset))
-                {
-                    continue;
-                }
                 if (Math.Abs(cell.current_height - neighbor.current_height) > MaxOrdinarySlopeDelta)
                 {
                     count++;
@@ -1024,15 +1008,6 @@ public class BattleTerrainGenerator : IDisposable
             && cell != null
             && cell.passable
             && !BattleTerrainRules.IsWaterTerrain(cell.base_terrain);
-    }
-
-    private static bool EdgeHasAuthoredMoveBlock(BattleCellState cell, Vector2I direction)
-    {
-        BattleEdgeFeatureState feature =
-            direction == Vector2I.Right ? cell.edge_feature_east
-            : direction == Vector2I.Down ? cell.edge_feature_south
-            : null;
-        return feature != null && feature.blocks_move;
     }
 
     private static BattleCellState CreateCell(Vector2I coord, int height, StringName terrain)
@@ -1083,28 +1058,6 @@ public class BattleTerrainGenerator : IDisposable
             foreach (Vector2I offset in FourWayOffsets())
             {
                 frontier.Enqueue(current + offset);
-            }
-        }
-    }
-
-    private static void AuthorSeamWall(
-        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
-        Vector2I mapSize,
-        int seamX,
-        HashSet<int> openRows
-    )
-    {
-        for (int y = 0; y < mapSize.Y; y++)
-        {
-            if (openRows.Contains(y))
-            {
-                continue;
-            }
-            Vector2I coord = new(seamX, y);
-            if (cells.TryGetValue(coord, out BattleCellState cell) && cell != null)
-            {
-                BattleEdgeFeatureState wall = BattleEdgeFeatureState.MakeWall();
-                cell.SetEdgeFeature(Vector2I.Right, wall);
             }
         }
     }

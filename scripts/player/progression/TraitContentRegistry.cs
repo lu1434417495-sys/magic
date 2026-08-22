@@ -9,6 +9,7 @@ public class TraitContentRegistry : IdentityContentRegistryBase
     private const string TraitConfigDirectoryPath = "res://data/configs/traits";
 
     private readonly Dictionary<StringName, TraitDefinition> _traitDefinitions = new();
+    private readonly IContentResourceLoader _resourceLoader;
 
     internal TraitContentRegistry(IContentResourceLoader resourceLoader)
         : this(resourceLoader, loadDefaultContent: true) { }
@@ -17,8 +18,10 @@ public class TraitContentRegistry : IdentityContentRegistryBase
         IContentResourceLoader resourceLoader,
         bool loadDefaultContent
     )
-        : base(resourceLoader)
+        : base()
     {
+        _resourceLoader = resourceLoader
+            ?? throw new ArgumentNullException(nameof(resourceLoader));
         _registry_label = "TraitContentRegistry";
         if (loadDefaultContent)
             Rebuild();
@@ -37,7 +40,7 @@ public class TraitContentRegistry : IdentityContentRegistryBase
         _validation_errors.Clear();
         foreach (string directoryPath in directoryPaths)
         {
-            _scan_directory(directoryPath);
+            ScanDirectory(directoryPath);
         }
         foreach (string error in CollectValidationErrors())
         {
@@ -69,7 +72,50 @@ public class TraitContentRegistry : IdentityContentRegistryBase
         _traitDefinitions.Clear();
     }
 
-    protected override void _register_resource(string resourcePath)
+    private void ScanDirectory(string directoryPath)
+    {
+        if (!DirAccess.DirExistsAbsolute(directoryPath))
+        {
+            _validation_errors.Add($"{_registry_label} could not find {directoryPath}.");
+            return;
+        }
+
+        DirAccess directory = DirAccess.Open(directoryPath);
+        if (directory == null)
+        {
+            _validation_errors.Add($"{_registry_label} could not open {directoryPath}.");
+            return;
+        }
+
+        try
+        {
+            directory.ListDirBegin();
+            while (true)
+            {
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+                if (directory.CurrentIsDir())
+                {
+                    ScanDirectory(entryPath);
+                    continue;
+                }
+                if (entryName.EndsWith(".tres") || entryName.EndsWith(".res"))
+                    RegisterResource(entryPath);
+            }
+            directory.ListDirEnd();
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
+    }
+
+    private void RegisterResource(string resourcePath)
     {
         Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
@@ -281,6 +327,51 @@ public class TraitContentRegistry : IdentityContentRegistryBase
             if (entry.Bonus == 0)
             {
                 errors.Add($"{entryLabel}.bonus must be non-zero.");
+            }
+        }
+
+        HashSet<string> seenSaveTagBonusKeys = new(StringComparer.Ordinal);
+        for (int index = 0; index < traitDef.SaveTagBonusEntries.Count; index++)
+        {
+            TraitSaveTagBonusEntryDefinition entry = traitDef.SaveTagBonusEntries[index];
+            string entryLabel = $"{ownerLabel}.save_tag_bonus_entries[{index}]";
+            if (entry == null)
+            {
+                errors.Add($"{entryLabel} must be a TraitSaveTagBonusEntryDef.");
+                continue;
+            }
+
+            StringName saveTag = entry.SaveTag;
+            if (saveTag == "")
+            {
+                errors.Add($"{entryLabel}.save_tag must be a non-empty StringName.");
+            }
+            else if (!BattleSaveContentRules.IsValidSaveTag(saveTag))
+            {
+                errors.Add(
+                    $"{entryLabel}.save_tag references unsupported save tag {saveTag}."
+                );
+            }
+
+            if (entry.StackModeKind == TraitSaveTagBonusStackModeKind.Unknown)
+            {
+                errors.Add(
+                    $"{entryLabel}.stack_mode uses unsupported value {entry.StackMode}."
+                );
+            }
+            else if (
+                saveTag != ""
+                && !seenSaveTagBonusKeys.Add($"{saveTag}\n{entry.StackMode}")
+            )
+            {
+                errors.Add(
+                    $"{entryLabel} duplicates save tag bonus ({saveTag}, {entry.StackMode})."
+                );
+            }
+
+            if (entry.Bonus <= 0)
+            {
+                errors.Add($"{entryLabel}.bonus must be positive.");
             }
         }
 

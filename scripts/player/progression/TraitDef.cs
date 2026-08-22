@@ -61,6 +61,10 @@ public partial class TraitDef : Resource
     public Godot.Collections.Array<TraitSaveBonusEntryDef> save_bonus_entries { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<TraitSaveTagBonusEntryDef> save_tag_bonus_entries { get; set; } =
+        new();
+
+    [Export]
     public Godot.Collections.Array<TraitPassiveStatusEffectDef> passive_status_effects { get; set; } =
         new();
 
@@ -83,6 +87,8 @@ public partial class TraitDef : Resource
         damage_resistance_entries;
     internal Godot.Collections.Array<TraitSaveBonusEntryDef> SaveBonusEntriesProjectionBorrowed =>
         save_bonus_entries;
+    internal Godot.Collections.Array<TraitSaveTagBonusEntryDef> SaveTagBonusEntriesProjectionBorrowed =>
+        save_tag_bonus_entries;
     internal Godot.Collections.Array<TraitPassiveStatusEffectDef> PassiveStatusEffectsProjectionBorrowed =>
         passive_status_effects;
     internal Godot.Collections.Array<TraitRollValueSchemaEntry> RollValueSchemaProjectionBorrowed =>

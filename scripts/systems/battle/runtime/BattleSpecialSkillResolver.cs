@@ -448,6 +448,13 @@ public class BattleSpecialSkillResolver
                                 )
                             )
                             .WithForcedMoveApplied()
+                            .WithDamageOriginKind(
+                                BattleDamageOriginContentRules.ResolveProducerOrigin(
+                                    BattleDamageOriginKind.MainDirectEffect,
+                                    active_unit,
+                                    target_unit ?? active_unit
+                                )
+                            )
                     );
                 if (
                     followUpResult is AttackEffectResolutionResult resolvedFollowUp

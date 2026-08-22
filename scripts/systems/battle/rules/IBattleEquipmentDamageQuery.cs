@@ -18,4 +18,12 @@ internal interface IBattleEquipmentDamageQuery
     IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> CollectMitigationAuras(
         BattleEquipmentAbilityMitigationAuraContext context
     );
+
+    IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+        BattleEquipmentAbilityMitigationTierContext context
+    );
+
+    IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> CollectBonusDamageDiceForEffect(
+        BattleEquipmentAbilityDirectDamageContext context
+    );
 }

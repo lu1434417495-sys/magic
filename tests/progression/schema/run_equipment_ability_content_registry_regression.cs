@@ -28,6 +28,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         TestFailedRebuildKeepsLastSuccessfulSnapshot();
         TestInvalidNestedConditionGroupReturnsStableValidationResult();
         TestInvalidContentFailsFastWithStableCodesAndPaths();
+        TestWeaponProfileOverlayValidation();
 
         RequestTestExit(_test.Finish("Equipment ability content registry regression"));
     }
@@ -252,6 +253,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             saveImmunityTags: Array.Empty<StringName>(),
             damageResistanceEntries: Array.Empty<TraitDamageResistanceEntryDefinition>(),
             saveBonusEntries: Array.Empty<TraitSaveBonusEntryDefinition>(),
+            saveTagBonusEntries: Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             passiveStatusEffects: new[]
             {
                 new TraitPassiveStatusEffectDefinition(
@@ -1861,6 +1863,391 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
                 },
             },
         };
+
+    private void TestWeaponProfileOverlayValidation()
+    {
+        EquipmentAbilityBindingDef validOverlayBinding = BuildBinding(
+            "valid.overlay",
+            reaction: ReactionWithAction(
+                "reaction.valid_overlay",
+                BuildValidAddDamageAction("action.valid_overlay")
+            )
+        );
+        validOverlayBinding.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.valid",
+                priority = 5,
+                attack_range_delta = 1,
+                min_attack_range = 1,
+                max_attack_range = 6,
+                grip_override = "one_handed",
+                physical_damage_tag_override = "physical_slash",
+                required_weapon_families = { "sword" },
+                one_handed_dice_overlay = new EquipmentWeaponDiceOverlayDef
+                {
+                    mode = "add",
+                    dice_count_delta = 1,
+                },
+                two_handed_dice_overlay = new EquipmentWeaponDiceOverlayDef
+                {
+                    mode = "override",
+                    dice_override = new DiceExpressionDef
+                    {
+                        terms =
+                        {
+                            new DiceExpressionTermDef { dice_count = 2, dice_sides = 6 },
+                        },
+                        flat_bonus = 1,
+                    },
+                },
+                condition_group = new EquipmentAbilityConditionGroupDef
+                {
+                    conditions =
+                    {
+                        new EquipmentAbilityConditionDef
+                        {
+                            condition_id = "condition.valid_overlay",
+                            kind = "has_equipment_tag",
+                            payload = new HasEquipmentTagConditionPayloadDef
+                            {
+                                subject = "source",
+                                equipment_selector = "main_hand",
+                                all_tags = { "blade" },
+                            },
+                        },
+                    },
+                },
+            }
+        );
+        EquipmentAbilityContentPackDef validPack = BuildValidPack(
+            "pack.overlay_valid",
+            "binding.overlay_valid_base"
+        );
+        validPack.bindings.Add(validOverlayBinding);
+
+        using var validLoader = new TestContentResourceLoader();
+        using var validRegistry = new EquipmentAbilityContentRegistry(validLoader);
+        EquipmentAbilityRegistryBuildResult validResult = validRegistry.Rebuild(
+            new[] { validPack },
+            BuildValidationContext()
+        );
+        _test.True(
+            validResult.Success,
+            $"valid weapon profile overlay content should build: {FormatErrors(validResult.Errors)}"
+        );
+        if (validResult.Success)
+        {
+            EquipmentAbilityBindingDefinition projected =
+                validRegistry.GetBindingDefinitionsTyped()["valid.overlay"];
+            _test.Eq(
+                projected.WeaponProfileOverlays.Count,
+                1,
+                "valid overlay should project onto the binding definition."
+            );
+            _test.Eq(
+                projected.WeaponProfileOverlays[0].OneHandedDiceOverlay.Mode,
+                EquipmentWeaponDiceOverlayModeKind.Add,
+                "dice overlay mode should project to the typed add kind."
+            );
+            _test.Eq(
+                projected.WeaponProfileOverlays[0].TwoHandedDiceOverlay.Mode,
+                EquipmentWeaponDiceOverlayModeKind.Override,
+                "dice override mode should project to the typed override kind."
+            );
+        }
+
+        EquipmentAbilityContentPackDef invalidPack = new()
+        {
+            pack_id = "pack.overlay_invalid",
+            schema_version = 1,
+            load_order = 10,
+        };
+
+        EquipmentAbilityBindingDef missingId = BuildBinding(
+            "bad.overlay_missing_id",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_missing_id",
+                BuildValidAddDamageAction("action.bad_overlay_missing_id")
+            )
+        );
+        missingId.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef { attack_range_delta = 1 }
+        );
+        invalidPack.bindings.Add(missingId);
+
+        EquipmentAbilityBindingDef duplicateId = BuildBinding(
+            "bad.overlay_duplicate_id",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_duplicate_id",
+                BuildValidAddDamageAction("action.bad_overlay_duplicate_id")
+            )
+        );
+        duplicateId.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef { overlay_id = "overlay.dup" }
+        );
+        duplicateId.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef { overlay_id = "overlay.dup" }
+        );
+        invalidPack.bindings.Add(duplicateId);
+
+        EquipmentAbilityBindingDef badGrip = BuildBinding(
+            "bad.overlay_grip",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_grip",
+                BuildValidAddDamageAction("action.bad_overlay_grip")
+            )
+        );
+        badGrip.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_grip",
+                grip_override = "third_hand",
+            }
+        );
+        invalidPack.bindings.Add(badGrip);
+
+        EquipmentAbilityBindingDef badTag = BuildBinding(
+            "bad.overlay_tag",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_tag",
+                BuildValidAddDamageAction("action.bad_overlay_tag")
+            )
+        );
+        badTag.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_tag",
+                physical_damage_tag_override = "fire",
+            }
+        );
+        invalidPack.bindings.Add(badTag);
+
+        EquipmentAbilityBindingDef badClamp = BuildBinding(
+            "bad.overlay_clamp",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_clamp",
+                BuildValidAddDamageAction("action.bad_overlay_clamp")
+            )
+        );
+        badClamp.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_clamp",
+                min_attack_range = 5,
+                max_attack_range = 2,
+            }
+        );
+        invalidPack.bindings.Add(badClamp);
+
+        EquipmentAbilityBindingDef badFilter = BuildBinding(
+            "bad.overlay_filter",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_filter",
+                BuildValidAddDamageAction("action.bad_overlay_filter")
+            )
+        );
+        badFilter.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_filter",
+                required_weapon_families = { "sword", "" },
+            }
+        );
+        invalidPack.bindings.Add(badFilter);
+
+        EquipmentAbilityBindingDef badDiceMode = BuildBinding(
+            "bad.overlay_dice_mode",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_dice_mode",
+                BuildValidAddDamageAction("action.bad_overlay_dice_mode")
+            )
+        );
+        badDiceMode.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_dice_mode",
+                one_handed_dice_overlay = new EquipmentWeaponDiceOverlayDef
+                {
+                    mode = "multiply",
+                    dice_count_delta = 1,
+                },
+            }
+        );
+        invalidPack.bindings.Add(badDiceMode);
+
+        EquipmentAbilityBindingDef emptyAdd = BuildBinding(
+            "bad.overlay_dice_add_empty",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_dice_add_empty",
+                BuildValidAddDamageAction("action.bad_overlay_dice_add_empty")
+            )
+        );
+        emptyAdd.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_dice_add_empty",
+                one_handed_dice_overlay = new EquipmentWeaponDiceOverlayDef
+                {
+                    mode = "add",
+                },
+            }
+        );
+        invalidPack.bindings.Add(emptyAdd);
+
+        EquipmentAbilityBindingDef badOverride = BuildBinding(
+            "bad.overlay_dice_override",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_dice_override",
+                BuildValidAddDamageAction("action.bad_overlay_dice_override")
+            )
+        );
+        badOverride.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_dice_override",
+                two_handed_dice_overlay = new EquipmentWeaponDiceOverlayDef
+                {
+                    mode = "override",
+                    dice_override = new DiceExpressionDef
+                    {
+                        terms =
+                        {
+                            new DiceExpressionTermDef { dice_count = 1, dice_sides = 6 },
+                            new DiceExpressionTermDef { dice_count = 1, dice_sides = 6 },
+                        },
+                    },
+                },
+            }
+        );
+        invalidPack.bindings.Add(badOverride);
+
+        EquipmentAbilityBindingDef statusCondition = BuildBinding(
+            "bad.overlay_condition_status",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_condition_status",
+                BuildValidAddDamageAction("action.bad_overlay_condition_status")
+            )
+        );
+        statusCondition.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_condition_status",
+                condition_group = new EquipmentAbilityConditionGroupDef
+                {
+                    conditions =
+                    {
+                        new EquipmentAbilityConditionDef
+                        {
+                            condition_id = "condition.bad_overlay_status",
+                            kind = "has_status",
+                            payload = new HasStatusConditionPayloadDef
+                            {
+                                subject = "source",
+                                status_id = "burning",
+                            },
+                        },
+                    },
+                },
+            }
+        );
+        invalidPack.bindings.Add(statusCondition);
+
+        EquipmentAbilityBindingDef targetSubject = BuildBinding(
+            "bad.overlay_condition_subject",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_condition_subject",
+                BuildValidAddDamageAction("action.bad_overlay_condition_subject")
+            )
+        );
+        targetSubject.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_condition_subject",
+                condition_group = new EquipmentAbilityConditionGroupDef
+                {
+                    conditions =
+                    {
+                        new EquipmentAbilityConditionDef
+                        {
+                            condition_id = "condition.bad_overlay_subject",
+                            kind = "has_equipment_tag",
+                            payload = new HasEquipmentTagConditionPayloadDef
+                            {
+                                subject = "target",
+                                equipment_selector = "main_hand",
+                                all_tags = { "blade" },
+                            },
+                        },
+                    },
+                },
+            }
+        );
+        invalidPack.bindings.Add(targetSubject);
+
+        EquipmentAbilityBindingDef missingSelector = BuildBinding(
+            "bad.overlay_condition_no_selector",
+            reaction: ReactionWithAction(
+                "reaction.bad_overlay_condition_no_selector",
+                BuildValidAddDamageAction("action.bad_overlay_condition_no_selector")
+            )
+        );
+        missingSelector.weapon_profile_overlays.Add(
+            new EquipmentWeaponProfileOverlayDef
+            {
+                overlay_id = "overlay.bad_condition_no_selector",
+                condition_group = new EquipmentAbilityConditionGroupDef
+                {
+                    conditions =
+                    {
+                        new EquipmentAbilityConditionDef
+                        {
+                            condition_id = "condition.bad_overlay_no_selector",
+                            kind = "has_equipment_tag",
+                            payload = new HasEquipmentTagConditionPayloadDef
+                            {
+                                subject = "source",
+                                all_tags = { "blade" },
+                            },
+                        },
+                    },
+                },
+            }
+        );
+        invalidPack.bindings.Add(missingSelector);
+
+        using var invalidLoader = new TestContentResourceLoader();
+        using var invalidRegistry = new EquipmentAbilityContentRegistry(invalidLoader);
+        EquipmentAbilityRegistryBuildResult invalidResult = invalidRegistry.Rebuild(
+            new[] { invalidPack },
+            BuildValidationContext()
+        );
+        _test.False(invalidResult.Success, "invalid overlay content should fail registry build.");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_ID_MISSING", "bad.overlay_missing_id");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_ID_DUPLICATE", "bad.overlay_duplicate_id");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_GRIP_INVALID", "bad.overlay_grip");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_DAMAGE_TAG_INVALID", "bad.overlay_tag");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_RANGE_CLAMP_INVALID", "bad.overlay_clamp");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_WEAPON_FILTER_INVALID", "bad.overlay_filter");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_DICE_MODE_INVALID", "bad.overlay_dice_mode");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_DICE_ADD_EMPTY", "bad.overlay_dice_add_empty");
+        AssertErrorContains(invalidResult.Errors, "EQA_OVERLAY_DICE_OVERRIDE_INVALID", "bad.overlay_dice_override");
+        AssertErrorContains(
+            invalidResult.Errors,
+            "EQA_OVERLAY_CONDITION_NOT_PROJECTION_SAFE",
+            "bad.overlay_condition_status"
+        );
+        AssertErrorContains(
+            invalidResult.Errors,
+            "EQA_OVERLAY_CONDITION_NOT_PROJECTION_SAFE",
+            "bad.overlay_condition_subject"
+        );
+        AssertErrorContains(
+            invalidResult.Errors,
+            "EQA_OVERLAY_CONDITION_NOT_PROJECTION_SAFE",
+            "bad.overlay_condition_no_selector"
+        );
+    }
 
     private static EquipmentAbilityContentValidationContext BuildValidationContext()
     {

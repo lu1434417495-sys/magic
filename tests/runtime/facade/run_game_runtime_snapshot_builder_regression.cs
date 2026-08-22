@@ -9,7 +9,7 @@ using PlainDictionary = System.Collections.Generic.IReadOnlyDictionary<string, o
 
 public partial class run_game_runtime_snapshot_builder_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private readonly TestHarness _test = new();
 
@@ -46,6 +46,8 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         TestSnapshotBuilderExposesGameOverSnapshot();
         TestSnapshotBuilderExposesBattleLootSnapshot();
         TestSnapshotBuilderOmitsLootSectionWhenEmpty();
+        TestSnapshotBuilderExposesGearSetSummary();
+        TestSnapshotBuilderExposesBattleGearSetSummary();
 
         return _test.Finish("Game runtime snapshot builder regression");
     }
@@ -394,6 +396,278 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         {
             builder.Dispose();
         }
+    }
+
+    private static readonly (StringName ItemId, StringName SlotId)[] DragonScaleMembers =
+    {
+        ("armor_dragon_scale_head", "head"),
+        ("armor_dragon_scale_body", "body"),
+        ("armor_dragon_scale_hands", "hands"),
+        ("armor_dragon_scale_feet", "feet"),
+    };
+
+    private void TestSnapshotBuilderExposesGearSetSummary()
+    {
+        ContentSnapshot content = GameSessionTestFactory.GetProcessSnapshot();
+        _test.True(
+            content.GearSets.ContainsKey(new StringName("dragon_scale_set")),
+            "正式内容快照应包含龙鳞铠甲套装。"
+        );
+
+        var partyState = new PartyState();
+        var hero = new PartyMemberState
+        {
+            member_id = "hero",
+            display_name = "Hero",
+            progression = new UnitProgress { unit_id = "hero", display_name = "Hero" },
+            equipment_state = new EquipmentState(),
+        };
+        partyState.SetMemberState(hero);
+        partyState.active_member_ids.Add("hero");
+        partyState.leader_member_id = "hero";
+        EquipDragonScalePieces(hero.equipment_state, new[] { 0, 1, 2, 3 }, "eq_snapshot_gear_set");
+
+        var runtime = new SnapshotTestRuntime
+        {
+            PartyState = partyState,
+            ItemDefinitions = content.Items,
+            GearSetDefinitions = content.GearSets,
+            EquipmentAbilityBindings = content.EquipmentAbilityBindings,
+            TraitDefinitions = content.Traits,
+            SkillDefinitions = content.Skills,
+            WorldStep = 27,
+        };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        try
+        {
+            PlainDictionary member = FindPartyMember(builder.BuildHeadlessSnapshotPlain(), "hero");
+            _test.True(member != null, "headless party snapshot 应包含 hero 成员。");
+            if (member == null)
+                return;
+            PlainArray gearSets = ArrayValue(member, "gear_sets");
+            _test.Eq(gearSets.Count, 1, "headless 成员快照应包含一个套装摘要。");
+            if (gearSets.Count == 0)
+                return;
+            PlainDictionary set = (PlainDictionary)gearSets[0];
+            _test.Eq(
+                string.Join(",", set.Keys),
+                "gear_set_id,display_name,equipped_piece_count,total_piece_count,thresholds,granted_actions",
+                "headless 套装摘要应保持严格六字段顺序。"
+            );
+            _test.Eq(StringValue(set, "gear_set_id"), "dragon_scale_set", "套装 id 应稳定。");
+            _test.Eq(IntValue(set, "equipped_piece_count"), 4, "套装摘要应显示 4 件。");
+            _test.Eq(IntValue(set, "total_piece_count"), 4, "套装摘要应显示总 4 件。");
+            PlainArray thresholds = ArrayValue(set, "thresholds");
+            _test.Eq(thresholds.Count, 2, "套装摘要应包含两档阈值。");
+            if (thresholds.Count == 2)
+            {
+                PlainDictionary first = (PlainDictionary)thresholds[0];
+                PlainDictionary second = (PlainDictionary)thresholds[1];
+                _test.Eq(IntValue(first, "required_piece_count"), 2, "首档阈值应为 2 件。");
+                _test.True(BoolValue(first, "is_active"), "2 件阈值应激活。");
+                _test.Eq(IntValue(second, "required_piece_count"), 4, "次档阈值应为 4 件。");
+                _test.True(BoolValue(second, "is_active"), "4 件阈值应激活。");
+            }
+            PlainArray actions = ArrayValue(set, "granted_actions");
+            _test.Eq(actions.Count, 1, "四件时应投影一条龙血沸腾 granted action。");
+            if (actions.Count == 0)
+                return;
+            PlainDictionary action = (PlainDictionary)actions[0];
+            _test.Eq(
+                string.Join(",", action.Keys),
+                "granted_action_id,skill_id,display_name,usage_period_kind,max_uses_per_period,is_available,remaining_uses,disabled_reason",
+                "granted action 事实应保持严格八字段顺序。"
+            );
+            _test.Eq(
+                StringValue(action, "granted_action_id"),
+                "grant.dragon_scale.oath.dragon_blood_boil",
+                "granted action id 应为龙血沸腾授予。"
+            );
+            _test.Eq(
+                StringValue(action, "skill_id"),
+                "equipment_dragon_scale_dragon_blood_boil",
+                "granted action 应指向龙血沸腾技能。"
+            );
+            _test.Eq(StringValue(action, "usage_period_kind"), "per_world_day", "龙血沸腾应为每日周期。");
+            _test.True(BoolValue(action, "is_available"), "未使用时龙血沸腾应可用。");
+            _test.Eq(IntValue(action, "remaining_uses"), 1, "未使用时龙血沸腾应剩余 1 次。");
+            _test.Eq(StringValue(action, "disabled_reason"), "", "可用时 disabled reason 应为空。");
+
+            string firstFingerprint = SnapshotFingerprint(builder);
+
+            EquipmentInstanceState anchor = hero.equipment_state.GetEquippedInstance("head");
+            _test.True(anchor != null, "龙鳞头盔锚点实例应已装备。");
+            anchor?.ability_usage_periods.Add(
+                new EquipmentAbilityUsagePeriodState
+                {
+                    AbilityId = "grant.dragon_scale.oath.dragon_blood_boil",
+                    PeriodKind = "per_world_day",
+                    PeriodIndex = 1,
+                    UsedCount = 1,
+                }
+            );
+            member = FindPartyMember(builder.BuildHeadlessSnapshotPlain(), "hero");
+            action = (PlainDictionary)ArrayValue(
+                (PlainDictionary)ArrayValue(member, "gear_sets")[0],
+                "granted_actions"
+            )[0];
+            _test.False(BoolValue(action, "is_available"), "当日已用后龙血沸腾应不可用。");
+            _test.Eq(IntValue(action, "remaining_uses"), 0, "当日已用后应剩余 0 次。");
+            _test.Eq(
+                StringValue(action, "disabled_reason"),
+                "equipment_skill_usage_exhausted",
+                "当日已用后应暴露 usage exhausted disabled reason。"
+            );
+
+            _test.Eq(
+                SnapshotFingerprint(builder),
+                SnapshotFingerprint(builder),
+                "headless 套装摘要重复构建应保持 fingerprint 稳定。"
+            );
+            _test.True(
+                firstFingerprint.Contains("dragon_scale_set"),
+                "首次 fingerprint 应包含龙鳞套装。"
+            );
+        }
+        finally
+        {
+            builder.Dispose();
+        }
+    }
+
+    private void TestSnapshotBuilderExposesBattleGearSetSummary()
+    {
+        ContentSnapshot content = GameSessionTestFactory.GetProcessSnapshot();
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "snapshot_gear_set_ally",
+            "player",
+            new Vector2I(1, 1)
+        );
+        ally.source_member_id = "snapshot_gear_set_member";
+        var equipmentView = new EquipmentState();
+        EquipDragonScalePieces(equipmentView, new[] { 0, 1, 2, 3 }, "eq_snapshot_battle_gear_set");
+        ally.SetEquipmentView(equipmentView);
+        BattleUnitState enemy = BattleTestFixture.BuildUnit(
+            "snapshot_gear_set_enemy",
+            "enemy",
+            new Vector2I(3, 1)
+        );
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "snapshot_gear_set_battle",
+            new Vector2I(5, 4),
+            new[] { ally },
+            new[] { enemy }
+        );
+        fixture.State.active_unit_id = ally.unit_id;
+
+        var runtime = new SnapshotTestRuntime
+        {
+            BattleState = fixture.State,
+            BattleRuntime = fixture.Runtime,
+            ItemDefinitions = content.Items,
+            GearSetDefinitions = content.GearSets,
+            EquipmentAbilityBindings = content.EquipmentAbilityBindings,
+            TraitDefinitions = content.Traits,
+            SkillDefinitions = content.Skills,
+            WorldStep = 27,
+        };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        try
+        {
+            PlainDictionary battle = Dict(builder.BuildHeadlessSnapshotPlain(), "battle");
+            PlainArray summaries = ArrayValue(Dict(battle, "hud"), "gear_set_summaries");
+            _test.Eq(summaries.Count, 1, "battle HUD 快照应包含一个套装摘要。");
+            if (summaries.Count == 0)
+                return;
+            PlainDictionary set = (PlainDictionary)summaries[0];
+            _test.Eq(StringValue(set, "gear_set_id"), "dragon_scale_set", "battle HUD 套装 id 应稳定。");
+            _test.Eq(IntValue(set, "equipped_piece_count"), 4, "battle HUD 摘要应显示 4 件。");
+            PlainArray actions = ArrayValue(set, "granted_actions");
+            _test.Eq(actions.Count, 1, "battle HUD 应投影龙血沸腾 granted action。");
+            if (actions.Count > 0)
+            {
+                PlainDictionary action = (PlainDictionary)actions[0];
+                _test.True(BoolValue(action, "is_available"), "战斗中未使用时龙血沸腾应可用。");
+                _test.Eq(IntValue(action, "remaining_uses"), 1, "战斗中未使用时应剩余 1 次。");
+            }
+
+            // 战斗中卸下一件：battle-local view 掉回 3 件，4 件动作应消失，不得复用入场前 view。
+            EquipmentInstanceState feet = ally.GetEquipmentView().PopEquippedInstance("feet");
+            _test.True(feet != null, "拆套测试应能卸下龙鳞胫甲。");
+            battle = Dict(builder.BuildHeadlessSnapshotPlain(), "battle");
+            summaries = ArrayValue(Dict(battle, "hud"), "gear_set_summaries");
+            _test.Eq(summaries.Count, 1, "拆套后仍有三件，battle HUD 摘要应继续存在。");
+            if (summaries.Count == 0)
+                return;
+            set = (PlainDictionary)summaries[0];
+            _test.Eq(IntValue(set, "equipped_piece_count"), 3, "卸下一件后 battle HUD 摘要应显示 3 件。");
+            PlainArray thresholds = ArrayValue(set, "thresholds");
+            if (thresholds.Count == 2)
+            {
+                _test.True(
+                    BoolValue((PlainDictionary)thresholds[0], "is_active"),
+                    "卸下一件后 2 件阈值应仍激活。"
+                );
+                _test.False(
+                    BoolValue((PlainDictionary)thresholds[1], "is_active"),
+                    "卸下一件后 4 件阈值应转为未激活。"
+                );
+            }
+            _test.Eq(
+                ArrayValue(set, "granted_actions").Count,
+                0,
+                "卸下一件后龙血沸腾 granted action 应从 battle HUD 摘要消失。"
+            );
+        }
+        finally
+        {
+            builder.Dispose();
+        }
+    }
+
+    private static void EquipDragonScalePieces(
+        EquipmentState equipment,
+        IReadOnlyList<int> memberIndexes,
+        string instanceLabel
+    )
+    {
+        foreach (int index in memberIndexes)
+        {
+            (StringName itemId, StringName slotId) = DragonScaleMembers[index];
+            equipment.SetEquippedEntry(
+                slotId,
+                itemId,
+                new[] { slotId },
+                EquipmentInstanceState.CreateInstance(
+                    itemId,
+                    new StringName($"{instanceLabel}_{index}")
+                )
+            );
+        }
+    }
+
+    private PlainDictionary FindPartyMember(PlainDictionary snapshot, string memberId)
+    {
+        PlainArray members = ArrayValue(Dict(snapshot, "party"), "members");
+        foreach (object memberValue in members)
+        {
+            if (
+                memberValue is PlainDictionary member
+                && StringValue(member, "member_id") == memberId
+            )
+            {
+                return member;
+            }
+        }
+        return null;
+    }
+
+    private static string SnapshotFingerprint(GameRuntimeSnapshotBuilder builder)
+    {
+        using GodotProjectionLease<GDictionary> lease = builder.BuildHeadlessSnapshotLease();
+        return Json.Stringify(lease.Value);
     }
 
     private void TestSnapshotBuilderMatchesFacadeOutputs()

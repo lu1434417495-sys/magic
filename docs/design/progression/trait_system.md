@@ -40,7 +40,7 @@ TraitDef Resource
 - `CharacterTraitService` 必须以当前 equipment view 重算 effective set。战斗内换装或装备损坏后由 `BattleUnitFactory.RefreshEquipmentProjection(...)` 重建，不从角色原装备状态旁路读取。
 - `BattleUnitEffectiveTraitState` 是战斗内 effective trait 真相源，由 `BattleUnitState` 提供 typed gateway；普通写入口深拷贝并规范化实例，再从实例派生去重且按 ordinal 排序的 trait id。
 - 规则消费者只能读取 detached scalar view，不能取得 owner 内的可变实例或 roll-value 列表。canonical/plain snapshot 同样从实例重建 trait id；strict load 在校验实例与 id 集合等价后保留 payload 原始 id 顺序。
-- 属性、save advantage、damage resistance 和 passive status 由 `BattleTraitPassiveProjectionService` 投影；damage resistance 的 stronger-only 选择仍属于该投影服务，`BattleUnitDamageResistanceState` 只负责容器所有权、规范化写入和只读查询。事件型行为由 `TraitTriggerHooks` 执行，两条路径不互相复制规则。
+- 属性、save advantage、damage resistance、save tag bonus 和 passive status 由 `BattleTraitPassiveProjectionService` 投影；`save_tag_bonus_entries` 的 `stack_mode` 是 closed enum（`add`/`highest`），跨 trait 聚合规则为同 tag 的 `add` checked 求和、`highest` 取最高正值、两类并存相加，结果原子写入 `BattleUnitSaveModifierState.BonusByTag` 并由 `BattleSaveResolver` 计入总豁免加值；damage resistance 的 stronger-only 选择仍属于该投影服务，`BattleUnitDamageResistanceState` 只负责容器所有权、规范化写入和只读查询。事件型行为由 `TraitTriggerHooks` 执行，两条路径不互相复制规则。
 - AI mutation guard 的 exact snapshot 保留 owner 缺失、null 列表/条目、原始 id 顺序和非法 sentinel，用于准确检测并恢复突变；gameplay clone 和 canonical/plain snapshot 走规范化路径，不能与 exact 诊断语义混用。
 
 ## 代表性回归
@@ -54,5 +54,7 @@ TraitDef Resource
 - `tests/battle_runtime/state_schema/run_battle_unit_state_schema_contract_regression.cs`
 - `tests/battle_runtime/ai/run_battle_ai_mutation_guard_regression.cs`
 - `tests/battle_runtime/skills/run_trait_trigger_regression.cs`
+- `tests/progression/schema/run_trait_save_tag_bonus_schema_regression.cs`
+- `tests/battle_runtime/runtime/run_trait_save_tag_bonus_regression.cs`
 
 架构装载范围见 [`../project_context_units.md`](../project_context_units.md) 的 CU-10、CU-11、CU-12、CU-13、CU-15 和 CU-16。

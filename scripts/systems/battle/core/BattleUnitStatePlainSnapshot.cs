@@ -56,7 +56,7 @@ public partial class BattleUnitState
             ("enemy_template_id", enemy_template_id.ToString()),
             ("encounter_actor_id", encounter_actor_id.ToString()),
             ("display_name", display_name ?? ""),
-            ("battle_sprite_texture_path", battle_sprite_texture_path ?? ""),
+            ("battle_sprite_asset_id", battle_sprite_asset_id.ToString()),
             ("faction_id", faction_id.ToString()),
             ("control_mode", control_mode.ToString()),
             ("ai_brain_id", ai_brain_id.ToString()),
@@ -163,6 +163,10 @@ public partial class BattleUnitState
             (
                 "save_bonus_by_ability",
                 BuildSaveAbilityBonusMap(saveModifiers.BonusByAbility)
+            ),
+            (
+                "save_bonus_by_tag",
+                BuildSaveAbilityBonusMap(saveModifiers.BonusByTag)
             ),
             (
                 "effective_trait_instances",

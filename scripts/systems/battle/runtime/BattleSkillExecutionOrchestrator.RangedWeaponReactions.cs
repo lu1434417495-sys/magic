@@ -83,6 +83,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             BattleState = context.BattleState,
             SkillId = candidate.SkillDefinition.SkillId,
             EventBatch = context.Batch,
+            DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
         };
         AttackEffectResolutionResult result = Runtime._damage_resolver.ResolveAttackEffects(
             defender,

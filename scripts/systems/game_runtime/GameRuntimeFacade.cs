@@ -913,6 +913,29 @@ public sealed partial class GameRuntimeFacade
         _character_management?.EvaluateGearSets(member_id, equipment_state_override)
         ?? GearSetEvaluationSnapshot.Empty;
 
+    public GearSetEvaluationSnapshot GetMemberGearSetEvaluationTyped(StringName member_id) =>
+        EvaluateMemberGearSetsTyped(member_id);
+
+    public IReadOnlyList<GearSetGrantedActionSummary> GetMemberGearSetGrantedActionSummariesTyped(
+        StringName member_id
+    )
+    {
+        PartyMemberState memberState = _party_state?.GetMemberState(member_id);
+        EquipmentState equipment = memberState?.equipment_state;
+        GameContentCatalog catalog = GetContentCatalogTyped();
+        if (equipment == null || catalog == null)
+            return Array.Empty<GearSetGrantedActionSummary>();
+        return GearSetGrantedActionProjection.Build(
+            EvaluateMemberGearSetsTyped(member_id),
+            equipment,
+            catalog.GetEquipmentAbilityBindingDefinitionsTyped(),
+            catalog.GetTraitDefsTyped(),
+            catalog.GetItemDefsTyped(),
+            catalog.GetSkillDefinitionsTyped(),
+            GetWorldStep()
+        );
+    }
+
     public string GetMemberDisplayName(StringName member_id) =>
         GetMemberDisplayNameInternal(member_id);
 
@@ -1260,6 +1283,28 @@ public sealed partial class GameRuntimeFacade
         StringName memberId,
         EquipmentState equipmentStateOverride
     ) => EvaluateMemberGearSetsTyped(memberId, equipmentStateOverride);
+
+    IReadOnlyList<GearSetGrantedActionSummary> IGameRuntimeCharacterInfoQuery.BuildGearSetGrantedActionSummaries(
+        StringName memberId,
+        EquipmentState equipmentStateOverride,
+        GearSetEvaluationSnapshot evaluation
+    )
+    {
+        EquipmentState equipment =
+            equipmentStateOverride ?? _party_state?.GetMemberState(memberId)?.equipment_state;
+        GameContentCatalog catalog = GetContentCatalogTyped();
+        if (equipment == null || catalog == null)
+            return Array.Empty<GearSetGrantedActionSummary>();
+        return GearSetGrantedActionProjection.Build(
+            evaluation ?? EvaluateMemberGearSetsTyped(memberId, equipment),
+            equipment,
+            catalog.GetEquipmentAbilityBindingDefinitionsTyped(),
+            catalog.GetTraitDefsTyped(),
+            catalog.GetItemDefsTyped(),
+            catalog.GetSkillDefinitionsTyped(),
+            _battle_runtime?.GetBattleWorldStep() ?? GetWorldStep()
+        );
+    }
 
     GDictionary IGameRuntimeCharacterInfoQuery.GetIdentitySummary(StringName memberId) =>
         GetCharacterManagement()?.GetIdentitySummaryForMember(memberId) ?? new GDictionary();

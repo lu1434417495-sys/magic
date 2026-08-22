@@ -734,7 +734,14 @@ public partial class BattleAiScoreService
         BattleUnitState workingTarget = previewWorkingSet?.TargetPreview;
         DamageResolutionContext damageContext = DamageResolutionContext
             .ForSkill(skillId)
-            .WithBattleState(previewWorkingSet?.BattleState);
+            .WithBattleState(previewWorkingSet?.BattleState)
+            .WithDamageOriginKind(
+                BattleDamageOriginContentRules.ResolveProducerOrigin(
+                    BattleDamageOriginKind.MainDirectEffect,
+                    sourceUnit,
+                    targetUnit
+                )
+            );
 
         foreach (
             CombatEffectDefinition effectDefinition in effectDefinitions

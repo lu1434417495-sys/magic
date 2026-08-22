@@ -146,7 +146,7 @@ public partial class run_action_cadence_tu_invariance_regression : LifecycleTest
 
     private static BattleUnitState BuildUnit(StringName unitId, int agility)
     {
-        var spec = new BattleSimUnitSpec
+        var spec = new BattleSimTestUnitBuilder
         {
             unit_id = unitId,
             display_name = unitId.ToString(),

@@ -2128,7 +2128,8 @@ internal sealed class BattleRuntimeSkillTurnResolver
                             rawTickDamage,
                             contribution.DamageTag,
                             sourceUnit,
-                            state
+                            state,
+                            BattleDamageOriginKind.TimelineUpkeep
                         );
                     }
                     else
@@ -2137,7 +2138,8 @@ internal sealed class BattleRuntimeSkillTurnResolver
                             targetUnit,
                             rawTickDamage,
                             sourceUnit,
-                            state
+                            state,
+                            BattleDamageOriginKind.TimelineUpkeep
                         );
                     }
                 }

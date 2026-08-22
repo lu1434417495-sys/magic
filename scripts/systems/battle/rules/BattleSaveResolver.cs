@@ -225,7 +225,8 @@ public static class BattleSaveResolver
         int abilityModifier = GetTargetAbilityModifier(target_unit, saveAbility);
         int saveBonus =
             GetStatusSaveBonus(target_unit, saveTag)
-            + GetUnitAbilitySaveBonus(target_unit, saveAbility);
+            + GetUnitAbilitySaveBonus(target_unit, saveAbility)
+            + GetUnitTagSaveBonus(target_unit, saveTag);
         int rollTotal = naturalRoll + abilityModifier + saveBonus;
         bool success = DoesNaturalSaveRollSucceed(
             naturalRoll,
@@ -333,6 +334,7 @@ public static class BattleSaveResolver
         int saveBonus =
             GetStatusSaveBonus(target_unit, saveTag)
             + GetUnitAbilitySaveBonus(target_unit, saveAbility)
+            + GetUnitTagSaveBonus(target_unit, saveTag)
             + additionalSaveBonus;
         int successBasisPoints = EstimateSuccessProbabilityBasisPoints(
             advantageState,
@@ -771,6 +773,15 @@ public static class BattleSaveResolver
             return 0;
         }
         return targetUnit.GetSaveBonusByAbilityTyped(saveAbility);
+    }
+
+    private static int GetUnitTagSaveBonus(BattleUnitState targetUnit, StringName saveTag)
+    {
+        if (targetUnit == null || IsEmpty(saveTag))
+        {
+            return 0;
+        }
+        return targetUnit.GetSaveBonusByTagTyped(saveTag);
     }
 
     private static int GetStatusSaveBonus(BattleUnitState targetUnit, StringName saveTag)

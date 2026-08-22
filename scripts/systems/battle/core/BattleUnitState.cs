@@ -66,7 +66,7 @@ public partial class BattleUnitState
         "enemy_template_id",
         "encounter_actor_id",
         "display_name",
-        "battle_sprite_texture_path",
+        "battle_sprite_asset_id",
         "faction_id",
         "control_mode",
         "ai_brain_id",
@@ -111,6 +111,7 @@ public partial class BattleUnitState
         "save_immunity_tags",
         "damage_resistances",
         "save_bonus_by_ability",
+        "save_bonus_by_tag",
         "effective_trait_instances",
         "effective_trait_ids",
         "equipment_ability_sources",
@@ -194,7 +195,7 @@ public partial class BattleUnitState
     public StringName enemy_template_id = "";
     public StringName encounter_actor_id = "";
     public string display_name = "";
-    public string battle_sprite_texture_path = "";
+    public StringName battle_sprite_asset_id = "";
     public StringName faction_id = "";
     public StringName control_mode = "manual";
     public StringName ai_brain_id = "";
@@ -717,13 +718,15 @@ public partial class BattleUnitState
         IEnumerable<StringName> advantageTags,
         IEnumerable<StringName> disadvantageTags,
         IEnumerable<StringName> immunityTags,
-        IReadOnlyDictionary<StringName, int> bonusByAbility
+        IReadOnlyDictionary<StringName, int> bonusByAbility,
+        IReadOnlyDictionary<StringName, int> bonusByTag
     ) =>
         SaveModifierState.ReplaceNormalized(
             advantageTags,
             disadvantageTags,
             immunityTags,
-            bonusByAbility
+            bonusByAbility,
+            bonusByTag
         );
 
     internal void ReplaceSaveTagsTyped(
@@ -741,6 +744,11 @@ public partial class BattleUnitState
         IReadOnlyDictionary<StringName, int> bonusByAbility
     ) =>
         SaveModifierState.ReplaceBonusesNormalized(bonusByAbility);
+
+    internal void ReplaceSaveTagBonusesTyped(
+        IReadOnlyDictionary<StringName, int> bonusByTag
+    ) =>
+        SaveModifierState.ReplaceTagBonusesNormalized(bonusByTag);
 
     internal void AppendSaveTagsTyped(
         IEnumerable<StringName> advantageTags,
@@ -894,6 +902,13 @@ public partial class BattleUnitState
         int fallback = 0
     ) =>
         _saveModifierState?.GetAbilityBonus(ability, fallback)
+        ?? fallback;
+
+    public int GetSaveBonusByTagTyped(
+        StringName tag,
+        int fallback = 0
+    ) =>
+        _saveModifierState?.GetTagBonus(tag, fallback)
         ?? fallback;
 
     internal bool AddSaveBonusByAbilityTyped(
@@ -1887,7 +1902,7 @@ public partial class BattleUnitState
             enemy_template_id = enemy_template_id,
             encounter_actor_id = encounter_actor_id,
             display_name = display_name,
-            battle_sprite_texture_path = battle_sprite_texture_path,
+            battle_sprite_asset_id = battle_sprite_asset_id,
             faction_id = faction_id,
             control_mode = control_mode,
             ai_brain_id = ai_brain_id,
@@ -2015,7 +2030,7 @@ public partial class BattleUnitState
             ["enemy_template_id"] = enemy_template_id.ToString(),
             ["encounter_actor_id"] = encounter_actor_id.ToString(),
             ["display_name"] = display_name,
-            ["battle_sprite_texture_path"] = battle_sprite_texture_path,
+            ["battle_sprite_asset_id"] = battle_sprite_asset_id.ToString(),
             ["faction_id"] = faction_id.ToString(),
             ["control_mode"] = control_mode.ToString(),
             ["ai_brain_id"] = ai_brain_id.ToString(),
@@ -2091,6 +2106,10 @@ public partial class BattleUnitState
             ["save_bonus_by_ability"] =
                 SaveAbilityBonusViewToPlain(
                     saveModifiers.BonusByAbility
+                ),
+            ["save_bonus_by_tag"] =
+                SaveAbilityBonusViewToPlain(
+                    saveModifiers.BonusByTag
                 ),
             ["effective_trait_instances"] = EffectiveTraitInstancesToPlain(
                 effectiveTraits.Instances
@@ -2501,6 +2520,14 @@ public partial class BattleUnitState
                     true
                 ) ?? new BattleStringNameIntMap()
                 : new BattleStringNameIntMap();
+        BattleStringNameIntMap parsedSaveBonusByTag =
+            payload.ContainsKey("save_bonus_by_tag")
+            && payload["save_bonus_by_tag"].VariantType.ToString() == "Dictionary"
+                ? BattleStringNameIntMap.FromPayloadOrNull(
+                    payload["save_bonus_by_tag"].AsGodotDictionary(),
+                    true
+                ) ?? new BattleStringNameIntMap()
+                : new BattleStringNameIntMap();
 
         StringName parsedWeaponProfileKind = ToStringName(payload["weapon_profile_kind"]);
         if (!IsValidWeaponProfileKind(parsedWeaponProfileKind))
@@ -2553,7 +2580,7 @@ public partial class BattleUnitState
             enemy_template_id = ToStringName(payload["enemy_template_id"]),
             encounter_actor_id = ToStringName(payload["encounter_actor_id"]),
             display_name = payload["display_name"].AsString(),
-            battle_sprite_texture_path = payload["battle_sprite_texture_path"].AsString(),
+            battle_sprite_asset_id = ToStringName(payload["battle_sprite_asset_id"]),
             faction_id = ToStringName(payload["faction_id"]),
             control_mode = ToStringName(payload["control_mode"]),
             ai_brain_id = ToStringName(payload["ai_brain_id"]),
@@ -2650,7 +2677,8 @@ public partial class BattleUnitState
                         parsedSaveAdvantageTags,
                         parsedSaveDisadvantageTags,
                         parsedSaveImmunityTags,
-                        parsedSaveBonusByAbility
+                        parsedSaveBonusByAbility,
+                        parsedSaveBonusByTag
                     )
                 ),
             DamageResistanceState =

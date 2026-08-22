@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Godot;
@@ -66,6 +67,9 @@ public partial class PartyManagementWindow : ModalWindowShell
         new Dictionary<StringName, ProfessionDefinition>();
     private IReadOnlyDictionary<StringName, TraitDefinition> _trait_defs =
         new Dictionary<StringName, TraitDefinition>();
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipment_ability_bindings =
+        new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+    private Func<int> _world_step_provider;
     public CharacterManagementModule _character_management;
     public StringName _leader_member_id = "";
     public StringName _main_character_member_id = "";
@@ -172,6 +176,23 @@ public partial class PartyManagementWindow : ModalWindowShell
     public void SetTraitDefs(IReadOnlyDictionary<StringName, TraitDefinition> trait_defs)
     {
         _trait_defs = trait_defs ?? new Dictionary<StringName, TraitDefinition>();
+        if (Visible)
+            RefreshView();
+    }
+
+    public void SetEquipmentAbilityBindings(
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings
+    )
+    {
+        _equipment_ability_bindings =
+            bindings ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+        if (Visible)
+            RefreshView();
+    }
+
+    public void SetWorldStepProvider(Func<int> worldStepProvider)
+    {
+        _world_step_provider = worldStepProvider;
         if (Visible)
             RefreshView();
     }
@@ -719,8 +740,18 @@ public partial class PartyManagementWindow : ModalWindowShell
             memberState.member_id,
             equipmentState
         );
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions =
+            GearSetGrantedActionProjection.Build(
+                snapshot,
+                equipmentState,
+                _equipment_ability_bindings,
+                _trait_defs,
+                _itemDefinitions,
+                _skill_definitions,
+                _world_step_provider?.Invoke() ?? -1
+            );
         IReadOnlyList<GameRuntimeCharacterInfoEntry> entries =
-            GameRuntimeCharacterInfoBuilder.BuildGearSetEntries(snapshot);
+            GameRuntimeCharacterInfoBuilder.BuildGearSetEntries(snapshot, grantedActions);
         if (entries.Count == 0)
             return false;
 

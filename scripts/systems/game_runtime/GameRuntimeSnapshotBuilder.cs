@@ -542,7 +542,72 @@ public sealed class GameRuntimeSnapshotBuilder
                     : new PlainDictionary(StringComparer.Ordinal),
             ["equipment"] = equipmentEntries,
             ["equipment_count"] = equipmentEntries.Count,
+            ["gear_sets"] = BuildMemberGearSetSnapshots(memberId),
         };
+    }
+
+    private PlainList BuildMemberGearSetSnapshots(StringName memberId)
+    {
+        var result = new PlainList();
+        GearSetEvaluationSnapshot evaluation = _runtime.GetMemberGearSetEvaluationTyped(memberId);
+        if (evaluation == null || evaluation.ActiveSets.Count == 0)
+            return result;
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions =
+            _runtime.GetMemberGearSetGrantedActionSummariesTyped(memberId)
+            ?? System.Array.Empty<GearSetGrantedActionSummary>();
+        foreach (GearSetActivationSummary set in evaluation.ActiveSets)
+        {
+            if (set == null)
+                continue;
+            var thresholds = new PlainList();
+            foreach (GearSetThresholdStatus threshold in set.Thresholds)
+            {
+                if (threshold == null)
+                    continue;
+                thresholds.Add(
+                    new PlainDictionary(StringComparer.Ordinal)
+                    {
+                        ["threshold_id"] = threshold.ThresholdId.ToString(),
+                        ["display_name"] = threshold.DisplayName ?? "",
+                        ["required_piece_count"] = threshold.RequiredPieceCount,
+                        ["is_active"] = threshold.IsActive,
+                    }
+                );
+            }
+            var actions = new PlainList();
+            foreach (GearSetGrantedActionSummary action in grantedActions)
+            {
+                if (action == null || action.GearSetId != set.GearSetId)
+                    continue;
+                actions.Add(
+                    new PlainDictionary(StringComparer.Ordinal)
+                    {
+                        ["granted_action_id"] = action.GrantedActionId.ToString(),
+                        ["skill_id"] = action.SkillId.ToString(),
+                        ["display_name"] = action.DisplayName ?? "",
+                        ["usage_period_kind"] = EquipmentAbilityUsagePeriodKinds
+                            .ToStringName(action.UsagePeriodKind)
+                            .ToString(),
+                        ["max_uses_per_period"] = action.MaxUsesPerPeriod,
+                        ["is_available"] = action.IsAvailable,
+                        ["remaining_uses"] = action.RemainingUses,
+                        ["disabled_reason"] = action.DisabledReason.ToString(),
+                    }
+                );
+            }
+            result.Add(
+                new PlainDictionary(StringComparer.Ordinal)
+                {
+                    ["gear_set_id"] = set.GearSetId.ToString(),
+                    ["display_name"] = set.DisplayName ?? "",
+                    ["equipped_piece_count"] = set.EquippedPieceCount,
+                    ["total_piece_count"] = set.TotalPieceCount,
+                    ["thresholds"] = thresholds,
+                    ["granted_actions"] = actions,
+                }
+            );
+        }
+        return result;
     }
 
     private PlainList BuildMemberLearnedSkillIds(PartyMemberState memberState)

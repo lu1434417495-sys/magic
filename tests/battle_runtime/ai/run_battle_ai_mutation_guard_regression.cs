@@ -82,6 +82,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         "save_disadvantage_tags",
         "save_immunity_tags",
         "save_bonus_by_ability",
+        "save_bonus_by_tag",
     };
     private static readonly string[] CombatResourceLocalStableFieldSlice =
     {
@@ -1385,6 +1386,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         var baselineBonuses = new BattleStringNameIntMap();
         baselineBonuses.Put("fortitude", 0);
         baselineBonuses.Put("reflex", -2);
+        var baselineTagBonuses = new BattleStringNameIntMap();
+        baselineTagBonuses.Put("frightened", 3);
         BattleUnitSaveModifierSnapshot baseline =
             BattleUnitSaveModifierSnapshot.Present(
                 new StringNameList
@@ -1405,7 +1408,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                     "",
                     "death",
                 },
-                baselineBonuses
+                baselineBonuses,
+                baselineTagBonuses
             );
         fixture.Actor.RestoreSaveModifiersForMutationSnapshotExact(
             baseline
@@ -1440,6 +1444,11 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             -2,
             "exact baseline 应保留负 save bonus。"
         );
+        _test.Eq(
+            captured.BonusByTag.Get("frightened", 99),
+            3,
+            "exact baseline 应保留 tag save bonus。"
+        );
 
         BattleUnitSaveModifierReadView readView =
             fixture.Actor.GetSaveModifiersReadViewTyped();
@@ -1450,17 +1459,25 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             -2,
             "read view 应读取 owner 持有的 ability bonus。"
         );
+        _test.Eq(
+            readView.BonusByTag.Get("frightened", 99),
+            3,
+            "read view 应读取 owner 持有的 tag bonus。"
+        );
 
         BattleAiMutationSnapshot snapshot =
             BattleAiMutationSnapshot.Capture(fixture.Context);
         var mutatedBonuses = new BattleStringNameIntMap();
         mutatedBonuses.Put("will", 9);
+        var mutatedTagBonuses = new BattleStringNameIntMap();
+        mutatedTagBonuses.Put("poison", 7);
         fixture.Actor.RestoreSaveModifiersForMutationSnapshotExact(
             BattleUnitSaveModifierSnapshot.Present(
                 new StringNameList { "cold" },
                 new StringNameList { "charm" },
                 new StringNameList { "sleep" },
-                mutatedBonuses
+                mutatedBonuses,
+                mutatedTagBonuses
             )
         );
         IReadOnlyList<string> rawMutationDiff =
@@ -1486,7 +1503,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         );
 
         fixture.Actor.RestoreSaveModifiersForMutationSnapshotExact(
-            BattleUnitSaveModifierSnapshot.Present(null, null, null, null)
+            BattleUnitSaveModifierSnapshot.Present(null, null, null, null, null)
         );
         BattleAiMutationSnapshot presentNullSnapshot =
             BattleAiMutationSnapshot.Capture(fixture.Context);
@@ -1503,7 +1520,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         _test.Eq(
             missingOwnerDiff.Count,
             SaveModifierStableFieldKeys.Length,
-            "missing owner 应只通过四个既有 stable key 暴露 presence sentinel。"
+            "missing owner 应只通过五个既有 stable key 暴露 presence sentinel。"
         );
     }
 
@@ -2205,11 +2222,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 unit => unit.display_name = "Mutation Guard Actor Changed"
             ),
             (
-                "battle_sprite_texture_path",
-                "battle_sprite_texture_path",
+                "battle_sprite_asset_id",
+                "battle_sprite_asset_id",
                 unit =>
-                    unit.battle_sprite_texture_path =
-                        "res://assets/tests/mutation_guard_actor.png"
+                    unit.battle_sprite_asset_id = "battle.unit.test.mutation_guard"
             ),
             (
                 "faction_id",
@@ -2500,7 +2516,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleUnitState actor = fixture.Actor;
-        actor.battle_sprite_texture_path = "res://tests/original_guard_actor.png";
+        actor.battle_sprite_asset_id = "battle.unit.test.original_guard_actor";
         actor.equipment_view_initialized = false;
         actor.SetBaseCognitionKindTyped(BattleCognitionKind.Sapient);
         actor.ReplaceConsumedContingencySetupIdsTyped(
@@ -2561,7 +2577,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
 
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
 
-        actor.battle_sprite_texture_path = "res://tests/rogue_guard_actor.png";
+        actor.battle_sprite_asset_id = "battle.unit.test.rogue_guard_actor";
         actor.equipment_view_initialized = true;
         actor.SetBaseCognitionKindTyped(BattleCognitionKind.Mindless);
         actor.ReplaceConsumedContingencySetupIdsTyped(
@@ -2624,7 +2640,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         AssertDiffContainsAll(
             diffs,
             "unit authority blind spots",
-            "battle_sprite_texture_path",
+            "battle_sprite_asset_id",
             "equipment_view_initialized",
             "consumed_contingency_setup_ids",
             "cognition_kind",
@@ -2654,7 +2670,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleUnitState actor = fixture.Actor;
-        actor.battle_sprite_texture_path = "";
+        actor.battle_sprite_asset_id = "";
         actor.ReplaceEquipmentAbilityProjectionTyped(
             new List<BattleEquipmentAbilitySourceState>
             {
@@ -2737,7 +2753,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         BattleAiMutationSnapshot outerSnapshot = BattleAiMutationSnapshot.Capture(
             fixture.Context
         );
-        actor.battle_sprite_texture_path = null;
+        actor.battle_sprite_asset_id = default;
         actor.RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
             BattleUnitEquipmentAbilityProjectionSnapshot.Present(
                 null,
@@ -2751,7 +2767,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         AssertDiffContainsAll(
             outerSnapshot.CompareCurrentState(fixture.Context),
             "nullable unit authority collections",
-            "battle_sprite_texture_path",
+            "battle_sprite_asset_id",
             "equipment_ability_sources",
             "temporal_progress_modifiers",
             "cognition_ceiling_modifiers",
@@ -3053,6 +3069,15 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             unit =>
                 unit.CaptureSaveModifiersForMutationSnapshotExact()
                     .BonusByAbility
+        );
+        AssertBattleUnitIntMapNullMutationDetected(
+            "save bonus by tag",
+            "save_bonus_by_tag",
+            unit => RestoreSaveTagBonusesExact(unit, new BattleStringNameIntMap()),
+            unit => RestoreSaveTagBonusesExact(unit, null),
+            unit =>
+                unit.CaptureSaveModifiersForMutationSnapshotExact()
+                    .BonusByTag
         );
         AssertBattleUnitIntMapNullMutationDetected(
             "cooldowns",
@@ -3658,17 +3683,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             null,
             terrain,
         };
-        cell.edge_feature_east = new BattleEdgeFeatureState
-        {
-            feature_kind = null,
-            render_kind = "raw_render",
-            render_layers = -17,
-            blocks_move = false,
-            blocks_occupancy = true,
-            blocks_los = false,
-            interaction_kind = null,
-            state_tag = "raw_edge_state",
-        };
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
             fixture.Context
         );
@@ -3684,8 +3698,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         terrain.contact_counts_as_debuff = true;
         terrain.contact_save_dc = 8;
         terrain.accuracy_modifier_spec.modifier_delta = 2;
-        cell.edge_feature_east.feature_kind = "wall";
-        cell.edge_feature_east.render_layers = 17;
         terrain.SetParamsTyped(
             new Dictionary<string, object>
             {
@@ -3708,9 +3720,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "contact_counts_as_debuff",
             "contact_save_dc",
             "modifier_delta",
-            "edge_feature_east",
-            "feature_kind",
-            "render_layers",
             "number",
             "name",
             "color"
@@ -4636,7 +4645,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 advantageTags,
                 current.DisadvantageTags,
                 current.ImmunityTags,
-                current.BonusByAbility
+                current.BonusByAbility,
+                current.BonusByTag
             )
         );
     }
@@ -4653,7 +4663,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 current.AdvantageTags,
                 disadvantageTags,
                 current.ImmunityTags,
-                current.BonusByAbility
+                current.BonusByAbility,
+                current.BonusByTag
             )
         );
     }
@@ -4670,7 +4681,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 current.AdvantageTags,
                 current.DisadvantageTags,
                 immunityTags,
-                current.BonusByAbility
+                current.BonusByAbility,
+                current.BonusByTag
             )
         );
     }
@@ -4687,7 +4699,26 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 current.AdvantageTags,
                 current.DisadvantageTags,
                 current.ImmunityTags,
-                bonusByAbility
+                bonusByAbility,
+                current.BonusByTag
+            )
+        );
+    }
+
+    private static void RestoreSaveTagBonusesExact(
+        BattleUnitState unit,
+        BattleStringNameIntMap bonusByTag
+    )
+    {
+        BattleUnitSaveModifierSnapshot current =
+            unit.CaptureSaveModifiersForMutationSnapshotExact();
+        unit.RestoreSaveModifiersForMutationSnapshotExact(
+            BattleUnitSaveModifierSnapshot.Present(
+                current.AdvantageTags,
+                current.DisadvantageTags,
+                current.ImmunityTags,
+                current.BonusByAbility,
+                bonusByTag
             )
         );
     }

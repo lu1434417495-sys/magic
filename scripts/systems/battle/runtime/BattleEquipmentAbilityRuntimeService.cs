@@ -73,6 +73,10 @@ internal readonly struct EquipmentAbilityFactContext
     internal readonly int SkillUnmovedTargetCount;
     internal readonly BattleKillProvenance KillProvenance;
     internal readonly BattleEquipmentTargetMarkState ExpiredTargetMark;
+    internal readonly StringName SkillId;
+    internal readonly StringName SaveTag;
+    internal readonly IReadOnlyList<StringName> EffectCategories;
+    internal readonly BattleDamageOriginKind DamageOriginKind;
 
     private EquipmentAbilityFactContext(
         bool criticalHit,
@@ -90,7 +94,11 @@ internal readonly struct EquipmentAbilityFactContext
         int skillMovedTargetCount = 0,
         int skillUnmovedTargetCount = 0,
         BattleKillProvenance killProvenance = default,
-        BattleEquipmentTargetMarkState expiredTargetMark = null
+        BattleEquipmentTargetMarkState expiredTargetMark = null,
+        StringName skillId = default,
+        StringName saveTag = default,
+        IReadOnlyList<StringName> effectCategories = null,
+        BattleDamageOriginKind damageOriginKind = BattleDamageOriginKind.Unknown
     )
     {
         CriticalHit = criticalHit;
@@ -109,6 +117,10 @@ internal readonly struct EquipmentAbilityFactContext
         SkillUnmovedTargetCount = Math.Max(skillUnmovedTargetCount, 0);
         KillProvenance = killProvenance;
         ExpiredTargetMark = expiredTargetMark;
+        SkillId = ProgressionDataUtils.to_string_name(skillId);
+        SaveTag = ProgressionDataUtils.to_string_name(saveTag);
+        EffectCategories = effectCategories ?? Array.Empty<StringName>();
+        DamageOriginKind = damageOriginKind;
     }
 
     internal static EquipmentAbilityFactContext Empty => new(false, -1, null);
@@ -137,6 +149,30 @@ internal readonly struct EquipmentAbilityFactContext
         context?.BattleState
     );
 
+    internal static EquipmentAbilityFactContext FromMitigationTier(
+        BattleEquipmentAbilityMitigationTierContext context
+    ) => new(
+        false,
+        Math.Max(context?.BattleState?.timeline?.current_tu ?? -1, -1),
+        context?.BattleState,
+        skillId: context?.SkillId ?? new StringName(""),
+        saveTag: context?.SaveTag ?? new StringName(""),
+        effectCategories: context?.EffectCategories,
+        damageOriginKind: context?.DamageOriginKind ?? BattleDamageOriginKind.Unknown
+    );
+
+    internal static EquipmentAbilityFactContext FromDirectDamage(
+        BattleEquipmentAbilityDirectDamageContext context
+    ) => new(
+        context?.CriticalHit == true,
+        Math.Max(context?.BattleState?.timeline?.current_tu ?? -1, -1),
+        context?.BattleState,
+        skillId: context?.SkillId ?? new StringName(""),
+        saveTag: context?.SaveTag ?? new StringName(""),
+        effectCategories: context?.EffectCategories,
+        damageOriginKind: context?.DamageOriginKind ?? BattleDamageOriginKind.Unknown
+    );
+
     internal static EquipmentAbilityFactContext FromBattleState(BattleState state) =>
         new(false, Math.Max(state?.timeline?.current_tu ?? -1, -1), state);
 
@@ -146,7 +182,9 @@ internal readonly struct EquipmentAbilityFactContext
         context?.CriticalHit == true,
         Math.Max(context?.BattleState?.timeline?.current_tu ?? -1, -1),
         context?.BattleState,
-        hpDamage: context?.WeaponHpDamage ?? 0
+        hpDamage: context?.WeaponHpDamage ?? 0,
+        skillId: context?.SkillId ?? new StringName(""),
+        damageOriginKind: context?.DamageOriginKind ?? BattleDamageOriginKind.Unknown
     );
 
     internal static EquipmentAbilityFactContext FromAttackCheck(
@@ -311,6 +349,8 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
         "damage_roll_mode_override";
     internal static readonly StringName ActionKindDamageReduction =
         "damage_reduction";
+    internal static readonly StringName ActionKindGrantMitigationTier =
+        "grant_mitigation_tier";
     private static readonly StringName ActionKindApplyStatus = "apply_status";
     private static readonly StringName ActionKindModifyActionPoints = "modify_action_points";
     internal static readonly StringName ActionKindModifyAbilityState = "modify_ability_state";
@@ -407,6 +447,15 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
         BattleUnitState sourceUnit
     ) => _targetMarkResolver.ClearTargetMarksForRemovedEquipmentSources(state, sourceUnit);
 
+    internal IReadOnlyList<StringName> ClearSourceBoundStatusesForRemovedEquipmentSources(
+        BattleState state,
+        BattleUnitState sourceUnit
+    ) =>
+        _statusActionResolver?.ClearSourceBoundStatusesForRemovedEquipmentSources(
+            state,
+            sourceUnit
+        ) ?? Array.Empty<StringName>();
+
     internal IReadOnlyList<StringName> RefreshEquipmentProjectionAfterDurabilityDestruction(
         BattleUnitState targetUnit,
         BattleEventBatch batch = null
@@ -453,6 +502,13 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
         BattleEquipmentAbilityDamageReductionContext context
     ) => _attackModifierResolver.CollectDamageReductions(context);
 
+    internal IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+        BattleEquipmentAbilityMitigationTierContext context
+    ) => _attackModifierResolver.CollectMitigationTiers(context);
+
+    internal IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> CollectBonusDamageDiceForEffect(
+        BattleEquipmentAbilityDirectDamageContext context
+    ) => _attackModifierResolver.CollectBonusDamageDiceForEffect(context);
     internal List<BattleLootEntry> ApplyLootQuantityMultipliers(
         IEnumerable<BattleLootEntry> lootEntries,
         BattleEquipmentAbilityOnKillResult onKillResult
@@ -623,6 +679,10 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
         BattleEquipmentAbilityAfterHitContext context
     ) => ResolveHitReceived(context);
 
+    BattleEquipmentAbilityAfterHitResult IBattleEquipmentCombatReactionSink.ResolveAttackHit(
+        BattleEquipmentAbilityAfterHitContext context
+    ) => ResolveAttackHit(context);
+
     IReadOnlyList<StringName>
         IBattleEquipmentCombatReactionSink.RefreshEquipmentProjectionAfterDurabilityDestruction(
             BattleUnitState targetUnit,
@@ -702,6 +762,64 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
                 if (
                     reaction == null
                     || reaction.Trigger != EquipmentAbilityTriggerKind.OnHit
+                    || reaction.Timing != EquipmentAbilityTimingKind.AfterHit
+                    || !_conditionEvaluator.ConditionGroupPasses(
+                        reaction.ConditionGroup,
+                        context.SourceUnit,
+                        context.TargetUnit,
+                        EquipmentAbilityFactContext.FromAfterHit(context),
+                        activeBinding
+                    )
+                )
+                {
+                    continue;
+                }
+                if (
+                    !RollGatePasses(
+                        reaction.RollGate,
+                        binding.BindingId,
+                        reaction.ReactionId,
+                        "",
+                        context.ForcedRollValue,
+                        result
+                    )
+                )
+                {
+                    continue;
+                }
+                ResolveActions(activeBinding, binding, reaction, context, result);
+            }
+        }
+        return result;
+    }
+
+    // §8.6：通用 attack-hit reaction。真实攻击检定成功后由 canonical resolver 每目标
+    // 调用一次，不要求 weapon damage；旧 on_hit 仍保持 weapon-hit 语义。
+    internal BattleEquipmentAbilityAfterHitResult ResolveAttackHit(
+        BattleEquipmentAbilityAfterHitContext context
+    )
+    {
+        var result = new BattleEquipmentAbilityAfterHitResult();
+        if (
+            context == null
+            || context.SourceUnit == null
+            || context.TargetUnit == null
+            || !context.AttackSucceeded
+        )
+        {
+            return result;
+        }
+
+        foreach (ActiveEquipmentAbilityBinding activeBinding in CollectActiveBindings(context.SourceUnit))
+        {
+            EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
+            if (binding?.Reactions == null)
+                continue;
+            foreach (EquipmentAbilityReactionDefinition reaction in binding.Reactions)
+            {
+                if (
+                    reaction == null
+                    || reaction.Trigger != EquipmentAbilityTriggerKind.OnAttackHit
                     || reaction.Timing != EquipmentAbilityTimingKind.AfterHit
                     || !_conditionEvaluator.ConditionGroupPasses(
                         reaction.ConditionGroup,
@@ -1214,6 +1332,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
                         )
                         {
                             _statusActionResolver.ResolveApplyStatusAction(
+                                activeBinding.Source,
                                 binding,
                                 action,
                                 statusPayload,
@@ -1609,6 +1728,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
                         )
                         {
                             _statusActionResolver.ResolveApplyStatusAction(
+                                activeBinding.Source,
                                 binding,
                                 action,
                                 statusPayload,
@@ -1777,7 +1897,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
                 && action.PayloadDefinition is ApplyStatusActionPayloadDefinition statusPayload
             )
             {
-                _statusActionResolver.ResolveApplyStatusAction(binding, action, statusPayload, context, result);
+                _statusActionResolver.ResolveApplyStatusAction(activeBinding.Source, binding, action, statusPayload, context, result);
             }
             else if (
                 action.Kind == ActionKindScheduleAreaEffect
@@ -1956,6 +2076,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
                     BattleState = state,
                     SkillId = skillDefinition.SkillId,
                     EventBatch = context.Batch,
+                    DamageOriginKind = BattleDamageOriginKind.EquipmentTriggeredSkill,
                 }
             );
             if (!attackResult.Applied && !attackResult.AttackSuccess)
@@ -2172,7 +2293,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
                 && action.PayloadDefinition is ApplyStatusActionPayloadDefinition statusPayload
             )
             {
-                _statusActionResolver.ResolveApplyStatusAction(binding, action, statusPayload, context, result);
+                _statusActionResolver.ResolveApplyStatusAction(activeBinding.Source, binding, action, statusPayload, context, result);
             }
             else if (
                 action.Kind == ActionKindTriggerSkill
@@ -2616,6 +2737,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
                 )
                 {
                     _statusActionResolver.ResolveApplyStatusAction(
+                        candidate.Source,
                         candidate.Binding,
                         action,
                         statusPayload,
@@ -3023,6 +3145,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService :
                     )
                     {
                         _statusActionResolver.ResolveApplyStatusAction(
+                            candidate.Source,
                             candidate.Binding,
                             action,
                             statusPayload,

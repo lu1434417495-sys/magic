@@ -102,6 +102,7 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
             System.Array.Empty<StringName>(),
             System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
             System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+            System.Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
             System.Array.Empty<TraitRollValueSchemaEntryDefinition>()
         );

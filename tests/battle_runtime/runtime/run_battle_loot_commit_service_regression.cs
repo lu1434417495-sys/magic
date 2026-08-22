@@ -5,7 +5,7 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_loot_commit_service_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
     private readonly TestHarness _test = new();
 
     public override void _Initialize()

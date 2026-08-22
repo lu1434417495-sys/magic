@@ -420,6 +420,9 @@ internal static class EquipmentAbilityDefinitionProjection
                 TargetSelector = damage.target_selector,
                 Dice = ProjectDice(damage.dice),
                 DamageType = damage.damage_type,
+                DamageTypeMode = EquipmentAbilityDamageTypeModeContentRules.ToStringName(
+                    EquipmentAbilityDamageTypeModeContentRules.ToKind(damage.damage_type_mode)
+                ),
                 RequireWeaponDamage = damage.require_weapon_damage,
                 Subtract = damage.subtract,
                 ReplacementGroupId = damage.replacement_group_id,
@@ -515,6 +518,14 @@ internal static class EquipmentAbilityDefinitionProjection
                     DamageTags = CopyStringNames(damageReduction.damage_tags),
                     Label = damageReduction.label ?? "",
                 },
+            GrantMitigationTierActionPayloadDef grantMitigationTier =>
+                new GrantMitigationTierActionPayloadDefinition
+                {
+                    TargetSelector = grantMitigationTier.target_selector,
+                    MitigationTier = grantMitigationTier.mitigation_tier,
+                    DamageTags = CopyStringNames(grantMitigationTier.damage_tags),
+                    Label = grantMitigationTier.label ?? "",
+                },
             LootQuantityMultiplierActionPayloadDef loot => new LootQuantityMultiplierActionPayloadDefinition
             {
                 TargetSelector = loot.target_selector,
@@ -565,6 +576,7 @@ internal static class EquipmentAbilityDefinitionProjection
                 SaveAbility = status.save_ability,
                 SaveTag = status.save_tag,
                 ApplyOnSaveFailure = status.apply_on_save_failure,
+                RemoveOnSourceDeactivated = status.remove_on_source_deactivated,
             },
             ModifyActionPointsActionPayloadDef actionPoints => new ModifyActionPointsActionPayloadDefinition
             {
@@ -964,12 +976,38 @@ internal static class EquipmentAbilityDefinitionProjection
             ? null
             : new EquipmentWeaponDiceOverlayDefinition
             {
-                Mode = value.mode,
+                Mode = TryParseWeaponDiceOverlayMode(value.mode, out var mode)
+                    ? mode
+                    : EquipmentWeaponDiceOverlayModeKind.None,
                 DiceCountDelta = value.dice_count_delta,
                 DiceSidesOverride = value.dice_sides_override,
                 FlatBonusDelta = value.flat_bonus_delta,
                 DiceOverride = ProjectDice(value.dice_override),
             };
+    }
+
+    internal static bool TryParseWeaponDiceOverlayMode(
+        StringName value,
+        out EquipmentWeaponDiceOverlayModeKind mode
+    )
+    {
+        if (value == "" || value == "none")
+        {
+            mode = EquipmentWeaponDiceOverlayModeKind.None;
+            return true;
+        }
+        if (value == "add")
+        {
+            mode = EquipmentWeaponDiceOverlayModeKind.Add;
+            return true;
+        }
+        if (value == "override")
+        {
+            mode = EquipmentWeaponDiceOverlayModeKind.Override;
+            return true;
+        }
+        mode = EquipmentWeaponDiceOverlayModeKind.None;
+        return false;
     }
 
     private static IReadOnlyList<EquipmentWorldEffectDefinition> ProjectWorldEffects(
@@ -1130,6 +1168,11 @@ internal static class EquipmentAbilityDefinitionProjection
         if (value == "on_attack_check")
         {
             trigger = EquipmentAbilityTriggerKind.OnAttackCheck;
+            return true;
+        }
+        if (value == "on_attack_hit")
+        {
+            trigger = EquipmentAbilityTriggerKind.OnAttackHit;
             return true;
         }
         if (value == "on_target_mark_expired")
