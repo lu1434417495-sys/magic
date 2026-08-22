@@ -20,7 +20,7 @@ public partial class run_battle_sim_typed_report_regression : LifecycleTestScene
     private void TestStringNameSkillLevelKeysAreHonored()
     {
         StringName skillId = "typed_slash";
-        var spec = new BattleSimUnitSpec
+        var spec = new BattleSimTestUnitBuilder
         {
             unit_id = "sim_unit",
             display_name = "Sim Unit",
@@ -35,16 +35,16 @@ public partial class run_battle_sim_typed_report_regression : LifecycleTestScene
         _test.Eq(
             unitState.GetKnownSkillLevelTyped(skillId),
             4,
-            "BattleSimUnitSpec skill_level_map 应支持 StringName key。"
+            "BattleSimTestUnitBuilder skill_level_map 应支持 StringName key。"
         );
     }
 
     private void TestMalformedScenarioUnitEntryIsRejectedBeforeSpawnProjection()
     {
-        var scenario = new BattleSimScenarioDef
+        var scenario = new BattleSimTestScenarioBuilder
         {
             scenario_id = "malformed_units",
-            ally_units = new GArray { new GDictionary { ["unit_id"] = "not_a_resource" } },
+            ally_units = new List<object> { new object() },
         };
 
         bool rejected = false;
@@ -61,7 +61,7 @@ public partial class run_battle_sim_typed_report_regression : LifecycleTestScene
 
         _test.True(
             rejected,
-            "BattleSimScenarioDef 应在 typed entry 构建阶段拒绝 malformed ally_units entry。"
+            "BattleSimTestScenarioBuilder 应在 typed entry 构建阶段拒绝 malformed ally_units entry。"
         );
     }
 

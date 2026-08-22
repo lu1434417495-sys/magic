@@ -6,8 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
-    private const string ScenarioPath =
-        "res://data/configs/battle_sim/scenarios/mixed_2sword_1arch_mirror_simulation.tres";
+    private static readonly StringName ScenarioId = "mixed_2sword_1arch_mirror_simulation";
 
     private readonly TestHarness _test = new();
 
@@ -45,15 +44,13 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         bool progressEnabled = ReadBoolEnvironment("PROGRESS", string.IsNullOrEmpty(outputPath));
         var artifactWriter = new BattleSimAnalysisArtifactFileWriter();
 
-        BattleSimScenarioDef scenarioResource =
-            ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
-        if (scenarioResource == null)
+        var scenarioCatalog = new BattleSimContentCatalog();
+        scenarioCatalog.Rebuild();
+        if (!scenarioCatalog.TryGetScenario(ScenarioId, out BattleSimScenarioDefinition scenarioDefinition))
         {
             ConsoleProcessOutput.WriteFailure("Failed to load scenario");
             return 1;
         }
-        BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
-        scenarioResource = null;
 
         ContentSnapshot contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
         var contentProvider = new BattleSimContentProvider(contentSnapshot);

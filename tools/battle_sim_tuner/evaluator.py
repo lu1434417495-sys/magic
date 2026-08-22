@@ -1,7 +1,7 @@
 """Parallel battle-sim evaluator for AI auto-tuning.
 
 Given a *genome* (concrete values for a set of tunable parameters), this module:
-  1. renders the genome into a BattleSimProfileDef .tres (override_patches),
+  1. renders the genome into a strict BattleSim profile JSON document,
   2. fans the scenario+profile out across N isolated `godot --headless` workers,
   3. parses every run's outcome and returns an aggregate Fitness.
 
@@ -33,7 +33,6 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import Iterable, Mapping, Sequence
 
-PROFILE_SCRIPT = "res://scripts/systems/battle/sim/BattleSimProfileDef.cs"
 BALANCE_RUNNER = "res://tests/battle_runtime/simulation/run_battle_balance_simulation.cs"
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -164,37 +163,60 @@ class ParamSpec:
         return int(round(value)) if self.is_int else float(value)
 
 
-def _fmt_tres_value(value) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, float):
-        return repr(value)
-    return f'"{value}"'
+def _closed_patch(patch: Mapping[str, object]) -> dict[str, object]:
+    flat = dict(patch)
+    kind = str(flat.pop("target_type"))
+    if kind == "action":
+        payload = {
+            "brain_id": str(flat.pop("brain_id")),
+            "state_id": str(flat.pop("state_id", "")),
+            "action_id": str(flat.pop("action_id")),
+            "path": str(flat.pop("path")),
+            "value": flat.pop("value"),
+        }
+    elif kind == "ai_score_profile":
+        payload = {"path": str(flat.pop("path")), "value": flat.pop("value")}
+    else:
+        payload = {
+            "target_id": str(flat.pop("target_id")),
+            "path": str(flat.pop("path")),
+            "value": flat.pop("value"),
+        }
+    if flat:
+        raise KeyError(f"unsupported BattleSim patch fields for {kind}: {sorted(flat)}")
+    return {"kind": kind, "payload": payload}
 
 
-def render_profile_tres(
+def _baseline_score_profile() -> dict[str, object]:
+    path = os.path.join(REPO_ROOT, "data", "configs", "json", "battle_sim", "profiles", "baseline.json")
+    with open(path, encoding="utf-8") as fh:
+        return dict(json.load(fh)["entries"][0]["ai_score_profile"])
+
+
+def render_profile_json(
     profile_id: str, genome: Mapping[str, float], specs: Sequence[ParamSpec]
 ) -> str:
-    """Render a genome into a BattleSimProfileDef .tres string."""
+    """Render a genome into one strict BattleSim profile JSON document."""
     entries = []
     for spec in specs:
         if spec.name not in genome:
             raise KeyError(f"genome is missing value for param '{spec.name}'")
         patch = {**dict(spec.patch), "value": spec.clamp(genome[spec.name])}
-        body = ",\n".join(f'"{k}": {_fmt_tres_value(v)}' for k, v in patch.items())
-        entries.append("{\n" + body + "\n}")
-    patches = "Array[Dictionary]([" + ", ".join(entries) + "])"
-    return (
-        '[gd_resource type="Resource" format=3]\n\n'
-        f'[ext_resource type="Script" path="{PROFILE_SCRIPT}" id="1_profile"]\n\n'
-        "[resource]\n"
-        'script = ExtResource("1_profile")\n'
-        f'profile_id = &"{profile_id}"\n'
-        f'display_name = "{profile_id}"\n'
-        f"override_patches = {patches}\n"
-    )
+        entries.append(_closed_patch(patch))
+    document = {
+        "schema": 1,
+        "domain": "battle_sim_profiles",
+        "family": "tuning",
+        "templates": {},
+        "entries": [{
+            "profile_id": profile_id,
+            "display_name": profile_id,
+            "description": "Temporary BattleSim tuner candidate.",
+            "ai_score_profile": _baseline_score_profile(),
+            "override_patches": entries,
+        }],
+    }
+    return json.dumps(document, ensure_ascii=False, indent=2) + "\n"
 
 
 # --------------------------------------------------------------------------- #
@@ -286,7 +308,7 @@ def _worker_reports(workdir: str) -> list:
 
 
 def _run_one_worker(args) -> list:
-    idx, scenario_res, profile_res, root, timeout = args
+    idx, scenario_id, profile_id, profile_directory, root, timeout = args
     workdir = tempfile.mkdtemp(prefix=f"bstuner_w{idx}_")
     try:
         env = dict(os.environ)
@@ -298,10 +320,11 @@ def _run_one_worker(args) -> list:
             XDG_CONFIG_HOME=os.path.join(workdir, "config"),
             XDG_CACHE_HOME=os.path.join(workdir, "cache"),
             TRACE_AI="false",
+            BATTLE_SIM_PROFILE_DIRECTORY=profile_directory,
         )
         cmd = [
             GODOT_BIN, "--headless", "--audio-driver", "Dummy", "--path", root,
-            "--script", BALANCE_RUNNER, "--", scenario_res, profile_res,
+            "--script", BALANCE_RUNNER, "--", scenario_id, profile_id,
         ]
         with open(os.path.join(workdir, "out.log"), "w") as log:
             subprocess.run(cmd, env=env, cwd=root, stdout=log, stderr=subprocess.STDOUT,
@@ -314,7 +337,7 @@ def _run_one_worker(args) -> list:
 def evaluate(
     genome: Mapping[str, float],
     specs: Sequence[ParamSpec],
-    scenario_res: str,
+    scenario_id: str,
     *,
     win_faction: str,
     workers: int = 8,
@@ -324,23 +347,23 @@ def evaluate(
     root: str = REPO_ROOT,
     record: bool = True,
 ) -> Fitness:
-    """Render `genome`, run `scenario_res` across `workers` isolated processes, score it.
+    """Render `genome`, run `scenario_id` across `workers` isolated processes, score it.
 
     Total run count = workers x (seeds in the scenario). The candidate profile is
-    written once into the project (res://.tmp_tuner/) and shared by all workers.
+    written once into the project (res://.tmp_tuner/profiles/) and shared by all workers.
 
     `record=False` skips the central-store append — used when a caller (e.g. the
     high-R gate) runs many waves of the same genome and records the merged result
     once instead of many low-n duplicate rows.
     """
-    tmp_dir = os.path.join(root, ".tmp_tuner")
+    tmp_dir = os.path.join(root, ".tmp_tuner", "profiles")
     os.makedirs(tmp_dir, exist_ok=True)
-    profile_fname = f"{profile_id}.tres"
-    with open(os.path.join(tmp_dir, profile_fname), "w") as fh:
-        fh.write(render_profile_tres(profile_id, genome, specs))
-    profile_res = f"res://.tmp_tuner/{profile_fname}"
+    profile_fname = f"{profile_id}.json"
+    with open(os.path.join(tmp_dir, profile_fname), "w", encoding="utf-8") as fh:
+        fh.write(render_profile_json(profile_id, genome, specs))
+    profile_directory = "res://.tmp_tuner/profiles"
 
-    tasks = [(i, scenario_res, profile_res, root, timeout) for i in range(workers)]
+    tasks = [(i, scenario_id, profile_id, profile_directory, root, timeout) for i in range(workers)]
     runs: list = []
     # Threads, not processes: each task only blocks on a `godot` subprocess (releasing
     # the GIL), so this is I/O-bound orchestration. A ProcessPoolExecutor would add a
@@ -350,7 +373,7 @@ def evaluate(
             runs.extend(worker_runs)
     fit = score_runs(runs, win_faction, stalemate_penalty)
     if record:
-        record_sample(genome, specs, fit, scenario=scenario_res, win_faction=win_faction,
+        record_sample(genome, specs, fit, scenario=scenario_id, win_faction=win_faction,
                       profile_id=profile_id)
     return fit
 
@@ -359,7 +382,7 @@ RUN_6V12 = "res://tests/battle_runtime/benchmarks/RunMixed6v12MirrorAnalysis.cs"
 
 
 def _run_6v12_worker(args) -> list:
-    idx, profile_res, scenario_file, count, root, timeout = args
+    idx, profile_id, profile_directory, scenario_id, count, root, timeout = args
     workdir = tempfile.mkdtemp(prefix=f"bs6v12_w{idx}_")
     try:
         env = dict(os.environ)
@@ -374,11 +397,12 @@ def _run_6v12_worker(args) -> list:
             TRACE_AI="false",
             PROGRESS="false",
             COUNT=str(count),
-            AI_PROFILE_OVERRIDE_FILE=profile_res,
+            AI_PROFILE_OVERRIDE_ID=profile_id,
+            AI_PROFILE_OVERRIDE_DIRECTORY=profile_directory,
             OUTPUT_FILE=report_path,
         )
-        if scenario_file:
-            env["SCENARIO_FILE"] = scenario_file
+        if scenario_id:
+            env["SCENARIO_ID"] = scenario_id
         cmd = [
             GODOT_BIN, "--headless", "--audio-driver", "Dummy", "--path", root,
             "-s", RUN_6V12,
@@ -402,7 +426,7 @@ def evaluate_6v12(
     workers: int = 8,
     count_per_worker: int = 2,
     profile_id: str = "candidate",
-    scenario_file: str = "",
+    scenario_id: str = "",
     stalemate_penalty: float = 0.5,
     timeout: float = 1800.0,
     root: str = REPO_ROOT,
@@ -417,15 +441,15 @@ def evaluate_6v12(
     `record=False` skips the central-store append (used by the high-R gate, which
     pools many waves and records the merged result once).
     """
-    tmp_dir = os.path.join(root, ".tmp_tuner")
+    tmp_dir = os.path.join(root, ".tmp_tuner", "profiles")
     os.makedirs(tmp_dir, exist_ok=True)
-    fname = f"{profile_id}.tres"
-    with open(os.path.join(tmp_dir, fname), "w") as fh:
-        fh.write(render_profile_tres(profile_id, genome, specs))
-    profile_res = f"res://.tmp_tuner/{fname}"
+    fname = f"{profile_id}.json"
+    with open(os.path.join(tmp_dir, fname), "w", encoding="utf-8") as fh:
+        fh.write(render_profile_json(profile_id, genome, specs))
+    profile_directory = "res://.tmp_tuner/profiles"
 
     tasks = [
-        (i, profile_res, scenario_file, count_per_worker, root, timeout)
+        (i, profile_id, profile_directory, scenario_id, count_per_worker, root, timeout)
         for i in range(workers)
     ]
     runs: list = []
@@ -434,7 +458,7 @@ def evaluate_6v12(
             runs.extend(worker_runs)
     fit = score_runs(runs, win_faction, stalemate_penalty)
     if record:
-        record_sample(genome, specs, fit, scenario=scenario_file or RUN_6V12,
+        record_sample(genome, specs, fit, scenario=scenario_id or RUN_6V12,
                       win_faction=win_faction, profile_id=profile_id)
     return fit
 
@@ -473,7 +497,7 @@ def evaluate_genome(
         return evaluate_6v12(
             genome, specs, win_faction=win_faction, workers=workers,
             count_per_worker=count_per_worker, profile_id=profile_id,
-            scenario_file=scenario, stalemate_penalty=stalemate_penalty,
+            scenario_id=scenario, stalemate_penalty=stalemate_penalty,
             timeout=timeout, root=root, record=record,
         )
     return evaluate(
@@ -483,20 +507,43 @@ def evaluate_genome(
     )
 
 
-def evaluate_6v12_profile_res(
-    profile_res: str,
+def evaluate_6v12_profile_json(
+    profile_json: str,
     *,
     win_faction: str,
     workers: int = 8,
     count_per_worker: int = 2,
-    scenario_file: str = "",
+    scenario_id: str = "",
     stalemate_penalty: float = 0.5,
     timeout: float = 1800.0,
     root: str = REPO_ROOT,
 ) -> Fitness:
-    """Evaluate an existing BattleSimProfileDef resource on the 6v12 runner."""
+    """Evaluate one strict BattleSim profile JSON entry on the 6v12 runner."""
+    if profile_json.startswith("res://"):
+        relative_path = profile_json.removeprefix("res://").replace("/", os.sep)
+        absolute_path = os.path.join(root, relative_path)
+    else:
+        absolute_path = os.path.abspath(profile_json)
+    with open(absolute_path, encoding="utf-8") as fh:
+        document = json.load(fh)
+    entries = document.get("entries") if isinstance(document, dict) else None
+    if not isinstance(entries, list) or len(entries) != 1:
+        raise ValueError(f"{profile_json} must contain exactly one BattleSim profile entry.")
+    profile_id = str(entries[0].get("profile_id", ""))
+    if not profile_id:
+        raise ValueError(f"{profile_json} is missing entries[0].profile_id.")
+    profile_output_directory = os.path.join(root, ".tmp_tuner", "profiles")
+    os.makedirs(profile_output_directory, exist_ok=True)
+    with open(
+        os.path.join(profile_output_directory, f"{profile_id}.json"),
+        "w",
+        encoding="utf-8",
+    ) as fh:
+        json.dump(document, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    profile_directory = "res://.tmp_tuner/profiles"
     tasks = [
-        (i, profile_res, scenario_file, count_per_worker, root, timeout)
+        (i, profile_id, profile_directory, scenario_id, count_per_worker, root, timeout)
         for i in range(workers)
     ]
     runs: list = []
@@ -516,7 +563,7 @@ def evaluate_6v12_batch(
     count_per_worker: int = 1,
     stalemate_penalty: float = 0.5,
     profile_prefix: str = "cand",
-    scenario_file: str = "",
+    scenario_id: str = "",
     timeout: float = 1800.0,
     root: str = REPO_ROOT,
 ) -> list[Fitness]:
@@ -534,7 +581,7 @@ def evaluate_6v12_batch(
             workers=workers_per_candidate,
             count_per_worker=count_per_worker,
             profile_id=f"{profile_prefix}_{idx}",
-            scenario_file=scenario_file,
+            scenario_id=scenario_id,
             stalemate_penalty=stalemate_penalty,
             timeout=timeout,
             root=root,
@@ -547,9 +594,9 @@ def evaluate_6v12_batch(
     return results
 
 
-def prewarm(root: str = REPO_ROOT, scenario_res: str | None = None) -> None:
+def prewarm(root: str = REPO_ROOT, scenario_id: str | None = None) -> None:
     """Populate `.godot/imported` with a single non-parallel run before a batch."""
     cmd = [GODOT_BIN, "--headless", "--path", root, "--script", BALANCE_RUNNER]
-    if scenario_res:
-        cmd += ["--", scenario_res]
+    if scenario_id:
+        cmd += ["--", scenario_id]
     subprocess.run(cmd, cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)

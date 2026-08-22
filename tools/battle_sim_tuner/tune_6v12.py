@@ -16,15 +16,15 @@ import json
 import os
 
 from .evaluator import Fitness, REPO_ROOT, evaluate_6v12, evaluate_6v12_batch
-from .export_score_profile import write_score_profile_tres
+from .export_score_profile import write_score_profile_json
 from .gpu_surrogate import require_cuda
 from .objective import FORMULA as OBJECTIVE_FORMULA
 from .objective import score_fitness
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
-SCENARIO = "res://data/configs/battle_sim/scenarios/mixed_6v12_two_archer.tres"
+SCENARIO = "mixed_6v12_two_archer"
 FACTION = "player"           # tune the elite squad; the 12 hostiles keep baseline weights
-MAX_ITER = 1500              # two-archer arena iteration cap (matches the .tres)
+MAX_ITER = 1500              # two-archer arena iteration cap (matches the JSON scenario)
 TOTAL_WORKERS = 32
 WORKERS_PER_CANDIDATE = 8    # -> 4 candidates evaluated concurrently (4 x 8 = 32 procs)
 POPSIZE = 8
@@ -88,7 +88,7 @@ def main():
             workers_per_candidate=WORKERS_PER_CANDIDATE,
             count_per_worker=1,
             profile_prefix=f"p6_{gen}",
-            scenario_file=SCENARIO,
+            scenario_id=SCENARIO,
         )
         with open(observations_path, "a", encoding="utf-8") as obs:
             for idx, (genome, fit) in enumerate(zip(genomes, fits)):
@@ -129,11 +129,11 @@ def main():
     print("\n高样本复核 (各 24 局):", flush=True)
     champ_fit = evaluate_6v12(
         champion, specs, win_faction=FACTION, workers=FINAL_RUNS_WORKERS,
-        count_per_worker=1, profile_id="p6_champion", scenario_file=SCENARIO,
+        count_per_worker=1, profile_id="p6_champion", scenario_id=SCENARIO,
     )
     base_fit = evaluate_6v12(
         baseline, specs, win_faction=FACTION, workers=FINAL_RUNS_WORKERS,
-        count_per_worker=1, profile_id="p6_baseline", scenario_file=SCENARIO,
+        count_per_worker=1, profile_id="p6_baseline", scenario_id=SCENARIO,
     )
     print(f"  baseline(默认权重): {base_fit}", flush=True)
     print(f"  champion(进化权重): {champ_fit}", flush=True)
@@ -149,7 +149,7 @@ def main():
         print(f"  {name}: {b} -> {c}", flush=True)
 
     result_path = os.path.join(output_dir, "p6_champion_result.json")
-    score_profile_path = os.path.join(output_dir, "p6_champion_score_profile.tres")
+    score_profile_path = os.path.join(output_dir, "p6_champion_score_profile.json")
     with open(result_path, "w", encoding="utf-8") as fh:
         json.dump(
             {
@@ -190,11 +190,11 @@ def main():
             indent=2,
             sort_keys=True,
         )
-    write_score_profile_tres(score_profile_path, champion)
+    write_score_profile_json(score_profile_path, champion)
     print(f"\n写出训练产物:", flush=True)
     print(f"  result_json: {result_path}", flush=True)
     print(f"  observations_jsonl: {observations_path}", flush=True)
-    print(f"  score_profile_tres: {score_profile_path}", flush=True)
+    print(f"  score_profile_json: {score_profile_path}", flush=True)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,8 @@
-"""Export tuned BattleAiScoreProfile resources for game configuration.
+"""Export tuned score weights as strict BattleSim profile JSON content.
 
-Training/search code may work with a genome dictionary or a temporary
-BattleSimProfileDef override profile. This module writes the durable artifact:
-a standalone BattleAiScoreProfile .tres that can be committed under data/configs
-and loaded by runtime wiring without requiring the trainer or a model.
+Training/search code works with a genome dictionary. The durable artifact is a
+code-owned ``battle_sim_profiles`` document that the production profile registry
+can discover without loading a Godot Resource or retaining a source path.
 """
 
 from __future__ import annotations
@@ -12,55 +11,33 @@ import argparse
 import json
 import os
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
-
-from .search_space import SCORE_PROFILE_DEFAULTS
-
-SCORE_PROFILE_SCRIPT = "res://scripts/systems/battle/ai/BattleAiScoreProfile.cs"
 
 _DICT_FIELDS = {"action_base_scores", "bucket_priorities"}
 _STRING_NAME_FIELDS = {"meteor_friendly_fire_profile"}
-_SCALAR_FIELDS = [
-    key
-    for key, value in SCORE_PROFILE_DEFAULTS.items()
-    if key not in _DICT_FIELDS and not isinstance(value, Mapping)
-]
 
 
-def _fmt_scalar(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, float):
-        return repr(value)
-    if isinstance(value, str):
-        return f'"{value}"'
-    raise TypeError(f"Unsupported score profile value: {value!r}")
-
-
-def _fmt_string_name(value: Any) -> str:
-    text = str(value or "")
-    return f'&"{text}"'
-
-
-def _fmt_string_name_int_dict(values: Mapping[str, Any]) -> str:
-    if not values:
-        return "{}"
-    lines = ["{"]
-    items = sorted((str(key), int(round(value))) for key, value in values.items())
-    for index, (key, value) in enumerate(items):
-        suffix = "," if index < len(items) - 1 else ""
-        lines.append(f'&"{key}": {value}{suffix}')
-    lines.append("}")
-    return "\n".join(lines)
+def _score_profile_defaults() -> dict[str, Any]:
+    baseline_path = (
+        Path(__file__).resolve().parents[2]
+        / "data"
+        / "configs"
+        / "json"
+        / "battle_sim"
+        / "profiles"
+        / "baseline.json"
+    )
+    document = json.loads(baseline_path.read_text(encoding="utf-8"))
+    return dict(document["entries"][0]["ai_score_profile"])
 
 
 def normalize_score_profile_values(overrides: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Merge user overrides with shipped defaults and reject unknown fields."""
+    defaults = _score_profile_defaults()
     values = {
         key: (dict(value) if isinstance(value, Mapping) else value)
-        for key, value in SCORE_PROFILE_DEFAULTS.items()
+        for key, value in defaults.items()
     }
     if not overrides:
         return values
@@ -70,7 +47,7 @@ def normalize_score_profile_values(overrides: Mapping[str, Any] | None = None) -
         raise KeyError(
             "Unknown BattleAiScoreProfile field(s): "
             + ", ".join(unknown)
-            + ". Only score profile fields can be exported as a game config resource."
+            + ". Only score profile fields can be exported as BattleSim profile JSON."
         )
 
     for key, value in overrides.items():
@@ -80,40 +57,51 @@ def normalize_score_profile_values(overrides: Mapping[str, Any] | None = None) -
             merged = dict(values[key])
             merged.update({str(k): int(round(v)) for k, v in value.items()})
             values[key] = merged
-            continue
-        if key in _STRING_NAME_FIELDS:
+        elif key in _STRING_NAME_FIELDS:
             values[key] = str(value)
-            continue
-        values[key] = int(round(value))
+        elif isinstance(values[key], bool):
+            values[key] = bool(value)
+        elif isinstance(values[key], int):
+            values[key] = int(round(value))
+        else:
+            values[key] = value
     return values
 
 
-def render_score_profile_tres(overrides: Mapping[str, Any] | None = None) -> str:
-    values = normalize_score_profile_values(overrides)
-    lines = [
-        '[gd_resource type="Resource" format=3]',
-        "",
-        f'[ext_resource type="Script" path="{SCORE_PROFILE_SCRIPT}" id="1_score"]',
-        "",
-        "[resource]",
-        'script = ExtResource("1_score")',
-    ]
+def render_score_profile_json(
+    profile_id: str,
+    overrides: Mapping[str, Any] | None = None,
+) -> str:
+    if not profile_id:
+        raise ValueError("profile_id must not be empty.")
+    document = {
+        "schema": 1,
+        "domain": "battle_sim_profiles",
+        "family": "tuning",
+        "templates": {},
+        "entries": [
+            {
+                "profile_id": profile_id,
+                "display_name": profile_id,
+                "description": "BattleSim tuner candidate.",
+                "ai_score_profile": normalize_score_profile_values(overrides),
+                "override_patches": [],
+            }
+        ],
+    }
+    return json.dumps(document, ensure_ascii=False, indent=2) + "\n"
 
-    for key in _SCALAR_FIELDS:
-        if key in _STRING_NAME_FIELDS:
-            lines.append(f"{key} = {_fmt_string_name(values[key])}")
-        else:
-            lines.append(f"{key} = {_fmt_scalar(values[key])}")
-    lines.append("action_base_scores = " + _fmt_string_name_int_dict(values["action_base_scores"]))
-    lines.append("bucket_priorities = " + _fmt_string_name_int_dict(values["bucket_priorities"]))
-    lines.append("")
-    return "\n".join(lines)
 
-
-def write_score_profile_tres(path: str, overrides: Mapping[str, Any] | None = None) -> None:
+def write_score_profile_json(
+    path: str,
+    overrides: Mapping[str, Any] | None = None,
+    *,
+    profile_id: str | None = None,
+) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    resolved_profile_id = profile_id or Path(path).stem
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(render_score_profile_tres(overrides))
+        fh.write(render_score_profile_json(resolved_profile_id, overrides))
 
 
 def _load_overrides(path: str) -> dict[str, Any]:
@@ -130,13 +118,18 @@ def _load_overrides(path: str) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Export a tuned BattleAiScoreProfile .tres from a JSON genome."
+        description="Export tuned weights as strict BattleSim profile JSON."
     )
     parser.add_argument("--input-json", required=True, help="Genome JSON or tune result JSON.")
-    parser.add_argument("--output", required=True, help="Output .tres path.")
+    parser.add_argument("--output", required=True, help="Output .json path.")
+    parser.add_argument("--profile-id", help="Profile ID; defaults to the output file stem.")
     args = parser.parse_args()
 
-    write_score_profile_tres(args.output, _load_overrides(args.input_json))
+    write_score_profile_json(
+        args.output,
+        _load_overrides(args.input_json),
+        profile_id=args.profile_id,
+    )
     print(f"wrote {args.output}")
 
 

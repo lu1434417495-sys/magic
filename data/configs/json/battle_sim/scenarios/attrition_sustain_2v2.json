@@ -1,0 +1,226 @@
+{
+  "schema": 1,
+  "domain": "battle_sim_scenarios",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "scenario_id": "attrition_sustain_2v2",
+      "display_name": "Attrition Sustain (Melee Mirror 2v2)",
+      "description": "资源吃紧的近战消耗战：双方各 2 名战士(stamina_max 8, charge/heavy_strike 耗耐力)，小地图(14x8)、低 AC 保证近战命中与出结果，无法师/无风筝以避免僵局。设计为耐力续航(B 组 stamina)与自身生存投影(A 组)评分有梯度；镜像编成 => 基线对基线约 50%，给被调方(player)留出调参空间。仅作调参场景，非平衡基线。注意：本场景只覆盖耐力续航，MP 续航需另建一个不会风筝的法师场景。使用前需 COUNT>=20 复核胜率与僵局率(ended 比例)。",
+      "map_size": {
+        "x": 14,
+        "y": 8
+      },
+      "terrain_profile_id": "default",
+      "use_formal_terrain_generation": false,
+      "world_coord": {
+        "x": 0,
+        "y": 0
+      },
+      "ally_units": [
+        {
+          "unit_id": "attr_player_w0",
+          "source_member_id": "",
+          "display_name": "玩家战士0",
+          "faction_id": "player",
+          "control_mode": "ai",
+          "ai_brain_id": "melee_aggressor",
+          "ai_state_id": "engage",
+          "coord": {
+            "x": 10,
+            "y": 3
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 80,
+          "current_mp": 0,
+          "current_stamina": 8,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 80,
+            "stamina_max": 8,
+            "action_points": 2,
+            "attack_bonus": 6,
+            "armor_ac_bonus": 2
+          },
+          "skill_ids": [
+            "charge",
+            "warrior_heavy_strike"
+          ],
+          "skill_level_map": {
+            "charge": 1,
+            "warrior_heavy_strike": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 14,
+            "agility": 12,
+            "constitution": 14,
+            "perception": 10,
+            "intelligence": 8,
+            "willpower": 10
+          }
+        },
+        {
+          "unit_id": "attr_player_w1",
+          "source_member_id": "",
+          "display_name": "玩家战士1",
+          "faction_id": "player",
+          "control_mode": "ai",
+          "ai_brain_id": "melee_aggressor",
+          "ai_state_id": "engage",
+          "coord": {
+            "x": 11,
+            "y": 5
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 80,
+          "current_mp": 0,
+          "current_stamina": 8,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 80,
+            "stamina_max": 8,
+            "action_points": 2,
+            "attack_bonus": 6,
+            "armor_ac_bonus": 2
+          },
+          "skill_ids": [
+            "charge",
+            "warrior_heavy_strike"
+          ],
+          "skill_level_map": {
+            "charge": 1,
+            "warrior_heavy_strike": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 14,
+            "agility": 12,
+            "constitution": 14,
+            "perception": 10,
+            "intelligence": 8,
+            "willpower": 10
+          }
+        }
+      ],
+      "enemy_units": [
+        {
+          "unit_id": "attr_hostile_w0",
+          "source_member_id": "",
+          "display_name": "敌方战士0",
+          "faction_id": "hostile",
+          "control_mode": "ai",
+          "ai_brain_id": "melee_aggressor",
+          "ai_state_id": "engage",
+          "coord": {
+            "x": 3,
+            "y": 3
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 80,
+          "current_mp": 0,
+          "current_stamina": 8,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 80,
+            "stamina_max": 8,
+            "action_points": 2,
+            "attack_bonus": 6,
+            "armor_ac_bonus": 2
+          },
+          "skill_ids": [
+            "charge",
+            "warrior_heavy_strike"
+          ],
+          "skill_level_map": {
+            "charge": 1,
+            "warrior_heavy_strike": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 14,
+            "agility": 12,
+            "constitution": 14,
+            "perception": 10,
+            "intelligence": 8,
+            "willpower": 10
+          }
+        },
+        {
+          "unit_id": "attr_hostile_w1",
+          "source_member_id": "",
+          "display_name": "敌方战士1",
+          "faction_id": "hostile",
+          "control_mode": "ai",
+          "ai_brain_id": "melee_aggressor",
+          "ai_state_id": "engage",
+          "coord": {
+            "x": 2,
+            "y": 5
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 80,
+          "current_mp": 0,
+          "current_stamina": 8,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 80,
+            "stamina_max": 8,
+            "action_points": 2,
+            "attack_bonus": 6,
+            "armor_ac_bonus": 2
+          },
+          "skill_ids": [
+            "charge",
+            "warrior_heavy_strike"
+          ],
+          "skill_level_map": {
+            "charge": 1,
+            "warrior_heavy_strike": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 14,
+            "agility": 12,
+            "constitution": 14,
+            "perception": 10,
+            "intelligence": 8,
+            "willpower": 10
+          }
+        }
+      ],
+      "cell_overrides": [],
+      "timeline_ticks_per_step": 1,
+      "tu_per_tick": 5,
+      "max_iterations": 1000,
+      "manual_policy": "ai",
+      "trace_enabled": true,
+      "seeds": [
+        101,
+        102,
+        103
+      ]
+    }
+  ]
+}

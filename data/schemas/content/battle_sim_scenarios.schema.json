@@ -1,0 +1,592 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:battle_sim_scenarios:v1",
+  "title": "Magic BattleSim scenario JSON authoring schema",
+  "description": "Strict scenario and unit contract projected to immutable definitions.",
+  "$ref": "#/$defs/BattleSimScenarioJsonDocumentDto",
+  "$defs": {
+    "BattleSimCellOverrideJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_height": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "base_terrain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coord": {
+          "$ref": "#/$defs/BattleSimCoordJsonDto"
+        },
+        "flow_direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BattleSimCoordJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "height_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prop_ids": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "terrain_effect_ids": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "coord"
+      ]
+    },
+    "BattleSimCoordJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "BattleSimCoordJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      }
+    },
+    "BattleSimDiceJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dice_count": {
+          "type": "integer"
+        },
+        "dice_sides": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dice_count",
+        "dice_sides"
+      ]
+    },
+    "BattleSimScenarioJsonDocumentDto": {
+      "description": "BattleSim scenario document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "battle_sim_scenarios"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimScenarioJsonDto__authoring_scenario_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BattleSimScenarioJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "BattleSimScenarioJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ally_units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimUnitJsonDto"
+          }
+        },
+        "cell_overrides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimCellOverrideJsonDto"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "enemy_units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimUnitJsonDto"
+          }
+        },
+        "manual_policy": {
+          "type": "string"
+        },
+        "map_size": {
+          "$ref": "#/$defs/BattleSimCoordJsonDto"
+        },
+        "max_iterations": {
+          "type": "integer"
+        },
+        "scenario_id": {
+          "type": "string"
+        },
+        "seeds": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "terrain_profile_id": {
+          "type": "string"
+        },
+        "timeline_ticks_per_step": {
+          "type": "integer"
+        },
+        "trace_enabled": {
+          "type": "boolean"
+        },
+        "tu_per_tick": {
+          "type": "integer"
+        },
+        "use_formal_terrain_generation": {
+          "type": "boolean"
+        },
+        "world_coord": {
+          "$ref": "#/$defs/BattleSimCoordJsonDto"
+        }
+      },
+      "required": [
+        "ally_units",
+        "cell_overrides",
+        "description",
+        "display_name",
+        "enemy_units",
+        "manual_policy",
+        "map_size",
+        "max_iterations",
+        "scenario_id",
+        "seeds",
+        "terrain_profile_id",
+        "timeline_ticks_per_step",
+        "trace_enabled",
+        "tu_per_tick",
+        "use_formal_terrain_generation",
+        "world_coord"
+      ]
+    },
+    "BattleSimScenarioJsonDto__authoring_scenario_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BattleSimScenarioJsonDto"
+        },
+        {
+          "$ref": "#/$defs/BattleSimScenarioJsonDto__templated_scenario_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "BattleSimScenarioJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ally_units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimUnitJsonDto"
+          }
+        },
+        "cell_overrides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimCellOverrideJsonDto"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "enemy_units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimUnitJsonDto"
+          }
+        },
+        "manual_policy": {
+          "type": "string"
+        },
+        "map_size": {
+          "$ref": "#/$defs/BattleSimCoordJsonDto__partial"
+        },
+        "max_iterations": {
+          "type": "integer"
+        },
+        "scenario_id": {
+          "type": "string"
+        },
+        "seeds": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "terrain_profile_id": {
+          "type": "string"
+        },
+        "timeline_ticks_per_step": {
+          "type": "integer"
+        },
+        "trace_enabled": {
+          "type": "boolean"
+        },
+        "tu_per_tick": {
+          "type": "integer"
+        },
+        "use_formal_terrain_generation": {
+          "type": "boolean"
+        },
+        "world_coord": {
+          "$ref": "#/$defs/BattleSimCoordJsonDto__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "BattleSimScenarioJsonDto__templated_scenario_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ally_units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimUnitJsonDto"
+          }
+        },
+        "cell_overrides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimCellOverrideJsonDto"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "enemy_units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimUnitJsonDto"
+          }
+        },
+        "manual_policy": {
+          "type": "string"
+        },
+        "map_size": {
+          "$ref": "#/$defs/BattleSimCoordJsonDto__partial"
+        },
+        "max_iterations": {
+          "type": "integer"
+        },
+        "scenario_id": {
+          "type": "string"
+        },
+        "seeds": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "terrain_profile_id": {
+          "type": "string"
+        },
+        "timeline_ticks_per_step": {
+          "type": "integer"
+        },
+        "trace_enabled": {
+          "type": "boolean"
+        },
+        "tu_per_tick": {
+          "type": "integer"
+        },
+        "use_formal_terrain_generation": {
+          "type": "boolean"
+        },
+        "world_coord": {
+          "$ref": "#/$defs/BattleSimCoordJsonDto__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "template"
+      ]
+    },
+    "BattleSimUnitJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_threshold": {
+          "type": "integer"
+        },
+        "ai_brain_id": {
+          "type": "string"
+        },
+        "ai_state_id": {
+          "type": "string"
+        },
+        "attribute_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "base_attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "body_size": {
+          "type": "integer"
+        },
+        "body_size_category": {
+          "type": "string"
+        },
+        "control_mode": {
+          "type": "string"
+        },
+        "coord": {
+          "$ref": "#/$defs/BattleSimCoordJsonDto"
+        },
+        "current_ap": {
+          "type": "integer"
+        },
+        "current_aura": {
+          "type": "integer"
+        },
+        "current_hp": {
+          "type": "integer"
+        },
+        "current_move_points": {
+          "type": "integer"
+        },
+        "current_mp": {
+          "type": "integer"
+        },
+        "current_stamina": {
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "faction_id": {
+          "type": "string"
+        },
+        "movement_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_level_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "source_member_id": {
+          "type": "string"
+        },
+        "unit_id": {
+          "type": "string"
+        },
+        "unlocked_combat_resource_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "weapon_projection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BattleSimWeaponProjectionJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "action_threshold",
+        "ai_brain_id",
+        "ai_state_id",
+        "attribute_overrides",
+        "base_attributes",
+        "body_size",
+        "body_size_category",
+        "control_mode",
+        "coord",
+        "current_ap",
+        "current_aura",
+        "current_hp",
+        "current_move_points",
+        "current_mp",
+        "current_stamina",
+        "display_name",
+        "faction_id",
+        "movement_tags",
+        "skill_ids",
+        "skill_level_map",
+        "source_member_id",
+        "unit_id",
+        "unlocked_combat_resource_ids"
+      ]
+    },
+    "BattleSimWeaponProjectionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "weapon_attack_range": {
+          "type": "integer"
+        },
+        "weapon_current_grip": {
+          "type": "string"
+        },
+        "weapon_family": {
+          "type": "string"
+        },
+        "weapon_is_versatile": {
+          "type": "boolean"
+        },
+        "weapon_item_id": {
+          "type": "string"
+        },
+        "weapon_one_handed_dice": {
+          "$ref": "#/$defs/BattleSimDiceJsonDto"
+        },
+        "weapon_physical_damage_tag": {
+          "type": "string"
+        },
+        "weapon_profile_kind": {
+          "type": "string"
+        },
+        "weapon_profile_type_id": {
+          "type": "string"
+        },
+        "weapon_range_type": {
+          "type": "string"
+        },
+        "weapon_two_handed_dice": {
+          "$ref": "#/$defs/BattleSimDiceJsonDto"
+        },
+        "weapon_uses_two_hands": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "weapon_attack_range",
+        "weapon_current_grip",
+        "weapon_family",
+        "weapon_is_versatile",
+        "weapon_item_id",
+        "weapon_one_handed_dice",
+        "weapon_physical_damage_tag",
+        "weapon_profile_kind",
+        "weapon_profile_type_id",
+        "weapon_range_type",
+        "weapon_two_handed_dice",
+        "weapon_uses_two_hands"
+      ]
+    }
+  }
+}

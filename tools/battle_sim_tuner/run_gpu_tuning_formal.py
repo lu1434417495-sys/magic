@@ -12,10 +12,10 @@ from .evaluator import (
     REPO_ROOT,
     evaluate_6v12,
     evaluate_6v12_batch,
-    evaluate_6v12_profile_res,
+    evaluate_6v12_profile_json,
     score_runs,
 )
-from .export_score_profile import write_score_profile_tres
+from .export_score_profile import write_score_profile_json
 from .gpu_surrogate import rank_candidates, require_cuda, train_surrogate
 from .objective import FORMULA as OBJECTIVE_FORMULA
 from .run_gpu_bridge_sample import (
@@ -95,7 +95,7 @@ def _verified_payload(
     *,
     label: str,
     genome: dict[str, int] | None = None,
-    profile_res: str | None = None,
+    profile_json: str | None = None,
     fitness,
     predicted_objective: float | None = None,
     gpu_rank: int | None = None,
@@ -107,8 +107,8 @@ def _verified_payload(
     }
     if genome is not None:
         payload["genome"] = genome
-    if profile_res is not None:
-        payload["profile_res"] = profile_res
+    if profile_json is not None:
+        payload["profile_json"] = profile_json
     if predicted_objective is not None:
         payload["predicted_objective"] = predicted_objective
     if gpu_rank is not None:
@@ -142,7 +142,7 @@ def _top_up_verification_runs(
                 workers=workers,
                 count_per_worker=1,
                 profile_id=f"gpu_tuning_formal_verify_topup_{idx}_{attempt}",
-                scenario_file=SCENARIO,
+                scenario_id=SCENARIO,
             )
             if extra.n <= 0:
                 raise RuntimeError(
@@ -170,12 +170,12 @@ def _top_up_profile_verification_runs(
             f"n={fit.n}/{target_runs}, extra_workers={workers}",
             flush=True,
         )
-        extra = evaluate_6v12_profile_res(
-            entry["profile_res"],
+        extra = evaluate_6v12_profile_json(
+            entry["profile_json"],
             win_faction=FACTION,
             workers=workers,
             count_per_worker=1,
-            scenario_file=SCENARIO,
+            scenario_id=SCENARIO,
         )
         if extra.n <= 0:
             raise RuntimeError(
@@ -206,7 +206,7 @@ def _parse_extra_profile(raw: str) -> dict[str, str]:
         label = os.path.splitext(os.path.basename(path))[0]
     if not label or not path:
         raise ValueError("--extra-profile expects label=path or path.")
-    return {"label": label, "profile_res": _path_to_res(path)}
+    return {"label": label, "profile_json": _path_to_res(path)}
 
 
 def main() -> None:
@@ -247,7 +247,7 @@ def main() -> None:
         action="append",
         default=[],
         help=(
-            "Additional BattleSimProfileDef to verify, as label=res://path or "
+            "Additional BattleSim profile to verify, as label=res://path or "
             "label=repo/relative/path. May be passed more than once."
         ),
     )
@@ -330,7 +330,7 @@ def main() -> None:
             workers_per_candidate=args.observation_workers_per_candidate,
             count_per_worker=args.observation_count_per_worker,
             profile_prefix=f"gpu_tuning_formal_observe_{start}",
-            scenario_file=SCENARIO,
+            scenario_id=SCENARIO,
         )
         all_genomes.extend(chunk_genomes)
         all_fits.extend(chunk_fits)
@@ -399,7 +399,7 @@ def main() -> None:
             workers_per_candidate=args.active_learning_workers_per_candidate,
             count_per_worker=args.active_learning_count_per_worker,
             profile_prefix=f"gpu_tuning_formal_active_{round_index}",
-            scenario_file=SCENARIO,
+            scenario_id=SCENARIO,
         )
         for idx, (entry, fit) in enumerate(zip(active_entries, active_fits)):
             print(
@@ -491,7 +491,7 @@ def main() -> None:
         workers_per_candidate=args.verify_workers_per_candidate,
         count_per_worker=args.verify_count_per_worker,
         profile_prefix="gpu_tuning_formal_verify",
-        scenario_file=SCENARIO,
+        scenario_id=SCENARIO,
     )
     verify_fits = _top_up_verification_runs(
         fits=verify_fits,
@@ -514,15 +514,15 @@ def main() -> None:
     for entry in extra_profiles:
         print(
             f"external verification {entry['label']}: "
-            f"profile={entry['profile_res']}",
+            f"profile={entry['profile_json']}",
             flush=True,
         )
-        fit = evaluate_6v12_profile_res(
-            entry["profile_res"],
+        fit = evaluate_6v12_profile_json(
+            entry["profile_json"],
             win_faction=FACTION,
             workers=args.verify_workers_per_candidate,
             count_per_worker=args.verify_count_per_worker,
-            scenario_file=SCENARIO,
+            scenario_id=SCENARIO,
         )
         fit = _top_up_profile_verification_runs(
             fit=fit,
@@ -533,7 +533,7 @@ def main() -> None:
         verified.append(
             _verified_payload(
                 label=entry["label"],
-                profile_res=entry["profile_res"],
+                profile_json=entry["profile_json"],
                 fitness=fit,
             )
         )
@@ -545,8 +545,8 @@ def main() -> None:
     best = verified_sorted[0]
     verified_best_profile = None
     if best.get("genome") is not None:
-        verified_best_profile = os.path.join(args.output_dir, "verified_best_score_profile.tres")
-        write_score_profile_tres(verified_best_profile, best["genome"])
+        verified_best_profile = os.path.join(args.output_dir, "verified_best_score_profile.json")
+        write_score_profile_json(verified_best_profile, best["genome"])
     for item in verified_sorted:
         fitness = item["fitness"]
         print(

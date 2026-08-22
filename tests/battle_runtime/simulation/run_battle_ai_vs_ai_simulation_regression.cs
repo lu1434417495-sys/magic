@@ -5,8 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSceneTree
 {
-    private const string AiVsAiScenarioPath =
-        "res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres";
+    private static readonly StringName AiVsAiScenarioId = "ai_vs_ai_duel_example";
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -22,12 +21,10 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
 
     private TestResult Run()
     {
-        using var loader = new TestContentResourceLoader();
-        BattleSimScenarioDef scenarioResource = loader.LoadCanonical<BattleSimScenarioDef>(
-            AiVsAiScenarioPath
-        );
-        AssertAuthoredScenarioFacts(scenarioResource);
-        BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
+        var catalog = new BattleSimContentCatalog();
+        catalog.Rebuild();
+        catalog.TryGetScenario(AiVsAiScenarioId, out BattleSimScenarioDefinition scenario);
+        AssertAuthoredScenarioFacts(scenario);
         BattleSimProfileDefinition baselineProfile = GameSessionTestFactory
             .GetProcessSnapshot()
             .BattleSimProfiles["baseline"];
@@ -40,7 +37,7 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
         }
         _test.True(
             scenarioContextBuilt,
-            "AI vs AI 示例场景资源应能被 BattleSimScenarioDef 正常加载。"
+            "AI vs AI 示例场景应能由 strict JSON catalog 正常加载。"
         );
         _test.True(
             baselineProfile != null,
@@ -214,43 +211,47 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
         return _test.Finish("Battle AI vs AI simulation regression");
     }
 
-    private void AssertAuthoredScenarioFacts(BattleSimScenarioDef scenarioResource)
+    private void AssertAuthoredScenarioFacts(BattleSimScenarioDefinition scenario)
     {
-        _test.True(scenarioResource != null, "AI vs AI authored resource 应通过正式测试 loader 加载。");
-        if (scenarioResource == null)
+        _test.True(scenario != null, "AI vs AI authored scenario 应通过 JSON catalog 加载。");
+        if (scenario == null)
             return;
 
         _test.Eq(
-            scenarioResource.scenario_id.ToString(),
+            scenario.ScenarioId.ToString(),
             "ai_vs_ai_duel_example",
             "AI vs AI regression 应直接消费正式 authored scenario。"
         );
         _test.Eq(
-            scenarioResource.map_size,
+            scenario.MapSize,
             new Vector2I(6, 3),
             "AI vs AI authored scenario 应保留 6x3 duel map。"
         );
         _test.Eq(
-            scenarioResource.max_iterations,
+            scenario.MaxIterations,
             400,
             "AI vs AI authored scenario 应依靠可执行配置完成，而不是放大迭代预算。"
         );
-        _test.Eq(scenarioResource.seeds.Length, 2, "AI vs AI authored scenario 应声明两个 seeds。");
-        if (scenarioResource.seeds.Length == 2)
+        _test.Eq(scenario.Seeds.Count, 2, "AI vs AI authored scenario 应声明两个 seeds。");
+        if (scenario.Seeds.Count == 2)
         {
-            _test.Eq(scenarioResource.seeds[0], 301, "AI vs AI authored seed[0] 应为 301。");
-            _test.Eq(scenarioResource.seeds[1], 302, "AI vs AI authored seed[1] 应为 302。");
+            _test.Eq(scenario.Seeds[0], 301, "AI vs AI authored seed[0] 应为 301。");
+            _test.Eq(scenario.Seeds[1], 302, "AI vs AI authored seed[1] 应为 302。");
         }
 
-        BattleSimUnitSpec playerUnit = ReadUnitSpec(scenarioResource.ally_units, 0);
-        BattleSimUnitSpec hostileUnit = ReadUnitSpec(scenarioResource.enemy_units, 0);
+        BattleUnitState playerUnit = scenario.AllyUnits.Count > 0
+            ? scenario.AllyUnits[0].UnitDefinition.CreateRuntimeState()
+            : null;
+        BattleUnitState hostileUnit = scenario.EnemyUnits.Count > 0
+            ? scenario.EnemyUnits[0].UnitDefinition.CreateRuntimeState()
+            : null;
         _test.Eq(
-            scenarioResource.ally_units.Count,
+            scenario.AllyUnits.Count,
             1,
             "AI vs AI authored scenario 应包含一个 player 单位。"
         );
         _test.Eq(
-            scenarioResource.enemy_units.Count,
+            scenario.EnemyUnits.Count,
             1,
             "AI vs AI authored scenario 应包含一个 hostile 单位。"
         );
@@ -278,33 +279,19 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
             "bow"
         );
         _test.True(
-            ContainsStringName(playerUnit.skill_ids, "basic_attack")
-                && ContainsStringName(playerUnit.skill_ids, "warrior_heavy_strike"),
+            playerUnit.GetKnownActiveSkillIdsTyped().Contains("basic_attack")
+                && playerUnit.GetKnownActiveSkillIdsTyped().Contains("warrior_heavy_strike"),
             "player vanguard authored fixture 应具备实际可执行的近战攻击技能。"
         );
         _test.True(
-            ContainsStringName(hostileUnit.skill_ids, "basic_attack")
-                && ContainsStringName(hostileUnit.skill_ids, "archer_pinning_shot"),
+            hostileUnit.GetKnownActiveSkillIdsTyped().Contains("basic_attack")
+                && hostileUnit.GetKnownActiveSkillIdsTyped().Contains("archer_pinning_shot"),
             "hostile harrier authored fixture 应具备实际可执行的弓箭攻击技能。"
         );
     }
 
-    private static BattleSimUnitSpec ReadUnitSpec(GArray source, int index)
-    {
-        if (
-            source == null
-            || index < 0
-            || index >= source.Count
-            || source[index].VariantType != Variant.Type.Object
-        )
-        {
-            return null;
-        }
-        return source[index].AsGodotObject() as BattleSimUnitSpec;
-    }
-
     private void AssertAuthoredAiUnit(
-        BattleSimUnitSpec unit,
+        BattleUnitState unit,
         string expectedUnitId,
         string expectedFactionId,
         string expectedBrainId,
@@ -319,7 +306,7 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
             $"AI vs AI authored unit {expectedUnitId} 应属于预期阵营。"
         );
         _test.Eq(
-            unit.control_mode.ToString(),
+            BattleTypedNames.ToStringName(unit.ControlModeKind).ToString(),
             "ai",
             $"AI vs AI authored unit {expectedUnitId} 应直接声明 AI control mode。"
         );
@@ -334,45 +321,14 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
             $"AI vs AI authored unit {expectedUnitId} 应绑定预期初始 state。"
         );
         _test.Eq(
-            GetString(unit.weapon_projection, "weapon_family"),
+            unit.GetWeaponProjectionReadViewTyped().Values.Family.ToString(),
             expectedWeaponFamily,
             $"AI vs AI authored unit {expectedUnitId} 应携带匹配技能的正式武器投影。"
         );
         _test.True(
-            unit.current_stamina >= 120,
+            unit.GetCurrentStamina() >= 120,
             $"AI vs AI authored unit {expectedUnitId} 应有足够资源执行其正常技能组合。"
         );
-    }
-
-    private static bool ContainsStringName(GArray source, string expected)
-    {
-        if (source == null)
-            return false;
-        foreach (Variant value in source)
-        {
-            string actual = value.VariantType switch
-            {
-                Variant.Type.String => value.AsString(),
-                Variant.Type.StringName => value.AsStringName().ToString(),
-                _ => "",
-            };
-            if (actual == expected)
-                return true;
-        }
-        return false;
-    }
-
-    private static string GetString(GDictionary source, string key)
-    {
-        if (source == null || !source.ContainsKey(key))
-            return "";
-        Variant value = source[key];
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => value.ToString(),
-        };
     }
 
 }

@@ -5,7 +5,7 @@
 
 相关产物：
 - 参数面 A+B：已接进引擎（`BattleAiScoreProfile` + `BattleAiScoreService`，默认中性）。
-- 资源吃紧场景：`data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres`（纯近战镜像，覆盖耐力续航+生存投影；MP 续航待另建不风筝法师场景）。
+- 资源吃紧场景 ID：`attrition_sustain_2v2`（JSON 位于 `data/configs/json/battle_sim/scenarios/`；纯近战镜像，覆盖耐力续航+生存投影；MP 续航待另建不风筝法师场景）。
 - 中央累积样本库：`evaluator.record_sample` → `tools/battle_sim_tuner/dataset/samples.jsonl`（跨 run 累积、flock 安全、schema 对齐 `objective`）。
 
 ---
@@ -24,7 +24,7 @@ dotnet build magic.csproj -nologo -clp:ErrorsOnly        # 0 错误
 ```bash
 cd tools
 battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.validate_scenario \
-    --scenario res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres \
+    --scenario attrition_sustain_2v2 \
     --workers 8                      # 8 workers x 3 seeds = 24 局 (n>=20)
 ```
 判据：`resolves`(stalemate<=0.2) 且 `balanced`(|win-0.5|<=0.15) 都 YES 才可用。
@@ -34,12 +34,12 @@ battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.validate_scenario \
 
 用现有 GPU 管线在该场景上跑观测/主动学习；每次评估都会经 `record_sample` 自动追加到中央库。
 
-`run_gpu_tuning_formal` 现已支持 `--scenario`/`--faction`（默认仍 two_archer/player，向后兼容），
+`run_gpu_tuning_formal` 支持 `--scenario`/`--faction`（默认仍 two_archer/player），
 无需再改常量：
 
 ```bash
 /home/luchaoli/venvs/cuda-op/bin/python -m battle_sim_tuner.run_gpu_tuning_formal \
-    --scenario res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres \
+    --scenario attrition_sustain_2v2 \
     --faction player \
     --observation-candidates 64 --observation-total-workers 32 \
     --active-learning-rounds 2 --verify-top-k 4 \
@@ -71,7 +71,7 @@ battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.train_surrogate_from_centr
     --restarts 3 --polish-steps 300 --top-k 16 \
     --output-dir ../.tmp_tuner/gpu_search_attrition
 ```
-输出 `ranked.json`(含 `acq`/`pred_mean`/`pred_std`)+ `champion_score_profile.tres`。
+输出 `ranked.json`(含 `acq`/`pred_mean`/`pred_std`)+ `champion_score_profile.json`。
 （需要 cuda venv 里有 `cma`：`pip install cma`。）
 
 **4B `rank_and_export.py`(简版)** — 若已用步骤 3 训好单个 surrogate,只做一次性大池排序:
@@ -89,11 +89,11 @@ battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.train_surrogate_from_centr
 ```bash
 battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.promote_gate \
     --candidate ../.tmp_tuner/rank_attrition/ranked.json \
-    --scenario res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres \
+    --scenario attrition_sustain_2v2 \
     --workers 16
 ```
 判据：`Δobj>=margin` 且 loss/僵局无回归 且 n>=20 → 退出码 0 (PROMOTE)，否则 1 (REJECT)。
-通过后才把 `champion_score_profile.tres` 落进正式 profile；否则回步骤 2 加样本/纠偏。
+通过后才把 `champion_score_profile.json` 落进正式 profile；否则回步骤 2 加样本/纠偏。
 
 ---
 

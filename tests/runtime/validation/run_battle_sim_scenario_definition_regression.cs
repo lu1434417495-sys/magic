@@ -34,7 +34,7 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
     private void AssertAuthoringProjectionIsDetachedAndSchemaStable()
     {
         StringName skillId = "definition_probe_skill";
-        var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "definition_probe_unit",
             display_name = "Definition Probe",
@@ -43,14 +43,13 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
             skill_ids = new GArray { skillId },
             skill_level_map = new GDictionary { [skillId] = 3 },
         };
-        var allies = new GArray { unitSpec };
-        allies.Add(default(Variant));
+        var allies = new List<object> { unitSpec };
         var cellOverride = new GDictionary
         {
             ["coord"] = new Vector2I(0, 0),
             ["base_height"] = 8,
         };
-        var scenario = new BattleSimScenarioDef
+        var scenario = new BattleSimTestScenarioBuilder
         {
             scenario_id = "definition_probe",
             display_name = "Definition Probe Scenario",
@@ -59,8 +58,8 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
             terrain_profile_id = "definition_terrain",
             world_coord = new Vector2I(4, 5),
             ally_units = allies,
-            enemy_units = new GArray(),
-            cell_overrides = new Godot.Collections.Array<GDictionary> { cellOverride },
+            enemy_units = new List<object>(),
+            cell_overrides = new List<GDictionary> { cellOverride },
             timeline_ticks_per_step = 2,
             tu_per_tick = 7,
             max_iterations = 19,
@@ -79,11 +78,11 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
         unitSpec.skill_level_map[skillId] = 99;
         cellOverride["base_height"] = 99;
 
-        _test.Eq(definition.ScenarioId.ToString(), "definition_probe", "scenario id should be detached from its authored Resource");
+        _test.Eq(definition.ScenarioId.ToString(), "definition_probe", "scenario id should be detached from its import model");
         _test.Eq(definition.Seeds.Count, 2, "scenario seeds should preserve authored cardinality");
         _test.Eq(definition.Seeds[0], 17, "scenario seeds should be copied at projection time");
-        _test.Eq(definition.AuthoringAllyUnitCount, 2, "report schema should retain the raw authored ally count, including Nil entries");
-        _test.Eq(definition.AllyUnits.Count, 1, "runtime unit definitions should still skip authored Nil entries");
+        _test.Eq(definition.AuthoringAllyUnitCount, 1, "strict import schema should retain the authored ally count");
+        _test.Eq(definition.AllyUnits.Count, 1, "runtime unit definitions should preserve strict imported entries");
 
         BattleUnitState firstState = definition.AllyUnits[0].UnitDefinition.CreateRuntimeState();
         firstState.unit_id = "mutated_runtime_copy";
@@ -106,16 +105,16 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
 
         Dictionary<string, object> fileFacts =
             BattleSimFilePayloadProjection.BuildScenarioFacts(definition);
-        _test.Eq(Convert.ToInt32(fileFacts["ally_unit_count"]), 2, "file projection should preserve the authored ally count schema");
+        _test.Eq(Convert.ToInt32(fileFacts["ally_unit_count"]), 1, "file projection should preserve the authored ally count schema");
         using GodotProjectionLease<GDictionary> reportLease =
             BattleSimReportProjection.BuildScenarioLease(definition);
-        _test.Eq(reportLease.Value["ally_unit_count"].AsInt32(), 2, "Godot report projection should preserve the authored ally count schema");
+        _test.Eq(reportLease.Value["ally_unit_count"].AsInt32(), 1, "Godot report projection should preserve the authored ally count schema");
     }
 
     private void AssertStringNameKeyedSnapshotsRoundTrip()
     {
         StringName skillId = "definition_cooldown_probe";
-        using var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "definition_cooldown_unit",
             display_name = "Definition Cooldown Unit",
@@ -141,13 +140,13 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
 
     private void AssertRuntimeOnlyEquipmentProjectionSurvivesScenarioRosterHandoff()
     {
-        using var allySpec = new BattleSimUnitSpec
+        var allySpec = new BattleSimTestUnitBuilder
         {
             unit_id = "definition_temporal_projection_unit",
             display_name = "Definition Temporal Projection Unit",
             coord = new Vector2I(1, 1),
         };
-        using var enemySpec = new BattleSimUnitSpec
+        var enemySpec = new BattleSimTestUnitBuilder
         {
             unit_id = "definition_temporal_projection_enemy",
             display_name = "Definition Temporal Projection Enemy",
@@ -335,7 +334,7 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
 
     private void AssertFormalTerrainSkipsExplicitCellParsing()
     {
-        var scenario = new BattleSimScenarioDef
+        var scenario = new BattleSimTestScenarioBuilder
         {
             scenario_id = "formal_terrain_probe",
             use_formal_terrain_generation = true,

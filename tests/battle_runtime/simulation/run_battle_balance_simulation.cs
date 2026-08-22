@@ -34,31 +34,30 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
         if (args.Length == 0)
         {
             ConsoleProcessOutput.WriteFailure(
-                "Usage: godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.cs -- <scenario.tres> [profile.tres ...]"
+                "Usage: godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.cs -- <scenario_id> [profile_id ...]"
             );
             return 1;
         }
 
-        BattleSimScenarioDef scenarioResource =
-            ResourceLoader.Load<BattleSimScenarioDef>(args[0]);
-        if (scenarioResource == null)
+        var scenarioCatalog = new BattleSimContentCatalog();
+        scenarioCatalog.Rebuild();
+        if (!scenarioCatalog.TryGetScenario(args[0], out BattleSimScenarioDefinition scenario))
         {
-            ConsoleProcessOutput.WriteFailure($"Failed to load BattleSimScenarioDef from {args[0]}.");
+            ConsoleProcessOutput.WriteFailure($"Failed to load BattleSim scenario id {args[0]}.");
             return 1;
         }
-        BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
-        scenarioResource = null;
 
+        var profileRegistry = new BattleSimProfileContentRegistry();
+        if (OS.HasEnvironment("BATTLE_SIM_PROFILE_DIRECTORY"))
+            profileRegistry.LoadFromDirectory(OS.GetEnvironment("BATTLE_SIM_PROFILE_DIRECTORY").StripEdges());
+        else
+            profileRegistry.Rebuild();
         var profiles = new List<BattleSimProfileDefinition>();
         for (int index = 1; index < args.Length; index++)
         {
-            BattleSimProfileDef authoredProfile = ResourceLoader.Load<BattleSimProfileDef>(
-                args[index]
-            );
-            BattleSimProfileDefinition profile = authoredProfile?.ToDefinition();
-            if (profile == null)
+            if (!profileRegistry.TryGetDefinition(args[index], out BattleSimProfileDefinition profile))
             {
-                ConsoleProcessOutput.WriteFailure($"Failed to load BattleSimProfileDef from {args[index]}.");
+                ConsoleProcessOutput.WriteFailure($"Failed to load BattleSim profile id {args[index]}.");
                 return 1;
             }
             profiles.Add(profile);
