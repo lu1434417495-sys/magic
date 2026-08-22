@@ -144,6 +144,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         party_management_window.SetTraitDefs(contentCatalog.GetTraitDefsTyped());
         party_management_window.SetSkillDefinitions(contentCatalog.GetSkillDefinitionsTyped());
         party_management_window.SetProfessionDefs(contentCatalog.GetProfessionDefsTyped());
+        party_management_window.SetEquipmentAbilityBindings(
+            contentCatalog.GetEquipmentAbilityBindingDefinitionsTyped()
+        );
+        party_management_window.SetWorldStepProvider(() => _runtime?.GetWorldStep() ?? -1);
         party_management_window.SetCharacterManagement(_runtime_proxy.GetCharacterManagement());
 
         ConnectSignals();
