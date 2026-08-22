@@ -760,7 +760,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                     resolvedUnitCount,
                     useNumericSuffix
                 ),
-                battle_sprite_texture_path = template?.BattleSpriteTexturePath ?? "",
+                battle_sprite_asset_id = template?.BattleSpriteAssetId ?? "",
                 faction_id =
                     encounterAnchor != null && encounterAnchor.faction_id != ""
                         ? encounterAnchor.faction_id
@@ -785,7 +785,6 @@ public sealed class EncounterRosterBuilder : IDisposable
                     buildContext.ItemDefs
                 )
             );
-            ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
             unitState.ReplaceCreatureTypeTagsTyped(
                 BattleEquipmentAbilityProjectionService.ProjectCreatureTypeTags(
                     template
@@ -808,6 +807,12 @@ public sealed class EncounterRosterBuilder : IDisposable
                     .TemporalProgressModifiers,
                 equipmentAbilityProjection
                     .CognitionCeilingModifiers
+            );
+            ApplyEnemyWeaponProjection(
+                unitState,
+                template,
+                buildContext.ItemDefs,
+                buildContext.EquipmentAbilityBindings
             );
             unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(
                 template,
@@ -905,7 +910,8 @@ public sealed class EncounterRosterBuilder : IDisposable
     private static void ApplyEnemyWeaponProjection(
         BattleUnitState unitState,
         EnemyTemplateDefinition template,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings
     )
     {
         if (unitState == null)
@@ -918,6 +924,12 @@ public sealed class EncounterRosterBuilder : IDisposable
             unitState.ClearWeaponProjection();
             return;
         }
+        projection = EquipmentWeaponProfileOverlayService.ApplyOverlays(
+            unitState,
+            projection,
+            equipmentAbilityBindings,
+            itemDefs
+        );
         unitState.ApplyWeaponProjectionTyped(projection);
     }
 

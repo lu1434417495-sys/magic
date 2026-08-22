@@ -1,0 +1,382 @@
+{
+  "domain": "enemy_ai_brains",
+  "entries": [
+    {
+      "brain_id": "dragon_tyrant",
+      "default_state_id": "engage",
+      "score_profile": null,
+      "states": [
+        {
+          "actions": [
+            {
+              "kind": "use_ground_skill",
+              "payload": {
+                "action_id": "dragon_breath_sweep",
+                "action_intent": "positioning",
+                "allow_empty_ground_control": false,
+                "allow_friendly_lethal": false,
+                "allow_ground_control_supplement_partial_hits": false,
+                "desired_max_distance": 3,
+                "desired_min_distance": 2,
+                "distance_reference": "target_coord",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_ally_threat_hit_count": 0,
+                "minimum_ground_control_score": 1,
+                "minimum_hit_count": 2,
+                "score_bucket_id": "dragon_offense",
+                "skill_ids": [
+                  "dragon_breath_fire_cone",
+                  "dragon_breath_fire_line",
+                  "dragon_breath_freeze_cone",
+                  "dragon_breath_poison_cone",
+                  "dragon_breath_acid_line",
+                  "dragon_breath_lightning_line"
+                ],
+                "threat_minimum_safe_distance": 0,
+                "threat_safe_distance_margin": 0
+              }
+            },
+            {
+              "kind": "use_ground_skill",
+              "payload": {
+                "action_id": "dragon_frightful_presence_sweep",
+                "action_intent": "positioning",
+                "allow_empty_ground_control": false,
+                "allow_friendly_lethal": false,
+                "allow_ground_control_supplement_partial_hits": false,
+                "desired_max_distance": 0,
+                "desired_min_distance": 0,
+                "distance_reference": "target_coord",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_ally_threat_hit_count": 0,
+                "minimum_ground_control_score": 1,
+                "minimum_hit_count": 2,
+                "score_bucket_id": "dragon_offense",
+                "skill_ids": [
+                  "dragon_frightful_presence"
+                ],
+                "threat_minimum_safe_distance": 0,
+                "threat_safe_distance_margin": 0
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "dragon_close_in",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 2,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "dragon_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_ground_skill"
+              ],
+              "allowed_affordances": [
+                "ground_hostile.aoe",
+                "ground_control",
+                "terrain_control",
+                "special_ground"
+              ],
+              "desired_max_distance": 3,
+              "desired_min_distance": 2,
+              "distance_reference": "target_coord",
+              "order": 10,
+              "score_bucket_id": "dragon_offense",
+              "slot_id": "engage_ground",
+              "slot_role": "offense",
+              "style_template_action_id": "dragon_breath_sweep",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "ground_hostile.aoe",
+                "ground_control"
+              ],
+              "desired_max_distance": 2,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 30,
+              "score_bucket_id": "dragon_offense",
+              "slot_id": "engage_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "dragon_close_in",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "engage"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "dragon_bite",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 2,
+                "desired_min_distance": 1,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "",
+                "skill_ids": [
+                  "basic_attack"
+                ],
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "use_ground_skill",
+              "payload": {
+                "action_id": "dragon_breath_point_blank",
+                "action_intent": "positioning",
+                "allow_empty_ground_control": false,
+                "allow_friendly_lethal": false,
+                "allow_ground_control_supplement_partial_hits": false,
+                "desired_max_distance": 3,
+                "desired_min_distance": 1,
+                "distance_reference": "target_coord",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_ally_threat_hit_count": 0,
+                "minimum_ground_control_score": 1,
+                "minimum_hit_count": 2,
+                "score_bucket_id": "dragon_offense",
+                "skill_ids": [
+                  "dragon_breath_fire_cone",
+                  "dragon_breath_fire_line",
+                  "dragon_breath_freeze_cone",
+                  "dragon_breath_poison_cone",
+                  "dragon_breath_acid_line",
+                  "dragon_breath_lightning_line"
+                ],
+                "threat_minimum_safe_distance": 0,
+                "threat_safe_distance_margin": 0
+              }
+            },
+            {
+              "kind": "use_ground_skill",
+              "payload": {
+                "action_id": "dragon_frightful_presence_point_blank",
+                "action_intent": "positioning",
+                "allow_empty_ground_control": false,
+                "allow_friendly_lethal": false,
+                "allow_ground_control_supplement_partial_hits": false,
+                "desired_max_distance": 0,
+                "desired_min_distance": 0,
+                "distance_reference": "target_coord",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_ally_threat_hit_count": 0,
+                "minimum_ground_control_score": 1,
+                "minimum_hit_count": 1,
+                "score_bucket_id": "dragon_offense",
+                "skill_ids": [
+                  "dragon_frightful_presence"
+                ],
+                "threat_minimum_safe_distance": 0,
+                "threat_safe_distance_margin": 0
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "dragon_hold_prey",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 2,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "dragon_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "displacement_control"
+              ],
+              "desired_max_distance": 2,
+              "desired_min_distance": 1,
+              "distance_reference": "target_unit",
+              "order": 10,
+              "score_bucket_id": "dragon_offense",
+              "slot_id": "pressure_unit",
+              "slot_role": "offense",
+              "style_template_action_id": "dragon_bite",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "use_ground_skill"
+              ],
+              "allowed_affordances": [
+                "ground_hostile.aoe",
+                "ground_control",
+                "terrain_control",
+                "special_ground"
+              ],
+              "desired_max_distance": 3,
+              "desired_min_distance": 1,
+              "distance_reference": "target_coord",
+              "order": 20,
+              "score_bucket_id": "dragon_offense",
+              "slot_id": "pressure_ground",
+              "slot_role": "offense",
+              "style_template_action_id": "dragon_breath_point_blank",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "ground_hostile.aoe",
+                "ground_control"
+              ],
+              "desired_max_distance": 2,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 30,
+              "score_bucket_id": "dragon_offense",
+              "slot_id": "pressure_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "dragon_hold_prey",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "pressure"
+        }
+      ],
+      "transition_rules": [
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "current_state_is",
+              "state_ids": [
+                "pressure"
+              ]
+            },
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": 3,
+              "predicate": "nearest_enemy_distance_at_or_below",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [
+            "pressure"
+          ],
+          "order": 30,
+          "rule_id": "pressure_sticky",
+          "target_state_id": "pressure"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": 2,
+              "predicate": "nearest_enemy_distance_at_or_below",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 40,
+          "rule_id": "pressure_enter",
+          "target_state_id": "pressure"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "always",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 90,
+          "rule_id": "engage_default",
+          "target_state_id": "engage"
+        }
+      ]
+    }
+  ],
+  "family": "dragon_tyrant",
+  "schema": 1,
+  "templates": {}
+}

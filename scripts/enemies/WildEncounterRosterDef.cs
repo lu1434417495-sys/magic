@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class WildEncounterRosterDef : Resource
+public partial class WildEncounterRosterDef : RefCounted
 {
     [Export]
     public StringName profile_id { get; set; } = "";

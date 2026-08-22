@@ -1,0 +1,512 @@
+{
+  "domain": "enemy_ai_brains",
+  "entries": [
+    {
+      "brain_id": "melee_aggressor",
+      "default_state_id": "engage",
+      "score_profile": null,
+      "states": [
+        {
+          "actions": [
+            {
+              "kind": "use_charge",
+              "payload": {
+                "action_id": "wolf_charge_open",
+                "action_intent": "positioning",
+                "minimum_charge_move_distance": 3,
+                "score_bucket_id": "charge_open",
+                "skill_id": "charge",
+                "target_selector": "nearest_role_threat_enemy"
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "wolf_close_in",
+                "action_intent": "offense",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "ranged_ally",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_role_threat_enemy"
+              }
+            },
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "wolf_basic_in_engage",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "",
+                "skill_ids": [
+                  "basic_attack"
+                ],
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "wolf_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_charge_path_aoe"
+              ],
+              "allowed_affordances": [
+                "charge_path_aoe"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 10,
+              "score_bucket_id": "charge_open",
+              "slot_id": "engage_charge_path",
+              "slot_role": "engage",
+              "style_template_action_id": "wolf_charge_open",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_role_threat_enemy"
+            },
+            {
+              "action_families": [
+                "use_charge"
+              ],
+              "allowed_affordances": [
+                "charge_engage"
+              ],
+              "desired_max_distance": -1,
+              "desired_min_distance": -1,
+              "distance_reference": "",
+              "order": 20,
+              "score_bucket_id": "charge_open",
+              "slot_id": "engage_charge",
+              "slot_role": "engage",
+              "style_template_action_id": "wolf_charge_open",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_role_threat_enemy"
+            },
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "displacement_control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "target_unit",
+              "order": 30,
+              "score_bucket_id": "charge_open",
+              "slot_id": "engage_unit",
+              "slot_role": "offense",
+              "style_template_action_id": "wolf_basic_in_engage",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "use_random_chain_skill"
+              ],
+              "allowed_affordances": [
+                "random_chain"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "target_unit",
+              "order": 35,
+              "score_bucket_id": "charge_open",
+              "slot_id": "engage_random_chain",
+              "slot_role": "offense",
+              "style_template_action_id": "wolf_basic_in_engage",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 40,
+              "score_bucket_id": "charge_open",
+              "slot_id": "engage_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "wolf_close_in",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_role_threat_enemy"
+            }
+          ],
+          "state_id": "engage"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "wolf_basic_attack",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "",
+                "skill_ids": [
+                  "warrior_heavy_strike",
+                  "basic_attack"
+                ],
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "wolf_keep_contact",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "ranged_ally",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_role_threat_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "wolf_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "displacement_control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "target_unit",
+              "order": 10,
+              "score_bucket_id": "charge_open",
+              "slot_id": "pressure_unit",
+              "slot_role": "offense",
+              "style_template_action_id": "wolf_basic_attack",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 20,
+              "score_bucket_id": "charge_open",
+              "slot_id": "pressure_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "wolf_keep_contact",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_role_threat_enemy"
+            }
+          ],
+          "state_id": "pressure"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "wolf_basic_attack_support",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "",
+                "skill_ids": [
+                  "warrior_heavy_strike",
+                  "basic_attack"
+                ],
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "wolf_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "displacement_control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "target_unit",
+              "order": 10,
+              "score_bucket_id": "charge_open",
+              "slot_id": "support_unit",
+              "slot_role": "offense",
+              "style_template_action_id": "wolf_basic_attack_support",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "support"
+        },
+        {
+          "actions": [
+            {
+              "kind": "retreat",
+              "payload": {
+                "action_id": "wolf_retreat",
+                "action_intent": "positioning",
+                "minimum_safe_distance": 2,
+                "safe_distance_margin": 1,
+                "score_bucket_id": "",
+                "target_selector": "nearest_enemy",
+                "use_dynamic_threat_safe_distance": false
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "wolf_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "target_unit",
+              "order": 10,
+              "score_bucket_id": "charge_open",
+              "slot_id": "retreat_unit",
+              "slot_role": "survival",
+              "style_template_action_id": "",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "retreat"
+        }
+      ],
+      "transition_rules": [
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 3500,
+              "max_distance": -1,
+              "predicate": "self_hp_at_or_below_basis_points",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 10,
+          "rule_id": "retreat_low_hp",
+          "target_state_id": "retreat"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 4000,
+              "max_distance": -1,
+              "predicate": "self_hp_at_or_below_basis_points",
+              "state_ids": []
+            },
+            {
+              "affordances": [
+                "ally_heal",
+                "self_or_ally_buff"
+              ],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "has_skill_affordance",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 20,
+          "rule_id": "support_self_low_hp",
+          "target_state_id": "support"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 4000,
+              "max_distance": -1,
+              "predicate": "ally_hp_at_or_below_basis_points",
+              "state_ids": []
+            },
+            {
+              "affordances": [
+                "ally_heal",
+                "self_or_ally_buff"
+              ],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "has_skill_affordance",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 21,
+          "rule_id": "support_ally_low_hp",
+          "target_state_id": "support"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "current_state_is",
+              "state_ids": [
+                "pressure"
+              ]
+            },
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": 2,
+              "predicate": "nearest_enemy_distance_at_or_below",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [
+            "pressure"
+          ],
+          "order": 30,
+          "rule_id": "pressure_sticky",
+          "target_state_id": "pressure"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": 1,
+              "predicate": "nearest_enemy_distance_at_or_below",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 40,
+          "rule_id": "pressure_enter",
+          "target_state_id": "pressure"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "always",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 90,
+          "rule_id": "engage_default",
+          "target_state_id": "engage"
+        }
+      ]
+    }
+  ],
+  "family": "melee_aggressor",
+  "schema": 1,
+  "templates": {}
+}

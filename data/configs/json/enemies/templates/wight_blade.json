@@ -1,0 +1,74 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "curved_scimitar",
+      "attribute_overrides": {
+        "action_points": 2,
+        "deflection_bonus": 4,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 12,
+        "constitution": 14,
+        "intelligence": 11,
+        "perception": 10,
+        "strength": 16,
+        "willpower": 13
+      },
+      "battle_equipment_entries": [
+        {
+          "current_durability": 84,
+          "item_id": "iron_scale_mail",
+          "rarity": 1,
+          "slot_id": "body"
+        }
+      ],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 5,
+      "damage_resistances": {
+        "negative_energy": "immune",
+        "radiant": "double"
+      },
+      "display_name": "\u4EA1\u7075\u5251\u58EB",
+      "drop_entries": [
+        {
+          "drop_entry_id": "wight_scimitar",
+          "drop_type": "random_equipment",
+          "item_id": "curved_scimitar",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 8,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [
+        "sleep",
+        "charm",
+        "poison",
+        "frightened"
+      ],
+      "skill_ids": [
+        "warrior_heavy_strike"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "undead",
+        "wight"
+      ],
+      "target_rank": "elite",
+      "template_id": "wight_blade"
+    }
+  ],
+  "family": "wight_blade",
+  "schema": 1,
+  "templates": {}
+}

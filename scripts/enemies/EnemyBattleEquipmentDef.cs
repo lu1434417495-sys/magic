@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class EnemyBattleEquipmentDef : Resource
+public partial class EnemyBattleEquipmentDef : RefCounted
 {
     [Export]
     public StringName slot_id { get; set; } = "";

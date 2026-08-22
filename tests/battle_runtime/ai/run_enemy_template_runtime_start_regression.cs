@@ -88,7 +88,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             expectedEnemyCount: 1,
             expectedBrainId: "dragon_tyrant",
             expectedStateId: "engage",
-            requiredSkillIds: new[] { "dragon_breath_fire_cone", "dragon_breath_fire_line", "basic_attack" }
+            requiredSkillIds: new[] { "dragon_breath_fire_cone", "dragon_breath_fire_line", "dragon_frightful_presence", "basic_attack" }
         );
     }
 

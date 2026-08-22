@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class DropEntryDef : Resource
+public partial class DropEntryDef : RefCounted
 {
     [Export]
     public StringName drop_entry_id { get; set; } = "";

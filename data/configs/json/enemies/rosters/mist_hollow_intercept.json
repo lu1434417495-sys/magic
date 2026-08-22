@@ -1,0 +1,79 @@
+{
+  "domain": "encounter_rosters",
+  "entries": [
+    {
+      "display_name": "\u96FE\u6CBC\u622A\u4FE1\u961F",
+      "growth_step_interval": 3,
+      "initial_stage": 0,
+      "profile_id": "mist_hollow_intercept",
+      "stages": [
+        {
+          "stage": 0,
+          "unit_entries": [
+            {
+              "actor_id": "mist_courier",
+              "count": 1,
+              "display_name": "\u8FF7\u96FE\u4FE1\u4F7F",
+              "template_id": "mist_harrier"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "mist_beast"
+            }
+          ]
+        },
+        {
+          "stage": 1,
+          "unit_entries": [
+            {
+              "actor_id": "mist_courier",
+              "count": 1,
+              "display_name": "\u8FF7\u96FE\u4FE1\u4F7F",
+              "template_id": "mist_harrier"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "mist_beast"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "mist_harrier"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "unit_entries": [
+            {
+              "actor_id": "mist_courier",
+              "count": 1,
+              "display_name": "\u8FF7\u96FE\u4FE1\u4F7F",
+              "template_id": "mist_harrier"
+            },
+            {
+              "actor_id": "",
+              "count": 2,
+              "display_name": "",
+              "template_id": "mist_beast"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "mist_weaver"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "family": "mist_hollow_intercept",
+  "schema": 1,
+  "templates": {}
+}

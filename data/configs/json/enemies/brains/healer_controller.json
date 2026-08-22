@@ -1,0 +1,636 @@
+{
+  "domain": "enemy_ai_brains",
+  "entries": [
+    {
+      "brain_id": "healer_controller",
+      "default_state_id": "pressure",
+      "score_profile": null,
+      "states": [
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "weaver_lock_target",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 4,
+                "desired_min_distance": 3,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "mist_control",
+                "skill_ids": [
+                  "mage_glacial_prison",
+                  "basic_attack"
+                ],
+                "target_selector": "lowest_hp_enemy"
+              }
+            },
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "weaver_pressure_bolt",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 4,
+                "desired_min_distance": 3,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "mist_offense",
+                "skill_ids": [
+                  "mage_ice_lance",
+                  "basic_attack"
+                ],
+                "target_selector": "lowest_hp_enemy"
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "weaver_take_position",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 4,
+                "desired_min_distance": 3,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "weaver_close_for_basic_attack",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "weaver_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill",
+                "use_random_chain_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "random_chain"
+              ],
+              "desired_max_distance": 4,
+              "desired_min_distance": 3,
+              "distance_reference": "target_unit",
+              "order": 10,
+              "score_bucket_id": "mist_control",
+              "slot_id": "engage_unit",
+              "slot_role": "control",
+              "style_template_action_id": "weaver_lock_target",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "lowest_hp_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 4,
+              "desired_min_distance": 3,
+              "distance_reference": "",
+              "order": 20,
+              "score_bucket_id": "mist_control",
+              "slot_id": "engage_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "weaver_take_position",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "engage"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "weaver_lock_target",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 4,
+                "desired_min_distance": 3,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "mist_control",
+                "skill_ids": [
+                  "mage_glacial_prison",
+                  "basic_attack"
+                ],
+                "target_selector": "lowest_hp_enemy"
+              }
+            },
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "weaver_pressure_bolt",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 4,
+                "desired_min_distance": 3,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "mist_offense",
+                "skill_ids": [
+                  "mage_ice_lance",
+                  "basic_attack"
+                ],
+                "target_selector": "lowest_hp_enemy"
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "weaver_keep_range",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 4,
+                "desired_min_distance": 3,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "weaver_close_for_basic_attack",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "weaver_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill",
+                "use_random_chain_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "random_chain"
+              ],
+              "desired_max_distance": 4,
+              "desired_min_distance": 3,
+              "distance_reference": "target_unit",
+              "order": 10,
+              "score_bucket_id": "mist_control",
+              "slot_id": "pressure_unit",
+              "slot_role": "control",
+              "style_template_action_id": "weaver_lock_target",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "lowest_hp_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 4,
+              "desired_min_distance": 3,
+              "distance_reference": "",
+              "order": 20,
+              "score_bucket_id": "mist_control",
+              "slot_id": "pressure_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "weaver_keep_range",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "pressure"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "weaver_rewind_ally",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 4,
+                "desired_min_distance": 3,
+                "distance_reference": "enemy_frontline",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "mist_support",
+                "skill_ids": [
+                  "mage_temporal_rewind"
+                ],
+                "target_selector": "lowest_hp_ally"
+              }
+            },
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "weaver_cover_bind",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 4,
+                "desired_min_distance": 3,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "mist_control",
+                "skill_ids": [
+                  "mage_glacial_prison",
+                  "basic_attack"
+                ],
+                "target_selector": "lowest_hp_enemy"
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "weaver_close_for_basic_attack",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "weaver_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "ally_heal",
+                "self_or_ally_buff"
+              ],
+              "desired_max_distance": 4,
+              "desired_min_distance": 3,
+              "distance_reference": "enemy_frontline",
+              "order": 10,
+              "score_bucket_id": "mist_support",
+              "slot_id": "support_heal",
+              "slot_role": "support",
+              "style_template_action_id": "weaver_rewind_ally",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "lowest_hp_ally"
+            },
+            {
+              "action_families": [
+                "use_unit_skill",
+                "use_random_chain_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "random_chain"
+              ],
+              "desired_max_distance": 4,
+              "desired_min_distance": 3,
+              "distance_reference": "target_unit",
+              "order": 20,
+              "score_bucket_id": "mist_control",
+              "slot_id": "support_unit",
+              "slot_role": "control",
+              "style_template_action_id": "weaver_cover_bind",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "lowest_hp_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 30,
+              "score_bucket_id": "mist_control",
+              "slot_id": "support_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "weaver_close_for_basic_attack",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "support"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "weaver_rewind_retreat",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 4,
+                "desired_min_distance": 4,
+                "distance_reference": "enemy_frontline",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "mist_support",
+                "skill_ids": [
+                  "mage_temporal_rewind"
+                ],
+                "target_selector": "lowest_hp_ally"
+              }
+            },
+            {
+              "kind": "retreat",
+              "payload": {
+                "action_id": "weaver_retreat",
+                "action_intent": "positioning",
+                "minimum_safe_distance": 4,
+                "safe_distance_margin": 1,
+                "score_bucket_id": "",
+                "target_selector": "nearest_enemy",
+                "use_dynamic_threat_safe_distance": false
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "weaver_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "ally_heal",
+                "self_or_ally_buff"
+              ],
+              "desired_max_distance": 4,
+              "desired_min_distance": 4,
+              "distance_reference": "enemy_frontline",
+              "order": 10,
+              "score_bucket_id": "mist_support",
+              "slot_id": "retreat_heal",
+              "slot_role": "survival",
+              "style_template_action_id": "weaver_rewind_retreat",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "lowest_hp_ally"
+            }
+          ],
+          "state_id": "retreat"
+        }
+      ],
+      "transition_rules": [
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 3500,
+              "max_distance": -1,
+              "predicate": "self_hp_at_or_below_basis_points",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 10,
+          "rule_id": "retreat_low_hp",
+          "target_state_id": "retreat"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 7000,
+              "max_distance": -1,
+              "predicate": "self_hp_at_or_below_basis_points",
+              "state_ids": []
+            },
+            {
+              "affordances": [
+                "ally_heal",
+                "self_or_ally_buff"
+              ],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "has_skill_affordance",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 20,
+          "rule_id": "support_self_low_hp",
+          "target_state_id": "support"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 7000,
+              "max_distance": -1,
+              "predicate": "ally_hp_at_or_below_basis_points",
+              "state_ids": []
+            },
+            {
+              "affordances": [
+                "ally_heal",
+                "self_or_ally_buff"
+              ],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "has_skill_affordance",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 21,
+          "rule_id": "support_ally_low_hp",
+          "target_state_id": "support"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "current_state_is",
+              "state_ids": [
+                "pressure"
+              ]
+            },
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": 5,
+              "predicate": "nearest_enemy_distance_at_or_below",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [
+            "pressure"
+          ],
+          "order": 30,
+          "rule_id": "pressure_sticky",
+          "target_state_id": "pressure"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": 4,
+              "predicate": "nearest_enemy_distance_at_or_below",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 40,
+          "rule_id": "pressure_enter",
+          "target_state_id": "pressure"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "always",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 90,
+          "rule_id": "engage_default",
+          "target_state_id": "engage"
+        }
+      ]
+    }
+  ],
+  "family": "healer_controller",
+  "schema": 1,
+  "templates": {}
+}

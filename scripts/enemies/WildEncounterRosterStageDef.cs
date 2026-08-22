@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class WildEncounterRosterStageDef : Resource
+public partial class WildEncounterRosterStageDef : RefCounted
 {
     [Export]
     public int stage { get; set; }

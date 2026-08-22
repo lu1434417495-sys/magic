@@ -1,0 +1,80 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "deflection_bonus": 5,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 8,
+        "constitution": 16,
+        "intelligence": 12,
+        "perception": 12,
+        "strength": 18,
+        "willpower": 14
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 3,
+      "brain_id": "dragon_tyrant",
+      "cognition_kind": "sapient",
+      "creature_level": 10,
+      "damage_resistances": {
+        "fire": "immune",
+        "freeze": "double"
+      },
+      "display_name": "\u7EA2\u9F99",
+      "drop_entries": [
+        {
+          "drop_entry_id": "dragon_scale_harvest",
+          "drop_type": "item",
+          "item_id": "dragon_scale",
+          "quantity": 3
+        },
+        {
+          "drop_entry_id": "dragon_scale_axe_trophy",
+          "drop_type": "random_equipment",
+          "item_id": "weapon_unique_battleaxe_dragon_scale",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 12,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 2,
+      "natural_weapon_damage_tag": "physical_pierce",
+      "save_advantage_tags": [
+        "charm"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [
+        "sleep",
+        "paralysis",
+        "frightened"
+      ],
+      "skill_ids": [
+        "dragon_breath_fire_cone",
+        "dragon_breath_fire_line",
+        "dragon_frightful_presence"
+      ],
+      "skill_level_map": {
+        "dragon_breath_fire_cone": 1,
+        "dragon_breath_fire_line": 1,
+        "dragon_frightful_presence": 1
+      },
+      "tags": [
+        "dragon",
+        "beast"
+      ],
+      "target_rank": "boss",
+      "template_id": "red_dragon"
+    }
+  ],
+  "family": "red_dragon",
+  "schema": 1,
+  "templates": {}
+}

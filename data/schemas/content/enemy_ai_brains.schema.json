@@ -1,0 +1,1794 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:enemy_ai_brains:v1",
+  "title": "Magic enemy AI brain JSON authoring schema",
+  "description": "Strict enemy AI brain contract with closed 12-kind action payloads.",
+  "$ref": "#/$defs/EnemyAiBrainJsonDocumentDto",
+  "$defs": {
+    "BattleAiScoreProfileJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_base_scores": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "ap_cost_weight": {
+          "type": "integer"
+        },
+        "aura_cost_weight": {
+          "type": "integer"
+        },
+        "aura_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "aura_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "aura_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "bucket_priorities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "chain_enemy_target_weight": {
+          "type": "integer"
+        },
+        "control_weight": {
+          "type": "integer"
+        },
+        "cooldown_weight": {
+          "type": "integer"
+        },
+        "damage_weight": {
+          "type": "integer"
+        },
+        "default_bucket_priority": {
+          "type": "integer"
+        },
+        "delayed_resolution_cost_per_5_tu": {
+          "type": "integer"
+        },
+        "enemy_target_count_weight": {
+          "type": "integer"
+        },
+        "execute_bonus_weight": {
+          "type": "integer"
+        },
+        "execute_target_hp_threshold_bp": {
+          "type": "integer"
+        },
+        "focus_fire_wounded_target_weight": {
+          "type": "integer"
+        },
+        "friendly_control_target_weight": {
+          "type": "integer"
+        },
+        "friendly_fire_damage_weight": {
+          "type": "integer"
+        },
+        "friendly_fire_target_weight": {
+          "type": "integer"
+        },
+        "friendly_lethal_target_weight": {
+          "type": "integer"
+        },
+        "ground_control_weight": {
+          "type": "integer"
+        },
+        "heal_weight": {
+          "type": "integer"
+        },
+        "height_weight": {
+          "type": "integer"
+        },
+        "hit_rate_reliability_weight": {
+          "type": "integer"
+        },
+        "incoming_threat_relief_weight": {
+          "type": "integer"
+        },
+        "lethal_survival_risk_penalty": {
+          "type": "integer"
+        },
+        "lethal_target_weight": {
+          "type": "integer"
+        },
+        "lethal_threat_target_weight": {
+          "type": "integer"
+        },
+        "low_hp_urgency_threshold_bp": {
+          "type": "integer"
+        },
+        "low_hp_urgency_weight": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_hard_expected_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_hard_worst_case_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_profile": {
+          "type": "string"
+        },
+        "meteor_friendly_fire_soft_expected_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_high_priority_damage_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_high_priority_target_priority_score": {
+          "type": "integer"
+        },
+        "meteor_high_priority_threat_multiplier_bp": {
+          "type": "integer"
+        },
+        "meteor_top_threat_rank": {
+          "type": "integer"
+        },
+        "movement_cost_weight": {
+          "type": "integer"
+        },
+        "mp_cost_weight": {
+          "type": "integer"
+        },
+        "mp_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "mp_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "mp_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "overkill_damage_penalty_weight": {
+          "type": "integer"
+        },
+        "position_base_score": {
+          "type": "integer"
+        },
+        "position_distance_step": {
+          "type": "integer"
+        },
+        "position_objective_weight": {
+          "type": "integer"
+        },
+        "position_overshoot_penalty": {
+          "type": "integer"
+        },
+        "position_undershoot_penalty": {
+          "type": "integer"
+        },
+        "post_action_threat_count_weight": {
+          "type": "integer"
+        },
+        "post_action_threat_damage_weight": {
+          "type": "integer"
+        },
+        "resource_conservation_weight": {
+          "type": "integer"
+        },
+        "role_threat_distance_window": {
+          "type": "integer"
+        },
+        "role_threat_in_range_score_step": {
+          "type": "integer"
+        },
+        "role_threat_max_approach_distance": {
+          "type": "integer"
+        },
+        "role_threat_max_contact_range": {
+          "type": "integer"
+        },
+        "role_threat_min_effective_range": {
+          "type": "integer"
+        },
+        "safe_distance_adherence_weight": {
+          "type": "integer"
+        },
+        "save_reliable_damage_weight": {
+          "type": "integer"
+        },
+        "shield_absorbed_weight": {
+          "type": "integer"
+        },
+        "stamina_cost_weight": {
+          "type": "integer"
+        },
+        "stamina_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "stamina_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "stamina_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "status_redundancy_penalty": {
+          "type": "integer"
+        },
+        "status_weight": {
+          "type": "integer"
+        },
+        "survival_margin_gain_weight": {
+          "type": "integer"
+        },
+        "target_count_weight": {
+          "type": "integer"
+        },
+        "terrain_weight": {
+          "type": "integer"
+        },
+        "threat_control_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_healer_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_multiplier_cap_basis_points": {
+          "type": "integer"
+        },
+        "threat_range_step_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_ranged_bias_basis_points": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action_base_scores",
+        "ap_cost_weight",
+        "aura_cost_weight",
+        "aura_reserve_breach_penalty",
+        "aura_reserve_floor_bp",
+        "aura_reserve_pressure_weight",
+        "bucket_priorities",
+        "chain_enemy_target_weight",
+        "control_weight",
+        "cooldown_weight",
+        "damage_weight",
+        "default_bucket_priority",
+        "delayed_resolution_cost_per_5_tu",
+        "enemy_target_count_weight",
+        "execute_bonus_weight",
+        "execute_target_hp_threshold_bp",
+        "focus_fire_wounded_target_weight",
+        "friendly_control_target_weight",
+        "friendly_fire_damage_weight",
+        "friendly_fire_target_weight",
+        "friendly_lethal_target_weight",
+        "ground_control_weight",
+        "heal_weight",
+        "height_weight",
+        "hit_rate_reliability_weight",
+        "incoming_threat_relief_weight",
+        "lethal_survival_risk_penalty",
+        "lethal_target_weight",
+        "lethal_threat_target_weight",
+        "low_hp_urgency_threshold_bp",
+        "low_hp_urgency_weight",
+        "meteor_friendly_fire_hard_expected_hp_percent",
+        "meteor_friendly_fire_hard_worst_case_hp_percent",
+        "meteor_friendly_fire_profile",
+        "meteor_friendly_fire_soft_expected_hp_percent",
+        "meteor_high_priority_damage_hp_percent",
+        "meteor_high_priority_target_priority_score",
+        "meteor_high_priority_threat_multiplier_bp",
+        "meteor_top_threat_rank",
+        "movement_cost_weight",
+        "mp_cost_weight",
+        "mp_reserve_breach_penalty",
+        "mp_reserve_floor_bp",
+        "mp_reserve_pressure_weight",
+        "overkill_damage_penalty_weight",
+        "position_base_score",
+        "position_distance_step",
+        "position_objective_weight",
+        "position_overshoot_penalty",
+        "position_undershoot_penalty",
+        "post_action_threat_count_weight",
+        "post_action_threat_damage_weight",
+        "resource_conservation_weight",
+        "role_threat_distance_window",
+        "role_threat_in_range_score_step",
+        "role_threat_max_approach_distance",
+        "role_threat_max_contact_range",
+        "role_threat_min_effective_range",
+        "safe_distance_adherence_weight",
+        "save_reliable_damage_weight",
+        "shield_absorbed_weight",
+        "stamina_cost_weight",
+        "stamina_reserve_breach_penalty",
+        "stamina_reserve_floor_bp",
+        "stamina_reserve_pressure_weight",
+        "status_redundancy_penalty",
+        "status_weight",
+        "survival_margin_gain_weight",
+        "target_count_weight",
+        "terrain_weight",
+        "threat_control_bias_basis_points",
+        "threat_healer_bias_basis_points",
+        "threat_multiplier_cap_basis_points",
+        "threat_range_step_bias_basis_points",
+        "threat_ranged_bias_basis_points"
+      ]
+    },
+    "BattleAiScoreProfileJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_base_scores": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "ap_cost_weight": {
+          "type": "integer"
+        },
+        "aura_cost_weight": {
+          "type": "integer"
+        },
+        "aura_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "aura_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "aura_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "bucket_priorities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "chain_enemy_target_weight": {
+          "type": "integer"
+        },
+        "control_weight": {
+          "type": "integer"
+        },
+        "cooldown_weight": {
+          "type": "integer"
+        },
+        "damage_weight": {
+          "type": "integer"
+        },
+        "default_bucket_priority": {
+          "type": "integer"
+        },
+        "delayed_resolution_cost_per_5_tu": {
+          "type": "integer"
+        },
+        "enemy_target_count_weight": {
+          "type": "integer"
+        },
+        "execute_bonus_weight": {
+          "type": "integer"
+        },
+        "execute_target_hp_threshold_bp": {
+          "type": "integer"
+        },
+        "focus_fire_wounded_target_weight": {
+          "type": "integer"
+        },
+        "friendly_control_target_weight": {
+          "type": "integer"
+        },
+        "friendly_fire_damage_weight": {
+          "type": "integer"
+        },
+        "friendly_fire_target_weight": {
+          "type": "integer"
+        },
+        "friendly_lethal_target_weight": {
+          "type": "integer"
+        },
+        "ground_control_weight": {
+          "type": "integer"
+        },
+        "heal_weight": {
+          "type": "integer"
+        },
+        "height_weight": {
+          "type": "integer"
+        },
+        "hit_rate_reliability_weight": {
+          "type": "integer"
+        },
+        "incoming_threat_relief_weight": {
+          "type": "integer"
+        },
+        "lethal_survival_risk_penalty": {
+          "type": "integer"
+        },
+        "lethal_target_weight": {
+          "type": "integer"
+        },
+        "lethal_threat_target_weight": {
+          "type": "integer"
+        },
+        "low_hp_urgency_threshold_bp": {
+          "type": "integer"
+        },
+        "low_hp_urgency_weight": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_hard_expected_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_hard_worst_case_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_profile": {
+          "type": "string"
+        },
+        "meteor_friendly_fire_soft_expected_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_high_priority_damage_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_high_priority_target_priority_score": {
+          "type": "integer"
+        },
+        "meteor_high_priority_threat_multiplier_bp": {
+          "type": "integer"
+        },
+        "meteor_top_threat_rank": {
+          "type": "integer"
+        },
+        "movement_cost_weight": {
+          "type": "integer"
+        },
+        "mp_cost_weight": {
+          "type": "integer"
+        },
+        "mp_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "mp_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "mp_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "overkill_damage_penalty_weight": {
+          "type": "integer"
+        },
+        "position_base_score": {
+          "type": "integer"
+        },
+        "position_distance_step": {
+          "type": "integer"
+        },
+        "position_objective_weight": {
+          "type": "integer"
+        },
+        "position_overshoot_penalty": {
+          "type": "integer"
+        },
+        "position_undershoot_penalty": {
+          "type": "integer"
+        },
+        "post_action_threat_count_weight": {
+          "type": "integer"
+        },
+        "post_action_threat_damage_weight": {
+          "type": "integer"
+        },
+        "resource_conservation_weight": {
+          "type": "integer"
+        },
+        "role_threat_distance_window": {
+          "type": "integer"
+        },
+        "role_threat_in_range_score_step": {
+          "type": "integer"
+        },
+        "role_threat_max_approach_distance": {
+          "type": "integer"
+        },
+        "role_threat_max_contact_range": {
+          "type": "integer"
+        },
+        "role_threat_min_effective_range": {
+          "type": "integer"
+        },
+        "safe_distance_adherence_weight": {
+          "type": "integer"
+        },
+        "save_reliable_damage_weight": {
+          "type": "integer"
+        },
+        "shield_absorbed_weight": {
+          "type": "integer"
+        },
+        "stamina_cost_weight": {
+          "type": "integer"
+        },
+        "stamina_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "stamina_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "stamina_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "status_redundancy_penalty": {
+          "type": "integer"
+        },
+        "status_weight": {
+          "type": "integer"
+        },
+        "survival_margin_gain_weight": {
+          "type": "integer"
+        },
+        "target_count_weight": {
+          "type": "integer"
+        },
+        "terrain_weight": {
+          "type": "integer"
+        },
+        "threat_control_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_healer_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_multiplier_cap_basis_points": {
+          "type": "integer"
+        },
+        "threat_range_step_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_ranged_bias_basis_points": {
+          "type": "integer"
+        }
+      }
+    },
+    "EnemyAiActionJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__move_to_advantage_position"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__move_to_multi_unit_skill_position"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__move_to_range"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__retreat"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__use_charge"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__use_charge_path_aoe"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__use_ground_reposition_skill"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__use_ground_skill"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__use_multi_unit_skill"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__use_random_chain_skill"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__use_unit_skill"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiActionJsonDto__wait"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "move_to_advantage_position": "#/$defs/EnemyAiActionJsonDto__move_to_advantage_position",
+          "move_to_multi_unit_skill_position": "#/$defs/EnemyAiActionJsonDto__move_to_multi_unit_skill_position",
+          "move_to_range": "#/$defs/EnemyAiActionJsonDto__move_to_range",
+          "retreat": "#/$defs/EnemyAiActionJsonDto__retreat",
+          "use_charge": "#/$defs/EnemyAiActionJsonDto__use_charge",
+          "use_charge_path_aoe": "#/$defs/EnemyAiActionJsonDto__use_charge_path_aoe",
+          "use_ground_reposition_skill": "#/$defs/EnemyAiActionJsonDto__use_ground_reposition_skill",
+          "use_ground_skill": "#/$defs/EnemyAiActionJsonDto__use_ground_skill",
+          "use_multi_unit_skill": "#/$defs/EnemyAiActionJsonDto__use_multi_unit_skill",
+          "use_random_chain_skill": "#/$defs/EnemyAiActionJsonDto__use_random_chain_skill",
+          "use_unit_skill": "#/$defs/EnemyAiActionJsonDto__use_unit_skill",
+          "wait": "#/$defs/EnemyAiActionJsonDto__wait"
+        }
+      }
+    },
+    "EnemyAiActionJsonDto__move_to_advantage_position": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "move_to_advantage_position"
+        },
+        "payload": {
+          "$ref": "#/$defs/MoveToAdvantagePositionActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__move_to_multi_unit_skill_position": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "move_to_multi_unit_skill_position"
+        },
+        "payload": {
+          "$ref": "#/$defs/MoveToMultiUnitSkillPositionActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__move_to_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "move_to_range"
+        },
+        "payload": {
+          "$ref": "#/$defs/MoveToRangeActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__retreat": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "retreat"
+        },
+        "payload": {
+          "$ref": "#/$defs/RetreatActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__use_charge": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "use_charge"
+        },
+        "payload": {
+          "$ref": "#/$defs/UseChargeActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__use_charge_path_aoe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "use_charge_path_aoe"
+        },
+        "payload": {
+          "$ref": "#/$defs/UseChargePathAoeActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__use_ground_reposition_skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "use_ground_reposition_skill"
+        },
+        "payload": {
+          "$ref": "#/$defs/UseGroundRepositionSkillActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__use_ground_skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "use_ground_skill"
+        },
+        "payload": {
+          "$ref": "#/$defs/UseGroundSkillActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__use_multi_unit_skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "use_multi_unit_skill"
+        },
+        "payload": {
+          "$ref": "#/$defs/UseMultiUnitSkillActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__use_random_chain_skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "use_random_chain_skill"
+        },
+        "payload": {
+          "$ref": "#/$defs/UseRandomChainSkillActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__use_unit_skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "use_unit_skill"
+        },
+        "payload": {
+          "$ref": "#/$defs/UseUnitSkillActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiActionJsonDto__wait": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "wait"
+        },
+        "payload": {
+          "$ref": "#/$defs/WaitActionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "EnemyAiBrainJsonDocumentDto": {
+      "description": "Enemy AI brain document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "enemy_ai_brains"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiBrainJsonDto__authoring_brain_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/EnemyAiBrainJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "EnemyAiBrainJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brain_id": {
+          "type": "string"
+        },
+        "default_state_id": {
+          "type": "string"
+        },
+        "score_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BattleAiScoreProfileJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiStateJsonDto"
+          }
+        },
+        "transition_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiTransitionRuleJsonDto"
+          }
+        }
+      },
+      "required": [
+        "brain_id",
+        "default_state_id",
+        "score_profile",
+        "states",
+        "transition_rules"
+      ]
+    },
+    "EnemyAiBrainJsonDto__authoring_brain_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EnemyAiBrainJsonDto"
+        },
+        {
+          "$ref": "#/$defs/EnemyAiBrainJsonDto__templated_brain_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "EnemyAiBrainJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brain_id": {
+          "type": "string"
+        },
+        "default_state_id": {
+          "type": "string"
+        },
+        "score_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BattleAiScoreProfileJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiStateJsonDto"
+          }
+        },
+        "transition_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiTransitionRuleJsonDto"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "EnemyAiBrainJsonDto__templated_brain_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brain_id": {
+          "type": "string"
+        },
+        "default_state_id": {
+          "type": "string"
+        },
+        "score_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BattleAiScoreProfileJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiStateJsonDto"
+          }
+        },
+        "transition_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiTransitionRuleJsonDto"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "brain_id",
+        "template"
+      ]
+    },
+    "EnemyAiGenerationSlotJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed_affordances": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "distance_reference": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "slot_id": {
+          "type": "string"
+        },
+        "slot_role": {
+          "type": "string"
+        },
+        "style_template_action_id": {
+          "type": "string"
+        },
+        "suppression_policy": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_families",
+        "allowed_affordances",
+        "desired_max_distance",
+        "desired_min_distance",
+        "distance_reference",
+        "order",
+        "score_bucket_id",
+        "slot_id",
+        "slot_role",
+        "style_template_action_id",
+        "suppression_policy",
+        "target_selector"
+      ]
+    },
+    "EnemyAiStateJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiActionJsonDto"
+          }
+        },
+        "generation_slots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiGenerationSlotJsonDto"
+          }
+        },
+        "state_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actions",
+        "generation_slots",
+        "state_id"
+      ]
+    },
+    "EnemyAiTransitionConditionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "affordances": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "basis_points": {
+          "type": "integer"
+        },
+        "max_distance": {
+          "type": "integer"
+        },
+        "predicate": {
+          "type": "string"
+        },
+        "state_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "affordances",
+        "basis_points",
+        "max_distance",
+        "predicate",
+        "state_ids"
+      ]
+    },
+    "EnemyAiTransitionRuleJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyAiTransitionConditionJsonDto"
+          }
+        },
+        "designer_note": {
+          "type": "string"
+        },
+        "from_state_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "order": {
+          "type": "integer"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "target_state_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "conditions",
+        "designer_note",
+        "from_state_ids",
+        "order",
+        "rule_id",
+        "target_state_id"
+      ]
+    },
+    "MoveToAdvantagePositionActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "candidate_limit": {
+          "type": "integer"
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "distance_band_weight": {
+          "type": "integer"
+        },
+        "high_ground_weight": {
+          "type": "integer"
+        },
+        "min_distance_progress_when_beyond_band": {
+          "type": "integer"
+        },
+        "min_survival_margin_gain_to_escape": {
+          "type": "integer"
+        },
+        "minimum_safe_distance": {
+          "type": "integer"
+        },
+        "positioning_mode": {
+          "type": "string"
+        },
+        "range_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "safe_distance_margin": {
+          "type": "integer"
+        },
+        "safety_weight": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "candidate_limit",
+        "desired_max_distance",
+        "desired_min_distance",
+        "distance_band_weight",
+        "high_ground_weight",
+        "min_distance_progress_when_beyond_band",
+        "min_survival_margin_gain_to_escape",
+        "minimum_safe_distance",
+        "positioning_mode",
+        "range_skill_ids",
+        "safe_distance_margin",
+        "safety_weight",
+        "score_bucket_id",
+        "target_selector"
+      ]
+    },
+    "MoveToMultiUnitSkillPositionActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "candidate_group_limit": {
+          "type": "integer"
+        },
+        "candidate_pool_limit": {
+          "type": "integer"
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "distance_reference": {
+          "type": "string"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_count_weight": {
+          "type": "integer"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "candidate_group_limit",
+        "candidate_pool_limit",
+        "desired_max_distance",
+        "desired_min_distance",
+        "distance_reference",
+        "score_bucket_id",
+        "skill_ids",
+        "target_count_weight",
+        "target_selector"
+      ]
+    },
+    "MoveToRangeActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "ai_evaluation_mode": {
+          "type": "string"
+        },
+        "aoe_setup_friendly_fire_penalty": {
+          "type": "integer"
+        },
+        "aoe_setup_improvement_weight": {
+          "type": "integer"
+        },
+        "aoe_setup_min_target_count": {
+          "type": "integer"
+        },
+        "aoe_setup_target_count_weight": {
+          "type": "integer"
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "enable_aoe_setup_positioning": {
+          "type": "boolean"
+        },
+        "range_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "screening_ally_min_attack_range": {
+          "type": "integer"
+        },
+        "screening_enemy_max_contact_range": {
+          "type": "integer"
+        },
+        "screening_min_hp_basis_points": {
+          "type": "integer"
+        },
+        "screening_mode": {
+          "type": "string"
+        },
+        "screening_path_bonus": {
+          "type": "integer"
+        },
+        "screening_threat_distance_buffer": {
+          "type": "integer"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "ai_evaluation_mode",
+        "aoe_setup_friendly_fire_penalty",
+        "aoe_setup_improvement_weight",
+        "aoe_setup_min_target_count",
+        "aoe_setup_target_count_weight",
+        "desired_max_distance",
+        "desired_min_distance",
+        "enable_aoe_setup_positioning",
+        "range_skill_ids",
+        "score_bucket_id",
+        "screening_ally_min_attack_range",
+        "screening_enemy_max_contact_range",
+        "screening_min_hp_basis_points",
+        "screening_mode",
+        "screening_path_bonus",
+        "screening_threat_distance_buffer",
+        "target_selector"
+      ]
+    },
+    "RetreatActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "minimum_safe_distance": {
+          "type": "integer"
+        },
+        "safe_distance_margin": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        },
+        "use_dynamic_threat_safe_distance": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "minimum_safe_distance",
+        "safe_distance_margin",
+        "score_bucket_id",
+        "target_selector",
+        "use_dynamic_threat_safe_distance"
+      ]
+    },
+    "UseChargeActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "minimum_charge_move_distance": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "skill_id": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "minimum_charge_move_distance",
+        "score_bucket_id",
+        "skill_id",
+        "target_selector"
+      ]
+    },
+    "UseChargePathAoeActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "minimum_hit_count": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "desired_max_distance",
+        "desired_min_distance",
+        "minimum_hit_count",
+        "score_bucket_id",
+        "skill_ids",
+        "target_selector"
+      ]
+    },
+    "UseGroundRepositionSkillActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_base_score": {
+          "type": "integer"
+        },
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "desired_max_distance_bonus": {
+          "type": "integer"
+        },
+        "high_ground_weight": {
+          "type": "integer"
+        },
+        "min_survival_margin_gain_to_escape": {
+          "type": "integer"
+        },
+        "minimum_safe_distance": {
+          "type": "integer"
+        },
+        "positioning_mode": {
+          "type": "string"
+        },
+        "safe_distance_margin": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_base_score",
+        "action_id",
+        "action_intent",
+        "desired_max_distance_bonus",
+        "high_ground_weight",
+        "min_survival_margin_gain_to_escape",
+        "minimum_safe_distance",
+        "positioning_mode",
+        "safe_distance_margin",
+        "score_bucket_id",
+        "skill_ids",
+        "target_selector"
+      ]
+    },
+    "UseGroundSkillActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "allow_empty_ground_control": {
+          "type": "boolean"
+        },
+        "allow_friendly_lethal": {
+          "type": "boolean"
+        },
+        "allow_ground_control_supplement_partial_hits": {
+          "type": "boolean"
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "distance_reference": {
+          "type": "string"
+        },
+        "maximum_friendly_fire_target_count": {
+          "type": "integer"
+        },
+        "minimum_ally_threat_hit_count": {
+          "type": "integer"
+        },
+        "minimum_ground_control_score": {
+          "type": "integer"
+        },
+        "minimum_hit_count": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "threat_minimum_safe_distance": {
+          "type": "integer"
+        },
+        "threat_safe_distance_margin": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "allow_empty_ground_control",
+        "allow_friendly_lethal",
+        "allow_ground_control_supplement_partial_hits",
+        "desired_max_distance",
+        "desired_min_distance",
+        "distance_reference",
+        "maximum_friendly_fire_target_count",
+        "minimum_ally_threat_hit_count",
+        "minimum_ground_control_score",
+        "minimum_hit_count",
+        "score_bucket_id",
+        "skill_ids",
+        "threat_minimum_safe_distance",
+        "threat_safe_distance_margin"
+      ]
+    },
+    "UseMultiUnitSkillActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "candidate_group_limit": {
+          "type": "integer"
+        },
+        "candidate_pool_limit": {
+          "type": "integer"
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "distance_reference": {
+          "type": "string"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "candidate_group_limit",
+        "candidate_pool_limit",
+        "desired_max_distance",
+        "desired_min_distance",
+        "distance_reference",
+        "score_bucket_id",
+        "skill_ids",
+        "target_selector"
+      ]
+    },
+    "UseRandomChainSkillActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "distance_reference": {
+          "type": "string"
+        },
+        "minimum_candidate_count": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "desired_max_distance",
+        "desired_min_distance",
+        "distance_reference",
+        "minimum_candidate_count",
+        "score_bucket_id",
+        "skill_ids",
+        "target_selector"
+      ]
+    },
+    "UseUnitSkillActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "allow_friendly_lethal": {
+          "type": "boolean"
+        },
+        "desired_max_distance": {
+          "type": "integer"
+        },
+        "desired_min_distance": {
+          "type": "integer"
+        },
+        "distance_reference": {
+          "type": "string"
+        },
+        "maximum_friendly_fire_target_count": {
+          "type": "integer"
+        },
+        "minimum_effective_target_count": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "allow_friendly_lethal",
+        "desired_max_distance",
+        "desired_min_distance",
+        "distance_reference",
+        "maximum_friendly_fire_target_count",
+        "minimum_effective_target_count",
+        "score_bucket_id",
+        "skill_ids",
+        "target_selector"
+      ]
+    },
+    "WaitActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "action_intent": {
+          "type": "string"
+        },
+        "active_rest_action_base_score": {
+          "type": "integer"
+        },
+        "active_rest_min_stamina_residue": {
+          "type": "integer"
+        },
+        "score_bucket_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "action_intent",
+        "active_rest_action_base_score",
+        "active_rest_min_stamina_residue",
+        "score_bucket_id"
+      ]
+    }
+  }
+}

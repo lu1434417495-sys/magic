@@ -2,7 +2,7 @@ using Godot;
 using System.Collections.Generic;
 
 [GlobalClass]
-public partial class EnemyAiBrainDef : Resource
+public partial class EnemyAiBrainDef : RefCounted
 {
     [Export]
     public StringName brain_id { get; set; } = "";
@@ -10,8 +10,8 @@ public partial class EnemyAiBrainDef : Resource
     [Export]
     public StringName default_state_id { get; set; } = "engage";
 
-    [Export]
-    public BattleAiScoreProfile score_profile { get; set; } = null;
+    public BattleAiScoreProfileDefinition score_profile { get; set; } =
+        BattleAiScoreProfileDefinition.Default;
 
     [Export]
     public Godot.Collections.Array<EnemyAiStateDef> states { get; set; } = new();
@@ -58,7 +58,7 @@ public partial class EnemyAiBrainDef : Resource
         return new EnemyAiBrainDefinition(
             brain_id,
             default_state_id,
-            BattleAiScoreProfileDefinition.FromResource(score_profile),
+            score_profile,
             stateDefinitions,
             transitionDefinitions
         );

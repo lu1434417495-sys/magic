@@ -1,0 +1,60 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "iron_dagger",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 14,
+        "constitution": 10,
+        "intelligence": 9,
+        "perception": 11,
+        "strength": 8,
+        "willpower": 8
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 1,
+      "damage_resistances": {},
+      "display_name": "\u72D7\u5934\u4EBA\u6E38\u51FB\u5175",
+      "drop_entries": [
+        {
+          "drop_entry_id": "kobold_ore",
+          "drop_type": "item",
+          "item_id": "iron_ore",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 3,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 6,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [
+        "frightened"
+      ],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "basic_attack"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "humanoid",
+        "kobold"
+      ],
+      "target_rank": "normal",
+      "template_id": "kobold_skirmisher"
+    }
+  ],
+  "family": "kobold_skirmisher",
+  "schema": 1,
+  "templates": {}
+}

@@ -1,5 +1,8 @@
+#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Godot;
 
 internal sealed record EnemyContentDefinitionGraph(
@@ -10,615 +13,407 @@ internal sealed record EnemyContentDefinitionGraph(
 
 internal sealed class EnemyContentValidationContext
 {
-    internal EnemyContentValidationContext(
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
-    )
+    internal EnemyContentValidationContext(IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions, IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions)
     {
-        ItemDefinitions = itemDefinitions
-            ?? throw new System.ArgumentNullException(nameof(itemDefinitions));
-        SkillDefinitions = skillDefinitions
-            ?? throw new System.ArgumentNullException(nameof(skillDefinitions));
+        ItemDefinitions = itemDefinitions ?? throw new ArgumentNullException(nameof(itemDefinitions));
+        SkillDefinitions = skillDefinitions ?? throw new ArgumentNullException(nameof(skillDefinitions));
     }
-
     internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions { get; }
     internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; }
 }
 
-public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
+public sealed class EnemyContentRegistry : IValidatableRegistry, IDisposable
 {
-    private const string ENEMY_CONTENT_SEED_RESOURCE_PATH =
-        "res://data/configs/enemies/enemy_content_seed.tres";
-    private const string ENEMY_BRAIN_CONFIG_DIRECTORY = "res://data/configs/enemies/brains";
-    private const string ENEMY_TEMPLATE_CONFIG_DIRECTORY = "res://data/configs/enemies/templates";
-    private const string WILD_ENCOUNTER_ROSTER_CONFIG_DIRECTORY =
-        "res://data/configs/enemies/rosters";
-
-    private readonly IContentResourceLoader _loader;
-    private readonly Dictionary<StringName, EnemyTemplateDef> _enemy_templates = new();
-    private readonly Dictionary<StringName, EnemyAiBrainDef> _enemy_ai_brains = new();
-    private readonly Dictionary<StringName, WildEncounterRosterDef> _wild_encounter_rosters = new();
-    private readonly List<string> _validation_errors = new();
-    private string _enemy_content_seed_resource_path = ENEMY_CONTENT_SEED_RESOURCE_PATH;
-    private string _enemy_template_directory = ENEMY_TEMPLATE_CONFIG_DIRECTORY;
-    private string _enemy_ai_brain_directory = ENEMY_BRAIN_CONFIG_DIRECTORY;
-    private string _wild_encounter_roster_directory = WILD_ENCOUNTER_ROSTER_CONFIG_DIRECTORY;
-    private bool _validate_seed_directory_completeness = true;
-    private readonly HashSet<string> _seed_enemy_ai_brain_paths = new(
-        System.StringComparer.Ordinal
-    );
-    private readonly HashSet<string> _seed_enemy_template_paths = new(
-        System.StringComparer.Ordinal
-    );
-    private readonly HashSet<string> _seed_wild_encounter_roster_paths = new(
-        System.StringComparer.Ordinal
-    );
+    private readonly IContentJsonSourceReader _sourceReader;
+    private readonly Dictionary<StringName, EnemyTemplateDefinition> _templates = new();
+    private readonly Dictionary<StringName, EnemyAiBrainDefinition> _brains = new();
+    private readonly Dictionary<StringName, WildEncounterRosterDefinition> _rosters = new();
+    private readonly List<string> _validationErrors = new();
     private bool _disposed;
 
-    internal EnemyContentRegistry(IContentResourceLoader loader)
-        : this(loader, loadDefaultContent: true) { }
+    internal EnemyContentRegistry(bool loadDefaultContent = true)
+        : this(new GodotContentJsonSourceReader(), loadDefaultContent) { }
 
-    internal EnemyContentRegistry(IContentResourceLoader loader, bool loadDefaultContent)
-    {
-        _loader = loader ?? throw new System.ArgumentNullException(nameof(loader));
-        if (loadDefaultContent)
-            Rebuild();
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-        System.GC.SuppressFinalize(this);
-        DisposeManagedRegistry();
-    }
-
-    private void DisposeManagedRegistry()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-        _disposed = true;
-        _enemy_templates.Clear();
-        _enemy_ai_brains.Clear();
-        _wild_encounter_rosters.Clear();
-        _validation_errors.Clear();
-        _seed_enemy_ai_brain_paths.Clear();
-        _seed_enemy_template_paths.Clear();
-        _seed_wild_encounter_roster_paths.Clear();
-    }
-
-    public void ConfigureSeedResource(
-        string seedResourcePath = ENEMY_CONTENT_SEED_RESOURCE_PATH,
-        bool rebuildNow = true,
-        bool validateSeedDirCompleteness = false
+    internal EnemyContentRegistry(
+        IContentJsonSourceReader sourceReader,
+        bool loadDefaultContent = true
     )
     {
-        _enemy_content_seed_resource_path = seedResourcePath;
-        _validate_seed_directory_completeness =
-            validateSeedDirCompleteness || seedResourcePath == ENEMY_CONTENT_SEED_RESOURCE_PATH;
-        if (rebuildNow)
-            Rebuild();
+        _sourceReader = sourceReader ?? throw new ArgumentNullException(nameof(sourceReader));
+        if (loadDefaultContent) Rebuild();
     }
 
-    public void ConfigureDirectories(
-        string templateDir = ENEMY_TEMPLATE_CONFIG_DIRECTORY,
-        string brainDir = ENEMY_BRAIN_CONFIG_DIRECTORY,
-        string rosterDir = WILD_ENCOUNTER_ROSTER_CONFIG_DIRECTORY,
-        bool rebuildNow = true
-    )
-    {
-        _enemy_content_seed_resource_path = "";
-        _enemy_template_directory = templateDir;
-        _enemy_ai_brain_directory = brainDir;
-        _wild_encounter_roster_directory = rosterDir;
-        _validate_seed_directory_completeness = false;
-        if (rebuildNow)
-            Rebuild();
-    }
-
-    public void Rebuild()
-    {
-        RebuildCore(validationContext: null);
-    }
-
+    public void Rebuild() => RebuildCore(null);
     internal void Rebuild(EnemyContentValidationContext validationContext)
     {
-        System.ArgumentNullException.ThrowIfNull(validationContext);
+        ArgumentNullException.ThrowIfNull(validationContext);
         RebuildCore(validationContext);
     }
 
-    private void RebuildCore(EnemyContentValidationContext validationContext)
+    private void RebuildCore(EnemyContentValidationContext? validationContext)
     {
-        _enemy_templates.Clear();
-        _enemy_ai_brains.Clear();
-        _wild_encounter_rosters.Clear();
-        _validation_errors.Clear();
-        _seed_enemy_ai_brain_paths.Clear();
-        _seed_enemy_template_paths.Clear();
-        _seed_wild_encounter_roster_paths.Clear();
-        if (_enemy_content_seed_resource_path.Length > 0)
+        ThrowIfDisposed();
+        _templates.Clear(); _brains.Clear(); _rosters.Clear(); _validationErrors.Clear();
+        ContentImportBatch<EnemyAiBrainImportModel> brainBatch = EnemyContentJsonAuthoringDomains.CreateBrainDescriptor(EnemyContentJsonDomains.BrainDirectory, _sourceReader).Import();
+        ContentImportBatch<EnemyTemplateJsonDto> templateBatch = EnemyContentJsonAuthoringDomains.CreateTemplateDescriptor(EnemyContentJsonDomains.TemplateDirectory, _sourceReader).Import();
+        ContentImportBatch<EncounterRosterJsonDto> rosterBatch = EnemyContentJsonAuthoringDomains.CreateRosterDescriptor(EnemyContentJsonDomains.RosterDirectory, _sourceReader).Import();
+        AppendDiagnostics(brainBatch.Diagnostics); AppendDiagnostics(templateBatch.Diagnostics); AppendDiagnostics(rosterBatch.Diagnostics);
+
+        foreach (ContentImportEntry<EnemyAiBrainImportModel> entry in brainBatch.Entries)
         {
-            _register_seed_resource(_enemy_content_seed_resource_path, validationContext);
-            if (_validate_seed_directory_completeness)
-                foreach (var e in _collect_seed_directory_completeness_errors())
-                    _validation_errors.Add(e);
+            try
+            {
+                EnemyAiBrainDefinition definition = EnemyContentDefinitionProjector.ProjectBrain(entry.Import);
+                if (!_brains.TryAdd(definition.BrainId, definition)) _validationErrors.Add($"Duplicate enemy brain_id registered: {definition.BrainId}.");
+            }
+            catch (Exception exception) { _validationErrors.Add($"Enemy brain projection failed at {entry.Context.SourceLabel}: {exception.Message}"); }
         }
-        else
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = validationContext?.ItemDefinitions ?? EmptyItems;
+        foreach (ContentImportEntry<EnemyTemplateJsonDto> entry in templateBatch.Entries)
         {
-            _scan_directory(
-                _enemy_ai_brain_directory,
-                (p) => _register_brain_resource(p),
-                "EnemyContentRegistry brain scan"
-            );
-            _scan_directory(
-                _enemy_template_directory,
-                (p) => _register_template_resource(p, validationContext),
-                "EnemyContentRegistry template scan"
-            );
-            _scan_directory(
-                _wild_encounter_roster_directory,
-                (p) => _register_wild_encounter_roster_resource(p),
-                "EnemyContentRegistry roster scan"
-            );
+            try
+            {
+                EnemyTemplateDefinition definition = EnemyContentDefinitionProjector.ProjectTemplate(entry.Import, itemDefinitions);
+                if (!_templates.TryAdd(definition.TemplateId, definition)) _validationErrors.Add($"Duplicate enemy template_id registered: {definition.TemplateId}.");
+            }
+            catch (Exception exception) { _validationErrors.Add($"Enemy template projection failed at {entry.Context.SourceLabel}: {exception.Message}"); }
         }
-        foreach (var e in _collect_validation_errors(validationContext))
-            _validation_errors.Add(e);
+        foreach (ContentImportEntry<EncounterRosterJsonDto> entry in rosterBatch.Entries)
+        {
+            try
+            {
+                WildEncounterRosterDefinition definition = EnemyContentDefinitionProjector.ProjectRoster(entry.Import);
+                if (!_rosters.TryAdd(definition.ProfileId, definition)) _validationErrors.Add($"Duplicate encounter roster profile_id registered: {definition.ProfileId}.");
+            }
+            catch (Exception exception) { _validationErrors.Add($"Encounter roster projection failed at {entry.Context.SourceLabel}: {exception.Message}"); }
+        }
+        ValidateDefinitionGraph(validationContext);
     }
 
-    public Godot.Collections.Array<string> Validate() => ToGodotStringArray(_validation_errors);
+    public Godot.Collections.Array<string> Validate() => new(_validationErrors);
+    public IReadOnlyList<string> ValidateTyped() => _validationErrors;
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> GetEnemyTemplatesTyped() => _templates;
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> GetEnemyAiBrainsTyped() => _brains;
+    internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> GetWildEncounterRostersTyped() => _rosters;
 
-    internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped() =>
-        _enemy_templates;
+    internal EnemyContentDefinitionGraph ProjectDefinitions(IReadOnlyDictionary<StringName, ItemDefinition> _)
+    {
+        if (_validationErrors.Count != 0) throw new System.IO.InvalidDataException("Enemy JSON content must validate before immutable graph publication: " + string.Join(" | ", _validationErrors));
+        return new EnemyContentDefinitionGraph(
+            new ReadOnlyDictionary<StringName, EnemyTemplateDefinition>(new Dictionary<StringName, EnemyTemplateDefinition>(_templates)),
+            new ReadOnlyDictionary<StringName, EnemyAiBrainDefinition>(new Dictionary<StringName, EnemyAiBrainDefinition>(_brains)),
+            new ReadOnlyDictionary<StringName, WildEncounterRosterDefinition>(new Dictionary<StringName, WildEncounterRosterDefinition>(_rosters))
+        );
+    }
 
-    internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped() =>
-        _enemy_ai_brains;
+    private void ValidateDefinitionGraph(EnemyContentValidationContext? context)
+    {
+        foreach ((StringName brainId, EnemyAiBrainDefinition brain) in _brains)
+        {
+            if (!brain.HasState(brain.DefaultStateId))
+            {
+                _validationErrors.Add(
+                    $"Enemy brain {brainId} default_state_id {brain.DefaultStateId} is not declared."
+                );
+            }
+            foreach (EnemyAiTransitionRuleDefinition rule in brain.TransitionRules)
+            {
+                if (!brain.HasState(rule.TargetStateId))
+                {
+                    _validationErrors.Add(
+                        $"Enemy brain {brainId} transition {rule.RuleId} targets missing state {rule.TargetStateId}."
+                    );
+                }
+                foreach (StringName fromStateId in rule.FromStateIds)
+                {
+                    if (!brain.HasState(fromStateId))
+                    {
+                        _validationErrors.Add(
+                            $"Enemy brain {brainId} transition {rule.RuleId} references missing from state {fromStateId}."
+                        );
+                    }
+                }
+            }
+            if (context is not null)
+                ValidateBrainSkillCompatibility(brain, context.SkillDefinitions);
+        }
 
-    internal IReadOnlyDictionary<StringName, WildEncounterRosterDef> GetWildEncounterRostersTyped()
-        => _wild_encounter_rosters;
+        foreach ((StringName templateId, EnemyTemplateDefinition template) in _templates)
+        {
+            EnemyAiBrainDefinition? brain = null;
+            if (!_brains.TryGetValue(template.BrainId, out brain))
+            {
+                _validationErrors.Add(
+                    $"Enemy template {templateId} references missing brain {template.BrainId}."
+                );
+            }
+            else if (template.InitialStateId != "" && !brain.HasState(template.InitialStateId))
+            {
+                _validationErrors.Add(
+                    $"Enemy template {templateId} initial_state_id {template.InitialStateId} is not declared by brain {template.BrainId}."
+                );
+            }
+            if (context is not null)
+                ValidateTemplateReferences(template, brain, context);
+        }
 
-    internal EnemyContentDefinitionGraph ProjectDefinitions(
+        foreach ((StringName rosterId, WildEncounterRosterDefinition roster) in _rosters)
+        {
+            bool initialFound = false;
+            foreach (WildEncounterRosterStageDefinition stage in roster.Stages)
+            {
+                if (stage.Stage == roster.InitialStage)
+                    initialFound = true;
+                var actorIds = new HashSet<StringName>();
+                foreach (WildEncounterRosterUnitEntryDefinition unit in stage.UnitEntries)
+                {
+                    if (!_templates.ContainsKey(unit.TemplateId))
+                    {
+                        _validationErrors.Add(
+                            $"Encounter roster {rosterId} stage {stage.Stage} references missing template {unit.TemplateId}."
+                        );
+                    }
+                    if (unit.Count <= 0)
+                    {
+                        _validationErrors.Add(
+                            $"Encounter roster {rosterId} stage {stage.Stage} template {unit.TemplateId} must have count >= 1."
+                        );
+                    }
+                    if (
+                        unit.ActorId != ""
+                        && (unit.Count != 1 || !actorIds.Add(unit.ActorId))
+                    )
+                    {
+                        _validationErrors.Add(
+                            $"Encounter roster {rosterId} stage {stage.Stage} actor_id {unit.ActorId} must be unique and have count == 1."
+                        );
+                    }
+                }
+            }
+            if (!initialFound)
+            {
+                _validationErrors.Add(
+                    $"Encounter roster {rosterId} initial_stage {roster.InitialStage} is not declared."
+                );
+            }
+        }
+    }
+
+    private void ValidateBrainSkillCompatibility(
+        EnemyAiBrainDefinition brain,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
+    {
+        foreach (EnemyAiStateDefinition state in brain.StateOrder)
+        {
+            foreach (EnemyAiActionDefinition action in state.Actions)
+            {
+                foreach (StringName skillId in action.DeclaredSkillIds)
+                {
+                    if (
+                        !skillDefinitions.TryGetValue(skillId, out SkillDefinition? skill)
+                        || skill is null
+                    )
+                    {
+                        _validationErrors.Add(
+                            $"Enemy brain {brain.BrainId} state {state.StateId} action {action.ActionId} references missing skill {skillId}."
+                        );
+                        continue;
+                    }
+                    EnemyAiActionSkillCompatibilityResult compatibility =
+                        EnemyAiActionSkillCompatibilityRules.Evaluate(
+                            action.Kind,
+                            skill,
+                            ResolveCandidatePoolLimit(action)
+                        );
+                    if (!compatibility.IsCompatible)
+                    {
+                        _validationErrors.Add(
+                            $"Enemy brain {brain.BrainId} state {state.StateId} action {action.ActionId} references incompatible skill {skillId}: {compatibility.Reason}."
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private void ValidateTemplateReferences(
+        EnemyTemplateDefinition template,
+        EnemyAiBrainDefinition? brain,
+        EnemyContentValidationContext context
+    )
+    {
+        var declaredSkillIds = new HashSet<StringName>(template.SkillIds);
+        int eligibleGeneratedSkillCount = 0;
+        foreach (StringName skillId in template.SkillIds)
+        {
+            if (
+                !context.SkillDefinitions.TryGetValue(skillId, out SkillDefinition? skill)
+                || skill is null
+            )
+            {
+                _validationErrors.Add(
+                    $"Enemy template {template.TemplateId} references missing skill {skillId}."
+                );
+                continue;
+            }
+            int skillLevel = template.GetSkillLevel(skillId);
+            if (skillLevel < 1 || (skill.MaxLevel > 0 && skillLevel > skill.MaxLevel))
+            {
+                _validationErrors.Add(
+                    $"Enemy template {template.TemplateId} skill {skillId} level {skillLevel} is outside 1..{skill.MaxLevel}."
+                );
+            }
+            if (skillId != "basic_attack" && skill.MaxLevel > 0)
+                eligibleGeneratedSkillCount += 1;
+        }
+        foreach ((StringName skillId, int _) in template.SkillLevels)
+        {
+            if (!declaredSkillIds.Contains(skillId))
+            {
+                _validationErrors.Add(
+                    $"Enemy template {template.TemplateId} skill_level_map key {skillId} is not declared in skill_ids."
+                );
+            }
+        }
+        if (template.GeneratedCoreSkillCount > eligibleGeneratedSkillCount)
+        {
+            _validationErrors.Add(
+                $"Enemy template {template.TemplateId} generated_core_skill_count {template.GeneratedCoreSkillCount} exceeds eligible skill count {eligibleGeneratedSkillCount}."
+            );
+        }
+
+        if (brain is not null)
+        {
+            foreach (EnemyAiStateDefinition state in brain.StateOrder)
+            {
+                foreach (EnemyAiActionDefinition action in state.Actions)
+                {
+                    foreach (StringName skillId in action.DeclaredSkillIds)
+                    {
+                        if (
+                            !declaredSkillIds.Contains(skillId)
+                            || !context.SkillDefinitions.TryGetValue(
+                                skillId,
+                                out SkillDefinition? skill
+                            )
+                            || skill is null
+                        )
+                        {
+                            continue;
+                        }
+                        int skillLevel = template.GetSkillLevel(skillId);
+                        EnemyAiActionSkillCompatibilityResult compatibility =
+                            EnemyAiActionSkillCompatibilityRules.Evaluate(
+                                action.Kind,
+                                skill,
+                                ResolveCandidatePoolLimit(action),
+                                skillLevel
+                            );
+                        if (!compatibility.IsCompatible)
+                        {
+                            _validationErrors.Add(
+                                $"Enemy template {template.TemplateId} brain {brain.BrainId} state {state.StateId} action {action.ActionId} references incompatible skill {skillId} at level {skillLevel}: {compatibility.Reason}."
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach (DropEntryDefinition drop in template.DropEntries)
+        {
+            if (!context.ItemDefinitions.ContainsKey(drop.ItemId))
+            {
+                _validationErrors.Add(
+                    $"Enemy template {template.TemplateId} drop {drop.DropEntryId} references missing item {drop.ItemId}."
+                );
+            }
+        }
+        ValidateBattleEquipment(template, context.ItemDefinitions);
+
+        bool isBeast = template.Tags.Contains(new StringName("beast"));
+        if (!isBeast)
+        {
+            if (
+                !context.ItemDefinitions.TryGetValue(
+                    template.AttackEquipmentItemId,
+                    out ItemDefinition? attackEquipment
+                )
+                || attackEquipment is null
+            )
+            {
+                _validationErrors.Add(
+                    $"Enemy template {template.TemplateId} references missing attack equipment {template.AttackEquipmentItemId}."
+                );
+            }
+            else if (
+                !attackEquipment.IsWeapon()
+                || attackEquipment.GetWeaponAttackRange() < 1
+                || attackEquipment.GetWeaponPhysicalDamageTag() == ""
+            )
+            {
+                _validationErrors.Add(
+                    $"Enemy template {template.TemplateId} attack equipment {template.AttackEquipmentItemId} must be a complete weapon definition."
+                );
+            }
+        }
+    }
+
+    private void ValidateBattleEquipment(
+        EnemyTemplateDefinition template,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
-        if (_validation_errors.Count != 0)
-        {
-            throw new System.IO.InvalidDataException(
-                "Enemy content must validate before immutable definition projection: "
-                    + string.Join(" | ", _validation_errors)
-            );
-        }
-
-        var brains = new Dictionary<StringName, EnemyAiBrainDefinition>();
-        foreach (StringName brainId in SortedKeys(_enemy_ai_brains.Keys))
-        {
-            EnemyAiBrainDef source = _enemy_ai_brains[brainId];
-            if (!brains.TryAdd(brainId, source.ToDefinition()))
-                throw new System.IO.InvalidDataException($"Duplicate enemy brain_id projected: {brainId}");
-        }
-
-        var templates = new Dictionary<StringName, EnemyTemplateDefinition>();
-        foreach (StringName templateId in SortedKeys(_enemy_templates.Keys))
-        {
-            EnemyTemplateDef source = _enemy_templates[templateId];
-            if (!templates.TryAdd(templateId, source.ToDefinition(itemDefinitions)))
-                throw new System.IO.InvalidDataException(
-                    $"Duplicate enemy template_id projected: {templateId}"
-                );
-        }
-
-        var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>();
-        foreach (StringName rosterId in SortedKeys(_wild_encounter_rosters.Keys))
-        {
-            WildEncounterRosterDef source = _wild_encounter_rosters[rosterId];
-            if (!rosters.TryAdd(rosterId, source.ToDefinition()))
-                throw new System.IO.InvalidDataException(
-                    $"Duplicate encounter roster profile_id projected: {rosterId}"
-                );
-        }
-
-        return new EnemyContentDefinitionGraph(
-            new ReadOnlyDictionary<StringName, EnemyTemplateDefinition>(templates),
-            new ReadOnlyDictionary<StringName, EnemyAiBrainDefinition>(brains),
-            new ReadOnlyDictionary<StringName, WildEncounterRosterDefinition>(rosters)
-        );
-    }
-
-    public IReadOnlyList<string> ValidateTyped() => _validation_errors;
-
-    private void _register_seed_resource(
-        string resourcePath,
-        EnemyContentValidationContext validationContext
-    )
-    {
-        var r = _loader.LoadCanonical<Resource>(resourcePath);
-        if (r == null)
-        {
-            _validation_errors.Add($"Failed to load enemy content seed {resourcePath}.");
-            return;
-        }
-        if (r is not EnemyContentSeed seed)
-        {
-            _validation_errors.Add(
-                $"Enemy content seed {resourcePath} is not an EnemyContentSeed."
-            );
-            return;
-        }
-        foreach (var b in seed.enemy_ai_brains)
-        {
-            _remember_seed_resource_path(_seed_enemy_ai_brain_paths, b);
-            _register_brain_entry(b, $"{resourcePath}::enemy_ai_brains");
-        }
-        foreach (var t in seed.enemy_templates)
-        {
-            _remember_seed_resource_path(_seed_enemy_template_paths, t);
-            _register_template_entry(
-                t,
-                $"{resourcePath}::enemy_templates",
-                validationContext
-            );
-        }
-        foreach (var w in seed.wild_encounter_rosters)
-        {
-            _remember_seed_resource_path(_seed_wild_encounter_roster_paths, w);
-            _register_wild_encounter_roster_entry(w, $"{resourcePath}::wild_encounter_rosters");
-        }
-    }
-
-    private static void _remember_seed_resource_path(
-        HashSet<string> seedPaths,
-        Resource r
-    )
-    {
-        if (r == null)
-            return;
-        string rp = (r.ResourcePath ?? "").Replace("\\", "/");
-        if (rp.Length > 0)
-            seedPaths.Add(rp);
-    }
-
-    private Godot.Collections.Array<string> _collect_seed_directory_completeness_errors()
-    {
-        var e = new Godot.Collections.Array<string>();
-        _append_seed_dir_errors(
-            e,
-            _enemy_ai_brain_directory,
-            _seed_enemy_ai_brain_paths,
-            "enemy_ai_brains"
-        );
-        _append_seed_dir_errors(
-            e,
-            _enemy_template_directory,
-            _seed_enemy_template_paths,
-            "enemy_templates"
-        );
-        _append_seed_dir_errors(
-            e,
-            _wild_encounter_roster_directory,
-            _seed_wild_encounter_roster_paths,
-            "wild_encounter_rosters"
-        );
-        return e;
-    }
-
-    private void _append_seed_dir_errors(
-        Godot.Collections.Array<string> errors,
-        string dirPath,
-        HashSet<string> seedPaths,
-        string seedColName
-    )
-    {
-        if (!DirAccess.DirExistsAbsolute(dirPath))
-        {
-            errors.Add($"Enemy content seed completeness could not find {dirPath}.");
-            return;
-        }
-        foreach (var rp in _collect_resource_paths_in_directory(dirPath))
-        {
-            if (!seedPaths.Contains(rp))
-                errors.Add(
-                    $"Enemy content seed {_enemy_content_seed_resource_path} is missing {seedColName} entry for {rp}."
-                );
-        }
-    }
-
-    private static List<string> _collect_resource_paths_in_directory(string dirPath)
-    {
-        var r = new List<string>();
-        DirAccess dir = DirAccess.Open(dirPath);
-        if (dir == null)
-            return r;
-        try
-        {
-            dir.ListDirBegin();
-            while (true)
-            {
-                string n = dir.GetNext();
-                if (string.IsNullOrEmpty(n))
-                    break;
-                if (n == "." || n == "..")
-                    continue;
-                string ep = $"{dirPath}/{n}";
-                if (dir.CurrentIsDir())
-                {
-                    foreach (var cr in _collect_resource_paths_in_directory(ep))
-                    {
-                        r.Add(cr);
-                    }
-                    continue;
-                }
-                if (n.EndsWith(".tres") || n.EndsWith(".res"))
-                    r.Add(ep.Replace("\\", "/"));
-            }
-            dir.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(dir);
-        }
-        r.Sort(System.StringComparer.Ordinal);
-        return r;
-    }
-
-    private void _scan_directory(
-        string dirPath,
-        System.Action<string> registerCallback,
-        string scanLabel
-    )
-    {
-        if (!DirAccess.DirExistsAbsolute(dirPath))
-        {
-            _validation_errors.Add($"{scanLabel} could not find {dirPath}.");
-            return;
-        }
-        DirAccess dir = DirAccess.Open(dirPath);
-        if (dir == null)
-        {
-            _validation_errors.Add($"{scanLabel} could not open {dirPath}.");
-            return;
-        }
-        try
-        {
-            dir.ListDirBegin();
-            while (true)
-            {
-                string n = dir.GetNext();
-                if (string.IsNullOrEmpty(n))
-                    break;
-                if (n == "." || n == "..")
-                    continue;
-                string ep = $"{dirPath}/{n}";
-                if (dir.CurrentIsDir())
-                    _scan_directory(ep, registerCallback, scanLabel);
-                else if (n.EndsWith(".tres") || n.EndsWith(".res"))
-                    registerCallback(ep);
-            }
-            dir.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(dir);
-        }
-    }
-
-    private void _register_brain_resource(string rp)
-    {
-        var r = _loader.LoadCanonical<Resource>(rp);
-        _register_brain_entry(r, rp);
-    }
-
-    private void _register_template_resource(
-        string rp,
-        EnemyContentValidationContext validationContext
-    )
-    {
-        var r = _loader.LoadCanonical<Resource>(rp);
-        _register_template_entry(r, rp, validationContext);
-    }
-
-    private void _register_wild_encounter_roster_resource(string rp)
-    {
-        var r = _loader.LoadCanonical<Resource>(rp);
-        _register_wild_encounter_roster_entry(r, rp);
-    }
-
-    private void _register_brain_entry(Resource r, string sourceLabel)
-    {
-        if (r == null)
-        {
-            _validation_errors.Add($"Failed to load enemy brain config {sourceLabel}.");
-            return;
-        }
-        if (r is not EnemyAiBrainDef brain || brain.brain_id == "")
-        {
-            _validation_errors.Add($"Enemy brain config {sourceLabel} is not an EnemyAiBrainDef.");
-            return;
-        }
-        if (_enemy_ai_brains.ContainsKey(brain.brain_id))
-        {
-            _validation_errors.Add($"Duplicate enemy brain_id registered: {brain.brain_id}");
-            return;
-        }
-        _enemy_ai_brains[brain.brain_id] = brain;
-    }
-
-    private void _register_template_entry(
-        Resource r,
-        string sourceLabel,
-        EnemyContentValidationContext validationContext
-    )
-    {
-        if (r == null)
-        {
-            _validation_errors.Add($"Failed to load enemy template config {sourceLabel}.");
-            return;
-        }
-        if (r is not EnemyTemplateDef tmpl)
-        {
-            _validation_errors.Add(
-                $"Enemy template config {sourceLabel} is not an EnemyTemplateDef."
-            );
-            return;
-        }
-        if (tmpl.template_id == "")
-        {
-            var knownBrains = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
-            IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
-                ResolveItemDefinitions(validationContext);
-            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-                ResolveSkillDefinitions(validationContext);
-            foreach (
-                var error in tmpl.ValidateSchemaTyped(knownBrains, itemDefs, skillDefinitions)
-            )
-                _validation_errors.Add(error);
-            return;
-        }
-        if (_enemy_templates.ContainsKey(tmpl.template_id))
-        {
-            _validation_errors.Add($"Duplicate enemy template_id registered: {tmpl.template_id}");
-            return;
-        }
-        _enemy_templates[tmpl.template_id] = tmpl;
-    }
-
-    private void _register_wild_encounter_roster_entry(Resource r, string sourceLabel)
-    {
-        if (r == null)
-        {
-            _validation_errors.Add($"Failed to load wild encounter roster config {sourceLabel}.");
-            return;
-        }
-        if (r is not WildEncounterRosterDef roster || roster.profile_id == "")
-        {
-            _validation_errors.Add(
-                $"Wild encounter roster config {sourceLabel} is not a WildEncounterRosterDef."
-            );
-            return;
-        }
-        if (_wild_encounter_rosters.ContainsKey(roster.profile_id))
-        {
-            _validation_errors.Add(
-                $"Duplicate wild encounter profile_id registered: {roster.profile_id}"
-            );
-            return;
-        }
-        _wild_encounter_rosters[roster.profile_id] = roster;
-    }
-
-    private Godot.Collections.Array<string> _collect_validation_errors(
-        EnemyContentValidationContext validationContext
-    )
-    {
-        var e = new Godot.Collections.Array<string>();
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitionIndex =
-            ResolveSkillDefinitions(validationContext);
-        foreach (StringName brainId in SortedKeys(_enemy_ai_brains.Keys))
-        {
-            if (_enemy_ai_brains.TryGetValue(brainId, out EnemyAiBrainDef brain) && brain != null)
-            {
-                foreach (var ve in brain.ValidateSchema(skillDefinitionIndex))
-                {
-                    e.Add(ve);
-                }
-            }
-        }
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefIndex =
-            ResolveItemDefinitions(validationContext);
-        var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
-        foreach (StringName templateId in SortedKeys(_enemy_templates.Keys))
+        var occupiedSlots = new HashSet<StringName>();
+        foreach (EnemyBattleEquipmentDefinition equipment in template.BattleEquipmentEntries)
         {
             if (
-                _enemy_templates.TryGetValue(templateId, out EnemyTemplateDef template)
-                && template != null
+                !itemDefinitions.TryGetValue(equipment.ItemId, out ItemDefinition? item)
+                || item is null
+                || !item.IsEquipment()
             )
             {
-                foreach (
-                    var ve in template.ValidateSchemaTyped(
-                        brainIndex,
-                        itemDefIndex,
-                        skillDefinitionIndex
-                    )
-                )
+                _validationErrors.Add(
+                    $"Enemy template {template.TemplateId} equipment slot {equipment.SlotId} references non-equipment item {equipment.ItemId}."
+                );
+                continue;
+            }
+            if (!item.GetEquipmentSlotIdsTyped().Contains(equipment.SlotId))
+            {
+                _validationErrors.Add(
+                    $"Enemy template {template.TemplateId} item {equipment.ItemId} cannot be equipped in {equipment.SlotId}."
+                );
+            }
+            foreach (StringName occupiedSlot in item.GetFinalOccupiedSlotIdsTyped(equipment.SlotId))
+            {
+                if (!occupiedSlots.Add(occupiedSlot))
                 {
-                    e.Add(ve);
+                    _validationErrors.Add(
+                        $"Enemy template {template.TemplateId} battle equipment overlaps occupied slot {occupiedSlot}."
+                    );
                 }
             }
         }
-        var knownTemplateIds = new HashSet<StringName>(_enemy_templates.Keys);
-        foreach (StringName rosterId in SortedKeys(_wild_encounter_rosters.Keys))
-        {
-            if (
-                _wild_encounter_rosters.TryGetValue(rosterId, out WildEncounterRosterDef roster)
-                && roster != null
-            )
-            {
-                foreach (var ve in roster.ValidateSchemaTyped(knownTemplateIds))
-                {
-                    e.Add(ve);
-                }
-            }
-        }
-        return e;
     }
 
-    private IReadOnlyDictionary<StringName, ItemDefinition> ResolveItemDefinitions(
-        EnemyContentValidationContext validationContext
-    ) =>
-        validationContext?.ItemDefinitions ?? _get_item_defs_for_validation_typed();
+    private static int ResolveCandidatePoolLimit(EnemyAiActionDefinition action) =>
+        action switch
+        {
+            UseMultiUnitSkillActionDefinition value => value.CandidatePoolLimit,
+            MoveToMultiUnitSkillPositionActionDefinition value => value.CandidatePoolLimit,
+            _ => int.MaxValue,
+        };
 
-    private IReadOnlyDictionary<StringName, SkillDefinition> ResolveSkillDefinitions(
-        EnemyContentValidationContext validationContext
-    ) =>
-        validationContext?.SkillDefinitions
-        ?? _get_skill_definitions_for_validation_typed();
-
-    private IReadOnlyDictionary<StringName, ItemDefinition> _get_item_defs_for_validation_typed()
+    private void AppendDiagnostics(IReadOnlyList<ContentJsonDiagnostic> diagnostics)
     {
-        using var ir = new ItemContentRegistry();
-        return new Dictionary<StringName, ItemDefinition>(ir.GetItemDefsTyped());
+        foreach (ContentJsonDiagnostic diagnostic in diagnostics) _validationErrors.Add($"[{diagnostic.RuleId}] {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}");
     }
-
-    private IReadOnlyDictionary<StringName, SkillDefinition> _get_skill_definitions_for_validation_typed()
+    public void Dispose()
     {
-        using var sr = new SkillContentRegistry(_loader);
-        return EnemyTemplateDef.CloneSkillDefinitionIndex(sr.GetSkillDefinitionsTyped());
+        if (_disposed) return;
+        _disposed = true; _templates.Clear(); _brains.Clear(); _rosters.Clear(); _validationErrors.Clear(); GC.SuppressFinalize(this);
     }
-
-    private static Godot.Collections.Array<string> ToGodotStringArray(IEnumerable<string> values)
-    {
-        var result = new Godot.Collections.Array<string>();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (string value in values)
-        {
-            result.Add(value ?? "");
-        }
-        return result;
-    }
-
-    private static IEnumerable<StringName> SortedKeys(IEnumerable<StringName> keys)
-    {
-        if (keys == null)
-        {
-            yield break;
-        }
-        var sorted = new List<string>();
-        foreach (StringName key in keys)
-        {
-            if (key != "")
-            {
-                sorted.Add(key.ToString());
-            }
-        }
-        sorted.Sort(System.StringComparer.Ordinal);
-        foreach (string key in sorted)
-        {
-            yield return new StringName(key);
-        }
-    }
+    private void ThrowIfDisposed() { if (_disposed) throw new ObjectDisposedException(nameof(EnemyContentRegistry)); }
+    private static IReadOnlyDictionary<StringName, ItemDefinition> EmptyItems { get; } = new ReadOnlyDictionary<StringName, ItemDefinition>(new Dictionary<StringName, ItemDefinition>());
 }

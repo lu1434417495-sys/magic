@@ -1,0 +1,61 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "iron_greatclub",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 8,
+        "constitution": 17,
+        "intelligence": 6,
+        "perception": 14,
+        "strength": 21,
+        "willpower": 8
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 3,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 7,
+      "damage_resistances": {},
+      "display_name": "\u53CC\u5934\u5DE8\u4EBA",
+      "drop_entries": [
+        {
+          "drop_entry_id": "ettin_ore",
+          "drop_type": "item",
+          "item_id": "iron_ore",
+          "quantity": 2
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 10,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [
+        "sleep",
+        "illusion"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "warrior_heavy_strike"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "giant",
+        "ettin"
+      ],
+      "target_rank": "elite",
+      "template_id": "ettin"
+    }
+  ],
+  "family": "ettin",
+  "schema": 1,
+  "templates": {}
+}

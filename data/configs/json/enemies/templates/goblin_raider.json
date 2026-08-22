@@ -1,0 +1,67 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "iron_dagger",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 13,
+        "constitution": 10,
+        "intelligence": 8,
+        "perception": 10,
+        "strength": 8,
+        "willpower": 7
+      },
+      "battle_equipment_entries": [
+        {
+          "current_durability": 56,
+          "item_id": "leather_jerkin",
+          "rarity": 0,
+          "slot_id": "body"
+        }
+      ],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 1,
+      "damage_resistances": {},
+      "display_name": "\u54E5\u5E03\u6797\u52AB\u63A0\u8005",
+      "drop_entries": [
+        {
+          "drop_entry_id": "goblin_cloth",
+          "drop_type": "item",
+          "item_id": "linen_cloth",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 2,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 6,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [
+        "frightened"
+      ],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "basic_attack"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "humanoid",
+        "goblinoid"
+      ],
+      "target_rank": "normal",
+      "template_id": "goblin_raider"
+    }
+  ],
+  "family": "goblin_raider",
+  "schema": 1,
+  "templates": {}
+}

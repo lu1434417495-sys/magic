@@ -1,0 +1,69 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "militia_spear",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 10,
+        "constitution": 11,
+        "intelligence": 10,
+        "perception": 10,
+        "strength": 11,
+        "willpower": 9
+      },
+      "battle_equipment_entries": [
+        {
+          "current_durability": 56,
+          "item_id": "leather_jerkin",
+          "rarity": 0,
+          "slot_id": "body"
+        }
+      ],
+      "battle_sprite_asset_id": "battle.unit.enemy.militia",
+      "body_size": 2,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 1,
+      "damage_resistances": {},
+      "display_name": "\u6C11\u5175",
+      "drop_entries": [
+        {
+          "drop_entry_id": "militia_cloth",
+          "drop_type": "item",
+          "item_id": "linen_cloth",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 2,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 8,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [
+        "frightened"
+      ],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "charge",
+        "warrior_heavy_strike"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "humanoid",
+        "militia",
+        "spear"
+      ],
+      "target_rank": "normal",
+      "template_id": "militia"
+    }
+  ],
+  "family": "militia",
+  "schema": 1,
+  "templates": {}
+}

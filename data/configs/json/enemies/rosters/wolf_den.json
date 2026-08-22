@@ -1,0 +1,89 @@
+{
+  "domain": "encounter_rosters",
+  "entries": [
+    {
+      "display_name": "\u8352\u72FC\u5DE2\u7A74",
+      "growth_step_interval": 2,
+      "initial_stage": 0,
+      "profile_id": "wolf_den",
+      "stages": [
+        {
+          "stage": 0,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 2,
+              "display_name": "",
+              "template_id": "wolf_raider"
+            }
+          ]
+        },
+        {
+          "stage": 1,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 3,
+              "display_name": "",
+              "template_id": "wolf_raider"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 4,
+              "display_name": "",
+              "template_id": "wolf_raider"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 4,
+              "display_name": "",
+              "template_id": "wolf_raider"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "wolf_alpha"
+            }
+          ]
+        },
+        {
+          "stage": 4,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 4,
+              "display_name": "",
+              "template_id": "wolf_raider"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "wolf_alpha"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "wolf_shaman"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "family": "wolf_den",
+  "schema": 1,
+  "templates": {}
+}

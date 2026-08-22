@@ -6,7 +6,7 @@ using GGenerationSlotArray = Godot.Collections.Array<EnemyAiGenerationSlotDef>;
 using GStringArray = Godot.Collections.Array<string>;
 
 [GlobalClass]
-public partial class EnemyAiStateDef : Resource
+public partial class EnemyAiStateDef : RefCounted
 {
     [Export]
     public StringName state_id = "";

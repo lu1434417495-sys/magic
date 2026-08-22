@@ -1,0 +1,61 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 16,
+        "constitution": 10,
+        "intelligence": 2,
+        "perception": 14,
+        "strength": 6,
+        "willpower": 6
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "instinctive",
+      "creature_level": 0,
+      "damage_resistances": {},
+      "display_name": "\u5DE8\u8760",
+      "drop_entries": [
+        {
+          "drop_entry_id": "bat_hide",
+          "drop_type": "item",
+          "item_id": "beast_hide",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 2,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 6,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [
+        "illusion"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "basic_attack"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "beast",
+        "bat",
+        "bite"
+      ],
+      "target_rank": "normal",
+      "template_id": "giant_bat"
+    }
+  ],
+  "family": "giant_bat",
+  "schema": 1,
+  "templates": {}
+}

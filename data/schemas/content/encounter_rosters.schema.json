@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:encounter_rosters:v1",
+  "title": "Magic encounter roster JSON authoring schema",
+  "description": "Strict staged encounter roster contract referencing enemy template IDs.",
+  "$ref": "#/$defs/EncounterRosterJsonDocumentDto",
+  "$defs": {
+    "EncounterRosterJsonDocumentDto": {
+      "description": "Encounter roster document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "encounter_rosters"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EncounterRosterJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/EncounterRosterJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "EncounterRosterJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "growth_step_interval": {
+          "type": "integer"
+        },
+        "initial_stage": {
+          "type": "integer"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EncounterRosterStageJsonDto"
+          }
+        }
+      },
+      "required": [
+        "display_name",
+        "growth_step_interval",
+        "initial_stage",
+        "profile_id",
+        "stages"
+      ]
+    },
+    "EncounterRosterJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EncounterRosterJsonDto"
+        },
+        {
+          "$ref": "#/$defs/EncounterRosterJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "EncounterRosterJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "growth_step_interval": {
+          "type": "integer"
+        },
+        "initial_stage": {
+          "type": "integer"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EncounterRosterStageJsonDto"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "EncounterRosterJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "growth_step_interval": {
+          "type": "integer"
+        },
+        "initial_stage": {
+          "type": "integer"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EncounterRosterStageJsonDto"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "profile_id",
+        "template"
+      ]
+    },
+    "EncounterRosterStageJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "type": "integer"
+        },
+        "unit_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EncounterRosterUnitJsonDto"
+          }
+        }
+      },
+      "required": [
+        "stage",
+        "unit_entries"
+      ]
+    },
+    "EncounterRosterUnitJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "template_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "count",
+        "display_name",
+        "template_id"
+      ]
+    }
+  }
+}

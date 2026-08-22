@@ -1,0 +1,62 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 12,
+        "constitution": 15,
+        "intelligence": 6,
+        "perception": 13,
+        "strength": 18,
+        "willpower": 10
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 3,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 6,
+      "damage_resistances": {},
+      "display_name": "\u5F25\u8BFA\u9676\u51B2\u89D2\u8005",
+      "drop_entries": [
+        {
+          "drop_entry_id": "minotaur_hide",
+          "drop_type": "item",
+          "item_id": "beast_hide",
+          "quantity": 2
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 10,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [
+        "illusion"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "charge"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "monstrosity",
+        "minotaur",
+        "beast",
+        "horn"
+      ],
+      "target_rank": "elite",
+      "template_id": "minotaur_charger"
+    }
+  ],
+  "family": "minotaur_charger",
+  "schema": 1,
+  "templates": {}
+}

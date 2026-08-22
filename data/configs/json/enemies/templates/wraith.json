@@ -1,0 +1,75 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 120
+      },
+      "base_attribute_overrides": {
+        "agility": 15,
+        "constitution": 10,
+        "intelligence": 12,
+        "perception": 13,
+        "strength": 6,
+        "willpower": 15
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "ranged_controller",
+      "cognition_kind": "sapient",
+      "creature_level": 6,
+      "damage_resistances": {
+        "negative_energy": "immune",
+        "physical_blunt": "half",
+        "physical_pierce": "half",
+        "physical_slash": "half",
+        "radiant": "double"
+      },
+      "display_name": "\u5E7D\u9B42",
+      "drop_entries": [
+        {
+          "drop_entry_id": "wraith_fern",
+          "drop_type": "item",
+          "item_id": "moonfern_sample",
+          "quantity": 2
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 6,
+      "initial_state_id": "pressure",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "physical_blunt",
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [
+        "sleep",
+        "charm",
+        "poison",
+        "frightened"
+      ],
+      "skill_ids": [
+        "mage_ice_lance",
+        "mage_glacial_prison"
+      ],
+      "skill_level_map": {
+        "mage_glacial_prison": 3,
+        "mage_ice_lance": 3
+      },
+      "tags": [
+        "undead",
+        "wraith",
+        "incorporeal",
+        "beast"
+      ],
+      "target_rank": "elite",
+      "template_id": "wraith"
+    }
+  ],
+  "family": "wraith",
+  "schema": 1,
+  "templates": {}
+}

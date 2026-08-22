@@ -5,7 +5,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [Tool]
 [GlobalClass]
-public partial class EnemyAiTransitionRuleDef : Resource
+public partial class EnemyAiTransitionRuleDef : RefCounted
 {
     [Export]
     public StringName rule_id = "";
