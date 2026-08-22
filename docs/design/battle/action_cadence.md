@@ -50,7 +50,7 @@ m > 0:  max(BASE - GRANULARITY · ⌈√m⌉, FLOOR)      快侧平方根递减�
 |---|---|
 | 角色 | `AttributeService.CalculateBaseActionThreshold`：`custom_stats` 有显式值则优先，否则读 `resolvedBaseValues` 的 agility（**已叠加装备修正**）查表。与 `CalculateBaseArmorClass` 同构 |
 | 敌人 | `EncounterRosterBuilder` 在属性快照构建完成后读 `AttributeSnapshot` 的 `ACTION_THRESHOLD`。**`EnemyTemplateDef` 没有 `action_threshold` 字段** |
-| sim | `BattleSimUnitSpec`：有 `base_attributes` 时走属性快照；spec 的 `action_threshold` 字段此时**失效**，要钉值必须写 `attribute_overrides["action_threshold"]` |
+| sim | JSON unit import：有 `base_attributes` 时走属性快照；unit 的 `action_threshold` 字段此时**失效**，要钉值必须写 `attribute_overrides["action_threshold"]` |
 
 **作者要让某只怪更快或更慢，调它的 agility。** 模板手写阈值与 agility 派生并存会双重计价——
 废除该字段前，40 个模板的 `pearson(threshold, agility) = −0.788`，作者已经把敏捷手写进阈值里了。
@@ -118,7 +118,7 @@ rate >= (100 × threshold + 1) / tu_per_tick        (tu_per_tick = 5)
 
 1. **快侧入场点比直觉贵。** agility 16 只到调整值 +3（30 TU），想要 25 TU 需要 agility 20。
    改前作者可以直接手写 25 TU，现在这条路封了。
-2. **建卡掷骰是 `5d3 − 1`（下限 4，期望 9，硬上限 14）**，`RaceDef` / `SubraceDef` 的
+2. **建卡掷骰是 `5d3 − 1`（下限 4，期望 9，硬上限 14）**，`RaceDefinition` / `SubraceDefinition` 的
    `attribute_modifiers` 全仓库无一条被填充。所以建卡能拿到的最快是**调整值 +2 / 30 TU**，
    且需要用创建界面的阈值 reroll 功能去争（代价是出生隐藏幸运，对数计价）。
    敌人模板的 agility 均值是 12.4，比建卡期望高——**敏捷是玩家要主动投入才不落后的属性**。
