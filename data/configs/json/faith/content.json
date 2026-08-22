@@ -1,0 +1,251 @@
+{
+  "schema": 1,
+  "domain": "faith",
+  "family": "canonical",
+  "templates": {},
+  "entries": [
+    {
+      "deity_id": "fortuna",
+      "display_name": "Fortuna",
+      "facility_id": "",
+      "service_type_label": "命运供奉",
+      "power_domain_tags": [
+        "luck",
+        "fortune",
+        "fate"
+      ],
+      "rank_progress_stat_id": "faith_luck_bonus",
+      "rank_defs": [
+        {
+          "rank_index": 1,
+          "rank_name": "浅信徒",
+          "required_gold": 500,
+          "required_level": 0,
+          "required_custom_stat_id": "fortune_marked",
+          "required_custom_stat_min_value": 1,
+          "required_achievement_id": "",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "faith_luck_bonus",
+              "amount": 1,
+              "target_label": "faith_luck_bonus",
+              "reason_text": "Fortuna 的第一道赐福。"
+            }
+          ]
+        },
+        {
+          "rank_index": 2,
+          "rank_name": "真信徒",
+          "required_gold": 2000,
+          "required_level": 8,
+          "required_custom_stat_id": "",
+          "required_custom_stat_min_value": 0,
+          "required_achievement_id": "fortuna_guidance_true",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "faith_luck_bonus",
+              "amount": 1,
+              "target_label": "faith_luck_bonus",
+              "reason_text": "Fortuna 的第二道赐福。"
+            }
+          ]
+        },
+        {
+          "rank_index": 3,
+          "rank_name": "虔诚信徒",
+          "required_gold": 4500,
+          "required_level": 14,
+          "required_custom_stat_id": "",
+          "required_custom_stat_min_value": 0,
+          "required_achievement_id": "fortuna_guidance_devout",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "faith_luck_bonus",
+              "amount": 1,
+              "target_label": "faith_luck_bonus",
+              "reason_text": "Fortuna 的第三道赐福。"
+            }
+          ]
+        },
+        {
+          "rank_index": 4,
+          "rank_name": "至诚信徒",
+          "required_gold": 8000,
+          "required_level": 20,
+          "required_custom_stat_id": "",
+          "required_custom_stat_min_value": 0,
+          "required_achievement_id": "fortuna_guidance_exalted",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "faith_luck_bonus",
+              "amount": 1,
+              "target_label": "faith_luck_bonus",
+              "reason_text": "Fortuna 的第四道赐福。"
+            }
+          ]
+        },
+        {
+          "rank_index": 5,
+          "rank_name": "神眷者",
+          "required_gold": 14000,
+          "required_level": 28,
+          "required_custom_stat_id": "",
+          "required_custom_stat_min_value": 0,
+          "required_achievement_id": "fortuna_guidance_blessed",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "faith_luck_bonus",
+              "amount": 1,
+              "target_label": "faith_luck_bonus",
+              "reason_text": "Fortuna 的第五道赐福。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "deity_id": "misfortune_black_crown",
+      "display_name": "Misfortune",
+      "facility_id": "",
+      "service_type_label": "黑冕供奉",
+      "power_domain_tags": [
+        "doom",
+        "misfortune",
+        "calamity"
+      ],
+      "rank_progress_stat_id": "doom_authority",
+      "rank_defs": [
+        {
+          "rank_index": 1,
+          "rank_name": "见厄者",
+          "required_gold": 500,
+          "required_level": 0,
+          "required_custom_stat_id": "doom_marked",
+          "required_custom_stat_min_value": 1,
+          "required_achievement_id": "",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "doom_authority",
+              "amount": 1,
+              "target_label": "doom_authority",
+              "reason_text": "黑冕赐下第一道厄命权柄。"
+            },
+            {
+              "entry_type": "knowledge_unlock",
+              "target_id": "black_star_brand",
+              "amount": 1,
+              "target_label": "black_star_brand",
+              "reason_text": "黑星烙印骨架占位已解锁。"
+            }
+          ]
+        },
+        {
+          "rank_index": 2,
+          "rank_name": "灾厄持灯者",
+          "required_gold": 2000,
+          "required_level": 8,
+          "required_custom_stat_id": "",
+          "required_custom_stat_min_value": 0,
+          "required_achievement_id": "misfortune_guidance_true",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "doom_authority",
+              "amount": 1,
+              "target_label": "doom_authority",
+              "reason_text": "黑冕赐下第二道厄命权柄。"
+            },
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "calamity_capacity_bonus",
+              "amount": 1,
+              "target_label": "calamity_capacity_bonus",
+              "reason_text": "calamity 上限骨架 +1。"
+            }
+          ]
+        },
+        {
+          "rank_index": 3,
+          "rank_name": "折冠者",
+          "required_gold": 4500,
+          "required_level": 14,
+          "required_custom_stat_id": "",
+          "required_custom_stat_min_value": 0,
+          "required_achievement_id": "misfortune_guidance_devout",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "doom_authority",
+              "amount": 1,
+              "target_label": "doom_authority",
+              "reason_text": "黑冕赐下第三道厄命权柄。"
+            },
+            {
+              "entry_type": "knowledge_unlock",
+              "target_id": "crown_break",
+              "amount": 1,
+              "target_label": "crown_break",
+              "reason_text": "折冠技骨架占位已解锁。"
+            }
+          ]
+        },
+        {
+          "rank_index": 4,
+          "rank_name": "厄运代行者",
+          "required_gold": 8000,
+          "required_level": 20,
+          "required_custom_stat_id": "",
+          "required_custom_stat_min_value": 0,
+          "required_achievement_id": "misfortune_guidance_exalted",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "doom_authority",
+              "amount": 1,
+              "target_label": "doom_authority",
+              "reason_text": "黑冕赐下第四道厄命权柄。"
+            },
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "calamity_capacity_bonus",
+              "amount": 1,
+              "target_label": "calamity_capacity_bonus",
+              "reason_text": "calamity 上限骨架再 +1。"
+            }
+          ]
+        },
+        {
+          "rank_index": 5,
+          "rank_name": "黑冕宣判者",
+          "required_gold": 14000,
+          "required_level": 28,
+          "required_custom_stat_id": "",
+          "required_custom_stat_min_value": 0,
+          "required_achievement_id": "misfortune_guidance_blessed",
+          "reward_entries": [
+            {
+              "entry_type": "attribute_delta",
+              "target_id": "doom_authority",
+              "amount": 1,
+              "target_label": "doom_authority",
+              "reason_text": "黑冕赐下第五道厄命权柄。"
+            },
+            {
+              "entry_type": "knowledge_unlock",
+              "target_id": "doom_sentence",
+              "amount": 1,
+              "target_label": "doom_sentence",
+              "reason_text": "厄命宣判骨架占位已解锁。"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,10 +1,11 @@
+#nullable enable
+
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class ContingencyTriggerDefinition
 {
@@ -61,64 +62,8 @@ public sealed class ContingencyTriggerDefinition
     public IReadOnlyList<StringName> StatusTags { get; }
     public StringName ApplicationMatch { get; }
     public StringName SpellMatch { get; }
-
-    public ContingencyTriggerKind TriggerKind =>
-        ContingencyContractRules.ToTriggerKind(Type);
-
-    public ContingencyTimingKind TimingKind =>
-        ContingencyContractRules.ToTimingKind(Timing);
-
-    internal static ContingencyTriggerDefinition FromAuthoring(
-        GDictionary source,
-        string path
-    )
-    {
-        Dictionary<string, Variant> values = ContingencyDefinitionProjection.NormalizeKeys(
-            source,
-            path
-        );
-        StringName type = ContingencyDefinitionProjection.ReadRequiredStringName(
-            values,
-            "type",
-            path
-        );
-
-        string[] expectedKeys = ContingencyContractRules.GetTriggerFields(type);
-        if (expectedKeys == null)
-        {
-            throw ContingencyDefinitionProjection.Invalid(
-                path + ".type",
-                $"unsupported trigger type '{type}'"
-            );
-        }
-        ContingencyDefinitionProjection.RequireExactKeys(values, expectedKeys, path);
-
-        return new ContingencyTriggerDefinition(
-            type,
-            ContingencyDefinitionProjection.ReadOptionalStringName(values, "subject", path),
-            ContingencyDefinitionProjection.ReadRequiredStringName(values, "timing", path),
-            ContingencyDefinitionProjection.ReadOptionalInt(values, "percent", path),
-            ContingencyDefinitionProjection.ReadOptionalBool(values, "crossing_only", path),
-            ContingencyDefinitionProjection.ReadOptionalInt(values, "damage_percent", path),
-            ContingencyDefinitionProjection.ReadOptionalStringName(values, "damage_basis", path),
-            ContingencyDefinitionProjection.ReadOptionalStringName(
-                values,
-                "damage_amount_mode",
-                path
-            ),
-            ContingencyDefinitionProjection.ReadOptionalStringName(values, "center", path),
-            ContingencyDefinitionProjection.ReadOptionalInt(values, "radius", path),
-            ContingencyDefinitionProjection.ReadOptionalStringName(values, "radius_metric", path),
-            ContingencyDefinitionProjection.ReadOptionalStringName(values, "source_team", path),
-            ContingencyDefinitionProjection.ReadOptionalStringNameList(values, "status_tags", path),
-            ContingencyDefinitionProjection.ReadOptionalStringName(
-                values,
-                "application_match",
-                path
-            ),
-            ContingencyDefinitionProjection.ReadOptionalStringName(values, "spell_match", path)
-        );
-    }
+    public ContingencyTriggerKind TriggerKind => ContingencyContractRules.ToTriggerKind(Type);
+    public ContingencyTimingKind TimingKind => ContingencyContractRules.ToTimingKind(Timing);
 }
 
 public sealed record ContingencyTargetResolverDefinition(
@@ -129,42 +74,6 @@ public sealed record ContingencyTargetResolverDefinition(
 {
     public ContingencyTargetResolverKind ResolverKind =>
         ContingencyContractRules.ToTargetResolverKind(Type);
-
-    internal static ContingencyTargetResolverDefinition FromAuthoring(
-        GDictionary source,
-        string path
-    )
-    {
-        Dictionary<string, Variant> values = ContingencyDefinitionProjection.NormalizeKeys(
-            source,
-            path
-        );
-        StringName type = ContingencyDefinitionProjection.ReadRequiredStringName(
-            values,
-            "type",
-            path
-        );
-        ContingencyTargetResolverKind resolverKind =
-            ContingencyContractRules.ToTargetResolverKind(type);
-        if (resolverKind == ContingencyTargetResolverKind.Unknown)
-        {
-            throw ContingencyDefinitionProjection.Invalid(
-                path + ".type",
-                $"unsupported target resolver '{type}'"
-            );
-        }
-        ContingencyDefinitionProjection.RequireExactKeys(
-            values,
-            ContingencyContractRules.GetTargetResolverFields(resolverKind),
-            path
-        );
-
-        return new ContingencyTargetResolverDefinition(
-            type,
-            ContingencyDefinitionProjection.ReadOptionalStringName(values, "preference", path),
-            ContingencyDefinitionProjection.ReadOptionalInt(values, "max_distance", path)
-        );
-    }
 }
 
 public sealed class ContingencyStoredSpellTemplateDefinition
@@ -208,72 +117,6 @@ public sealed class ContingencyStoredSpellTemplateDefinition
             ContingencyFallbackPolicyKind.AbortRemainingIfInvalid,
         _ => ContingencyFallbackPolicyKind.Unknown,
     };
-
-    internal static ContingencyStoredSpellTemplateDefinition FromAuthoring(
-        GDictionary source,
-        string path
-    )
-    {
-        Dictionary<string, Variant> values = ContingencyDefinitionProjection.NormalizeKeys(
-            source,
-            path
-        );
-        ContingencyDefinitionProjection.RequireExactKeys(
-            values,
-            new[]
-            {
-                "stored_skill_id",
-                "max_cast_level",
-                "order",
-                "target_resolver",
-                "parameter_bindings",
-                "fallback_policy",
-            },
-            path
-        );
-
-        using GDictionary targetResolver = ContingencyDefinitionProjection.ReadRequiredDictionary(
-            values,
-            "target_resolver",
-            path
-        );
-        using GDictionary parameterBindings = ContingencyDefinitionProjection.ReadRequiredDictionary(
-            values,
-            "parameter_bindings",
-            path
-        );
-        StringName fallbackPolicy = ContingencyDefinitionProjection.ReadRequiredStringName(
-            values,
-            "fallback_policy",
-            path
-        );
-        var result = new ContingencyStoredSpellTemplateDefinition(
-            ContingencyDefinitionProjection.ReadRequiredStringName(
-                values,
-                "stored_skill_id",
-                path
-            ),
-            ContingencyDefinitionProjection.ReadRequiredInt(values, "max_cast_level", path),
-            ContingencyDefinitionProjection.ReadRequiredInt(values, "order", path),
-            ContingencyTargetResolverDefinition.FromAuthoring(
-                targetResolver,
-                path + ".target_resolver"
-            ),
-            ContingencyDefinitionProjection.ProjectParameterBindings(
-                parameterBindings,
-                path + ".parameter_bindings"
-            ),
-            fallbackPolicy
-        );
-        if (result.FallbackPolicyKind == ContingencyFallbackPolicyKind.Unknown)
-        {
-            throw ContingencyDefinitionProjection.Invalid(
-                path + ".fallback_policy",
-                $"unsupported fallback policy '{fallbackPolicy}'"
-            );
-        }
-        return result;
-    }
 }
 
 public sealed class ContingencySetupTemplateDefinition
@@ -314,178 +157,121 @@ public sealed class ContingencySetupTemplateDefinition
     public ContingencyTriggerDefinition Trigger { get; }
     public IReadOnlyList<ContingencyStoredSpellTemplateDefinition> StoredSpells { get; }
 
-    internal static ContingencySetupTemplateDefinition FromResource(
-        ContingencySetupTemplateDef source,
+    internal static ContingencySetupTemplateDefinition FromImport(
+        ContingencyTemplateImportModel source,
+        string sourceLabel
+    )
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        string path = string.IsNullOrWhiteSpace(sourceLabel)
+            ? "contingency_template"
+            : sourceLabel;
+        if (string.IsNullOrWhiteSpace(source.TemplateId))
+            throw ContingencyDefinitionProjection.Invalid(path + ".template_id", "must not be empty");
+        if (string.IsNullOrWhiteSpace(source.DisplayName))
+            throw ContingencyDefinitionProjection.Invalid(path + ".display_name", "must not be blank");
+        if (string.IsNullOrWhiteSpace(source.SourceSkillId))
+            throw ContingencyDefinitionProjection.Invalid(path + ".source_skill_id", "must not be empty");
+        if (source.MatrixLoad <= 0)
+            throw ContingencyDefinitionProjection.Invalid(path + ".matrix_load", "must be positive");
+        if (string.IsNullOrWhiteSpace(source.ReleaseMode))
+            throw ContingencyDefinitionProjection.Invalid(path + ".release_mode", "must not be empty");
+
+        ContingencyTriggerDefinition trigger = ProjectTrigger(source.Trigger, path + ".trigger");
+        var spells = new List<ContingencyStoredSpellTemplateDefinition>(
+            source.StoredSpells.Count
+        );
+        for (int index = 0; index < source.StoredSpells.Count; index++)
+        {
+            spells.Add(ProjectStoredSpell(source.StoredSpells[index], $"{path}.stored_spells[{index}]"));
+        }
+        return new ContingencySetupTemplateDefinition(
+            new StringName(source.TemplateId),
+            source.DisplayName,
+            new StringName(source.SourceSkillId),
+            source.MatrixLoad,
+            new StringName(source.ReleaseMode),
+            trigger,
+            new ReadOnlyCollection<ContingencyStoredSpellTemplateDefinition>(spells)
+        );
+    }
+
+    private static ContingencyTriggerDefinition ProjectTrigger(
+        ContingencyTriggerImportModel source,
         string path
     )
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (source.StoredSpellsProjectionBorrowed == null)
-            throw ContingencyDefinitionProjection.Invalid(path + ".stored_spells", "collection is null");
-        var storedSpells = new List<ContingencyStoredSpellTemplateDefinition>(
-            source.StoredSpellsProjectionBorrowed.Count
+        StringName type = new(source.Type);
+        if (ContingencyContractRules.ToTriggerKind(type) == ContingencyTriggerKind.Unknown)
+            throw ContingencyDefinitionProjection.Invalid(path + ".kind", $"unsupported trigger type '{type}'");
+        StringName timing = new(source.Timing);
+        if (ContingencyContractRules.ToTimingKind(timing) == ContingencyTimingKind.Unknown)
+            throw ContingencyDefinitionProjection.Invalid(path + ".payload.timing", $"unsupported timing '{timing}'");
+        return new ContingencyTriggerDefinition(
+            type,
+            new StringName(source.Subject),
+            timing,
+            source.Percent,
+            source.CrossingOnly,
+            source.DamagePercent,
+            new StringName(source.DamageBasis),
+            new StringName(source.DamageAmountMode),
+            new StringName(source.Center),
+            source.Radius,
+            new StringName(source.RadiusMetric),
+            new StringName(source.SourceTeam),
+            source.StatusTags.Select(value => new StringName(value)).ToArray(),
+            new StringName(source.ApplicationMatch),
+            new StringName(source.SpellMatch)
         );
-        for (int index = 0; index < source.StoredSpellsProjectionBorrowed.Count; index++)
-        {
-            storedSpells.Add(
-                ContingencyStoredSpellTemplateDefinition.FromAuthoring(
-                    source.StoredSpellsProjectionBorrowed[index],
-                    $"{path}.stored_spells[{index}]"
-                )
-            );
-        }
+    }
 
-        return new ContingencySetupTemplateDefinition(
-            source.template_id,
-            source.display_name,
-            source.source_skill_id,
-            source.matrix_load,
-            source.release_mode,
-            ContingencyTriggerDefinition.FromAuthoring(
-                source.TriggerProjectionBorrowed,
-                path + ".trigger"
-            ),
-            new ReadOnlyCollection<ContingencyStoredSpellTemplateDefinition>(storedSpells)
+    private static ContingencyStoredSpellTemplateDefinition ProjectStoredSpell(
+        ContingencyStoredSpellImportModel source,
+        string path
+    )
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (string.IsNullOrWhiteSpace(source.StoredSkillId))
+            throw ContingencyDefinitionProjection.Invalid(path + ".stored_skill_id", "must not be empty");
+        ContingencyTargetResolverDefinition resolver = ProjectResolver(
+            source.TargetResolver,
+            path + ".target_resolver"
+        );
+        var result = new ContingencyStoredSpellTemplateDefinition(
+            new StringName(source.StoredSkillId),
+            source.MaxCastLevel,
+            source.Order,
+            resolver,
+            source.ParameterBindings,
+            new StringName(source.FallbackPolicy)
+        );
+        if (result.FallbackPolicyKind == ContingencyFallbackPolicyKind.Unknown)
+            throw ContingencyDefinitionProjection.Invalid(path + ".fallback_policy", $"unsupported fallback policy '{source.FallbackPolicy}'");
+        return result;
+    }
+
+    private static ContingencyTargetResolverDefinition ProjectResolver(
+        ContingencyTargetResolverImportModel source,
+        string path
+    )
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        StringName type = new(source.Type);
+        ContingencyTargetResolverKind kind = ContingencyContractRules.ToTargetResolverKind(type);
+        if (kind == ContingencyTargetResolverKind.Unknown)
+            throw ContingencyDefinitionProjection.Invalid(path + ".kind", $"unsupported resolver '{type}'");
+        return new ContingencyTargetResolverDefinition(
+            type,
+            new StringName(source.Preference),
+            source.MaxDistance
         );
     }
 }
 
 internal static class ContingencyDefinitionProjection
 {
-    internal static Dictionary<string, Variant> NormalizeKeys(GDictionary source, string path)
-    {
-        if (source == null)
-            throw Invalid(path, "dictionary is null");
-        var result = new Dictionary<string, Variant>(StringComparer.Ordinal);
-        int index = 0;
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => throw Invalid(
-                    $"{path}[key:{index}]",
-                    $"key must be String or StringName, got {rawKey.VariantType}"
-                ),
-            };
-            if (string.IsNullOrEmpty(key))
-                throw Invalid($"{path}[key:{index}]", "key must not be empty");
-            if (!result.TryAdd(key, source[rawKey]))
-                throw Invalid(path + "." + key, "duplicate normalized key");
-            index++;
-        }
-        return result;
-    }
-
-    internal static void RequireExactKeys(
-        IReadOnlyDictionary<string, Variant> values,
-        IReadOnlyList<string> expectedKeys,
-        string path
-    )
-    {
-        if (values.Count != expectedKeys.Count)
-            throw Invalid(path, $"expected exactly {expectedKeys.Count} fields, got {values.Count}");
-        foreach (string key in expectedKeys)
-        {
-            if (!values.ContainsKey(key))
-                throw Invalid(path + "." + key, "required field is missing");
-        }
-    }
-
-    internal static StringName ReadRequiredStringName(
-        IReadOnlyDictionary<string, Variant> values,
-        string key,
-        string path
-    )
-    {
-        if (!values.TryGetValue(key, out Variant value))
-            throw Invalid(path + "." + key, "required field is missing");
-        return ReadStringName(value, path + "." + key);
-    }
-
-    internal static StringName ReadOptionalStringName(
-        IReadOnlyDictionary<string, Variant> values,
-        string key,
-        string path
-    ) =>
-        values.TryGetValue(key, out Variant value)
-            ? ReadStringName(value, path + "." + key)
-            : new StringName("");
-
-    internal static int ReadRequiredInt(
-        IReadOnlyDictionary<string, Variant> values,
-        string key,
-        string path
-    )
-    {
-        if (!values.TryGetValue(key, out Variant value))
-            throw Invalid(path + "." + key, "required field is missing");
-        return ReadInt(value, path + "." + key);
-    }
-
-    internal static int ReadOptionalInt(
-        IReadOnlyDictionary<string, Variant> values,
-        string key,
-        string path
-    ) =>
-        values.TryGetValue(key, out Variant value) ? ReadInt(value, path + "." + key) : 0;
-
-    internal static bool ReadOptionalBool(
-        IReadOnlyDictionary<string, Variant> values,
-        string key,
-        string path
-    )
-    {
-        if (!values.TryGetValue(key, out Variant value))
-            return false;
-        if (value.VariantType != Variant.Type.Bool)
-            throw Invalid(path + "." + key, $"must be Bool, got {value.VariantType}");
-        return value.AsBool();
-    }
-
-    internal static GDictionary ReadRequiredDictionary(
-        IReadOnlyDictionary<string, Variant> values,
-        string key,
-        string path
-    )
-    {
-        if (!values.TryGetValue(key, out Variant value))
-            throw Invalid(path + "." + key, "required field is missing");
-        if (value.VariantType != Variant.Type.Dictionary)
-            throw Invalid(path + "." + key, $"must be Dictionary, got {value.VariantType}");
-        return value.AsGodotDictionary();
-    }
-
-    internal static IReadOnlyList<StringName> ReadOptionalStringNameList(
-        IReadOnlyDictionary<string, Variant> values,
-        string key,
-        string path
-    )
-    {
-        if (!values.TryGetValue(key, out Variant value))
-            return new ReadOnlyCollection<StringName>(new List<StringName>());
-        if (value.VariantType != Variant.Type.Array)
-            throw Invalid(path + "." + key, $"must be Array, got {value.VariantType}");
-        using GArray array = value.AsGodotArray();
-        var result = new List<StringName>(array.Count);
-        for (int index = 0; index < array.Count; index++)
-            result.Add(ReadStringName(array[index], $"{path}.{key}[{index}]"));
-        return new ReadOnlyCollection<StringName>(result);
-    }
-
-    internal static IReadOnlyDictionary<string, object> ProjectParameterBindings(
-        GDictionary source,
-        string path
-    )
-    {
-        Dictionary<string, Variant> normalized = NormalizeKeys(source, path);
-        var result = new Dictionary<string, object>(normalized.Count, StringComparer.Ordinal);
-        foreach ((string key, Variant value) in normalized)
-            result.Add(key, ProjectParameterBindingValue(value, path + "." + key));
-        return new ReadOnlyDictionary<string, object>(result);
-    }
-
     internal static IReadOnlyDictionary<string, object> FreezePlainDictionary(
         IReadOnlyDictionary<string, object> source,
         string path
@@ -493,96 +279,32 @@ internal static class ContingencyDefinitionProjection
     {
         if (source == null)
             throw Invalid(path, "dictionary is null");
-        var result = new Dictionary<string, object>(source.Count, StringComparer.Ordinal);
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach ((string key, object value) in source)
         {
             if (string.IsNullOrEmpty(key))
                 throw Invalid(path, "key must not be empty");
-            if (value == null)
-                throw Invalid(path + "." + key, "value is null");
-            object frozenValue = FreezePlainValue(value, path + "." + key);
-            if (!result.TryAdd(key, frozenValue))
-                throw Invalid(path + "." + key, "duplicate key");
+            result.Add(key, FreezePlainValue(value, path + "." + key));
         }
         return new ReadOnlyDictionary<string, object>(result);
     }
 
     private static object FreezePlainValue(object value, string path)
     {
-        if (
-            value is bool
-            or int
-            or long
-            or float
-            or double
-            or string
-            or StringName
-        )
-        {
+        if (value is bool or int or long or float or double or string or StringName)
             return value;
-        }
-
         if (value is IReadOnlyList<object> list)
         {
             var result = new List<object>(list.Count);
             for (int index = 0; index < list.Count; index++)
             {
-                object item = list[index];
-                if (item == null)
-                    throw Invalid($"{path}[{index}]", "value is null");
+                object item = list[index]
+                    ?? throw Invalid($"{path}[{index}]", "value is null");
                 result.Add(FreezePlainValue(item, $"{path}[{index}]"));
             }
             return new ReadOnlyCollection<object>(result);
         }
-
-        throw Invalid(path, $"unsupported plain value type {value.GetType().FullName}");
-    }
-
-    private static object ProjectParameterBindingValue(Variant value, string path)
-    {
-        switch (value.VariantType)
-        {
-            case Variant.Type.Bool:
-                return value.AsBool();
-            case Variant.Type.Int:
-                return value.AsInt64();
-            case Variant.Type.Float:
-                return value.AsDouble();
-            case Variant.Type.String:
-                return value.AsString();
-            case Variant.Type.StringName:
-                return value.AsStringName();
-            case Variant.Type.Array:
-            {
-                using GArray source = value.AsGodotArray();
-                var result = new List<object>(source.Count);
-                for (int index = 0; index < source.Count; index++)
-                    result.Add(ReadStringName(source[index], $"{path}[{index}]"));
-                return new ReadOnlyCollection<object>(result);
-            }
-            default:
-                throw Invalid(
-                    path,
-                    $"unsupported parameter binding value type {value.VariantType}"
-                );
-        }
-    }
-
-    private static StringName ReadStringName(Variant value, string path)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.String => new StringName(value.AsString()),
-            Variant.Type.StringName => value.AsStringName(),
-            _ => throw Invalid(path, $"must be String or StringName, got {value.VariantType}"),
-        };
-    }
-
-    private static int ReadInt(Variant value, string path)
-    {
-        if (value.VariantType != Variant.Type.Int)
-            throw Invalid(path, $"must be Int, got {value.VariantType}");
-        return value.AsInt32();
+        throw Invalid(path, $"unsupported plain value type {value?.GetType().FullName}");
     }
 
     internal static InvalidDataException Invalid(string path, string message) =>

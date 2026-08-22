@@ -99,7 +99,7 @@ public partial class run_profession_assignment_service_regression : LifecycleTes
     private static ProfessionAssignmentService MakeService(
         UnitProgress progress,
         IEnumerable<SkillDefinition> skillDefinitions,
-        IEnumerable<ProfessionDef> professionDefs
+        IEnumerable<ProfessionDefinition> professionDefs
     )
     {
         Dictionary<StringName, SkillDefinition> indexedSkillDefinitions = new();
@@ -108,17 +108,17 @@ public partial class run_profession_assignment_service_regression : LifecycleTes
             indexedSkillDefinitions[skillDefinition.SkillId] = skillDefinition;
         }
 
-        Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
-        foreach (ProfessionDef professionDef in professionDefs)
+        Dictionary<StringName, ProfessionDefinition> indexedProfessionDefs = new();
+        foreach (ProfessionDefinition professionDef in professionDefs)
         {
-            indexedProfessionDefs[professionDef.profession_id] = professionDef;
+            indexedProfessionDefs[professionDef.ProfessionId] = professionDef;
         }
 
         ProfessionAssignmentService service = new();
         service.Setup(
             progress,
             indexedSkillDefinitions,
-            TestProgressionDefinitionProjection.Professions(indexedProfessionDefs)
+            indexedProfessionDefs
         );
         return service;
     }
@@ -156,21 +156,25 @@ public partial class run_profession_assignment_service_regression : LifecycleTes
         };
     }
 
-    private static ProfessionDef MakeProfession(StringName professionId, StringName acceptedTag)
+    private static ProfessionDefinition MakeProfession(StringName professionId, StringName acceptedTag)
     {
-        return new ProfessionDef
-        {
-            profession_id = professionId,
-            display_name = professionId.ToString(),
-            max_rank = 20,
-            unlock_requirement = new ProfessionPromotionRequirement
-            {
-                required_tag_rules = new Godot.Collections.Array<TagRequirement>
-                {
-                    new() { tag = acceptedTag },
-                },
-            },
-        };
+        ProfessionPromotionRequirementDefinition requirement = new(
+            System.Array.Empty<StringName>(),
+            new[] { new TagRequirementDefinition(acceptedTag, 1, "core_max", "any", "assigned_core") },
+            System.Array.Empty<ProfessionRankGateDefinition>(),
+            System.Array.Empty<AttributeRequirementDefinition>(),
+            System.Array.Empty<ReputationRequirementDefinition>(),
+            false
+        );
+        return new ProfessionDefinition(
+            professionId, professionId.ToString(), "Fixture profession.", 20, 8,
+            "full", false, "", requirement,
+            System.Array.Empty<ProfessionRankRequirementDefinition>(),
+            System.Array.Empty<ProfessionGrantedSkillDefinition>(),
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<ProfessionActiveConditionDefinition>(),
+            "auto", "count_when_hidden"
+        );
     }
 
     private static UnitProfessionProgress MakeProfessionProgress(StringName professionId, int rank)

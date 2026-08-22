@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "side_bandit_cleansing",
+      "display_name": "匪徒清剿",
+      "description": "一群装备精良的匪徒占据了商道。他们身上的纹章你不认识——也许来自裂隙另一侧？",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "contract",
+        "side"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_raiders",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "wolf_raider",
+            "target_value": 8
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 250
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "bandit_insignia",
+            "quantity": 2
+          }
+        }
+      ]
+    }
+  ]
+}

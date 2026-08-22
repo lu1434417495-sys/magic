@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:faith:v1",
+  "title": "Magic faith JSON authoring schema",
+  "description": "Strict faith contract. Cross-domain relations are content IDs.",
+  "$ref": "#/$defs/FaithJsonDocumentDto",
+  "$defs": {
+    "FaithDeityJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deity_id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "facility_id": {
+          "type": "string"
+        },
+        "power_domain_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rank_defs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FaithRankJsonDto"
+          }
+        },
+        "rank_progress_stat_id": {
+          "type": "string"
+        },
+        "service_type_label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deity_id",
+        "display_name",
+        "facility_id",
+        "power_domain_tags",
+        "rank_defs",
+        "rank_progress_stat_id",
+        "service_type_label"
+      ]
+    },
+    "FaithDeityJsonDto__authoring_deity_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/FaithDeityJsonDto"
+        },
+        {
+          "$ref": "#/$defs/FaithDeityJsonDto__templated_deity_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "FaithDeityJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deity_id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "facility_id": {
+          "type": "string"
+        },
+        "power_domain_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rank_defs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FaithRankJsonDto"
+          }
+        },
+        "rank_progress_stat_id": {
+          "type": "string"
+        },
+        "service_type_label": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "FaithDeityJsonDto__templated_deity_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deity_id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "facility_id": {
+          "type": "string"
+        },
+        "power_domain_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rank_defs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FaithRankJsonDto"
+          }
+        },
+        "rank_progress_stat_id": {
+          "type": "string"
+        },
+        "service_type_label": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "deity_id",
+        "template"
+      ]
+    },
+    "FaithJsonDocumentDto": {
+      "description": "Faith JSON document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "faith"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FaithDeityJsonDto__authoring_deity_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FaithDeityJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "FaithRankJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rank_index": {
+          "type": "integer"
+        },
+        "rank_name": {
+          "type": "string"
+        },
+        "required_achievement_id": {
+          "type": "string"
+        },
+        "required_custom_stat_id": {
+          "type": "string"
+        },
+        "required_custom_stat_min_value": {
+          "type": "integer"
+        },
+        "required_gold": {
+          "type": "integer"
+        },
+        "required_level": {
+          "type": "integer"
+        },
+        "reward_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FaithRankRewardJsonDto"
+          }
+        }
+      },
+      "required": [
+        "rank_index",
+        "rank_name",
+        "required_achievement_id",
+        "required_custom_stat_id",
+        "required_custom_stat_min_value",
+        "required_gold",
+        "required_level",
+        "reward_entries"
+      ]
+    },
+    "FaithRankRewardJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "integer"
+        },
+        "entry_type": {
+          "type": "string"
+        },
+        "reason_text": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "target_label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "entry_type",
+        "reason_text",
+        "target_id",
+        "target_label"
+      ]
+    }
+  }
+}

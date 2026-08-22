@@ -1,3 +1,6 @@
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -5,99 +8,55 @@ using Godot;
 
 internal sealed class QuestContentRegistry
 {
-    private const string QuestConfigDirectory = "res://data/configs/quests";
-
     private readonly Dictionary<StringName, QuestDefinition> _questDefs = new();
     private readonly List<string> _validationErrors = new();
-    private readonly IContentResourceLoader _resourceLoader;
+    private readonly IContentJsonSourceReader _sourceReader;
 
-    internal QuestContentRegistry(IContentResourceLoader resourceLoader)
+    internal QuestContentRegistry()
+        : this(new GodotContentJsonSourceReader()) { }
+
+    internal QuestContentRegistry(IContentJsonSourceReader sourceReader)
     {
-        _resourceLoader = resourceLoader
-            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+        _sourceReader = sourceReader ?? throw new ArgumentNullException(nameof(sourceReader));
     }
 
-    public void Rebuild()
-    {
-        LoadFromDirectory(QuestConfigDirectory);
-    }
+    public void Rebuild() => LoadFromDirectory(QuestJsonContentDomain.DirectoryPath);
 
     internal void LoadFromDirectory(string directoryPath)
     {
         _questDefs.Clear();
         _validationErrors.Clear();
 
-        if (!DirAccess.DirExistsAbsolute(directoryPath))
+        ContentImportBatch<QuestImportModel> batch = QuestJsonContentDomain
+            .CreateDescriptor(directoryPath, _sourceReader)
+            .Import();
+        AppendDiagnostics(batch.Diagnostics);
+        foreach (ContentImportEntry<QuestImportModel> entry in batch.Entries)
         {
-            _validationErrors.Add($"QuestContentRegistry could not find {directoryPath}.");
-            return;
-        }
-
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
-        {
-            _validationErrors.Add($"QuestContentRegistry could not open {directoryPath}.");
-            return;
-        }
-
-        try
-        {
-            string[] files = directory.GetFiles();
-            foreach (string fileName in files)
+            try
             {
-                if (!fileName.EndsWith(".tres"))
-                    continue;
-
-                string resourcePath = $"{directoryPath}/{fileName}";
-                RegisterQuestResource(resourcePath);
+                QuestDefinition definition = QuestDefinition.FromImport(
+                    entry.Import,
+                    entry.Context.SourceLabel
+                );
+                if (!_questDefs.TryAdd(definition.QuestId, definition))
+                {
+                    _validationErrors.Add(
+                        $"QuestContentRegistry: duplicate quest_id '{definition.QuestId}'."
+                    );
+                }
+            }
+            catch (InvalidDataException exception)
+            {
+                _validationErrors.Add(
+                    $"QuestContentRegistry: {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                );
             }
         }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
-        }
     }
 
-    private void RegisterQuestResource(string resourcePath)
-    {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
-        {
-            _validationErrors.Add($"QuestContentRegistry failed to load {resourcePath}.");
-            return;
-        }
-
-        if (resource is not QuestDef questDef)
-        {
-            _validationErrors.Add($"QuestContentRegistry: {resourcePath} is not a QuestDef.");
-            return;
-        }
-
-        StringName questId = questDef.quest_id;
-        if (questId == "")
-        {
-            _validationErrors.Add($"QuestContentRegistry: {resourcePath} is missing quest_id.");
-            return;
-        }
-
-        if (_questDefs.ContainsKey(questId))
-        {
-            _validationErrors.Add($"QuestContentRegistry: duplicate quest_id '{questId}' (conflict with {_questDefs[questId]}).");
-            return;
-        }
-
-        try
-        {
-            QuestDefinition definition = QuestDefinition.FromResource(questDef, resourcePath);
-            _questDefs.Add(definition.QuestId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validationErrors.Add(
-                $"QuestContentRegistry: {resourcePath} projection failed: {exception.Message}"
-            );
-        }
-    }
+    internal bool TryGetDefinition(StringName questId, out QuestDefinition? definition) =>
+        _questDefs.TryGetValue(questId, out definition);
 
     internal IReadOnlyDictionary<StringName, QuestDefinition> GetQuestDefsTyped() =>
         new ReadOnlyDictionary<StringName, QuestDefinition>(
@@ -105,4 +64,14 @@ internal sealed class QuestContentRegistry
         );
 
     internal IReadOnlyList<string> GetValidationErrors() => _validationErrors;
+
+    private void AppendDiagnostics(IReadOnlyList<ContentJsonDiagnostic> diagnostics)
+    {
+        foreach (ContentJsonDiagnostic diagnostic in diagnostics)
+        {
+            _validationErrors.Add(
+                $"[{diagnostic.RuleId}] {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
+            );
+        }
+    }
 }

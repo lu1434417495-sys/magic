@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "bounty_wolf_vanguard",
+      "display_name": "先锋清剿",
+      "description": "狼先锋是荒狼群中最具攻击性的个体。它们总是冲在最前面。",
+      "provider_kind": "service_bounty_registry",
+      "provider_interaction_id": "service_bounty_registry",
+      "listing_channels": [
+        "bounty_registry"
+      ],
+      "listing_settlement_ids": [
+        "template_town",
+        "template_city",
+        "template_capital",
+        "template_world_stronghold",
+        "template_metropolis"
+      ],
+      "tags": [
+        "bounty",
+        "repeatable",
+        "main_world"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": true,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_vanguards",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "wolf_vanguard",
+            "target_value": 4
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 350
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "iron_ore",
+            "quantity": 3
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "tutorial_wolf_alpha",
+      "display_name": "狼群首领",
+      "description": "普通荒狼只是前锋。一只体型巨大的狼群首领正在组织更有威胁的袭击。击败它，让商路恢复安全。",
+      "provider_kind": "npc",
+      "provider_interaction_id": "npc_old_hunter",
+      "listing_channels": [
+        "npc_offer"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "tutorial",
+        "main_story"
+      ],
+      "accept_requirements": [
+        {
+          "kind": "quest_completed",
+          "payload": {
+            "quest_id": "tutorial_first_blood"
+          }
+        }
+      ],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "普通荒狼只是前锋。等狼巢壮大后，那个带伤疤的首领就会现身。",
+      "accept_feedback_success": "老猎人请你除掉狼群首领。",
+      "accept_feedback_failure": "先完成村长交代的初阵任务。",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_alpha",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "wolf_alpha",
+            "target_value": 1
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 150
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "player_sword_01",
+            "entries": [
+              {
+                "kind": "skill_unlock",
+                "payload": {
+                  "target_id": "warrior_guard",
+                  "amount": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "bounty_mist_beast",
+      "display_name": "迷雾兽猎杀",
+      "description": "迷雾兽是裂隙渗出后最常见的威胁。它们笨重，但皮糙肉厚。",
+      "provider_kind": "service_bounty_registry",
+      "provider_interaction_id": "service_bounty_registry",
+      "listing_channels": [
+        "bounty_registry"
+      ],
+      "listing_settlement_ids": [
+        "charred_cathedral",
+        "silverlight_metropolis"
+      ],
+      "tags": [
+        "bounty",
+        "repeatable",
+        "ashen_intersection"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": true,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_mist_beasts",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_beast",
+            "target_value": 2
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 400
+          }
+        }
+      ]
+    }
+  ]
+}

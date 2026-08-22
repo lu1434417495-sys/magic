@@ -1,28 +1,27 @@
 using System.Collections.Generic;
-using System.IO;
 using Godot;
 
 public class RaceContentRegistry : IdentityContentRegistryBase
 {
-    private const string RACE_CONFIG_DIRECTORY = "res://data/configs/races";
+    private const string RaceJsonDirectory = ProfessionIdentityJsonDomains.RaceDirectory;
 
     private readonly Dictionary<StringName, RaceDefinition> _race_defs = new();
+    private readonly IContentJsonSourceReader _jsonSourceReader;
 
-    internal RaceContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal RaceContentRegistry(bool loadDefaultContent = true)
+        : this(new GodotContentJsonSourceReader(), loadDefaultContent) { }
 
-    internal RaceContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
-    )
-        : base(resourceLoader)
+    internal RaceContentRegistry(IContentJsonSourceReader jsonSourceReader, bool loadDefaultContent = true)
+        : base()
     {
+        _jsonSourceReader = jsonSourceReader
+            ?? throw new System.ArgumentNullException(nameof(jsonSourceReader));
         _registry_label = "RaceContentRegistry";
         if (loadDefaultContent)
             Rebuild();
     }
 
-    public void Rebuild() => LoadFromDirectory(RACE_CONFIG_DIRECTORY);
+    public void Rebuild() => LoadFromDirectory(RaceJsonDirectory);
 
     public void LoadFromDirectory(string directoryPath)
     {
@@ -35,7 +34,7 @@ public class RaceContentRegistry : IdentityContentRegistryBase
         _validation_errors.Clear();
 
         foreach (var directoryPath in directoryPaths)
-            _scan_directory(directoryPath);
+            ImportDirectory(directoryPath);
 
         foreach (var e in _collect_validation_errors())
             _validation_errors.Add(e);
@@ -49,45 +48,27 @@ public class RaceContentRegistry : IdentityContentRegistryBase
         _race_defs.Clear();
     }
 
-    protected override void _register_resource(string resourcePath)
+    private void ImportDirectory(string directoryPath)
     {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
+        ContentImportBatch<RaceImportModel> batch = ProfessionIdentityJsonImport
+            .CreateRaceDescriptor(directoryPath, _jsonSourceReader)
+            .Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            _validation_errors.Add(ProfessionIdentityJsonImport.FormatDiagnostic(diagnostic));
+        foreach (ContentImportEntry<RaceImportModel> entry in batch.Entries)
         {
-            _validation_errors.Add($"Failed to load race config {resourcePath}.");
-            return;
-        }
-        if (resource is not RaceDef raceDef)
-        {
-            _validation_errors.Add($"Race config {resourcePath} is not a RaceDef.");
-            return;
-        }
-
-        if (raceDef.race_id == "")
-        {
-            _validation_errors.Add($"Race config {resourcePath} is missing race_id.");
-            return;
-        }
-
-        if (_race_defs.ContainsKey(raceDef.race_id))
-        {
-            _validation_errors.Add($"Duplicate race_id registered: {raceDef.race_id}");
-            return;
-        }
-
-        try
-        {
-            RaceDefinition definition = RaceDefinition.FromResource(
-                raceDef,
-                $"race.{raceDef.race_id}"
-            );
-            _race_defs.Add(definition.RaceId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validation_errors.Add(
-                $"Race config {resourcePath} projection failed: {exception.Message}"
-            );
+            try
+            {
+                RaceDefinition definition = ProfessionIdentityDefinitionProjector.Project(entry.Import);
+                if (!_race_defs.TryAdd(definition.RaceId, definition))
+                    _validation_errors.Add($"Duplicate race_id registered: {definition.RaceId}");
+            }
+            catch (System.Exception exception)
+            {
+                _validation_errors.Add(
+                    $"Race JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                );
+            }
         }
     }
 

@@ -121,42 +121,21 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
             _resourceLoader,
             loadDefaultContent: false
         );
-        _professionContentRegistry = new ProfessionContentRegistry(
-            _resourceLoader,
-            loadDefaultContent: false
-        );
-        _raceContentRegistry = new RaceContentRegistry(
-            _resourceLoader,
-            loadDefaultContent: false
-        );
-        _subraceContentRegistry = new SubraceContentRegistry(
-            _resourceLoader,
-            loadDefaultContent: false
-        );
+        _professionContentRegistry = new ProfessionContentRegistry(loadDefaultContent: false);
+        _raceContentRegistry = new RaceContentRegistry(loadDefaultContent: false);
+        _subraceContentRegistry = new SubraceContentRegistry(loadDefaultContent: false);
         _traitContentRegistry = new TraitContentRegistry(
             _resourceLoader,
             loadDefaultContent: false
         );
-        _ageContentRegistry = new AgeContentRegistry(
-            _resourceLoader,
-            loadDefaultContent: false
-        );
-        _bloodlineContentRegistry = new BloodlineContentRegistry(
-            _resourceLoader,
-            loadDefaultContent: false
-        );
-        _ascensionContentRegistry = new AscensionContentRegistry(
-            _resourceLoader,
-            loadDefaultContent: false
-        );
+        _ageContentRegistry = new AgeContentRegistry(loadDefaultContent: false);
+        _bloodlineContentRegistry = new BloodlineContentRegistry(loadDefaultContent: false);
+        _ascensionContentRegistry = new AscensionContentRegistry(loadDefaultContent: false);
         _stageAdvancementContentRegistry = new StageAdvancementContentRegistry(
-            _resourceLoader,
             loadDefaultContent: false
         );
-        _questContentRegistry = new QuestContentRegistry(_resourceLoader);
-        _contingencyTemplateContentRegistry = new ContingencyTemplateContentRegistry(
-            _resourceLoader
-        );
+        _questContentRegistry = new QuestContentRegistry();
+        _contingencyTemplateContentRegistry = new ContingencyTemplateContentRegistry();
         _equipmentAbilityContentRegistry = new EquipmentAbilityContentRegistry(_resourceLoader);
         if (loadDefaultContent)
             Rebuild();

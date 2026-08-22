@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "bounty_mist_weaver",
+      "display_name": "编织者悬赏",
+      "description": "迷雾编织者的法术能扭曲小范围的现实。悬赏很高，因为很少有人能活着回来。",
+      "provider_kind": "service_bounty_registry",
+      "provider_interaction_id": "service_bounty_registry",
+      "listing_channels": [
+        "bounty_registry"
+      ],
+      "listing_settlement_ids": [
+        "charred_cathedral",
+        "silverlight_metropolis"
+      ],
+      "tags": [
+        "bounty",
+        "repeatable",
+        "ashen_intersection"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": true,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_weavers",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_weaver",
+            "target_value": 2
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 500
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "calamity_shard",
+            "quantity": 1
+          }
+        }
+      ]
+    }
+  ]
+}

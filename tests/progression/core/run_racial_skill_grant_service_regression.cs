@@ -20,21 +20,11 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
     private void TestBackfillAndRevokeRaceGrantedSkill()
     {
         StringName skillId = "race_stone_skin";
-        RacialGrantedSkill grant = new()
-        {
-            skill_id = skillId,
-            minimum_skill_level = 2,
-        };
-        RaceDef race = new()
-        {
-            race_id = "stonefolk",
-            racial_granted_skills = new Godot.Collections.Array<RacialGrantedSkill> { grant },
-        };
+        RacialGrantedSkillDefinition grant = new(skillId, 2, "", 0);
+        RaceDefinition race = BuildRace("stonefolk", new[] { grant });
         SkillDefinition skillDefinition = BuildSkillDefinition(skillId, "Stone Skin", 3, "race");
         ProgressionIdentityCatalogData identityCatalog = new(
-            TestProgressionDefinitionProjection.Races(
-                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
-            ),
+            new Dictionary<StringName, RaceDefinition> { [race.RaceId] = race },
             new Dictionary<StringName, SubraceDefinition>(),
             new Dictionary<StringName, AgeProfileDefinition>(),
             new Dictionary<StringName, BloodlineDefinition>(),
@@ -46,7 +36,7 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
         Dictionary<StringName, SkillDefinition> skillDefinitions =
             new() { [skillDefinition.SkillId] = skillDefinition };
         Dictionary<StringName, ProfessionDefinition> professionDefs = new();
-        PartyMemberState member = MakeMember("hero", race.race_id);
+        PartyMemberState member = MakeMember("hero", race.RaceId);
 
         _test.True(
             RacialSkillGrantService.BackfillMember(
@@ -68,7 +58,7 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
                 UnitSkillProgress.ToStringName(UnitSkillGrantSourceType.Race),
                 "来源类型应为 race。"
             );
-            _test.Eq(grantedProgress.granted_source_id, race.race_id, "来源 id 应为 race id。");
+            _test.Eq(grantedProgress.granted_source_id, race.RaceId, "来源 id 应为 race id。");
         }
 
         _test.False(
@@ -81,11 +71,9 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
             "重复补授已学会身份技能不应报告变化。"
         );
 
-        race.racial_granted_skills.Clear();
+        race = BuildRace("stonefolk", System.Array.Empty<RacialGrantedSkillDefinition>());
         identityCatalog = new ProgressionIdentityCatalogData(
-            TestProgressionDefinitionProjection.Races(
-                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
-            ),
+            new Dictionary<StringName, RaceDefinition> { [race.RaceId] = race },
             new Dictionary<StringName, SubraceDefinition>(),
             new Dictionary<StringName, AgeProfileDefinition>(),
             new Dictionary<StringName, BloodlineDefinition>(),
@@ -108,6 +96,18 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
             "孤儿身份技能应从 UnitProgress 移除。"
         );
     }
+
+    private static RaceDefinition BuildRace(
+        StringName raceId,
+        IReadOnlyList<RacialGrantedSkillDefinition> grants
+    ) =>
+        new(
+            raceId, raceId.ToString(), "Fixture race.", "", "", System.Array.Empty<StringName>(),
+            "medium", 6, System.Array.Empty<AttributeModifierDefinition>(), System.Array.Empty<StringName>(),
+            grants, System.Array.Empty<StringName>(), System.Array.Empty<StringName>(), System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(), System.Array.Empty<StringName>(), new Dictionary<StringName, StringName>(),
+            System.Array.Empty<StringName>(), System.Array.Empty<string>()
+        );
 
     private static PartyMemberState MakeMember(StringName memberId, StringName raceId)
     {

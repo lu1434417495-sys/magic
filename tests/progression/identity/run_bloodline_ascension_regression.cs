@@ -125,12 +125,12 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
 
     private void TestCharacterManagementRejectsInvalidIdentityApplyWithoutMutation()
     {
-        GDictionary bundle = MakeIdentityBundle();
+        ProgressionIdentityCatalogData catalog = MakeIdentityCatalog();
         PartyState partyState = MakePartyState();
         CharacterManagementModule manager = BuildManager(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            bundle
+            catalog
         );
         PartyMemberState member = partyState.GetMemberState("hero");
 
@@ -164,7 +164,7 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
 
     private void TestCharacterManagementAppliesIdentityAndRefreshesGrants()
     {
-        GDictionary bundle = MakeIdentityBundle();
+        ProgressionIdentityCatalogData catalog = MakeIdentityCatalog();
         SkillDefinition bloodlineSkill = MakeSkill("bloodline_skill", "bloodline");
         SkillDefinition bloodlineStageSkill = MakeSkill("bloodline_stage_skill", "bloodline");
         SkillDefinition ascensionSkill = MakeSkill("ascension_skill", "ascension");
@@ -178,7 +178,7 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
                 ascensionSkill,
                 ascensionStageSkill
             ),
-            bundle
+            catalog
         );
 
         _test.True(
@@ -248,12 +248,12 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
 
     private void TestStageAdvancementRefreshesEffectiveStage()
     {
-        GDictionary bundle = MakeIdentityBundle();
+        ProgressionIdentityCatalogData catalog = MakeIdentityCatalog();
         PartyState partyState = MakePartyState();
         CharacterManagementModule manager = BuildManager(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
-            bundle
+            catalog
         );
         PartyMemberState member = partyState.GetMemberState("hero");
         _test.Eq(
@@ -309,7 +309,7 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
 
     private void TestIdentitySummaryIncludesIdentityProjection()
     {
-        GDictionary bundle = MakeIdentityBundle();
+        ProgressionIdentityCatalogData catalog = MakeIdentityCatalog();
         Dictionary<StringName, SkillDefinition> skillDefinitions = new();
         foreach (StringName skillId in new StringName[]
         {
@@ -324,7 +324,7 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
         }
 
         PartyState partyState = MakePartyState();
-        CharacterManagementModule manager = BuildManager(partyState, skillDefinitions, bundle);
+        CharacterManagementModule manager = BuildManager(partyState, skillDefinitions, catalog);
         _test.True(manager.ApplyBloodline("hero", "titan", "titan_awakened"), "身份摘要测试前置：应能应用 bloodline。");
         _test.True(
             manager.ApplyAscension("hero", "dragon_ascension", "dragon_awakened", 11),
@@ -386,7 +386,7 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
     private static CharacterManagementModule BuildManager(
         PartyState partyState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        GDictionary bundle
+        ProgressionIdentityCatalogData catalog
     )
     {
         CharacterManagementModule manager = new();
@@ -398,7 +398,7 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
             new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             null,
-            MakeIdentityCatalog(bundle)
+            catalog
         );
         return manager;
     }
@@ -432,299 +432,159 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
         return member;
     }
 
-    private static GDictionary MakeIdentityBundle()
-    {
-        RacialGrantedSkill bloodlineSkillGrant = MakeGrantedSkill("bloodline_skill");
-        RacialGrantedSkill bloodlineStageSkillGrant = MakeGrantedSkill("bloodline_stage_skill");
-        RacialGrantedSkill ascensionSkillGrant = MakeGrantedSkill("ascension_skill");
-        RacialGrantedSkill ascensionStageSkillGrant = MakeGrantedSkill("ascension_stage_skill");
-        RaceDef race = MakeRace();
-        SubraceDef subrace = MakeSubrace();
-        AgeProfileDef ageProfile = MakeAgeProfile();
-        BloodlineDef bloodline = MakeBloodline(
-            "titan",
-            new[] { new StringName("titan_awakened") },
-            new[] { bloodlineSkillGrant }
-        );
-        BloodlineStageDef bloodlineStage = MakeBloodlineStage(
-            "titan_awakened",
-            "titan",
-            new[] { bloodlineStageSkillGrant }
-        );
-        AscensionDef ascension = MakeAscension(
-            "dragon_ascension",
-            new[] { new StringName("dragon_awakened") },
-            new[] { ascensionSkillGrant },
-            new[] { new StringName("human") },
-            new[] { new StringName("high_human") },
-            Array.Empty<StringName>()
-        );
-        ascension.replaces_age_growth = true;
-        AscensionStageDef ascensionStage = MakeAscensionStage(
-            "dragon_awakened",
-            "dragon_ascension",
-            new[] { ascensionStageSkillGrant }
-        );
-        AscensionDef elfAscension = MakeAscension(
-            "elf_ascension",
-            new[] { new StringName("elf_awakened") },
-            Array.Empty<RacialGrantedSkill>(),
-            new[] { new StringName("elf") },
-            Array.Empty<StringName>(),
-            Array.Empty<StringName>()
-        );
-        AscensionStageDef elfStage = MakeAscensionStage(
-            "elf_awakened",
-            "elf_ascension",
-            Array.Empty<RacialGrantedSkill>()
-        );
-        StageAdvancementModifier growthBoon = MakeStageAdvancement("growth_boon");
-
-        return new GDictionary
-        {
-            ["race_defs"] = new GDictionary { [race.race_id] = race },
-            ["subrace_defs"] = new GDictionary { [subrace.subrace_id] = subrace },
-            ["age_profile_defs"] = new GDictionary { [ageProfile.profile_id] = ageProfile },
-            ["bloodline_defs"] = new GDictionary { [bloodline.bloodline_id] = bloodline },
-            ["bloodline_stage_defs"] = new GDictionary
-            {
-                [bloodlineStage.stage_id] = bloodlineStage,
-            },
-            ["ascension_defs"] = new GDictionary
-            {
-                [ascension.ascension_id] = ascension,
-                [elfAscension.ascension_id] = elfAscension,
-            },
-            ["ascension_stage_defs"] = new GDictionary
-            {
-                [ascensionStage.stage_id] = ascensionStage,
-                [elfStage.stage_id] = elfStage,
-            },
-            ["stage_advancement_defs"] = new GDictionary
-            {
-                [growthBoon.modifier_id] = growthBoon,
-            },
-        };
-    }
-
     private static ProgressionIdentityCatalogData MakeIdentityCatalog()
     {
-        return MakeIdentityCatalog(MakeIdentityBundle());
-    }
+        RaceDefinition race = MakeRace();
+        SubraceDefinition subrace = MakeSubrace();
+        AgeProfileDefinition ageProfile = MakeAgeProfile();
+        BloodlineDefinition bloodline = MakeBloodline(
+            "titan", new[] { new StringName("titan_awakened") },
+            new[] { MakeGrantedSkill("bloodline_skill") }
+        );
+        BloodlineStageDefinition bloodlineStage = MakeBloodlineStage(
+            "titan_awakened", "titan", new[] { MakeGrantedSkill("bloodline_stage_skill") }
+        );
+        AscensionDefinition ascension = MakeAscension(
+            "dragon_ascension", new[] { new StringName("dragon_awakened") },
+            new[] { MakeGrantedSkill("ascension_skill") },
+            new[] { new StringName("human") }, new[] { new StringName("high_human") },
+            Array.Empty<StringName>(), replacesAgeGrowth: true
+        );
+        AscensionStageDefinition ascensionStage = MakeAscensionStage(
+            "dragon_awakened", "dragon_ascension",
+            new[] { MakeGrantedSkill("ascension_stage_skill") }
+        );
+        AscensionDefinition elfAscension = MakeAscension(
+            "elf_ascension", new[] { new StringName("elf_awakened") },
+            Array.Empty<RacialGrantedSkillDefinition>(), new[] { new StringName("elf") },
+            Array.Empty<StringName>(), Array.Empty<StringName>(), replacesAgeGrowth: false
+        );
+        AscensionStageDefinition elfStage = MakeAscensionStage(
+            "elf_awakened", "elf_ascension", Array.Empty<RacialGrantedSkillDefinition>()
+        );
+        StageAdvancementDefinition growthBoon = MakeStageAdvancement("growth_boon");
 
-    private static ProgressionIdentityCatalogData MakeIdentityCatalog(GDictionary bundle)
-    {
         return new ProgressionIdentityCatalogData(
-            TestProgressionDefinitionProjection.Races(
-                ReadTypedMap<RaceDef>(bundle, "race_defs")
-            ),
-            TestProgressionDefinitionProjection.Subraces(
-                ReadTypedMap<SubraceDef>(bundle, "subrace_defs")
-            ),
-            TestProgressionDefinitionProjection.AgeProfiles(
-                ReadTypedMap<AgeProfileDef>(bundle, "age_profile_defs")
-            ),
-            TestProgressionDefinitionProjection.Bloodlines(
-                ReadTypedMap<BloodlineDef>(bundle, "bloodline_defs")
-            ),
-            TestProgressionDefinitionProjection.BloodlineStages(
-                ReadTypedMap<BloodlineStageDef>(bundle, "bloodline_stage_defs")
-            ),
-            TestProgressionDefinitionProjection.Ascensions(
-                ReadTypedMap<AscensionDef>(bundle, "ascension_defs")
-            ),
-            TestProgressionDefinitionProjection.AscensionStages(
-                ReadTypedMap<AscensionStageDef>(bundle, "ascension_stage_defs")
-            ),
-            TestProgressionDefinitionProjection.StageAdvancements(
-                ReadTypedMap<StageAdvancementModifier>(bundle, "stage_advancement_defs")
-            )
+            new Dictionary<StringName, RaceDefinition> { [race.RaceId] = race },
+            new Dictionary<StringName, SubraceDefinition> { [subrace.SubraceId] = subrace },
+            new Dictionary<StringName, AgeProfileDefinition> { [ageProfile.ProfileId] = ageProfile },
+            new Dictionary<StringName, BloodlineDefinition> { [bloodline.BloodlineId] = bloodline },
+            new Dictionary<StringName, BloodlineStageDefinition> { [bloodlineStage.StageId] = bloodlineStage },
+            new Dictionary<StringName, AscensionDefinition>
+            {
+                [ascension.AscensionId] = ascension,
+                [elfAscension.AscensionId] = elfAscension,
+            },
+            new Dictionary<StringName, AscensionStageDefinition>
+            {
+                [ascensionStage.StageId] = ascensionStage,
+                [elfStage.StageId] = elfStage,
+            },
+            new Dictionary<StringName, StageAdvancementDefinition> { [growthBoon.ModifierId] = growthBoon }
         );
     }
 
-    private static Dictionary<StringName, T> ReadTypedMap<T>(GDictionary bundle, string key)
-        where T : class
-    {
-        var result = new Dictionary<StringName, T>();
-        foreach (Variant rawKey in ReadDictionary(bundle, key).Keys)
-        {
-            StringName id = ReadStringNameKey(rawKey);
-            if (id == "")
-                continue;
-            Variant rawValue = ReadDictionary(bundle, key)[rawKey];
-            if (rawValue.VariantType == Variant.Type.Object && rawValue.AsGodotObject() is T typed)
-                result[id] = typed;
-        }
-        return result;
-    }
+    private static RaceDefinition MakeRace() =>
+        new(
+            "human", "Human", "Fixture race.", "human_age", "high_human",
+            new[] { new StringName("high_human") }, "medium", 6,
+            Array.Empty<AttributeModifierDefinition>(), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<StringName>(),
+            Array.Empty<StringName>(), new[] { new StringName("charm") },
+            Array.Empty<StringName>(), Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName> { ["fire"] = "half" },
+            Array.Empty<StringName>(), new[] { "Human ambition" }
+        );
 
-    private static StringName ReadStringNameKey(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => "",
-        };
-    }
+    private static SubraceDefinition MakeSubrace() =>
+        new(
+            "high_human", "human", "High Human", "Fixture subrace.", "", 0,
+            Array.Empty<AttributeModifierDefinition>(), Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(), Array.Empty<StringName>(),
+            Array.Empty<StringName>(), new[] { new StringName("poison") },
+            Array.Empty<StringName>(), Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName> { ["freeze"] = "immune" },
+            Array.Empty<StringName>(), new[] { "High human focus" }
+        );
 
-    private static RaceDef MakeRace()
-    {
-        RaceDef race = new()
-        {
-            race_id = "human",
-            display_name = "Human",
-            description = "Fixture race.",
-            age_profile_id = "human_age",
-            default_subrace_id = "high_human",
-            body_size_category = "medium",
-            base_speed = 6,
-            damage_resistances = new GDictionary { [new StringName("fire")] = new StringName("half") },
-        };
-        race.subrace_ids.Add("high_human");
-        race.save_advantage_tags.Add("charm");
-        race.racial_trait_summary.Add("Human ambition");
-        return race;
-    }
-
-    private static SubraceDef MakeSubrace()
-    {
-        SubraceDef subrace = new()
-        {
-            subrace_id = "high_human",
-            parent_race_id = "human",
-            display_name = "High Human",
-            description = "Fixture subrace.",
-            damage_resistances = new GDictionary
+    private static AgeProfileDefinition MakeAgeProfile() =>
+        new(
+            "human_age", "human", 0, 12, 16, 18, 35, 55, 75, 100,
+            new[]
             {
-                [new StringName("freeze")] = new StringName("immune"),
+                MakeAgeStageRule("teen"), MakeAgeStageRule("adult"),
+                MakeAgeStageRule("middle_age"), MakeAgeStageRule("old"),
             },
-        };
-        subrace.save_advantage_tags.Add("poison");
-        subrace.racial_trait_summary.Add("High human focus");
-        return subrace;
-    }
+            new[] { new StringName("adult") },
+            new Dictionary<StringName, int> { ["adult"] = 18 }
+        );
 
-    private static AgeProfileDef MakeAgeProfile()
-    {
-        AgeProfileDef ageProfile = new()
-        {
-            profile_id = "human_age",
-            race_id = "human",
-            default_age_by_stage = new GDictionary { ["adult"] = 18 },
-        };
-        ageProfile.stage_rules.Add(MakeAgeStageRule("teen"));
-        ageProfile.stage_rules.Add(MakeAgeStageRule("adult"));
-        ageProfile.stage_rules.Add(MakeAgeStageRule("middle_age"));
-        ageProfile.stage_rules.Add(MakeAgeStageRule("old"));
-        ageProfile.creation_stage_ids.Add("adult");
-        return ageProfile;
-    }
+    private static AgeStageRuleDefinition MakeAgeStageRule(StringName stageId) =>
+        new(
+            stageId, stageId.ToString(), "Fixture age stage.",
+            Array.Empty<AttributeModifierDefinition>(), Array.Empty<StringName>(),
+            new[] { $"Age stage {stageId}" }, true, true
+        );
 
-    private static AgeStageRule MakeAgeStageRule(StringName stageId)
-    {
-        AgeStageRule rule = new()
-        {
-            stage_id = stageId,
-            display_name = stageId.ToString(),
-            description = "Fixture age stage.",
-        };
-        rule.trait_summary.Add($"Age stage {stageId}");
-        return rule;
-    }
-
-    private static BloodlineDef MakeBloodline(
+    private static BloodlineDefinition MakeBloodline(
         StringName bloodlineId,
         IEnumerable<StringName> stageIds,
-        IEnumerable<RacialGrantedSkill> grants
-    )
-    {
-        BloodlineDef bloodline = new()
-        {
-            bloodline_id = bloodlineId,
-            display_name = bloodlineId.ToString(),
-            description = "Fixture bloodline.",
-        };
-        AddStringNames(bloodline.stage_ids, stageIds);
-        AddGrants(bloodline.racial_granted_skills, grants);
-        bloodline.trait_summary.Add($"Bloodline {bloodlineId}");
-        return bloodline;
-    }
+        IEnumerable<RacialGrantedSkillDefinition> grants
+    ) =>
+        new(
+            bloodlineId, bloodlineId.ToString(), "Fixture bloodline.",
+            new List<StringName>(stageIds), Array.Empty<StringName>(),
+            new List<RacialGrantedSkillDefinition>(grants),
+            Array.Empty<AttributeModifierDefinition>(), new[] { $"Bloodline {bloodlineId}" }
+        );
 
-    private static BloodlineStageDef MakeBloodlineStage(
+    private static BloodlineStageDefinition MakeBloodlineStage(
         StringName stageId,
         StringName bloodlineId,
-        IEnumerable<RacialGrantedSkill> grants
-    )
-    {
-        BloodlineStageDef stage = new()
-        {
-            stage_id = stageId,
-            bloodline_id = bloodlineId,
-            display_name = stageId.ToString(),
-            description = "Fixture bloodline stage.",
-        };
-        AddGrants(stage.racial_granted_skills, grants);
-        stage.trait_summary.Add($"Bloodline stage {stageId}");
-        return stage;
-    }
+        IEnumerable<RacialGrantedSkillDefinition> grants
+    ) =>
+        new(
+            stageId, bloodlineId, stageId.ToString(), "Fixture bloodline stage.",
+            Array.Empty<AttributeModifierDefinition>(), Array.Empty<StringName>(),
+            new List<RacialGrantedSkillDefinition>(grants),
+            new[] { $"Bloodline stage {stageId}" }
+        );
 
-    private static AscensionDef MakeAscension(
+    private static AscensionDefinition MakeAscension(
         StringName ascensionId,
         IEnumerable<StringName> stageIds,
-        IEnumerable<RacialGrantedSkill> grants,
+        IEnumerable<RacialGrantedSkillDefinition> grants,
         IEnumerable<StringName> allowedRaceIds,
         IEnumerable<StringName> allowedSubraceIds,
-        IEnumerable<StringName> allowedBloodlineIds
-    )
-    {
-        AscensionDef ascension = new()
-        {
-            ascension_id = ascensionId,
-            display_name = ascensionId.ToString(),
-            description = "Fixture ascension.",
-        };
-        AddStringNames(ascension.stage_ids, stageIds);
-        AddGrants(ascension.racial_granted_skills, grants);
-        AddStringNames(ascension.allowed_race_ids, allowedRaceIds);
-        AddStringNames(ascension.allowed_subrace_ids, allowedSubraceIds);
-        AddStringNames(ascension.allowed_bloodline_ids, allowedBloodlineIds);
-        ascension.trait_summary.Add($"Ascension {ascensionId}");
-        return ascension;
-    }
+        IEnumerable<StringName> allowedBloodlineIds,
+        bool replacesAgeGrowth
+    ) =>
+        new(
+            ascensionId, ascensionId.ToString(), "Fixture ascension.",
+            new List<StringName>(stageIds), Array.Empty<StringName>(),
+            new List<RacialGrantedSkillDefinition>(grants),
+            new List<StringName>(allowedRaceIds), new List<StringName>(allowedSubraceIds),
+            new List<StringName>(allowedBloodlineIds), new[] { $"Ascension {ascensionId}" },
+            replacesAgeGrowth, false
+        );
 
-    private static AscensionStageDef MakeAscensionStage(
+    private static AscensionStageDefinition MakeAscensionStage(
         StringName stageId,
         StringName ascensionId,
-        IEnumerable<RacialGrantedSkill> grants
-    )
-    {
-        AscensionStageDef stage = new()
-        {
-            stage_id = stageId,
-            ascension_id = ascensionId,
-            display_name = stageId.ToString(),
-            description = "Fixture ascension stage.",
-            body_size_category_override = "large",
-        };
-        AddGrants(stage.racial_granted_skills, grants);
-        stage.trait_summary.Add("Dragon stage");
-        return stage;
-    }
+        IEnumerable<RacialGrantedSkillDefinition> grants
+    ) =>
+        new(
+            stageId, ascensionId, stageId.ToString(), "Fixture ascension stage.",
+            Array.Empty<AttributeModifierDefinition>(), Array.Empty<StringName>(),
+            new List<RacialGrantedSkillDefinition>(grants), "large", new[] { "Dragon stage" }
+        );
 
-    private static StageAdvancementModifier MakeStageAdvancement(StringName modifierId)
-    {
-        StageAdvancementModifier modifier = new()
-        {
-            modifier_id = modifierId,
-            display_name = modifierId.ToString(),
-            target_axis = StageAdvancementModifier.ToStringName(StageAdvancementTargetAxis.Full),
-            stage_offset = 2,
-            max_stage_id = "old",
-        };
-        modifier.applies_to_race_ids.Add("human");
-        return modifier;
-    }
+    private static StageAdvancementDefinition MakeStageAdvancement(StringName modifierId) =>
+        new(
+            modifierId, modifierId.ToString(), "full", 2, "old",
+            new[] { new StringName("human") }, Array.Empty<StringName>(),
+            Array.Empty<StringName>(), Array.Empty<StringName>(), true, true, true
+        );
 
     private static Dictionary<StringName, SkillDefinition> BuildSkillIndex(
         params SkillDefinition[] skillDefinitions
@@ -747,32 +607,8 @@ public partial class run_bloodline_ascension_regression : LifecycleTestSceneTree
             masteryCurve: new[] { 10, 20, 30 }
         );
 
-    private static RacialGrantedSkill MakeGrantedSkill(StringName skillId) =>
-        new()
-        {
-            skill_id = skillId,
-            minimum_skill_level = 1,
-            charge_kind = "per_battle",
-            charges = 1,
-        };
-
-    private static void AddStringNames(
-        GStringNameArray target,
-        IEnumerable<StringName> source
-    )
-    {
-        foreach (StringName value in source)
-            target.Add(value);
-    }
-
-    private static void AddGrants(
-        Godot.Collections.Array<RacialGrantedSkill> target,
-        IEnumerable<RacialGrantedSkill> source
-    )
-    {
-        foreach (RacialGrantedSkill value in source)
-            target.Add(value);
-    }
+    private static RacialGrantedSkillDefinition MakeGrantedSkill(StringName skillId) =>
+        new(skillId, 1, "per_battle", 1);
 
     private void AssertIdentityGrantedSkill(
         PartyMemberState member,

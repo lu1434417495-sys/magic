@@ -33,28 +33,19 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
             }
         );
 
-        ProfessionDef hiddenDependency = MakeProfession("hidden_dependency");
-        hiddenDependency.dependency_visibility_mode = "ignore_when_hidden";
-        ProfessionDef targetProfession = MakeProfession("target_profession");
-        targetProfession.unlock_requirement = TestResourceOwnership.Own(
-            new ProfessionPromotionRequirement(),
-            "profession-rule-empty-gate-requirement"
+        ProfessionDefinition hiddenDependency = MakeProfession(
+            "hidden_dependency", dependencyVisibilityMode: "ignore_when_hidden"
         );
-        ProfessionRankGate authoredGate = TestResourceOwnership.Own(
-            new ProfessionRankGate
-            {
-                profession_id = "hidden_dependency",
-                min_rank = 1,
-                check_mode = "",
-            },
-            "profession-rule-empty-gate"
+        ProfessionRankGateDefinition projectedGate = new("hidden_dependency", 1, "");
+        ProfessionPromotionRequirementDefinition unlockRequirement = new(
+            Array.Empty<StringName>(), Array.Empty<TagRequirementDefinition>(),
+            new[] { projectedGate }, Array.Empty<AttributeRequirementDefinition>(),
+            Array.Empty<ReputationRequirementDefinition>(), false
         );
-        targetProfession.unlock_requirement.required_profession_ranks.Add(authoredGate);
-
-        ProfessionDefinition projectedTarget =
-            TestProgressionDefinitionProjection.Profession(targetProfession);
-        ProfessionRankGateDefinition projectedGate =
-            projectedTarget.UnlockRequirement.RequiredProfessionRanks[0];
+        ProfessionDefinition targetProfession = MakeProfession(
+            "target_profession", unlockRequirement: unlockRequirement
+        );
+        ProfessionDefinition projectedTarget = targetProfession;
         _test.Eq(
             projectedGate.CheckMode,
             new StringName(""),
@@ -73,12 +64,10 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
             "空 check_mode 应继承依赖职业 ignore_when_hidden，并按 active_only 拒绝隐藏职业。"
         );
 
-        authoredGate.check_mode = "unsupported_mode";
-        _test.True(
-            Throws<System.IO.InvalidDataException>(
-                () => TestProgressionDefinitionProjection.Profession(targetProfession)
-            ),
-            "非空且未知的 check_mode 仍必须在投影边界被拒绝。"
+        _test.Eq(
+            new ProfessionRankGateDefinition("hidden_dependency", 1, "unsupported_mode").CheckModeKind,
+            ProfessionGateCheckMode.Unknown,
+            "非空且未知的 check_mode 不应映射为有效 typed kind。"
         );
     }
 
@@ -103,9 +92,8 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
             new[] { MakeProfession("warrior") }
         );
 
-        TagRequirement martialCoreMax = new() { tag = "martial" };
         TagRequirementDefinition martialCoreMaxDefinition =
-            TestProgressionDefinitionProjection.TagRequirement(martialCoreMax);
+            new("martial", 1, "core_max", "any", "assigned_core");
         IReadOnlyList<StringName> eligibleSkillIds = service.GetEligibleSkillIds(
             "warrior",
             new[] { martialCoreMaxDefinition },
@@ -153,16 +141,17 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
         };
         progress.SetProfessionProgress(professionProgress);
 
-        ProfessionDef warrior = MakeProfession("warrior");
-        warrior.active_conditions = new Godot.Collections.Array<ProfessionActiveCondition>
-        {
-            new()
+        ProfessionDefinition warrior = MakeProfession(
+            "warrior",
+            activeConditions: new[]
             {
-                condition_type = "attribute_range",
-                attribute_id = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
-                min_value = 10,
-            },
-        };
+                new ProfessionActiveConditionDefinition(
+                    "attribute_range",
+                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
+                    "", 10, 0
+                ),
+            }
+        );
 
         ProfessionRuleService service = MakeService(
             progress,
@@ -198,22 +187,22 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
     private static ProfessionRuleService MakeService(
         UnitProgress progress,
         IEnumerable<SkillDefinition> skillDefinitions,
-        IEnumerable<ProfessionDef> professionDefs
+        IEnumerable<ProfessionDefinition> professionDefs
     )
     {
         Dictionary<StringName, SkillDefinition> indexedSkillDefinitions = new();
         foreach (SkillDefinition skillDefinition in skillDefinitions)
             indexedSkillDefinitions[skillDefinition.SkillId] = skillDefinition;
 
-        Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
-        foreach (ProfessionDef professionDef in professionDefs)
-            indexedProfessionDefs[professionDef.profession_id] = professionDef;
+        Dictionary<StringName, ProfessionDefinition> indexedProfessionDefs = new();
+        foreach (ProfessionDefinition professionDef in professionDefs)
+            indexedProfessionDefs[professionDef.ProfessionId] = professionDef;
 
         ProfessionRuleService service = new();
         service.Setup(
             progress,
             indexedSkillDefinitions,
-            TestProgressionDefinitionProjection.Professions(indexedProfessionDefs)
+            indexedProfessionDefs
         );
         return service;
     }
@@ -243,14 +232,21 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
             skill_level = level,
         };
 
-    private static ProfessionDef MakeProfession(StringName professionId) =>
-        new()
-        {
-            profession_id = professionId,
-            display_name = professionId.ToString(),
-            max_rank = 20,
-            reactivation_mode = "auto",
-        };
+    private static ProfessionDefinition MakeProfession(
+        StringName professionId,
+        StringName dependencyVisibilityMode = default,
+        ProfessionPromotionRequirementDefinition unlockRequirement = null,
+        IReadOnlyList<ProfessionActiveConditionDefinition> activeConditions = null
+    ) =>
+        new(
+            professionId, professionId.ToString(), "Fixture profession.", 20, 8,
+            "full", unlockRequirement == null, "", unlockRequirement,
+            Array.Empty<ProfessionRankRequirementDefinition>(),
+            Array.Empty<ProfessionGrantedSkillDefinition>(),
+            Array.Empty<AttributeModifierDefinition>(),
+            activeConditions ?? Array.Empty<ProfessionActiveConditionDefinition>(),
+            "auto", dependencyVisibilityMode == "" ? "count_when_hidden" : dependencyVisibilityMode
+        );
 
     private static bool ContainsSkillId(IEnumerable<StringName> skillIds, StringName targetSkillId)
     {

@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "main_crack_seal",
+      "display_name": "裂隙封印",
+      "description": "裂隙正在扩大。从雾里走出来的东西不再是普通的野兽——它们披着灰烬，眼里没有瞳孔。阻止它们。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "main_story",
+        "contract"
+      ],
+      "accept_requirements": [
+        {
+          "kind": "quest_completed",
+          "payload": {
+            "quest_id": "main_mist_investigation"
+          }
+        }
+      ],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_mist_beasts",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_beast",
+            "target_value": 2
+          }
+        },
+        {
+          "objective_id": "defeat_mist_weaver",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_weaver",
+            "target_value": 1
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 500
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "calamity_shard",
+            "quantity": 1
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "hero",
+            "entries": [
+              {
+                "kind": "attribute_progress",
+                "payload": {
+                  "target_id": "intelligence",
+                  "amount": 20
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

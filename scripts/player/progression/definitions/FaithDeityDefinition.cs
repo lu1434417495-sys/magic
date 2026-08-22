@@ -60,27 +60,4 @@ public sealed class FaithDeityDefinition
         return maximum;
     }
 
-    internal static FaithDeityDefinition FromResource(FaithDeityDef source, string path)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        IReadOnlyList<FaithRankDefinition> ranks =
-            ProgressionDefinitionProjection.ProjectBorrowedValues(
-                source.RankDefsProjectionBorrowed,
-                path + ".rank_defs",
-                FaithRankDefinition.FromResource
-            );
-
-        return new FaithDeityDefinition(
-            source.deity_id,
-            source.display_name,
-            source.facility_id,
-            source.service_type_label,
-            ProgressionDefinitionProjection.CopyBorrowedValues(
-                source.PowerDomainTagsProjectionBorrowed,
-                path + ".power_domain_tags"
-            ),
-            source.rank_progress_stat_id,
-            ranks
-        );
-    }
 }

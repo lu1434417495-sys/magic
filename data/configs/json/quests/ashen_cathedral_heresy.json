@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "ashen_cathedral_heresy",
+      "display_name": "异端之骸",
+      "description": "炭化大教堂里已经没有活人了——但有些东西还在走。它们穿着烧焦的祭服，嘴里念叨着三百年前的祷词。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "ashen_intersection",
+        "cathedral"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_beasts",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_beast",
+            "target_value": 3
+          }
+        },
+        {
+          "objective_id": "defeat_harriers",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_harrier",
+            "target_value": 2
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 600
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "blood_debt_shawl",
+            "quantity": 1
+          }
+        }
+      ]
+    }
+  ]
+}

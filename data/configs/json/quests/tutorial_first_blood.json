@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "tutorial_first_blood",
+      "display_name": "初阵",
+      "description": "村长告诉你，最近商路不太平。去村外清理几只在农田边缘徘徊的荒狼，证明你能保护自己。",
+      "provider_kind": "npc",
+      "provider_interaction_id": "npc_village_chief",
+      "listing_channels": [
+        "npc_offer"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "tutorial",
+        "main_story"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "村外的荒狼已经逼近农田。先清理三只，证明你能保护自己。",
+      "accept_feedback_success": "村长把清理荒狼的任务交给了你。",
+      "accept_feedback_failure": "村长现在没有新的任务交给你。",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_wolves",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "wolf_pack",
+            "target_value": 3
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 50
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "player_sword_01",
+            "entries": [
+              {
+                "kind": "skill_mastery",
+                "payload": {
+                  "target_id": "warrior_heavy_strike",
+                  "amount": 80
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

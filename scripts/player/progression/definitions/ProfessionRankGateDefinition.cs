@@ -22,25 +22,6 @@ public sealed class ProfessionRankGateDefinition
     public StringName CheckMode { get; }
     internal ProfessionGateCheckMode CheckModeKind => ToCheckMode(CheckMode);
 
-    internal static ProfessionRankGateDefinition FromResource(
-        ProfessionRankGate source,
-        string path
-    )
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ProgressionDefinitionProjection.RequireKnown(
-            source.check_mode == ""
-                || source.CheckModeKind != ProfessionGateCheckMode.Unknown,
-            $"{path}.check_mode",
-            source.check_mode
-        );
-        return new ProfessionRankGateDefinition(
-            source.profession_id,
-            source.min_rank,
-            source.check_mode
-        );
-    }
-
     private static ProfessionGateCheckMode ToCheckMode(StringName value)
     {
         if (value == CheckHistorical)

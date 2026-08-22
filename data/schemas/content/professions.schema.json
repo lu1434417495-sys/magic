@@ -1,0 +1,591 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:professions:v1",
+  "title": "Magic professions JSON authoring schema",
+  "description": "Strict professions contract. Cross-domain relations are content IDs.",
+  "$ref": "#/$defs/ProfessionJsonDocumentDto",
+  "$defs": {
+    "AttributeRequirementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "max_value": {
+          "type": "integer"
+        },
+        "min_value": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "max_value",
+        "min_value"
+      ]
+    },
+    "IdentityAttributeModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "mode",
+        "source_id",
+        "source_type",
+        "value",
+        "value_per_rank"
+      ]
+    },
+    "ProfessionActiveConditionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "condition_type": {
+          "type": "string"
+        },
+        "max_value": {
+          "type": "integer"
+        },
+        "min_value": {
+          "type": "integer"
+        },
+        "state_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "condition_type",
+        "max_value",
+        "min_value",
+        "state_id"
+      ]
+    },
+    "ProfessionGrantedSkillJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skill_id": {
+          "type": "string"
+        },
+        "skill_type": {
+          "type": "string"
+        },
+        "unlock_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "skill_id",
+        "skill_type",
+        "unlock_rank"
+      ]
+    },
+    "ProfessionJsonDocumentDto": {
+      "description": "Profession JSON document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "professions"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionJsonDto__authoring_profession_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ProfessionJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "ProfessionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionActiveConditionJsonDto"
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "bab_progression": {
+          "type": "string"
+        },
+        "dependency_visibility_mode": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionGrantedSkillJsonDto"
+          }
+        },
+        "hit_die_sides": {
+          "type": "integer"
+        },
+        "is_initial_profession": {
+          "type": "boolean"
+        },
+        "max_rank": {
+          "type": "integer"
+        },
+        "profession_id": {
+          "type": "string"
+        },
+        "rank_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionRankRequirementJsonDto"
+          }
+        },
+        "reactivation_mode": {
+          "type": "string"
+        },
+        "unlock_knowledge_id": {
+          "type": "string"
+        },
+        "unlock_requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProfessionPromotionRequirementJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "active_conditions",
+        "attribute_modifiers",
+        "bab_progression",
+        "dependency_visibility_mode",
+        "description",
+        "display_name",
+        "granted_skills",
+        "hit_die_sides",
+        "is_initial_profession",
+        "max_rank",
+        "profession_id",
+        "rank_requirements",
+        "reactivation_mode",
+        "unlock_knowledge_id",
+        "unlock_requirement"
+      ]
+    },
+    "ProfessionJsonDto__authoring_profession_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ProfessionJsonDto"
+        },
+        {
+          "$ref": "#/$defs/ProfessionJsonDto__templated_profession_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "ProfessionJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionActiveConditionJsonDto"
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "bab_progression": {
+          "type": "string"
+        },
+        "dependency_visibility_mode": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionGrantedSkillJsonDto"
+          }
+        },
+        "hit_die_sides": {
+          "type": "integer"
+        },
+        "is_initial_profession": {
+          "type": "boolean"
+        },
+        "max_rank": {
+          "type": "integer"
+        },
+        "profession_id": {
+          "type": "string"
+        },
+        "rank_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionRankRequirementJsonDto"
+          }
+        },
+        "reactivation_mode": {
+          "type": "string"
+        },
+        "unlock_knowledge_id": {
+          "type": "string"
+        },
+        "unlock_requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProfessionPromotionRequirementJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "ProfessionJsonDto__templated_profession_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionActiveConditionJsonDto"
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "bab_progression": {
+          "type": "string"
+        },
+        "dependency_visibility_mode": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionGrantedSkillJsonDto"
+          }
+        },
+        "hit_die_sides": {
+          "type": "integer"
+        },
+        "is_initial_profession": {
+          "type": "boolean"
+        },
+        "max_rank": {
+          "type": "integer"
+        },
+        "profession_id": {
+          "type": "string"
+        },
+        "rank_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionRankRequirementJsonDto"
+          }
+        },
+        "reactivation_mode": {
+          "type": "string"
+        },
+        "unlock_knowledge_id": {
+          "type": "string"
+        },
+        "unlock_requirement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProfessionPromotionRequirementJsonDto__partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "profession_id",
+        "template"
+      ]
+    },
+    "ProfessionPromotionRequirementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assigned_core_must_be_subset_of_qualifiers": {
+          "type": "boolean"
+        },
+        "required_attribute_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttributeRequirementJsonDto"
+          }
+        },
+        "required_profession_ranks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionRankGateJsonDto"
+          }
+        },
+        "required_reputation_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReputationRequirementJsonDto"
+          }
+        },
+        "required_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_tag_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TagRequirementJsonDto"
+          }
+        }
+      },
+      "required": [
+        "assigned_core_must_be_subset_of_qualifiers",
+        "required_attribute_rules",
+        "required_profession_ranks",
+        "required_reputation_rules",
+        "required_skill_ids",
+        "required_tag_rules"
+      ]
+    },
+    "ProfessionPromotionRequirementJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assigned_core_must_be_subset_of_qualifiers": {
+          "type": "boolean"
+        },
+        "required_attribute_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttributeRequirementJsonDto"
+          }
+        },
+        "required_profession_ranks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionRankGateJsonDto"
+          }
+        },
+        "required_reputation_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReputationRequirementJsonDto"
+          }
+        },
+        "required_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_tag_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TagRequirementJsonDto"
+          }
+        }
+      }
+    },
+    "ProfessionRankGateJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "check_mode": {
+          "type": "string"
+        },
+        "min_rank": {
+          "type": "integer"
+        },
+        "profession_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "check_mode",
+        "min_rank",
+        "profession_id"
+      ]
+    },
+    "ProfessionRankRequirementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_attribute_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttributeRequirementJsonDto"
+          }
+        },
+        "required_profession_ranks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProfessionRankGateJsonDto"
+          }
+        },
+        "required_reputation_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReputationRequirementJsonDto"
+          }
+        },
+        "required_tag_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TagRequirementJsonDto"
+          }
+        },
+        "target_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "required_attribute_rules",
+        "required_profession_ranks",
+        "required_reputation_rules",
+        "required_tag_rules",
+        "target_rank"
+      ]
+    },
+    "ReputationRequirementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_value": {
+          "type": "integer"
+        },
+        "min_value": {
+          "type": "integer"
+        },
+        "state_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "max_value",
+        "min_value",
+        "state_id"
+      ]
+    },
+    "TagRequirementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "origin_filter": {
+          "type": "string"
+        },
+        "selection_role": {
+          "type": "string"
+        },
+        "skill_state": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "count",
+        "origin_filter",
+        "selection_role",
+        "skill_state",
+        "tag"
+      ]
+    }
+  }
+}

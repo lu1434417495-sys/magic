@@ -1,220 +1,77 @@
+using System;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_identity_required_text_schema_regression : LifecycleTestSceneTree
 {
-    private const string TempRoot = "user://identity_required_text_schema_regression";
-    private const string RaceDirectory =
-        "user://identity_required_text_schema_regression/races";
-    private const string RacePath =
-        "user://identity_required_text_schema_regression/races/blank_text_race.tres";
-    private const string SubraceDirectory =
-        "user://identity_required_text_schema_regression/subraces";
-    private const string SubracePath =
-        "user://identity_required_text_schema_regression/subraces/blank_text_subrace.tres";
-    private const string AgeDirectory =
-        "user://identity_required_text_schema_regression/age_profiles";
-    private const string AgePath =
-        "user://identity_required_text_schema_regression/age_profiles/blank_text_age.tres";
-    private const string BloodlineDirectory =
-        "user://identity_required_text_schema_regression/bloodlines";
-    private const string BloodlinePath =
-        "user://identity_required_text_schema_regression/bloodlines/blank_text_bloodline.tres";
-    private const string BloodlineStagePath =
-        "user://identity_required_text_schema_regression/bloodlines/blank_text_bloodline_stage.tres";
-    private const string AscensionDirectory =
-        "user://identity_required_text_schema_regression/ascensions";
-    private const string AscensionPath =
-        "user://identity_required_text_schema_regression/ascensions/blank_text_ascension.tres";
-    private const string AscensionStagePath =
-        "user://identity_required_text_schema_regression/ascensions/blank_text_ascension_stage.tres";
-    private const string StageAdvancementDirectory =
-        "user://identity_required_text_schema_regression/stage_advancements";
-    private const string StageAdvancementPath =
-        "user://identity_required_text_schema_regression/stage_advancements/blank_text_stage_advancement.tres";
-
     private readonly TestHarness _test = new();
 
-    public override void _Initialize()
-    {
-        RunAfterProcessStartup(Run);
-    }
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private void Run()
     {
-        TestIdentityRegistriesRejectBlankRequiredText();
+        AssertRaceErrors();
+        AssertSubraceErrors();
+        AssertAgeErrors();
+        AssertBloodlineErrors();
+        AssertAscensionErrors();
+        AssertStageAdvancementErrors();
         RequestTestExit(_test.Finish("Identity required text schema regression"));
-    }
-
-    private void TestIdentityRegistriesRejectBlankRequiredText()
-    {
-        CleanupTempContent();
-        try
-        {
-            CreateTempDirectories();
-            SaveFixtures();
-
-            AssertRaceErrors();
-            AssertSubraceErrors();
-            AssertAgeErrors();
-            AssertBloodlineErrors();
-            AssertAscensionErrors();
-            AssertStageAdvancementErrors();
-        }
-        finally
-        {
-            CleanupTempContent();
-        }
-    }
-
-    private void CreateTempDirectories()
-    {
-        foreach (
-            string directoryPath in new[]
-            {
-                RaceDirectory,
-                SubraceDirectory,
-                AgeDirectory,
-                BloodlineDirectory,
-                AscensionDirectory,
-                StageAdvancementDirectory,
-            }
-        )
-        {
-            _test.Eq(
-                DirAccess.MakeDirRecursiveAbsolute(
-                    ProjectSettings.GlobalizePath(directoryPath)
-                ),
-                Error.Ok,
-                $"应能创建必填文本校验临时目录 {directoryPath}。"
-            );
-        }
-    }
-
-    private void SaveFixtures()
-    {
-        using RaceDef raceDef = new()
-        {
-            race_id = "blank_text_race",
-            display_name = "   ",
-            description = "",
-            age_profile_id = "probe_age",
-            default_subrace_id = "probe_subrace",
-            subrace_ids = new GStringNameArray { "probe_subrace" },
-            body_size_category = "medium",
-            base_speed = 6,
-        };
-        SaveFixture(raceDef, RacePath);
-
-        using SubraceDef subraceDef = new()
-        {
-            subrace_id = "blank_text_subrace",
-            parent_race_id = "probe_race",
-            display_name = "   ",
-            description = "",
-        };
-        SaveFixture(subraceDef, SubracePath);
-
-        using AgeStageRule ageStage = new()
-        {
-            stage_id = "adult",
-            display_name = "   ",
-            description = "",
-        };
-        using AgeProfileDef ageProfile = new()
-        {
-            profile_id = "blank_text_age",
-            race_id = "probe_race",
-            stage_rules = new Godot.Collections.Array<AgeStageRule> { ageStage },
-        };
-        SaveFixture(ageProfile, AgePath);
-
-        using BloodlineDef bloodlineDef = new()
-        {
-            bloodline_id = "blank_text_bloodline",
-            display_name = "   ",
-            description = "",
-            stage_ids = new GStringNameArray { "blank_text_bloodline_stage" },
-        };
-        SaveFixture(bloodlineDef, BloodlinePath);
-
-        using BloodlineStageDef bloodlineStage = new()
-        {
-            stage_id = "blank_text_bloodline_stage",
-            bloodline_id = "blank_text_bloodline",
-            display_name = "   ",
-            description = "",
-        };
-        SaveFixture(bloodlineStage, BloodlineStagePath);
-
-        using AscensionDef ascensionDef = new()
-        {
-            ascension_id = "blank_text_ascension",
-            display_name = "   ",
-            description = "",
-            stage_ids = new GStringNameArray { "blank_text_ascension_stage" },
-        };
-        SaveFixture(ascensionDef, AscensionPath);
-
-        using AscensionStageDef ascensionStage = new()
-        {
-            stage_id = "blank_text_ascension_stage",
-            ascension_id = "blank_text_ascension",
-            display_name = "   ",
-            description = "",
-        };
-        SaveFixture(ascensionStage, AscensionStagePath);
-
-        using StageAdvancementModifier stageAdvancement = new()
-        {
-            modifier_id = "blank_text_stage_advancement",
-            display_name = "   ",
-            target_axis = "full",
-            stage_offset = 1,
-        };
-        SaveFixture(stageAdvancement, StageAdvancementPath);
-    }
-
-    private void SaveFixture(Resource resource, string path)
-    {
-        _test.Eq(
-            ResourceSaver.Save(resource, path),
-            Error.Ok,
-            $"应能写入必填文本校验 fixture {path}。"
-        );
     }
 
     private void AssertRaceErrors()
     {
-        using TestContentResourceLoader loader = new();
-        using RaceContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.LoadFromDirectory(RaceDirectory);
-        AssertRequiredTextErrors(
-            registry.Validate(),
-            "Race blank_text_race.display_name",
-            "Race blank_text_race.description"
+        RaceJsonDto dto = new()
+        {
+            RaceId = "blank_text_race", DisplayName = "   ", Description = "",
+            AgeProfileId = "probe_age", DefaultSubraceId = "probe_subrace",
+            SubraceIds = new[] { "probe_subrace" }, BodySizeCategory = "medium", BaseSpeed = 6,
+        };
+        using RaceContentRegistry registry = new(
+            new IdentityJsonTestSourceReader(
+                ProfessionIdentityJsonDomains.RaceDomain,
+                IdentityJsonTestDocuments.Entry(dto, ProfessionIdentityJsonSerializerContext.Default.RaceJsonDto)
+            ), false
         );
+        registry.LoadFromDirectory("memory://races");
+        AssertJsonRequiredTextErrors(registry.Validate(), "/display_name", "/description");
     }
 
     private void AssertSubraceErrors()
     {
-        using TestContentResourceLoader loader = new();
-        using SubraceContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.LoadFromDirectory(SubraceDirectory);
-        AssertRequiredTextErrors(
-            registry.Validate(),
-            "Subrace blank_text_subrace.display_name",
-            "Subrace blank_text_subrace.description"
+        SubraceJsonDto dto = new()
+        {
+            SubraceId = "blank_text_subrace", ParentRaceId = "probe_race",
+            DisplayName = "   ", Description = "",
+        };
+        using SubraceContentRegistry registry = new(
+            new IdentityJsonTestSourceReader(
+                ProfessionIdentityJsonDomains.SubraceDomain,
+                IdentityJsonTestDocuments.Entry(dto, ProfessionIdentityJsonSerializerContext.Default.SubraceJsonDto)
+            ), false
         );
+        registry.LoadFromDirectory("memory://subraces");
+        AssertJsonRequiredTextErrors(registry.Validate(), "/display_name", "/description");
     }
 
     private void AssertAgeErrors()
     {
-        using TestContentResourceLoader loader = new();
-        using AgeContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.LoadFromDirectory(AgeDirectory);
-        AssertRequiredTextErrors(
+        AgeProfileJsonDto dto = new()
+        {
+            ProfileId = "blank_text_age", RaceId = "probe_race",
+            StageRules = new[]
+            {
+                new AgeStageRuleJsonDto { StageId = "adult", DisplayName = "   ", Description = "" },
+            },
+        };
+        using AgeContentRegistry registry = new(
+            new IdentityJsonTestSourceReader(
+                ProfessionIdentityJsonDomains.AgeProfileDomain,
+                IdentityJsonTestDocuments.Entry(dto, ProfessionIdentityJsonSerializerContext.Default.AgeProfileJsonDto)
+            ), false
+        );
+        registry.LoadFromDirectory("memory://age_profiles");
+        AssertRegistryRequiredTextErrors(
             registry.Validate(),
             "AgeProfile blank_text_age.stage_rules[0].display_name",
             "AgeProfile blank_text_age.stage_rules[0].description"
@@ -223,110 +80,92 @@ public partial class run_identity_required_text_schema_regression : LifecycleTes
 
     private void AssertBloodlineErrors()
     {
-        using TestContentResourceLoader loader = new();
-        using BloodlineContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.LoadFromDirectory(BloodlineDirectory);
-        AssertRequiredTextErrors(
-            registry.Validate(),
-            "Bloodline blank_text_bloodline.display_name",
-            "Bloodline blank_text_bloodline.description",
-            "BloodlineStage blank_text_bloodline_stage.display_name",
-            "BloodlineStage blank_text_bloodline_stage.description"
+        string root = IdentityJsonTestDocuments.Bloodline(
+            "blank_text_bloodline", "bloodline",
+            new BloodlineJsonDto
+            {
+                BloodlineId = "blank_text_bloodline", DisplayName = "   ", Description = "",
+                StageIds = new[] { "blank_text_bloodline_stage" },
+            }
         );
+        string stage = IdentityJsonTestDocuments.BloodlineStage(
+            "blank_text_bloodline_stage",
+            new BloodlineStageJsonDto
+            {
+                StageId = "blank_text_bloodline_stage", BloodlineId = "blank_text_bloodline",
+                DisplayName = "   ", Description = "",
+            }
+        );
+        using BloodlineContentRegistry registry = new(
+            new IdentityJsonTestSourceReader(ProfessionIdentityJsonDomains.BloodlineDomain, root, stage), false
+        );
+        registry.LoadFromDirectory("memory://bloodlines");
+        AssertJsonRequiredTextErrors(registry.Validate(), "/payload/display_name", "/payload/description");
     }
 
     private void AssertAscensionErrors()
     {
-        using TestContentResourceLoader loader = new();
-        using AscensionContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.LoadFromDirectory(AscensionDirectory);
-        AssertRequiredTextErrors(
-            registry.Validate(),
-            "Ascension blank_text_ascension.display_name",
-            "Ascension blank_text_ascension.description",
-            "AscensionStage blank_text_ascension_stage.display_name",
-            "AscensionStage blank_text_ascension_stage.description"
+        string root = IdentityJsonTestDocuments.Ascension(
+            "blank_text_ascension", "ascension",
+            new AscensionJsonDto
+            {
+                AscensionId = "blank_text_ascension", DisplayName = "   ", Description = "",
+                StageIds = new[] { "blank_text_ascension_stage" },
+            }
         );
+        string stage = IdentityJsonTestDocuments.AscensionStage(
+            "blank_text_ascension_stage",
+            new AscensionStageJsonDto
+            {
+                StageId = "blank_text_ascension_stage", AscensionId = "blank_text_ascension",
+                DisplayName = "   ", Description = "",
+            }
+        );
+        using AscensionContentRegistry registry = new(
+            new IdentityJsonTestSourceReader(ProfessionIdentityJsonDomains.AscensionDomain, root, stage), false
+        );
+        registry.LoadFromDirectory("memory://ascensions");
+        AssertJsonRequiredTextErrors(registry.Validate(), "/payload/display_name", "/payload/description");
     }
 
     private void AssertStageAdvancementErrors()
     {
-        using TestContentResourceLoader loader = new();
+        StageAdvancementJsonDto dto = new()
+        {
+            ModifierId = "blank_text_stage_advancement", DisplayName = "   ",
+            TargetAxis = "full", StageOffset = 1,
+        };
         using StageAdvancementContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
+            new IdentityJsonTestSourceReader(
+                ProfessionIdentityJsonDomains.StageAdvancementDomain,
+                IdentityJsonTestDocuments.Entry(dto, ProfessionIdentityJsonSerializerContext.Default.StageAdvancementJsonDto)
+            ), false
         );
-        registry.LoadFromDirectory(StageAdvancementDirectory);
-        AssertRequiredTextErrors(
-            registry.Validate(),
-            "StageAdvancement blank_text_stage_advancement.display_name"
-        );
+        registry.LoadFromDirectory("memory://stage_advancements");
+        AssertJsonRequiredTextErrors(registry.Validate(), "/display_name");
     }
 
-    private void AssertRequiredTextErrors(
-        GStringArray errors,
-        params string[] expectedFieldLabels
-    )
+    private void AssertJsonRequiredTextErrors(GStringArray errors, params string[] pointers)
     {
-        string formattedErrors = string.Join(" | ", errors);
-        foreach (string fieldLabel in expectedFieldLabels)
+        string formatted = string.Join(" | ", errors);
+        foreach (string pointer in pointers)
         {
             _test.True(
-                formattedErrors.Contains(
-                    $"{fieldLabel} must be a non-empty String."
-                ),
-                $"{fieldLabel} 应拒绝空串或纯空白文本。 errors={formattedErrors}"
+                formatted.Contains(pointer) && formatted.Contains("Value must be a non-empty string."),
+                $"strict JSON required-text validation 应定位 {pointer}。 errors={formatted}"
             );
         }
     }
 
-    private static void CleanupTempContent()
+    private void AssertRegistryRequiredTextErrors(GStringArray errors, params string[] labels)
     {
-        foreach (
-            string filePath in new[]
-            {
-                RacePath,
-                SubracePath,
-                AgePath,
-                BloodlinePath,
-                BloodlineStagePath,
-                AscensionPath,
-                AscensionStagePath,
-                StageAdvancementPath,
-            }
-        )
+        string formatted = string.Join(" | ", errors);
+        foreach (string label in labels)
         {
-            RemoveFile(filePath);
+            _test.True(
+                formatted.Contains($"{label} must be a non-empty String."),
+                $"Definition validation 应拒绝空白文本 {label}。 errors={formatted}"
+            );
         }
-
-        foreach (
-            string directoryPath in new[]
-            {
-                RaceDirectory,
-                SubraceDirectory,
-                AgeDirectory,
-                BloodlineDirectory,
-                AscensionDirectory,
-                StageAdvancementDirectory,
-                TempRoot,
-            }
-        )
-        {
-            RemoveDirectory(directoryPath);
-        }
-    }
-
-    private static void RemoveFile(string path)
-    {
-        string absolutePath = ProjectSettings.GlobalizePath(path);
-        if (FileAccess.FileExists(absolutePath))
-            DirAccess.RemoveAbsolute(absolutePath);
-    }
-
-    private static void RemoveDirectory(string path)
-    {
-        string absolutePath = ProjectSettings.GlobalizePath(path);
-        if (DirAccess.DirExistsAbsolute(absolutePath))
-            DirAccess.RemoveAbsolute(absolutePath);
     }
 }

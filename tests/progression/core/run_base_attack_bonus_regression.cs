@@ -151,7 +151,7 @@ public partial class run_base_attack_bonus_regression : LifecycleTestSceneTree
 
     private void TestAttributeServiceWritesBaseAttackBonusForFullWarrior()
     {
-        ProfessionDef warrior = MakeProfession("warrior", ProfessionBaseAttackProgression.Full);
+        ProfessionDefinition warrior = MakeProfession("warrior", ProfessionBaseAttackProgression.Full);
         UnitProgress progress = MakeProgress("hero");
         progress.SetProfessionProgress(MakeProfessionProgress("warrior", 5, true, false));
 
@@ -161,8 +161,8 @@ public partial class run_base_attack_bonus_regression : LifecycleTestSceneTree
 
     private void TestAttributeServiceExcludesInactiveAndHiddenProfessions()
     {
-        ProfessionDef warrior = MakeProfession("warrior", ProfessionBaseAttackProgression.Full);
-        ProfessionDef mage = MakeProfession("mage", ProfessionBaseAttackProgression.Half);
+        ProfessionDefinition warrior = MakeProfession("warrior", ProfessionBaseAttackProgression.Full);
+        ProfessionDefinition mage = MakeProfession("mage", ProfessionBaseAttackProgression.Half);
 
         UnitProgress inactiveProgress = MakeProgress("inactive_hero");
         inactiveProgress.SetProfessionProgress(MakeProfessionProgress("warrior", 10, false, false));
@@ -187,9 +187,9 @@ public partial class run_base_attack_bonus_regression : LifecycleTestSceneTree
 
     private void TestAttributeServiceMultiClassMatchesStaticCalculation()
     {
-        ProfessionDef warrior = MakeProfession("warrior", ProfessionBaseAttackProgression.Full);
-        ProfessionDef mage = MakeProfession("mage", ProfessionBaseAttackProgression.Half);
-        ProfessionDef priest = MakeProfession("priest", ProfessionBaseAttackProgression.ThreeQuarter);
+        ProfessionDefinition warrior = MakeProfession("warrior", ProfessionBaseAttackProgression.Full);
+        ProfessionDefinition mage = MakeProfession("mage", ProfessionBaseAttackProgression.Half);
+        ProfessionDefinition priest = MakeProfession("priest", ProfessionBaseAttackProgression.ThreeQuarter);
 
         UnitProgress progress = MakeProgress("multi_hero");
         progress.SetProfessionProgress(MakeProfessionProgress("warrior", 3, true, false));
@@ -216,39 +216,45 @@ public partial class run_base_attack_bonus_regression : LifecycleTestSceneTree
         return result;
     }
 
-    private static AttributeSnapshot BuildSnapshot(UnitProgress progress, IEnumerable<ProfessionDef> professionDefs)
+    private static AttributeSnapshot BuildSnapshot(UnitProgress progress, IEnumerable<ProfessionDefinition> professionDefs)
     {
         AttributeService service = new();
-        Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
-        foreach (ProfessionDef professionDef in professionDefs)
+        Dictionary<StringName, ProfessionDefinition> indexedProfessionDefs = new();
+        foreach (ProfessionDefinition professionDef in professionDefs)
         {
-            indexedProfessionDefs[professionDef.profession_id] = professionDef;
+            indexedProfessionDefs[professionDef.ProfessionId] = professionDef;
         }
         service.SetupContext(
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                profession_defs = TestProgressionDefinitionProjection.Professions(
-                    indexedProfessionDefs
-                ),
+                profession_defs = indexedProfessionDefs,
             }
         );
         return service.GetSnapshot();
     }
 
-    private static ProfessionDef MakeProfession(
+    private static ProfessionDefinition MakeProfession(
         StringName professionId,
         ProfessionBaseAttackProgression progression
     )
     {
-        return new ProfessionDef
+        StringName progressionId = progression switch
         {
-            profession_id = professionId,
-            display_name = professionId.ToString(),
-            description = "Fixture profession.",
-            max_rank = 20,
-            BabProgressionKind = progression,
+            ProfessionBaseAttackProgression.Full => "full",
+            ProfessionBaseAttackProgression.ThreeQuarter => "three_quarter",
+            ProfessionBaseAttackProgression.Half => "half",
+            _ => "",
         };
+        return new ProfessionDefinition(
+            professionId, professionId.ToString(), "Fixture profession.", 20, 8,
+            progressionId, true, "", null,
+            System.Array.Empty<ProfessionRankRequirementDefinition>(),
+            System.Array.Empty<ProfessionGrantedSkillDefinition>(),
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<ProfessionActiveConditionDefinition>(),
+            "auto", "count_when_hidden"
+        );
     }
 
     private static UnitProfessionProgress MakeProfessionProgress(

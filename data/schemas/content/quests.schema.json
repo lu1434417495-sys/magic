@@ -1,0 +1,828 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:quests:v1",
+  "title": "Magic quest JSON authoring schema",
+  "description": "Strict closed-kind quest contract projected through a plain import model.",
+  "$ref": "#/$defs/QuestJsonDocumentDto",
+  "$defs": {
+    "QuestAcceptRequirementJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/QuestAcceptRequirementJsonDto__quest_active"
+        },
+        {
+          "$ref": "#/$defs/QuestAcceptRequirementJsonDto__quest_completed"
+        },
+        {
+          "$ref": "#/$defs/QuestAcceptRequirementJsonDto__quest_not_completed"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "quest_active": "#/$defs/QuestAcceptRequirementJsonDto__quest_active",
+          "quest_completed": "#/$defs/QuestAcceptRequirementJsonDto__quest_completed",
+          "quest_not_completed": "#/$defs/QuestAcceptRequirementJsonDto__quest_not_completed"
+        }
+      }
+    },
+    "QuestAcceptRequirementJsonDto__quest_active": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "quest_active"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestRequirementPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestAcceptRequirementJsonDto__quest_completed": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "quest_completed"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestRequirementPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestAcceptRequirementJsonDto__quest_not_completed": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "quest_not_completed"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestRequirementPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestEncounterBindingJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "growth_stage": {
+          "type": "integer"
+        },
+        "profile_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "display_name",
+        "growth_stage",
+        "profile_id"
+      ]
+    },
+    "QuestEnemyObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "encounter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuestEncounterBindingJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "target_value": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "target_id",
+        "target_value"
+      ]
+    },
+    "QuestGoldRewardPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "amount"
+      ]
+    },
+    "QuestItemRewardPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "quantity"
+      ]
+    },
+    "QuestJsonDocumentDto": {
+      "description": "Quest document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "quests"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestJsonDto__authoring_quest_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/QuestJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "QuestJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accept_confirmation_text": {
+          "type": "string"
+        },
+        "accept_dialogue_text": {
+          "type": "string"
+        },
+        "accept_feedback_failure": {
+          "type": "string"
+        },
+        "accept_feedback_success": {
+          "type": "string"
+        },
+        "accept_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestAcceptRequirementJsonDto"
+          }
+        },
+        "danger_tier_override": {
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "failure_policy": {
+          "type": "string"
+        },
+        "is_repeatable": {
+          "type": "boolean"
+        },
+        "listing_channels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listing_settlement_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestObjectiveJsonDto"
+          }
+        },
+        "provider_interaction_id": {
+          "type": "string"
+        },
+        "provider_kind": {
+          "type": "string"
+        },
+        "quest_id": {
+          "type": "string"
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestRewardJsonDto"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "accept_confirmation_text",
+        "accept_dialogue_text",
+        "accept_feedback_failure",
+        "accept_feedback_success",
+        "accept_requirements",
+        "danger_tier_override",
+        "description",
+        "display_name",
+        "failure_policy",
+        "is_repeatable",
+        "listing_channels",
+        "listing_settlement_ids",
+        "objectives",
+        "provider_interaction_id",
+        "provider_kind",
+        "quest_id",
+        "rewards",
+        "tags"
+      ]
+    },
+    "QuestJsonDto__authoring_quest_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/QuestJsonDto"
+        },
+        {
+          "$ref": "#/$defs/QuestJsonDto__templated_quest_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "QuestJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accept_confirmation_text": {
+          "type": "string"
+        },
+        "accept_dialogue_text": {
+          "type": "string"
+        },
+        "accept_feedback_failure": {
+          "type": "string"
+        },
+        "accept_feedback_success": {
+          "type": "string"
+        },
+        "accept_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestAcceptRequirementJsonDto"
+          }
+        },
+        "danger_tier_override": {
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "failure_policy": {
+          "type": "string"
+        },
+        "is_repeatable": {
+          "type": "boolean"
+        },
+        "listing_channels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listing_settlement_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestObjectiveJsonDto"
+          }
+        },
+        "provider_interaction_id": {
+          "type": "string"
+        },
+        "provider_kind": {
+          "type": "string"
+        },
+        "quest_id": {
+          "type": "string"
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestRewardJsonDto"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "QuestJsonDto__templated_quest_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accept_confirmation_text": {
+          "type": "string"
+        },
+        "accept_dialogue_text": {
+          "type": "string"
+        },
+        "accept_feedback_failure": {
+          "type": "string"
+        },
+        "accept_feedback_success": {
+          "type": "string"
+        },
+        "accept_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestAcceptRequirementJsonDto"
+          }
+        },
+        "danger_tier_override": {
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "failure_policy": {
+          "type": "string"
+        },
+        "is_repeatable": {
+          "type": "boolean"
+        },
+        "listing_channels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listing_settlement_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestObjectiveJsonDto"
+          }
+        },
+        "provider_interaction_id": {
+          "type": "string"
+        },
+        "provider_kind": {
+          "type": "string"
+        },
+        "quest_id": {
+          "type": "string"
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestRewardJsonDto"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "quest_id",
+        "template"
+      ]
+    },
+    "QuestObjectiveJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/QuestObjectiveJsonDto__defeat_enemy"
+        },
+        {
+          "$ref": "#/$defs/QuestObjectiveJsonDto__defeat_enemy_in_single_battle"
+        },
+        {
+          "$ref": "#/$defs/QuestObjectiveJsonDto__settlement_action"
+        },
+        {
+          "$ref": "#/$defs/QuestObjectiveJsonDto__submit_item"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "defeat_enemy": "#/$defs/QuestObjectiveJsonDto__defeat_enemy",
+          "defeat_enemy_in_single_battle": "#/$defs/QuestObjectiveJsonDto__defeat_enemy_in_single_battle",
+          "settlement_action": "#/$defs/QuestObjectiveJsonDto__settlement_action",
+          "submit_item": "#/$defs/QuestObjectiveJsonDto__submit_item"
+        }
+      }
+    },
+    "QuestObjectiveJsonDto__defeat_enemy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "defeat_enemy"
+        },
+        "objective_id": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestEnemyObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "objective_id",
+        "payload"
+      ]
+    },
+    "QuestObjectiveJsonDto__defeat_enemy_in_single_battle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "defeat_enemy_in_single_battle"
+        },
+        "objective_id": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestEnemyObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "objective_id",
+        "payload"
+      ]
+    },
+    "QuestObjectiveJsonDto__settlement_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "settlement_action"
+        },
+        "objective_id": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestTargetObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "objective_id",
+        "payload"
+      ]
+    },
+    "QuestObjectiveJsonDto__submit_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "submit_item"
+        },
+        "objective_id": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestTargetObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "objective_id",
+        "payload"
+      ]
+    },
+    "QuestPendingCharacterRewardPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestPendingRewardJsonDto"
+          }
+        },
+        "member_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entries",
+        "member_id"
+      ]
+    },
+    "QuestPendingRewardJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/QuestPendingRewardJsonDto__attribute_delta"
+        },
+        {
+          "$ref": "#/$defs/QuestPendingRewardJsonDto__attribute_progress"
+        },
+        {
+          "$ref": "#/$defs/QuestPendingRewardJsonDto__knowledge_unlock"
+        },
+        {
+          "$ref": "#/$defs/QuestPendingRewardJsonDto__skill_mastery"
+        },
+        {
+          "$ref": "#/$defs/QuestPendingRewardJsonDto__skill_unlock"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "attribute_delta": "#/$defs/QuestPendingRewardJsonDto__attribute_delta",
+          "attribute_progress": "#/$defs/QuestPendingRewardJsonDto__attribute_progress",
+          "knowledge_unlock": "#/$defs/QuestPendingRewardJsonDto__knowledge_unlock",
+          "skill_mastery": "#/$defs/QuestPendingRewardJsonDto__skill_mastery",
+          "skill_unlock": "#/$defs/QuestPendingRewardJsonDto__skill_unlock"
+        }
+      }
+    },
+    "QuestPendingRewardJsonDto__attribute_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "attribute_delta"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestPendingRewardValuePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestPendingRewardJsonDto__attribute_progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "attribute_progress"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestPendingRewardValuePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestPendingRewardJsonDto__knowledge_unlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "knowledge_unlock"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestPendingRewardValuePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestPendingRewardJsonDto__skill_mastery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "skill_mastery"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestPendingRewardValuePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestPendingRewardJsonDto__skill_unlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "skill_unlock"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestPendingRewardValuePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestPendingRewardValuePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "integer"
+        },
+        "target_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "target_id"
+      ]
+    },
+    "QuestRequirementPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "quest_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "quest_id"
+      ]
+    },
+    "QuestRewardJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/QuestRewardJsonDto__gold"
+        },
+        {
+          "$ref": "#/$defs/QuestRewardJsonDto__item"
+        },
+        {
+          "$ref": "#/$defs/QuestRewardJsonDto__pending_character_reward"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "gold": "#/$defs/QuestRewardJsonDto__gold",
+          "item": "#/$defs/QuestRewardJsonDto__item",
+          "pending_character_reward": "#/$defs/QuestRewardJsonDto__pending_character_reward"
+        }
+      }
+    },
+    "QuestRewardJsonDto__gold": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "gold"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestGoldRewardPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestRewardJsonDto__item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "item"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestItemRewardPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestRewardJsonDto__pending_character_reward": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pending_character_reward"
+        },
+        "payload": {
+          "$ref": "#/$defs/QuestPendingCharacterRewardPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "QuestTargetObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_id": {
+          "type": "string"
+        },
+        "target_value": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "target_id",
+        "target_value"
+      ]
+    }
+  }
+}

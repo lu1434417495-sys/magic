@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "ashen_forbidden_pages",
+      "display_name": "禁书残页",
+      "description": "书库里的禁书被水泡烂了，但有些文字还在。用月蕨吸收水分，也许能读出被禁止的知识。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "ashen_intersection",
+        "library"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "gather_moonfern",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "moonfern_sample",
+            "target_value": 3
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 350
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "hero",
+            "entries": [
+              {
+                "kind": "skill_unlock",
+                "payload": {
+                  "target_id": "mage_dispel_magic",
+                  "amount": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

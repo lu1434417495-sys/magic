@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "tutorial_gather_herbs",
+      "display_name": "采集药材",
+      "description": "村里的药草不够了。去野外采集一些 healing_herb，医师会教你如何处理伤口。",
+      "provider_kind": "npc",
+      "provider_interaction_id": "npc_village_healer",
+      "listing_channels": [
+        "npc_offer"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "tutorial",
+        "main_story"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "带三份 healing_herb 回来，我会教你怎么处理伤口。",
+      "accept_feedback_success": "村医请你采集三份药草。",
+      "accept_feedback_failure": "村医现在没有新的采集委托。",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "gather_herbs",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "healing_herb",
+            "target_value": 3
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 30
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "bandage_roll",
+            "quantity": 2
+          }
+        }
+      ]
+    }
+  ]
+}

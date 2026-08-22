@@ -133,14 +133,13 @@ public partial class run_promotion_selection_typed_regression : LifecycleTestSce
             displayName: "Slash",
             maxLevel: 1
         );
-        ProfessionDef profession = new()
-        {
-            profession_id = "warrior",
-            display_name = "Warrior",
-            is_initial_profession = true,
-            max_rank = 1,
-            hit_die_sides = 1,
-        };
+        ProfessionDefinition profession = new(
+            "warrior", "Warrior", "Fixture profession.", 1, 1, "full", true, "", null,
+            System.Array.Empty<ProfessionRankRequirementDefinition>(),
+            System.Array.Empty<ProfessionGrantedSkillDefinition>(),
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<ProfessionActiveConditionDefinition>(), "auto", "count_when_hidden"
+        );
         ProgressionService service = new();
         service.SetupDefinitions(
             progress,
@@ -150,20 +149,19 @@ public partial class run_promotion_selection_typed_regression : LifecycleTestSce
             },
             new System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>
             {
-                [profession.profession_id] =
-                    TestProgressionDefinitionProjection.Profession(profession),
+                [profession.ProfessionId] = profession,
             }
         );
 
         int previousHpMax = progress.unit_base_attributes.GetAttributeValue("hp_max");
         bool promoted = service.PromoteProfession(
-            profession.profession_id,
+            profession.ProfessionId,
             new PromotionSelectionData(triggerSkillIds: new object[] { triggerSkillId })
         );
 
         _test.True(promoted, "typed promotion selection 应允许有效转职晋升。");
         _test.Eq(
-            progress.GetProfessionProgress(profession.profession_id)?.rank ?? 0,
+            progress.GetProfessionProgress(profession.ProfessionId)?.rank ?? 0,
             1,
             "typed promotion selection 应写入职业 rank。"
         );

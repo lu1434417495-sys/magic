@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_contingency_content_validator_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
     private const int SaveCompressionMode = (int)FileAccess.CompressionMode.Zstd;
 
     private readonly TestHarness _test = new();
@@ -698,7 +698,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
     {
         return gameSession._save_serializer.BuildSavePayloadLease(
             gameSession.GetActiveSaveId(),
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId(),
             gameSession.CaptureActiveSaveMetaPlain(),
             gameSession.CaptureWorldDataPlain(),
             gameSession.GetPlayerCoord(),

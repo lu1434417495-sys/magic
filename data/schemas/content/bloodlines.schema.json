@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:bloodlines:v1",
+  "title": "Magic bloodlines JSON authoring schema",
+  "description": "Strict bloodlines contract. Cross-domain relations are content IDs.",
+  "$ref": "#/$defs/BloodlineJsonDocumentDto",
+  "$defs": {
+    "BloodlineEntryJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BloodlineEntryJsonDto__bloodline"
+        },
+        {
+          "$ref": "#/$defs/BloodlineEntryJsonDto__stage"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "bloodline": "#/$defs/BloodlineEntryJsonDto__bloodline",
+          "stage": "#/$defs/BloodlineEntryJsonDto__stage"
+        }
+      }
+    },
+    "BloodlineEntryJsonDto__authoring_entry_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BloodlineEntryJsonDto"
+        },
+        {
+          "$ref": "#/$defs/BloodlineEntryJsonDto__templated_entry_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "BloodlineEntryJsonDto__bloodline": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "bloodline"
+        },
+        "payload": {
+          "$ref": "#/$defs/BloodlineJsonDto"
+        }
+      },
+      "required": [
+        "entry_id",
+        "kind",
+        "payload"
+      ]
+    },
+    "BloodlineEntryJsonDto__stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "stage"
+        },
+        "payload": {
+          "$ref": "#/$defs/BloodlineStageJsonDto"
+        }
+      },
+      "required": [
+        "entry_id",
+        "kind",
+        "payload"
+      ]
+    },
+    "BloodlineEntryJsonDto__templated_entry_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/Object__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "entry_id",
+        "template"
+      ]
+    },
+    "BloodlineJsonDocumentDto": {
+      "description": "Bloodline and bloodline-stage JSON document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "bloodlines"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BloodlineEntryJsonDto__authoring_entry_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BloodlineEntryJsonDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "BloodlineJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "bloodline_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "racial_granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RacialGrantedSkillJsonDto"
+          }
+        },
+        "stage_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "attribute_modifiers",
+        "bloodline_id",
+        "description",
+        "display_name",
+        "racial_granted_skills",
+        "stage_ids",
+        "trait_ids",
+        "trait_summary"
+      ]
+    },
+    "BloodlineStageJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "bloodline_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "racial_granted_skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RacialGrantedSkillJsonDto"
+          }
+        },
+        "stage_id": {
+          "type": "string"
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "attribute_modifiers",
+        "bloodline_id",
+        "description",
+        "display_name",
+        "racial_granted_skills",
+        "stage_id",
+        "trait_ids",
+        "trait_summary"
+      ]
+    },
+    "IdentityAttributeModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "mode",
+        "source_id",
+        "source_type",
+        "value",
+        "value_per_rank"
+      ]
+    },
+    "Object__partial": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {}
+    },
+    "RacialGrantedSkillJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "charge_kind": {
+          "type": "string"
+        },
+        "charges": {
+          "type": "integer"
+        },
+        "minimum_skill_level": {
+          "type": "integer"
+        },
+        "skill_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "charge_kind",
+        "charges",
+        "minimum_skill_level",
+        "skill_id"
+      ]
+    }
+  }
+}
