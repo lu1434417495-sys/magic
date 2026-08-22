@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
@@ -26,8 +26,6 @@ public partial class BattleCellState
         "terrain_effect_ids",
         "timed_terrain_effects",
         "flow_direction",
-        "edge_feature_east",
-        "edge_feature_south",
     };
 
     public Vector2I coord { get; internal set; } = Vector2I.Zero;
@@ -43,8 +41,6 @@ public partial class BattleCellState
     public List<StringName> terrain_effect_ids = new();
     public List<BattleTerrainEffectState> timed_terrain_effects = new();
     public Vector2I flow_direction = Vector2I.Zero;
-    public BattleEdgeFeatureState edge_feature_east;
-    public BattleEdgeFeatureState edge_feature_south;
 
     public void SetCoord(Vector2I value)
     {
@@ -111,41 +107,6 @@ public partial class BattleCellState
         RecalculateRuntimeValues();
     }
 
-    public BattleEdgeFeatureState GetEdgeFeature(Vector2I direction)
-    {
-        if (direction == Vector2I.Right)
-        {
-            return edge_feature_east;
-        }
-        if (direction == Vector2I.Down)
-        {
-            return edge_feature_south;
-        }
-        return null;
-    }
-
-    public void SetEdgeFeature(Vector2I direction, BattleEdgeFeatureState feature_state)
-    {
-        BattleEdgeFeatureState normalizedFeature = NormalizeEdgeFeature(feature_state);
-        if (direction == Vector2I.Right)
-        {
-            ReplaceEdgeFeature(ref edge_feature_east, normalizedFeature);
-        }
-        else if (direction == Vector2I.Down)
-        {
-            ReplaceEdgeFeature(ref edge_feature_south, normalizedFeature);
-        }
-        else
-        {
-            return;
-        }
-    }
-
-    public void ClearEdgeFeature(Vector2I direction)
-    {
-        SetEdgeFeature(direction, null);
-    }
-
     public BattleCellState DuplicateCell()
     {
         return new BattleCellState
@@ -163,8 +124,6 @@ public partial class BattleCellState
             terrain_effect_ids = DuplicateStringNameList(terrain_effect_ids),
             timed_terrain_effects = BattleTerrainEffectState.DuplicateList(timed_terrain_effects),
             flow_direction = flow_direction,
-            edge_feature_east = NormalizeEdgeFeature(edge_feature_east),
-            edge_feature_south = NormalizeEdgeFeature(edge_feature_south),
         };
     }
 
@@ -190,8 +149,6 @@ public partial class BattleCellState
                     timed_terrain_effects
                 ),
             flow_direction = flow_direction,
-            edge_feature_east = edge_feature_east?.DuplicateFeature(),
-            edge_feature_south = edge_feature_south?.DuplicateFeature(),
         };
     }
 
@@ -230,8 +187,6 @@ public partial class BattleCellState
             ["terrain_effect_ids"] = terrainEffectIds,
             ["timed_terrain_effects"] = timedTerrainEffects,
             ["flow_direction"] = flow_direction,
-            ["edge_feature_east"] = BuildEdgeFeatureSnapshotPlain(edge_feature_east),
-            ["edge_feature_south"] = BuildEdgeFeatureSnapshotPlain(edge_feature_south),
         };
     }
 
@@ -332,31 +287,6 @@ public partial class BattleCellState
         {
             return null;
         }
-        if (!TryGetExactValue(payload, "edge_feature_east", out object eastFeatureValue)
-            || !TryAsDictionary(eastFeatureValue, out GDictionary eastFeaturePayload))
-        {
-            return null;
-        }
-        if (!TryGetExactValue(payload, "edge_feature_south", out object southFeatureValue)
-            || !TryAsDictionary(southFeatureValue, out GDictionary southFeaturePayload))
-        {
-            return null;
-        }
-        BattleEdgeFeatureState eastFeature = BattleEdgeFeatureState.FromDictionary(
-            eastFeaturePayload
-        );
-        if (eastFeature == null)
-        {
-            return null;
-        }
-        BattleEdgeFeatureState southFeature = BattleEdgeFeatureState.FromDictionary(
-            southFeaturePayload
-        );
-        if (southFeature == null)
-        {
-            return null;
-        }
-
         var cellState = new BattleCellState
         {
             coord = coord,
@@ -372,8 +302,6 @@ public partial class BattleCellState
             terrain_effect_ids = parsedTerrainEffectIds,
             timed_terrain_effects = parsedTimedTerrainEffects,
             flow_direction = flowDirection,
-            edge_feature_east = eastFeature,
-            edge_feature_south = southFeature,
         };
         cellState.RecalculateRuntimeValues();
         return cellState;
@@ -545,10 +473,6 @@ public partial class BattleCellState
         }
         return payload;
     }
-
-    private static IReadOnlyDictionary<string, object> BuildEdgeFeatureSnapshotPlain(
-        BattleEdgeFeatureState featureState
-    ) => (featureState ?? BattleEdgeFeatureState.MakeNone()).BuildSnapshotPlain();
 
     internal static List<BattleCellState> ParseColumnPayload(object rawColumn)
     {
@@ -790,23 +714,6 @@ public partial class BattleCellState
         return false;
     }
 
-    private static BattleEdgeFeatureState NormalizeEdgeFeature(BattleEdgeFeatureState featureState)
-    {
-        if (featureState == null)
-        {
-            return BattleEdgeFeatureState.MakeNone();
-        }
-        return featureState.DuplicateFeature();
-    }
-
-    private static void ReplaceEdgeFeature(
-        ref BattleEdgeFeatureState slot,
-        BattleEdgeFeatureState replacement
-    )
-    {
-        slot = replacement;
-    }
-
     internal static void DisposeRuntimeGraph(BattleCellState cell)
     {
         if (cell == null)
@@ -818,9 +725,6 @@ public partial class BattleCellState
         }
         cell.prop_ids?.Clear();
         cell.terrain_effect_ids?.Clear();
-
-        cell.edge_feature_east = null;
-        cell.edge_feature_south = null;
     }
 
     private static List<StringName> DuplicateStringNameList(IEnumerable<StringName> values)

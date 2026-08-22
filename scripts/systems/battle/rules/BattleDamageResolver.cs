@@ -549,6 +549,13 @@ public partial class BattleDamageResolver : IDisposable
                 .WithSourceSkillLevel(
                     Math.Max(skillLevel, 1)
                 )
+                .WithDamageOriginKind(
+                    BattleDamageOriginContentRules.ResolveProducerOrigin(
+                        BattleDamageOriginKind.MainDirectEffect,
+                        sourceUnit,
+                        targetUnit
+                    )
+                )
         );
     }
 
@@ -684,7 +691,15 @@ public partial class BattleDamageResolver : IDisposable
         DamageResolutionContext attackEffectContext =
             DamageResolutionContext
                 .FromDictionary(BuildAttackEffectContext(attackMetadata))
-                .WithBattleState(normalizedAttackContext.BattleState);
+                .WithBattleState(normalizedAttackContext.BattleState)
+                .WithAttackCheck()
+                .WithDamageOriginKind(
+                    BattleDamageOriginContentRules.ResolveProducerOrigin(
+                        normalizedAttackContext.DamageOriginKind,
+                        source_unit,
+                        target_unit
+                    )
+                );
 
         AttackEffectResolutionResult resolvedResult = ApplyAttackMetadataResult(
             ResolveEffectsDefinitionCore(
@@ -703,6 +718,15 @@ public partial class BattleDamageResolver : IDisposable
             GrantWeaponTypeComboStackOnHit(source_unit);
         }
         resolvedResult.AttackCheck = attack_check;
+        // §8.6/§11：successful-attack-hit reactions 在 shield/HP commit 之后、
+        // kill/nested reactions 之前触发，每目标一次且不要求 weapon damage。
+        resolvedResult = ApplyEquipmentAbilityAttackHitResult(
+            source_unit,
+            target_unit,
+            attackMetadata,
+            normalizedAttackContext,
+            resolvedResult
+        );
         resolvedResult = ApplyEquipmentAbilityAfterHitResult(
             source_unit,
             target_unit,
@@ -830,6 +854,71 @@ public partial class BattleDamageResolver : IDisposable
             }
         }
         return false;
+    }
+
+    // §8.6：通用 attack-hit reaction。只要求真实攻击检定成功，不要求 weapon damage；
+    // 旧 on_hit 的 weapon-damage gate 保持不变。
+    private AttackEffectResolutionResult ApplyEquipmentAbilityAttackHitResult(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        AttackResolutionMetadata attackMetadata,
+        AttackContext attackContext,
+        AttackEffectResolutionResult result
+    )
+    {
+        IBattleEquipmentCombatReactionSink equipmentAbilityReactions =
+            _equipment_ability_reaction_sink;
+        if (
+            equipmentAbilityReactions == null
+            || sourceUnit == null
+            || targetUnit == null
+            || attackMetadata.AttackSuccess != true
+        )
+        {
+            return result;
+        }
+
+        BattleEquipmentAbilityAfterHitResult attackHitResult =
+            equipmentAbilityReactions.ResolveAttackHit(
+                new BattleEquipmentAbilityAfterHitContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = attackContext?.BattleState,
+                    AttackSucceeded = true,
+                    CriticalHit = attackMetadata.CriticalHit,
+                    ApplyDamageDiceActions = false,
+                    WeaponHpDamage = ComputeWeaponHpDamage(result),
+                    Batch = attackContext?.EventBatch,
+                    SaveContext = BuildAfterHitSaveContext(attackMetadata, attackContext),
+                    SkillId = attackMetadata.SkillId,
+                    DamageOriginKind =
+                        attackContext?.DamageOriginKind
+                        ?? BattleDamageOriginKind.Unknown,
+                }
+            );
+        if (attackHitResult?.Resolved != true)
+            return result;
+
+        AttackEffectResolutionResult mergedResult =
+            AttackEffectResolutionResultReader.FinalizeTypedResult(result);
+        mergedResult.EquipmentDurabilityEvents = MergeEquipmentDurabilityEvents(
+            mergedResult.EquipmentDurabilityEvents,
+            attackHitResult.DurabilityResults
+        );
+        MergeAfterHitStatusResults(
+            mergedResult.StatusEffectIds,
+            mergedResult.SourceStatusEffectIds,
+            sourceUnit,
+            targetUnit,
+            attackHitResult.StatusResults
+        );
+        mergedResult = MergeTriggeredSkillResults(
+            mergedResult,
+            targetUnit,
+            attackHitResult.TriggeredSkillResults
+        );
+        return mergedResult;
     }
 
     private AttackEffectResolutionResult ApplyEquipmentAbilityAfterHitResult(
@@ -1396,9 +1485,12 @@ public partial class BattleDamageResolver : IDisposable
         bool blackStarWedgeTriggered = false;
         int executeStage = -1;
         StringName executeOutcome = "";
+        int sourceEffectOrdinal = 0;
 
         foreach (CombatEffectDefinition effectDefinition in effect_definitions ?? Array.Empty<CombatEffectDefinition>())
         {
+            int currentEffectOrdinal = sourceEffectOrdinal;
+            sourceEffectOrdinal++;
             if (effectDefinition == null || !DoesEffectTrigger(effectDefinition, contextFlags))
             {
                 continue;
@@ -1416,7 +1508,8 @@ public partial class BattleDamageResolver : IDisposable
                     target_unit,
                     effectDefinition,
                     contextFlags,
-                    out IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> extraEquipmentBonusRolls
+                    out IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> extraEquipmentBonusRolls,
+                    currentEffectOrdinal
                 );
                 if (damageOutcome.InvalidDamageTag)
                 {
@@ -1925,7 +2018,8 @@ public partial class BattleDamageResolver : IDisposable
         AppliedDamageResult damageResult = ApplyDamageToTargetResult(
             targetUnit,
             damagePerLayer * fallLayers,
-            battleState: battleState
+            battleState: battleState,
+            damageOriginKind: BattleDamageOriginKind.Terrain
         );
         targetUnit.SetCurrentHp(targetUnit.GetCurrentHp());
         return BuildEnvironmentalDamageResult(damageResult);
@@ -1935,7 +2029,8 @@ public partial class BattleDamageResolver : IDisposable
         BattleUnitState targetUnit,
         int rawDamage,
         BattleUnitState sourceUnit = null,
-        BattleState battleState = null
+        BattleState battleState = null,
+        BattleDamageOriginKind damageOriginKind = BattleDamageOriginKind.Unknown
     )
     {
         int normalizedDamage = Math.Max(rawDamage, 0);
@@ -1970,7 +2065,10 @@ public partial class BattleDamageResolver : IDisposable
                 shieldAbsorptionPercent: 100.0
             ),
             sourceUnit,
-            DamageResolutionContext.Empty().WithBattleState(battleState)
+            DamageResolutionContext
+                .Empty()
+                .WithBattleState(battleState)
+                .WithDamageOriginKind(damageOriginKind)
         );
     }
 
@@ -1978,14 +2076,16 @@ public partial class BattleDamageResolver : IDisposable
         BattleUnitState targetUnit,
         int rawDamage,
         BattleUnitState sourceUnit = null,
-        BattleState battleState = null
+        BattleState battleState = null,
+        BattleDamageOriginKind damageOriginKind = BattleDamageOriginKind.Unknown
     )
     {
         return ApplyDamageToTargetResult(
             targetUnit,
             rawDamage,
             sourceUnit,
-            battleState
+            battleState,
+            damageOriginKind
         ).Damage;
     }
 
@@ -1994,7 +2094,8 @@ public partial class BattleDamageResolver : IDisposable
         int rawDamage,
         StringName damageTag,
         BattleUnitState sourceUnit = null,
-        BattleState battleState = null
+        BattleState battleState = null,
+        BattleDamageOriginKind damageOriginKind = BattleDamageOriginKind.Unknown
     )
     {
         int normalizedDamage = Math.Max(rawDamage, 0);
@@ -2008,10 +2109,16 @@ public partial class BattleDamageResolver : IDisposable
             return 0;
         }
 
+        DamageResolutionContext directDamageContext = DamageResolutionContext
+            .Empty()
+            .WithBattleState(battleState)
+            .WithDamageOriginKind(damageOriginKind);
         MitigationTierResolution mitigation = ResolveMitigationTierResult(
             targetUnit,
             normalizedDamageTag,
-            battleState: battleState
+            battleState: battleState,
+            sourceUnit: sourceUnit,
+            damageContext: directDamageContext
         );
         int resolvedDamage = normalizedDamage;
         if (mitigation.Tier == MitigationTierImmune)
@@ -2056,7 +2163,7 @@ public partial class BattleDamageResolver : IDisposable
                 shieldAbsorptionPercent: 100.0
             ),
             sourceUnit,
-            DamageResolutionContext.Empty().WithBattleState(battleState)
+            directDamageContext
         ).Damage;
     }
 
@@ -2064,14 +2171,18 @@ public partial class BattleDamageResolver : IDisposable
         BattleUnitState targetUnit,
         GDictionary resolvedDamageInput,
         BattleUnitState sourceUnit = null,
-        BattleState battleState = null
+        BattleState battleState = null,
+        BattleDamageOriginKind damageOriginKind = BattleDamageOriginKind.Unknown
     )
     {
         return ApplyDamageToTargetResult(
             targetUnit,
             DamageApplicationInput.FromDictionary(resolvedDamageInput),
             sourceUnit,
-            DamageResolutionContext.Empty().WithBattleState(battleState)
+            DamageResolutionContext
+                .Empty()
+                .WithBattleState(battleState)
+                .WithDamageOriginKind(damageOriginKind)
         ).Damage;
     }
 
@@ -2636,7 +2747,7 @@ public partial class BattleDamageResolver : IDisposable
                 damageEvent,
                 rawDamage,
                 hpBefore,
-                Math.Max(hpBefore - Math.Max(branch.TargetUnit.GetCurrentHp(), 0), 0),
+                branchHpDamage,
                 localActions.Add,
                 branchLocalProjection: true
             );

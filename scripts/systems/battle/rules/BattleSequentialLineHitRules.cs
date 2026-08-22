@@ -117,10 +117,10 @@ internal static class BattleSequentialLineHitRules
         for (int step = 1; step <= primaryDistance; step++)
         {
             Vector2I nextCoord = currentCoord + direction;
-            if (!CanProjectileCross(state, gridService, barrierService, sourceUnit, currentCoord, nextCoord))
+            if (!CanProjectileCross(state, gridService, barrierService, currentCoord, nextCoord))
             {
                 return BattleSequentialLineHitPlan.Denied(
-                    "通往首个目标的直线路径被墙体、阻挡视线的边或屏障截断。",
+                    "通往首个目标的直线路径被战场边界或屏障截断。",
                     pathCoords
                 );
             }
@@ -148,7 +148,6 @@ internal static class BattleSequentialLineHitRules
                 state,
                 gridService,
                 barrierService,
-                sourceUnit,
                 primaryTarget,
                 currentCoord,
                 direction,
@@ -174,9 +173,9 @@ internal static class BattleSequentialLineHitRules
             for (int distance = 1; distance <= continuationRange; distance++)
             {
                 Vector2I nextCoord = currentCoord + direction;
-                if (!CanProjectileCross(state, gridService, barrierService, sourceUnit, currentCoord, nextCoord))
+                if (!CanProjectileCross(state, gridService, barrierService, currentCoord, nextCoord))
                 {
-                    stopMessage = "后续路径被战场边界、墙体、阻挡视线的边或屏障截断。";
+                    stopMessage = "后续路径被战场边界或屏障截断。";
                     return Allowed(direction, pathCoords, targets, stopMessage);
                 }
                 pathCoords.Add(nextCoord);
@@ -206,7 +205,6 @@ internal static class BattleSequentialLineHitRules
                     state,
                     gridService,
                     barrierService,
-                    sourceUnit,
                     occupant,
                     currentCoord,
                     direction,
@@ -232,7 +230,6 @@ internal static class BattleSequentialLineHitRules
         BattleState state,
         BattleGridService gridService,
         BattleLayeredBarrierService barrierService,
-        BattleUnitState sourceUnit,
         BattleUnitState hitUnit,
         Vector2I currentCoord,
         Vector2I direction,
@@ -247,7 +244,7 @@ internal static class BattleSequentialLineHitRules
             BattleUnitState nextOccupant = gridService.GetUnitAtCoord(state, nextCoord);
             if (nextOccupant?.unit_id != hitUnit.unit_id)
                 return currentCoord;
-            if (!CanProjectileCross(state, gridService, barrierService, sourceUnit, currentCoord, nextCoord))
+            if (!CanProjectileCross(state, gridService, barrierService, currentCoord, nextCoord))
                 return currentCoord;
             pathCoords.Add(nextCoord);
             currentCoord = nextCoord;
@@ -258,16 +255,13 @@ internal static class BattleSequentialLineHitRules
         BattleState state,
         BattleGridService gridService,
         BattleLayeredBarrierService barrierService,
-        BattleUnitState sourceUnit,
         Vector2I fromCoord,
         Vector2I toCoord
     )
     {
         if (!gridService.IsInside(state, toCoord))
             return false;
-        BattleEdgeFaceState edge = gridService.GetEdgeFace(state, fromCoord, toCoord);
-        return edge?.feature_blocks_los != true
-            && barrierService?.HasActiveBarrierBoundaryBetween(fromCoord, toCoord) != true;
+        return barrierService?.HasActiveBarrierBoundaryBetween(fromCoord, toCoord) != true;
     }
 
     private static bool TryResolveDirection(

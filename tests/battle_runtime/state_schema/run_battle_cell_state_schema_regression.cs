@@ -15,7 +15,7 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
 
     private void Run()
     {
-        TestValidRoundTripWithEdgeWallAndTimedEffect();
+        TestValidRoundTripWithTimedEffect();
         TestRejectsMissingField();
         TestRejectsExtraField();
         TestRejectsWrongType();
@@ -23,13 +23,11 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
         TestRejectsNonArrayIds();
         TestRejectsEmptyIdEntry();
         TestRejectsBadTimedTerrainEffectEntry();
-        TestRejectsBadEdgeFeatureEntry();
-        TestNullEdgeFeatureSerializesAsCurrentNonePayload();
         TestAllowsEmptyOccupantUnitId();
         RequestTestExit(_test.Finish("Battle cell state schema regression"));
     }
 
-    private void TestValidRoundTripWithEdgeWallAndTimedEffect()
+    private void TestValidRoundTripWithTimedEffect()
     {
         BattleCellState source = BuildValidCell();
         using GodotProjectionLease<GDictionary> payloadLease = source.ToDictionaryLease(
@@ -82,25 +80,14 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
                 "roundtrip 应保留 contact damage 类型。"
             );
         }
-        _test.Eq(
-            restored.edge_feature_east.feature_kind,
-            BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.Wall),
-            "roundtrip 应恢复 east wall。"
-        );
-        _test.Eq(
-            restored.edge_feature_south.feature_kind,
-            BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.None),
-            "roundtrip 应恢复 south none edge。"
-        );
-
         BattleCellState duplicate = restored.DuplicateCell();
         _test.True(duplicate != null, "duplicate_cell 应继续可用。");
         if (duplicate != null)
         {
             _test.Eq(
-                duplicate.edge_feature_east.feature_kind,
-                BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.Wall),
-                "duplicate_cell 应复制 edge feature。"
+                duplicate.occupant_unit_id,
+                source.occupant_unit_id,
+                "duplicate_cell 应复制 occupant_unit_id。"
             );
         }
 
@@ -222,48 +209,6 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 timed_terrain_effects 坏 entry。");
     }
 
-    private void TestRejectsBadEdgeFeatureEntry()
-    {
-        using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
-        GDictionary payload = payloadLease.Value;
-        payload["edge_feature_east"] = "bad_edge_entry";
-        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 edge feature 坏 entry。");
-    }
-
-    private void TestNullEdgeFeatureSerializesAsCurrentNonePayload()
-    {
-        BattleCellState cell = BuildValidCell();
-        cell.edge_feature_east = null;
-        using GodotProjectionLease<GDictionary> payloadLease = cell.ToDictionaryLease(
-            LifetimeDomain.Request,
-            "run_battle_cell_state_schema_regression.null_edge"
-        );
-        GDictionary payload = payloadLease.Value;
-        Variant edgePayload = payload["edge_feature_east"];
-        _test.True(
-            edgePayload.VariantType == Variant.Type.Dictionary,
-            "null edge feature 的 to_dict 仍应输出当前 none edge Dictionary。"
-        );
-        if (edgePayload.VariantType == Variant.Type.Dictionary)
-        {
-            _test.True(
-                edgePayload.AsGodotDictionary().ContainsKey("feature_kind"),
-                "none edge payload 应包含正式字段。"
-            );
-        }
-
-        BattleCellState restored = BattleCellState.FromDictionary(payload);
-        _test.True(restored != null, "null edge feature 的 canonical to_dict payload 应能被 strict from_dict 恢复。");
-        if (restored != null)
-        {
-            _test.Eq(
-                restored.edge_feature_east.feature_kind,
-                BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.None),
-                "null edge feature 应恢复为 none。"
-            );
-        }
-    }
-
     private void TestAllowsEmptyOccupantUnitId()
     {
         using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
@@ -300,8 +245,6 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
             BuildTimedEffect(),
         };
         cell.flow_direction = Vector2I.Right;
-        cell.edge_feature_east = BattleEdgeFeatureState.MakeWall();
-        cell.edge_feature_south = BattleEdgeFeatureState.MakeNone();
         return cell;
     }
 

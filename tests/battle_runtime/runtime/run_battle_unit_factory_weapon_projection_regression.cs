@@ -938,6 +938,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             Array.Empty<TraitRollValueSchemaEntryDefinition>()
         );

@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="GearSetDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/gear_sets/GearSetDef.cs" id="1_set"]
+[ext_resource type="Script" path="res://scripts/player/progression/gear_sets/GearSetThresholdDef.cs" id="2_threshold"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="3_modifier"]
+
+[sub_resource type="Resource" id="Modifier_strength"]
+script = ExtResource("3_modifier")
+attribute_id = &"strength"
+mode = &"flat"
+value = 1
+
+[sub_resource type="Resource" id="Threshold_one"]
+script = ExtResource("2_threshold")
+threshold_id = &"one_piece"
+required_piece_count = 1
+display_name = "One Piece"
+description = "Cross-set membership fixture."
+mandatory_member_item_ids = Array[StringName]([])
+attribute_modifiers = Array[Resource]([SubResource("Modifier_strength")])
+granted_trait_ids = Array[StringName]([])
+
+[resource]
+script = ExtResource("1_set")
+gear_set_id = &"cross_set_fixture_a"
+display_name = "Cross Set Fixture A"
+description = "Fixture only."
+member_item_ids = Array[StringName]([&"test_helm"])
+usage_anchor_item_id = &"test_helm"
+thresholds = Array[Resource]([SubResource("Threshold_one")])

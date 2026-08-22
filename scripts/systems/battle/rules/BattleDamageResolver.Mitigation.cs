@@ -20,7 +20,10 @@ public partial class BattleDamageResolver
         StringName damageTag,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
         IReadOnlyList<StringName> mitigationBypassTiers = null,
-        BattleState battleState = null
+        BattleState battleState = null,
+        BattleUnitState sourceUnit = null,
+        DamageResolutionContext damageContext = null,
+        CombatEffectDefinition effectDefinition = null
     )
     {
         if (targetUnit == null)
@@ -78,6 +81,19 @@ public partial class BattleDamageResolver
             targetUnit,
             damageTag,
             battleState,
+            halfSources,
+            doubleSources,
+            immuneSources,
+            mitigationBypassDamageTags,
+            mitigationBypassTiers
+        );
+        AppendEquipmentAbilityMitigationTierSources(
+            sourceUnit,
+            targetUnit,
+            damageTag,
+            battleState,
+            damageContext,
+            effectDefinition,
             halfSources,
             doubleSources,
             immuneSources,
@@ -191,6 +207,130 @@ public partial class BattleDamageResolver
         if (auraResult != null && auraResult.AuraId != "")
             return auraResult.AuraId;
         return auraResult?.BindingId ?? new StringName("");
+    }
+
+    private void AppendEquipmentAbilityMitigationTierSources(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        StringName damageTag,
+        BattleState battleState,
+        DamageResolutionContext damageContext,
+        CombatEffectDefinition effectDefinition,
+        List<MitigationSourceResult> halfSources,
+        List<MitigationSourceResult> doubleSources,
+        List<MitigationSourceResult> immuneSources,
+        IReadOnlyList<StringName> mitigationBypassDamageTags,
+        IReadOnlyList<StringName> mitigationBypassTiers
+    )
+    {
+        IBattleEquipmentDamageQuery equipmentAbilityDamageQuery =
+            _equipment_ability_damage_query;
+        if (
+            equipmentAbilityDamageQuery == null
+            || sourceUnit == null
+            || targetUnit == null
+            || battleState == null
+            || damageTag == ""
+            || DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown
+        )
+        {
+            return;
+        }
+
+        IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> tierResults =
+            equipmentAbilityDamageQuery.CollectMitigationTiers(
+                new BattleEquipmentAbilityMitigationTierContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = battleState,
+                    SkillId = damageContext?.SkillId ?? new StringName(""),
+                    SaveTag = effectDefinition?.SaveTag ?? new StringName(""),
+                    EffectCategories = ResolveEquipmentQueryEffectCategories(
+                        damageContext,
+                        effectDefinition
+                    ),
+                    DamageTag = damageTag,
+                    DamageOriginKind = ResolveMitigationDamageOriginKind(damageContext),
+                }
+            );
+        foreach (
+            BattleEquipmentAbilityMitigationTierResult tierResult
+                in tierResults ?? Array.Empty<BattleEquipmentAbilityMitigationTierResult>()
+        )
+        {
+            StringName mitigationTier = ProgressionDataUtils.to_string_name(
+                tierResult?.MitigationTier ?? new StringName("")
+            );
+            if (
+                tierResult == null
+                || ShouldBypassMitigationTier(
+                    damageTag,
+                    mitigationTier,
+                    mitigationBypassDamageTags,
+                    mitigationBypassTiers
+                )
+            )
+            {
+                continue;
+            }
+
+            MitigationSourceResult source = BuildMitigationSource(
+                ResolveEquipmentAbilityMitigationTierSourceId(tierResult),
+                "equipment_ability_mitigation_tier",
+                0,
+                mitigationTier
+            );
+            if (mitigationTier == MitigationTierImmune)
+                immuneSources.Add(source);
+            else if (mitigationTier == MitigationTierHalf)
+                halfSources.Add(source);
+            else if (mitigationTier == MitigationTierDouble)
+                doubleSources.Add(source);
+        }
+    }
+
+    private IReadOnlyList<StringName> ResolveEquipmentQueryEffectCategories(
+        DamageResolutionContext damageContext,
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        SkillDefinition skillDefinition = null;
+        StringName skillId = damageContext?.SkillId ?? new StringName("");
+        if (skillId != "")
+        {
+            _skillDefinitionIndex.TryGetValue(skillId, out skillDefinition);
+        }
+        if (skillDefinition == null && effectDefinition == null)
+        {
+            return Array.Empty<StringName>();
+        }
+        return BattleEffectCategoryResolver.ResolveCategories(
+            skillDefinition,
+            effectDefinition != null ? new[] { effectDefinition } : null
+        );
+    }
+
+    // origin 只读取消耗者入口显式标注的 DamageOriginKind；未标注（Unknown）
+    // fail-closed。不得从 skill/item/binding id、调用深度或 hook origin 猜测。
+    private static BattleDamageOriginKind ResolveMitigationDamageOriginKind(
+        DamageResolutionContext damageContext
+    )
+    {
+        return damageContext?.DamageOriginKind ?? BattleDamageOriginKind.Unknown;
+    }
+
+    private static StringName ResolveEquipmentAbilityMitigationTierSourceId(
+        BattleEquipmentAbilityMitigationTierResult tierResult
+    )
+    {
+        if (!string.IsNullOrWhiteSpace(tierResult?.Label))
+            return new StringName(tierResult.Label);
+        StringName bindingId = tierResult?.BindingId ?? new StringName("");
+        StringName actionId = tierResult?.ActionId ?? new StringName("");
+        if (actionId != "")
+            return new StringName($"{bindingId}/{actionId}");
+        return bindingId;
     }
 
     private static void AppendDamageResistanceSources(

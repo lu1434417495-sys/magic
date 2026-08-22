@@ -70,6 +70,7 @@ internal sealed class GearSetContentRegistry : IDisposable
                 bindingDefinitions
             );
         }
+        AppendCrossSetMembershipErrors();
 
         var result = new List<string>(_loadValidationErrors.Count + _definitionValidationErrors.Count);
         result.AddRange(_loadValidationErrors);
@@ -122,6 +123,34 @@ internal sealed class GearSetContentRegistry : IDisposable
                 continue;
             }
             _definitions.Add(definition.GearSetId, definition);
+        }
+    }
+
+    private void AppendCrossSetMembershipErrors()
+    {
+        var firstOwnerByItemId = new Dictionary<StringName, StringName>();
+        foreach (GearSetDefinition definition in SortedDefinitions())
+        {
+            if (definition == null)
+                continue;
+            var seenInSet = new HashSet<StringName>();
+            for (int index = 0; index < definition.MemberItemIds.Count; index++)
+            {
+                StringName memberItemId = definition.MemberItemIds[index];
+                if (memberItemId == "" || !seenInSet.Add(memberItemId))
+                    continue;
+                if (
+                    firstOwnerByItemId.TryGetValue(memberItemId, out StringName firstOwner)
+                    && firstOwner != definition.GearSetId
+                )
+                {
+                    _definitionValidationErrors.Add(
+                        $"Gear set {definition.GearSetId}.member_item_ids[{index}] {memberItemId} is already a member of gear set {firstOwner}."
+                    );
+                    continue;
+                }
+                firstOwnerByItemId[memberItemId] = definition.GearSetId;
+            }
         }
     }
 
@@ -240,6 +269,90 @@ internal sealed class GearSetContentRegistry : IDisposable
         }
         if (definition.Thresholds.Count == 0)
             _definitionValidationErrors.Add($"{owner}.thresholds must not be empty.");
+
+        AppendUsageAnchorUniquenessErrors(
+            definition,
+            itemDefinitions,
+            bindingDefinitions
+        );
+    }
+
+    private void AppendUsageAnchorUniquenessErrors(
+        GearSetDefinition definition,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingDefinitions
+    )
+    {
+        // §9.1 锚点账本边界：次数跟装备实例走；同一 item_id 的第二件实例会拿到空账本，
+        // 相当于同日多用一次。只要套装经 threshold trait 授予持久世界周期动作，锚点物品
+        // 就必须声明 world_unique_equipment 唯一获取约束。
+        string owner = $"Gear set {definition.GearSetId}";
+        if (definition.UsageAnchorItemId == "")
+            return;
+        if (!GrantsPersistentWorldPeriodAction(definition, bindingDefinitions))
+            return;
+        if (
+            itemDefinitions == null
+            || !itemDefinitions.TryGetValue(
+                definition.UsageAnchorItemId,
+                out ItemDefinition anchorItem
+            )
+            || anchorItem == null
+        )
+        {
+            return;
+        }
+        if (!WorldUniqueEquipmentContentRules.IsWorldUniqueEquipment(anchorItem))
+        {
+            _definitionValidationErrors.Add(
+                $"{owner}.usage_anchor_item_id {definition.UsageAnchorItemId} must be tagged "
+                    + $"{WorldUniqueEquipmentContentRules.WorldUniqueEquipmentTag} because a threshold grants a persistent world-period action."
+            );
+        }
+    }
+
+    private static bool GrantsPersistentWorldPeriodAction(
+        GearSetDefinition definition,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingDefinitions
+    )
+    {
+        if (definition == null || bindingDefinitions == null)
+            return false;
+        StringName sourceKind = TraitContentRules.ToStringName(TraitSourceKind.GearSetThreshold);
+        foreach (GearSetThresholdDefinition threshold in definition.Thresholds)
+        {
+            if (threshold == null)
+                continue;
+            foreach (StringName traitId in threshold.GrantedTraitIds)
+            {
+                if (traitId == "")
+                    continue;
+                foreach (EquipmentAbilityBindingDefinition binding in bindingDefinitions.Values)
+                {
+                    if (
+                        binding == null
+                        || binding.TraitId != traitId
+                        || !binding.AllowedSourceKinds.Contains(sourceKind)
+                    )
+                    {
+                        continue;
+                    }
+                    foreach (EquipmentGrantedActionDefinition action in binding.GrantedActions)
+                    {
+                        if (
+                            action != null
+                            && EquipmentAbilityUsagePeriodKinds.IsPersistentWorldPeriod(
+                                action.UsagePeriodKind
+                            )
+                        )
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private void AppendModifierErrors(
@@ -262,6 +375,10 @@ internal sealed class GearSetContentRegistry : IDisposable
             else if (!seenAttributeIds.Add(modifier.AttributeId))
                 _definitionValidationErrors.Add(
                     $"{path}.attribute_id duplicates direct threshold attribute {modifier.AttributeId}."
+                );
+            else if (!AttributeContentRules.IsRecognizedAttributeId(modifier.AttributeId))
+                _definitionValidationErrors.Add(
+                    $"{path}.attribute_id {modifier.AttributeId} is not a recognized base/resource/combat/derived attribute id."
                 );
             if (!AttributeModifier.IsValidMode(modifier.Mode))
                 _definitionValidationErrors.Add($"{path}.mode {modifier.Mode} is unsupported.");
@@ -302,6 +419,7 @@ internal sealed class GearSetContentRegistry : IDisposable
                 _definitionValidationErrors.Add(
                     $"{path} trait {traitId} must allow gear_set_threshold."
                 );
+            AppendTraitBindingSourceKindErrors(path, traitId, bindingDefinitions);
             foreach (AttributeModifierDefinition traitModifier in traitDefinition.AttributeModifiers)
             {
                 if (
@@ -327,6 +445,31 @@ internal sealed class GearSetContentRegistry : IDisposable
                     $"{path} grants a per_world_day action before the full-set threshold; usage_anchor_item_id {definition.UsageAnchorItemId} must be mandatory."
                 );
             }
+        }
+    }
+
+    private void AppendTraitBindingSourceKindErrors(
+        string path,
+        StringName traitId,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingDefinitions
+    )
+    {
+        // 引用 threshold trait 的 binding 必须显式允许 gear_set_threshold source；
+        // 否则投影会静默跳过该 binding，阈值能力永远不会出现。trait 存在但没有任何
+        // binding 引用是合法的（纯抗性/豁免 trait），不在此拒绝。binding 侧的 trait/skill
+        // 引用存在性由 EquipmentAbilityBindingValidator 负责，这里不重复校验。
+        if (bindingDefinitions == null)
+            return;
+        StringName sourceKind = TraitContentRules.ToStringName(TraitSourceKind.GearSetThreshold);
+        foreach (EquipmentAbilityBindingDefinition binding in bindingDefinitions.Values)
+        {
+            if (binding == null || binding.TraitId != traitId)
+                continue;
+            if (binding.AllowedSourceKinds.Contains(sourceKind))
+                continue;
+            _definitionValidationErrors.Add(
+                $"{path} trait {traitId} is referenced by binding {binding.BindingId} that does not allow gear_set_threshold."
+            );
         }
     }
 

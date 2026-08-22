@@ -46,6 +46,10 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
     private static readonly StringName FactHpDamage = "hp_damage";
     internal static readonly StringName FactRawDamage = "raw_damage";
     private static readonly StringName FactDamageTag = "damage_tag";
+    private static readonly StringName FactSkillId = "skill_id";
+    private static readonly StringName FactSaveTag = "save_tag";
+    private static readonly StringName FactEffectCategories = "effect_categories";
+    private static readonly StringName FactDamageOriginKind = "damage_origin_kind";
     private static readonly StringName FactIsEquipmentGenerated = "is_equipment_generated";
     private static readonly StringName FactIsSelfDamage = "is_self_damage";
     private static readonly StringName FactSkillDamagedTargetCount =
@@ -811,6 +815,10 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
                 ?? _runtime?.GetState()?.GetEnvironmentSnapshot()?.GlobalEnvironmentTags
                 ?? Array.Empty<StringName>();
         }
+        if (query.FactId == FactEffectCategories)
+        {
+            return factContext.EffectCategories ?? Array.Empty<StringName>();
+        }
         return Array.Empty<StringName>();
     }
 
@@ -827,6 +835,12 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
             return ProgressionDataUtils.to_string_name(query.StringNameLiteral);
         if (query.QueryKind == QueryKindFact && query.FactId == FactDamageTag)
             return factContext.DamageTag;
+        if (query.QueryKind == QueryKindFact && query.FactId == FactSkillId)
+            return factContext.SkillId;
+        if (query.QueryKind == QueryKindFact && query.FactId == FactSaveTag)
+            return factContext.SaveTag;
+        if (query.QueryKind == QueryKindFact && query.FactId == FactDamageOriginKind)
+            return BattleDamageOriginContentRules.ToStringName(factContext.DamageOriginKind);
         if (query.QueryKind == QueryKindFact && query.FactId == FactWeaponRangeType)
         {
             BattleUnitState subject = BattleEquipmentAbilityRuntimeService.ResolveSubject(query.Subject, sourceUnit, targetUnit);

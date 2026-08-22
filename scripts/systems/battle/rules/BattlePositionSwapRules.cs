@@ -109,8 +109,7 @@ internal static class BattlePositionSwapRules
             return BattlePositionSwapPlan.Denied("对方原位置没有足够的完整落脚空间。");
 
         if (
-            HasBlockingLosEdge(state, gridService, sourceFrom, targetFrom)
-            || barrierService?.HasUnitBoundaryBarrier(
+            barrierService?.HasUnitBoundaryBarrier(
                 sourceUnit.UnsafeUnitForReadOnlyRules,
                 sourceFrom,
                 targetFrom
@@ -210,60 +209,4 @@ internal static class BattlePositionSwapRules
         return false;
     }
 
-    private static bool HasBlockingLosEdge(
-        BattleState state,
-        BattleGridService gridService,
-        Vector2I sourceCoord,
-        Vector2I targetCoord
-    )
-    {
-        if (state == null || gridService == null || sourceCoord == targetCoord)
-            return false;
-        int deltaX = Math.Abs(targetCoord.X - sourceCoord.X);
-        int deltaY = Math.Abs(targetCoord.Y - sourceCoord.Y);
-        int stepX = Math.Sign(targetCoord.X - sourceCoord.X);
-        int stepY = Math.Sign(targetCoord.Y - sourceCoord.Y);
-        int doubledX = deltaX * 2;
-        int doubledY = deltaY * 2;
-        int error = deltaX - deltaY;
-        Vector2I current = sourceCoord;
-        while (current != targetCoord)
-        {
-            if (error > 0)
-            {
-                Vector2I next = current + new Vector2I(stepX, 0);
-                if (EdgeBlocksLos(state, gridService, current, next))
-                    return true;
-                current = next;
-                error -= doubledY;
-                continue;
-            }
-            if (error < 0)
-            {
-                Vector2I next = current + new Vector2I(0, stepY);
-                if (EdgeBlocksLos(state, gridService, current, next))
-                    return true;
-                current = next;
-                error += doubledX;
-                continue;
-            }
-            Vector2I horizontal = current + new Vector2I(stepX, 0);
-            Vector2I vertical = current + new Vector2I(0, stepY);
-            if (
-                EdgeBlocksLos(state, gridService, current, horizontal)
-                || EdgeBlocksLos(state, gridService, current, vertical)
-            )
-                return true;
-            current += new Vector2I(stepX, stepY);
-            error += doubledX - doubledY;
-        }
-        return false;
-    }
-
-    private static bool EdgeBlocksLos(
-        BattleState state,
-        BattleGridService gridService,
-        Vector2I fromCoord,
-        Vector2I toCoord
-    ) => gridService.GetEdgeFace(state, fromCoord, toCoord)?.feature_blocks_los == true;
 }

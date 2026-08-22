@@ -27,6 +27,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             await TestMemberDetailsUseSkillDefinitionSnapshot();
             await TestMemberDetailsUseInjectedCharacterManagementSnapshot();
             await TestEquipmentTabRendersRealGearSetProgress();
+            await TestEquipmentTabShowsDragonScaleGrantedActionUsage();
         }
         catch (System.Exception exception)
         {
@@ -120,6 +121,161 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         {
             await DisposeNode(window);
             manager.Dispose();
+        }
+    }
+
+    private async Task TestEquipmentTabShowsDragonScaleGrantedActionUsage()
+    {
+        PartyManagementWindow window = await CreateWindow();
+        var manager = new CharacterManagementModule();
+        try
+        {
+            ContentSnapshot content = GameSessionTestFactory.GetProcessSnapshot();
+            _test.True(
+                content.GearSets.TryGetValue(
+                    new StringName("dragon_scale_set"),
+                    out GearSetDefinition dragonScaleSet
+                ),
+                "正式内容快照应包含龙鳞铠甲套装。"
+            );
+            if (dragonScaleSet == null)
+                return;
+
+            PartyState partyState = BuildPartyState(new[] { new StringName("hero") });
+            PartyMemberState hero = partyState.GetMemberState("hero");
+            EquipDragonScalePieces(hero, content, new[] { 0, 1, 2, 3 }, "eq_party_window_dragon");
+
+            manager.setup(
+                partyState,
+                content.Skills,
+                content.Professions,
+                content.Achievements,
+                content.Items,
+                content.Quests,
+                content.Traits,
+                () => new StringName("eq_party_window_unused"),
+                content.IdentityCatalog,
+                content.GearSets
+            );
+            window.SetItemDefs(content.Items);
+            window.SetTraitDefs(content.Traits);
+            window.SetSkillDefinitions(content.Skills);
+            window.SetEquipmentAbilityBindings(content.EquipmentAbilityBindings);
+            window.SetWorldStepProvider(() => 27);
+            window.SetCharacterManagement(manager);
+            window.ShowParty(partyState);
+            await ProcessFrames(1);
+            _test.True(window.SelectMember("hero"), "测试应能选中装备四件龙鳞的成员。");
+            await ProcessFrames(1);
+
+            string equipmentText = window.equipment_label.Text;
+            _test.True(equipmentText.Contains("龙鳞铠甲"), "战外装备页应展示龙鳞铠甲套装名。");
+            _test.True(equipmentText.Contains("4/4件"), "战外装备页应展示四件已满。");
+            _test.True(
+                equipmentText.Contains("技能「龙血沸腾」："),
+                "四件激活时战外装备页应展示龙血沸腾 granted action。"
+            );
+            _test.True(
+                equipmentText.Contains("今日剩余 1/1 次"),
+                "未使用时战外装备页应展示龙血沸腾今日剩余 1/1 次。"
+            );
+
+            EquipmentInstanceState anchor = hero.equipment_state.GetEquippedInstance("head");
+            _test.True(anchor != null, "龙鳞头盔锚点实例应已装备。");
+            anchor?.ability_usage_periods.Add(
+                new EquipmentAbilityUsagePeriodState
+                {
+                    AbilityId = "grant.dragon_scale.oath.dragon_blood_boil",
+                    PeriodKind = "per_world_day",
+                    PeriodIndex = 1,
+                    UsedCount = 1,
+                }
+            );
+            window.RefreshView();
+            await ProcessFrames(1);
+
+            equipmentText = window.equipment_label.Text;
+            _test.True(
+                equipmentText.Contains("今日剩余 0/1 次"),
+                "当日已用后战外装备页应展示龙血沸腾剩余 0/1 次。"
+            );
+            _test.True(
+                equipmentText.Contains("次数已用完"),
+                "当日已用后战外装备页应展示龙血沸腾 disabled reason。"
+            );
+
+            PartyState twoPieceParty = BuildPartyState(new[] { new StringName("hero") });
+            PartyMemberState twoPieceHero = twoPieceParty.GetMemberState("hero");
+            EquipDragonScalePieces(twoPieceHero, content, new[] { 0, 1 }, "eq_party_window_dragon_two");
+            manager.Dispose();
+            manager = new CharacterManagementModule();
+            manager.setup(
+                twoPieceParty,
+                content.Skills,
+                content.Professions,
+                content.Achievements,
+                content.Items,
+                content.Quests,
+                content.Traits,
+                () => new StringName("eq_party_window_unused"),
+                content.IdentityCatalog,
+                content.GearSets
+            );
+            window.SetCharacterManagement(manager);
+            window.ShowParty(twoPieceParty);
+            await ProcessFrames(1);
+            _test.True(window.SelectMember("hero"), "测试应能选中装备两件龙鳞的成员。");
+            await ProcessFrames(1);
+
+            equipmentText = window.equipment_label.Text;
+            _test.True(equipmentText.Contains("2/4件"), "两件时战外装备页应展示 2/4 件。");
+            _test.True(
+                equipmentText.Contains("屠龙者之誓") && equipmentText.Contains("未激活"),
+                "两件时战外装备页应展示四件阈值未激活。"
+            );
+            _test.False(
+                equipmentText.Contains("技能「龙血沸腾」："),
+                "两件时战外装备页不得展示四件阈值的龙血沸腾 granted action。"
+            );
+        }
+        finally
+        {
+            await DisposeNode(window);
+            manager.Dispose();
+        }
+    }
+
+    private void EquipDragonScalePieces(
+        PartyMemberState member,
+        ContentSnapshot content,
+        IReadOnlyList<int> memberIndexes,
+        string instanceLabel
+    )
+    {
+        content.GearSets.TryGetValue(
+            new StringName("dragon_scale_set"),
+            out GearSetDefinition dragonScaleSet
+        );
+        if (member == null || dragonScaleSet == null)
+            return;
+        foreach (int index in memberIndexes)
+        {
+            StringName itemId = dragonScaleSet.MemberItemIds[index];
+            if (!content.Items.TryGetValue(itemId, out ItemDefinition itemDefinition))
+                continue;
+            List<StringName> allowedSlots = itemDefinition.GetEquipmentSlotIdsTyped();
+            if (allowedSlots.Count == 0)
+                continue;
+            StringName entrySlotId = allowedSlots[0];
+            member.equipment_state.SetEquippedEntry(
+                entrySlotId,
+                itemId,
+                itemDefinition.GetFinalOccupiedSlotIdsTyped(entrySlotId),
+                EquipmentInstanceState.CreateInstance(
+                    itemId,
+                    new StringName($"{instanceLabel}_{index}")
+                )
+            );
         }
     }
 

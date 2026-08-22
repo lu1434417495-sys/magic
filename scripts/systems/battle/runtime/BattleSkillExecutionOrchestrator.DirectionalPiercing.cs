@@ -112,12 +112,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 $"跳过 {skipped.UnitId}：相对高度 {FormatSigned(skipped.HeightDelta)}，{FormatSkipReason(skipped.Reason)}。"
             );
         }
-        if (plan.BlockedBeforeCoord != new Vector2I(-1, -1))
-        {
-            preview.AddLogLine(
-                $"投射路径在 ({plan.BlockedBeforeCoord.X}, {plan.BlockedBeforeCoord.Y}) 前被阻挡。"
-            );
-        }
         if (preview.hit_preview != null && !preview.hit_preview.IsEmpty)
             preview.AddLogLine(preview.hit_preview.SummaryText);
         _append_damage_preview_line(preview);

@@ -23,7 +23,6 @@ internal sealed class BattleDirectionalPiercingPlan
     internal int SourceHeight { get; init; }
     internal int LockedHeightSign { get; init; }
     internal Vector2I Direction { get; init; }
-    internal Vector2I BlockedBeforeCoord { get; init; } = new(-1, -1);
     internal IReadOnlyList<Vector2I> PathCoords { get; init; } = Array.Empty<Vector2I>();
     internal IReadOnlyList<BattleUnitState> Targets { get; init; } = Array.Empty<BattleUnitState>();
     internal IReadOnlyList<BattleDirectionalPiercingSkippedTarget> SkippedTargets { get; init; } =
@@ -157,8 +156,6 @@ internal static class BattleDirectionalPiercingRules
 
         int sourceHeight = sourceCell.current_height;
         int lockedHeightSign = 0;
-        Vector2I previousCoord = sourceCoord;
-        Vector2I blockedBeforeCoord = new(-1, -1);
         var pathCoords = new List<Vector2I>();
         var targets = new List<BattleUnitState>();
         var skippedTargets = new List<BattleDirectionalPiercingSkippedTarget>();
@@ -169,14 +166,7 @@ internal static class BattleDirectionalPiercingRules
             Vector2I coord = sourceCoord + direction * distance;
             if (!gridService.IsInside(state, coord))
                 break;
-            BattleEdgeFaceState crossedEdge = gridService.GetEdgeFace(state, previousCoord, coord);
-            if (crossedEdge?.feature_blocks_los == true)
-            {
-                blockedBeforeCoord = coord;
-                break;
-            }
             pathCoords.Add(coord);
-            previousCoord = coord;
 
             BattleUnitState targetUnit = gridService.GetUnitAtCoord(state, coord);
             if (
@@ -233,7 +223,6 @@ internal static class BattleDirectionalPiercingRules
             SourceHeight = sourceHeight,
             LockedHeightSign = lockedHeightSign,
             Direction = direction,
-            BlockedBeforeCoord = blockedBeforeCoord,
             PathCoords = pathCoords.AsReadOnly(),
             Targets = targets.AsReadOnly(),
             SkippedTargets = skippedTargets.AsReadOnly(),

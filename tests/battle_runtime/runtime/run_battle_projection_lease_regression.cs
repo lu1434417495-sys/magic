@@ -306,15 +306,17 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
                 lease.Value["source_preview_after"].AsGodotDictionary();
             AssertOrder(
                 sourceAfter,
-                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_texture_path,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
+                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_asset_id,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,save_bonus_by_tag,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
                 "damage source unit snapshot"
             );
             AssertDamageNestedSchema(lease.Value);
             // 2026-08-15 行动节奏敏捷派生：payload 含两个单位的 action_threshold，
             // 默认值 120 -> 40，各短 1 字符。
+            // 2026-08-16 单位快照新增 save_bonus_by_tag flat key：payload 含两个单位，
+            // 各多一个空 map key（含分隔逗号各 23 字符）。
             AssertGolden(
                 lease.Value,
-                "5615:982a6fd20fcf858397929d0a3f32ebf01164cc20db631832a15938482c7fa876",
+                "5653:010790601206fda7322e242a65c91ea53254ced143589b8eca2c6e7c5a596790",
                 "damage result fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);

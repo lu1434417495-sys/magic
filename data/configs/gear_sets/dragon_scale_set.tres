@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="GearSetDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/gear_sets/GearSetDef.cs" id="1_set"]
+[ext_resource type="Script" path="res://scripts/player/progression/gear_sets/GearSetThresholdDef.cs" id="2_threshold"]
+
+[sub_resource type="Resource" id="Threshold_2"]
+script = ExtResource("2_threshold")
+threshold_id = &"dragons_deterrence"
+required_piece_count = 2
+display_name = "龙之威慑"
+description = "任意两件有效龙鳞装备：fire 伤害减半；对 frightened 与 dragon_frightful_presence 豁免检定 +3（与龙鳞胫甲按 add 叠加）；免疫龙威（dragon_frightful_presence）。"
+mandatory_member_item_ids = Array[StringName]([])
+attribute_modifiers = Array[Resource]([])
+granted_trait_ids = Array[StringName]([&"gear_set.dragon_scale.2.dragons_deterrence"])
+
+[sub_resource type="Resource" id="Threshold_4"]
+script = ExtResource("2_threshold")
+threshold_id = &"dragonslayer_oath"
+required_piece_count = 4
+display_name = "屠龙者之誓"
+description = "集齐全部四件龙鳞装备：对 dragon 类型生物的攻击检定 +2；对 dragon 的每次实际主直接伤害结算额外 +1D4（伤害标签继承主伤害段）；受到 dragon 的吐息（dragon_breath）武器时，该伤害段获得 half 减伤档位；每日一次主动技能「龙血沸腾」（180 TU：对 dragon 攻击检定 +3，每次真实攻击命中自疗 1D6，至多 3 次）。"
+mandatory_member_item_ids = Array[StringName]([])
+attribute_modifiers = Array[Resource]([])
+granted_trait_ids = Array[StringName]([&"gear_set.dragon_scale.4.dragonslayer_oath"])
+
+[resource]
+script = ExtResource("1_set")
+gear_set_id = &"dragon_scale_set"
+display_name = "龙鳞铠甲"
+description = "由五色龙鳞与龙骨锻造的四件重型铠甲套装；套装阈值为2/4件。"
+member_item_ids = Array[StringName]([&"armor_dragon_scale_head", &"armor_dragon_scale_body", &"armor_dragon_scale_hands", &"armor_dragon_scale_feet"])
+usage_anchor_item_id = &"armor_dragon_scale_head"
+thresholds = Array[Resource]([SubResource("Threshold_2"), SubResource("Threshold_4")])

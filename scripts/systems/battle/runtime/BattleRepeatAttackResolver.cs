@@ -830,6 +830,7 @@ internal sealed class BattleRepeatAttackResolver
                 BattleState = battleState,
                 SkillId = skill_definition != null ? skill_definition.SkillId : new StringName(""),
                 EventBatch = batch,
+                DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
             };
             result = damageResolver.ResolveAttackEffects(
                 active_unit,

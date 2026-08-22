@@ -59,6 +59,13 @@ internal enum TraitStackPolicyKind
     StackByInstance,
 }
 
+internal enum TraitSaveTagBonusStackModeKind
+{
+    Unknown = 0,
+    Add,
+    Highest,
+}
+
 internal enum TraitSourceKind
 {
     Unknown = 0,
@@ -144,6 +151,8 @@ public static class TraitContentRules
     private static readonly StringName EffectDraconicAncestry = "draconic_ancestry";
     private static readonly StringName EffectEquipmentAbility = "equipment_ability";
 
+    private static readonly StringName SaveTagBonusStackAdd = "add";
+    private static readonly StringName SaveTagBonusStackHighest = "highest";
     private static readonly StringName StackUniqueByTrait = "unique_by_trait";
     private static readonly StringName StackHighestRoll = "highest_roll";
     private static readonly StringName StackAdditive = "additive";
@@ -354,6 +363,33 @@ public static class TraitContentRules
     internal static bool IsValidStackPolicy(StringName value)
     {
         return ToStackPolicyKind(value) != TraitStackPolicyKind.Unknown;
+    }
+
+    internal static TraitSaveTagBonusStackModeKind ToSaveTagBonusStackModeKind(
+        StringName value
+    )
+    {
+        if (value == SaveTagBonusStackAdd)
+            return TraitSaveTagBonusStackModeKind.Add;
+        if (value == SaveTagBonusStackHighest)
+            return TraitSaveTagBonusStackModeKind.Highest;
+        return TraitSaveTagBonusStackModeKind.Unknown;
+    }
+
+    internal static StringName ToStringName(TraitSaveTagBonusStackModeKind value)
+    {
+        return value switch
+        {
+            TraitSaveTagBonusStackModeKind.Add => SaveTagBonusStackAdd,
+            TraitSaveTagBonusStackModeKind.Highest => SaveTagBonusStackHighest,
+            _ => "",
+        };
+    }
+
+    internal static bool IsValidSaveTagBonusStackMode(StringName value)
+    {
+        return ToSaveTagBonusStackModeKind(value)
+            != TraitSaveTagBonusStackModeKind.Unknown;
     }
 
     internal static TraitSourceKind ToSourceKind(StringName value)

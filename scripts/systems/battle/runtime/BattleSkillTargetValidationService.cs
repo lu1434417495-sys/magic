@@ -840,13 +840,7 @@ internal sealed class BattleSkillTargetValidationService
         {
             return false;
         }
-        return !combatProfile.RequiresLos
-            || BattleUnitLineOfSightRules.HasLineOfSight(
-                Runtime?.GetState(),
-                gridService,
-                active_unit.GetAnchorCoord(),
-                target_unit.GetAnchorCoord()
-            );
+        return true;
     }
 
     internal bool _can_skill_target_unit(
@@ -922,13 +916,7 @@ internal sealed class BattleSkillTargetValidationService
         {
             return false;
         }
-        return !combatProfile.RequiresLos
-            || BattleUnitLineOfSightRules.HasLineOfSight(
-                Runtime?.GetState(),
-                gridService,
-                active_unit.Coord,
-                target_unit.Coord
-            );
+        return true;
     }
 
     private static bool SkillAllowsDeadUnitTargets(

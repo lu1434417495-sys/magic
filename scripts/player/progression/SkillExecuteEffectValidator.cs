@@ -634,9 +634,20 @@ internal sealed class SkillExecuteEffectValidator
 
     private static bool IsTemporalReleaseEffectResource(CombatEffectDef effectDef)
     {
-        return effectDef != null
-            && effectDef.EffectKind == BattleEffectKind.EraseStatus
-            && effectDef.HasEffectTagTyped(TemporalStatusContentRules.TemporalStatusTag)
-            && TemporalStatusContentRules.IsTemporalReleaseTargetStatusId(effectDef.status_id);
+        try
+        {
+            CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(
+                effectDef,
+                "skill_content_validation.temporal_release_effect"
+            );
+            return TemporalStatusContentRules.IsTemporalReleaseEffect(effectDefinition);
+        }
+        catch (System.IO.InvalidDataException)
+        {
+            // This legacy Resource validator remains only for synthetic Resource-level tests.
+            // Structural import failures are already reported by their owning checks and cannot
+            // safely participate in this secondary temporal-mix classification.
+            return false;
+        }
     }
 }

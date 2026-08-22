@@ -397,12 +397,20 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
             "mage_meteor_swarm",
             "contingency_autocast_origin:mage_meteor_swarm"
         );
-        MeteorSwarmProfile meteorProfile = GD.Load<MeteorSwarmProfile>(
-            "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
-        );
         _test.True(meteorSkill != null, "auto-cast meteor skill fixture should load.");
-        _test.True(meteorProfile != null, "auto-cast meteor profile fixture should load.");
-        if (meteorSkill == null || meteorProfile == null)
+        if (meteorSkill == null)
+            return;
+
+        using var specialProfiles = new BattleSpecialProfileRegistry();
+        specialProfiles.Rebuild(
+            new Dictionary<StringName, SkillDefinition> { [meteorSkill.SkillId] = meteorSkill }
+        );
+        _test.Eq(
+            0,
+            specialProfiles.ValidateTyped().Count,
+            "auto-cast meteor JSON profile fixture should validate."
+        );
+        if (specialProfiles.ValidateTyped().Count != 0)
             return;
 
         PartyState partyState = BuildPartyState(
@@ -432,10 +440,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         runtime.setup(
             character_gateway: gateway,
             skill_definitions: new Dictionary<StringName, SkillDefinition> { [meteorSkill.SkillId] = meteorSkill },
-            battle_special_profile_view: BattleSpecialProfileRuntimeView.ForMeteorSwarm(
-                "meteor_swarm",
-                meteorProfile
-            )
+            battle_special_profile_view: specialProfiles.BuildRuntimeProfileView()
         );
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         BattleState state = Track(

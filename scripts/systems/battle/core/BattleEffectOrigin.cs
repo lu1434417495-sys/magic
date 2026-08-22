@@ -27,7 +27,9 @@ internal sealed class BattleEffectOrigin
 
     internal StringName OriginKind { get; }
     internal bool CanTriggerContingencies { get; }
-    internal bool IsEquipmentGenerated => OriginKind == "equipment_ability";
+    internal bool IsEquipmentGenerated =>
+        OriginKind == "equipment_ability" || OriginKind == "equipment_direct_reaction";
+    internal bool IsEquipmentDirectReaction => OriginKind == "equipment_direct_reaction";
     internal StringName OwnerMemberId { get; }
     internal StringName SetupId { get; }
     internal StringName InstanceId { get; }
@@ -40,6 +42,9 @@ internal sealed class BattleEffectOrigin
 
     internal static BattleEffectOrigin EquipmentAbility() =>
         new("equipment_ability", canTriggerContingencies: false);
+
+    internal static BattleEffectOrigin EquipmentDirectReaction() =>
+        new("equipment_direct_reaction", canTriggerContingencies: false);
 
     internal static BattleEffectOrigin AutoCast(AutoCastRequest request) =>
         new(

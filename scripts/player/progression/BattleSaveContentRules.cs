@@ -77,6 +77,8 @@ internal static class BattleSaveContentRules
 
     private static readonly StringName SaveTagFrightened = "frightened";
 
+    private static readonly StringName SaveTagDragonFrightfulPresence = "dragon_frightful_presence";
+
     private static readonly StringName SaveTagExecute = "execute";
 
     private static readonly StringName SaveTagTemporal = "temporal";
@@ -96,8 +98,6 @@ internal static class BattleSaveContentRules
     private static readonly StringName SaveTagIntelligence = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence);
 
     private static readonly StringName SaveTagWillpower = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower);
-
-    private static readonly StringName SaveTagDragonFrightfulPresence = "dragon_frightful_presence";
 
     private static readonly StringName AdvantageStateNormal = "normal";
 
@@ -122,8 +122,8 @@ internal static class BattleSaveContentRules
             or BattleSaveTagKind.Charm
             or BattleSaveTagKind.Illusion
             or BattleSaveTagKind.Frightened
-            or BattleSaveTagKind.Temporal
-            or BattleSaveTagKind.DragonFrightfulPresence;
+            or BattleSaveTagKind.DragonFrightfulPresence
+            or BattleSaveTagKind.Temporal;
 
     internal static bool IsValidSaveDcMode(StringName value) =>
         ToSaveDcMode(value) != BattleSaveDcMode.Unknown;
@@ -161,6 +161,8 @@ internal static class BattleSaveContentRules
             return BattleSaveTagKind.Illusion;
         if (value == SaveTagFrightened)
             return BattleSaveTagKind.Frightened;
+        if (value == SaveTagDragonFrightfulPresence)
+            return BattleSaveTagKind.DragonFrightfulPresence;
         if (value == SaveTagExecute)
             return BattleSaveTagKind.Execute;
         if (value == SaveTagTemporal)
@@ -181,8 +183,6 @@ internal static class BattleSaveContentRules
             return BattleSaveTagKind.Intelligence;
         if (value == SaveTagWillpower)
             return BattleSaveTagKind.Willpower;
-        if (value == SaveTagDragonFrightfulPresence)
-            return BattleSaveTagKind.DragonFrightfulPresence;
         return BattleSaveTagKind.Unknown;
     }
 
@@ -239,6 +239,7 @@ internal static class BattleSaveContentRules
             BattleSaveTagKind.Magic => SaveTagMagic,
             BattleSaveTagKind.Illusion => SaveTagIllusion,
             BattleSaveTagKind.Frightened => SaveTagFrightened,
+            BattleSaveTagKind.DragonFrightfulPresence => SaveTagDragonFrightfulPresence,
             BattleSaveTagKind.Execute => SaveTagExecute,
             BattleSaveTagKind.Temporal => SaveTagTemporal,
             BattleSaveTagKind.Petrification => SaveTagPetrification,
@@ -249,7 +250,6 @@ internal static class BattleSaveContentRules
             BattleSaveTagKind.Perception => SaveTagPerception,
             BattleSaveTagKind.Intelligence => SaveTagIntelligence,
             BattleSaveTagKind.Willpower => SaveTagWillpower,
-            BattleSaveTagKind.DragonFrightfulPresence => SaveTagDragonFrightfulPresence,
             _ => "",
         };
     }

@@ -432,6 +432,20 @@ internal sealed class BattleUnitFactory
             .GetEquipmentAbilityRuntimeService()
             ?.ClearTargetMarksForRemovedEquipmentSources(_runtime.GetState(), us)
             ?? Array.Empty<StringName>();
+        IReadOnlyList<StringName> statusChangedUnitIds = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ClearSourceBoundStatusesForRemovedEquipmentSources(_runtime.GetState(), us)
+            ?? Array.Empty<StringName>();
+        if (statusChangedUnitIds.Count > 0)
+        {
+            var merged = new List<StringName>(changedUnitIds);
+            foreach (StringName statusChangedUnitId in statusChangedUnitIds)
+            {
+                if (!merged.Contains(statusChangedUnitId))
+                    merged.Add(statusChangedUnitId);
+            }
+            changedUnitIds = merged;
+        }
         TraitTriggerHooks.ReconcileChargesAfterEffectiveTraitProjection(
             us,
             previousEffectiveTraits.Instances
@@ -507,6 +521,20 @@ internal sealed class BattleUnitFactory
             .GetEquipmentAbilityRuntimeService()
             ?.ClearTargetMarksForRemovedEquipmentSources(_runtime.GetState(), unit)
             ?? Array.Empty<StringName>();
+        IReadOnlyList<StringName> statusChangedUnitIds = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ClearSourceBoundStatusesForRemovedEquipmentSources(_runtime.GetState(), unit)
+            ?? Array.Empty<StringName>();
+        if (statusChangedUnitIds.Count > 0)
+        {
+            var merged = new List<StringName>(changedUnitIds);
+            foreach (StringName statusChangedUnitId in statusChangedUnitIds)
+            {
+                if (!merged.Contains(statusChangedUnitId))
+                    merged.Add(statusChangedUnitId);
+            }
+            changedUnitIds = merged;
+        }
         int hpMax = Mathf.Max(snapshot.GetValue(AttributeService.HP_MAX), 1);
         int mpMax = Mathf.Max(snapshot.GetValue(AttributeService.MP_MAX), 0);
         int staminaMax = Mathf.Max(snapshot.GetValue(AttributeService.STAMINA_MAX), 0);
@@ -712,9 +740,9 @@ internal sealed class BattleUnitFactory
         us.SetEquipmentView(_get_member_equipment_state(ms));
         var snap = _build_member_attribute_snapshot(ms, ctx, us.GetEquipmentView());
         us.attribute_snapshot = snap;
-        _apply_member_weapon_projection(us, mid, us.GetEquipmentView());
         _apply_member_effective_trait_projection(us, mid, us.GetEquipmentView());
         _apply_player_equipment_ability_projection(us);
+        _apply_member_weapon_projection(us, mid, us.GetEquipmentView());
         int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1),
             mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
         int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
@@ -1125,6 +1153,12 @@ internal sealed class BattleUnitFactory
             us.ClearWeaponProjection();
             return;
         }
+        projection = EquipmentWeaponProfileOverlayService.ApplyOverlays(
+            us,
+            projection,
+            GetEquipmentAbilityBindingIndex(),
+            BuildItemDefIndexSnapshotWithEquipmentView(ev ?? us.GetEquipmentView())
+        );
         us.ApplyWeaponProjectionTyped(projection);
     }
 

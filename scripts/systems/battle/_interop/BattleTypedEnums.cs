@@ -105,7 +105,6 @@ internal enum BattleEffectKind
     Height,
     HeightDelta,
     TerrainEffect,
-    EdgeClear,
 }
 
 internal enum CombatEffectTargetOrder
@@ -264,7 +263,6 @@ internal static class BattleTypedNames
     internal static readonly StringName EffectCharge = "charge";
     internal static readonly StringName EffectDamage = "damage";
     internal static readonly StringName EffectDispelMagic = "dispel_magic";
-    internal static readonly StringName EffectEdgeClear = "edge_clear";
     internal static readonly StringName EffectEquipmentDurabilityDamage =
         "equipment_durability_damage";
     internal static readonly StringName EffectExecute = "execute";
@@ -640,8 +638,6 @@ internal static class BattleTypedNames
             return BattleEffectKind.HeightDelta;
         if (value == EffectTerrainEffect)
             return BattleEffectKind.TerrainEffect;
-        if (value == EffectEdgeClear)
-            return BattleEffectKind.EdgeClear;
         return BattleEffectKind.Unknown;
     }
 
@@ -680,7 +676,6 @@ internal static class BattleTypedNames
             BattleEffectKind.Height => EffectHeight,
             BattleEffectKind.HeightDelta => EffectHeightDelta,
             BattleEffectKind.TerrainEffect => EffectTerrainEffect,
-            BattleEffectKind.EdgeClear => EffectEdgeClear,
             _ => Empty,
         };
     }
@@ -1029,8 +1024,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.TerrainReplaceTo
                 or BattleEffectKind.Height
                 or BattleEffectKind.HeightDelta
-                or BattleEffectKind.TerrainEffect
-                or BattleEffectKind.EdgeClear;
+                or BattleEffectKind.TerrainEffect;
     }
 
     internal static bool IsUnitPayloadEffect(BattleEffectKind kind)

@@ -93,6 +93,7 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
                         saveRollOverrides: saveContext.SaveRollOverrides
                     )
                     .WithBattleState(state)
+                    .WithDamageOriginKind(BattleDamageOriginKind.EquipmentTriggeredSkill)
                     .WithDamageApplicationHookContext(
                         batch,
                         BattleEffectOrigin.EquipmentAbility()
@@ -289,6 +290,7 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
                         .ForSkill(skillDefinition.SkillId)
                         .WithSourceSkillLevel(Math.Max(payload.SkillLevel, 1))
                         .WithBattleState(workingSet?.BattleState)
+                        .WithDamageOriginKind(BattleDamageOriginKind.EquipmentTriggeredSkill)
                         .WithDetachedPreviewDepth(detachedPreviewDepth + 1),
                     BattleDamagePreviewRollMode.Average,
                     BattleDamagePreviewSaveMode.Expected

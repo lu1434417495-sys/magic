@@ -35,6 +35,8 @@
   - 玩家侧装备投影从当前成员 `EquipmentState` 与 typed item catalog 生成。
 - `scripts/systems/battle/runtime/BattleUnitFactory.cs`
   - 战斗开始时把成员装备与武器投影写入 `BattleUnitState`。
+- `scripts/systems/battle/runtime/EquipmentWeaponProfileOverlayService.cs`
+  - 装备能力 weapon profile overlay 的唯一合成点：玩家侧在 `BattleUnitFactory._apply_member_weapon_projection(...)` 取得 base projection 后、敌方侧在 `EncounterRosterBuilder.ApplyEnemyWeaponProjection(...)` 取得模板 base 后，按 priority → 装备槽位顺序 → binding id → overlay id 稳定排序合成 range/dice/damage tag/grip 改写，再由 owner 单次 `ApplyWeaponProjectionTyped(...)` 写回；每次从 fresh base 重算，重复刷新幂等。
 - `scripts/systems/battle/rules/BattleRangeService.cs`
   - 战斗射程读取 `BattleUnitState.GetWeaponProjectionReadViewTyped()` 的 attack range 并叠加临时修正，不回读旧属性字段或旧物品字段。
 

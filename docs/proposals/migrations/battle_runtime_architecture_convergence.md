@@ -624,16 +624,35 @@ Slice 6 需要把 `tools/architecture/layer_rules.json` 第 145–149 行的 Gro
 
 ### 新增结构/生命周期 oracle
 
-`run_battle_runtime_composition_phase_regression.cs` 至少覆盖：
+`run_battle_runtime_composition_phase_regression.cs`（Slice 1）至少覆盖：
 
-1. constructor 后、setup 前调用 runtime command 确定性失败；
-2. 首次 setup 进入 Ready，所有 module-scope node 只 compose 一次；
-3. Ready 状态的 content rebind 不替换 graph/node identity；
-4. active battle 期间 rebind 被拒绝且不留下半绑定内容；
-5. battle begin/end 与 AI decision begin/end 按 scope 清理；
-6. damage resolver test replacement 只重绑声明的消费者；
-7. setup/compose 中途异常按逆序回滚；
-8. dispose 正常、异常和重复调用后 borrower/callback/action plan 全部归零。
+1. 首次 setup 进入 Ready，所有 module-scope node 只 compose 一次；
+2. Ready 状态的 content rebind 不替换 graph/node identity；
+3. active battle 期间 rebind 被拒绝且不留下半绑定内容；
+4. battle begin/end 与 AI decision begin/end 按 scope 清理；
+5. damage resolver test replacement 只重绑 §7.1 列出的真实消费者
+   （`_ai_service`、`_equipment_ability_runtime_service` 与 resolver 自身的 5 处入站绑定），
+   并证明其余服务的 identity 未被替换；
+6. setup/compose 中途异常按逆序回滚；
+7. dispose 正常、异常和重复调用后 borrower/callback/action plan 全部归零。
+
+"constructor 后、setup 前调用确定性失败"归 **Slice 2**，与 pre-setup 路径清单一并验证，
+不在 Slice 1 断言——原因见 §7.2。
+
+`run_battle_outcome_commit_sink_isolation_regression.cs`（Slice 3）至少覆盖：
+
+1. 至少一个消费者在**只持有 fake `IBattleOutcomeCommitSink` 和注入的 peer**、
+   完全不存在 `BattleRuntimeModule` 实例的情况下可构造并执行；
+2. fake sink 记录到的提交序列与经真实 module 执行时一致；
+3. 消费者类型上不存在 `BattleRuntimeModule` 字段（反射断言，防止"过渡期双通道"回潮）。
+
+这是 §2.2 指出的"7 个端口 0 个 test double"的兑现点；Slice 3 若没有产出可运行的 fake-port
+测试，则该切片不算完成。
+
+Slice 0 不新增结构 oracle，改由既有行为回归把关：每迁出一个 owner，
+`run_battle_execute_ground_protocol_regression.cs`、`run_contingency_battle_lifecycle_regression.cs`
+与 `run_battle_ai_charge_path_aoe_behavior_regression.cs` 必须证明同步 reaction /
+contingency / auto-cast 的调用栈顺序与 `BattleEventBatch` 共享方式未变。
 
 测试不能只检查类名、成员数或源码文本；必须通过可观察的 phase、服务 identity、callback 行为、
 替换传播和 teardown 后调用结果证明对象图正确。
@@ -659,10 +678,10 @@ guard/counterattack/follow-up lock 来自 typed capability 而不是具体 id。
 
 每个切片按以下顺序验证：
 
-1. `python tools/magic_dev.py affected`
-2. `python tools/magic_dev.py test --path <focused runner>`
-3. `python tools/magic_dev.py verify`
-4. 稳定工作树上的 `python tools/magic_dev.py full`
+1. 用 `git status --short` 和限定路径的 `git diff` 检查当前切片明确列出的改动，不从共享工作树自动推断影响面。
+2. `dotnet build magic.csproj`
+3. 对每个定向目标运行 `python tests/run_regression_suite.py --pattern <focused-runner-name>`。
+4. 稳定工作树上运行 `python tests/run_regression_suite.py --jobs auto`。
 5. 仅当用户明确要求时运行 BattleSim、benchmark 或 E2E；它们不计入 routine full。
 
 历史 HTML、旧 `470/470` 或其他分支的 PASS 不能替代当前切片验证。若验证时工作树仍混有并行改动，
@@ -676,10 +695,22 @@ guard/counterattack/follow-up lock 来自 typed capability 而不是具体 id。
 Slice 1 落地后，CU-15 必须更新：
 
 - 把 `BattleRuntimeGraph` 和 scope/lifecycle phase 加入推荐读取集；
-- 删除“七个 module-owned service”“Timeline bridge 已删除”等已与源码不符的描述；
+- 修正“七个 module-owned service”——borrower set 现为 11 个成员（4 个 module-owned service
+  + 7 个 bridge），该数字已过时；
 - 记录 composition graph 是唯一 module-scope 接线 owner，battle/decision scope 分别释放。
 
-Slice 6 落地后，CU-16 必须更新：
+**CU-15 中"原 `BattleTimelineStatusBridgeService` 因没有独立状态或 capability 已删除"这句是
+准确的，不要删除。** 该类在 `scripts/` 与 `tests/` 中引用数为 0，确已不存在；
+现存的 `BattleTimelineBridgeService` 是**另一个类**。需要做的是在 CU-15 中把两个名字
+显式区分开，避免读者误以为 Timeline 边界已整体退出——它仍在 §6.3 的目标状态表里。
+
+Slice 0 与 Slice 3 落地后，CU-15 还需更新：
+
+- 用 Slice 0 拆出的三个 owner 替换 `BattleSkillExecutionOrchestrator` 的单一入口描述；
+- 记录消费者依赖来自构造注入与 `IBattleOutcomeCommitSink`，
+  并声明"任何生产类都不再持有 `BattleRuntimeModule` 字段"这一新的所有权事实。
+
+Slice 8 落地后，CU-16 必须更新：
 
 - 将 strict 70-key codec owner 指向 `BattleUnitStateCodec`；
 - 继续声明 70-key schema 和各 typed owner 的 normal/canonical/mutation-exact 不变量不变。
@@ -691,12 +722,35 @@ Slice 6 落地后，CU-16 必须更新：
 
 本计划完成时应满足：
 
+**核心判据（对应 §1 第 4 条职责，不可降级）**
+
+- 持有 `BattleRuntimeModule` 字段的生产类从 18 降到 **0**；
+- 反向引用只以**具名的窄角色接口**存在，在显式的第二阶段绑定，
+  **没有任何消费者持有 composition root 本身**（表述依据见 §6.7；
+  不得写成"零反向引用"——那与不变量 3 的同步反应顺序直接冲突）；
+- `IBattleOutcomeCommitSink` 成员数 ≤12，且不含任何内容 ID 判定；
+- 至少存在一个使用 fake port、不构造 `BattleRuntimeModule` 即可运行的消费者隔离单测。
+
+**组合与生命周期**
+
 - `BattleRuntimeModule` 不再通过多个入口重复执行 service Setup；
 - module、battle、decision、request scope 有唯一 owner 和明确进入/退出条件；
-- `BattleRuntimeModuleBorrower` 的全 hub 弱引用基类被删除；
-- 没有新增 mega-port，GroundEffect port/bridge 已退出；
+- `_ensure_sidecars_ready()` 已退役，pre-setup 路径清单中每条都有明确归属；
+- `BattleRuntimeModuleBorrower` 基类被删除（注意：这只覆盖 11 个子类，
+  不构成上述核心判据的替代——口径见 §2.2.1）。
+
+**端口与内容**
+
+- 没有新增 mega-port，GroundEffect port/bridge 已退出，且回滚决定已在提交信息中
+  显式引用 `e6e655b7`；
 - preview 两套 bridge 已收敛；Timeline/Charge 不再依赖 hub 镜像接口；
-- module 中不存在具体 skill/status id 行为分支；
+- `BattleSkillExecutionOrchestrator` 已拆为三个 owner，任一 owner 的依赖面 ≤15，
+  且没有为其创建过任何宽端口；
+- **module、端口契约与通用规则三处**均不存在具体 skill/status id 行为分支
+  （含 `IBattleGroundEffectRuntimePort` 的 `IsCrownBreak*` 与 7 处 `skill_id ==` 分支）；
+
+**状态与后续拆分**
+
 - `BattleUnitState` 保持 gameplay façade，但 70-key strict codec 已由独立 owner 承担；
 - EquipmentAbility 和 AI 的后续拆分按职责形成独立类，而不是继续增加 partial/bridge；
 - analyzer 零 baseline、定向回归、当前 full suite 和文档同步全部完成。

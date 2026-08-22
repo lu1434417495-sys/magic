@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -199,17 +199,6 @@ public sealed class BattleEdgeService
         return edge_face.height_difference > 1;
     }
 
-    internal bool HasFeatureBetween(
-        BattleState state,
-        Vector2I from_coord,
-        Vector2I to_coord,
-        BattleEdgeFeatureKind featureKind
-    )
-    {
-        BattleEdgeFaceState edgeFace = GetEdgeFace(state, from_coord, to_coord);
-        return edgeFace != null && edgeFace.FeatureKind == featureKind;
-    }
-
     private static BattleEdgeFaceState BuildEdgeFace(
         IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         IReadOnlyDictionary<Vector2I, List<BattleCellState>> cellColumns,
@@ -237,18 +226,11 @@ public sealed class BattleEdgeService
         edgeFace.height_difference = Math.Abs(fromHeight - toHeight);
         edgeFace.drop_face_layer_heights = BuildExposedLayerHeights(fromHeight, toHeight);
         edgeFace.drop_layers = edgeFace.drop_face_layer_heights.Count;
-        if (direction == DirectionEast)
-        {
-            ApplyAuthoredFeature(edgeFace, originCell.edge_feature_east);
-        }
-        else if (direction == DirectionSouth)
-        {
-            ApplyAuthoredFeature(edgeFace, originCell.edge_feature_south);
-        }
+        // authored 格级边特征已于 2026-08-16 移除；feature face 只来自临时边特征叠加。
         return edgeFace;
     }
 
-    private static void ApplyAuthoredFeature(
+    private static void ApplyFeature(
         BattleEdgeFaceState edgeFace,
         BattleEdgeFeatureState featureState
     )
@@ -284,7 +266,7 @@ public sealed class BattleEdgeService
             );
             if (!edgeFaces.TryGetValue(key, out BattleEdgeFaceState edgeFace) || edgeFace == null)
                 continue;
-            ApplyAuthoredFeature(edgeFace, temporaryFeature.Feature);
+            ApplyFeature(edgeFace, temporaryFeature.Feature);
         }
     }
 

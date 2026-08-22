@@ -969,15 +969,13 @@ public sealed class BattleGridService : IDisposable
         return true;
     }
 
-    private bool IsWallBlocked(BattleState state, Vector2I from_coord, Vector2I to_coord)
+    private bool EdgeFeatureBlocksMoveBetween(
+        BattleState state,
+        Vector2I from_coord,
+        Vector2I to_coord
+    )
     {
-        return _edgeService != null
-            && _edgeService.HasFeatureBetween(
-                state,
-                from_coord,
-                to_coord,
-                BattleEdgeFeatureKind.Wall
-            );
+        return _edgeService?.GetEdgeFace(state, from_coord, to_coord)?.BlocksMove() == true;
     }
 
     internal bool CanTraverse(
@@ -991,7 +989,7 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        if (IsWallBlocked(state, from_coord, to_coord))
+        if (EdgeFeatureBlocksMoveBetween(state, from_coord, to_coord))
         {
             return false;
         }
@@ -1723,7 +1721,7 @@ public sealed class BattleGridService : IDisposable
         {
             return MoveEvaluationResult.Blocked("普通移动只能前往相邻地格。");
         }
-        if (IsWallBlocked(state, from_coord, to_coord))
+        if (EdgeFeatureBlocksMoveBetween(state, from_coord, to_coord))
         {
             return MoveEvaluationResult.Blocked("通道被墙壁阻挡。");
         }
@@ -1855,30 +1853,6 @@ public sealed class BattleGridService : IDisposable
             MarkRuntimeEdgeFacesDirty(state);
         }
         return true;
-    }
-
-    internal bool SetEdgeFeature(
-        BattleState state,
-        Vector2I coord,
-        Vector2I direction,
-        BattleEdgeFeatureState feature_state
-    )
-    {
-        BattleCellState cell = GetCell(state, coord);
-        if (cell == null)
-        {
-            return false;
-        }
-        cell.SetEdgeFeature(direction, feature_state);
-        SyncColumnFromSurfaceCell(state, coord);
-        state?.MarkMovementGeometryChanged();
-        MarkRuntimeEdgeFacesDirty(state);
-        return true;
-    }
-
-    internal bool ClearEdgeFeature(BattleState state, Vector2I coord, Vector2I direction)
-    {
-        return SetEdgeFeature(state, coord, direction, null);
     }
 
     internal BattleHeightDeltaResult ApplyHeightDeltaResult(

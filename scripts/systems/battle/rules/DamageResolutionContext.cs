@@ -13,6 +13,7 @@ internal sealed class DamageResolutionContext
     public bool AttackSuccess { get; }
     public bool SecondaryHitSuccess { get; }
     public bool ForcedMoveApplied { get; }
+    public bool HasAttackCheck { get; }
     internal BattleDamageOriginKind DamageOriginKind { get; }
     public StringName SkillId { get; }
     public int SourceSkillLevel { get; }
@@ -43,6 +44,7 @@ internal sealed class DamageResolutionContext
         bool isDetachedPreview = false,
         int detachedPreviewDepth = 0,
         bool forcedMoveApplied = false,
+        bool hasAttackCheck = false,
         BattleDamageOriginKind damageOriginKind = BattleDamageOriginKind.Unknown
     )
     {
@@ -63,6 +65,7 @@ internal sealed class DamageResolutionContext
         DetachedPreviewDepth = Math.Max(detachedPreviewDepth, 0);
         DamageApplicationHookBatch = damageApplicationHookBatch;
         DamageApplicationHookOrigin = damageApplicationHookOrigin ?? BattleEffectOrigin.PlayerCommand();
+        HasAttackCheck = hasAttackCheck;
         DamageOriginKind = damageOriginKind;
     }
 
@@ -153,6 +156,7 @@ internal sealed class DamageResolutionContext
             IsDetachedPreview,
             DetachedPreviewDepth,
             ForcedMoveApplied,
+            HasAttackCheck,
             DamageOriginKind
         );
     }
@@ -177,6 +181,7 @@ internal sealed class DamageResolutionContext
             IsDetachedPreview,
             DetachedPreviewDepth,
             ForcedMoveApplied,
+            HasAttackCheck,
             DamageOriginKind
         );
     }
@@ -204,6 +209,7 @@ internal sealed class DamageResolutionContext
             IsDetachedPreview,
             DetachedPreviewDepth,
             ForcedMoveApplied,
+            HasAttackCheck,
             DamageOriginKind
         );
     }
@@ -227,6 +233,7 @@ internal sealed class DamageResolutionContext
             IsDetachedPreview,
             DetachedPreviewDepth,
             ForcedMoveApplied,
+            HasAttackCheck,
             DamageOriginKind
         );
     }
@@ -253,6 +260,7 @@ internal sealed class DamageResolutionContext
             IsDetachedPreview,
             DetachedPreviewDepth,
             ForcedMoveApplied,
+            HasAttackCheck,
             DamageOriginKind
         );
     }
@@ -276,6 +284,7 @@ internal sealed class DamageResolutionContext
             IsDetachedPreview,
             DetachedPreviewDepth,
             ForcedMoveApplied,
+            HasAttackCheck,
             DamageOriginKind
         );
     }
@@ -299,6 +308,7 @@ internal sealed class DamageResolutionContext
             true,
             DetachedPreviewDepth,
             ForcedMoveApplied,
+            HasAttackCheck,
             DamageOriginKind
         );
     }
@@ -322,6 +332,7 @@ internal sealed class DamageResolutionContext
             true,
             Math.Max(detachedPreviewDepth, 0),
             ForcedMoveApplied,
+            HasAttackCheck,
             DamageOriginKind
         );
     }
@@ -345,6 +356,31 @@ internal sealed class DamageResolutionContext
             IsDetachedPreview,
             DetachedPreviewDepth,
             forcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
+        );
+    }
+
+    internal DamageResolutionContext WithAttackCheck(bool hasAttackCheck = true)
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            hasAttackCheck,
             DamageOriginKind
         );
     }
@@ -370,6 +406,7 @@ internal sealed class DamageResolutionContext
             IsDetachedPreview,
             DetachedPreviewDepth,
             ForcedMoveApplied,
+            HasAttackCheck,
             damageOriginKind
         );
     }

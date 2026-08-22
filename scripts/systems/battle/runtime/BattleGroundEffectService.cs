@@ -10,9 +10,6 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 internal class BattleGroundEffectService
 {
     private static readonly StringName Empty = "";
-    private static readonly StringName FeatureWall = "wall";
-    private static readonly StringName FeatureDoor = "door";
-    private static readonly StringName FeatureGate = "gate";
 
     private readonly record struct GroundEffectRuntimeParameters(bool ResolveAsWeaponAttack)
     {
@@ -946,6 +943,7 @@ internal class BattleGroundEffectService
                         BattleState = State,
                         SkillId = skillDefinition != null ? skillDefinition.SkillId : Empty,
                         EventBatch = batch,
+                        DamageOriginKind = BattleDamageOriginKind.Terrain,
                     }
                 )
             );
@@ -960,6 +958,7 @@ internal class BattleGroundEffectService
                     DamageResolutionContext
                         .ForSkill(skillId)
                         .WithBattleState(State)
+                        .WithDamageOriginKind(BattleDamageOriginKind.Terrain)
                         .WithDamageApplicationHookContext(
                             batch,
                             Runtime?.CurrentEffectOriginForContingency
@@ -1116,21 +1115,6 @@ internal class BattleGroundEffectService
                     }
                 }
             }
-            else if (effectKind == BattleEffectKind.EdgeClear)
-            {
-                if (
-                    _apply_ground_edge_clear_effect(
-                        sourceUnit,
-                        skillDefinition,
-                        normalizedEffectCoords,
-                        effectDefinition,
-                        batch
-                    )
-                )
-                {
-                    applied = true;
-                }
-            }
         }
         if (requiresTopologyReconcile && ReconcileWaterTopology(normalizedEffectCoords, batch))
         {
@@ -1150,147 +1134,6 @@ internal class BattleGroundEffectService
             or BattleEffectKind.HeightDelta => true,
             _ => false,
         };
-    }
-
-    internal bool _apply_ground_edge_clear_effect(
-        BattleUnitState sourceUnit,
-        SkillDefinition skillDefinition,
-        IReadOnlyList<Vector2I> effectCoords,
-        CombatEffectDefinition effectDefinition,
-        BattleEventBatch batch
-    )
-    {
-        if (_runtime == null || State == null || effectCoords == null || effectCoords.Count < 2)
-        {
-            return false;
-        }
-        IReadOnlyList<Vector2I> edgeCoords = BattleGroundEffectCoordService.SortCoordsTyped(effectCoords);
-        Vector2I first = edgeCoords[0];
-        Vector2I second = edgeCoords[1];
-        if (GridService.GetDistance(first, second) != 1)
-        {
-            return false;
-        }
-        EdgeAuthoringReference edgeRef = BuildEdgeAuthoringReference(first, second);
-        if (!edgeRef.IsValid)
-        {
-            return false;
-        }
-        Vector2I edgeCoord = edgeRef.Coord;
-        Vector2I edgeDirection = edgeRef.Direction;
-        BattleCellState cell = GridService.GetCellState(State, edgeCoord);
-        if (cell == null)
-        {
-            return false;
-        }
-        BattleEdgeFeatureState featureState = cell.GetEdgeFeature(edgeDirection);
-        if (featureState == null || featureState.IsEmpty())
-        {
-            return false;
-        }
-        if (!CanEdgeClearRemoveFeature(effectDefinition, featureState))
-        {
-            return false;
-        }
-        if (
-            !(
-                featureState.blocks_move
-                || featureState.blocks_occupancy
-                || featureState.blocks_los
-            )
-        )
-        {
-            return false;
-        }
-        if (!GridService.ClearEdgeFeature(State, edgeCoord, edgeDirection))
-        {
-            return false;
-        }
-        _append_changed_coord(batch, first);
-        _append_changed_coord(batch, second);
-        AppendLog(
-            batch,
-            $"{_build_skill_log_subject_label(sourceUnit, skillDefinition)} 在 ({first.X}, {first.Y}) 与 ({second.X}, {second.Y}) 之间开辟通道，移除了{_get_edge_feature_display_name(featureState)}。"
-        );
-        return true;
-    }
-
-    private EdgeAuthoringReference BuildEdgeAuthoringReference(Vector2I from_coord, Vector2I to_coord)
-    {
-        Vector2I delta = to_coord - from_coord;
-        if (delta == Vector2I.Right)
-        {
-            return new EdgeAuthoringReference(true, from_coord, Vector2I.Right);
-        }
-        if (delta == Vector2I.Left)
-        {
-            return new EdgeAuthoringReference(true, to_coord, Vector2I.Right);
-        }
-        if (delta == Vector2I.Down)
-        {
-            return new EdgeAuthoringReference(true, from_coord, Vector2I.Down);
-        }
-        if (delta == Vector2I.Up)
-        {
-            return new EdgeAuthoringReference(true, to_coord, Vector2I.Down);
-        }
-        return default;
-    }
-
-    private bool CanEdgeClearRemoveFeature(
-        CombatEffectDefinition effectDefinition,
-        BattleEdgeFeatureState featureState
-    )
-    {
-        return BuildEdgeClearFeatureKindSet(effectDefinition)
-            .Contains(featureState?.feature_kind ?? Empty);
-    }
-
-    private HashSet<StringName> BuildEdgeClearFeatureKindSet(
-        CombatEffectDefinition effectDefinition
-    )
-    {
-        var allowed = new HashSet<StringName>();
-        foreach (
-            StringName rawKind in effectDefinition?.GetStringNameListParamTyped(
-                "clear_feature_kinds"
-            ) ?? Array.Empty<StringName>()
-        )
-        {
-            if (!IsEmpty(rawKind))
-            {
-                allowed.Add(rawKind);
-            }
-        }
-        if (allowed.Count == 0)
-        {
-            allowed.Add(FeatureWall);
-            allowed.Add(FeatureDoor);
-            allowed.Add(FeatureGate);
-        }
-        return allowed;
-    }
-
-    internal string _get_edge_feature_display_name(BattleEdgeFeatureState feature_state)
-    {
-        if (feature_state == null)
-        {
-            return "阻挡边界";
-        }
-        StringName featureKind = feature_state?.feature_kind ?? Empty;
-        if (featureKind == FeatureWall)
-        {
-            return "墙体";
-        }
-        if (featureKind == FeatureDoor)
-        {
-            return "门";
-        }
-        if (featureKind == FeatureGate)
-        {
-            return "闸门";
-        }
-        return "阻挡边界";
     }
 
     internal bool _apply_ground_cell_effect(
@@ -1654,20 +1497,6 @@ internal class BattleGroundEffectService
         internal static GroundUnitEffectResolution FromResult(AttackEffectResolutionResult result)
         {
             return new GroundUnitEffectResolution(result);
-        }
-    }
-
-    private readonly struct EdgeAuthoringReference
-    {
-        internal readonly bool IsValid;
-        internal readonly Vector2I Coord;
-        internal readonly Vector2I Direction;
-
-        internal EdgeAuthoringReference(bool isValid, Vector2I coord, Vector2I direction)
-        {
-            IsValid = isValid;
-            Coord = coord;
-            Direction = direction;
         }
     }
 

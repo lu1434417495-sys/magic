@@ -377,6 +377,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             DamageResolutionContext
                 .ForSkill(effectState.source_skill_id)
                 .WithBattleState(runtime.GetState())
+                .WithDamageOriginKind(BattleDamageOriginKind.Terrain)
         );
         if (!damageResult.Applied)
             return;
@@ -829,6 +830,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
                 DamageResolutionContext
                     .ForSkill(effectState.source_skill_id)
                     .WithBattleState(state)
+                    .WithDamageOriginKind(BattleDamageOriginKind.Terrain)
                     .WithDamageApplicationHookContext(
                         batch,
                         BattleEffectOrigin.EquipmentAbility()

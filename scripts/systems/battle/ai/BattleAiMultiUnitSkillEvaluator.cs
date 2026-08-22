@@ -1062,13 +1062,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
         );
         if (context.grid_service.GetDistanceBetweenUnits(actor, targetUnit) > effectiveRange)
             return false;
-        return skillDefinition.CombatProfile.RequiresLos != true
-            || BattleUnitLineOfSightRules.HasLineOfSight(
-                context.state,
-                context.grid_service,
-                actor.GetAnchorCoord(),
-                targetUnit.GetAnchorCoord()
-            );
+        return true;
     }
 
     private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)

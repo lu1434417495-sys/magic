@@ -629,7 +629,7 @@ internal sealed class BattleUnitFieldsSnapshot
     private StringName _enemyTemplateId = "";
     private StringName _encounterActorId = "";
     private string _displayName = "";
-    private string _battleSpriteTexturePath = "";
+    private StringName _battleSpriteAssetId = "";
     private StringName _factionId = "";
     private StringName _controlMode = "";
     private StringName _aiBrainId = "";
@@ -685,6 +685,7 @@ internal sealed class BattleUnitFieldsSnapshot
     private bool _damageResistanceStateOwnerPresent = true;
     private StringNameStringNameMapSnapshot _damageResistances = new();
     private StringNameIntMapSnapshot _saveBonusByAbility = new();
+    private StringNameIntMapSnapshot _saveBonusByTag = new();
     private bool _effectiveTraitStateOwnerPresent = true;
     private List<BattleEffectiveTraitInstanceState> _effectiveTraitInstances = new();
     private List<StringName> _effectiveTraitIds = new();
@@ -742,7 +743,7 @@ internal sealed class BattleUnitFieldsSnapshot
         snapshot._enemyTemplateId = unit.enemy_template_id;
         snapshot._encounterActorId = unit.encounter_actor_id;
         snapshot._displayName = unit.display_name;
-        snapshot._battleSpriteTexturePath = unit.battle_sprite_texture_path;
+        snapshot._battleSpriteAssetId = unit.battle_sprite_asset_id;
         snapshot._factionId = unit.faction_id;
         snapshot._controlMode = unit.control_mode;
         snapshot._aiBrainId = unit.ai_brain_id;
@@ -879,6 +880,9 @@ internal sealed class BattleUnitFieldsSnapshot
         snapshot._saveBonusByAbility = StringNameIntMapSnapshot.FromTypedMap(
             saveModifiers.BonusByAbility
         );
+        snapshot._saveBonusByTag = StringNameIntMapSnapshot.FromTypedMap(
+            saveModifiers.BonusByTag
+        );
         BattleUnitEffectiveTraitSnapshot effectiveTraits =
             unit.CaptureEffectiveTraitsForMutationSnapshotExact();
         snapshot._effectiveTraitStateOwnerPresent =
@@ -984,10 +988,8 @@ internal sealed class BattleUnitFieldsSnapshot
                 : StableValue.FromText(_displayName)
         );
         result.Set(
-            "battle_sprite_texture_path",
-            _battleSpriteTexturePath == null
-                ? StableValue.Nil()
-                : StableValue.FromText(_battleSpriteTexturePath)
+            "battle_sprite_asset_id",
+            BattleAiMutationStableProjection.StableNullableStringName(_battleSpriteAssetId)
         );
         result.Set("faction_id", BattleAiMutationStableProjection.StableNullableStringName(_factionId));
         result.Set("control_mode", BattleAiMutationStableProjection.StableNullableStringName(_controlMode));
@@ -1109,6 +1111,10 @@ internal sealed class BattleUnitFieldsSnapshot
         result.Set(
             "save_bonus_by_ability",
             StableSaveModifierBonus()
+        );
+        result.Set(
+            "save_bonus_by_tag",
+            StableSaveModifierTagBonus()
         );
         result.Set(
             "effective_trait_instances",
@@ -1293,6 +1299,12 @@ internal sealed class BattleUnitFieldsSnapshot
     private StableValue StableSaveModifierBonus() =>
         _saveModifierStateOwnerPresent
             ? _saveBonusByAbility?.ToStableValue()
+                ?? StableValue.Nil()
+            : StableValue.FromText("<missing-save-modifier-owner>");
+
+    private StableValue StableSaveModifierTagBonus() =>
+        _saveModifierStateOwnerPresent
+            ? _saveBonusByTag?.ToStableValue()
                 ?? StableValue.Nil()
             : StableValue.FromText("<missing-save-modifier-owner>");
 

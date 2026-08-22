@@ -215,6 +215,87 @@ internal sealed record BattleHudStatusEffectSnapshot(
         );
 }
 
+internal sealed record BattleHudGearSetThresholdSnapshot(
+    string ThresholdId,
+    string DisplayName,
+    int RequiredPieceCount,
+    bool IsActive
+) : IBattlePresentationSnapshotValue
+{
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("threshold_id", ThresholdId ?? ""),
+            ("display_name", DisplayName ?? ""),
+            ("required_piece_count", RequiredPieceCount),
+            ("is_active", IsActive)
+        );
+}
+
+internal sealed record BattleHudGearSetGrantedActionSnapshot(
+    string GrantedActionId,
+    string SkillId,
+    string DisplayName,
+    string UsagePeriodKind,
+    int MaxUsesPerPeriod,
+    bool IsAvailable,
+    int RemainingUses,
+    string DisabledReason
+) : IBattlePresentationSnapshotValue
+{
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("granted_action_id", GrantedActionId ?? ""),
+            ("skill_id", SkillId ?? ""),
+            ("display_name", DisplayName ?? ""),
+            ("usage_period_kind", UsagePeriodKind ?? ""),
+            ("max_uses_per_period", MaxUsesPerPeriod),
+            ("is_available", IsAvailable),
+            ("remaining_uses", RemainingUses),
+            ("disabled_reason", DisabledReason ?? "")
+        );
+}
+
+internal sealed class BattleHudGearSetSummarySnapshot : IBattlePresentationSnapshotValue
+{
+    internal BattleHudGearSetSummarySnapshot(
+        string gearSetId,
+        string displayName,
+        int equippedPieceCount,
+        int totalPieceCount,
+        IEnumerable<BattleHudGearSetThresholdSnapshot> thresholds,
+        IEnumerable<BattleHudGearSetGrantedActionSnapshot> grantedActions
+    )
+    {
+        GearSetId = gearSetId ?? "";
+        DisplayName = displayName ?? "";
+        EquippedPieceCount = equippedPieceCount;
+        TotalPieceCount = totalPieceCount;
+        Thresholds = new List<BattleHudGearSetThresholdSnapshot>(
+            thresholds ?? Array.Empty<BattleHudGearSetThresholdSnapshot>()
+        ).AsReadOnly();
+        GrantedActions = new List<BattleHudGearSetGrantedActionSnapshot>(
+            grantedActions ?? Array.Empty<BattleHudGearSetGrantedActionSnapshot>()
+        ).AsReadOnly();
+    }
+
+    internal string GearSetId { get; }
+    internal string DisplayName { get; }
+    internal int EquippedPieceCount { get; }
+    internal int TotalPieceCount { get; }
+    internal IReadOnlyList<BattleHudGearSetThresholdSnapshot> Thresholds { get; }
+    internal IReadOnlyList<BattleHudGearSetGrantedActionSnapshot> GrantedActions { get; }
+
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("gear_set_id", GearSetId),
+            ("display_name", DisplayName),
+            ("equipped_piece_count", EquippedPieceCount),
+            ("total_piece_count", TotalPieceCount),
+            ("thresholds", Thresholds),
+            ("granted_actions", GrantedActions)
+        );
+}
+
 internal sealed record BattleHudFocusUnitSnapshot(
     string Name,
     string RoleText,
@@ -1100,6 +1181,7 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
     private readonly ReadOnlyCollection<BattleHudFateBadgeSnapshot> _selectedSkillFateBadges;
     private readonly ReadOnlyCollection<string> _recentBattleLogLines;
     private readonly ReadOnlyCollection<BattleHudBarrierSnapshot> _barriers;
+    private readonly ReadOnlyCollection<BattleHudGearSetSummarySnapshot> _gearSetSummaries;
     private readonly bool _isEmpty;
 
     internal static BattleHudSnapshot Empty { get; } = new();
@@ -1113,6 +1195,7 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
         _selectedSkillFateBadges = new List<BattleHudFateBadgeSnapshot>().AsReadOnly();
         _recentBattleLogLines = new List<string>().AsReadOnly();
         _barriers = new List<BattleHudBarrierSnapshot>().AsReadOnly();
+        _gearSetSummaries = new List<BattleHudGearSetSummarySnapshot>().AsReadOnly();
         RoundBadge = new BattleHudRoundBadgeSnapshot("TU --", "READY 0");
         HitPreviewPayload = BattlePresentationPayload.Empty;
         SaveBranchPreviewPayload = BattlePresentationPayload.Empty;
@@ -1158,7 +1241,8 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
         BattleHudEquipmentPanelSnapshot equipmentPanel,
         IEnumerable<BattleHudBarrierSnapshot> barriers = null,
         string barrierSummaryText = "",
-        BattleHudObjectiveProgressSnapshot objectiveProgress = null
+        BattleHudObjectiveProgressSnapshot objectiveProgress = null,
+        IEnumerable<BattleHudGearSetSummarySnapshot> gearSetSummaries = null
     )
     {
         HeaderTitle = headerTitle ?? "";
@@ -1211,6 +1295,9 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
         BarrierSummaryText = barrierSummaryText ?? "";
         ObjectiveProgress =
             objectiveProgress ?? BattleHudObjectiveProgressSnapshot.Empty;
+        _gearSetSummaries = new List<BattleHudGearSetSummarySnapshot>(
+            gearSetSummaries ?? Array.Empty<BattleHudGearSetSummarySnapshot>()
+        ).AsReadOnly();
     }
 
     internal bool IsEmpty => _isEmpty;
@@ -1252,6 +1339,8 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
     internal string BarrierSummaryText { get; } = "";
     internal BattleHudObjectiveProgressSnapshot ObjectiveProgress { get; } =
         BattleHudObjectiveProgressSnapshot.Empty;
+    internal IReadOnlyList<BattleHudGearSetSummarySnapshot> GearSetSummaries =>
+        _gearSetSummaries;
 
     public IReadOnlyDictionary<string, object> CanonicalFacts =>
         _isEmpty
@@ -1291,6 +1380,7 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
                 ("hint_text", HintText),
                 ("recent_battle_log_lines", _recentBattleLogLines),
                 ("equipment_panel", EquipmentPanel),
+                ("gear_set_summaries", _gearSetSummaries),
                 ("barriers", _barriers),
                 ("barrier_summary_text", BarrierSummaryText)
             );
