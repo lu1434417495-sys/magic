@@ -222,7 +222,7 @@ public sealed record BattleAiScoreProfileDefinition
         return false;
     }
 
-    internal static BattleAiScoreProfileDefinition FromResource(BattleAiScoreProfile source)
+    internal static BattleAiScoreProfileDefinition FromDiagnosticFixture(BattleAiScoreProfile source)
     {
         if (source == null)
             return Default;

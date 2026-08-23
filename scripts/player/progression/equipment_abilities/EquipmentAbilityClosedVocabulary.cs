@@ -7,7 +7,7 @@ using System.Collections.ObjectModel;
 internal static class EquipmentAbilityClosedVocabulary
 {
     internal static IReadOnlyList<string> TriggerValues { get; } = Values(
-        "on_hit", "on_kill", "on_granted_skill_used", "on_turn_end",
+        "on_hit", "on_attack_hit", "on_kill", "on_granted_skill_used", "on_turn_end",
         "on_damage_roll", "on_damage_applied", "on_damage_taken_finalized",
         "on_hit_received", "on_attack_check", "on_target_mark_expired"
     );
@@ -33,7 +33,7 @@ internal static class EquipmentAbilityClosedVocabulary
         "equipment_target_mark_matches", "equipment_target_mark_stacks",
         "expired_target_mark_matches", "status_stacks", "nearby_enemy_count",
         "nearby_unit_count", "nearby_ally_count", "summoned_unit_count",
-        "source_status_total_stacks", "unit_distance", "weapon_range_type"
+        "source_status_total_stacks", "unit_distance", "weapon_range_type", "save_tag"
     );
     internal static IReadOnlyList<string> FactSubjectValues { get; } = Values(
         "", "source", "attacker", "owner", "target", "attack_target", "defender",

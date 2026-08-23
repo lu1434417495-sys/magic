@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_sequential_line_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_sequential_line_damage_gap",
+      "display_name": "Sequential-line damage diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "max_level": 0,
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_sequential_line_damage_gap",
+        "range_value": 5,
+        "effect_defs": [
+          {
+            "effect_type": "heal",
+            "min_skill_level": 1,
+            "payload": {}
+          }
+        ],
+        "weapon_range_policy": "configured",
+        "requires_los": true,
+        "sequential_line_hit_profile": {
+          "minimum_primary_distance_curve": [
+            1
+          ],
+          "continuation_range_curve": [
+            1
+          ],
+          "follow_up_attack_penalty_curve": [
+            0
+          ]
+        },
+        "projectile_kind": "magical",
+        "max_target_count": 2,
+        "max_hits_per_target": 1
+      },
+      "icon_id": "diagnostic_sequential_line_damage_gap"
+    }
+  ]
+}

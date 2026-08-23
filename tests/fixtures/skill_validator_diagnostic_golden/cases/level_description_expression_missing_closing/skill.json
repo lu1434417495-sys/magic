@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "level_description_expression_missing_closing",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "invalid_level_description_expression_missing_closing_skill",
+      "display_name": "Missing expression closing brace",
+      "description": "T1a.7 diagnostic fixture.",
+      "skill_type": "passive",
+      "tags": [
+        "test"
+      ],
+      "level_description_template": "Value {=1",
+      "level_description_configs": {
+        "0": {}
+      },
+      "icon_id": "invalid_level_description_expression_missing_closing_skill",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

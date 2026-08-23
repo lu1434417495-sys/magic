@@ -10,21 +10,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
     private const string OFFICIAL_SKILL_DIRECTORY = "res://data/configs/json/skills";
     private const string OFFICIAL_PROFESSION_DIRECTORY =
         "res://data/configs/json/professions";
-    private const string OFFICIAL_RECIPE_DIRECTORY = "res://data/configs/recipes";
-    private const string SKILL_INVALID_DIRECTORY = "res://tests/progression/fixtures/skill_registry_invalid";
-    private const string SKILL_VALID_DIRECTORY = "res://tests/progression/fixtures/skill_registry_valid";
-    private const string ITEM_INVALID_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_invalid";
-    private const string ITEM_TEMPLATE_INVALID_ITEM_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_template_invalid/items";
-    private const string ITEM_TEMPLATE_INVALID_TEMPLATE_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_template_invalid/templates";
-    private const string ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_template_isolated/items";
-    private const string ITEM_TEMPLATE_ISOLATED_TEMPLATE_DIRECTORY =
-        "res://tests/fixtures/resource_validation/item_registry_template_isolated/templates";
-    private const string RECIPE_INVALID_DIRECTORY =
-        "res://tests/fixtures/resource_validation/recipe_registry_invalid";
+    private const string OFFICIAL_RECIPE_DIRECTORY = "res://data/configs/json/recipes";
     private const string BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT = "user://rv/bsp";
 
     private readonly TestHarness _test = new();
@@ -38,9 +24,8 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
     private void Run()
     {
         ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
-        using TestContentResourceLoader contentLoader = new();
-        using ProgressionContentRegistry progressionRegistry = new(contentLoader);
-        using ItemContentRegistry itemRegistry = new(contentLoader);
+        using ProgressionContentRegistry progressionRegistry = new();
+        using ItemContentRegistry itemRegistry = new();
 
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
             itemRegistry.GetItemDefsTyped();
@@ -61,8 +46,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             typedItemDefs,
             typedSkillDefinitions
         );
-
-        TestItemRegistryDirectoryRebuildClearsTemplateCache();
 
         ValidationRunReport officialReport = ContentValidationRunner.BuildRunReport(
             "official_content",
@@ -113,26 +96,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             "正式 enemy validation runner 应稳定归入 enemy domain。"
         );
 
-        ValidationDomainResult skillResult = ContentValidationRunner.ValidateSkillResourceFixtureDirectory(
-            SKILL_INVALID_DIRECTORY,
-            true
-        );
-        ValidationDomainResult validSkillResult = ContentValidationRunner.ValidateSkillResourceFixtureDirectory(
-            SKILL_VALID_DIRECTORY
-        );
-        ValidationDomainResult itemResult = ContentValidationRunner.ValidateItemDirectories(
-            "isolated_invalid_items",
-            [ITEM_INVALID_DIRECTORY]
-        );
-        ValidationDomainResult itemTemplateResult = ContentValidationRunner.ValidateItemDirectories(
-            "invalid_item_templates",
-            [ITEM_TEMPLATE_INVALID_ITEM_DIRECTORY],
-            [ITEM_TEMPLATE_INVALID_TEMPLATE_DIRECTORY]
-        );
-        ValidationDomainResult recipeResult = ContentValidationRunner.ValidateRecipeDirectory(
-            RECIPE_INVALID_DIRECTORY,
-            itemDefs
-        );
         ValidationDomainResult battleSpecialMissingManifestResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_missing_manifest",
@@ -164,10 +127,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             "invalid_fixture_coverage",
             new[]
             {
-                skillResult,
-                itemResult,
-                itemTemplateResult,
-                recipeResult,
                 battleSpecialMissingManifestResult,
                 battleSpecialUnknownProfileResult,
                 worldResult,
@@ -175,57 +134,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             }
         );
         _reports.Add(ContentValidationRunner.FormatReport(invalidFixtureReport));
-
-        AssertContainsErrors(
-            skillResult,
-            "非法技能目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate skill_id registered: duplicate_skill",
-            "missing_id_skill.tres/skill_id: Content ID must be canonical lower snake_case ASCII",
-            "skill.dto.effect_type.unknown",
-            "invalid_level_description_gap_skill level_description_configs must include level 1",
-            "invalid_level_description_level_less_overflow_skill level_description_configs[1] must be <= max_level 0",
-            "invalid_level_description_malformed_skill.tres/level_description_configs",
-            "invalid_level_description_missing_config_skill level_description_configs must be non-empty",
-            "invalid_level_description_missing_template_skill level_description_template must be non-empty",
-            "invalid_level_less_variant_skill cast option locked_option min_skill_level must be <= max_level 0",
-            "skill.dto.target_mode.unknown",
-            "skill.dto.target_selection_mode.unknown",
-            "skill.dto.selection_order_mode.unknown",
-            "skill.dto.area_pattern.unknown",
-            "skill.dto.level_override.area_pattern.unknown",
-            "/cast_variants/0/target_mode",
-            "/cast_variants/1/target_mode",
-            "skill.dto.cast_variant.footprint_pattern.unknown"
-        );
-        _test.True(validSkillResult.ErrorCount == 0, "合法技能 targeting fixture 不应产生 validation 错误。");
-
-        AssertContainsErrors(
-            itemResult,
-            "非法物品目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate item_id registered: duplicate_item",
-            "invalid_slot_item declares invalid slot phantom_slot",
-            "legacy_weapon_fields_item must declare weapon_profile",
-            "missing_explicit_price_item must declare explicit buy_price",
-            "missing_id_item.tres is missing item_id",
-            "official_template_leak_item references missing template weapon_type_longsword_base"
-        );
-
-        AssertContainsErrors(
-            itemTemplateResult,
-            "非法 item template 目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate item template id: duplicate_fixture_template",
-            "missing_id_template.tres is missing item_id",
-            "Item template inheritance cycle detected at fixture_cycle_template_a",
-            "Item template inheritance cycle detected at fixture_cycle_template_b"
-        );
-
-        AssertContainsErrors(
-            recipeResult,
-            "非法配方目录中的每个独立 fixture 规则都必须被命中。",
-            "Duplicate recipe_id registered: duplicate_recipe",
-            "invalid_reference_recipe references missing input item missing_item",
-            "missing_id_recipe.tres is missing recipe_id"
-        );
 
         AssertContainsErrors(
             battleSpecialMissingManifestResult,
@@ -297,38 +205,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             keys.Add(key);
         keys.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return keys;
-    }
-
-    private void TestItemRegistryDirectoryRebuildClearsTemplateCache()
-    {
-        using TestContentResourceLoader loader = new();
-        using ItemContentRegistry registry = new(loader);
-        registry.RebuildFromDirectories(
-            new GArray { ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY },
-            new GArray { ITEM_TEMPLATE_ISOLATED_TEMPLATE_DIRECTORY }
-        );
-        _test.True(registry.Validate().Count == 0, "显式传入 fixture template 时 isolated item registry 应可通过。");
-        _test.True(
-            registry.GetItemDefsTyped().ContainsKey("fixture_inherited_item"),
-            "显式传入 fixture template 时应注册继承后的 fixture item。"
-        );
-
-        registry.RebuildFromDirectories(
-            new GArray { ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY },
-            new GArray()
-        );
-        GStringArray missingTemplateErrors = registry.Validate();
-        _test.Eq(
-            missingTemplateErrors.Count,
-            1,
-            $"清空 template 目录后应只报告 fixture template 缺失。errors={FormatErrors(ToStringList(missingTemplateErrors))}"
-        );
-        _test.True(
-            missingTemplateErrors.Contains(
-                "Item fixture_inherited_item references missing template fixture_item_base."
-            ),
-            "同一个 registry 重新构建时不得残留上一次的 fixture template cache。"
-        );
     }
 
     private void TestFormalPhantasmalKillResource(
@@ -823,24 +699,6 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
     private void AssertContainsText(string text, string expectedPart, string message)
     {
         _test.True((text ?? "").Contains(expectedPart), $"{message} text={text}");
-    }
-
-    private static IReadOnlyDictionary<StringName, SkillDef> BuildSkillDefIndex(GDictionary skillDefs)
-    {
-        Dictionary<StringName, SkillDef> result = new();
-        if (skillDefs == null)
-            return result;
-        foreach (Variant rawKey in skillDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName skillId = rawKey.AsStringName();
-            if (skillId == "")
-                continue;
-            if (skillDefs[rawKey].AsGodotObject() is SkillDef skillDef)
-                result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static List<string> ToStringList(IEnumerable<string> values)

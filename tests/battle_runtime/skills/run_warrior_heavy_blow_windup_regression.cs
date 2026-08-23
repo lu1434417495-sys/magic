@@ -470,7 +470,7 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
             delayed_resolution_cost_per_5_tu = 7,
         };
         BattleAiScoreProfileDefinition definition =
-            BattleAiScoreProfileDefinition.FromResource(resource);
+            BattleAiScoreProfileDefinition.FromDiagnosticFixture(resource);
 
         _test.Eq(
             definition.DelayedResolutionCostPer5Tu,
@@ -1180,8 +1180,7 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
 
     private static SkillDefinition LoadSkillWithHeavyRequirement(bool requiresHeavyWeapon)
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new SkillContentRegistry(loader);
+        using var registry = new SkillContentRegistry();
         SkillDefinition skill = registry.GetSkillDefinitionsTyped()[SkillId];
         System.Reflection.FieldInfo field = typeof(CombatSkillDefinition).GetField(
             "<RequiresHeavyWeapon>k__BackingField",

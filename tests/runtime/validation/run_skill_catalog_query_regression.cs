@@ -141,7 +141,7 @@ public partial class run_skill_catalog_query_regression : LifecycleTestSceneTree
             "skill-catalog-query-combat-resource"
         );
 
-        CombatSkillDefinition runtimeCombat = CombatSkillDefinition.FromResource(
+        CombatSkillDefinition runtimeCombat = CombatSkillDefinition.FromDiagnosticFixture(
             resourceCombat,
             "skill_catalog_runtime_semantics",
             "test.skill_catalog.runtime_semantics.combat_profile"

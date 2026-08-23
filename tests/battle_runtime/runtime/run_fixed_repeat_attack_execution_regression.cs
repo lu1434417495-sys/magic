@@ -161,11 +161,11 @@ public partial class run_fixed_repeat_attack_execution_regression : LifecycleTes
             stop_on_miss = false,
             fixed_attack_count = 3,
         };
-        CombatEffectDefinition damage = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition damage = CombatEffectDefinition.FromDiagnosticFixture(
             damageResource,
             "fixed_repeat_execution.damage"
         );
-        CombatEffectDefinition repeat = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition repeat = CombatEffectDefinition.FromDiagnosticFixture(
             repeatResource,
             "fixed_repeat_execution.repeat"
         );

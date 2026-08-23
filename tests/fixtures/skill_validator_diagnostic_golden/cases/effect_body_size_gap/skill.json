@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_body_size_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_body_size_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_body_size_gap",
+        "effect_defs": [
+          {
+            "effect_type": "body_size_category_override",
+            "payload": {}
+          }
+        ]
+      },
+      "icon_id": "diagnostic_body_size_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

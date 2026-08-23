@@ -177,7 +177,7 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
 
     private void TestAimedShotAllowsBowAndNaturalWeaponButRejectsUnarmed()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using ProgressionContentRegistry registry = new();
         bool foundSkill = registry.GetSkillDefinitionsTyped().TryGetValue(
             "archer_aimed_shot",
             out SkillDefinition aimedShot

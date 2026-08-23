@@ -47,6 +47,7 @@ internal static class TraitJsonImportParser
                 CopyStrings(dto.SaveImmunityTags),
                 CopyDamageResistances(dto.DamageResistanceEntries),
                 CopySaveBonuses(dto.SaveBonusEntries),
+                CopySaveTagBonuses(dto.SaveTagBonusEntries),
                 CopyPassiveStatuses(dto.PassiveStatusEffects),
                 CopyRollSchema(dto.RollValueSchema)
             )
@@ -165,6 +166,28 @@ internal static class TraitJsonImportParser
                     current.MinValue,
                     current.MaxValue,
                     CopyStrings(current.AllowedValues)
+                )
+            );
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<TraitSaveTagBonusEntryImportModel> CopySaveTagBonuses(
+        IReadOnlyList<TraitSaveTagBonusEntryJsonDto>? source
+    )
+    {
+        if (source == null)
+            return Array.Empty<TraitSaveTagBonusEntryImportModel>();
+        var result = new List<TraitSaveTagBonusEntryImportModel>(source.Count);
+        foreach (TraitSaveTagBonusEntryJsonDto? value in source)
+        {
+            TraitSaveTagBonusEntryJsonDto current =
+                value ?? new TraitSaveTagBonusEntryJsonDto();
+            result.Add(
+                new TraitSaveTagBonusEntryImportModel(
+                    current.SaveTag ?? "",
+                    current.Bonus,
+                    current.StackMode ?? ""
                 )
             );
         }

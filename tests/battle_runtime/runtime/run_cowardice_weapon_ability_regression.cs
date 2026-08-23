@@ -85,8 +85,6 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
             _test.True(fixture.Bindings.ContainsKey(bindingId), $"懦弱之刃应包含 binding {bindingId}。");
         }
         _test.True(fixture.SkillDefs.ContainsKey(ScurrySkillId), "逃窜应落成真实 SkillDef。");
-
-        using TestContentResourceLoader loader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_shortsword_cowardice");
         _test.True(rawItem != null, "懦弱之刃原始资源应能加载。");
         if (rawItem != null)

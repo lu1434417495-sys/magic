@@ -26,7 +26,7 @@ internal sealed record LifecycleWeakDiagnosticSnapshot(
     bool IsAlive
 );
 
-internal sealed record LifecycleProcessContentRootSnapshot(
+internal sealed record LifecycleEngineAssetRootSnapshot(
     string CanonicalPath,
     string TypeName,
     bool IsAlive
@@ -50,7 +50,7 @@ internal sealed record LifecycleAuditActivitySnapshot(
 );
 
 internal sealed record LifecycleAuditSnapshot(
-    int ProcessContentRootCount,
+    int EngineAssetRootCount,
     long ActiveContentSnapshotEpoch,
     int ActiveContentBorrowerCount,
     int ActiveOwnerCount,
@@ -75,7 +75,7 @@ internal sealed record LifecycleAuditSnapshot(
     IReadOnlyDictionary<string, int> ActiveJobCountsByDomain,
     LifecycleAuditActivitySnapshot Activity,
     IReadOnlyList<LifecycleWeakDiagnosticSnapshot> WeakDiagnostics,
-    IReadOnlyList<LifecycleProcessContentRootSnapshot> ProcessContentRoots,
+    IReadOnlyList<LifecycleEngineAssetRootSnapshot> EngineAssetRoots,
     IReadOnlyList<LifecycleLegacyDebtSnapshot> LegacyDebt,
     IReadOnlyList<LifecycleShutdownPhaseAuditSnapshot> ShutdownPhases
 )
@@ -100,7 +100,7 @@ internal sealed class LifecycleAuditRegistry
         WeakReference<object> Target
     );
 
-    private sealed record ProcessContentRootDiagnostic(
+    private sealed record EngineAssetRootDiagnostic(
         Type Type,
         WeakReference<object> Target
     );
@@ -108,7 +108,7 @@ internal sealed class LifecycleAuditRegistry
     private readonly object _sync = new();
     private readonly Dictionary<string, ActiveDiagnostic> _activeDiagnostics =
         new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ProcessContentRootDiagnostic> _processContentRoots =
+    private readonly Dictionary<string, EngineAssetRootDiagnostic> _engineAssetRoots =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, LifecycleLegacyDebtSnapshot> _legacyDebt =
         new(StringComparer.Ordinal);
@@ -213,54 +213,54 @@ internal sealed class LifecycleAuditRegistry
         }
     }
 
-    internal void RegisterProcessContentRoot(string canonicalPath, Type type, object target)
+    internal void RegisterEngineAssetRoot(string canonicalPath, Type type, object target)
     {
         if (string.IsNullOrWhiteSpace(canonicalPath))
         {
-            ReportViolation("Process content root canonical path is required.");
+            ReportViolation("Engine asset root canonical path is required.");
             return;
         }
         if (type == null)
         {
             ReportViolation(
-                $"Process content root type is required. path={canonicalPath}"
+                $"Engine asset root type is required. path={canonicalPath}"
             );
             return;
         }
         if (target == null)
         {
             ReportViolation(
-                $"Process content root target is required. path={canonicalPath}"
+                $"Engine asset root target is required. path={canonicalPath}"
             );
             return;
         }
 
         lock (_sync)
         {
-            if (_processContentRoots.ContainsKey(canonicalPath))
+            if (_engineAssetRoots.ContainsKey(canonicalPath))
             {
                 ReportViolation(
-                    $"Process content root is already registered. path={canonicalPath}"
+                    $"Engine asset root is already registered. path={canonicalPath}"
                 );
                 return;
             }
 
-            _processContentRoots.Add(
+            _engineAssetRoots.Add(
                 canonicalPath,
-                new ProcessContentRootDiagnostic(type, new WeakReference<object>(target))
+                new EngineAssetRootDiagnostic(type, new WeakReference<object>(target))
             );
             _createdCount++;
         }
     }
 
-    internal void ReleaseProcessContentRoot(string canonicalPath)
+    internal void ReleaseEngineAssetRoot(string canonicalPath)
     {
         lock (_sync)
         {
-            if (!_processContentRoots.Remove(canonicalPath))
+            if (!_engineAssetRoots.Remove(canonicalPath))
             {
                 ReportViolation(
-                    $"Process content root is not registered. path={canonicalPath}"
+                    $"Engine asset root is not registered. path={canonicalPath}"
                 );
                 return;
             }
@@ -469,10 +469,10 @@ internal sealed class LifecycleAuditRegistry
                     )
                 )
                 .Concat(
-                    _processContentRoots.Select(entry =>
+                    _engineAssetRoots.Select(entry =>
                         new LifecycleWeakDiagnosticSnapshot(
                             entry.Key,
-                            "ProcessContentRoot",
+                            "EngineAssetRoot",
                             "ProcessContent",
                             entry.Value.Target.TryGetTarget(out _)
                         )
@@ -481,9 +481,9 @@ internal sealed class LifecycleAuditRegistry
                 .OrderBy(entry => entry.DiagnosticId, StringComparer.Ordinal)
                 .ToArray();
 
-            LifecycleProcessContentRootSnapshot[] contentRoots = _processContentRoots
+            LifecycleEngineAssetRootSnapshot[] engineAssetRoots = _engineAssetRoots
                 .Select(entry =>
-                    new LifecycleProcessContentRootSnapshot(
+                    new LifecycleEngineAssetRootSnapshot(
                         entry.Key,
                         entry.Value.Type.FullName ?? entry.Value.Type.Name,
                         entry.Value.Target.TryGetTarget(out _)
@@ -493,7 +493,7 @@ internal sealed class LifecycleAuditRegistry
                 .ToArray();
 
             return new LifecycleAuditSnapshot(
-                _processContentRoots.Count,
+                _engineAssetRoots.Count,
                 _activeContentSnapshotEpoch,
                 CountActive(LifecycleAuditActiveKind.ContentBorrower),
                 CountActive(LifecycleAuditActiveKind.Owner),
@@ -527,7 +527,7 @@ internal sealed class LifecycleAuditRegistry
                     _transfersIn
                 ),
                 weakDiagnostics,
-                contentRoots,
+                engineAssetRoots,
                 _legacyDebt.Values.OrderBy(debt => debt.DebtId, StringComparer.Ordinal).ToArray(),
                 _shutdownPhases.ToArray()
             );

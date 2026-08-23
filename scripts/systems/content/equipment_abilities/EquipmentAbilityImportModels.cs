@@ -139,6 +139,7 @@ internal sealed class AddDamageDiceActionPayloadImportModel : IEquipmentAbilityA
     internal string target_selector { get; init; } = "";
     internal DiceExpressionImportModel dice { get; init; } = null!;
     internal string damage_type { get; init; } = "";
+    internal string damage_type_mode { get; init; } = "explicit";
     internal bool require_weapon_damage { get; init; }
     internal bool subtract { get; init; }
     internal string replacement_group_id { get; init; } = "";
@@ -223,6 +224,14 @@ internal sealed class DamageReductionActionPayloadImportModel : IEquipmentAbilit
     internal string label { get; init; } = "";
 }
 
+internal sealed class GrantMitigationTierActionPayloadImportModel : IEquipmentAbilityActionPayloadImportModel
+{
+    internal string target_selector { get; init; } = "";
+    internal string mitigation_tier { get; init; } = "";
+    internal IReadOnlyList<string> damage_tags { get; init; } = Array.Empty<string>();
+    internal string label { get; init; } = "";
+}
+
 internal sealed class LootQuantityMultiplierActionPayloadImportModel : IEquipmentAbilityActionPayloadImportModel
 {
     internal string target_selector { get; init; } = "";
@@ -244,9 +253,9 @@ internal sealed class ApplyStatusActionPayloadImportModel : IEquipmentAbilityAct
     internal int attack_roll_penalty { get; init; }
     internal int armor_class_bonus_per_stack { get; init; }
     internal int source_bound_attack_roll_penalty { get; init; }
-    internal int source_bound_attack_roll_penalty_min_stacks { get; init; }
+    internal int source_bound_attack_roll_penalty_min_stacks { get; init; } = 1;
     internal int source_bound_incoming_attack_roll_bonus_per_stack { get; init; }
-    internal int source_bound_incoming_attack_roll_bonus_min_stacks { get; init; }
+    internal int source_bound_incoming_attack_roll_bonus_min_stacks { get; init; } = 1;
     internal bool override_heal_multiplier_percent { get; init; }
     internal int heal_multiplier_percent { get; init; }
     internal int move_point_capacity_delta { get; init; }
@@ -271,6 +280,7 @@ internal sealed class ApplyStatusActionPayloadImportModel : IEquipmentAbilityAct
     internal string save_ability { get; init; } = "";
     internal string save_tag { get; init; } = "";
     internal bool apply_on_save_failure { get; init; }
+    internal bool remove_on_source_deactivated { get; init; }
 }
 
 internal sealed class ModifyActionPointsActionPayloadImportModel : IEquipmentAbilityActionPayloadImportModel

@@ -106,9 +106,7 @@ public partial class run_archer_repel_arrow_regression : LifecycleTestSceneTree
             new StringName("attack_hit"),
             "attack_hit应能无损投影回资源值。"
         );
-
-        using var loader = new TestContentResourceLoader();
-        using var registry = new SkillContentRegistry(loader, loadDefaultContent: false);
+        using var registry = new SkillContentRegistry(loadDefaultContent: false);
         var validEffect = new CombatEffectDef
         {
             effect_type = "forced_move",

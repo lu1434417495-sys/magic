@@ -9,8 +9,8 @@ using GdStringArray = Godot.Collections.Array<string>;
 
 /// <summary>
 /// Domain-local skill validation entry point for the normalized plain import graph.
-/// Resource and JSON sources share this exact validator. The immutable definition used
-/// by rule evaluators is produced only by the canonical import-model projector.
+/// Production JSON and diagnostic fixtures share this exact validator. The immutable
+/// definition used by rule evaluators is produced only by the canonical import-model projector.
 /// </summary>
 internal sealed class SkillImportModelValidator
 {

@@ -4,8 +4,8 @@ using System.Collections.ObjectModel;
 using Godot;
 
 /// <summary>
-/// Process-scoped, immutable projection of authored content. Runtime owners may
-/// borrow this graph, but they never receive the raw Resource roots used to build it.
+/// Process-scoped, immutable projection of authored JSON content. Runtime owners may
+/// borrow this graph, but they never receive mutable import registries or engine assets.
 /// </summary>
 internal sealed class ContentSnapshot
 {

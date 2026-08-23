@@ -397,6 +397,9 @@ internal sealed class AddDamageDiceActionPayloadJsonDto
     [JsonRequired]
     public string DamageType { get; init; } = "";
 
+    [JsonPropertyName("damage_type_mode")]
+    public string DamageTypeMode { get; init; } = "explicit";
+
     [JsonPropertyName("require_weapon_damage")]
     [JsonRequired]
     public bool RequireWeaponDamage { get; init; }
@@ -629,6 +632,26 @@ internal sealed class DamageReductionActionPayloadJsonDto
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class GrantMitigationTierActionPayloadJsonDto
+{
+    [JsonPropertyName("target_selector")]
+    [JsonRequired]
+    public string TargetSelector { get; init; } = "";
+
+    [JsonPropertyName("mitigation_tier")]
+    [JsonRequired]
+    public string MitigationTier { get; init; } = "";
+
+    [JsonPropertyName("damage_tags")]
+    [JsonRequired]
+    public IReadOnlyList<string> DamageTags { get; init; } = Array.Empty<string>();
+
+    [JsonPropertyName("label")]
+    [JsonRequired]
+    public string Label { get; init; } = "";
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class LootQuantityMultiplierActionPayloadJsonDto
 {
     [JsonPropertyName("target_selector")]
@@ -803,6 +826,9 @@ internal sealed class ApplyStatusActionPayloadJsonDto
     [JsonPropertyName("apply_on_save_failure")]
     [JsonRequired]
     public bool ApplyOnSaveFailure { get; init; }
+
+    [JsonPropertyName("remove_on_source_deactivated")]
+    public bool RemoveOnSourceDeactivated { get; init; }
 
 }
 
@@ -2006,6 +2032,7 @@ internal sealed class ApplyEdgeFeatureActionPayloadJsonDto
 [JsonSerializable(typeof(CriticalHitOverrideActionPayloadJsonDto))]
 [JsonSerializable(typeof(DamageRollModeOverrideActionPayloadJsonDto))]
 [JsonSerializable(typeof(DamageReductionActionPayloadJsonDto))]
+[JsonSerializable(typeof(GrantMitigationTierActionPayloadJsonDto))]
 [JsonSerializable(typeof(LootQuantityMultiplierActionPayloadJsonDto))]
 [JsonSerializable(typeof(ApplyStatusActionPayloadJsonDto))]
 [JsonSerializable(typeof(ModifyActionPointsActionPayloadJsonDto))]

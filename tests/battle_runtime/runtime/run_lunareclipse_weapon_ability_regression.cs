@@ -87,8 +87,6 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
             fixture.SkillDefs.ContainsKey(EclipseShadowstepSkillId),
             "月蚀影步应落成真实 SkillDef，而不是 trait 文本。"
         );
-
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_battleaxe_lunareclipse");
         _test.True(rawItem != null, "月蚀原始资源应能加载。");
         if (rawItem != null)

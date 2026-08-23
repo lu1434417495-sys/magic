@@ -85,7 +85,7 @@ public partial class run_skill_icon_asset_catalog_validator_regression : Lifecyc
         {
             using ProcessContentHost probe =
                 ProcessContentHost.CreateSyntheticPublicationProbeForTest(
-                    (_, candidateEpoch) =>
+                    candidateEpoch =>
                     {
                         candidateEpochs.Add(candidateEpoch);
                         return new ContentSnapshotBuildArtifact(
@@ -194,7 +194,7 @@ public partial class run_skill_icon_asset_catalog_validator_regression : Lifecyc
 
         using (
             ProcessContentHost probe = ProcessContentHost.CreateSyntheticPublicationProbeForTest(
-                (_, epoch) =>
+                epoch =>
                 {
                     buildCount++;
                     return new ContentSnapshotBuildArtifact(
@@ -278,7 +278,7 @@ public partial class run_skill_icon_asset_catalog_validator_regression : Lifecyc
             },
             $"skill-icon-catalog-{skillId}"
         );
-        return SkillDefinition.FromResource(raw);
+        return SkillDefinition.FromDiagnosticFixture(raw);
     }
 
     private static Exception Capture(Action action)

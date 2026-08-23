@@ -65,6 +65,24 @@ internal sealed class TraitSaveBonusEntryJsonDto
     public int Bonus { get; init; }
 }
 
+[Description("One typed saving throw bonus keyed by a canonical save tag.")]
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class TraitSaveTagBonusEntryJsonDto
+{
+    [JsonPropertyName("save_tag")]
+    [JsonRequired]
+    public string SaveTag { get; init; } = null!;
+
+    [JsonPropertyName("bonus")]
+    [JsonRequired]
+    public int Bonus { get; init; }
+
+    [JsonPropertyName("stack_mode")]
+    [JsonRequired]
+    [ContentJsonSchemaStableStringValues(typeof(TraitSaveTagBonusStackModeSchemaValues))]
+    public string StackMode { get; init; } = null!;
+}
+
 [Description("One passive status declaration projected by a trait.")]
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class TraitPassiveStatusEffectJsonDto
@@ -214,6 +232,9 @@ internal sealed class TraitJsonDto
     [JsonRequired]
     public IReadOnlyList<TraitSaveBonusEntryJsonDto> SaveBonusEntries { get; init; } = null!;
 
+    [JsonPropertyName("save_tag_bonus_entries")]
+    public IReadOnlyList<TraitSaveTagBonusEntryJsonDto> SaveTagBonusEntries { get; init; } = null!;
+
     [JsonPropertyName("passive_status_effects")]
     [JsonRequired]
     public IReadOnlyList<TraitPassiveStatusEffectJsonDto> PassiveStatusEffects { get; init; } = null!;
@@ -265,9 +286,15 @@ internal sealed class TraitJsonDocumentDto
 [JsonSerializable(typeof(TraitAttributeModifierJsonDto))]
 [JsonSerializable(typeof(TraitDamageResistanceEntryJsonDto))]
 [JsonSerializable(typeof(TraitSaveBonusEntryJsonDto))]
+[JsonSerializable(typeof(TraitSaveTagBonusEntryJsonDto))]
 [JsonSerializable(typeof(TraitPassiveStatusEffectJsonDto))]
 [JsonSerializable(typeof(TraitRollValueSchemaEntryJsonDto))]
 internal partial class TraitJsonImportSerializerContext : JsonSerializerContext { }
+
+internal sealed class TraitSaveTagBonusStackModeSchemaValues : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } = Array.AsReadOnly(new[] { "add", "highest" });
+}
 
 internal sealed class TraitAttributeModifierModeSchemaValues : IContentJsonSchemaStableStringValues
 {

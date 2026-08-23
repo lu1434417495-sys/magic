@@ -7,19 +7,12 @@ using Godot;
 
 internal sealed class ContentSnapshotBuilder
 {
-    private readonly IContentResourceLoader _loader;
-
-    internal ContentSnapshotBuilder(IContentResourceLoader loader)
-    {
-        _loader = loader ?? throw new ArgumentNullException(nameof(loader));
-    }
-
     internal ContentSnapshot Build(long epoch)
     {
         if (epoch <= 0)
             throw new ArgumentOutOfRangeException(nameof(epoch), epoch, "Snapshot epoch must be positive.");
 
-        using var progression = new ProgressionContentRegistry(_loader);
+        using var progression = new ProgressionContentRegistry();
         using var barrier = new BarrierContentRegistry();
         using var items = new ItemContentRegistry();
         using var gearSets = new GearSetContentRegistry();

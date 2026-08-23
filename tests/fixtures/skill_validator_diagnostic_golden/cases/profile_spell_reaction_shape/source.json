@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_spell_reaction_shape",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_spell_reaction_shape",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_spell_reaction_shape",
+        "spell_reaction_profile": {
+          "reaction_skill_id": "present_invalid_reaction",
+          "readiness_status_id": "missing_status",
+          "required_weapon_family": "bow"
+        }
+      },
+      "icon_id": "diagnostic_spell_reaction_shape",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

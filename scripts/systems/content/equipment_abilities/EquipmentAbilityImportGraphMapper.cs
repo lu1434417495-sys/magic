@@ -442,6 +442,7 @@ internal static class EquipmentAbilityImportGraphMapper
             target_selector = value.TargetSelector ?? "",
             dice = value.Dice == null ? null! : FromDto(value.Dice, context, $"{pointer}/dice", diagnostics),
             damage_type = value.DamageType ?? "",
+            damage_type_mode = value.DamageTypeMode ?? "",
             require_weapon_damage = value.RequireWeaponDamage,
             subtract = value.Subtract,
             replacement_group_id = value.ReplacementGroupId ?? "",
@@ -460,6 +461,7 @@ internal static class EquipmentAbilityImportGraphMapper
             TargetSelector = value.target_selector,
             Dice = value.dice == null ? null! : ToDto(value.dice),
             DamageType = value.damage_type,
+            DamageTypeMode = value.damage_type_mode,
             RequireWeaponDamage = value.require_weapon_damage,
             Subtract = value.subtract,
             ReplacementGroupId = value.replacement_group_id,
@@ -747,6 +749,37 @@ internal static class EquipmentAbilityImportGraphMapper
     }
 
 
+    internal static GrantMitigationTierActionPayloadImportModel FromDto(
+        GrantMitigationTierActionPayloadJsonDto value,
+        JsonContentEntryContext context,
+        string pointer,
+        List<ContentJsonDiagnostic> diagnostics
+    )
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new GrantMitigationTierActionPayloadImportModel
+        {
+            target_selector = value.TargetSelector ?? "",
+            mitigation_tier = value.MitigationTier ?? "",
+            damage_tags = MapStringNames(value.DamageTags),
+            label = value.Label ?? "",
+        };
+    }
+
+    internal static GrantMitigationTierActionPayloadJsonDto ToDto(
+        GrantMitigationTierActionPayloadImportModel value
+    )
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new GrantMitigationTierActionPayloadJsonDto
+        {
+            TargetSelector = value.target_selector,
+            MitigationTier = value.mitigation_tier,
+            DamageTags = MapStringNamesToText(value.damage_tags),
+            Label = value.label,
+        };
+    }
+
     internal static LootQuantityMultiplierActionPayloadImportModel FromDto(
         LootQuantityMultiplierActionPayloadJsonDto value,
         JsonContentEntryContext context,
@@ -825,6 +858,7 @@ internal static class EquipmentAbilityImportGraphMapper
             save_ability = value.SaveAbility ?? "",
             save_tag = value.SaveTag ?? "",
             apply_on_save_failure = value.ApplyOnSaveFailure,
+            remove_on_source_deactivated = value.RemoveOnSourceDeactivated,
         };
     }
 
@@ -871,6 +905,7 @@ internal static class EquipmentAbilityImportGraphMapper
             SaveAbility = value.save_ability,
             SaveTag = value.save_tag,
             ApplyOnSaveFailure = value.apply_on_save_failure,
+            RemoveOnSourceDeactivated = value.remove_on_source_deactivated,
         };
     }
 
@@ -2217,6 +2252,13 @@ internal static class EquipmentAbilityImportGraphMapper
                         return FromDto(typed, context, pointer, diagnostics);
                     break;
                 }
+                case "grant_mitigation_tier":
+                {
+                    GrantMitigationTierActionPayloadJsonDto? typed = element.Deserialize(EquipmentAbilityJsonSerializerContext.Default.GrantMitigationTierActionPayloadJsonDto);
+                    if (typed != null)
+                        return FromDto(typed, context, pointer, diagnostics);
+                    break;
+                }
                 case "loot_quantity_multiplier":
                 {
                     LootQuantityMultiplierActionPayloadJsonDto? typed = element.Deserialize(EquipmentAbilityJsonSerializerContext.Default.LootQuantityMultiplierActionPayloadJsonDto);
@@ -2349,6 +2391,7 @@ internal static class EquipmentAbilityImportGraphMapper
             EquipmentAttackDefenseModifierImportModel typed => JsonSerializer.SerializeToElement(ToDto(typed), EquipmentAbilityJsonSerializerContext.Default.EquipmentAttackDefenseModifierJsonDto),
             DamageRollModeOverrideActionPayloadImportModel typed => JsonSerializer.SerializeToElement(ToDto(typed), EquipmentAbilityJsonSerializerContext.Default.DamageRollModeOverrideActionPayloadJsonDto),
             DamageReductionActionPayloadImportModel typed => JsonSerializer.SerializeToElement(ToDto(typed), EquipmentAbilityJsonSerializerContext.Default.DamageReductionActionPayloadJsonDto),
+            GrantMitigationTierActionPayloadImportModel typed => JsonSerializer.SerializeToElement(ToDto(typed), EquipmentAbilityJsonSerializerContext.Default.GrantMitigationTierActionPayloadJsonDto),
             LootQuantityMultiplierActionPayloadImportModel typed => JsonSerializer.SerializeToElement(ToDto(typed), EquipmentAbilityJsonSerializerContext.Default.LootQuantityMultiplierActionPayloadJsonDto),
             ApplyStatusActionPayloadImportModel typed => JsonSerializer.SerializeToElement(ToDto(typed), EquipmentAbilityJsonSerializerContext.Default.ApplyStatusActionPayloadJsonDto),
             ModifyActionPointsActionPayloadImportModel typed => JsonSerializer.SerializeToElement(ToDto(typed), EquipmentAbilityJsonSerializerContext.Default.ModifyActionPointsActionPayloadJsonDto),

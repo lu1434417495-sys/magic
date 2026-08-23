@@ -12,7 +12,7 @@ internal static class TestProgressionDefinitionProjection
         ?? throw new ArgumentNullException(nameof(source));
 
     internal static TagRequirementDefinition TagRequirement(TagRequirement source) =>
-        TagRequirementDefinition.FromResource(source, "test.tag_requirement");
+        TagRequirementDefinition.FromDiagnosticFixture(source, "test.tag_requirement");
 
     internal static Dictionary<StringName, AchievementDefinition> Achievements(
         IReadOnlyDictionary<StringName, AchievementDef> source

@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class CombatRangedWeaponReactionDef : Resource
+public partial class CombatRangedWeaponReactionDef : RefCounted
 {
     [Export]
     public StringName readiness_status_id { get; set; } = "";

@@ -182,7 +182,7 @@ public partial class windows_export_smoke_runner : Node
         var reader = new GodotContentJsonSourceReader();
         AssertImportBatch(
             "items",
-            129,
+            133,
             ItemContentJsonAuthoringDomain.CreateImportDescriptor(
                 ItemContentJsonAuthoringDomain.ProductionDirectory,
                 reader
@@ -190,7 +190,7 @@ public partial class windows_export_smoke_runner : Node
         );
         AssertImportBatch(
             "traits",
-            239,
+            246,
             TraitContentJsonAuthoringDomain.CreateImportDescriptor(
                 TraitContentJsonAuthoringDomain.ProductionDirectory,
                 reader
@@ -198,7 +198,7 @@ public partial class windows_export_smoke_runner : Node
         );
         AssertImportBatch(
             "equipment_abilities",
-            55,
+            56,
             EquipmentAbilityContentJsonAuthoringDomain.CreateImportDescriptor(
                 EquipmentAbilityContentJsonAuthoringDomain.ProductionDirectory,
                 reader
@@ -206,7 +206,7 @@ public partial class windows_export_smoke_runner : Node
         );
         AssertImportBatch(
             "gear_sets",
-            1,
+            2,
             GearSetContentJsonAuthoringDomain.CreateImportDescriptor(
                 GearSetContentJsonAuthoringDomain.ProductionDirectory,
                 reader

@@ -268,6 +268,12 @@
             "type": "string"
           }
         },
+        "save_tag_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveTagBonusEntryJsonDto"
+          }
+        },
         "stack_policy": {
           "type": "string",
           "enum": [
@@ -480,6 +486,12 @@
             "type": "string"
           }
         },
+        "save_tag_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveTagBonusEntryJsonDto"
+          }
+        },
         "stack_policy": {
           "type": "string",
           "enum": [
@@ -663,6 +675,12 @@
             "type": "string"
           }
         },
+        "save_tag_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveTagBonusEntryJsonDto"
+          }
+        },
         "stack_policy": {
           "type": "string",
           "enum": [
@@ -804,6 +822,31 @@
       "required": [
         "bonus",
         "save_ability"
+      ]
+    },
+    "TraitSaveTagBonusEntryJsonDto": {
+      "description": "One typed saving throw bonus keyed by a canonical save tag.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bonus": {
+          "type": "integer"
+        },
+        "save_tag": {
+          "type": "string"
+        },
+        "stack_mode": {
+          "type": "string",
+          "enum": [
+            "add",
+            "highest"
+          ]
+        }
+      },
+      "required": [
+        "bonus",
+        "save_tag",
+        "stack_mode"
       ]
     }
   }

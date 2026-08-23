@@ -30,7 +30,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
                 new() { slot_id = "off_hand", weight = 20 },
             };
 
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test.combat_effect_durability.typed_slot_weights"
         );
@@ -73,7 +73,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
         bool rejected = false;
         try
         {
-            CombatEffectDefinition.FromResource(
+            CombatEffectDefinition.FromDiagnosticFixture(
                 resource,
                 "test.combat_effect_durability.legacy_param"
             );
@@ -90,10 +90,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
 
     private void TestSkillContentValidationUsesTypedSlotWeights()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef valid = BuildDurabilityEffectResource();
         valid.equipment_durability_slot_weights =
             new Godot.Collections.Array<CombatEffectSlotWeightDef>

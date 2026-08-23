@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_terrain_missing_status",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_terrain_missing_status",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_terrain_missing_status",
+        "effect_defs": [
+          {
+            "effect_type": "terrain_effect",
+            "payload": {},
+            "tick_effect_type": "status",
+            "applied_status_duration_tu": 5,
+            "terrain_effect_id": "trap"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_terrain_missing_status",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

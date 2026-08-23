@@ -29,7 +29,7 @@ internal enum CombatEffectLifetimePolicy
 }
 
 [GlobalClass]
-public partial class CombatEffectDef : Resource
+public partial class CombatEffectDef : RefCounted
 {
     [Export]
     public StringName effect_type { get; set; } = "";

@@ -53,11 +53,11 @@ public partial class run_equipment_ability_json_content_regression : LifecycleTe
             production.HasErrors,
             $"production equipment ability JSON imports cleanly: {Format(production.Diagnostics)}"
         );
-        _test.Eq(production.Entries.Count, 55, "production JSON contains all 55 HEAD packs");
+        _test.Eq(production.Entries.Count, 56, "production JSON contains all 56 packs");
         _test.Eq(
             production.Entries.Sum(entry => entry.Import.bindings.Count),
-            170,
-            "production JSON contains all 170 HEAD bindings"
+            173,
+            "production JSON contains all 173 bindings"
         );
 
     }
@@ -78,10 +78,10 @@ public partial class run_equipment_ability_json_content_regression : LifecycleTe
             roundTrip.HasErrors,
             $"canonical JSON round-trip is clean: {Format(roundTrip.Diagnostics)}"
         );
-        _test.Eq(roundTrip.Entries.Count, 55, "canonical round-trip retains all packs");
+        _test.Eq(roundTrip.Entries.Count, 56, "canonical round-trip retains all packs");
         _test.Eq(
             roundTrip.Entries.Sum(entry => entry.Import.bindings.Count),
-            170,
+            173,
             "canonical round-trip retains all bindings"
         );
         _test.Eq(
@@ -97,12 +97,12 @@ public partial class run_equipment_ability_json_content_regression : LifecycleTe
     private void AssertPayloadKindAndSchemaCoverage()
     {
         _test.Eq(EquipmentAbilityPayloadKindCatalog.Conditions.Count, 3, "three condition kinds are closed");
-        _test.Eq(EquipmentAbilityPayloadKindCatalog.Actions.Count, 26, "26 executable action kinds remain after ghost removal");
+        _test.Eq(EquipmentAbilityPayloadKindCatalog.Actions.Count, 27, "27 executable action kinds remain after ghost removal");
         _test.Eq(
             EquipmentAbilityPayloadKindCatalog.Conditions.Count
                 + EquipmentAbilityPayloadKindCatalog.Actions.Count,
-            29,
-            "schema covers 29 valid payload kinds after removing grant_skill"
+            30,
+            "schema covers 30 valid payload kinds after removing grant_skill"
         );
 
         using var registry = new EquipmentAbilityContentRegistry();
@@ -111,7 +111,7 @@ public partial class run_equipment_ability_json_content_regression : LifecycleTe
         IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> actionHandlers =
             registry.GetActionHandlerSpecsTyped();
         _test.Eq(conditionHandlers.Count, 3, "every condition kind has a runtime handler");
-        _test.Eq(actionHandlers.Count, 26, "every action kind has a runtime handler");
+        _test.Eq(actionHandlers.Count, 27, "every action kind has a runtime handler");
         _test.False(actionHandlers.ContainsKey("grant_skill"), "grant_skill is absent from runtime handlers");
 
         foreach ((string kind, EquipmentAbilityPayloadKindSpec spec) in EquipmentAbilityPayloadKindCatalog.Conditions)
@@ -244,8 +244,8 @@ public partial class run_equipment_ability_json_content_regression : LifecycleTe
         ApplicationLifetimeCoordinator coordinator =
             Root.GetNode<ApplicationLifetimeCoordinator>("ApplicationLifetimeCoordinator");
         ContentSnapshot snapshot = coordinator.ContentHost.GetSnapshot();
-        _test.Eq(snapshot.EquipmentAbilityPacks.Count, 55, "production snapshot publishes 55 JSON packs");
-        _test.Eq(snapshot.EquipmentAbilityBindings.Count, 170, "production snapshot publishes 170 JSON bindings");
+        _test.Eq(snapshot.EquipmentAbilityPacks.Count, 56, "production snapshot publishes 56 JSON packs");
+        _test.Eq(snapshot.EquipmentAbilityBindings.Count, 173, "production snapshot publishes 173 JSON bindings");
     }
 
     private void AssertDefinitionsDropResourceProvenance()

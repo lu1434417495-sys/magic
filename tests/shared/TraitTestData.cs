@@ -67,6 +67,7 @@ internal static class TraitTestData
             Array.Empty<string>(),
             Array.Empty<TraitDamageResistanceEntryImportModel>(),
             Array.Empty<TraitSaveBonusEntryImportModel>(),
+            Array.Empty<TraitSaveTagBonusEntryImportModel>(),
             Array.Empty<TraitPassiveStatusEffectImportModel>(),
             rollValueSchema ?? Array.Empty<TraitRollValueSchemaEntryImportModel>()
         );

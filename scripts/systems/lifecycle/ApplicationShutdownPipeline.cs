@@ -114,11 +114,11 @@ internal sealed class ApplicationShutdownPipeline
             report.RecordFailure("finalizer-barrier-gate", barrierGateFailure);
             barrierGatePassed = false;
         }
-        if (preBarrierAudit.ProcessContentRootCount != 0)
+        if (preBarrierAudit.EngineAssetRootCount != 0)
         {
             barrierGateFailure =
                 $"Cannot run the finalizer barrier while "
-                + $"{preBarrierAudit.ProcessContentRootCount} canonical content roots remain.";
+                + $"{preBarrierAudit.EngineAssetRootCount} engine asset roots remain.";
             report.RecordFailure("finalizer-barrier-gate", barrierGateFailure);
             barrierGatePassed = false;
         }

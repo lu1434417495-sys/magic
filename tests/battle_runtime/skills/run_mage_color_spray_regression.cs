@@ -144,10 +144,7 @@ public partial class run_mage_color_spray_regression : LifecycleTestSceneTree
         };
         damage.save_failure_status_outcomes.Add(outcome);
 
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         GStringArray validErrors = new();
         registry.AppendEffectValidationErrors(
             validErrors,
@@ -157,7 +154,7 @@ public partial class run_mage_color_spray_regression : LifecycleTestSceneTree
         );
         _test.Eq(validErrors.Count, 0, $"合法加权失败状态池应通过内容校验：{string.Join(" | ", validErrors)}");
 
-        CombatEffectDefinition projected = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition projected = CombatEffectDefinition.FromDiagnosticFixture(
             damage,
             "weighted_status_probe"
         );

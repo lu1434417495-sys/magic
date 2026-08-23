@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_status",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_effect_status",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_effect_status",
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_sides": 1,
+            "skip_turn": true,
+            "combo_attack_bonus_status_id": "combo",
+            "upkeep_interval_tu": 1,
+            "break_on_hard_control": true
+          },
+          {
+            "effect_type": "position_swap",
+            "payload": {},
+            "status_id": "same",
+            "on_removed_status_id": "same"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_effect_status",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

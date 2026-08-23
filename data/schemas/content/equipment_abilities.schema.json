@@ -18,6 +18,9 @@
         "damage_type": {
           "type": "string"
         },
+        "damage_type_mode": {
+          "type": "string"
+        },
         "dice": {
           "$ref": "#/$defs/DiceExpressionJsonDto"
         },
@@ -254,6 +257,9 @@
           "type": "integer"
         },
         "override_heal_multiplier_percent": {
+          "type": "boolean"
+        },
+        "remove_on_source_deactivated": {
           "type": "boolean"
         },
         "save_ability": {
@@ -720,6 +726,9 @@
           "$ref": "#/$defs/EquipmentAbilityActionJsonDto__equipment_durability_damage"
         },
         {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__grant_mitigation_tier"
+        },
+        {
           "$ref": "#/$defs/EquipmentAbilityActionJsonDto__heal"
         },
         {
@@ -771,6 +780,7 @@
           "damage_roll_mode_override": "#/$defs/EquipmentAbilityActionJsonDto__damage_roll_mode_override",
           "deal_damage": "#/$defs/EquipmentAbilityActionJsonDto__deal_damage",
           "equipment_durability_damage": "#/$defs/EquipmentAbilityActionJsonDto__equipment_durability_damage",
+          "grant_mitigation_tier": "#/$defs/EquipmentAbilityActionJsonDto__grant_mitigation_tier",
           "heal": "#/$defs/EquipmentAbilityActionJsonDto__heal",
           "heal_from_fact": "#/$defs/EquipmentAbilityActionJsonDto__heal_from_fact",
           "immediate_weapon_attack": "#/$defs/EquipmentAbilityActionJsonDto__immediate_weapon_attack",
@@ -1207,6 +1217,35 @@
         },
         "payload": {
           "$ref": "#/$defs/EquipmentDurabilityDamageActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__grant_mitigation_tier": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "grant_mitigation_tier"
+        },
+        "payload": {
+          "$ref": "#/$defs/GrantMitigationTierActionPayloadJsonDto"
         },
         "roll_gate": {
           "$ref": "#/$defs/EquipmentRollGateJsonDto"
@@ -2708,6 +2747,33 @@
         "timing",
         "trigger",
         "world_effect_id"
+      ]
+    },
+    "GrantMitigationTierActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "label": {
+          "type": "string"
+        },
+        "mitigation_tier": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "damage_tags",
+        "label",
+        "mitigation_tier",
+        "target_selector"
       ]
     },
     "HasEquipmentTagConditionPayloadJsonDto": {

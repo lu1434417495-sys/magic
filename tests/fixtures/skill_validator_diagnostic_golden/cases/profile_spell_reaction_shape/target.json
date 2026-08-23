@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_spell_reaction_shape",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "present_invalid_reaction",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "skill_type": "passive",
+      "tags": [
+        "test"
+      ],
+      "icon_id": "present_invalid_reaction",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

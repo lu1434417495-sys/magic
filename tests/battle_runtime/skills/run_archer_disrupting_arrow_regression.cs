@@ -10,8 +10,6 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         "archer_disrupting_arrow";
     private const string BasicAttackPath =
         "basic_attack";
-    private const string InvalidReactionReferenceDirectory =
-        "res://tests/battle_runtime/skills/fixtures/disrupting_arrow_invalid_reference";
     private static readonly StringName SkillId = "archer_disrupting_arrow";
     private static readonly StringName ReadyStatusId = "disrupting_arrow_ready";
     private readonly TestHarness _test = new();
@@ -431,10 +429,21 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
 
     private void TestSchemaRejectsMissingReactionSkillReference()
     {
-        IReadOnlyList<string> errors =
-            ContentValidationRunner.ValidateSkillResourceFixtureDirectory(
-                InvalidReactionReferenceDirectory
-            ).Errors;
+        ContentImportBatch<SkillImportModel> batch = SkillContentJsonAuthoringDomain
+            .CreateSchemaImportDescriptor(
+                "res://data/configs/json/skills",
+                new GodotContentJsonSourceReader()
+            )
+            .Import();
+        _test.True(!batch.HasErrors, "正式技能 JSON 应能形成缺引用测试输入。");
+        var imports = new Dictionary<StringName, SkillImportModel>();
+        foreach (ContentImportEntry<SkillImportModel> entry in batch.Entries)
+        {
+            if (entry.Import.SkillId.Value == SkillId)
+                imports.Add(SkillId, entry.Import);
+        }
+        IReadOnlyList<string> errors = new SkillImportModelValidator()
+            .ValidateBatchMessages(imports);
         _test.True(
             string.Join(" | ", errors).Contains("references missing reaction skill"),
             "不存在的反应技能引用必须在内容加载期被拒绝。"

@@ -30,23 +30,6 @@ internal static class EngineAssetAccess
         where T : Resource =>
         ResolveResolver(null).ResolveCodeAssetBorrowed<T>(codeOwnedPath);
 
-    // Delete these two overloads with the item, skill, and enemy authored-path
-    // migrations. They are not a compatibility alias for code-owned paths.
-    internal static T ResolveAuthoredContentPathBorrowedDuringMigration<T>(
-        Node context,
-        string authoredContentPath
-    )
-        where T : Resource =>
-        ResolveResolver(context)
-            .ResolveAuthoredContentPathBorrowedDuringMigration<T>(authoredContentPath);
-
-    internal static T ResolveAuthoredContentPathBorrowedDuringMigration<T>(
-        string authoredContentPath
-    )
-        where T : Resource =>
-        ResolveResolver(null)
-            .ResolveAuthoredContentPathBorrowedDuringMigration<T>(authoredContentPath);
-
     private static EngineAssetResolver ResolveResolver(Node context)
     {
         SceneTree tree = null;

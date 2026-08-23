@@ -9,7 +9,8 @@ using Godot;
 
 public partial class run_trait_json_content_regression : LifecycleTestSceneTree
 {
-    private const int ExpectedTraitCount = 239;
+    private const int ExpectedCanonicalTraitCount = 239;
+    private const int ExpectedProductionTraitCount = 246;
     private const string TrackedJsonPath = "res://data/configs/json/traits/traits.json";
     private const string TrackedSchemaPath = "res://data/schemas/content/traits.schema.json";
     private const string RuleInventoryPath = "res://tests/progression/fixtures/trait_validator_diagnostic_golden/rule_inventory.tsv";
@@ -34,7 +35,7 @@ public partial class run_trait_json_content_regression : LifecycleTestSceneTree
             AssertCanonicalJson(canonicalJson);
             AssertPureContracts();
             AssertRoundTrip(canonicalJson);
-            _test.Eq(TraitValidationRules.Inventory.Count, 49, "trait import boundary pins 49 strict DTO/domain rules");
+            _test.Eq(TraitValidationRules.Inventory.Count, 53, "trait import boundary pins 53 strict DTO/domain rules");
 
             if (OS.GetEnvironment("MAGIC_TRAIT_JSON_EMIT") == "1")
                 EmitArtifacts(canonicalJson, schema, inventory, diagnosticGolden);
@@ -62,7 +63,7 @@ public partial class run_trait_json_content_regression : LifecycleTestSceneTree
                 new SingleSourceReader(new ContentJsonSourceText("traits.json", canonicalJson))
             ).Import();
         _test.Eq(batch.Diagnostics.Count, 0, $"tracked trait JSON imports cleanly: {Format(batch.Diagnostics)}");
-        _test.Eq(batch.Entries.Count, ExpectedTraitCount, "tracked JSON pins the formal trait baseline");
+        _test.Eq(batch.Entries.Count, ExpectedCanonicalTraitCount, "tracked canonical family pins its formal trait baseline");
         IReadOnlyList<TraitImportModel> imports = batch.Entries
             .Select(value => value.Import)
             .ToArray();
@@ -83,8 +84,8 @@ public partial class run_trait_json_content_regression : LifecycleTestSceneTree
                 new SingleSourceReader(new ContentJsonSourceText("traits.json", canonicalJson))
             ).Import();
         _test.Eq(batch.Diagnostics.Count, 0, $"canonical trait JSON reimports cleanly: {Format(batch.Diagnostics)}");
-        _test.Eq(batch.Entries.Count, ExpectedTraitCount, "canonical round-trip retains all traits");
-        _test.Eq(batch.Entries.Select(value => value.Import.TraitId).Distinct(StringComparer.Ordinal).Count(), ExpectedTraitCount, "round-trip trait IDs remain unique");
+        _test.Eq(batch.Entries.Count, ExpectedCanonicalTraitCount, "canonical round-trip retains all traits");
+        _test.Eq(batch.Entries.Select(value => value.Import.TraitId).Distinct(StringComparer.Ordinal).Count(), ExpectedCanonicalTraitCount, "round-trip trait IDs remain unique");
         _test.False(
             batch.Entries.SelectMany(value => EnumerateSaveTags(value.Import)).Any(HasRemovedSaveTagSuffix),
             "canonical save-tag fields do not retain removed semantic suffix syntax"
@@ -116,7 +117,8 @@ public partial class run_trait_json_content_regression : LifecycleTestSceneTree
                 valid.ChargeScope, valid.ChargeResetTiming, valid.HighestRollCompareKey,
                 valid.VisionRange, valid.ProficiencyChoiceCount, valid.AttributeModifiers,
                 valid.SaveAdvantageTags, valid.SaveDisadvantageTags, new[] { "sleep_immunity" },
-                valid.DamageResistanceEntries, valid.SaveBonusEntries, valid.PassiveStatusEffects,
+                valid.DamageResistanceEntries, valid.SaveBonusEntries, valid.SaveTagBonusEntries,
+                valid.PassiveStatusEffects,
                 valid.RollValueSchema
             );
             IReadOnlyList<ContentJsonDiagnostic> suffixDiagnostics = new TraitImportModelValidator()
@@ -157,7 +159,7 @@ public partial class run_trait_json_content_regression : LifecycleTestSceneTree
         IReadOnlyList<string> errors = registry.Validate();
         _test.Eq(errors.Count, 0, $"production TraitContentRegistry loads JSON directly: {string.Join(" | ", errors)}");
         IReadOnlyDictionary<StringName, TraitDefinition> definitions = registry.GetTraitDefsTyped();
-        _test.Eq(definitions.Count, ExpectedTraitCount, "production registry exposes all JSON traits");
+        _test.Eq(definitions.Count, ExpectedProductionTraitCount, "production registry exposes all JSON traits");
         _test.True(definitions.Keys.Any(value => value.ToString().Contains('.', StringComparison.Ordinal)), "production registry preserves dotted trait IDs");
     }
 

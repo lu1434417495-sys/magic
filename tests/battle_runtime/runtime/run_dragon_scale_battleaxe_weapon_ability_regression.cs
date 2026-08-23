@@ -73,8 +73,6 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         _test.True(fixture.Bindings.ContainsKey(DragonBalanceBindingId), "真实装备能力内容应包含屠龙制衡 binding。");
         if (!fixture.ItemDefs.ContainsKey(ItemId))
             return;
-
-        using TestContentResourceLoader loader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_battleaxe_dragon_scale");
         _test.True(rawItem != null, "龙鳞之斧原始资源应能加载。");
         if (rawItem != null)

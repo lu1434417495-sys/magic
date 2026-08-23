@@ -243,7 +243,7 @@ public partial class run_application_shutdown_contract_regression : LifecycleTes
         registry.RegisterActive(LifecycleAuditActiveKind.Lease, "request-lease", "Request", lease);
         registry.RegisterActive(LifecycleAuditActiveKind.Scope, "battle-scope", "Battle", scope);
         registry.RegisterActive(LifecycleAuditActiveKind.Job, "worker-job", "Process", job);
-        registry.RegisterProcessContentRoot(
+        registry.RegisterEngineAssetRoot(
             "res://data/configs/probe.tres",
             typeof(object),
             contentRoot
@@ -268,7 +268,7 @@ public partial class run_application_shutdown_contract_regression : LifecycleTes
         _test.Eq(active.ActiveScopeCount, 1, "active scope is counted");
         _test.Eq(active.ActiveJobCount, 1, "active job is counted");
         _test.Eq(active.NonTerminalCount, 5, "non-terminal count includes every active kind");
-        _test.Eq(active.ProcessContentRootCount, 1, "process content root is counted");
+        _test.Eq(active.EngineAssetRootCount, 1, "engine asset root is counted");
         _test.Eq(active.ActiveContentSnapshotEpoch, 3L, "content epoch is captured");
         _test.Eq(active.CreatedCount, 6L, "created total is monotonic");
         _test.Eq(active.TransferredCount, 1L, "transfer total is captured");
@@ -287,7 +287,7 @@ public partial class run_application_shutdown_contract_regression : LifecycleTes
         registry.UnregisterActive(LifecycleAuditActiveKind.Lease, "request-lease", "Request");
         registry.UnregisterActive(LifecycleAuditActiveKind.Scope, "battle-scope", "Battle");
         registry.UnregisterActive(LifecycleAuditActiveKind.Job, "worker-job", "Process");
-        registry.ReleaseProcessContentRoot("res://data/configs/probe.tres");
+        registry.ReleaseEngineAssetRoot("res://data/configs/probe.tres");
         registry.ClearActiveContentSnapshotEpoch();
         registry.RecordShutdownPhase(
             ApplicationShutdownPhase.RuntimeDrained,
@@ -297,7 +297,7 @@ public partial class run_application_shutdown_contract_regression : LifecycleTes
 
         LifecycleAuditSnapshot drained = registry.CaptureSnapshot();
         _test.Eq(drained.ActiveOwnerCount, 0, "owner count drains to zero");
-        _test.Eq(drained.ProcessContentRootCount, 0, "content root count drains to zero");
+        _test.Eq(drained.EngineAssetRootCount, 0, "engine asset root count drains to zero");
         _test.Eq(drained.ActiveContentSnapshotEpoch, 0L, "content epoch clears");
         _test.Eq(drained.DisposedCount, 6L, "disposed total is monotonic");
         _test.Eq(drained.ShutdownPhases.Count, 1, "shutdown phase audit is retained");

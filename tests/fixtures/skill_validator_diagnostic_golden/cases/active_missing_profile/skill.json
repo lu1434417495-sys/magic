@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "active_missing_profile",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_active_missing_profile",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "icon_id": "diagnostic_active_missing_profile",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

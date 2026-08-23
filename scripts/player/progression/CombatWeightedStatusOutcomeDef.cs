@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class CombatWeightedStatusOutcomeDef : Resource
+public partial class CombatWeightedStatusOutcomeDef : RefCounted
 {
     [Export]
     public StringName outcome_id { get; set; } = "";

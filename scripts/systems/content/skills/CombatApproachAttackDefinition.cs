@@ -12,7 +12,7 @@ public sealed class CombatApproachAttackDefinition
 
     public int MaximumPathHeightDeltaFromOrigin { get; }
 
-    public static CombatApproachAttackDefinition FromResource(
+    public static CombatApproachAttackDefinition FromDiagnosticFixture(
         CombatApproachAttackDef source
     ) =>
         source == null

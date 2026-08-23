@@ -42,6 +42,10 @@ internal static class TraitValidationRules
     internal const string SaveAbility = "trait.validation.save_ability";
     internal const string SaveAbilityDuplicate = "trait.validation.save_ability_duplicate";
     internal const string SaveBonusNonzero = "trait.validation.save_bonus_nonzero";
+    internal const string SaveTagBonusTag = "trait.validation.save_tag_bonus_tag";
+    internal const string SaveTagBonusDuplicate = "trait.validation.save_tag_bonus_duplicate";
+    internal const string SaveTagBonusPositive = "trait.validation.save_tag_bonus_positive";
+    internal const string SaveTagBonusStackMode = "trait.validation.save_tag_bonus_stack_mode";
     internal const string PassiveStatusRequired = "trait.validation.passive_status_required";
     internal const string PassiveStatusDuplicate = "trait.validation.passive_status_duplicate";
     internal const string PassivePowerPositive = "trait.validation.passive_power_positive";
@@ -96,6 +100,10 @@ internal static class TraitValidationRules
                 new(SaveAbility, "save bonus ability is a base attribute"),
                 new(SaveAbilityDuplicate, "save bonus ability is unique"),
                 new(SaveBonusNonzero, "save bonus is nonzero"),
+                new(SaveTagBonusTag, "save-tag bonus references a registered save tag"),
+                new(SaveTagBonusDuplicate, "save-tag bonus key is unique"),
+                new(SaveTagBonusPositive, "save-tag bonus is positive"),
+                new(SaveTagBonusStackMode, "save-tag bonus stack mode is add or highest"),
                 new(PassiveStatusRequired, "passive status_id is nonempty"),
                 new(PassiveStatusDuplicate, "passive status_id is unique"),
                 new(PassivePowerPositive, "passive status power is positive"),
@@ -309,6 +317,64 @@ internal sealed class TraitImportModelValidator
                 Add(diagnostics, TraitValidationRules.SaveAbilityDuplicate, context, pointer + "/save_ability", $"{owner}.save_bonus_entries[{index}].save_ability duplicates save ability {entry.SaveAbility}.");
             if (entry.Bonus == 0)
                 Add(diagnostics, TraitValidationRules.SaveBonusNonzero, context, pointer + "/bonus", $"{owner}.save_bonus_entries[{index}].bonus must be non-zero.");
+        }
+
+        var saveTagBonusKeys = new HashSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < import.SaveTagBonusEntries.Count; index += 1)
+        {
+            TraitSaveTagBonusEntryImportModel entry = import.SaveTagBonusEntries[index];
+            string pointer = $"/save_tag_bonus_entries/{index}";
+            if (string.IsNullOrEmpty(entry.SaveTag))
+            {
+                Add(
+                    diagnostics,
+                    TraitValidationRules.SaveTagBonusTag,
+                    context,
+                    pointer + "/save_tag",
+                    $"{owner}.save_tag_bonus_entries[{index}].save_tag must be a non-empty StringName."
+                );
+            }
+            else if (!TraitImportValueRules.IsSaveTag(entry.SaveTag))
+            {
+                Add(
+                    diagnostics,
+                    TraitValidationRules.SaveTagBonusTag,
+                    context,
+                    pointer + "/save_tag",
+                    $"{owner}.save_tag_bonus_entries[{index}].save_tag references unsupported save tag {entry.SaveTag}."
+                );
+            }
+            string key = $"{entry.SaveTag}\t{entry.StackMode}";
+            if (!saveTagBonusKeys.Add(key))
+            {
+                Add(
+                    diagnostics,
+                    TraitValidationRules.SaveTagBonusDuplicate,
+                    context,
+                    pointer,
+                    $"{owner}.save_tag_bonus_entries[{index}] duplicates save tag bonus {entry.SaveTag}/{entry.StackMode}."
+                );
+            }
+            if (entry.Bonus <= 0)
+            {
+                Add(
+                    diagnostics,
+                    TraitValidationRules.SaveTagBonusPositive,
+                    context,
+                    pointer + "/bonus",
+                    $"{owner}.save_tag_bonus_entries[{index}].bonus must be positive."
+                );
+            }
+            if (entry.StackMode != "add" && entry.StackMode != "highest")
+            {
+                Add(
+                    diagnostics,
+                    TraitValidationRules.SaveTagBonusStackMode,
+                    context,
+                    pointer + "/stack_mode",
+                    $"{owner}.save_tag_bonus_entries[{index}].stack_mode must be add or highest."
+                );
+            }
         }
 
         var statuses = new HashSet<string>(StringComparer.Ordinal);

@@ -184,7 +184,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         _test.Eq(result.RollTotal, 13, "Control save roll total should include control_save_bonus.");
         _test.False(result.Success, "Raised but still below-DC control save should fail.");
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -322,7 +322,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             "Legacy params.save_advantage_tags 不应继续让目标使用 advantage save。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",

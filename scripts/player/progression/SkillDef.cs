@@ -48,7 +48,7 @@ internal enum CoreSkillTransitionMode
 }
 
 [GlobalClass]
-public partial class SkillDef : Resource
+public partial class SkillDef : RefCounted
 {
     private static readonly StringName UnlockModeStandard = "standard";
     private static readonly StringName UnlockModeCompositeUpgrade = "composite_upgrade";
@@ -92,7 +92,7 @@ public partial class SkillDef : Resource
     private Godot.Collections.Dictionary _skillLevelRequirementsProjection = new();
     private Godot.Collections.Dictionary _attributeRequirementsProjection = new();
     private Godot.Collections.Dictionary _levelDescriptionConfigsProjection = new();
-    private Godot.Collections.Array<Resource> _attributeModifiersProjection = new();
+    private Godot.Collections.Array<AttributeModifier> _attributeModifiersProjection = new();
     private Godot.Collections.Array<StringName> _tagsProjection = new();
     private Godot.Collections.Array<StringName> _learnRequirementsProjection = new();
     private Godot.Collections.Array<StringName> _knowledgeRequirementsProjection = new();
@@ -258,7 +258,7 @@ public partial class SkillDef : Resource
     }
 
     [Export]
-    public Godot.Collections.Array<Resource> attribute_modifiers
+    public Godot.Collections.Array<AttributeModifier> attribute_modifiers
     {
         get => _attributeModifiersProjection;
         set => SetAttributeModifiers(value);
@@ -457,16 +457,16 @@ public partial class SkillDef : Resource
         }
     }
 
-    private void SetAttributeModifiers(Godot.Collections.Array<Resource> values)
+    private void SetAttributeModifiers(Godot.Collections.Array<AttributeModifier> values)
     {
-        List<Resource> sourceValues = CopyResources(values);
+        List<AttributeModifier> sourceValues = CopyAttributeModifiers(values);
         _attributeModifiersProjection.Clear();
         _attributeModifiers.Clear();
-        foreach (Resource value in sourceValues)
+        foreach (AttributeModifier value in sourceValues)
         {
             _attributeModifiersProjection.Add(value);
-            if (value is AttributeModifier modifier)
-                _attributeModifiers.Add(modifier);
+            if (value != null)
+                _attributeModifiers.Add(value);
         }
     }
 
@@ -876,12 +876,14 @@ public partial class SkillDef : Resource
         return result;
     }
 
-    private static List<Resource> CopyResources(IEnumerable<Resource> values)
+    private static List<AttributeModifier> CopyAttributeModifiers(
+        IEnumerable<AttributeModifier> values
+    )
     {
-        var result = new List<Resource>();
+        var result = new List<AttributeModifier>();
         if (values == null)
             return result;
-        foreach (Resource value in values)
+        foreach (AttributeModifier value in values)
             result.Add(value);
         return result;
     }

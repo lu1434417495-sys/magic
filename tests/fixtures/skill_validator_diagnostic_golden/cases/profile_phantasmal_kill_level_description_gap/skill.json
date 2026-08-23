@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_phantasmal_kill_level_description_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_phantasmal_kill",
+      "display_name": "Phantasmal Kill level-description diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "skill_type": "passive",
+      "tags": [
+        "test"
+      ],
+      "icon_id": "mage_phantasmal_kill",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -33,10 +33,7 @@ public partial class run_archer_double_nock_regression : LifecycleTestSceneTree
 
     private void TestTypedRepeatSchema()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef invalidMultiplier = new()
         {
             effect_type = "fixed_repeat_attack",
@@ -103,7 +100,7 @@ public partial class run_archer_double_nock_regression : LifecycleTestSceneTree
             follow_up_damage_multiplier_percent = 200,
             follow_up_attack_roll_bonus_curve = authoredCurve,
         };
-        CombatEffectDefinition detachedDefinition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition detachedDefinition = CombatEffectDefinition.FromDiagnosticFixture(
             detachedSource,
             "archer_double_nock.detached_repeat"
         );

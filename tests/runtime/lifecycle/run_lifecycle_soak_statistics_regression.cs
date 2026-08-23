@@ -206,7 +206,7 @@ public partial class run_lifecycle_soak_statistics_regression : LifecycleTestSce
         {
             ActiveCounters = fingerprintMismatch[49].ActiveCounters with
             {
-                ProcessContentRootFingerprint = "changed-root",
+                PublishedEngineAssetCount = 2,
             },
         };
         LifecycleSoakStatisticsReport fingerprintReport = LifecycleSoakStatistics.Evaluate(
@@ -216,9 +216,9 @@ public partial class run_lifecycle_soak_statistics_regression : LifecycleTestSce
             HasFailure(
                 fingerprintReport,
                 50,
-                nameof(LifecycleSoakCounterVector.ProcessContentRootFingerprint)
+                nameof(LifecycleSoakCounterVector.PublishedEngineAssetCount)
             ),
-            "canonical process-content root fingerprint changes must fail"
+            "published engine-asset count changes must fail"
         );
     }
 
@@ -377,7 +377,7 @@ public partial class run_lifecycle_soak_statistics_regression : LifecycleTestSce
             "Battle=0,Request=0",
             "Battle=0,Request=0",
             1,
-            "root|type|Borrowed",
+            1,
             0,
             0,
             0,

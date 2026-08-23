@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_temporal_mix",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_temporal_mix",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_temporal_mix",
+        "effect_defs": [
+          {
+            "effect_type": "erase_status",
+            "payload": {},
+            "status_id": "time_slow",
+            "effect_tags": [
+              "temporal"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_temporal_mix",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -216,7 +216,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
         );
 
     private static CombatEffectDefinition DisjunctionEffect(int power) =>
-        CombatEffectDefinition.FromResource(
+        CombatEffectDefinition.FromDiagnosticFixture(
             new CombatEffectDef
             {
                 effect_type = "equipment_durability_damage",

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_ranged_reaction_families",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_ranged_reaction_families",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_ranged_reaction_families",
+        "ranged_weapon_reaction_profile": {
+          "readiness_status_id": "ready",
+          "trigger_weapon_families": [
+            "",
+            "bow",
+            "bow"
+          ],
+          "attack_roll_bonus_by_skill_level": [
+            0,
+            0
+          ]
+        }
+      },
+      "icon_id": "diagnostic_ranged_reaction_families",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

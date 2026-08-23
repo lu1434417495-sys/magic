@@ -213,11 +213,11 @@ internal static partial class SkillJsonImportParser
     }
 
     /// <summary>
-    /// Resource-adapter-only synchronous normalization entry. The DTO and its transient
-    /// JsonElement payload carriers must not be registered as a content-domain API or retained;
-    /// this method returns only the canonical plain CLR import model.
+    /// Test-fixture-only normalization entry used by validator golden inputs that intentionally
+    /// exercise states rejected earlier by the production JSON boundary. It returns only the
+    /// canonical plain CLR import model and is never registered as a content-domain API.
     /// </summary>
-    internal static ContentImportStageResult<SkillImportModel> NormalizeResourceSnapshot(
+    internal static ContentImportStageResult<SkillImportModel> NormalizeDiagnosticFixture(
         JsonContentEntryContext context,
         SkillJsonDto dto
     ) => Normalize(context, dto, allowResourceOnlyShape: true);

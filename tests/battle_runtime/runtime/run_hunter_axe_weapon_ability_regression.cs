@@ -51,8 +51,6 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
         _test.True(fixture.Bindings.ContainsKey(BeastSlayerBindingId), "真实装备能力内容应包含野兽杀手 binding。");
         _test.True(fixture.Bindings.ContainsKey(HunterMarkBindingId), "真实装备能力内容应包含猎人标记 binding。");
         _test.True(fixture.SkillDefs.ContainsKey(HunterMarkSkillId), "猎人斧应复用真实猎人标记 SkillDef。");
-
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_battleaxe_hunter_382");
         _test.True(rawItem != null, "猎人之斧原始资源应能加载。");
         if (rawItem != null)

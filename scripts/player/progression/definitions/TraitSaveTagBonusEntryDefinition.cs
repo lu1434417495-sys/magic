@@ -21,7 +21,7 @@ public sealed class TraitSaveTagBonusEntryDefinition
     internal TraitSaveTagBonusStackModeKind StackModeKind =>
         TraitContentRules.ToSaveTagBonusStackModeKind(StackMode);
 
-    internal static TraitSaveTagBonusEntryDefinition FromResource(
+    internal static TraitSaveTagBonusEntryDefinition FromDiagnosticFixture(
         TraitSaveTagBonusEntryDef source,
         string path
     )

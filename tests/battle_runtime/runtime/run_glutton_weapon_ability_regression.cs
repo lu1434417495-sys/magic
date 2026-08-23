@@ -74,8 +74,6 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             fixture.Bindings.ContainsKey(DevouringChopBindingId),
             "真实装备能力内容应包含吞食斩 binding。"
         );
-
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_glutton_090");
         _test.True(rawItem != null, "贪食者原始资源应能加载。");
         if (rawItem != null)

@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "practice_invalid",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_practice_invalid",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "skill_type": "passive",
+      "tags": [
+        "meditation",
+        "cultivation",
+        "extra"
+      ],
+      "icon_id": "diagnostic_practice_invalid",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -844,7 +844,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             if (testCase.ExpectImportRejection)
             {
                 _test.True(
-                    importRejection.Contains("skill.tres.invalid_resource")
+                    importRejection.Contains("skill.fixture.invalid_input")
                         && importRejection.Contains("/entries/0/attribute_growth_progress/"),
                     $"{testCase.Label} should fail at the canonical Resource import boundary. error={importRejection}"
                 );

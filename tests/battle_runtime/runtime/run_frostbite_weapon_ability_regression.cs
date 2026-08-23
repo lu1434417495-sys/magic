@@ -83,8 +83,6 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             "冰封之路需要通用 ice 地形 id。"
         );
         _test.Eq(BattleTerrainRules.GetDisplayName("ice"), "冰层", "ice 地形应显示为冰层。");
-
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_frostbite_097");
         _test.True(rawItem != null, "霜咬原始资源应能加载。");
         if (rawItem != null)

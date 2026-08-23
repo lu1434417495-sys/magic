@@ -63,8 +63,6 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         _test.True(fixture.Bindings.ContainsKey(ChoppingRhythmBindingId), "真实装备能力内容应包含顺纹连斩 binding。");
         _test.True(fixture.Bindings.ContainsKey(PlantSlayerBindingId), "真实装备能力内容应包含植物杀手 binding。");
         _test.True(fixture.Bindings.ContainsKey(FellingMomentumBindingId), "真实装备能力内容应包含倒木回势 binding。");
-
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_battleaxe_lumberjack_383");
         _test.True(rawItem != null, "伐木工之斧原始资源应能加载。");
         if (rawItem != null)

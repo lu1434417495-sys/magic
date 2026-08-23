@@ -20,6 +20,12 @@ internal sealed record TraitDamageResistanceEntryImportModel(
 
 internal sealed record TraitSaveBonusEntryImportModel(string SaveAbility, int Bonus);
 
+internal sealed record TraitSaveTagBonusEntryImportModel(
+    string SaveTag,
+    int Bonus,
+    string StackMode
+);
+
 internal sealed class TraitPassiveStatusEffectImportModel
 {
     internal TraitPassiveStatusEffectImportModel(
@@ -110,6 +116,7 @@ internal sealed class TraitImportModel
         IReadOnlyList<string> saveImmunityTags,
         IReadOnlyList<TraitDamageResistanceEntryImportModel> damageResistanceEntries,
         IReadOnlyList<TraitSaveBonusEntryImportModel> saveBonusEntries,
+        IReadOnlyList<TraitSaveTagBonusEntryImportModel> saveTagBonusEntries,
         IReadOnlyList<TraitPassiveStatusEffectImportModel> passiveStatusEffects,
         IReadOnlyList<TraitRollValueSchemaEntryImportModel> rollValueSchema
     )
@@ -139,6 +146,7 @@ internal sealed class TraitImportModel
             nameof(damageResistanceEntries)
         );
         SaveBonusEntries = Freeze(saveBonusEntries, nameof(saveBonusEntries));
+        SaveTagBonusEntries = Freeze(saveTagBonusEntries, nameof(saveTagBonusEntries));
         PassiveStatusEffects = Freeze(passiveStatusEffects, nameof(passiveStatusEffects));
         RollValueSchema = Freeze(rollValueSchema, nameof(rollValueSchema));
     }
@@ -162,6 +170,7 @@ internal sealed class TraitImportModel
     internal IReadOnlyList<string> SaveImmunityTags { get; }
     internal IReadOnlyList<TraitDamageResistanceEntryImportModel> DamageResistanceEntries { get; }
     internal IReadOnlyList<TraitSaveBonusEntryImportModel> SaveBonusEntries { get; }
+    internal IReadOnlyList<TraitSaveTagBonusEntryImportModel> SaveTagBonusEntries { get; }
     internal IReadOnlyList<TraitPassiveStatusEffectImportModel> PassiveStatusEffects { get; }
     internal IReadOnlyList<TraitRollValueSchemaEntryImportModel> RollValueSchema { get; }
 

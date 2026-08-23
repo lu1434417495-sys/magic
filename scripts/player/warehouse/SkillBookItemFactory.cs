@@ -5,7 +5,7 @@ using Godot;
 
 public static class SkillBookItemFactory
 {
-    private const string DEFAULT_ICON_ASSET_ID = ItemIconMigrationRules.DefaultIconAssetId;
+    private const string DEFAULT_ICON_ASSET_ID = EngineAssetIds.DefaultItemIcon;
     private const int DEFAULT_MAX_STACK = 20;
 
     public static StringName BuildItemIdForSkill(StringName skillId) =>

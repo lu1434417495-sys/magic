@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class CombatWindupDef : Resource
+public partial class CombatWindupDef : RefCounted
 {
     [Export]
     public int stamina_cost_per_tier { get; set; } = 6;

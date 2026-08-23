@@ -71,7 +71,7 @@ public sealed class CombatLineThroughAttackDefinition
             + countedHits * SuccessfulIntermediateHitAttackRollBonus;
     }
 
-    internal static CombatLineThroughAttackDefinition FromResource(
+    internal static CombatLineThroughAttackDefinition FromDiagnosticFixture(
         CombatLineThroughAttackDef source
     ) =>
         source == null

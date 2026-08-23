@@ -38,24 +38,21 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
     private void Run()
     {
         TestResult result;
-        using (var loader = new TestContentResourceLoader())
+        try
         {
-            try
-            {
-                ContentFixture content = LoadContentFixture(loader);
-                TestContentRebindClearsAiBorrowers(content);
-                TestStateRebindClearsAiPlanAndDecisionContext(content);
-                TestEquipmentAbilityServiceDisposeRequiresExplicitRebind();
-                TestSuccessfulBorrowerFirstTeardownAndDoubleDispose(content);
-                TestExceptionalFinalLeaseCloseStillClearsBorrowers(content);
-            }
-            catch (Exception exception)
-            {
-                _test.Fail($"Unhandled exception: {exception}");
-            }
-
-            result = _test.Finish("Battle runtime borrower teardown regression");
+            ContentFixture content = LoadContentFixture();
+            TestContentRebindClearsAiBorrowers(content);
+            TestStateRebindClearsAiPlanAndDecisionContext(content);
+            TestEquipmentAbilityServiceDisposeRequiresExplicitRebind();
+            TestSuccessfulBorrowerFirstTeardownAndDoubleDispose(content);
+            TestExceptionalFinalLeaseCloseStillClearsBorrowers(content);
         }
+        catch (Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+
+        result = _test.Finish("Battle runtime borrower teardown regression");
 
         RequestTestExit(result);
     }
@@ -455,8 +452,9 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         AssertModuleBorrowersBound(actual, label);
     }
 
-    private ContentFixture LoadContentFixture(TestContentResourceLoader loader)
+    private ContentFixture LoadContentFixture()
     {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
             "mage_arcane_aegis"
         );
@@ -467,12 +465,8 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             ?? throw new InvalidOperationException(
                 "Production trait JSON does not define brave."
             );
-        EnemyTemplateDef enemyTemplate = loader.LoadCanonical<EnemyTemplateDef>(
-            "res://data/configs/enemies/templates/zombie_shambler.tres"
-        );
-        EnemyAiBrainDef enemyBrain = loader.LoadCanonical<EnemyAiBrainDef>(
-            "res://data/configs/enemies/brains/melee_aggressor.tres"
-        );
+        EnemyTemplateDefinition enemyTemplate = snapshot.EnemyTemplates["zombie_shambler"];
+        EnemyAiBrainDefinition enemyBrain = snapshot.EnemyBrains["melee_aggressor"];
         var equipmentBinding = new EquipmentAbilityBindingDefinition
         {
             BindingId = "borrower_teardown_binding",
@@ -498,16 +492,11 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             },
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [enemyTemplate.template_id] = enemyTemplate.ToDefinition(
-                    new Dictionary<StringName, ItemDefinition>
-                    {
-                        [itemDefinition.ItemId] = itemDefinition,
-                    }
-                ),
+                [enemyTemplate.TemplateId] = enemyTemplate,
             },
             new Dictionary<StringName, EnemyAiBrainDefinition>
             {
-                [enemyBrain.brain_id] = enemyBrain.ToDefinition(),
+                [enemyBrain.BrainId] = enemyBrain,
             }
         );
     }

@@ -148,7 +148,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
     )
     {
         int auditBaseline =
-            LifecycleAuditRegistry.Shared.CaptureSnapshot().ProcessContentRootCount;
+            LifecycleAuditRegistry.Shared.CaptureSnapshot().EngineAssetRootCount;
         var resolver = new EngineAssetResolver();
         Exception failure = null;
         try
@@ -175,7 +175,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         );
         resolver.Dispose();
         _test.Eq(
-            LifecycleAuditRegistry.Shared.CaptureSnapshot().ProcessContentRootCount,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot().EngineAssetRootCount,
             auditBaseline,
             $"{assertionLabel}: resolver cleanup restores the process-root baseline"
         );
@@ -225,8 +225,8 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
 
         LifecycleAuditSnapshot auditAfter = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         _test.Eq(
-            auditAfter.ProcessContentRootCount,
-            auditBaseline.ProcessContentRootCount,
+            auditAfter.EngineAssetRootCount,
+            auditBaseline.EngineAssetRootCount,
             "snapshot build failure cleanup restores the process-root baseline"
         );
         _test.Eq(
@@ -244,7 +244,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
     private void AssertTypedLookupOptionalAndLifecycle()
     {
         int auditBaseline =
-            LifecycleAuditRegistry.Shared.CaptureSnapshot().ProcessContentRootCount;
+            LifecycleAuditRegistry.Shared.CaptureSnapshot().EngineAssetRootCount;
         var resolver = new EngineAssetResolver();
         EngineAssetCatalogDef catalog = resolver.LoadAndPublishCatalogBorrowed(
             FixtureRoot + "valid_catalog.tres"
@@ -318,7 +318,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
             "shutdown rejects later asset ID lookup"
         );
         _test.Eq(
-            LifecycleAuditRegistry.Shared.CaptureSnapshot().ProcessContentRootCount,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot().EngineAssetRootCount,
             auditBaseline,
             "resolver shutdown restores the process-root baseline"
         );

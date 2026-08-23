@@ -38,13 +38,13 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
         ProcessContentHost host = coordinator.ContentHost;
         ContentSnapshot snapshot = host.GetSnapshot();
         long expectedEpoch = snapshot.Epoch;
-        int expectedRootCount = host.CanonicalRootCount;
+        int expectedAssetCount = host.EngineAssets.PublishedAssetCount;
         int expectedAuditRootCount =
-            LifecycleAuditRegistry.Shared.CaptureSnapshot().ProcessContentRootCount;
+            LifecycleAuditRegistry.Shared.CaptureSnapshot().EngineAssetRootCount;
         int expectedSnapshotObjectCount = CountSnapshotObjects(snapshot);
         StringName itemId = FirstKey(snapshot.Items);
 
-        _test.True(expectedRootCount > 0, "soak precondition: process host has canonical roots");
+        _test.True(expectedAssetCount > 0, "soak precondition: engine asset catalog is published");
         _test.True(
             expectedSnapshotObjectCount > 0,
             "soak precondition: immutable snapshot graph is populated"
@@ -67,7 +67,7 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
             host,
             snapshot,
             expectedEpoch,
-            expectedRootCount,
+            expectedAssetCount,
             expectedAuditRootCount,
             expectedSnapshotObjectCount,
             "after initial session close"
@@ -105,7 +105,7 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
                 host,
                 snapshot,
                 expectedEpoch,
-                expectedRootCount,
+                expectedAssetCount,
                 expectedAuditRootCount,
                 expectedSnapshotObjectCount,
                 $"after session cycle {cycle + 1}"
@@ -169,7 +169,7 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
         ProcessContentHost host,
         ContentSnapshot expectedSnapshot,
         long expectedEpoch,
-        int expectedRootCount,
+        int expectedAssetCount,
         int expectedAuditRootCount,
         int expectedSnapshotObjectCount,
         string label
@@ -181,9 +181,13 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
             $"{label}: process snapshot identity"
         );
         _test.Eq(host.Epoch, expectedEpoch, $"{label}: snapshot epoch");
-        _test.Eq(host.CanonicalRootCount, expectedRootCount, $"{label}: canonical root count");
         _test.Eq(
-            audit.ProcessContentRootCount,
+            host.EngineAssets.PublishedAssetCount,
+            expectedAssetCount,
+            $"{label}: published engine asset count"
+        );
+        _test.Eq(
+            audit.EngineAssetRootCount,
             expectedAuditRootCount,
             $"{label}: audited process root count"
         );

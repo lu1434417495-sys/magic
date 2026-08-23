@@ -66,7 +66,7 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
 
     private void TestOfficialSkillResourcesExposeTypedRequirementsAndSources()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using ProgressionContentRegistry registry = new();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 
@@ -141,18 +141,23 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
 
     private static GStringArray CollectValidationErrors(params SkillDef[] skillDefs)
     {
-        GDictionary indexedSkillDefs = new();
+        var indexedSkillDefinitions = new Dictionary<StringName, SkillDefinition>();
         foreach (SkillDef skillDef in skillDefs)
         {
             if (skillDef != null && skillDef.skill_id != "")
-                indexedSkillDefs[skillDef.skill_id] = skillDef;
+            {
+                indexedSkillDefinitions[skillDef.skill_id] =
+                    SkillDefinition.FromDiagnosticFixture(skillDef);
+            }
         }
 
-        using ProgressionContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
+        registry.ReplaceDefinitionsForValidation(
+            new ProgressionDefinitionSources
+            {
+                SkillDefinitions = indexedSkillDefinitions,
+            }
         );
-        registry.ReplaceSkillAuthoringResourcesForValidation(indexedSkillDefs);
         return registry.CollectValidationErrors();
     }
 

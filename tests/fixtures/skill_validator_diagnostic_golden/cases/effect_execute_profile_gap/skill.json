@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_execute_profile_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_execute_profile_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_execute_profile_gap",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "area_pattern": "diamond",
+        "effect_defs": [
+          {
+            "effect_type": "execute",
+            "payload": {},
+            "damage_tag": "fire",
+            "effect_target_team_filter": "enemy",
+            "save_dc": 10,
+            "save_ability": "strength",
+            "save_tag": "execute"
+          }
+        ],
+        "area_value": 1,
+        "target_selection_mode": "single_coord",
+        "min_target_count": 0,
+        "max_target_count": 2,
+        "allow_repeat_target": true
+      },
+      "icon_id": "diagnostic_execute_profile_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

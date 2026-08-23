@@ -114,7 +114,7 @@ public partial class run_unit_skill_exclude_source_living_target_regression
             power = 5,
             exclude_source = excludeSource,
         };
-        CombatEffectDefinition effect = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition effect = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test://unit_skill_exclude_source_living_target"
         );

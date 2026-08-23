@@ -26,6 +26,7 @@ public sealed class TraitDefinition
         IReadOnlyList<StringName> saveImmunityTags,
         IReadOnlyList<TraitDamageResistanceEntryDefinition> damageResistanceEntries,
         IReadOnlyList<TraitSaveBonusEntryDefinition> saveBonusEntries,
+        IReadOnlyList<TraitSaveTagBonusEntryDefinition> saveTagBonusEntries,
         IReadOnlyList<TraitPassiveStatusEffectDefinition> passiveStatusEffects,
         IReadOnlyList<TraitRollValueSchemaEntryDefinition> rollValueSchema
     )
@@ -79,6 +80,10 @@ public sealed class TraitDefinition
             saveBonusEntries,
             "TraitDefinition.SaveBonusEntries"
         );
+        SaveTagBonusEntries = ProgressionDefinitionProjection.FreezeValues(
+            saveTagBonusEntries,
+            "TraitDefinition.SaveTagBonusEntries"
+        );
         PassiveStatusEffects = ProgressionDefinitionProjection.FreezeValues(
             passiveStatusEffects,
             "TraitDefinition.PassiveStatusEffects"
@@ -130,6 +135,7 @@ public sealed class TraitDefinition
     public IReadOnlyList<StringName> SaveImmunityTags { get; }
     public IReadOnlyList<TraitDamageResistanceEntryDefinition> DamageResistanceEntries { get; }
     public IReadOnlyList<TraitSaveBonusEntryDefinition> SaveBonusEntries { get; }
+    public IReadOnlyList<TraitSaveTagBonusEntryDefinition> SaveTagBonusEntries { get; }
     public IReadOnlyList<TraitPassiveStatusEffectDefinition> PassiveStatusEffects { get; }
     public IReadOnlyList<TraitRollValueSchemaEntryDefinition> RollValueSchema { get; }
 

@@ -228,13 +228,11 @@ public sealed class SkillDefinition
         return false;
     }
 
-    internal static SkillDefinition FromResource(SkillDef source)
+    internal static SkillDefinition FromDiagnosticFixture(SkillDef source)
     {
         if (source == null)
             return null;
-        string sourceLabel = string.IsNullOrWhiteSpace(source.ResourcePath)
-            ? $"<SkillDef:{source.skill_id}>"
-            : source.ResourcePath;
+        string sourceLabel = $"<SkillDiagnosticFixture:{source.skill_id}>";
         var context = new JsonContentEntryContext(
             SkillContentJsonAuthoringDomain.DomainId,
             source.skill_id.ToString(),
@@ -242,7 +240,7 @@ public sealed class SkillDefinition
             "/entries/0"
         );
         ContentImportStageResult<SkillImportModel> adapted =
-            SkillResourceProjectionAdapter.TryAdapt(context, source);
+            SkillDiagnosticFixtureProjection.TryProject(context, source);
         if (adapted.HasValue)
             return SkillDefinitionProjector.Project(adapted.Value);
 
@@ -254,7 +252,7 @@ public sealed class SkillDefinition
             );
         }
         throw new InvalidDataException(
-            $"Skill Resource '{sourceLabel}' cannot enter the canonical import model: "
+            $"Skill diagnostic fixture '{sourceLabel}' cannot enter the canonical import model: "
                 + string.Join(" | ", details)
         );
     }
@@ -270,7 +268,7 @@ public sealed class SkillDefinition
         var result = new Dictionary<StringName, SkillDefinition>(source.Count);
         foreach ((StringName skillId, SkillDef skillDef) in source)
         {
-            SkillDefinition definition = FromResource(skillDef);
+            SkillDefinition definition = FromDiagnosticFixture(skillDef);
             if (definition != null && skillId != "")
                 result[skillId] = definition;
         }
@@ -1077,7 +1075,7 @@ public sealed class CombatSkillDefinition
             : EmptyCastVariants;
     }
 
-    internal static CombatSkillDefinition FromResource(
+    internal static CombatSkillDefinition FromDiagnosticFixture(
         CombatSkillDef source,
         StringName fallbackSkillId,
         string path
@@ -1095,7 +1093,7 @@ public sealed class CombatSkillDefinition
             "/entries/0"
         );
         ContentImportStageResult<CombatSkillImportModel> adapted =
-            SkillResourceProjectionAdapter.TryAdaptCombat(context, source, fallbackSkillId);
+            SkillDiagnosticFixtureProjection.TryProjectCombat(context, source, fallbackSkillId);
         if (adapted.HasValue)
         {
             return SkillDefinitionProjector.ProjectCombat(
@@ -1119,7 +1117,7 @@ public sealed class CombatSkillDefinition
             );
         }
         return new InvalidDataException(
-            $"Combat skill Resource '{sourceLabel}' cannot enter the canonical import model: "
+            $"Combat skill diagnostic fixture '{sourceLabel}' cannot enter the canonical import model: "
                 + string.Join(" | ", details)
         );
     }
@@ -2531,7 +2529,7 @@ public sealed class CombatEffectDefinition
         );
     }
 
-    internal static CombatEffectDefinition FromResource(
+    internal static CombatEffectDefinition FromDiagnosticFixture(
         CombatEffectDef source,
         string path,
         bool includeSaveFailureStatusOutcomes = true
@@ -2545,15 +2543,15 @@ public sealed class CombatEffectDefinition
             : path;
         var context = new JsonContentEntryContext(
             SkillContentJsonAuthoringDomain.DomainId,
-            "skill_definition_adapter",
+            "skill_definition_diagnostic_fixture",
             sourceLabel,
             "/entries/0"
         );
         ContentImportStageResult<CombatEffectImportModel> adapted =
-            SkillResourceProjectionAdapter.TryAdaptEffect(
+            SkillDiagnosticFixtureProjection.TryProjectEffect(
                 context,
                 source,
-                "skill_definition_adapter"
+                "skill_definition_diagnostic_fixture"
             );
         if (adapted.HasValue)
             return SkillDefinitionProjector.ProjectEffect(adapted.Value);
@@ -2573,7 +2571,7 @@ public sealed class CombatEffectDefinition
             );
         }
         return new InvalidDataException(
-            $"Combat effect Resource '{sourceLabel}' cannot enter the canonical import model: "
+            $"Combat effect diagnostic fixture '{sourceLabel}' cannot enter the canonical import model: "
                 + string.Join(" | ", details)
         );
     }

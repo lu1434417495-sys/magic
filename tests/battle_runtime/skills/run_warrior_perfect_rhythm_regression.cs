@@ -336,7 +336,7 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
             requires_weapon = true,
             use_weapon_physical_damage_tag = true,
         };
-        return CombatEffectDefinition.FromResource(
+        return CombatEffectDefinition.FromDiagnosticFixture(
             effect,
             "warrior_perfect_rhythm_regression.weapon_damage"
         );

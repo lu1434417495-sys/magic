@@ -51,7 +51,7 @@ public partial class run_skill_book_item_helpers_regression : LifecycleTestScene
         _test.True(!string.IsNullOrWhiteSpace(generatedBook.Description), "技能书应生成非空说明。");
         _test.Eq(
             generatedBook.IconAssetId,
-            ItemIconMigrationRules.DefaultIconAssetId,
+            EngineAssetIds.DefaultItemIcon,
             "技能书应使用默认图标 asset id。"
         );
         _test.Eq(generatedBook.MaxStack, 20, "技能书默认最大堆叠应为 20。");

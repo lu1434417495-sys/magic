@@ -135,8 +135,7 @@ public partial class run_archer_tripwire_arrow_regression : LifecycleTestSceneTr
 
     private void TestSchemaRejectsMalformedMovementContact()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new SkillContentRegistry(loader, loadDefaultContent: false);
+        using var registry = new SkillContentRegistry(loadDefaultContent: false);
         var malformed = new CombatEffectDef
         {
             effect_type = "terrain_effect",

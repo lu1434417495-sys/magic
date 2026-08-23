@@ -627,7 +627,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateGrantMitigationTierPayload(
-        GrantMitigationTierActionPayloadDef payload,
+        GrantMitigationTierActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors

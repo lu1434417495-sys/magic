@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_damage_direct_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_damage_direct_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_damage_direct_gap",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "bonus_weapon_dice_multiplier": 1,
+            "damage_tag": "fire",
+            "add_weapon_dice": true
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "bonus_damage_dice_count": 1,
+            "bonus_condition": "target_low_hp"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_damage_direct_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

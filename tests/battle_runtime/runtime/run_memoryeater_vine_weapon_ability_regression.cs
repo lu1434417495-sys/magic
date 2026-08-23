@@ -79,8 +79,6 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         _test.True(fixture.Bindings.ContainsKey(BlackBloomAwakeningBindingId), "应包含黑花将醒 binding。");
         if (!fixture.ItemDefs.ContainsKey(ItemId))
             return;
-
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_rapier_memoryeater_vine");
         _test.True(rawItem != null, "噬忆血蔓原始资源应能加载。");
         if (rawItem != null)

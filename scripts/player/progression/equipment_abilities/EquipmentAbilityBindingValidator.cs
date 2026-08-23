@@ -814,6 +814,19 @@ internal sealed class EquipmentAbilityBindingValidator
         {
             case AddDamageDiceActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAddDamageDicePayload(payload, context, path, errors);
+                if (
+                    EquipmentAbilityDamageTypeModeContentRules.ToKind(payload.damage_type_mode)
+                        == EquipmentAbilityDamageTypeModeKind.InheritPrimary
+                    && trigger != EquipmentAbilityTriggerKind.OnDamageRoll
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_DAMAGE_TYPE_MODE_INHERIT_TRIGGER_UNSUPPORTED",
+                        $"{path}.payload.damage_type_mode",
+                        "add_damage_dice damage_type_mode inherit_primary requires the on_damage_roll trigger (main direct effect origin)"
+                    );
+                }
                 break;
             case ImmediateWeaponAttackActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateImmediateWeaponAttackPayload(payload, context, path, errors);
@@ -844,6 +857,9 @@ internal sealed class EquipmentAbilityBindingValidator
                 break;
             case DamageReductionActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDamageReductionPayload(payload, context, path, errors);
+                break;
+            case GrantMitigationTierActionPayloadImportModel payload:
+                EquipmentAbilityPayloadValidators.ValidateGrantMitigationTierPayload(payload, context, path, errors);
                 break;
             case LootQuantityMultiplierActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateLootQuantityMultiplierPayload(payload, path, errors);

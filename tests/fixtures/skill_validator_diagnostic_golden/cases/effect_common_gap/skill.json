@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_common_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_effect_common_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "max_level": 2,
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_effect_common_gap",
+        "effect_defs": [
+          {
+            "effect_type": "heal",
+            "min_skill_level": 2,
+            "max_skill_level": 1,
+            "power": 1,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_sides_per_constitution_mod": 1,
+            "max_affected_targets": 1,
+            "trigger_event": "forced_move_applied"
+          },
+          {
+            "effect_type": "chain_damage",
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 1,
+            "max_affected_targets": 1,
+            "target_order": "lowest_hp_percent_then_unit_id"
+          },
+          {
+            "effect_type": "heal",
+            "payload": {},
+            "effect_categories": [
+              "projectile_ranged"
+            ]
+          }
+        ],
+        "target_selection_mode": "random_chain"
+      },
+      "icon_id": "diagnostic_effect_common_gap",
+      "mastery_curve": [
+        10,
+        20
+      ]
+    }
+  ]
+}

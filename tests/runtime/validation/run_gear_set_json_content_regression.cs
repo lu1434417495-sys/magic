@@ -20,9 +20,11 @@ public partial class run_gear_set_json_content_regression : LifecycleTestSceneTr
                     new GodotContentJsonSourceReader()
                 ).Import();
             _test.False(production.HasErrors, "production gear-set JSON imports without diagnostics");
-            _test.Eq(production.Entries.Count, 1, "production gear-set JSON contains one set");
+            _test.Eq(production.Entries.Count, 2, "production gear-set JSON contains two sets");
 
-            GearSetImportModel import = production.Entries[0].Import;
+            GearSetImportModel import = production.Entries
+                .Single(entry => entry.Import.GearSetId == "phoenix_rebirth_set")
+                .Import;
             GearSetDefinition definition = GearSetDefinitionProjector.Project(import);
             _test.Eq(definition.MemberItemIds.Count, 10, "gear-set projector preserves ten members");
             _test.Eq(definition.Thresholds.Count, 4, "gear-set projector preserves four thresholds");

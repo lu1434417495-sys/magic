@@ -77,8 +77,6 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
             "孤独的懦弱应有装备能力 binding。"
         );
         _test.True(fixture.SkillDefs.ContainsKey(InspireSkillId), "鼓舞应落成真实 SkillDef。");
-
-        using TestContentResourceLoader loader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_longsword_courage");
         _test.True(rawItem != null, "勇气之刃原始资源应能加载。");
         if (rawItem != null)

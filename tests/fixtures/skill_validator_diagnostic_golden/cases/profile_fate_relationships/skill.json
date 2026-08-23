@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_fate_relationships",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_profile_fate_relationships",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_profile_fate_relationships",
+        "spell_critical_mode": "mp_refund",
+        "backlash_mode": "ground_anchor_drift"
+      },
+      "icon_id": "diagnostic_profile_fate_relationships",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

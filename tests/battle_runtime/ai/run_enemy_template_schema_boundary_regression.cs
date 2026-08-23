@@ -217,7 +217,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             if (rawKey.VariantType != Variant.Type.StringName)
                 continue;
             SkillDefinition skillDefinition =
-                SkillDefinition.FromResource(skillDefs[rawKey].As<SkillDef>());
+                SkillDefinition.FromDiagnosticFixture(skillDefs[rawKey].As<SkillDef>());
             if (skillDefinition == null)
                 continue;
             StringName keySkillId = rawKey.AsStringName();

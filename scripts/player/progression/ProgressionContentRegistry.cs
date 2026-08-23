@@ -45,15 +45,11 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private static readonly StringName HpMax = "hp_max";
     private static readonly StringName PracticeMeditation = "meditation";
     private static readonly StringName PracticeCultivation = "cultivation";
-    private const string EquipmentAbilityConfigDirectory =
-        "res://data/configs/equipment_abilities";
-
     private static readonly StringName[] PracticeTrackTags =
     {
         PracticeMeditation,
         PracticeCultivation,
     };
-    private GDictionary _skillDefs = new();
     private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private readonly Dictionary<StringName, ProfessionDefinition> _professionDefIndex = new();
     private readonly Dictionary<StringName, AchievementDefinition> _achievementDefIndex = new();
@@ -71,7 +67,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     private readonly Dictionary<StringName, StageAdvancementDefinition> _stageAdvancementDefIndex =
         new();
 
-    private readonly IContentResourceLoader _resourceLoader;
     private readonly SkillContentRegistry _skillContentRegistry;
     private readonly ProfessionContentRegistry _professionContentRegistry;
     private readonly RaceContentRegistry _raceContentRegistry;
@@ -107,20 +102,12 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
     }
 
-    internal ProgressionContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal ProgressionContentRegistry()
+        : this(loadDefaultContent: true) { }
 
-    internal ProgressionContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
-    )
+    internal ProgressionContentRegistry(bool loadDefaultContent)
     {
-        _resourceLoader = resourceLoader
-            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
-        _skillContentRegistry = new SkillContentRegistry(
-            _resourceLoader,
-            loadDefaultContent: false
-        );
+        _skillContentRegistry = new SkillContentRegistry(loadDefaultContent: false);
         _professionContentRegistry = new ProfessionContentRegistry(loadDefaultContent: false);
         _raceContentRegistry = new RaceContentRegistry(loadDefaultContent: false);
         _subraceContentRegistry = new SubraceContentRegistry(loadDefaultContent: false);
@@ -173,7 +160,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         ClearRuntimeCaches();
 
         _skillContentRegistry.Rebuild();
-        _skillDefs.Clear();
         ReplaceDefinitionIndex(
             _skillDefinitionIndex,
             _skillContentRegistry.GetSkillDefinitionsTyped()
@@ -233,8 +219,9 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _register_seed_achievements();
 
         EquipmentAbilityRegistryBuildResult equipmentAbilityResult =
-            _equipmentAbilityContentRegistry.Rebuild(
-                LoadEquipmentAbilityContentPacks(),
+            _equipmentAbilityContentRegistry.RebuildFromJson(
+                EquipmentAbilityContentJsonAuthoringDomain.ProductionDirectory,
+                new GodotContentJsonSourceReader(),
                 BuildEquipmentAbilityValidationContext()
             );
         foreach (string error in equipmentAbilityResult.Errors)
@@ -254,35 +241,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
     {
         return CloneTypedDictionary(_skillDefinitionIndex);
-    }
-
-    internal GDictionary DuplicateSkillResourceBucketForValidation()
-    {
-        return DuplicateDictionary(_skillDefs);
-    }
-
-    internal IReadOnlyList<Resource> GetLoadedSkillResourcesForFinalizerDrain()
-    {
-        var result = new List<Resource>();
-        foreach (Variant rawKey in _skillDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-            {
-                continue;
-            }
-
-            StringName skillId = rawKey.AsStringName();
-            if (skillId == "")
-            {
-                continue;
-            }
-
-            if (_skillDefs[rawKey].AsGodotObject() is Resource resource)
-            {
-                result.Add(resource);
-            }
-        }
-        return result;
     }
 
     public IReadOnlyDictionary<StringName, ProfessionDefinition> GetProfessionDefsTyped()
@@ -408,7 +366,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         System.ArgumentNullException.ThrowIfNull(sources);
         _validationErrors.Clear();
         _questRegistrationErrors.Clear();
-        _skillDefs.Clear();
         _usesReplacementDefinitionsForValidation = true;
         ReplaceDefinitionIndex(_skillDefinitionIndex, sources.SkillDefinitions);
         ReplaceDefinitionIndex(_professionDefIndex, sources.ProfessionDefinitions);
@@ -432,15 +389,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         ReplaceDefinitionIndex(
             _stageAdvancementDefIndex,
             sources.StageAdvancementDefinitions
-        );
-    }
-
-    internal void ReplaceSkillAuthoringResourcesForValidation(GDictionary skillResources)
-    {
-        _skillDefs = DuplicateDictionary(skillResources);
-        ReplaceDefinitionIndex(
-            _skillDefinitionIndex,
-            SkillDefinition.ProjectIndex(BuildSkillDefIndex())
         );
     }
 
@@ -474,23 +422,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 skillId,
                 skillDefinition
             );
-            if (TryGetSkillDef(skillId, out SkillDef skillDef))
-            {
-                _append_raw_int_requirement_entry_errors(
-                    skillErrors,
-                    skillId,
-                    skillDef.SkillLevelRequirementEntriesTyped,
-                    "skill_level_requirements",
-                    "skill_id"
-                );
-                _append_raw_int_requirement_entry_errors(
-                    skillErrors,
-                    skillId,
-                    skillDef.AttributeRequirementEntriesTyped,
-                    "attribute_requirements",
-                    "attribute_id"
-                );
-            }
             AppendUniqueErrors(errors, skillErrors);
         }
 
@@ -619,7 +550,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
 
     private void ClearRuntimeCaches()
     {
-        _skillDefs.Clear();
         _questRegistrationErrors.Clear();
         _skillDefinitionIndex.Clear();
         _professionDefIndex.Clear();
@@ -637,58 +567,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         _stageAdvancementDefIndex.Clear();
         _validationErrors.Clear();
         _usesReplacementDefinitionsForValidation = false;
-    }
-
-    private IReadOnlyList<EquipmentAbilityContentPackDef> LoadEquipmentAbilityContentPacks()
-    {
-        var packs = new List<EquipmentAbilityContentPackDef>();
-        if (!DirAccess.DirExistsAbsolute(EquipmentAbilityConfigDirectory))
-            return packs;
-
-        ScanEquipmentAbilityContentDirectory(EquipmentAbilityConfigDirectory, packs);
-        return packs;
-    }
-
-    private void ScanEquipmentAbilityContentDirectory(
-        string directoryPath,
-        List<EquipmentAbilityContentPackDef> packs
-    )
-    {
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
-            return;
-
-        try
-        {
-            directory.ListDirBegin();
-            while (true)
-            {
-                string entryName = directory.GetNext();
-                if (string.IsNullOrEmpty(entryName))
-                    break;
-                if (entryName == "." || entryName == "..")
-                    continue;
-
-                string entryPath = $"{directoryPath}/{entryName}";
-                if (directory.CurrentIsDir())
-                {
-                    ScanEquipmentAbilityContentDirectory(entryPath, packs);
-                    continue;
-                }
-                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                    continue;
-
-                Resource resource = _resourceLoader.LoadCanonical<Resource>(entryPath);
-                if (resource is not EquipmentAbilityContentPackDef pack)
-                    continue;
-                packs.Add(pack);
-            }
-            directory.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
-        }
     }
 
     private EquipmentAbilityContentValidationContext BuildEquipmentAbilityValidationContext()
@@ -2031,37 +1909,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         }
     }
 
-    private static void _append_raw_int_requirement_entry_errors(
-        GStringArray errors,
-        StringName skillId,
-        IReadOnlyList<SkillDef.IntRequirementEntryData> entries,
-        string contextLabel,
-        string idLabel
-    )
-    {
-        foreach (SkillDef.IntRequirementEntryData entry in entries ?? System.Array.Empty<SkillDef.IntRequirementEntryData>())
-        {
-            if (!entry.HasStringLikeKey)
-            {
-                errors.Add(
-                    $"Skill {skillId} has a non-string {idLabel} key {entry.RawKeyLabel} in {contextLabel}."
-                );
-                continue;
-            }
-            if (!entry.HasNonEmptyKey)
-            {
-                errors.Add($"Skill {skillId} has an empty {idLabel} in {contextLabel}.");
-                continue;
-            }
-            if (!entry.HasStrictIntAmount)
-            {
-                errors.Add(
-                    $"Skill {skillId} requires integer value for {entry.RequirementId} in {contextLabel}."
-                );
-            }
-        }
-    }
-
     private void _append_invalid_achievement_errors(
         List<string> errors,
         StringName achievementId,
@@ -2134,47 +1981,6 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
                 }
             }
         }
-    }
-
-    private static GDictionary DuplicateDictionary(GDictionary source)
-    {
-        return source != null ? source.Duplicate() : new GDictionary();
-    }
-
-    private Dictionary<StringName, SkillDef> BuildSkillDefIndex()
-    {
-        var result = new Dictionary<StringName, SkillDef>();
-        foreach (Variant rawKey in _skillDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-            {
-                continue;
-            }
-
-            StringName skillId = rawKey.AsStringName();
-            if (skillId == "")
-            {
-                continue;
-            }
-
-            if (_skillDefs[rawKey].AsGodotObject() is SkillDef skillDef)
-            {
-                result[skillId] = skillDef;
-            }
-        }
-        return result;
-    }
-
-    private bool TryGetSkillDef(StringName skillId, out SkillDef skillDef)
-    {
-        skillDef = null;
-        if (skillId == "" || !_skillDefs.ContainsKey(skillId))
-        {
-            return false;
-        }
-
-        skillDef = _skillDefs[skillId].AsGodotObject() as SkillDef;
-        return skillDef != null;
     }
 
     private static IReadOnlyDictionary<StringName, T> CloneTypedDictionary<T>(

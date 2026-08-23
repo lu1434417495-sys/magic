@@ -34,6 +34,7 @@ internal static class EquipmentAbilityPayloadKindCatalog
             Spec<EquipmentAttackDefenseModifierJsonDto, EquipmentAttackDefenseModifierImportModel>("attack_defense_modifier"),
             Spec<DamageRollModeOverrideActionPayloadJsonDto, DamageRollModeOverrideActionPayloadImportModel>("damage_roll_mode_override"),
             Spec<DamageReductionActionPayloadJsonDto, DamageReductionActionPayloadImportModel>("damage_reduction"),
+            Spec<GrantMitigationTierActionPayloadJsonDto, GrantMitigationTierActionPayloadImportModel>("grant_mitigation_tier"),
             Spec<LootQuantityMultiplierActionPayloadJsonDto, LootQuantityMultiplierActionPayloadImportModel>("loot_quantity_multiplier"),
             Spec<ApplyStatusActionPayloadJsonDto, ApplyStatusActionPayloadImportModel>("apply_status"),
             Spec<ModifyActionPointsActionPayloadJsonDto, ModifyActionPointsActionPayloadImportModel>("modify_action_points"),

@@ -12,7 +12,7 @@ public sealed class EquipmentAttributeRequirementDefinition
     public StringName AttributeId { get; }
     public int MinValue { get; }
 
-    internal static EquipmentAttributeRequirementDefinition FromResource(
+    internal static EquipmentAttributeRequirementDefinition FromDiagnosticFixture(
         EquipmentAttributeRequirementDef source
     )
     {

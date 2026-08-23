@@ -86,8 +86,6 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         );
         if (!fixture.ItemDefs.ContainsKey(BonecrusherItemId))
             return;
-
-        using TestContentResourceLoader loader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_bonecrusher_088");
         _test.True(rawItem != null, "碎骨者原始资源应能加载。");
         if (rawItem != null)

@@ -20,7 +20,7 @@ public readonly struct EquipmentRequirementCheckResult
 }
 
 [GlobalClass]
-public partial class EquipmentRequirement : Resource
+public partial class EquipmentRequirement : RefCounted
 {
     [Export]
     public Godot.Collections.Array<string> required_profession_ids = new();
@@ -41,5 +41,5 @@ public partial class EquipmentRequirement : Resource
         attribute_requirements;
 
     internal EquipmentRequirementDefinition ToDefinition() =>
-        EquipmentRequirementDefinition.FromResource(this);
+        EquipmentRequirementDefinition.FromDiagnosticFixture(this);
 }

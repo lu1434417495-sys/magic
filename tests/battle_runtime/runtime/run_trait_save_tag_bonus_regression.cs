@@ -305,15 +305,14 @@ public partial class run_trait_save_tag_bonus_regression : LifecycleTestSceneTre
 
     private static void ProjectTraits(
         BattleUnitState unit,
-        params TraitDef[] authoredTraits
+        params TraitImportModel[] authoredTraits
     )
     {
         var definitions = new Dictionary<StringName, TraitDefinition>();
         var instances = new List<BattleEffectiveTraitInstanceState>();
-        foreach (TraitDef authored in authoredTraits)
+        foreach (TraitImportModel authored in authoredTraits)
         {
-            TraitDefinition definition =
-                TestProgressionDefinitionProjection.Trait(authored);
+            TraitDefinition definition = TraitDefinitionProjector.Project(authored);
             definitions[definition.TraitId] = definition;
             instances.Add(
                 TraitTestData.EffectiveTrait(
@@ -332,35 +331,40 @@ public partial class run_trait_save_tag_bonus_regression : LifecycleTestSceneTre
         );
     }
 
-    private static TraitDef MakeTraitDef(
+    private static TraitImportModel MakeTraitDef(
         StringName traitId,
-        params TraitSaveTagBonusEntryDef[] entries
+        params TraitSaveTagBonusEntryImportModel[] entries
     )
-    {
-        TraitDef def = new()
-        {
-            trait_id = traitId,
-            display_name = traitId.ToString(),
-            description = "Save tag bonus battle fixture.",
-            effect_type = "save_advantage",
-        };
-        def.allowed_source_kinds.Add("equipment_fixed");
-        foreach (TraitSaveTagBonusEntryDef entry in entries)
-            def.save_tag_bonus_entries.Add(entry);
-        return def;
-    }
+        => new(
+            traitId.ToString(),
+            traitId.ToString(),
+            "Save tag bonus battle fixture.",
+            System.Array.Empty<string>(),
+            new[] { "equipment_fixed" },
+            "save_advantage",
+            "passive",
+            "unique_by_trait",
+            "none",
+            "none",
+            "",
+            0,
+            0,
+            System.Array.Empty<TraitAttributeModifierImportModel>(),
+            System.Array.Empty<string>(),
+            System.Array.Empty<string>(),
+            System.Array.Empty<string>(),
+            System.Array.Empty<TraitDamageResistanceEntryImportModel>(),
+            System.Array.Empty<TraitSaveBonusEntryImportModel>(),
+            entries,
+            System.Array.Empty<TraitPassiveStatusEffectImportModel>(),
+            System.Array.Empty<TraitRollValueSchemaEntryImportModel>()
+        );
 
-    private static TraitSaveTagBonusEntryDef MakeEntry(
+    private static TraitSaveTagBonusEntryImportModel MakeEntry(
         StringName saveTag,
         int bonus,
         StringName stackMode
-    ) =>
-        new()
-        {
-            save_tag = saveTag,
-            bonus = bonus,
-            stack_mode = stackMode,
-        };
+    ) => new(saveTag.ToString(), bonus, stackMode.ToString());
 
     private static CombatEffectDefinition MakeSaveDamageEffect(
         StringName saveTag,

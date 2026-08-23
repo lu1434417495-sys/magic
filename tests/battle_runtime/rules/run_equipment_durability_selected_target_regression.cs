@@ -255,7 +255,7 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
         BattleUnitState target = BuildUnit("legacy_weight_target", "enemy");
         EquipInstance(target, "main_hand", "bronze_sword", "eq_legacy_weight", 20);
 
-        CombatEffectDefinition effect = DisjunctionEffectFromResource(
+        CombatEffectDefinition effect = DisjunctionEffectFromDiagnosticFixture(
             7,
             targetSlots: Names("main_hand"),
             typedSlotWeights: CombatEffectSlotWeights(("main_hand", 1))
@@ -391,12 +391,12 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             }
         );
 
-    private static CombatEffectDefinition DisjunctionEffectFromResource(
+    private static CombatEffectDefinition DisjunctionEffectFromDiagnosticFixture(
         int power,
         GStringNameArray targetSlots = null,
         Godot.Collections.Array<CombatEffectSlotWeightDef> typedSlotWeights = null
     ) =>
-        CombatEffectDefinition.FromResource(
+        CombatEffectDefinition.FromDiagnosticFixture(
             new CombatEffectDef
             {
                 effect_type = "equipment_durability_damage",

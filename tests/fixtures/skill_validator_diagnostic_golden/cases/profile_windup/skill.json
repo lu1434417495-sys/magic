@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_windup",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_windup",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_windup",
+        "target_mode": "ground",
+        "casting_time_tu": 5,
+        "casting_maintenance_dc": 1,
+        "casting_spell_control_dc": 1,
+        "windup_profile": {
+          "stamina_cost_per_tier": -1,
+          "weapon_dice_per_tier": 0,
+          "skill_level_tier_caps": [
+            -1
+          ],
+          "base_weapon_dice_multipliers": [
+            0
+          ]
+        },
+        "special_resolution_profile_id": "special",
+        "target_selection_mode": "single_coord",
+        "random_chain_attack_count": 1,
+        "cast_variants": [
+          {
+            "variant_id": "windup_option"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_windup",
+      "mastery_curve": [
+        10
+      ],
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true
+      }
+    }
+  ]
+}

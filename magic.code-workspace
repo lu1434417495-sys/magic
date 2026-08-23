@@ -20,6 +20,36 @@
       },
       {
         "fileMatch": [
+          "/data/configs/json/items/**/*.json"
+        ],
+        "url": "./data/schemas/content/items.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/traits/**/*.json"
+        ],
+        "url": "./data/schemas/content/traits.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/equipment_abilities/**/*.json"
+        ],
+        "url": "./data/schemas/content/equipment_abilities.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/gear_sets/**/*.json"
+        ],
+        "url": "./data/schemas/content/gear_sets.schema.json"
+      },
+      {
+        "fileMatch": [
+          "/data/configs/json/recipes/**/*.json"
+        ],
+        "url": "./data/schemas/content/recipes.schema.json"
+      },
+      {
+        "fileMatch": [
           "/data/configs/json/enemies/brains/**/*.json"
         ],
         "url": "./data/schemas/content/enemy_ai_brains.schema.json"

@@ -11,8 +11,7 @@ public partial class run_barrier_skill_content_validation_regression : Lifecycle
     {
         try
         {
-            using var loader = new TestContentResourceLoader();
-            using var progression = new ProgressionContentRegistry(loader);
+            using var progression = new ProgressionContentRegistry();
             using var barriers = new BarrierContentRegistry();
 
             IReadOnlyDictionary<StringName, SkillDefinition> officialSkills =

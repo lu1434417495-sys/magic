@@ -81,18 +81,12 @@ internal static class ContentValidationRunner
         bool includeProgressionSkillChecks = false
     )
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         registry.LoadFromDirectory(directoryPath);
         List<string> errors = ToStringList(registry.Validate());
         if (includeProgressionSkillChecks)
         {
-            using ProgressionContentRegistry progressionRegistry = new(
-                new TestContentResourceLoader(),
-                loadDefaultContent: false
-            );
+            using ProgressionContentRegistry progressionRegistry = new(loadDefaultContent: false);
             try
             {
                 progressionRegistry.ReplaceDefinitionsForValidation(
@@ -110,69 +104,6 @@ internal static class ContentValidationRunner
                     new[] { $"Skill projection rejected content: {exception.Message}" }
                 );
             }
-        }
-        return BuildDomainResult("skill", directoryPath, errors);
-    }
-
-    // Negative schema fixtures remain Godot Resources so they can construct states that the
-    // fail-closed JSON parser rejects before normalization. This test-only boundary must not be
-    // used by SkillContentRegistry or any production content-loading path.
-    public static ValidationDomainResult ValidateSkillResourceFixtureDirectory(
-        string directoryPath,
-        bool includeProgressionSkillChecks = false
-    )
-    {
-        var imports = new Dictionary<StringName, SkillImportModel>();
-        var errors = new List<string>();
-        using DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
-            return BuildDomainResult("skill", directoryPath, [$"Cannot open skill fixture directory: {directoryPath}"]);
-
-        var fileNames = new List<string>();
-        directory.ListDirBegin();
-        for (string entryName = directory.GetNext(); entryName != ""; entryName = directory.GetNext())
-        {
-            if (!directory.CurrentIsDir() && entryName.EndsWith(".tres", StringComparison.Ordinal))
-                fileNames.Add(entryName);
-        }
-        directory.ListDirEnd();
-        fileNames.Sort(StringComparer.Ordinal);
-
-        foreach (string fileName in fileNames)
-        {
-            string sourcePath = $"{directoryPath.TrimEnd('/')}/{fileName}";
-            using SkillDef skill = ResourceLoader.Load<SkillDef>(sourcePath, cacheMode: ResourceLoader.CacheMode.IgnoreDeep);
-            if (skill == null)
-            {
-                errors.Add($"skill.tres.invalid_resource {sourcePath}: Skill Resource could not be loaded.");
-                continue;
-            }
-            var context = new JsonContentEntryContext("skill", "", sourcePath, "");
-            ContentImportStageResult<SkillImportModel> result = SkillResourceProjectionAdapter.TryAdapt(context, skill);
-            foreach (ContentJsonDiagnostic diagnostic in result.Diagnostics)
-                errors.Add($"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}");
-            if (!result.HasValue)
-                continue;
-            StringName skillId = result.Value.SkillId.Value;
-            if (!imports.TryAdd(skillId, result.Value))
-                errors.Add($"Duplicate skill_id registered: {skillId}");
-        }
-
-        var validator = new SkillImportModelValidator();
-        AppendUniqueErrors(errors, validator.ValidateBatchMessages(imports));
-        if (includeProgressionSkillChecks)
-        {
-            using ProgressionContentRegistry progressionRegistry = new(
-                new TestContentResourceLoader(),
-                loadDefaultContent: false
-            );
-            progressionRegistry.ReplaceDefinitionsForValidation(
-                new ProgressionDefinitionSources
-                {
-                    SkillDefinitions = SkillDefinitionProjector.ProjectIndex(imports.Values),
-                }
-            );
-            AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
         }
         return BuildDomainResult("skill", directoryPath, errors);
     }
@@ -240,10 +171,7 @@ internal static class ContentValidationRunner
         AppendUniqueErrors(errors, ascensionRegistry.Validate());
         AppendUniqueErrors(errors, stageAdvancementRegistry.Validate());
 
-        using ProgressionContentRegistry progressionRegistry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry progressionRegistry = new(loadDefaultContent: false);
         PrepareIdentityPhase2Registry(
             progressionRegistry,
             skillDefinitions ?? new Dictionary<StringName, SkillDefinition>(),
@@ -263,11 +191,10 @@ internal static class ContentValidationRunner
 
     public static ValidationDomainResult ValidateOfficialItemContent()
     {
-        using TraitContentRegistry traitRegistry = new(new TestContentResourceLoader());
+        using TraitContentRegistry traitRegistry = new();
         return ValidateItemDirectories(
             "official_items",
-            ["res://data/configs/items"],
-            ["res://data/configs/items_templates"],
+            [ItemContentJsonAuthoringDomain.ProductionDirectory],
             traitDefinitions: traitRegistry.GetTraitDefsTyped()
         );
     }
@@ -280,12 +207,11 @@ internal static class ContentValidationRunner
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions = null
     )
     {
-        using TestContentResourceLoader loader = new();
-        using ItemContentRegistry registry = new(loader);
-        registry.RebuildFromDirectories(
-            ToGodotArray(itemDirectories),
-            ToGodotArray(templateDirectories ?? Array.Empty<string>())
-        );
+        using ItemContentRegistry registry = new();
+        string sourceDirectory = itemDirectories is { Length: > 0 }
+            ? itemDirectories[0]
+            : ItemContentJsonAuthoringDomain.ProductionDirectory;
+        registry.RebuildFromJsonDirectory(sourceDirectory, new GodotContentJsonSourceReader());
         List<string> combinedErrors = ToStringList(registry.Validate());
         if (skillDefs != null && skillDefs.Count > 0)
             AppendUniqueErrors(
@@ -311,10 +237,9 @@ internal static class ContentValidationRunner
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
-        using TestContentResourceLoader loader = new();
-        using RecipeContentRegistry registry = new(loader);
+        using RecipeContentRegistry registry = new();
         registry.Setup(itemDefinitions);
-        registry.LoadFromDirectory(directoryPath);
+        registry.LoadFromJsonDirectory(directoryPath, new GodotContentJsonSourceReader());
         return BuildDomainResult("recipe", directoryPath, registry.Validate());
     }
 
@@ -475,11 +400,11 @@ internal static class ContentValidationRunner
 
     private static TraitContentRegistry BuildTraitRegistry(string[] directoryPaths)
     {
-        TraitContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
-        registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
+        TraitContentRegistry registry = new(loadDefaultContent: false);
+        string directoryPath = directoryPaths is { Length: > 0 }
+            ? directoryPaths[0]
+            : TraitContentJsonAuthoringDomain.ProductionDirectory;
+        registry.LoadFromJsonDirectory(directoryPath, new GodotContentJsonSourceReader());
         return registry;
     }
 

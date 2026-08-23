@@ -33,6 +33,7 @@ internal static class TraitDefinitionProjector
             Names(source.SaveImmunityTags),
             ProjectDamageResistances(source.DamageResistanceEntries),
             ProjectSaveBonuses(source.SaveBonusEntries),
+            ProjectSaveTagBonuses(source.SaveTagBonusEntries),
             ProjectPassiveStatuses(source.PassiveStatusEffects),
             ProjectRollSchema(source.RollValueSchema)
         );
@@ -52,6 +53,15 @@ internal static class TraitDefinitionProjector
         var bonuses = new List<TraitSaveBonusEntryImportModel>();
         foreach (TraitSaveBonusEntryDefinition value in source.SaveBonusEntries)
             bonuses.Add(new TraitSaveBonusEntryImportModel(Text(value.SaveAbility), value.Bonus));
+        var tagBonuses = new List<TraitSaveTagBonusEntryImportModel>();
+        foreach (TraitSaveTagBonusEntryDefinition value in source.SaveTagBonusEntries)
+            tagBonuses.Add(
+                new TraitSaveTagBonusEntryImportModel(
+                    Text(value.SaveTag),
+                    value.Bonus,
+                    Text(value.StackMode)
+                )
+            );
         var statuses = new List<TraitPassiveStatusEffectImportModel>();
         foreach (TraitPassiveStatusEffectDefinition value in source.PassiveStatusEffects)
             statuses.Add(new TraitPassiveStatusEffectImportModel(Text(value.StatusId), value.Power, value.Stacks, value.DisplayLabel, value.Undispellable, value.CountsAsDebuffOverride, value.CountsAsDebuff, Texts(value.SaveImmunityTags)));
@@ -65,7 +75,7 @@ internal static class TraitDefinitionProjector
             Text(source.StackPolicy), Text(source.ChargeScope), Text(source.ChargeResetTiming),
             Text(source.ConfiguredHighestRollCompareKey), source.VisionRange, source.ProficiencyChoiceCount,
             modifiers, Texts(source.SaveAdvantageTags), Texts(source.SaveDisadvantageTags),
-            Texts(source.SaveImmunityTags), resistances, bonuses, statuses, schema
+            Texts(source.SaveImmunityTags), resistances, bonuses, tagBonuses, statuses, schema
         );
     }
 
@@ -116,6 +126,24 @@ internal static class TraitDefinitionProjector
         var result = new List<TraitRollValueSchemaEntryDefinition>(values.Count);
         foreach (TraitRollValueSchemaEntryImportModel value in values)
             result.Add(new TraitRollValueSchemaEntryDefinition(Name(value.Key), Name(value.ValueType), value.MinValue, value.MaxValue, Names(value.AllowedValues)));
+        return result;
+    }
+
+    private static IReadOnlyList<TraitSaveTagBonusEntryDefinition> ProjectSaveTagBonuses(
+        IReadOnlyList<TraitSaveTagBonusEntryImportModel> values
+    )
+    {
+        var result = new List<TraitSaveTagBonusEntryDefinition>(values.Count);
+        foreach (TraitSaveTagBonusEntryImportModel value in values)
+        {
+            result.Add(
+                new TraitSaveTagBonusEntryDefinition(
+                    Name(value.SaveTag),
+                    value.Bonus,
+                    Name(value.StackMode)
+                )
+            );
+        }
         return result;
     }
 

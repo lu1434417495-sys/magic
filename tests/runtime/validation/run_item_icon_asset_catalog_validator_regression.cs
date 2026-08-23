@@ -42,7 +42,7 @@ public partial class run_item_icon_asset_catalog_validator_regression : Lifecycl
         _test.Eq(withIcons.Length, 109, "formal items should retain 109 non-empty icon asset IDs");
         _test.True(
             withIcons.All(definition =>
-                definition.IconAssetId == ItemIconMigrationRules.DefaultIconAssetId
+                definition.IconAssetId == EngineAssetIds.DefaultItemIcon
             ),
             "every migrated non-empty item icon should use the catalog-backed default ID"
         );
@@ -73,7 +73,7 @@ public partial class run_item_icon_asset_catalog_validator_regression : Lifecycl
 
         using (
             ProcessContentHost probe = ProcessContentHost.CreateSyntheticPublicationProbeForTest(
-                (_, epoch) => new ContentSnapshotBuildArtifact(
+                epoch => new ContentSnapshotBuildArtifact(
                     SyntheticContentSnapshotFactory.Create(
                         new SyntheticContentSnapshotSeed
                         {

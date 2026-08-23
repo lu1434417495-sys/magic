@@ -93,8 +93,6 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
         {
             _test.True(fixture.Bindings.ContainsKey(bindingId), $"永恒之刃应包含 binding {bindingId}。");
         }
-
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_longsword_eternity_edge");
         _test.True(rawItem != null, "永恒之刃原始资源应能加载。");
         if (rawItem != null)

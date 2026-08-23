@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_execute_direct_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_execute_direct_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_execute_direct_gap",
+        "effect_defs": [
+          {
+            "effect_type": "execute",
+            "payload": {},
+            "damage_tag": "fire",
+            "threshold_max_hp_ratio_percent": -1,
+            "threshold_cap_max_hp_ratio_percent": 101,
+            "heal_multiplier_percent": -1,
+            "shield_gain_multiplier_percent": 101,
+            "effect_target_team_filter": "enemy",
+            "trigger_event": "attack_hit",
+            "save_dc": 10,
+            "save_ability": "strength",
+            "save_partial_on_success": true,
+            "save_tag": "execute"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_execute_direct_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

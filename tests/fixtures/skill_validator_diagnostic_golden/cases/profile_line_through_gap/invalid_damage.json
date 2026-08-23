@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_line_through_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_line_through_damage_gap",
+      "display_name": "Line-through damage diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "max_level": 0,
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_line_through_damage_gap",
+        "range_value": 5,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 1,
+            "payload": {},
+            "damage_tag": "fire"
+          }
+        ],
+        "weapon_range_policy": "configured",
+        "requires_los": true,
+        "line_through_attack_profile": {
+          "primary_weapon_dice_multiplier_curve": [
+            1
+          ],
+          "primary_attack_roll_bonus_curve": [
+            0
+          ],
+          "successful_intermediate_hit_bonus_cap_curve": [
+            0
+          ]
+        },
+        "max_hits_per_target": 1
+      },
+      "icon_id": "diagnostic_line_through_damage_gap"
+    }
+  ]
+}

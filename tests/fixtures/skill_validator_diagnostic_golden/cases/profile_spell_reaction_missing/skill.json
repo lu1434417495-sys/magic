@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_spell_reaction_missing",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_spell_reaction_missing",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_spell_reaction_missing",
+        "spell_reaction_profile": {
+          "trigger_delivery_category": "",
+          "reaction_skill_id": "",
+          "save_tag": "",
+          "base_save_dc": 0,
+          "hp_damage_divisor": 0,
+          "attack_roll_bonus_by_skill_level": [
+            -1
+          ],
+          "save_dc_bonus_by_skill_level": [
+            -1
+          ]
+        }
+      },
+      "icon_id": "diagnostic_spell_reaction_missing",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -489,10 +489,10 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
                 $"{audit.NonTerminalCount} non-terminal lifecycle objects remain active"
             );
         }
-        if (audit.ProcessContentRootCount != 0)
+        if (audit.EngineAssetRootCount != 0)
         {
             failures.Add(
-                $"{audit.ProcessContentRootCount} canonical process content roots remain active"
+                $"{audit.EngineAssetRootCount} engine asset roots remain active"
             );
         }
 

@@ -33,7 +33,8 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
             {
                 ["add_damage_dice"] = Action(
                     "add_damage_dice",
-                    typeof(AddDamageDiceActionPayloadDefinition)
+                    typeof(AddDamageDiceActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["immediate_weapon_attack"] = Action(
                     "immediate_weapon_attack",
@@ -79,6 +80,11 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                 ["damage_reduction"] = Action(
                     "damage_reduction",
                     typeof(DamageReductionActionPayloadDefinition),
+                    consumerSupport: ConsumerSupport(includePreview: true)
+                ),
+                ["grant_mitigation_tier"] = Action(
+                    "grant_mitigation_tier",
+                    typeof(GrantMitigationTierActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["loot_quantity_multiplier"] = Action(
@@ -219,6 +225,13 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     Trigger = EquipmentAbilityTriggerKind.OnAttackCheck,
                     AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
                         new[] { EquipmentAbilityTimingKind.AfterAttackCheck }
+                    ),
+                },
+                [EquipmentAbilityTriggerKind.OnAttackHit] = new()
+                {
+                    Trigger = EquipmentAbilityTriggerKind.OnAttackHit,
+                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
+                        new[] { EquipmentAbilityTimingKind.AfterHit }
                     ),
                 },
                 [EquipmentAbilityTriggerKind.OnTargetMarkExpired] = new()

@@ -48,7 +48,7 @@ internal enum CombatAreaDirectionMode
 }
 
 [GlobalClass]
-public partial class CombatSkillDef : Resource
+public partial class CombatSkillDef : RefCounted
 {
     private static readonly StringName SpellFateControlRoll = "control_roll";
     private static readonly StringName SpellCriticalMpRefund = "mp_refund";
@@ -430,8 +430,7 @@ public partial class CombatSkillDef : Resource
         {
             if (cv != null && skillLevel >= cv.min_skill_level)
             {
-                CombatCastVariantDef variant = (CombatCastVariantDef)cv.Duplicate(true);
-                r.Add(variant);
+                r.Add(cv);
             }
         }
         return r;

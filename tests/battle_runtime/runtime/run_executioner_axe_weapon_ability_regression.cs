@@ -102,7 +102,6 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
     private void TestContentProjectionAndInternalSkillVisibility()
     {
         using ExecutionerFixture fixture = ExecutionerFixture.Build();
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_greataxe_executioner_384");
         _test.True(rawItem != null, "处刑者之斧物品资源应能加载。");
         if (rawItem != null)
@@ -1221,7 +1220,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
     }
 
     private static CombatEffectDefinition BuildEquipmentDurabilityEffect(int power) =>
-        CombatEffectDefinition.FromResource(
+        CombatEffectDefinition.FromDiagnosticFixture(
             new CombatEffectDef
             {
                 effect_type = "equipment_durability_damage",

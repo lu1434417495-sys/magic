@@ -9,8 +9,8 @@ using Godot;
 
 /// <summary>
 /// The single business projection from the normalized plain skill import graph to the
-/// immutable runtime definition graph. Resource and JSON sources must converge before
-/// entering this projector.
+/// immutable runtime definition graph. Production JSON and diagnostic fixtures converge
+/// on the same import model before entering this projector.
 /// </summary>
 internal static class SkillDefinitionProjector
 {

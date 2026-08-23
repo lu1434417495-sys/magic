@@ -42,7 +42,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             registry.GetActionHandlerSpecsTyped();
 
         _test.Eq(conditions.Count, 3, "registry exposes the three closed condition handlers");
-        _test.Eq(actions.Count, 26, "registry exposes the 26 executable action handlers");
+        _test.Eq(actions.Count, 27, "registry exposes the 27 executable action handlers");
         _test.False(actions.ContainsKey("grant_skill"), "grant_skill has no runtime handler");
         _test.True(conditions.ContainsKey("compare_fact"), "compare_fact remains registered");
         _test.True(actions.ContainsKey("trigger_skill"), "trigger_skill remains registered");

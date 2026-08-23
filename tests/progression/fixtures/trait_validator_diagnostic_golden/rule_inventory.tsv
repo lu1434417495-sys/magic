@@ -34,6 +34,10 @@ trait.validation.mitigation_known	mitigation_tier is known
 trait.validation.save_ability	save bonus ability is a base attribute
 trait.validation.save_ability_duplicate	save bonus ability is unique
 trait.validation.save_bonus_nonzero	save bonus is nonzero
+trait.validation.save_tag_bonus_tag	save-tag bonus references a registered save tag
+trait.validation.save_tag_bonus_duplicate	save-tag bonus key is unique
+trait.validation.save_tag_bonus_positive	save-tag bonus is positive
+trait.validation.save_tag_bonus_stack_mode	save-tag bonus stack mode is add or highest
 trait.validation.passive_status_required	passive status_id is nonempty
 trait.validation.passive_status_duplicate	passive status_id is unique
 trait.validation.passive_power_positive	passive status power is positive

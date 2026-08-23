@@ -76,8 +76,6 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             fixture.SkillDefs.ContainsKey(CloudsplitterSkillId),
             "裂云重劈应落成真实 SkillDef，而不是 trait 文本。"
         );
-
-        using TestContentResourceLoader contentLoader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_storms_eye_091");
         _test.True(rawItem != null, "风暴之眼原始资源应能加载。");
         if (rawItem != null)

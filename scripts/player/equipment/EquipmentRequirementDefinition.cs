@@ -68,7 +68,7 @@ public sealed class EquipmentRequirementDefinition
         return new EquipmentRequirementCheckResult(blockers.Count == 0, blockers);
     }
 
-    internal static EquipmentRequirementDefinition FromResource(EquipmentRequirement source)
+    internal static EquipmentRequirementDefinition FromDiagnosticFixture(EquipmentRequirement source)
     {
         if (source == null)
             return null;
@@ -87,7 +87,7 @@ public sealed class EquipmentRequirementDefinition
             if (requirement == null)
                 throw WarehouseDefinitionProjection.Invalid(requirementPath, "resource is null");
             attributeRequirements.Add(
-                EquipmentAttributeRequirementDefinition.FromResource(requirement)
+                EquipmentAttributeRequirementDefinition.FromDiagnosticFixture(requirement)
             );
             index++;
         }

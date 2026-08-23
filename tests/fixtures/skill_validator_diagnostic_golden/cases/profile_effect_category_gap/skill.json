@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_effect_category_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_required_effect_categories",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_required_effect_categories",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force"
+          },
+          {
+            "effect_type": "status",
+            "payload": {},
+            "status_id": "petrified",
+            "save_dc": 10,
+            "save_ability": "constitution",
+            "save_tag": "petrification"
+          },
+          {
+            "effect_type": "heal",
+            "payload": {},
+            "effect_categories": [
+              "nonmagical_missile"
+            ]
+          }
+        ]
+      },
+      "icon_id": "diagnostic_required_effect_categories",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

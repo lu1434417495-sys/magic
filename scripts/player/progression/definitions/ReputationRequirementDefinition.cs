@@ -17,7 +17,7 @@ public sealed class ReputationRequirementDefinition
     public bool MatchesValue(int value) =>
         ProgressionDataUtils.MatchesValueRange(value, MinValue, MaxValue);
 
-    internal static ReputationRequirementDefinition FromResource(
+    internal static ReputationRequirementDefinition FromDiagnosticFixture(
         ReputationRequirement source,
         string path
     )

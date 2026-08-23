@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_chain_windows",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_chain_windows",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "max_level": 2,
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_chain_windows",
+        "effect_defs": [
+          {
+            "effect_type": "chain_damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 1
+          },
+          {
+            "effect_type": "chain_damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 1
+          }
+        ]
+      },
+      "icon_id": "diagnostic_chain_windows",
+      "mastery_curve": [
+        10,
+        20
+      ]
+    }
+  ]
+}

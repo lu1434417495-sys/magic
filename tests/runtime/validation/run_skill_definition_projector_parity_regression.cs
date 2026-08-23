@@ -14,7 +14,7 @@ public partial class run_skill_definition_projector_parity_regression
     : LifecycleTestSceneTree
 {
     private const string ExpectedDefinitionGoldenSha256 =
-        "3C38E70DE96EE24EA7E46DBF6A90C62BFB8BC092D06D51594453F9BA7DD9E8EC";
+        "BAFC2412369F915B035DEA2D37B5A7DE26ACFBDDCC669483AAC63CADD79DEF29";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
@@ -23,7 +23,6 @@ public partial class run_skill_definition_projector_parity_regression
     {
         try
         {
-            using var loader = new TestContentResourceLoader();
             var validator = new SkillImportModelValidator();
             var goldenRows = new List<string>();
             ContentImportBatch<SkillImportModel> batch =
@@ -46,10 +45,10 @@ public partial class run_skill_definition_projector_parity_regression
                 SkillDefinition jsonDefinition = SkillDefinitionProjector.Project(import);
                 goldenRows.Add($"{skillId}\t{Serialize(ToCanonicalValue(jsonDefinition))}");
             }
-            TestProductionProjectionPaths(loader);
+            TestProductionProjectionPaths();
             _test.Eq(
                 goldenRows.Count,
-                705,
+                706,
                 "definition projection golden must include every migrated skill"
             );
             goldenRows.Sort(StringComparer.Ordinal);
@@ -70,15 +69,12 @@ public partial class run_skill_definition_projector_parity_regression
         RequestTestExit(_test.Finish("Skill definition projector parity regression"));
     }
 
-    private void TestProductionProjectionPaths(TestContentResourceLoader loader)
+    private void TestProductionProjectionPaths()
     {
-        using var registry = new SkillContentRegistry(loader);
+        using var registry = new SkillContentRegistry();
         IReadOnlyDictionary<StringName, SkillDefinition> snapshotDefinitions =
             registry.GetSkillDefinitionsTyped();
-        using var validationRegistry = new ProgressionContentRegistry(
-            loader,
-            loadDefaultContent: false
-        );
+        using var validationRegistry = new ProgressionContentRegistry(loadDefaultContent: false);
         validationRegistry.ReplaceDefinitionsForValidation(
             new ProgressionDefinitionSources { SkillDefinitions = snapshotDefinitions }
         );

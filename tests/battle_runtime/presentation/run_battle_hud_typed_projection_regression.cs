@@ -79,14 +79,14 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
 
         _test.Eq(
             BattleHudAdapter.GetSkillIconKeyForTest(
-                SkillDefinition.FromResource(emptyRaw)
+                SkillDefinition.FromDiagnosticFixture(emptyRaw)
             ),
             "",
             "HUD projection should preserve an empty icon ID instead of substituting skill_id"
         );
         _test.Eq(
             BattleHudAdapter.GetSkillIconKeyForTest(
-                SkillDefinition.FromResource(unknownRaw)
+                SkillDefinition.FromDiagnosticFixture(unknownRaw)
             ),
             "test.skill_icon.unknown",
             "HUD projection should preserve a non-empty asset ID without rewriting it"

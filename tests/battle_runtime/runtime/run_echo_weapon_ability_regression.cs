@@ -61,8 +61,6 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
             fixture.SkillDefs.ContainsKey(EchoThrowSkillId),
             "回音投掷应落成真实 SkillDef，而不是 trait 文本。"
         );
-
-        using TestContentResourceLoader loader = new();
         ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_echo_095");
         _test.True(rawItem != null, "回音原始资源应能加载。");
         if (rawItem != null)

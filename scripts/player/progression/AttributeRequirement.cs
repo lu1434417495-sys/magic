@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class AttributeRequirement : Resource
+public partial class AttributeRequirement : RefCounted
 {
     [Export]
     public StringName attribute_id = "";

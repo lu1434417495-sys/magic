@@ -1,0 +1,136 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_kinds",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_effect_kinds",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_effect_kinds",
+        "effect_defs": [
+          {
+            "effect_type": "chain_damage",
+            "payload": {},
+            "prevent_repeat_target": false,
+            "chain_conductive_hop_range": -1,
+            "chain_max_total_targets": 1,
+            "chain_conductive_status_ids": [
+              "",
+              "wet",
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": -1
+          },
+          {
+            "effect_type": "fixed_repeat_attack",
+            "payload": {},
+            "fixed_attack_count": 1,
+            "follow_up_damage_multiplier_percent": 0
+          },
+          {
+            "effect_type": "repeat_attack_until_fail",
+            "payload": {},
+            "follow_up_damage_multiplier_percent": 0
+          },
+          {
+            "effect_type": "shield",
+            "payload": {},
+            "shield_family": "diagnostic_value",
+            "shield_roll_per_target": true
+          },
+          {
+            "effect_type": "heal",
+            "power": 1,
+            "payload": {},
+            "heal_to_hp_percent_floor": 50,
+            "heal_missing_hp_percent": 50,
+            "dice_count": 1
+          },
+          {
+            "effect_type": "stamina_restore",
+            "payload": {}
+          },
+          {
+            "effect_type": "terrain_effect",
+            "duration_tu": 5,
+            "payload": {},
+            "move_cost_delta": -1,
+            "overlay_priority": -1,
+            "does_not_stack_with_status_ids": [
+              ""
+            ],
+            "terrain_max_active_instances_per_source": -1,
+            "terrain_replace_existing_from_source": true
+          },
+          {
+            "effect_type": "position_swap",
+            "payload": {}
+          },
+          {
+            "effect_type": "terrain_replace",
+            "payload": {}
+          },
+          {
+            "effect_type": "terrain_replace_to",
+            "payload": {}
+          },
+          {
+            "effect_type": "position_swap",
+            "payload": {}
+          },
+          {
+            "effect_type": "height_delta",
+            "payload": {}
+          },
+          {
+            "effect_type": "body_size_category_override",
+            "payload": {}
+          },
+          {
+            "effect_type": "position_swap",
+            "payload": {},
+            "effect_target_team_filter": "enemy"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {}
+          },
+          {
+            "effect_type": "source_retreat",
+            "payload": {}
+          },
+          {
+            "effect_type": "charge",
+            "payload": {},
+            "charge_trap_immunity_min_skill_level": -2
+          },
+          {
+            "effect_type": "path_step_aoe",
+            "payload": {},
+            "path_step_radius": -1,
+            "repeat_hit_status_threshold": -1,
+            "repeat_hit_status_min_skill_level": -1,
+            "repeat_hit_status_power": -1,
+            "repeat_hit_status_duration_tu": 1
+          },
+          {
+            "effect_type": "equipment_durability_damage",
+            "payload": {
+              "target_slots": []
+            }
+          }
+        ]
+      },
+      "icon_id": "diagnostic_effect_kinds",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}
