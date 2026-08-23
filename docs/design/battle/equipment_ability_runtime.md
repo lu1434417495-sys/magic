@@ -1,7 +1,7 @@
 # 装备能力系统当前实现
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-08-19`
+> 核对日期：`2026-08-23`
 
 ## 定位
 
@@ -11,7 +11,7 @@
 
 | 层 | 当前 owner | 职责 |
 |---|---|---|
-| Authoring | `data/configs/json/equipment_abilities/equipment_abilities.json`、`EquipmentAbilityJsonDtos` | 以 55 packs / 170 bindings 声明装备来源、状态激活、动态减伤光环、移动足迹、触发、条件、typed payload、认知上限、致死拦截、授予技能和附伤替换组 |
+| Authoring | `data/configs/json/equipment_abilities/*.json`、`EquipmentAbilityJsonDtos` | 以 56 packs / 173 bindings 声明装备来源、状态激活、动态减伤光环、移动足迹、触发、条件、typed payload、认知上限、致死拦截、授予技能和附伤替换组 |
 | 校验与投影 | `EquipmentAbilityContentJsonAuthoringDomain`、`EquipmentAbilityImportGraphMapper`、`EquipmentAbilityImportVocabularyValidator`、`EquipmentAbilityClosedVocabulary`、`EquipmentAbilityPayloadKindCatalog`、`EquipmentAbilityDefinitionProjection`、`EquipmentAbilityContentRegistry` | strict DTO → plain ImportModel → domain/cross-domain validation → immutable Definition；production 不构造或加载 payload Resource |
 | 共享属性契约 | `AttributeContentRules` | 定义五种 AC component 的 typed kind、稳定 id、只读顺序和 membership，供 authoring 校验与 attribute/world/battle 共同消费 |
 | 进程内容 | `ContentSnapshotBuilder`、`ContentSnapshot`、`GameContentCatalog` | 发布 binding/pack definition 索引，session 与 battle 只借用 |
@@ -41,8 +41,8 @@ equipment ability JSON
 
 ## 当前能力边界
 
-- Binding、reaction、condition、fact query、action payload 和 state schema 都在加载期转为 typed definition；29 个有效 handler kind（3 condition + 26 action）、35 个 fact ID、10 个 trigger 与 10 个 timing 由共享 closed vocabulary/spec 驱动。未知、ghost 或 consumer 不支持的 handler 必须在 import/registry 阶段拒绝，运行时不做字符串 fallback。
-- 正式 55 个 `.tres`、49 个 equipment authoring Resource C#、TRES adapter/converter、loader constructor、ResourcePath provenance 与 Resource→Definition 兼容桥均已删除。runtime 只保留 immutable definitions、handler metadata/spec 和 battle consumers。
+- Binding、reaction、condition、fact query、action payload 和 state schema 都在加载期转为 typed definition；30 个有效 handler kind（3 condition + 27 action）、35 个 fact ID、10 个 trigger 与 10 个 timing 由共享 closed vocabulary/spec 驱动。未知、ghost 或 consumer 不支持的 handler 必须在 import/registry 阶段拒绝，运行时不做字符串 fallback。
+- 旧 equipment `.tres`、authoring Resource C#、TRES adapter/converter、loader constructor、ResourcePath provenance 与 Resource→Definition 兼容桥均已删除。runtime 只保留 immutable definitions、handler metadata/spec 和 battle consumers。
 - `EquipmentAbilityContentValidationContext` 的 trait、skill、外部 status 三个 open-content catalog 都是必填合同；`null` 表示生产构建缺失依赖并返回 `EQA_VALIDATION_CONTEXT_INCOMPLETE`，非 null 空集合表示目录权威为空，不能用于关闭校验。damage tag 与 equipment slot 属于 closed domain，分别直接调用 `DamageTagContentRules` 与 `EquipmentRules`，不在 context 里复制可选白名单。
 - Status 采用声明/引用两阶段校验。外部声明来自 `StatusContentRules` 的系统状态、技能 effect 和 trait passive status；battle 的 `BattleStatusSemanticTable` 消费系统状态声明并附加运行时语义，不反向拥有内容 ID。装备 pack 内的 `apply_status`（包括 fatal-intercept `success_actions`）、下一回合 AP 归零标记、target mark 镜像状态和区域接触状态先由 `EquipmentAbilityStatusDeclarationCatalog` 汇总，随后 `activation_status_id` 与所有 condition/fact/clear/consume 等引用再统一做 membership 校验。因此 pack 顺序不影响合法引用，未声明拼写不能进入 process snapshot。
 - Binding 的 `activation_status_id` 不负责创建状态；它只在单位已经持有对应已声明状态时，投影稳定的 `battle_status:<unit_id>:<binding_id>` 装备能力来源。状态来源与原装备来源解耦，因此已施加到受益者的状态可在原装备卸下后继续提供自己的 reaction/fatal-intercept，直到状态正常到期或被移除。

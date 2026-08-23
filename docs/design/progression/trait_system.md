@@ -38,7 +38,7 @@ trait JSON
 
 ## 实现约束
 
-- 正式 trait authoring 只有 JSON；239 个 entry 通过同一 pure CLR import validator。`TraitDef`、nested authoring Resource、TRES adapter/converter 和 Resource→Definition 兼容桥均已删除。session、UI、CharacterManagement 和 battle runtime 只消费 `TraitDefinition` 索引。
+- 正式 trait authoring 只有 JSON；246 个 entry 通过同一 pure CLR import validator。`TraitDef`、nested authoring Resource、TRES adapter/converter 和 Resource→Definition 兼容桥均已删除。session、UI、CharacterManagement 和 battle runtime 只消费 `TraitDefinition` 索引。
 - save advantage/disadvantage/immunity 字段保存裸 save tag；`*_immunity` 后缀写法由 `TraitImportModelValidator` fail closed。离线 CLI 与 production descriptor 复用相同词表和规则。
 - `TraitInstanceState` 是持久实例的单一数据形状。人物实例只允许人物来源，装备实例只允许装备 roll 来源；反序列化严格校验字段集和 source kind。
 - `CharacterTraitService` 必须以当前 equipment view 重算 effective set。战斗内换装或装备损坏后由 `BattleUnitFactory.RefreshEquipmentProjection(...)` 重建，不从角色原装备状态旁路读取。

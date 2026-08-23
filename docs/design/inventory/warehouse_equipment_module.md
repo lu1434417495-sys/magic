@@ -27,7 +27,7 @@ Other facade-owned semantic mutations -> existing runtime transaction / party pe
 
 ## 静态内容契约
 
-正式 item authoring 位于 `data/configs/json/items/items.json`。`ItemContentJsonAuthoringDomain` 通过 strict DTO、plain `ItemImportModel`、domain validator 与 `ItemDefinitionProjector` 生成 129 个 immutable `ItemDefinition`；旧 31 个 item template 已在转换时完全展开，production 不再执行 template merge。装备类物品必须能创建 `EquipmentInstanceState`，非装备类只以 stack 数量存在。
+正式 item authoring 位于 `data/configs/json/items/` 的 family documents。`ItemContentJsonAuthoringDomain` 通过 strict DTO、plain `ItemImportModel`、domain validator 与 `ItemDefinitionProjector` 生成 133 个 immutable `ItemDefinition`；旧 item template 已在转换时完全展开，production 不再执行 template merge。装备类物品必须能创建 `EquipmentInstanceState`，非装备类只以 stack 数量存在。
 
 `ItemPriceRules` 是物品价格 basis-point 缩放的唯一规则 owner。价格与倍率先归一化为非负值，乘法与 half-up 舍入全部使用 `long`；若结果超出公开 `int` 价格接口的表达范围则饱和到 `int.MaxValue`，不得回绕为负数。正式运行时 `ItemDefinition` 只委托该规则，不维护第二套公式。
 

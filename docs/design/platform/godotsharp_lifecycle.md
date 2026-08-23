@@ -2,16 +2,15 @@
 
 日期：2026-07-10
 状态：`Current / Implemented`，已完成 Phase 6 累计验收
-核对日期：2026-08-19
-决策：采用方案 B——进程内容根、plain C# 内容快照、短生命周期投影租约与显式退出屏障
+核对日期：2026-08-23
+决策：采用方案 B——JSON-backed plain C# 内容快照、engine-asset catalog、短生命周期投影租约与显式退出屏障
 
 版本注记（2026-07-23）：本文中的 version 12 是 2026-07-10 生命周期迁移的历史验收基线，
 不是当前存档版本。显式 `BattleEncounter` / encounter anchor schema 落地后，当前 save/index
 版本为 `16 / 4`，并按项目兼容策略严格拒绝旧版本，不提供 migration 或 fallback。
 
-内容源注记（2026-08-19）：skills 及阶段 4 的 items、traits、equipment abilities、gear sets、recipes
-已改为 strict JSON direct-load；下文提到 raw `.tres` root 时只表示尚未迁移的 legacy content domain
-与 engine asset。已迁移 domain 的 process root 是 plain ImportModel/Definition graph，不保留 authoring Resource。
+内容源注记（2026-08-23）：全部 gameplay/config content 已改为 strict JSON direct-load。
+`.tres` 只用于 engine-asset catalog 及其测试 fixture；`ProcessContentHost` 不再拥有 authored content root。
 
 ## 问题
 
@@ -59,8 +58,8 @@ finalizer drain”。
 
 1. 在 Godot native runtime 仍存活时，按确定顺序关闭所有项目 owner，再执行唯一一次最终 GC
    barrier，最后请求 `SceneTree.Quit`。
-2. 每个 domain 明确拥有 authoring 格式：已迁移 domain 使用 strict JSON，剩余 legacy domain 可继续
-   使用 `.tres`；runtime 一律只消费 immutable typed C# content snapshot，不长期持有业务 Resource。
+2. 每个 gameplay/config domain 使用 strict JSON；runtime 一律只消费 immutable typed C# content
+   snapshot。只有 engine-asset catalog 使用 Godot Resource authoring。
 3. runtime/save state 和 runtime service 由 plain C# class/collection owner 承载；Godot collections
    只存在于 save、UI、trace、资源导入和 Godot API 的短期投影边界。
 4. 每个 runtime-created Resource、Godot collection 和 native utility 都能追溯到一个显式 owner
@@ -130,8 +129,7 @@ session recreate，并且 wrapper 与内存会随 catalog/query/battle 次数增
 
 ### 方案 B：进程内容根 + plain snapshot + lease + pre-quit barrier
 
-保留 domain-owned authoring source，由一个进程 owner 持有 canonical JSON import graph 或尚未迁移的
-raw Resource root；加载后立即投影成 immutable plain snapshot。runtime-created native wrapper 进入短期 lease，process shutdown 在
+保留 domain-owned authoring source，由一个进程 owner 持有 canonical JSON import graph；构建后立即投影成 immutable plain snapshot。runtime-created native wrapper 进入短期 lease，process shutdown 在
 Godot 存活时完成 owner teardown 和 GC barrier。该方案能分阶段落地，并复用当前 typed migration。
 
 ### 方案 C：离线编译全部业务 `.tres`
@@ -161,7 +159,7 @@ Godot 存活时完成 owner teardown 和 GC barrier。该方案能分阶段落�
 9. 项目代码不直接对 GodotObject/Godot collection 调用 `GC.SuppressFinalize`；独占对象走
    `Dispose()`，borrowed 对象只断开引用。
 10. GC barrier 只能在 non-terminal runtime owner、content borrower、scope、lease、job 均为 0，
-    process content root map 已清空，且只剩 coordinator 这个 terminal SceneTree owner 后执行。
+    engine-asset root index 已清空，且只剩 coordinator 这个 terminal SceneTree owner 后执行。
 
 ## Ownership descriptor
 
@@ -180,8 +178,8 @@ ReferenceRole:
 ```
 
 每条诊断记录还包含 `owner_id`、可选 `borrow_anchor_id`、`epoch`、`creation_reason` 和可选
-canonical path。path-backed cached Resource 的 `owner_id` 是 Godot resource cache，
-`borrow_anchor_id` 是 `ProcessContentHost`；ownership registry 继续使用弱引用。strict 模式下
+canonical path。engine-asset catalog 与其中 path-backed cached Resource 的 `owner_id` 是 Godot
+resource cache，`borrow_anchor_id` 是 `ProcessContentHost.EngineAssets`；ownership registry 继续使用弱引用。strict 模式下
 unknown、重复 owner、跨域 retain 和关闭后注册直接失败。
 
 这里的“plain C# owner”描述 class/collection 的 ownership，不表示图中所有值都来自纯 CLR。
@@ -202,9 +200,8 @@ owner field/static ID source，不尝试跟踪每一次 struct copy。
 ```text
 ApplicationLifetimeCoordinator (autoload, last owner to leave)
 └── ProcessContentHost
-    ├── canonical ResourcePath -> raw immutable content/engine-asset root Resource
-    ├── EngineAssetResolver -> process-shared asset borrow
-    └── ContentSnapshot(epoch, typed immutable definitions)
+    ├── EngineAssetResolver -> typed catalog root + process-shared asset borrow
+    └── ContentSnapshotPublication -> ContentSnapshot(epoch, typed immutable definitions)
         └── GameSession / GameRoot catalog view
             └── GameRuntimeFacade
                 └── BattleLifetime
@@ -245,31 +242,30 @@ suppress；看到 skipped phase 必须报告 lifecycle failure。
 
 ### ProcessContentHost 与引擎资产
 
-Godot 的 ResourceLoader/cache 与 RefCounted 规则拥有 path-backed native Resource 的实际 native
+Godot 的 ResourceLoader/cache 与 RefCounted 规则拥有 path-backed engine asset 的实际 native
 生命周期；项目不得把 cached Resource 当作 exclusively-owned wrapper 调用 `Dispose()`。
-`ProcessContentHost` 是唯一的项目侧 managed borrow anchor：它决定 raw authored content wrapper 在
-load/validate/project 和进程运行期何时必须保持可达，但不声称拥有 native Resource 本体。
+`ProcessContentHost` 只拥有 immutable snapshot publication 状态与 `EngineAssetResolver`。Gameplay
+content registry 直接发现 strict JSON、投影 plain ImportModel/Definition，并在同步 builder 作用域内
+交给 snapshot；host 不加载、缓存或反查 authored content root。
 
 `ProcessContentHost` 的规则：
 
-- authored root 使用 `ResourceLoader.CacheMode.IgnoreDeep` 加载；canonical identity 由 host root map
-  提供，避免全局 deep cache 把嵌套 C# Resource wrapper 持有到 GDMono teardown；
-- 以规范化 `ResourcePath` 为 key，只强持有每个已加载 graph 的根 Resource wrapper；
-- 不递归强持有 subresource、Array、Dictionary 或 getter 临时创建的 wrapper；
-- 同一路径重复请求返回同一个 canonical root；
-- root 只能在 host 的 load/validate/project 阶段访问，不能进入 runtime service/state；
-- raw Resource 不允许被 normalization 或 merge 修改；
-- engine-asset catalog 发布后、content snapshot 提交前，`SkillIconAssetCatalogValidator` 在同一 publication project 中验证每个非空 `SkillDefinition.IconId` 可借用为 `Texture2D`；失败走 root rollback，且不得设置 snapshot、epoch 或 sealed 状态；
+- `EngineAssetCatalogBootstrap` 是唯一允许的 catalog path load；resolver 以
+  `ResourceLoader.CacheMode.IgnoreDeep` 加载 catalog，发布 `asset_id -> borrowed typed Resource` 正向索引；
+- 不提供 content path load、basename fallback、authored-path reverse lookup 或动态 catalog 注册；
+- engine-asset catalog 发布后、content snapshot 提交前，`ContentIconAssetCatalogValidator` 与
+  `EnemySpriteAssetCatalogValidator` 在同一 publication project 中验证非空 asset ID；失败不得设置
+  snapshot、epoch 或 sealed 状态；
 - host 初始化完成后进入 sealed 状态，V1 禁止在 active session 中 reload/register；
-- process shutdown 时先释放 content snapshot/session borrower，再清 canonical root map，让 managed
-  wrapper 在 Godot 仍存活时通过正常 finalizer/engine tracker 解除绑定；不直接 Dispose cached root。
+- process shutdown 时先释放 content snapshot/session borrower，再由 resolver 清 asset ID 索引并释放
+  catalog/asset borrow anchors；不直接 Dispose cached Resource root。
 
 业务 definition 只保存内容 id、canonical path 或 UID，不保存 Texture、PackedScene 等 wrapper。
 引擎资产按来源分为三类：
 
 1. 内容声明的 Texture、PackedScene、AudioStream、Shader 等只携带稳定 asset ID，并由
-   `ProcessContentHost.EngineAssetResolver` 从已发布 typed catalog 返回 borrowed Resource；代码自有资产才以
-   canonical path 建立 managed borrow anchor；native owner 均仍是 Godot ResourceLoader/cache；
+   `ProcessContentHost.EngineAssetResolver` 从已发布 typed catalog 返回 borrowed Resource；代码自有资产才走
+   明确命名的 canonical-path API；native owner 均仍是 Godot ResourceLoader/cache；
 2. 由 PackedScene/exported property 随 Node graph 注入的资产由 SceneTree/native scene graph 拥有，
    项目字段只登记 `LifetimeDomain.SceneTree + ReferenceRole.Borrowed`，不 Dispose；
 3. runtime factory 创建的 pathless Image、Texture、Mesh、TileSet 等进入 `NativeLeaseScope`。
@@ -279,12 +275,12 @@ load/validate/project 和进程运行期何时必须保持可达，但不声称�
 
 ### ContentSnapshot 与 GameContentCatalog
 
-`ContentSnapshot` 是 immutable typed C# graph，拥有单调递增 `epoch`。同一进程只能有一个 raw
-`ProcessContentHost`，因为 Godot ResourceLoader cache 可能为相同路径返回同一 wrapper。需要内容
+`ContentSnapshot` 是 immutable typed C# graph，拥有单调递增 `epoch`。同一进程只能有一个正式
+`ProcessContentHost`，因为 snapshot epoch、engine asset catalog 与 publication state 都是 process-owned。需要内容
 隔离的测试只能选择：
 
-- 启动独立 Godot 进程并创建自己的 raw host；或
-- 在同一进程注入不加载 Resource 的 pure CLR synthetic snapshot。
+- 启动独立 Godot 进程并创建自己的 host；或
+- 在同一进程注入不加载新 engine asset catalog 的 pure managed publication probe/synthetic snapshot。
 
 V1 正常进程只有一个 active snapshot。`GameSession` 不再重建 raw registry graph，而是从 host
 借用 snapshot；`GameRoot` 仍负责 catalog view 的 session binding、revision 和失效语义。
@@ -389,7 +385,7 @@ reflection suppress walker 一并移除。
 
 registry 只保留弱引用诊断，不持有生命周期。必须暴露：
 
-- process content root count，按 canonical path/type；
+- engine-asset root count，按 catalog/asset audit key 与 typed Resource type；
 - active content snapshot epoch；
 - active owner/lease/scope/job 数；
 - created、disposed、transferred、escaped、unknown 数；
@@ -414,7 +410,7 @@ audit issue 分成 `Violation` 与 `LegacyDebt`。`Violation` 在当前阶段 st
 ```text
 ApplicationLifetimeCoordinator._Ready
 → 禁用 AutoAcceptQuit
-→ ProcessContentHost.Load/Validate/Project
+→ ProcessContentHost loads engine-asset catalog and builds JSON-backed snapshot
 → 校验 definition 中的非空 asset ID 与已发布 catalog 类型
 → seal host
 → 创建 ContentSnapshot(epoch=1)
@@ -425,7 +421,7 @@ ApplicationLifetimeCoordinator._Ready
 内容加载必须从 `GameSession` constructor 移到 coordinator 可控的初始化阶段，避免 GameSession 在
 process owner 尚未就绪时自行建立 raw registry graph。
 
-若 `ProcessContentHost.Load/Validate/Project` 在 autoload `_Ready()` 期间失败，coordinator 记录
+若 `ProcessContentHost.BuildAndSeal` 在 autoload `_Ready()` 期间失败，coordinator 记录
 `process-content-startup` failure 并以非零请求复用同一 shutdown pipeline。此时 SceneTree root
 可能仍在挂载后续 autoload 或 main scene，scene drain 只能对已出现的 owner 调用 `QueueFree()`，
 等待一个 process frame 后再扫描一次启动期迟到的 `GameSession` / current scene，并在必要时再等
@@ -481,24 +477,24 @@ Running
 scene drain 异常、content-release gate 失败、content release 异常、finalizer gate 失败或 barrier
 抛错时，从当前 `Quiescing`/`RuntimeDrained`/`SceneDrained`/`ContentReleased` 状态进入
 `FinalizerBarrierSkipped`，effective exit code 强制非零，然后才允许进入 `QuitRequested`。未通过
-content-release gate 时不能清 snapshot/canonical roots，也不能记录 `ContentReleased`。
+content-release gate 时不能清 snapshot/engine-asset roots，也不能记录 `ContentReleased`。
 
 固定顺序：
 
-1. 原子进入 `Quiescing`，拒绝新 command、session、owner、lease 和 content load；
+1. 原子进入 `Quiescing`，拒绝新 command、session、owner、lease、snapshot build 与 engine-asset load；
 2. cancel/join worker。当前生产实现没有实际后台 worker，V1 断言 active job 为 0；
 3. 关闭 decision/request/projection lease；
 4. 关闭 battle、world runtime、facade、session service 和 GameRoot；
 5. Free 当前场景与 GameSession，等待 process frame，直到项目 SceneTree owner 已离树；
 6. 断言 non-terminal runtime owner、content borrower、scope、lease、job 为 0；此时只允许
    coordinator terminal Node 与尚未清空的 ProcessContentHost 存活；
-7. 释放 ContentSnapshot borrower，再清 `ProcessContentHost` canonical roots；
+7. 释放 ContentSnapshot borrower，再清 `ProcessContentHost.EngineAssets` 的 catalog/asset roots；
 8. barrier gate 通过时，在 coordinator 仍在 SceneTree、Godot native runtime 仍存活时执行有界的
    finalizer drain：最多 16 轮 `GC.Collect → GC.WaitForPendingFinalizers`，最后再
-   `GC.Collect`；Godot 4.6 的 RefCounted authored root 在 finalizer 中释放嵌套 C# Resource
-   handle，后者只会在下一轮成为可回收对象，因此单轮 barrier 不足以证明嵌套 graph 已排空；
+   `GC.Collect`；Godot 4.6 的 RefCounted engine-asset wrapper 在 finalizer 中释放 native handle，
+   后者可能只在下一轮成为可回收对象，因此单轮 barrier 不足以证明 wrapper graph 已排空；
    gate 失败则明确跳过并标记失败；
-9. 读取 pre-quit audit，确认 content root map 已清空并完成 `ShutdownReport`；
+9. 读取 pre-quit audit，确认 engine-asset root index 已清空并完成 `ShutdownReport`；
 10. 调用唯一的 `SceneTree.Quit(effectiveExitCode)`。
 
 进程退出后，外部 runner 再根据 stderr、exit code、ObjectDB/resource-in-use 和 fatal marker 形成
@@ -612,10 +608,9 @@ domain 的 wrapper/resource-in-use 计数必须精确记录为 baseline，不能
 - 迁 derived Resource 和 special-profile Dictionary 为 plain definition；
 - 递归移除 typed definition 内的 `Variant.Type.Object`。
 
-阶段 3 期间，尚未迁移的 EnemyTemplate/Brain/Action/Roster、BattleAiScoreProfile，以及依赖这些
-raw AI Resource 的 BattleSimProfile/override patch 保持在同一个 legacy enemy/AI catalog 边界并
-登记为 `LegacyDebt`；它们不进入已经迁移的 `ContentSnapshot` domain，也不能扩散到新的 runtime API。
-阶段 4 必须整体迁移并删除这条现有边界，不能长期形成双 catalog。
+阶段 3 当时未迁移的 EnemyTemplate/Brain/Action/Roster、BattleAiScoreProfile，以及依赖这些
+raw AI Resource 的 BattleSimProfile/override patch 曾保持在同一个 legacy enemy/AI catalog 边界并
+登记为 `LegacyDebt`；阶段 4 已整体迁移并删除这条历史边界，没有形成双 catalog。
 
 ### 阶段 4：Enemy/AI authored content 与剩余边界
 
@@ -638,7 +633,7 @@ raw AI Resource 的 BattleSimProfile/override patch 保持在同一个 legacy en
 plain snapshot 覆盖一个内容域并通过同域回归前，不批量迁移下一个内容域。
 
 阶段性验收是累积的：阶段 1 只证明 shutdown 顺序与专用 fatal gate；阶段 2 证明 runtime lease
-回到基线；阶段 3 证明 content root/snapshot 不增长；阶段 4 证明 AI/runtime 不再借用 authored
+回到基线；阶段 3 证明 snapshot publication/engine asset owner 不增长；阶段 4 证明 AI/runtime 不再借用 authored
 Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同。
 
 | 阶段 | 当阶段必须通过 | 暂时允许 | 当阶段删除 |
@@ -694,7 +689,7 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 
 ### 行为检查
 
-1. 同一路径重复加载、重复 session bind 时 process content root count 不增长。
+1. 重复 engine-asset ID 查询、重复 session bind 时 engine-asset root count 不增长。
 2. catalog/query 调用 10,000 次后 process-owned wrapper count 不增长。
 3. normal session close 的 process-content suppress count 恒为 0。
 4. session A close 后强制 GC，再创建 session B，能够读取并实际使用同一 content snapshot。
@@ -702,7 +697,7 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 6. Dispose/Close 重复调用不改变结果、不重复 revision、不重复释放。
 7. strict 模式 unknown ownership、owner conflict、escaped lease 和 close-after-use 均为 0。
 8. shutdown barrier 前 non-terminal runtime owner、content borrower、scope、lease、job 为 0，
-   ProcessContentHost root map 已清空；只允许 coordinator terminal Node 存活。
+   engine-asset root index 已清空；只允许 coordinator terminal Node 存活。
 
 ### 稳定性检查
 
@@ -715,9 +710,9 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
    每轮 teardown 后等待 2 个 process frame，执行与 production 一致的最多 16 轮
    `GC.Collect → WaitForPendingFinalizers`，最后 `GC.Collect`，再等待 1 帧并采样
    `GC.GetTotalMemory(false)`、`Process.GetCurrentProcess().PrivateMemorySize64` 和 lifecycle owner
-   counters。owner/root/lease 的 warm-up 基线定义为第 10 轮 GC 后的完整 counter vector，后续每轮
+   counters。owner/asset/lease 的 warm-up 基线定义为第 10 轮 GC 后的完整 counter vector，后续每轮
    必须与该 vector 精确相等。该 vector 按 Session/Battle/Decision/Request/SceneTree owner、native/
-   projection lease domain、snapshot epoch 和 canonical root path/type 拆分，不能只比较可能相互抵消
+   projection lease domain、snapshot epoch 和 published engine-asset count 拆分，不能只比较可能相互抵消
    的总数；unknown/conflict/escaped/close-after-use、normal suppress 和 quarantine 必须为 0。累计
    created/closed/disposed/transferred 计数比较每轮增量平衡，不要求跨轮绝对值相等。内存 baseline
    定义为第 11–20 轮样本中位数；第 101–110 轮中位数
@@ -743,9 +738,8 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 - `scripts/systems/lifecycle/LifecycleAuditRegistry.cs`：弱引用 owner/borrower/job/scope/lease 活动与 violation 计数；
 - `scripts/systems/lifecycle/ShutdownRequest.cs`：production/test 共用的退出请求与 caller result DTO；
 - `scripts/systems/lifecycle/ShutdownReport.cs`：结构化退出结果；
-- `scripts/systems/content/ProcessContentHost.cs`：canonical raw content roots 与 sealed load phase；
+- `scripts/systems/content/ProcessContentHost.cs`：immutable snapshot publication 与 engine-asset owner；
 - `scripts/systems/content/ContentSnapshotBuilder.cs`：同步 registry 校验、typed 投影与 immutable snapshot seal；
-- `scripts/systems/content/IContentResourceLoader.cs`：production/test authored Resource 加载边界；
 - `scripts/systems/content/EngineAssetResolver.cs`：process-shared path-backed 引擎资产的 canonical
   load 与 typed catalog asset-ID borrow 边界；
 - `scripts/systems/content/SkillIconAssetCatalogValidator.cs`：snapshot publication 前的技能图标 asset-ID/
@@ -757,12 +751,11 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
 - `tests/shared/TestExitCoordinator.cs`：`TestResult` 到 production shutdown request 的适配器；
 - `tests/shared/LifecycleMeasurementBarrier.cs`：仅用于单进程 soak 周期量测的 GC/finalizer drain；
 - `tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs`：验证已加载 runtime service 的 CLR/Godot 类型边界、实际 autoload/snapshot 绑定、lifecycle audit 计数与 lease/scope 关闭后的活动向量；不扫描项目源码；
-- `tests/shared/TestResourceOwnership.cs`：pathless authored/test wrapper 的显式 fixture owner；
-- `tests/shared/TestContentResourceLoader.cs`：`CacheMode.IgnoreDeep` path-backed test content loader；
-- `tests/shared/TestWorldGenerationDefinitionFactory.cs`：world authored fixture 到 definition 的同步边界；
-- `tests/shared/TestSkillDefinitionProjection.cs`：skill authored fixture 到 plain definition 的同步边界；与
-  `TestContentResourceLoader` 一样以 `CacheMode.IgnoreDeep` 加载，因为投影后 wrapper 立即失根，Reuse 模式会让
-  缓存中的 native resource 与已终结 wrapper 在下一次同路径加载时发生 `SwapGCHandleForType`/finalizer 竞争。
+- `tests/shared/TestResourceOwnership.cs`：少量 pathless GodotObject test wrapper 的显式 fixture owner；
+- `tests/shared/TestWorldGenerationDefinitionFactory.cs`：world JSON-backed definition fixture helper；
+- `tests/shared/TestSkillDefinitionProjection.cs`：正式技能从 JSON catalog 读取；刻意非法的 validator
+  fixture 通过 `SkillDiagnosticFixtureProjection` 汇入同一 JSON DTO/import-model normalize 边界，不写盘、
+  不加载 `.tres`，也不是 production content API。
 
 现有 `GodotObjectOwnership.cs` 最终只保留 direct-wrapper ownership bridge/audit，并以 wrapper-keyed
 `ConditionalWeakTable` 保存随 wrapper 生命周期消失的诊断项；不保留可枚举历史、strong sink 或持续增长
@@ -793,6 +786,7 @@ coordinator participant、测试退出/量测 helper 与累计 lifecycle gate �
 - 最终状态不保留 project-level Godot wrapper suppress fallback。
 - V1 无运行时内容热重载。
 - 生命周期架构不自行改变 save schema；当前正式 save/index 为 `16 / 4`，旧版本无兼容路径。
-- strict JSON 或尚未迁移的 raw `.tres` 是 immutable authoring source，runtime 只消费 plain snapshot。
+- strict JSON 是 gameplay/config 的 immutable authoring source，runtime 只消费 plain snapshot；
+  engine-asset catalog 只发布 typed borrowed Resource。
 - process shutdown 必须在 Godot 存活时完成 owner drain 与 GC barrier。
 - 完整实施拆成五个顺序阶段，每阶段单独计划、直接实现、验证和提交；本轮生命周期整改不要求 TDD。

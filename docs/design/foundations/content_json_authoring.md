@@ -1,11 +1,11 @@
 # Content JSON 作者与生成边界
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-08-19`
+> 核对日期：`2026-08-23`
 
 ## 定位
 
-技能、物品、特质、装备能力、套装和配方的 production authoring truth 位于
+全部 gameplay/config content 的 production authoring truth 位于
 `data/configs/json/<domain>/*.json`。这些域共享同一条 plain C# 导入边界：
 
 ```text
@@ -20,19 +20,22 @@ JSON document
 ```
 
 JSON 不构造 Godot `Resource`，ImportModel 和 Definition 不保存文件路径、Godot
-collection、`JsonElement` 或 raw DTO。已经迁移的域没有 production `.tres` discovery、
-Resource adapter 或 Resource-to-Definition fallback。
+collection、`JsonElement` 或 raw DTO。production 没有 content `.tres` discovery、Resource
+adapter、Resource-to-Definition fallback 或 authored-path reverse lookup。`data/configs/` 下唯一
+保留的 `.tres` 是 `engine_assets/engine_asset_catalog.tres`；它和四类 typed entry 是唯一
+Godot Resource authoring 边界。
 
 ## 当前域与所有权
 
-| Domain | Production registry / domain owner | 当前正式规模 |
-|---|---|---:|
-| skills | `SkillContentRegistry` / `SkillContentJsonAuthoringDomain` | family JSON 全量 |
-| items | `ItemContentRegistry` / `ItemContentJsonAuthoringDomain` | 129 entries |
-| traits | `TraitContentRegistry` / `TraitContentJsonAuthoringDomain` | 239 entries |
-| equipment abilities | `EquipmentAbilityContentRegistry` / `EquipmentAbilityContentJsonAuthoringDomain` | 55 packs、170 bindings |
-| gear sets | `GearSetContentRegistry` / `GearSetContentJsonAuthoringDomain` | 1 entry |
-| recipes | `RecipeContentRegistry` / `RecipeContentJsonAuthoringDomain` | 4 entries |
+| Domain group | Production owners |
+|---|---|
+| progression/equipment | skills、items、traits、equipment abilities、gear sets、recipes |
+| enemy/battle | AI brains、enemy templates、encounter rosters、battle encounters、barriers/layers、special-profile manifest/profile |
+| quest/identity | quests、contingency templates、professions、races、subraces、faith、age profiles、bloodlines、ascensions、stage advancements |
+| tools/world | BattleSim profiles/scenarios、world presets/generations/shared |
+
+`ContentJsonSchemaCatalog.All` 是当前 domain 清单的代码权威；当前规模由各 registry 的 focused
+回归锁定，不在设计文档复制易漂移计数。
 
 物品 JSON 是旧 item-template 链的最终展开结果；production 不再执行模板继承或
 `MergeWithTemplate`。装备能力的 condition/action payload 是 plain import model；kind
@@ -60,12 +63,11 @@ per-world-day usage-anchor 等 production business contract。
 
 ## 资产 ID
 
-内容只传播稳定 engine-asset ID。item 的 `icon_asset_id` 和 skill 的 `icon_id` 在
+内容只传播稳定 engine-asset ID。item 的 `icon_asset_id`、skill 的 `icon_id` 与 enemy sprite
+ID 在
 snapshot publication 前必须由 `EngineAssetResolver` 解析为已发布 `Texture2D`；unknown
-或 wrong-type ID 会使 publication 回滚。`ui.item.icon.default` 是旧 item icon 路径经
-catalog 反向索引得到的正式 ID，逐 item 映射保存在
-`data/configs/json/items/item_icon_migration.csv`。UI/HUD 不拼接或直接加载 authored
-路径。
+或 wrong-type ID 会使 publication 回滚。catalog 只提供 `asset_id -> typed Resource` 正向查询；
+不存在 authored path 到 ID 的 migration seam。UI/HUD 不拼接或直接加载 authored 路径。
 
 ## Schema 与离线校验
 
@@ -105,5 +107,5 @@ definitions，不修改或重新发布 process snapshot，也不进入 routine r
   `tests/progression/schema/`
 - 生成 catalog 和前三门：`run_equipment_closure_generation_*_regression.cs`
 - BattleSim 门：`tests/battle_runtime/simulation/run_equipment_closure_generation_battle_sim_gate_regression.cs`
-- Windows package：`tests/export/run_windows_export_smoke.py`，真实导出包内复读五个阶段 4
-  production JSON 域及 typed engine-asset catalog
+- Windows package：`tests/export/run_windows_export_smoke.py`，真实导出包内构建完整 snapshot、
+  复读 production JSON domains 与 typed engine-asset catalog

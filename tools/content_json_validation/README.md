@@ -23,12 +23,13 @@ Exit codes are stable: `0` means valid, `1` means content diagnostics were produ
 the CLI/domain/input boundary failed. Every outcome uses protocol
 `magic.content_json.validation/v1`; no environment-dependent stack trace is written to stdout.
 
-The registered production domains are `skills`, `items`, `traits`, `equipment_abilities`,
-`gear_sets`, and `recipes` (plus test-only schema fixtures). Each registration links the same
+The catalog contains 29 production domains (plus the test-only schema fixture): skills, inventory
+and progression, enemy/encounter, barrier and battle-special profiles, quest/contingency,
+BattleSim, and world content. Each registration links the same
 strict DTO parser, plain import mapper, nullability policy, and domain-local validator used by the
 runtime authoring boundary. The CLI does not reflectively discover DTOs, perform cross-domain
 checks, resolve engine assets, run BattleSim, or build a runtime snapshot.
 
-All six registered production domains are JSON direct-load domains. Their offline success proves
+All registered production domains are JSON direct-load domains. Their offline success proves
 schema and domain-local validity only; publication and generated-content admission must still run
 the repository's cross-domain and simulation gates.
