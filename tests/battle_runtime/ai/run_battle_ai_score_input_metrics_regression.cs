@@ -849,10 +849,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             "意志穿透护盾增伤应投影为 typed target_has_shield 条件。"
         );
 
-        using (var registry = new SkillContentRegistry(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        ))
+        using (var registry = new SkillContentRegistry(loadDefaultContent: false))
         using (var invalidEffect = new CombatEffectDef
         {
             effect_type = "damage",

@@ -13,7 +13,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         TestResolverUsesExplicitDeliveryAndEffectCategories();
         TestTypedProjectileKindsDeriveInteractionCategories();
         TestCastVariantProjectileOverrideWins();
-        TestLegacyParamsBarrierCategoriesFailAtImportBoundary();
+        TestResolverIgnoresLegacyParamsBarrierCategories();
         TestResolverDoesNotGuessFromSkillIdOrTags();
 
         RequestTestExit(_test.Finish("Battle effect category resolver contract regression"));
@@ -227,36 +227,33 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         );
     }
 
-    private void TestLegacyParamsBarrierCategoriesFailAtImportBoundary()
+    private void TestResolverIgnoresLegacyParamsBarrierCategories()
     {
-        var effect = TestResourceOwnership.Own(
-            new CombatEffectDef { effect_type = "heal" },
-            "BattleEffectCategoryResolverContract.legacy-params-effect"
-        );
-        effect.@params = new Godot.Collections.Dictionary
-        {
-            ["barrier_categories"] = new Godot.Collections.Array<StringName>
+        SkillDefinition skill = BuildSkill("contract_legacy_params", Array.Empty<StringName>());
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            parameters: new Dictionary<string, object>
             {
-                new("spell"),
-                new("force_effect"),
-            },
-        };
+                ["barrier_categories"] = new[]
+                {
+                    new StringName("spell"),
+                    new StringName("force_effect"),
+                },
+            }
+        );
 
-        string rejection = "";
-        try
-        {
-            CombatEffectDefinition.FromResource(
-                effect,
-                "test.battle_effect_category.legacy_params"
-            );
-        }
-        catch (System.IO.InvalidDataException exception)
-        {
-            rejection = exception.Message;
-        }
-        _test.True(
-            rejection.Contains("/payload/barrier_categories"),
-            "legacy params.barrier_categories 必须在 canonical import boundary 被拒绝。"
+        var categories = BattleEffectCategoryResolver.ResolveCategories(
+            skill,
+            new[] { effect }
+        );
+
+        _test.False(
+            ContainsCategory(categories, "spell"),
+            "Resolver 不应读取 legacy params.barrier_categories。"
+        );
+        _test.False(
+            ContainsCategory(categories, "force_effect"),
+            "Resolver 不应读取 legacy params.barrier_categories。"
         );
     }
 

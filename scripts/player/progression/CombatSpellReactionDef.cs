@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class CombatSpellReactionDef : Resource
+public partial class CombatSpellReactionDef : RefCounted
 {
     [Export]
     public StringName trigger_delivery_category { get; set; } = "spell";

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_durability_slot_array",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_durability_slot_array",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_durability_slot_array",
+        "effect_defs": [
+          {
+            "effect_type": "equipment_durability_damage",
+            "power": 1,
+            "payload": {
+              "target_slots": []
+            },
+            "require_damage_applied": true,
+            "save_dc": 10,
+            "save_ability": "strength"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_durability_slot_array",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

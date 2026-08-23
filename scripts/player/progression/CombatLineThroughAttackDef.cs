@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class CombatLineThroughAttackDef : Resource
+public partial class CombatLineThroughAttackDef : RefCounted
 {
     [Export]
     public int maximum_weapon_range { get; set; } = 2;

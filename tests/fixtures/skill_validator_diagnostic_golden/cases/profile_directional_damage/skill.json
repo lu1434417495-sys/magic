@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_directional_damage",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_directional_damage",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_directional_damage",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire"
+          }
+        ],
+        "directional_piercing_profile": {}
+      },
+      "icon_id": "diagnostic_directional_damage",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

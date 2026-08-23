@@ -226,6 +226,13 @@ public sealed class BattleSimRunner
     {
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             _contentProvider.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            _contentProvider.GetItemDefinitionsTyped();
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions =
+            _contentProvider.GetTraitDefinitionsTyped();
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+            equipmentAbilityBindings =
+                _contentProvider.GetEquipmentAbilityBindingsTyped();
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
             _contentProvider.GetEnemyTemplatesTyped();
         IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains =
@@ -253,9 +260,11 @@ public sealed class BattleSimRunner
                 enemy_ai_brains: overrides.EnemyAiBrains,
                 encounter_builder: null,
                 equipment_drop_service: default,
-                item_defs: null,
+                item_defs: itemDefinitions,
                 terrain_generator: useFormalTerrain ? null : _terrainGenerator,
-                barrier_profile_definitions: barrierProfileDefinitions
+                barrier_profile_definitions: barrierProfileDefinitions,
+                trait_defs: traitDefinitions,
+                equipment_ability_bindings: equipmentAbilityBindings
             );
             runtime.SetAiTraceEnabled(scenarioDefinition.TraceEnabled);
             runtime.SetAiScoreProfile(overrides.AiScoreProfile);

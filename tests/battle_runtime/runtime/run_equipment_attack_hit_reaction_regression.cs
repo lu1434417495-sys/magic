@@ -41,8 +41,7 @@ public partial class run_equipment_attack_hit_reaction_regression : LifecycleTes
 
     private void TestTriggerTimingClosedDomain()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
+        using var registry = new EquipmentAbilityContentRegistry();
         IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> specs =
             registry.GetTriggerTimingSpecsTyped();
         _test.True(
@@ -74,8 +73,7 @@ public partial class run_equipment_attack_hit_reaction_regression : LifecycleTes
 
     private void TestContentValidationAcceptsAndRejects()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
+        using var registry = new EquipmentAbilityContentRegistry();
 
         EquipmentAbilityRegistryBuildResult accepted = registry.Rebuild(
             new[] { BuildBoilAuthoringPack("on_attack_hit", "after_hit") },
@@ -336,80 +334,86 @@ public partial class run_equipment_attack_hit_reaction_regression : LifecycleTes
         _test.Eq(fixture.Holder.GetCurrentHp(), 50, "AI scoring must not heal the holder.");
     }
 
-    private static EquipmentAbilityContentPackDef BuildBoilAuthoringPack(
+    private static EquipmentAbilityContentPackImportModel BuildBoilAuthoringPack(
         StringName trigger,
         StringName timing
     )
     {
-        EquipmentAbilityContentPackDef pack = new()
+        return new EquipmentAbilityContentPackImportModel
         {
             pack_id = "pack.test.attack_hit_boil",
             schema_version = 1,
             load_order = 10,
-        };
-        EquipmentAbilityBindingDef binding = new()
-        {
-            binding_id = AttackHitBindingId,
-            trait_id = "trait.test.attack_hit_boil",
-            override_mode = "add",
-        };
-        binding.allowed_source_kinds.Add("equipment_fixed");
-        binding.reactions.Add(
-            new EquipmentAbilityReactionDef
+            bindings = new[]
             {
-                reaction_id = "reaction.attack_hit_boil",
-                trigger = trigger,
-                timing = timing,
-                condition_group = new EquipmentAbilityConditionGroupDef
+                new EquipmentAbilityBindingImportModel
                 {
-                    conditions =
+                    binding_id = AttackHitBindingId.ToString(),
+                    trait_id = "trait.test.attack_hit_boil",
+                    override_mode = "add",
+                    allowed_source_kinds = new[] { "equipment_fixed" },
+                    reactions = new[]
                     {
-                        new EquipmentAbilityConditionDef
+                        new EquipmentAbilityReactionImportModel
                         {
-                            condition_id = "condition.has_boil",
-                            kind = "has_status",
-                            payload = new HasStatusConditionPayloadDef
+                            reaction_id = "reaction.attack_hit_boil",
+                            trigger = trigger.ToString(),
+                            timing = timing.ToString(),
+                            condition_group = new EquipmentAbilityConditionGroupImportModel
                             {
-                                subject = "source",
-                                status_id = BoilStatusId,
-                            },
-                        },
-                    },
-                },
-                actions =
-                {
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.consume_boil",
-                        kind = "consume_status_stacks",
-                        payload = new ConsumeStatusStacksActionPayloadDef
-                        {
-                            target_selector = "source",
-                            status_id = BoilStatusId,
-                            count = 1,
-                        },
-                    },
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.boil_heal",
-                        kind = "heal",
-                        payload = new HealActionPayloadDef
-                        {
-                            target_selector = "source",
-                            dice = new DiceExpressionDef
-                            {
-                                terms =
+                                conditions = new[]
                                 {
-                                    new DiceExpressionTermDef { dice_count = 1, dice_sides = 6 },
+                                    new EquipmentAbilityConditionImportModel
+                                    {
+                                        condition_id = "condition.has_boil",
+                                        kind = "has_status",
+                                        payload = new HasStatusConditionPayloadImportModel
+                                        {
+                                            subject = "source",
+                                            status_id = BoilStatusId.ToString(),
+                                        },
+                                    },
+                                },
+                            },
+                            actions = new[]
+                            {
+                                new EquipmentAbilityActionImportModel
+                                {
+                                    action_id = "action.consume_boil",
+                                    kind = "consume_status_stacks",
+                                    payload = new ConsumeStatusStacksActionPayloadImportModel
+                                    {
+                                        target_selector = "source",
+                                        status_id = BoilStatusId.ToString(),
+                                        count = 1,
+                                    },
+                                },
+                                new EquipmentAbilityActionImportModel
+                                {
+                                    action_id = "action.boil_heal",
+                                    kind = "heal",
+                                    payload = new HealActionPayloadImportModel
+                                    {
+                                        target_selector = "source",
+                                        dice = new DiceExpressionImportModel
+                                        {
+                                            terms = new[]
+                                            {
+                                                new DiceExpressionTermImportModel
+                                                {
+                                                    dice_count = 1,
+                                                    dice_sides = 6,
+                                                },
+                                            },
+                                        },
+                                    },
                                 },
                             },
                         },
                     },
                 },
-            }
-        );
-        pack.bindings.Add(binding);
-        return pack;
+            },
+        };
     }
 
     private static EquipmentAbilityContentValidationContext BuildValidationContext()

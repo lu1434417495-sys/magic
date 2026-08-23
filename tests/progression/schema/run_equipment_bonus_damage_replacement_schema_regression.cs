@@ -30,21 +30,10 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
 
     private void TestReplacementGroupValidation()
     {
-        using DiceExpressionTermDef term = new()
-        {
-            dice_count = 1,
-            dice_sides = 6,
-        };
-        using DiceExpressionDef dice = new();
-        dice.terms.Add(term);
-        using AddDamageDiceActionPayloadDef payload = new()
-        {
-            target_selector = "target",
-            dice = dice,
-            damage_type = "fire",
-            replacement_group_id = "test.attack_append",
-            replacement_priority = 100,
-        };
+        AddDamageDiceActionPayloadImportModel payload = BuildDamagePayload(
+            "test.attack_append",
+            100
+        );
 
         var validErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateAddDamageDicePayload(
@@ -58,24 +47,28 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
             0,
             $"合法 replacement group/priority 应通过校验。errors={string.Join(" | ", validErrors)}"
         );
-        using EquipmentAbilityActionDef action = new()
-        {
-            action_id = "action.test.replacement",
-            kind = "add_damage_dice",
-            payload = payload,
-        };
-        using EquipmentAbilityReactionDef reaction = new()
-        {
-            reaction_id = "reaction.test.replacement",
-            trigger = "on_hit",
-            timing = "after_hit",
-        };
-        reaction.actions.Add(action);
-        using EquipmentAbilityBindingDef binding = new()
+        EquipmentAbilityBindingImportModel binding = new()
         {
             binding_id = "binding.test.replacement",
+            reactions = new[]
+            {
+                new EquipmentAbilityReactionImportModel
+                {
+                    reaction_id = "reaction.test.replacement",
+                    trigger = "on_hit",
+                    timing = "after_hit",
+                    actions = new[]
+                    {
+                        new EquipmentAbilityActionImportModel
+                        {
+                            action_id = "action.test.replacement",
+                            kind = "add_damage_dice",
+                            payload = payload,
+                        },
+                    },
+                },
+            },
         };
-        binding.reactions.Add(reaction);
         EquipmentAbilityBindingDefinition projected =
             EquipmentAbilityDefinitionProjection.ProjectBinding(binding);
         AddDamageDiceActionPayloadDefinition projectedPayload =
@@ -92,10 +85,9 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
             "definition projection 必须保留 replacement_priority。"
         );
 
-        payload.replacement_group_id = "";
         var missingGroupErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateAddDamageDicePayload(
-            payload,
+            BuildDamagePayload("", 100),
             BuildValidationContext(),
             "test.missing_group",
             missingGroupErrors
@@ -105,11 +97,9 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
             "非零 replacement_priority 没有 group 时必须 fail closed。"
         );
 
-        payload.replacement_group_id = "test.attack_append";
-        payload.replacement_priority = -1;
         var negativePriorityErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateAddDamageDicePayload(
-            payload,
+            BuildDamagePayload("test.attack_append", -1),
             BuildValidationContext(),
             "test.negative_priority",
             negativePriorityErrors
@@ -125,13 +115,7 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
 
     private void TestStatusMitigationValidation()
     {
-        using ApplyStatusActionPayloadDef payload = new()
-        {
-            target_selector = "self",
-            status_id = "test_status",
-            damage_tag = "fire",
-            mitigation_tier = "immune",
-        };
+        ApplyStatusActionPayloadImportModel payload = BuildStatusPayload("fire", "immune");
         var validErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateApplyStatusPayload(
             payload,
@@ -145,10 +129,9 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
             $"合法 status mitigation tag/tier 应通过校验。errors={string.Join(" | ", validErrors)}"
         );
 
-        payload.damage_tag = "";
         var missingTagErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateApplyStatusPayload(
-            payload,
+            BuildStatusPayload("", "immune"),
             BuildValidationContext(),
             "test.missing_mitigation_tag",
             missingTagErrors
@@ -161,11 +144,9 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
             "mitigation_tier 没有 damage tag 时必须 fail closed。"
         );
 
-        payload.damage_tag = "fire";
-        payload.mitigation_tier = "quarter";
         var invalidTierErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateApplyStatusPayload(
-            payload,
+            BuildStatusPayload("fire", "quarter"),
             BuildValidationContext(),
             "test.invalid_mitigation_tier",
             invalidTierErrors
@@ -175,6 +156,41 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
             "未知 mitigation tier 必须 fail closed。"
         );
     }
+
+    private static AddDamageDiceActionPayloadImportModel BuildDamagePayload(
+        string replacementGroupId,
+        int replacementPriority
+    ) => new()
+    {
+        target_selector = "target",
+        dice = new DiceExpressionImportModel
+        {
+            terms = new[]
+            {
+                new DiceExpressionTermImportModel
+                {
+                    dice_count = 1,
+                    dice_sides = 6,
+                },
+            },
+        },
+        damage_type = "fire",
+        replacement_group_id = replacementGroupId,
+        replacement_priority = replacementPriority,
+    };
+
+    private static ApplyStatusActionPayloadImportModel BuildStatusPayload(
+        string damageTag,
+        string mitigationTier
+    ) => new()
+    {
+        target_selector = "self",
+        status_id = "test_status",
+        damage_tag = damageTag,
+        mitigation_tier = mitigationTier,
+        source_bound_attack_roll_penalty_min_stacks = 1,
+        source_bound_incoming_attack_roll_bonus_min_stacks = 1,
+    };
 
     private static EquipmentAbilityContentValidationContext BuildValidationContext() =>
         new()

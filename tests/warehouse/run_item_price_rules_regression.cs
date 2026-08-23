@@ -21,7 +21,7 @@ public partial class run_item_price_rules_regression : LifecycleTestSceneTree
 
     private void TestSchemaMaximumPriceUsesWideArithmetic()
     {
-        using ItemDef source = BuildItem(
+        using TestItemDefinitionBuilder source = BuildItem(
             "schema_max_price",
             buyPrice: 999999,
             sellPrice: 500000
@@ -41,7 +41,7 @@ public partial class run_item_price_rules_regression : LifecycleTestSceneTree
         _test.Eq(
             source.GetBuyPrice(11000),
             1099999,
-            "authored ItemDef 的便利入口也必须委托同一宽整数规则。"
+            "authored TestItemDefinitionBuilder 的便利入口也必须委托同一宽整数规则。"
         );
         _test.Eq(
             definition.GetSellPrice(11000),
@@ -51,13 +51,13 @@ public partial class run_item_price_rules_regression : LifecycleTestSceneTree
         _test.Eq(
             source.GetSellPrice(11000),
             550000,
-            "authored ItemDef 出售价入口也必须委托同一宽整数规则。"
+            "authored TestItemDefinitionBuilder 出售价入口也必须委托同一宽整数规则。"
         );
     }
 
     private void TestFormerOverflowThresholdRemainsExact()
     {
-        using ItemDef source = BuildItem(
+        using TestItemDefinitionBuilder source = BuildItem(
             "former_overflow_threshold",
             buyPrice: 214748,
             sellPrice: 0
@@ -78,7 +78,7 @@ public partial class run_item_price_rules_regression : LifecycleTestSceneTree
 
     private void TestRoundingAndNegativeNormalizationRemainStable()
     {
-        using ItemDef source = BuildItem(
+        using TestItemDefinitionBuilder source = BuildItem(
             "rounding_contract",
             buyPrice: 275,
             sellPrice: 0
@@ -96,7 +96,7 @@ public partial class run_item_price_rules_regression : LifecycleTestSceneTree
             "负倍率应继续归一化为零。"
         );
 
-        using ItemDef negativeSource = BuildItem(
+        using TestItemDefinitionBuilder negativeSource = BuildItem(
             "negative_price_contract",
             buyPrice: -1,
             sellPrice: 0
@@ -110,7 +110,7 @@ public partial class run_item_price_rules_regression : LifecycleTestSceneTree
 
     private void TestUnrepresentableResultSaturates()
     {
-        using ItemDef source = BuildItem(
+        using TestItemDefinitionBuilder source = BuildItem(
             "saturating_price_contract",
             buyPrice: 999999,
             sellPrice: 0
@@ -125,11 +125,11 @@ public partial class run_item_price_rules_regression : LifecycleTestSceneTree
         _test.Eq(
             source.GetBuyPrice(int.MaxValue),
             int.MaxValue,
-            "authored ItemDef 的超大倍率结果也应饱和而不是回绕。"
+            "authored TestItemDefinitionBuilder 的超大倍率结果也应饱和而不是回绕。"
         );
     }
 
-    private static ItemDef BuildItem(
+    private static TestItemDefinitionBuilder BuildItem(
         string itemId,
         int buyPrice,
         int sellPrice

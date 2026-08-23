@@ -19,7 +19,7 @@ internal static class TestSkillDefinitionProjection
         return definition;
     }
 
-    internal static GStringArray ValidateSyntheticSkillResource(
+    internal static GStringArray ValidateSyntheticSkillFixture(
         SkillDef skill,
         string sourceLabel = "<synthetic-skill>"
     )
@@ -27,7 +27,7 @@ internal static class TestSkillDefinitionProjection
         var errors = new GStringArray();
         var context = new JsonContentEntryContext("skill", "", sourceLabel, "");
         ContentImportStageResult<SkillImportModel> result =
-            SkillResourceProjectionAdapter.TryAdapt(context, skill);
+            SkillDiagnosticFixtureProjection.TryProject(context, skill);
         foreach (ContentJsonDiagnostic diagnostic in result.Diagnostics)
             errors.Add($"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}");
         if (!result.HasValue)

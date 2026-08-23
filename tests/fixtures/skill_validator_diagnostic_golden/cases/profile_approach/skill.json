@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_approach",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_approach",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_approach",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "weapon_range_policy": "configured",
+        "casting_time_tu": 5,
+        "approach_attack_profile": {
+          "maximum_path_height_delta_from_origin": -1
+        },
+        "special_resolution_profile_id": "special",
+        "target_selection_mode": "single_coord",
+        "min_target_count": 2,
+        "max_target_count": 3,
+        "allow_repeat_target": true,
+        "random_chain_attack_count": 1,
+        "cast_variants": [
+          {
+            "variant_id": "diagnostic_value"
+          }
+        ],
+        "required_weapon_families": [
+          "sword"
+        ],
+        "allows_natural_weapon": true
+      },
+      "icon_id": "diagnostic_approach",
+      "mastery_curve": [
+        10
+      ],
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true
+      }
+    }
+  ]
+}

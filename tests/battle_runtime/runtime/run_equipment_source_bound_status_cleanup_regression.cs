@@ -55,8 +55,7 @@ public partial class run_equipment_source_bound_status_cleanup_regression : Life
 
     private void TestAuthoringProjectionCarriesOptInFlag()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
+        using var registry = new EquipmentAbilityContentRegistry();
 
         EquipmentAbilityRegistryBuildResult optIn = registry.Rebuild(
             new[] { BuildAuthoringPack(removeOnSourceDeactivated: true) },
@@ -621,49 +620,51 @@ public partial class run_equipment_source_bound_status_cleanup_regression : Life
         );
     }
 
-    private static EquipmentAbilityContentPackDef BuildAuthoringPack(
+    private static EquipmentAbilityContentPackImportModel BuildAuthoringPack(
         bool removeOnSourceDeactivated
     )
     {
-        EquipmentAbilityContentPackDef pack = new()
+        return new EquipmentAbilityContentPackImportModel
         {
             pack_id = "pack.test.source_bound_status",
             schema_version = 1,
             load_order = 10,
-        };
-        EquipmentAbilityBindingDef binding = new()
-        {
-            binding_id = BindingId,
-            trait_id = SetTraitId,
-            override_mode = "add",
-        };
-        binding.allowed_source_kinds.Add("gear_set_threshold");
-        binding.reactions.Add(
-            new EquipmentAbilityReactionDef
+            bindings = new[]
             {
-                reaction_id = "reaction.test.source_bound",
-                trigger = "on_attack_hit",
-                timing = "after_hit",
-                actions =
+                new EquipmentAbilityBindingImportModel
                 {
-                    new EquipmentAbilityActionDef
+                    binding_id = BindingId.ToString(),
+                    trait_id = SetTraitId.ToString(),
+                    override_mode = "add",
+                    allowed_source_kinds = new[] { "gear_set_threshold" },
+                    reactions = new[]
                     {
-                        action_id = OptInActionId,
-                        kind = "apply_status",
-                        payload = new ApplyStatusActionPayloadDef
+                        new EquipmentAbilityReactionImportModel
                         {
-                            target_selector = "source",
-                            status_id = OptInStatusId,
-                            duration_tu = 180,
-                            stack_delta = 1,
-                            remove_on_source_deactivated = removeOnSourceDeactivated,
+                            reaction_id = "reaction.test.source_bound",
+                            trigger = "on_attack_hit",
+                            timing = "after_hit",
+                            actions = new[]
+                            {
+                                new EquipmentAbilityActionImportModel
+                                {
+                                    action_id = OptInActionId.ToString(),
+                                    kind = "apply_status",
+                                    payload = new ApplyStatusActionPayloadImportModel
+                                    {
+                                        target_selector = "source",
+                                        status_id = OptInStatusId.ToString(),
+                                        duration_tu = 180,
+                                        stack_delta = 1,
+                                        remove_on_source_deactivated = removeOnSourceDeactivated,
+                                    },
+                                },
+                            },
                         },
                     },
                 },
-            }
-        );
-        pack.bindings.Add(binding);
-        return pack;
+            },
+        };
     }
 
     private static EquipmentAbilityContentValidationContext BuildValidationContext()
@@ -925,33 +926,16 @@ public partial class run_equipment_source_bound_status_cleanup_regression : Life
         }
 
         private static ItemDefinition BuildArmorItem(StringName itemId, string slotId) =>
-            new(
-                itemId,
-                "",
-                itemId.ToString(),
-                "",
-                "",
-                false,
-                0,
-                0,
-                0,
-                true,
-                1,
-                ItemDefinition.ToStringName(ItemCategoryKind.Equipment),
-                Array.Empty<StringName>(),
-                Array.Empty<StringName>(),
-                Array.Empty<StringName>(),
-                Array.Empty<StringName>(),
-                Array.Empty<TraitRollGroupDefinition>(),
-                new[] { slotId },
-                Array.Empty<AttributeModifierDefinition>(),
-                "",
-                Array.Empty<string>(),
-                null,
-                ItemDefinition.ToStringName(ItemEquipmentTypeKind.Armor),
-                null,
-                -1
-            );
+            new TestItemDefinitionBuilder
+            {
+                item_id = itemId,
+                display_name = itemId.ToString(),
+                CategoryKind = ItemCategoryKind.Equipment,
+                EquipmentTypeKind = ItemEquipmentTypeKind.Armor,
+                is_stackable = false,
+                max_stack = 1,
+                equipment_slot_ids = new Godot.Collections.Array<string> { slotId },
+            }.ToDefinition();
 
         private static TraitDefinition BuildSetTraitDefinition() =>
             new(
@@ -997,8 +981,7 @@ public partial class run_equipment_source_bound_status_cleanup_regression : Life
                         Array.Empty<AttributeModifierDefinition>(),
                         new[] { SetTraitId }
                     ),
-                },
-                ""
+                }
             );
 
         private static EquipmentAbilityBindingDefinition BuildSetBindingDefinition() =>

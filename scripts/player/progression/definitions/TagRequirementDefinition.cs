@@ -37,7 +37,7 @@ public sealed class TagRequirementDefinition
     internal TagRequirementOriginFilter OriginFilterKind => ToOriginFilter(OriginFilter);
     internal TagRequirementSelectionRole SelectionRoleKind => ToSelectionRole(SelectionRole);
 
-    internal static TagRequirementDefinition FromResource(TagRequirement source, string path)
+    internal static TagRequirementDefinition FromDiagnosticFixture(TagRequirement source, string path)
     {
         ArgumentNullException.ThrowIfNull(source);
         ProgressionDefinitionProjection.RequireKnown(

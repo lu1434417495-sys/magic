@@ -759,7 +759,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         {
             GDictionary payload = BattleAiScoreProjection.WriteProfile(
                 lease,
-                BattleAiScoreProfileDefinition.FromResource(profile),
+                BattleAiScoreProfileDefinition.FromDiagnosticFixture(profile),
                 "profile-map-test.payload"
             );
             using GDictionary actionScores = payload["action_base_scores"].AsGodotDictionary();

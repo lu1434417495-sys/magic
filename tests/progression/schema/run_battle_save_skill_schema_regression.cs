@@ -6,10 +6,6 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_save_skill_schema_regression : LifecycleTestSceneTree
 {
-    private const string TempSkillDirectory = "user://skill_level_override_schema_regression";
-    private const string TempSkillPath =
-        "user://skill_level_override_schema_regression/invalid_override_skill.tres";
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -20,6 +16,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
     private void Run()
     {
         TestSkillSchemaAcceptsValidSaveFields();
+        TestDragonFrightfulPresenceSaveTagContract();
         TestDamageSaveCanApplyFailureStatus();
         TestWeightedSaveFailureStatusOutcomesValidation();
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
@@ -31,9 +28,34 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         RequestTestExit(_test.Finish("Battle save skill schema regression"));
     }
 
+    private void TestDragonFrightfulPresenceSaveTagContract()
+    {
+        StringName authoredTag = "dragon_frightful_presence";
+        BattleSaveTagKind kind = BattleSaveContentRules.ToSaveTagKind(authoredTag);
+
+        _test.Eq(
+            kind,
+            BattleSaveTagKind.DragonFrightfulPresence,
+            "dragon frightful presence should map to its typed save-tag kind."
+        );
+        _test.Eq(
+            BattleSaveContentRules.ToStringName(kind),
+            authoredTag,
+            "dragon frightful presence should round-trip through the typed save-tag contract."
+        );
+        _test.True(
+            BattleSaveContentRules.IsValidSaveTag(authoredTag),
+            "dragon frightful presence should be a valid authored save tag."
+        );
+        _test.True(
+            BattleSaveContentRules.IsControlSaveTag(authoredTag),
+            "dragon frightful presence should be classified as a control save tag."
+        );
+    }
+
     private void TestSkillSchemaAcceptsValidSaveFields()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -83,7 +105,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestDamageSaveCanApplyFailureStatus()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -112,10 +134,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestWeightedSaveFailureStatusOutcomesValidation()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef dazzled = new()
         {
             effect_type = "status",
@@ -196,7 +215,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestSkillSchemaAcceptsDynamicCasterSpellSaveDc()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -247,7 +266,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestSkillSchemaRejectsInvalidSaveFields()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
 
         using CombatEffectDef validStatusBaseline = BuildValidStatusSaveEffect();
         AssertExactErrors(
@@ -415,10 +434,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestSkillSchemaRejectsInvalidSaveTagLists()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef invalidEffect = new()
         {
             effect_type = "status",
@@ -454,10 +470,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestStatusLifecycleSchemaValidation()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef validSleep = new()
         {
             effect_type = "status",
@@ -555,21 +568,8 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestLevelOverridesRejectNonIntFields()
     {
-        CleanupTempSkillDirectory();
-        _test.Eq(
-            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(TempSkillDirectory)),
-            Error.Ok,
-            "应能创建 skill override schema 临时目录。"
-        );
-
         SkillDef skillDef = BuildSkillWithInvalidLevelOverrides();
-        _test.Eq(
-            ResourceSaver.Save(skillDef, TempSkillPath),
-            Error.Ok,
-            "应能写入 skill override schema 测试资源。"
-        );
-
-        GStringArray errors = TestSkillDefinitionProjection.ValidateSyntheticSkillResource(
+        GStringArray errors = TestSkillDefinitionProjection.ValidateSyntheticSkillFixture(
             skillDef,
             "battle_save_skill_schema"
         );
@@ -599,8 +599,6 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
             ),
             $"max_target_count 非 int override 应被拒绝。 errors={formattedErrors}"
         );
-
-        CleanupTempSkillDirectory();
     }
 
     private static SkillDef BuildSkillWithInvalidLevelOverrides()
@@ -640,13 +638,4 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         );
     }
 
-    private static void CleanupTempSkillDirectory()
-    {
-        string absoluteFilePath = ProjectSettings.GlobalizePath(TempSkillPath);
-        if (FileAccess.FileExists(absoluteFilePath))
-            DirAccess.RemoveAbsolute(absoluteFilePath);
-        string absoluteDirectoryPath = ProjectSettings.GlobalizePath(TempSkillDirectory);
-        if (DirAccess.DirExistsAbsolute(absoluteDirectoryPath))
-            DirAccess.RemoveAbsolute(absoluteDirectoryPath);
-    }
 }

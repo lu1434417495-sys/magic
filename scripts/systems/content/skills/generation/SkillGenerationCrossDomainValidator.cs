@@ -17,6 +17,8 @@ internal static class SkillGenerationCrossDomainRules
         "skill.generation.cross_domain.missing_special_profile";
     internal const string InvalidReactionSkill =
         "skill.generation.cross_domain.invalid_reaction_skill";
+    internal const string MissingTextureAsset =
+        "skill.generation.cross_domain.missing_texture_asset";
 }
 
 internal static class SkillGenerationCrossDomainValidator
@@ -25,13 +27,15 @@ internal static class SkillGenerationCrossDomainValidator
         IReadOnlyList<ContentImportEntry<SkillImportModel>> entries,
         IReadOnlyDictionary<StringName, SkillDefinition> candidateSkills,
         IReadOnlyDictionary<StringName, SkillDefinition> combinedSkills,
-        ContentSnapshot processSnapshot
+        ContentSnapshot processSnapshot,
+        IReadOnlySet<StringName> textureAssetIds
     )
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(candidateSkills);
         ArgumentNullException.ThrowIfNull(combinedSkills);
         ArgumentNullException.ThrowIfNull(processSnapshot);
+        ArgumentNullException.ThrowIfNull(textureAssetIds);
 
         var diagnostics = new List<ContentJsonDiagnostic>();
         foreach (ContentImportEntry<SkillImportModel> entry in entries)
@@ -46,6 +50,20 @@ internal static class SkillGenerationCrossDomainValidator
                     context,
                     "/skill_id",
                     $"Generated skill ID '{skillId}' already exists in the process snapshot."
+                ));
+            }
+
+            string iconIdValue = import.IconId.Value ?? "";
+            if (
+                iconIdValue.Length > 0
+                && !textureAssetIds.Contains(new StringName(iconIdValue))
+            )
+            {
+                diagnostics.Add(Diagnostic(
+                    SkillGenerationCrossDomainRules.MissingTextureAsset,
+                    context,
+                    "/icon_id",
+                    $"Texture asset ID '{iconIdValue}' is not present in the supplied typed asset-ID catalog."
                 ));
             }
 

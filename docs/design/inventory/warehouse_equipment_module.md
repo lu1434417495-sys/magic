@@ -1,7 +1,7 @@
 # 仓库与装备模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-22`
+> 核对日期：`2026-08-19`
 
 更新日期：`2026-06-17`
 
@@ -13,9 +13,9 @@
 
 ```text
 GameContentCatalog.GetItemDefsTyped / GetSkillDefinitionsTyped
-  -> PartyWarehouseService(WarehouseState + ItemDef + equipment id allocator)
+  -> PartyWarehouseService(WarehouseState + ItemDefinition + equipment id allocator)
   -> PartyEquipmentService(PartyState + EquipmentState + Warehouse)
-  -> PartyItemUseService(PartyState + ItemDef + SkillDefinition + CharacterManagement)
+  -> PartyItemUseService(PartyState + ItemDefinition + SkillDefinition + CharacterManagement)
 GameRuntimeWarehouseHandler -> PartyWarehouseWindow
 GameRuntimePartyCommandHandler -> IGameRuntimePartyCommandPort -> PartyManagementWindow
 GameRuntimeBattleLootCommitService -> IGameRuntimeBattleLootCommitPort -> facade-owned warehouse/session/drop capabilities
@@ -27,13 +27,13 @@ Other facade-owned semantic mutations -> existing runtime transaction / party pe
 
 ## 静态内容契约
 
-`ItemDef` 至少描述 item id、显示名、类别、堆叠上限、是否装备、装备类型、使用效果、价格、武器 profile、耐久/稀有度相关字段。装备类物品必须能创建 `EquipmentInstanceState`，非装备类只以 stack 数量存在。
+正式 item authoring 位于 `data/configs/json/items/` 的 family documents。`ItemContentJsonAuthoringDomain` 通过 strict DTO、plain `ItemImportModel`、domain validator 与 `ItemDefinitionProjector` 生成 133 个 immutable `ItemDefinition`；旧 item template 已在转换时完全展开，production 不再执行 template merge。装备类物品必须能创建 `EquipmentInstanceState`，非装备类只以 stack 数量存在。
 
-`ItemPriceRules` 是物品价格 basis-point 缩放的唯一规则 owner。价格与倍率先归一化为非负值，乘法与 half-up 舍入全部使用 `long`；若结果超出公开 `int` 价格接口的表达范围则饱和到 `int.MaxValue`，不得回绕为负数。`ItemDef` 的 authoring 便利入口与正式运行时 `ItemDefinition` 均委托该规则，不各自维护公式。
+`ItemPriceRules` 是物品价格 basis-point 缩放的唯一规则 owner。价格与倍率先归一化为非负值，乘法与 half-up 舍入全部使用 `long`；若结果超出公开 `int` 价格接口的表达范围则饱和到 `int.MaxValue`，不得回绕为负数。正式运行时 `ItemDefinition` 只委托该规则，不维护第二套公式。
 
-`RecipeDef` 只消费 typed item catalog 校验输入/输出；forge 服务调用 warehouse batch 预览/提交时 entry 必须是 `{ item_id = StringName, quantity = int }` 等正式字典，不用裸 Variant item id。
+正式 recipe JSON 经 `RecipeContentJsonAuthoringDomain` 投影为 `RecipeDefinition`；`ContentSnapshotBuilder` 通过 `RecipeContentRegistry.Setup(itemDefinitions)` 显式提供 item catalog 并校验输入/输出 ID。forge 服务调用 warehouse batch 预览/提交时 entry 必须是 `{ item_id = StringName, quantity = int }` 等正式字典，不用裸 Variant item id。
 
-`WeaponDamageDiceDef.ValidateDice` 是程序集内部校验入口，不作为 Godot-facing public helper。
+item、weapon profile/dice、trait-roll group 与 equipment requirement 的 authoring Resource、TRES adapter/converter、`MergeWithTemplate` 和 Resource→Definition 兼容桥均已删除；session/runtime/UI 只持有 Definition。
 
 ## 运行时状态
 
@@ -123,9 +123,9 @@ godot --headless -s res://tests/equipment/run_party_equipment_regression.cs
 - 不在 UI 里改 warehouse/equipment state。
 - 不绕过 equipment instance id allocator。
 
-## 实现级补充：ItemDef 判定
+## 实现级补充：ItemDefinition 判定
 
-重建 `ItemDef` 时必须提供 typed helper，而不是让调用方猜字段：
+消费 `ItemDefinition` 时必须使用 typed helper，而不是让调用方猜字段：
 
 - `IsEquipment()`：由 item category / equipment type 判定。
 - `GetStackLimit()`：非装备可堆叠，装备通常 stack limit = 1 且进入 equipment instance 表。
@@ -242,7 +242,7 @@ Batch swap 用于 forge、商店、任务提交等“扣多个输入、给多个
 - `public bool IsOverCapacity() => GetUsedSlots() > GetTotalCapacity();`
 - `public int CountItem(StringName itemId)`
 - `internal IReadOnlyList<WarehouseInventoryEntry> GetInventoryEntriesTyped()`
-- `public ItemDef GetItemDef(StringName itemId)`
+- `public ItemDefinition GetItemDef(StringName itemId)`
 - `internal WarehouseAddItemResult PreviewAddItemTyped(StringName itemId, int quantity) =>`
 - `internal WarehouseAddItemResult AddItemTyped(StringName itemId, int quantity) =>`
 - `internal WarehouseRemoveItemResult RemoveItemTyped(StringName itemId, int quantity)`
@@ -259,7 +259,7 @@ Batch swap 用于 forge、商店、任务提交等“扣多个输入、给多个
 - `internal sealed class EquipmentViewEntry`
 - `public PartyEquipmentService()`
 - `public void Dispose()`
-- `public ItemDef GetItemDef(StringName itemId)`
+- `public ItemDefinition GetItemDef(StringName itemId)`
 - `public EquipmentState GetEquipmentState(StringName memberId)`
 - `internal List<EquipmentViewEntry> GetEquippedEntriesTyped(StringName memberId)`
 - `internal EquipmentActionResult EquipItemTyped(StringName memberId, StringName itemId) =>`
@@ -322,9 +322,9 @@ Batch swap 用于 forge、商店、任务提交等“扣多个输入、给多个
 - `public static EquipmentInstanceState FromTransientLootDictionary(Godot.Collections.Dictionary data) =>`
 - `public static bool IsValidRarity(int value) =>`
 
-### `scripts/player/warehouse/ItemDef.cs`
+### `scripts/player/warehouse/ItemDefinition.cs`
 
-- `public partial class ItemDef : Resource`
+- `public sealed class ItemDefinition`
 - `public int GetEffectiveMaxStack()`
 - `public int GetBasePrice()`
 - `public int GetBuyPrice()`
@@ -348,7 +348,7 @@ Batch swap 用于 forge、商店、任务提交等“扣多个输入、给多个
 - `public int GetMaxDexBonus()`
 - `public bool IsAccessory()`
 - `public bool IsSkillBook()`
-- `public List<AttributeModifier> GetAttributeModifiersTyped()`
+- `public List<AttributeModifierDefinition> GetAttributeModifiersTyped()`
 - `public List<StringName> GetFinalOccupiedSlotIdsTyped(StringName entry_slot_id)`
 - `internal static ItemCategoryKind ToItemCategoryKind(StringName value)`
 - `internal static ItemEquipmentTypeKind ToEquipmentTypeKind(StringName value)`

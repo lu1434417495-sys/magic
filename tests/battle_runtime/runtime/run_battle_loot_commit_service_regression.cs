@@ -470,7 +470,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
 
     private static Dictionary<StringName, ItemDefinition> BuildItemDefinitions()
     {
-        ItemDef sword = new()
+        TestItemDefinitionBuilder sword = new()
         {
             item_id = "iron_sword",
             display_name = "Iron Sword",
@@ -483,9 +483,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
             },
         };
-        ItemDefinition swordDefinition = TestResourceOwnership
-            .Own(sword, "BattleLootCommitService.BuildItemDefinitions.iron_sword")
-            .ToDefinition();
+        ItemDefinition swordDefinition = sword.ToDefinition();
         return new Dictionary<StringName, ItemDefinition>
         {
             [swordDefinition.ItemId] = swordDefinition,

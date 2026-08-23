@@ -5,9 +5,9 @@ using Godot;
 
 internal sealed class GearSetContentRegistry : IDisposable
 {
-    private const string GearSetConfigDirectoryPath = "res://data/configs/gear_sets";
+    private const string GearSetJsonDirectoryPath = GearSetContentJsonAuthoringDomain.ProductionDirectory;
 
-    private readonly IContentResourceLoader _loader;
+    private readonly IContentJsonSourceReader _sourceReader;
     private readonly string _configDirectoryPath;
     private readonly Dictionary<StringName, GearSetDefinition> _definitions = new();
     private readonly List<string> _loadValidationErrors = new();
@@ -15,14 +15,14 @@ internal sealed class GearSetContentRegistry : IDisposable
     private bool _disposed;
 
     internal GearSetContentRegistry(
-        IContentResourceLoader loader,
-        string configDirectoryPath = GearSetConfigDirectoryPath
+        string configDirectoryPath = GearSetJsonDirectoryPath,
+        IContentJsonSourceReader sourceReader = null
     )
     {
-        _loader = loader ?? throw new ArgumentNullException(nameof(loader));
         if (string.IsNullOrWhiteSpace(configDirectoryPath))
             throw new ArgumentException("Gear-set config directory must be non-empty.", nameof(configDirectoryPath));
         _configDirectoryPath = configDirectoryPath.TrimEnd('/');
+        _sourceReader = sourceReader ?? new GodotContentJsonSourceReader();
     }
 
     public void Dispose()
@@ -42,7 +42,7 @@ internal sealed class GearSetContentRegistry : IDisposable
         _definitions.Clear();
         _loadValidationErrors.Clear();
         _definitionValidationErrors.Clear();
-        ScanDirectory(_configDirectoryPath);
+        LoadJsonDirectory();
     }
 
     internal IReadOnlyDictionary<StringName, GearSetDefinition> GetDefinitionsTyped()
@@ -78,81 +78,52 @@ internal sealed class GearSetContentRegistry : IDisposable
         return new ReadOnlyCollection<string>(result);
     }
 
-    private void ScanDirectory(string directoryPath)
+    internal static IReadOnlyList<string> ValidateDefinitionsTyped(
+        IReadOnlyDictionary<StringName, GearSetDefinition> definitions,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingDefinitions
+    )
     {
-        if (!DirAccess.DirExistsAbsolute(directoryPath))
-            return;
-
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
-        {
-            _loadValidationErrors.Add($"GearSetContentRegistry could not open {directoryPath}.");
-            return;
-        }
-
-        var subdirectories = new List<string>();
-        var resourceFiles = new List<string>();
-        try
-        {
-            directory.ListDirBegin();
-            while (true)
-            {
-                string entryName = directory.GetNext();
-                if (string.IsNullOrEmpty(entryName))
-                    break;
-                if (entryName == "." || entryName == "..")
-                    continue;
-                if (directory.CurrentIsDir())
-                {
-                    subdirectories.Add(entryName);
-                    continue;
-                }
-                if (entryName.EndsWith(".tres", StringComparison.OrdinalIgnoreCase)
-                    || entryName.EndsWith(".res", StringComparison.OrdinalIgnoreCase))
-                {
-                    resourceFiles.Add(entryName);
-                }
-            }
-            directory.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
-        }
-
-        subdirectories.Sort(StringComparer.Ordinal);
-        resourceFiles.Sort(StringComparer.Ordinal);
-        foreach (string subdirectory in subdirectories)
-            ScanDirectory($"{directoryPath}/{subdirectory}");
-        foreach (string resourceFile in resourceFiles)
-            RegisterResource($"{directoryPath}/{resourceFile}");
+        ArgumentNullException.ThrowIfNull(definitions);
+        using var registry = new GearSetContentRegistry();
+        foreach ((StringName gearSetId, GearSetDefinition definition) in definitions)
+            registry._definitions.Add(gearSetId, definition);
+        return registry.ValidateTyped(
+            itemDefinitions,
+            traitDefinitions,
+            bindingDefinitions
+        );
     }
 
-    private void RegisterResource(string resourcePath)
+    private void LoadJsonDirectory()
     {
-        Resource resource = _loader.LoadCanonical<Resource>(resourcePath);
-        if (resource is not GearSetDef authored)
+        ContentImportBatch<GearSetImportModel> batch =
+            GearSetContentJsonAuthoringDomain.CreateImportDescriptor(
+                _configDirectoryPath,
+                _sourceReader
+            ).Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
         {
             _loadValidationErrors.Add(
-                $"GearSetContentRegistry expected GearSetDef at {resourcePath}."
+                $"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
             );
-            return;
         }
+        if (batch.HasErrors)
+            return;
 
-        GearSetDefinition definition = GearSetDefinition.FromResource(authored, resourcePath);
-        if (definition.GearSetId == "")
+        foreach (ContentImportEntry<GearSetImportModel> entry in batch.Entries)
         {
-            _loadValidationErrors.Add($"Gear set at {resourcePath} must declare gear_set_id.");
-            return;
+            GearSetDefinition definition = GearSetDefinitionProjector.Project(entry.Import);
+            if (_definitions.ContainsKey(definition.GearSetId))
+            {
+                _loadValidationErrors.Add(
+                    $"Duplicate gear_set_id {definition.GearSetId} at {entry.Context.SourceLabel}."
+                );
+                continue;
+            }
+            _definitions.Add(definition.GearSetId, definition);
         }
-        if (_definitions.ContainsKey(definition.GearSetId))
-        {
-            _loadValidationErrors.Add(
-                $"Duplicate gear_set_id {definition.GearSetId} at {resourcePath}."
-            );
-            return;
-        }
-        _definitions.Add(definition.GearSetId, definition);
     }
 
     private void AppendCrossSetMembershipErrors()

@@ -9,7 +9,7 @@ internal enum RacialSkillChargeKind
 }
 
 [GlobalClass]
-public partial class RacialGrantedSkill : Resource
+public partial class RacialGrantedSkill : RefCounted
 {
     private static readonly StringName ChargeKindAtWill = "at_will";
     private static readonly StringName ChargeKindPerBattle = "per_battle";

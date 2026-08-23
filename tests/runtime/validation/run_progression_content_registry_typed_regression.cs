@@ -5,11 +5,6 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_progression_content_registry_typed_regression : LifecycleTestSceneTree
 {
-    private static readonly string[] ResourceLoadedContentPrefixes =
-    {
-        "res://data/configs/traits/",
-    };
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -36,8 +31,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestOfficialProgressionRegistryTypedBoundaryMatchesPublicBoundary()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(loader);
+        using ProgressionContentRegistry registry = new();
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         GStringArray projectedErrors = registry.Validate();
@@ -81,38 +75,13 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             );
         }
 
-        foreach (string contentPrefix in ResourceLoadedContentPrefixes)
-        {
-            _test.True(
-                loader.CountLoadedPathsUnder(contentPrefix) > 0,
-                $"聚合 registry 应加载 {contentPrefix} 下的正式内容。"
-            );
-            IReadOnlyList<string> duplicateLoads = loader.GetDuplicateLoadsUnder(contentPrefix);
-            _test.Eq(
-                duplicateLoads.Count,
-                0,
-                $"聚合 registry 构造期间每个内容路径只能加载一次: {FormatErrors(duplicateLoads)}"
-            );
-        }
     }
 
     private void TestPureDefinitionReplacementFeedsTypedValidation()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
 
-        foreach (string contentPrefix in ResourceLoadedContentPrefixes)
-        {
-            _test.Eq(
-                loader.CountLoadedPathsUnder(contentPrefix),
-                0,
-                $"pure definition validation 不应加载正式内容目录 {contentPrefix}。"
-            );
-        }
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         GStringArray projectedErrors = registry.Validate();
@@ -171,11 +140,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestDefinitionReplacementProducesDefensiveSnapshots()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
         ProgressionDefinitionSources sources = BuildCustomDefinitionSources();
         registry.ReplaceDefinitionsForValidation(sources);
 
@@ -213,11 +178,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestTraitDefinitionReplacementFeedsIdentityValidation()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
         TraitDefinition customTrait = BuildIdentityTrait("custom_identity_trait");
         RaceDefinition customRace = BuildRace(
             "custom_race",
@@ -251,11 +212,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestIdentityCatalogUsesDefinitionIndexes()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
 
         ProgressionIdentityCatalogData catalog = registry.GetIdentityCatalogTyped();

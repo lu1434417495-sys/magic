@@ -1,0 +1,853 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:traits:v1",
+  "title": "Magic trait JSON authoring schema",
+  "description": "Expanded trait entries with strict typed projections and bare save tags.",
+  "$ref": "#/$defs/TraitJsonDocumentDto",
+  "$defs": {
+    "TraitAttributeModifierJsonDto": {
+      "description": "One immutable attribute modifier authored by a trait.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "flat",
+            "percent"
+          ]
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "mode",
+        "source_id",
+        "source_type",
+        "value",
+        "value_per_rank"
+      ]
+    },
+    "TraitDamageResistanceEntryJsonDto": {
+      "description": "One typed damage resistance projection.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_tag": {
+          "type": "string",
+          "enum": [
+            "acid",
+            "fire",
+            "force",
+            "freeze",
+            "lightning",
+            "magic",
+            "negative_energy",
+            "physical_blunt",
+            "physical_pierce",
+            "physical_slash",
+            "poison",
+            "psychic",
+            "radiant",
+            "thunder"
+          ]
+        },
+        "mitigation_tier": {
+          "type": "string",
+          "enum": [
+            "double",
+            "half",
+            "immune",
+            "normal"
+          ]
+        }
+      },
+      "required": [
+        "damage_tag",
+        "mitigation_tier"
+      ]
+    },
+    "TraitJsonDocumentDto": {
+      "description": "Trait authoring document with file-local templates.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "traits"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitJsonDto__authoring_trait_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/TraitJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "TraitJsonDto": {
+      "description": "Strict expanded trait entry. Save-tag fields contain bare tags only.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_source_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "identity",
+              "character",
+              "equipment_fixed",
+              "equipment_roll",
+              "gear_set_threshold"
+            ]
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitAttributeModifierJsonDto"
+          }
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "charge_reset_timing": {
+          "type": "string",
+          "enum": [
+            "none",
+            "battle_start",
+            "turn_start"
+          ]
+        },
+        "charge_scope": {
+          "type": "string",
+          "enum": [
+            "none",
+            "per_turn",
+            "per_battle"
+          ]
+        },
+        "damage_resistance_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitDamageResistanceEntryJsonDto"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "effect_type": {
+          "type": "string",
+          "enum": [
+            "attribute_modifier",
+            "darkvision",
+            "superior_darkvision",
+            "fey_ancestry",
+            "brave",
+            "halfling_luck",
+            "savage_attacks",
+            "relentless_endurance",
+            "gnome_cunning",
+            "dwarven_resilience",
+            "duergar_resilience",
+            "human_versatility",
+            "small_body",
+            "fleet_of_foot",
+            "dragon_breath",
+            "racial_spell_grant",
+            "damage_resistance",
+            "save_advantage",
+            "civil_militia",
+            "keen_senses",
+            "trance",
+            "elven_weapon_training",
+            "drow_weapon_training",
+            "dwarven_combat_training",
+            "shield_dwarf_armor_training",
+            "dwarven_toughness",
+            "menacing",
+            "halfling_nimbleness",
+            "naturally_stealthy",
+            "mask_of_the_wild",
+            "stonecunning",
+            "forest_gnome_magic",
+            "deep_gnome_camouflage",
+            "artificers_lore",
+            "duergar_magic",
+            "githyanki_martial_prodigy",
+            "astral_knowledge",
+            "githyanki_psionics",
+            "infernal_legacy",
+            "asmodeus_legacy",
+            "mephistopheles_legacy",
+            "zariel_legacy",
+            "drow_magic",
+            "draconic_ancestry",
+            "equipment_ability"
+          ]
+        },
+        "highest_roll_compare_key": {
+          "type": "string"
+        },
+        "passive_status_effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitPassiveStatusEffectJsonDto"
+          }
+        },
+        "proficiency_choice_count": {
+          "type": "integer"
+        },
+        "roll_value_schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitRollValueSchemaEntryJsonDto"
+          }
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveBonusEntryJsonDto"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_tag_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveTagBonusEntryJsonDto"
+          }
+        },
+        "stack_policy": {
+          "type": "string",
+          "enum": [
+            "unique_by_trait",
+            "highest_roll",
+            "additive",
+            "stack_by_instance"
+          ]
+        },
+        "trait_id": {
+          "type": "string"
+        },
+        "trigger_type": {
+          "type": "string",
+          "enum": [
+            "passive",
+            "on_natural_one",
+            "on_crit",
+            "on_fatal_damage",
+            "on_battle_start",
+            "on_turn_start"
+          ]
+        },
+        "vision_range": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "allowed_source_kinds",
+        "attribute_modifiers",
+        "categories",
+        "charge_reset_timing",
+        "charge_scope",
+        "damage_resistance_entries",
+        "description",
+        "display_name",
+        "effect_type",
+        "highest_roll_compare_key",
+        "passive_status_effects",
+        "proficiency_choice_count",
+        "roll_value_schema",
+        "save_advantage_tags",
+        "save_bonus_entries",
+        "save_disadvantage_tags",
+        "save_immunity_tags",
+        "stack_policy",
+        "trait_id",
+        "trigger_type",
+        "vision_range"
+      ]
+    },
+    "TraitJsonDto__authoring_trait_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded trait entry. Save-tag fields contain bare tags only.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TraitJsonDto"
+        },
+        {
+          "$ref": "#/$defs/TraitJsonDto__templated_trait_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "TraitJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded trait entry. Save-tag fields contain bare tags only.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_source_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "identity",
+              "character",
+              "equipment_fixed",
+              "equipment_roll",
+              "gear_set_threshold"
+            ]
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitAttributeModifierJsonDto"
+          }
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "charge_reset_timing": {
+          "type": "string",
+          "enum": [
+            "none",
+            "battle_start",
+            "turn_start"
+          ]
+        },
+        "charge_scope": {
+          "type": "string",
+          "enum": [
+            "none",
+            "per_turn",
+            "per_battle"
+          ]
+        },
+        "damage_resistance_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitDamageResistanceEntryJsonDto"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "effect_type": {
+          "type": "string",
+          "enum": [
+            "attribute_modifier",
+            "darkvision",
+            "superior_darkvision",
+            "fey_ancestry",
+            "brave",
+            "halfling_luck",
+            "savage_attacks",
+            "relentless_endurance",
+            "gnome_cunning",
+            "dwarven_resilience",
+            "duergar_resilience",
+            "human_versatility",
+            "small_body",
+            "fleet_of_foot",
+            "dragon_breath",
+            "racial_spell_grant",
+            "damage_resistance",
+            "save_advantage",
+            "civil_militia",
+            "keen_senses",
+            "trance",
+            "elven_weapon_training",
+            "drow_weapon_training",
+            "dwarven_combat_training",
+            "shield_dwarf_armor_training",
+            "dwarven_toughness",
+            "menacing",
+            "halfling_nimbleness",
+            "naturally_stealthy",
+            "mask_of_the_wild",
+            "stonecunning",
+            "forest_gnome_magic",
+            "deep_gnome_camouflage",
+            "artificers_lore",
+            "duergar_magic",
+            "githyanki_martial_prodigy",
+            "astral_knowledge",
+            "githyanki_psionics",
+            "infernal_legacy",
+            "asmodeus_legacy",
+            "mephistopheles_legacy",
+            "zariel_legacy",
+            "drow_magic",
+            "draconic_ancestry",
+            "equipment_ability"
+          ]
+        },
+        "highest_roll_compare_key": {
+          "type": "string"
+        },
+        "passive_status_effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitPassiveStatusEffectJsonDto"
+          }
+        },
+        "proficiency_choice_count": {
+          "type": "integer"
+        },
+        "roll_value_schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitRollValueSchemaEntryJsonDto"
+          }
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveBonusEntryJsonDto"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_tag_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveTagBonusEntryJsonDto"
+          }
+        },
+        "stack_policy": {
+          "type": "string",
+          "enum": [
+            "unique_by_trait",
+            "highest_roll",
+            "additive",
+            "stack_by_instance"
+          ]
+        },
+        "trait_id": {
+          "type": "string"
+        },
+        "trigger_type": {
+          "type": "string",
+          "enum": [
+            "passive",
+            "on_natural_one",
+            "on_crit",
+            "on_fatal_damage",
+            "on_battle_start",
+            "on_turn_start"
+          ]
+        },
+        "vision_range": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "TraitJsonDto__templated_trait_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded trait entry. Save-tag fields contain bare tags only.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_source_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "identity",
+              "character",
+              "equipment_fixed",
+              "equipment_roll",
+              "gear_set_threshold"
+            ]
+          }
+        },
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitAttributeModifierJsonDto"
+          }
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "charge_reset_timing": {
+          "type": "string",
+          "enum": [
+            "none",
+            "battle_start",
+            "turn_start"
+          ]
+        },
+        "charge_scope": {
+          "type": "string",
+          "enum": [
+            "none",
+            "per_turn",
+            "per_battle"
+          ]
+        },
+        "damage_resistance_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitDamageResistanceEntryJsonDto"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "effect_type": {
+          "type": "string",
+          "enum": [
+            "attribute_modifier",
+            "darkvision",
+            "superior_darkvision",
+            "fey_ancestry",
+            "brave",
+            "halfling_luck",
+            "savage_attacks",
+            "relentless_endurance",
+            "gnome_cunning",
+            "dwarven_resilience",
+            "duergar_resilience",
+            "human_versatility",
+            "small_body",
+            "fleet_of_foot",
+            "dragon_breath",
+            "racial_spell_grant",
+            "damage_resistance",
+            "save_advantage",
+            "civil_militia",
+            "keen_senses",
+            "trance",
+            "elven_weapon_training",
+            "drow_weapon_training",
+            "dwarven_combat_training",
+            "shield_dwarf_armor_training",
+            "dwarven_toughness",
+            "menacing",
+            "halfling_nimbleness",
+            "naturally_stealthy",
+            "mask_of_the_wild",
+            "stonecunning",
+            "forest_gnome_magic",
+            "deep_gnome_camouflage",
+            "artificers_lore",
+            "duergar_magic",
+            "githyanki_martial_prodigy",
+            "astral_knowledge",
+            "githyanki_psionics",
+            "infernal_legacy",
+            "asmodeus_legacy",
+            "mephistopheles_legacy",
+            "zariel_legacy",
+            "drow_magic",
+            "draconic_ancestry",
+            "equipment_ability"
+          ]
+        },
+        "highest_roll_compare_key": {
+          "type": "string"
+        },
+        "passive_status_effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitPassiveStatusEffectJsonDto"
+          }
+        },
+        "proficiency_choice_count": {
+          "type": "integer"
+        },
+        "roll_value_schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitRollValueSchemaEntryJsonDto"
+          }
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveBonusEntryJsonDto"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_tag_bonus_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TraitSaveTagBonusEntryJsonDto"
+          }
+        },
+        "stack_policy": {
+          "type": "string",
+          "enum": [
+            "unique_by_trait",
+            "highest_roll",
+            "additive",
+            "stack_by_instance"
+          ]
+        },
+        "trait_id": {
+          "type": "string"
+        },
+        "trigger_type": {
+          "type": "string",
+          "enum": [
+            "passive",
+            "on_natural_one",
+            "on_crit",
+            "on_fatal_damage",
+            "on_battle_start",
+            "on_turn_start"
+          ]
+        },
+        "vision_range": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "trait_id",
+        "template"
+      ]
+    },
+    "TraitPassiveStatusEffectJsonDto": {
+      "description": "One passive status declaration projected by a trait.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "counts_as_debuff": {
+          "type": "boolean"
+        },
+        "counts_as_debuff_override": {
+          "type": "boolean"
+        },
+        "display_label": {
+          "type": "string"
+        },
+        "power": {
+          "type": "integer"
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stacks": {
+          "type": "integer"
+        },
+        "status_id": {
+          "type": "string"
+        },
+        "undispellable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "counts_as_debuff",
+        "counts_as_debuff_override",
+        "display_label",
+        "power",
+        "save_immunity_tags",
+        "stacks",
+        "status_id",
+        "undispellable"
+      ]
+    },
+    "TraitRollValueSchemaEntryJsonDto": {
+      "description": "One typed per-instance trait roll value.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "key": {
+          "type": "string"
+        },
+        "max_value": {
+          "type": "integer"
+        },
+        "min_value": {
+          "type": "integer"
+        },
+        "value_type": {
+          "type": "string",
+          "enum": [
+            "int",
+            "string_name",
+            "bool"
+          ]
+        }
+      },
+      "required": [
+        "allowed_values",
+        "key",
+        "max_value",
+        "min_value",
+        "value_type"
+      ]
+    },
+    "TraitSaveBonusEntryJsonDto": {
+      "description": "One base-attribute saving throw bonus.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bonus": {
+          "type": "integer"
+        },
+        "save_ability": {
+          "type": "string",
+          "enum": [
+            "strength",
+            "agility",
+            "constitution",
+            "perception",
+            "intelligence",
+            "willpower"
+          ]
+        }
+      },
+      "required": [
+        "bonus",
+        "save_ability"
+      ]
+    },
+    "TraitSaveTagBonusEntryJsonDto": {
+      "description": "One typed saving throw bonus keyed by a canonical save tag.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bonus": {
+          "type": "integer"
+        },
+        "save_tag": {
+          "type": "string"
+        },
+        "stack_mode": {
+          "type": "string",
+          "enum": [
+            "add",
+            "highest"
+          ]
+        }
+      },
+      "required": [
+        "bonus",
+        "save_tag",
+        "stack_mode"
+      ]
+    }
+  }
+}

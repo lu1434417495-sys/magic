@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_directional",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_directional",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_directional",
+        "casting_time_tu": 5,
+        "directional_piercing_profile": {
+          "base_damage_percent_curve": [
+            0
+          ],
+          "successful_hit_decay_percent": 0,
+          "minimum_damage_percent": 101,
+          "stamina_flat_base": -1,
+          "stamina_strength_square_scale": 0,
+          "minimum_stamina_cost": 0,
+          "maximum_height_delta": -1
+        },
+        "special_resolution_profile_id": "special",
+        "target_selection_mode": "multi_unit",
+        "random_chain_attack_count": 1,
+        "cast_variants": [
+          {
+            "variant_id": "diagnostic_value"
+          }
+        ],
+        "allows_natural_weapon": true
+      },
+      "icon_id": "diagnostic_directional",
+      "mastery_curve": [
+        10
+      ],
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true
+      }
+    }
+  ]
+}

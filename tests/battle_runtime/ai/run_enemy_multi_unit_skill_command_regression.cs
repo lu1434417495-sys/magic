@@ -421,13 +421,10 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             unit_state = source,
             grid_service = new BattleGridService(),
             skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
-            // Chain damage is intentionally a canonical-preview effect. Keep the fixture's
-            // preview behavior neutral so this test isolates separable versus enumerated group
-            // selection instead of failing at the canonical-preview boundary.
             preview_command_callback = command =>
             {
                 var preview = new BattlePreview { allowed = true };
-                foreach (StringName targetUnitId in command?.TargetUnitIdsTyped ?? Array.Empty<StringName>())
+                foreach (StringName targetUnitId in command.TargetUnitIdsTyped)
                     preview.AddTargetUnitId(targetUnitId);
                 return preview;
             },

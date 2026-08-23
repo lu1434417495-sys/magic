@@ -1,30 +1,31 @@
 # 装备套装系统当前实现
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-08-18`
+> 核对日期：`2026-08-19`
 
 ## 定位
 
 套装是装备视图上的派生规则，不是新的持久装备类型。原装备实例、槽位、耐久、物品 ID 和价格继续由 `EquipmentState` / `EquipmentInstanceState` / `ItemDefinition` 拥有；套装只根据当前有效装备计算成员数、阈值属性和阈值 trait。
 
-当前正式内容目录是 `res://data/configs/gear_sets/**/*.tres`。`GearSetContentRegistry` 在进程内容构建期把 `GearSetDef` / `GearSetThresholdDef` 投影为只读 `GearSetDefinition`，并由 `ContentSnapshot` 和 `GameContentCatalog` 发布。运行期不保留 raw Resource。
+当前正式内容是 `data/configs/json/gear_sets/phoenix_rebirth_set.json`。`GearSetContentJsonAuthoringDomain` 经 strict DTO、plain ImportModel 和 domain validator 导入；`GearSetDefinitionProjector` 投影只读 `GearSetDefinition`，再由 `GearSetContentRegistry`、`ContentSnapshot` 和 `GameContentCatalog` 发布。production 不保留 gear-set Resource、adapter 或路径 provenance。
 
 ## 所有权与主链
 
 | 层 | 当前 owner | 职责 |
 |---|---|---|
-| Authoring | `GearSetDef`、`GearSetThresholdDef` | 成员、阈值、必需成员、阈值属性、阈值 trait、usage 锚点 |
-| 加载与校验 | `GearSetContentRegistry` | 校验 ID、跨套装成员唯一性、成员物品、阈值顺序、modifier 属性域、trait/binding 引用和锚点唯一获取约束，并投影 immutable definition |
+| Authoring | `GearSetJsonContent` 的 strict DTO / plain ImportModel | 成员、阈值、必需成员、阈值属性、阈值 trait、usage 锚点 |
+| 加载与校验 | `GearSetContentJsonAuthoringDomain`、`GearSetContentRegistry` | 校验本域结构与阈值顺序，再用 item/trait/equipment-binding definition 索引验证跨域 ID，投影 immutable definition |
 | 进程内容 | `ContentSnapshot`、`GameContentCatalog` | 发布套装 definition 索引 |
 | 角色聚合 | `GearSetEvaluationService`、`CharacterTraitService`、`CharacterManagementModule` | 按当前装备视图计算阈值，合并属性与有效 trait |
 | 战斗投影 | `BattleUnitFactory`、`BattleEquipmentAbilityProjectionService` | 将阈值 trait 投影为 `PlayerPersistentGearSetThreshold` 能力来源 |
-| 展示 | `GameRuntimeCharacterInfoBuilder`、`PartyManagementWindow`、`BattleHudAdapter`、`GameRuntimeSnapshotBuilder` | 复用同一套装摘要投影，在战斗人物信息、战外人物管理装备页、battle HUD 与 headless snapshot 显示成员数、全部阈值状态与 granted action 可见性 |
+| 展示 | `GameRuntimeCharacterInfoBuilder`、`PartyManagementWindow` | 复用同一套装摘要投影，在战斗人物信息和战外人物管理装备页显示成员数与全部阈值状态 |
 | 世界唯一实例 | `WorldRuntimeData`、`WorldUniqueEquipmentPoolState`、`GameSession` | 仅在新档初始化凤凰十件原始实例，并持久化 reserve/shop location |
 | 获取转移 | `SettlementShopService`、`GameRuntimeFacade.BattleLootPort` | 在商店刷新、买卖和随机装备掉落中转移既有实例，不重新生成凤凰成员 |
 
 ```text
-GearSetDef
-  -> GearSetContentRegistry
+gear-set JSON
+  -> GearSetContentJsonAuthoringDomain
+  -> GearSetDefinitionProjector / GearSetContentRegistry
   -> ContentSnapshot / GameContentCatalog
   -> GearSetEvaluationService(current EquipmentState)
   -> threshold attributes + gear_set_threshold traits
@@ -37,12 +38,10 @@ GearSetDef
 - 耐久归零的装备不计入套装成员。
 - 阈值结构由各套装自己声明，不要求统一为 2/4、3/5/7/10 或其他固定形状；达到高阈值时，已达到的低阈值继续生效。
 - `mandatory_member_item_ids` 非空时，件数和必需成员必须同时满足。
-- 纯静态阈值属性直接 authored 在 `GearSetThresholdDef.attribute_modifiers`，Resource→Definition 投影会强制把来源规范为 `gear_set` / `gear_set::<set_id>::<threshold_id>`；需要抗性、豁免、状态或装备能力的阈值才授予 trait。同一阈值的直接属性不能与其授予 trait 重复声明同一 `attribute_id`。
+- 纯静态阈值属性写在 JSON threshold 的 `attribute_modifiers`；Definition projector 把来源规范为 `gear_set` / `gear_set::<set_id>::<threshold_id>`。需要抗性、豁免、状态或装备能力的阈值才授予 trait；同一阈值的直接属性不能与其授予 trait 重复声明同一 `attribute_id`。
 - 阈值 trait 的稳定实例键为 `gear_set::<set_id>::<threshold_id>::<trait_id>`，来源类型固定为 `GearSetThreshold`。
 - 需要保存 usage 的阈值能力绑定到一个真实装备实例。优先使用仍装备且有效的 `usage_anchor_item_id`；否则按套装成员配置顺序选择首个有效成员。
-- 内容校验（`GearSetContentRegistry.ValidateTyped`）除 ID/成员/阈值形状外还强制：同一 `item_id` 只能归属一个套装（跨 set 成员重复拒绝）；阈值直接 `attribute_modifiers` 的 `attribute_id` 必须落在 `AttributeContentRules.IsRecognizedAttributeId` 的 canonical closed domain（基础属性、基础调整值、资源与战斗属性，与 identity/trait modifier 校验同一 owner）；引用 threshold trait 的 equipment ability binding 必须显式允许 `gear_set_threshold` source kind（binding 侧的 trait/skill 引用存在性由 `EquipmentAbilityBindingValidator` 负责，不重复校验）；阈值经 binding 授予持久世界周期动作（`per_world_day`/`per_world_month`）时，`usage_anchor_item_id` 指向的物品必须声明 `world_unique_equipment` tag，因为锚点 usage 账本按装备实例计次（见下方凤凰唯一获取链）。
 - 战斗内换装通过 `BattleUnitFactory.RefreshEquipmentProjection(...)` 重新计算属性、trait 和装备能力来源。阈值失效后不保留其派生来源；最大生命下降沿现有资源钳制规则处理。
-- granted action 可见性由 `GearSetGrantedActionProjection`（`scripts/systems/game_runtime/GearSetGrantedActionProjection.cs`）统一投影：沿 active threshold → granted trait → 允许 `gear_set_threshold` source 的 binding → `EquipmentGrantedActionDef` 链产出 typed `GearSetGrantedActionSummary`（granted action/skill id、周期、剩余次数、可用性与 disabled reason），持久周期剩余次数读传入装备视图中的锚点实例 `ability_usage_periods`。战外 Party 页传成员世界装备视图，battle HUD 与战斗人物信息传 `unit.GetEquipmentView()` 的 battle-local 视图（战中卸下装备后阈值与动作即时消失），headless snapshot 经 `IGameRuntimeSnapshotSource.GetMemberGearSetEvaluationTyped` / `GetMemberGearSetGrantedActionSummariesTyped`（party 成员 `gear_sets` 字段）与 `BattleHudSnapshot.gear_set_summaries` 输出同一 typed 投影，稳定排序，不向 UI 输出 raw Resource 或 `Array<Dictionary>`。per-battle 次数归 battle-local unit charge，摘要对每战授予报满次数，权威可用性仍以 `BattleSkillAvailabilityService` 技能格为准。
 - 套装定义和阈值本身不写入存档。每世界日次数复用锚点装备实例已有的 equipment-ability usage；阈值机制自身没有新增 save 字段、版本或兼容迁移。凤凰唯一实例池是独立的世界获取链字段，不属于阈值计算状态。
 
 ## 凤凰重生：当前已落地范围
@@ -62,7 +61,7 @@ GearSetDef
 
 太阳涅槃的基础 command preview 单独展示治疗、伤害与目标结果；随后在新的 detached battle 子集上投影装备技能 after-use，清除余烬、施加金焰及对应后置动作通过 reaction action previews / `source_preview_after` 可见，canonical battle state 与每日账本保持不变。`source_preview_after` 只表示装备 reaction 后的来源单位，不合并基础技能自身的 HP/status 变化。致死预览同样公开凤凰候选的有序概率与条件成功动作；带 saving throw 的分支不会因平均伤害不致死而丢失候选。连续伤害段会延续每条分支的凤凰免死 usage；披风概率复活的成功分支会先写入 detached 的 `low_hp_burst_used`，再进入下一段，因此不会重复爆发。
 
-单件方面，当前已落地十个真实 `ItemDef`、对应装备能力 trait、内部/授予技能与 typed 状态。原物品 ID、槽位、价格和基础属性不变；空间距离统一使用格，持续时间统一使用 TU。
+单件方面，当前已落地十个正式 item JSON definition、对应装备能力 trait、内部/授予技能与 typed 状态。原物品 ID、槽位、价格和基础属性不变；空间距离统一使用格，持续时间统一使用 TU。
 
 | 单件 | 槽位 | 基础价格 | 当前 typed 基础属性/被动 |
 |---|---|---:|---|
@@ -100,25 +99,6 @@ GearSetDef
 
 同理，当前属性域没有正式 owner 的 `movement_speed`、`religion_bonus`、`medicine_bonus` 等旧字段未伪装成其他战斗属性。它们需要先建立对应 typed 属性/utility query，再补资源和行为回归。
 
-## 龙鳞铠甲：第二个已落地套装（2026-08-18）
-
-正式套装定义为 `dragon_scale_set`（`data/configs/gear_sets/dragon_scale_set.tres`），四件成员、2/4 双阈值、usage 锚点为头盔实例。四件 `armor_dragon_scale_*` 均声明 `world_unique_equipment` tag；AC 合计 `+11`，槽位分别为 head/body/hands/feet。
-
-| 层 | 当前正式效果 |
-|---|---|
-| 龙鳞头盔（head） | `armor_ac_bonus +2`；trait：fire `half`、对 `dragon` 攻击检定 `+2` |
-| 龙鳞胸甲（body） | `armor_ac_bonus +7`、`hp_max +10`；trait：fire/freeze/lightning `half`；binding：受 dragon 吐息（`dragon_breath` save tag）时该伤害段获得 `half` 条件 tier |
-| 龙鳞护手（hands） | `armor_ac_bonus +1`、`attack_bonus +2`；binding：每次近战武器命中 dragon 追加 `1D4`（继承主武器伤害标签） |
-| 龙鳞胫甲（feet） | `armor_ac_bonus +1`；trait：`frightened` 与 `dragon_frightful_presence` 两个 save tag 各 `+3`（`add` stack mode），免疫 `dragon_frightful_presence`（不匹配普通 frightened） |
-| 2 件：龙之威慑 | threshold trait：fire `half`、上述两个 fear save tag 各 `+3`、免疫 `dragon_frightful_presence`；与胫甲按 `add` 合计 `+6`，免疫仍为单次布尔 |
-| 4 件：屠龙者之誓 | threshold trait + binding：对 dragon 攻击检定 `+2`（与头盔相加）；对 dragon 的每次实际主直接伤害结算追加 `1D4`（`inherit_primary`，逐段查询不去重）；受 dragon 吐息获得 `half` 条件 tier；授予每日一次主动技能 `equipment_dragon_scale_dragon_blood_boil` |
-
-龙血沸腾：自身目标、1 AP、持续 180 TU，期间对 dragon 攻击检定再 `+3`；初始 3 层治疗 charge，每次真实攻击检定命中（含非武器法术）后自疗 `1D6` 并消费一层（经通用 `on_attack_hit` trigger，miss/豁免型伤害/preview/AI 不消费）；声明 `remove_on_source_deactivated`，4 件套 source 失效时立即清除 buff 且不返还当日次数。每日次数账本归锚点头盔实例（次数跟装备走：转给另一成员后该成员看到的是装备剩余额度）。
-
-真实龙威 producer：`red_dragon` 模板携带 `dragon_frightful_presence`（自身中心半径 4、DC 15 意志豁免、失败进入 60 TU `frightened`），`dragon_tyrant` brain 在 engage（`dragon_frightful_presence_sweep`，minimum_hit_count=2）与 pressure（`dragon_frightful_presence_point_blank`，minimum_hit_count=1）各有一条对应 ground action。两只幼龙模板没有内容文档依据，不携带龙威。
-
-本套是条件性 mitigation tier、per-main-direct-effect 加骰（`damage_type_mode=inherit_primary`）、trait save-tag bonus（`BonusByTag`）、通用 `on_attack_hit` reaction 与 opt-in source-bound buff 清除五组通用 ABI 的首个真实内容消费者；ABI 合同见 [`../battle/equipment_ability_runtime.md`](../battle/equipment_ability_runtime.md) 与 [`../progression/trait_system.md`](trait_system.md)。多份静态/条件 `half` 不重复乘算；峰值数值审计口径见提案 `docs/proposals/inventory/dragon_scale_set_full_landing.md` §2.5。
-
 ## 凤凰唯一获取链
 
 只对新存档生效：`GameSession.CreateNewSave(...)` 在建档事务内按 `phoenix_rebirth_set` 的十个成员各 mint 一个传奇、稳定 `instance_id` 的原始装备实例，全部放入 `WorldRuntimeData.unique_equipment_pool` 的隐藏 reserve。十件内容带通用 `world_unique_equipment` tag；`PartyWarehouseService` 的 raw `item_id` mint、空实例 ID 或强制换新 ID 路径全部 fail closed。正式商店与掉落链只传入池中已有的稳定实例，并在 reserve/shop/玩家仓库之间转移，保留其 instance id、耐久与 trait rolls。内部 typed 实例转移目前以非空 `instance_id` 作为可信调用前置，不提供独立的池签发凭证；该 seam 不面向未受信输入，也不用于扫描、去重或拒绝玩家手改存档。
@@ -130,11 +110,6 @@ GearSetDef
 ## 代表性回归
 
 - `tests/equipment/run_gear_set_evaluation_regression.cs`
-- `tests/battle_runtime/runtime/run_dragon_scale_set_regression.cs`
-- `tests/battle_runtime/runtime/run_dragon_scale_dragon_blood_boil_regression.cs`
-- `tests/battle_runtime/ai/run_dragon_frightful_presence_regression.cs`
-- `tests/battle_runtime/runtime/run_trait_save_tag_bonus_regression.cs`
-- `tests/runtime/facade/run_game_runtime_snapshot_builder_regression.cs`
 - `tests/battle_runtime/runtime/run_phoenix_rebirth_set_regression.cs`
 - `tests/battle_runtime/runtime/run_phoenix_rebirth_single_item_behavior_regression.cs`
 - `tests/battle_runtime/runtime/run_phoenix_rebirth_body_cloak_behavior_regression.cs`

@@ -100,12 +100,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
     private GameTextCommandRunner CreateRunnerWithGemContent()
     {
         var runner = new GameTextCommandRunner();
-        ItemDefinition gemDefinition = TestResourceOwnership
-            .Own(
-                BuildGemItemDef(),
-                "run_contingency_text_commands_regression.gem_item"
-            )
-            .ToDefinition();
+        ItemDefinition gemDefinition = BuildGemItemDef().ToDefinition();
         GameSession gameSession = GameSessionTestFactory.CreateSynthetic(
             runner.GetSession(),
             seed =>
@@ -584,7 +579,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         return result;
     }
 
-    private static ItemDef BuildGemItemDef() =>
+    private static TestItemDefinitionBuilder BuildGemItemDef() =>
         new()
         {
             item_id = GemId,

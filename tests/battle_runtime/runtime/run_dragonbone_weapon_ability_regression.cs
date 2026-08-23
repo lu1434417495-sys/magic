@@ -69,17 +69,10 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
         if (!fixture.ItemDefs.ContainsKey(DragonboneItemId))
             return;
 
-        ItemDef rawDragonbone = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_dragonbone.tres"
-        );
+        ItemDefinition rawDragonbone = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_dragonbone_096");
         _test.True(rawDragonbone != null, "龙骨斧原始资源应能加载。");
         if (rawDragonbone != null)
         {
-            _test.Eq(
-                rawDragonbone.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "龙骨斧原始资源应声明继承 greataxe 模板。"
-            );
         }
 
         BattleUnitState equipped = fixture.BuildDragonboneUnit("projection");

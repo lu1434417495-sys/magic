@@ -84,8 +84,7 @@ public partial class run_equipment_conditional_mitigation_tier_regression : Life
 
     private void TestHandlerSpecDeclaresPreviewAndAiSupport()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
+        using var registry = new EquipmentAbilityContentRegistry();
         IReadOnlyDictionary<StringName, EquipmentAbilityHandlerSpec> actionSpecs =
             registry.GetActionHandlerSpecsTyped();
         _test.True(
@@ -94,8 +93,8 @@ public partial class run_equipment_conditional_mitigation_tier_regression : Life
         );
         EquipmentAbilityHandlerSpec spec = actionSpecs["grant_mitigation_tier"];
         _test.Eq(
-            spec.PayloadResourceType,
-            typeof(GrantMitigationTierActionPayloadDef),
+            spec.PayloadImportModelType,
+            typeof(GrantMitigationTierActionPayloadImportModel),
             "grant_mitigation_tier should declare its authoring payload type."
         );
         _test.Eq(
@@ -119,8 +118,7 @@ public partial class run_equipment_conditional_mitigation_tier_regression : Life
 
     private void TestContentValidationAcceptsAndRejects()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
+        using var registry = new EquipmentAbilityContentRegistry();
 
         EquipmentAbilityRegistryBuildResult validResult = registry.Rebuild(
             new[] { BuildAuthoringPack("half", "holder", new[] { "fire", "freeze", "poison", "acid", "lightning" }) },
@@ -684,100 +682,99 @@ public partial class run_equipment_conditional_mitigation_tier_regression : Life
         return false;
     }
 
-    private static EquipmentAbilityContentPackDef BuildAuthoringPack(
+    private static EquipmentAbilityContentPackImportModel BuildAuthoringPack(
         StringName mitigationTier,
         StringName targetSelector,
         IReadOnlyList<string> damageTags
     )
     {
-        EquipmentAbilityContentPackDef pack = new()
+        GrantMitigationTierActionPayloadImportModel payload = new()
+        {
+            target_selector = targetSelector.ToString(),
+            mitigation_tier = mitigationTier.ToString(),
+            label = "Test dragon ward",
+            damage_tags = damageTags ?? Array.Empty<string>(),
+        };
+        return new EquipmentAbilityContentPackImportModel
         {
             pack_id = "pack.test.mitigation_tier",
             schema_version = 1,
             load_order = 10,
-        };
-        EquipmentAbilityBindingDef binding = new()
-        {
-            binding_id = "binding.test.mitigation_tier",
-            trait_id = "trait.weapon.flame",
-            override_mode = "add",
-        };
-        binding.allowed_source_kinds.Add("equipment_fixed");
-        GrantMitigationTierActionPayloadDef payload = new()
-        {
-            target_selector = targetSelector,
-            mitigation_tier = mitigationTier,
-            label = "Test dragon ward",
-        };
-        foreach (string damageTag in damageTags)
-        {
-            payload.damage_tags.Add(damageTag);
-        }
-        binding.reactions.Add(
-            new EquipmentAbilityReactionDef
+            bindings = new[]
             {
-                reaction_id = "reaction.conditional_tier",
-                trigger = "on_damage_roll",
-                timing = "before_damage",
-                condition_group = new EquipmentAbilityConditionGroupDef
+                new EquipmentAbilityBindingImportModel
                 {
-                    mode = "all",
-                    conditions =
+                    binding_id = "binding.test.mitigation_tier",
+                    trait_id = "trait.weapon.flame",
+                    override_mode = "add",
+                    allowed_source_kinds = new[] { "equipment_fixed" },
+                    reactions = new[]
                     {
-                        new EquipmentAbilityConditionDef
+                        new EquipmentAbilityReactionImportModel
                         {
-                            condition_id = "condition.attacker_dragon",
-                            kind = "compare_fact",
-                            payload = new CompareFactConditionPayloadDef
+                            reaction_id = "reaction.conditional_tier",
+                            trigger = "on_damage_roll",
+                            timing = "before_damage",
+                            condition_group = new EquipmentAbilityConditionGroupImportModel
                             {
-                                left = new EquipmentAbilityFactQueryDef
+                                mode = "all",
+                                conditions = new[]
                                 {
-                                    query_kind = "fact",
-                                    fact_id = "creature_type_tags",
-                                    subject = "target",
-                                },
-                                compare = "contains",
-                                right = new EquipmentAbilityFactQueryDef
-                                {
-                                    query_kind = "literal",
-                                    string_name_literal = "dragon",
+                                    new EquipmentAbilityConditionImportModel
+                                    {
+                                        condition_id = "condition.attacker_dragon",
+                                        kind = "compare_fact",
+                                        payload = new CompareFactConditionPayloadImportModel
+                                        {
+                                            left = new EquipmentAbilityFactQueryImportModel
+                                            {
+                                                query_kind = "fact",
+                                                fact_id = "creature_type_tags",
+                                                subject = "target",
+                                            },
+                                            compare = "contains",
+                                            right = new EquipmentAbilityFactQueryImportModel
+                                            {
+                                                query_kind = "literal",
+                                                string_name_literal = "dragon",
+                                            },
+                                        },
+                                    },
+                                    new EquipmentAbilityConditionImportModel
+                                    {
+                                        condition_id = "condition.breath_save_tag",
+                                        kind = "compare_fact",
+                                        payload = new CompareFactConditionPayloadImportModel
+                                        {
+                                            left = new EquipmentAbilityFactQueryImportModel
+                                            {
+                                                query_kind = "fact",
+                                                fact_id = "save_tag",
+                                            },
+                                            compare = "eq",
+                                            right = new EquipmentAbilityFactQueryImportModel
+                                            {
+                                                query_kind = "literal",
+                                                string_name_literal = BreathSaveTag.ToString(),
+                                            },
+                                        },
+                                    },
                                 },
                             },
-                        },
-                        new EquipmentAbilityConditionDef
-                        {
-                            condition_id = "condition.breath_save_tag",
-                            kind = "compare_fact",
-                            payload = new CompareFactConditionPayloadDef
+                            actions = new[]
                             {
-                                left = new EquipmentAbilityFactQueryDef
+                                new EquipmentAbilityActionImportModel
                                 {
-                                    query_kind = "fact",
-                                    fact_id = "save_tag",
-                                },
-                                compare = "eq",
-                                right = new EquipmentAbilityFactQueryDef
-                                {
-                                    query_kind = "literal",
-                                    string_name_literal = BreathSaveTag,
+                                    action_id = "action.grant_tier",
+                                    kind = "grant_mitigation_tier",
+                                    payload = payload,
                                 },
                             },
                         },
                     },
                 },
-                actions =
-                {
-                    new EquipmentAbilityActionDef
-                    {
-                        action_id = "action.grant_tier",
-                        kind = "grant_mitigation_tier",
-                        payload = payload,
-                    },
-                },
-            }
-        );
-        pack.bindings.Add(binding);
-        return pack;
+            },
+        };
     }
 
     private static EquipmentAbilityContentValidationContext BuildValidationContext()

@@ -77,8 +77,7 @@ public partial class run_equipment_direct_effect_bonus_dice_regression : Lifecyc
 
     private void TestHandlerSpecDeclaresPreviewAndAiSupport()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
+        using var registry = new EquipmentAbilityContentRegistry();
         EquipmentAbilityHandlerSpec spec = registry.GetActionHandlerSpecsTyped()["add_damage_dice"];
         _test.True(
             spec.SupportsConsumer(EquipmentAbilityConsumerKind.Execution),
@@ -96,8 +95,7 @@ public partial class run_equipment_direct_effect_bonus_dice_regression : Lifecyc
 
     private void TestContentValidationAcceptsAndRejects()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new EquipmentAbilityContentRegistry(loader);
+        using var registry = new EquipmentAbilityContentRegistry();
 
         EquipmentAbilityRegistryBuildResult explicitResult = registry.Rebuild(
             new[] { BuildDiceAuthoringPack("explicit", "on_hit", "after_hit", "physical_slash", null) },
@@ -683,7 +681,7 @@ public partial class run_equipment_direct_effect_bonus_dice_regression : Lifecyc
             power = power,
             pre_resistance_damage_multiplier = multiplier,
         };
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test://direct_effect_bonus_dice_multiplier"
         );
@@ -713,7 +711,7 @@ public partial class run_equipment_direct_effect_bonus_dice_regression : Lifecyc
             power = 8,
         };
         resource.extra_damage_segments.Add(segment);
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test://direct_effect_bonus_dice_segments"
         );
@@ -764,7 +762,7 @@ public partial class run_equipment_direct_effect_bonus_dice_regression : Lifecyc
         return hasAttackCheck ? context.WithAttackCheck() : context;
     }
 
-    private static EquipmentAbilityContentPackDef BuildDiceAuthoringPack(
+    private static EquipmentAbilityContentPackImportModel BuildDiceAuthoringPack(
         StringName damageTypeMode,
         StringName trigger,
         StringName timing,
@@ -772,53 +770,55 @@ public partial class run_equipment_direct_effect_bonus_dice_regression : Lifecyc
         IReadOnlyList<string> damageTags
     )
     {
-        EquipmentAbilityContentPackDef pack = new()
+        AddDamageDiceActionPayloadImportModel payload = new()
+        {
+            target_selector = "holder",
+            damage_type = damageType.ToString(),
+            damage_type_mode = damageTypeMode.ToString(),
+            require_weapon_damage = false,
+            dice = new DiceExpressionImportModel
+            {
+                terms = new[]
+                {
+                    new DiceExpressionTermImportModel { dice_count = 1, dice_sides = 4 },
+                },
+            },
+            damage_tags = damageTags ?? Array.Empty<string>(),
+        };
+        return new EquipmentAbilityContentPackImportModel
         {
             pack_id = "pack.test.direct_effect_dice",
             schema_version = 1,
             load_order = 10,
-        };
-        EquipmentAbilityBindingDef binding = new()
-        {
-            binding_id = "binding.test.direct_effect_dice",
-            trait_id = "trait.weapon.flame",
-            override_mode = "add",
-        };
-        binding.allowed_source_kinds.Add("equipment_fixed");
-        AddDamageDiceActionPayloadDef payload = new()
-        {
-            target_selector = "holder",
-            damage_type = damageType,
-            damage_type_mode = damageTypeMode,
-            require_weapon_damage = false,
-            dice = new DiceExpressionDef
+            bindings = new[]
             {
-                terms = { new DiceExpressionTermDef { dice_count = 1, dice_sides = 4 } },
-            },
-        };
-        foreach (string damageTag in damageTags ?? Array.Empty<string>())
-        {
-            payload.damage_tags.Add(damageTag);
-        }
-        binding.reactions.Add(
-            new EquipmentAbilityReactionDef
-            {
-                reaction_id = "reaction.direct_effect_dice",
-                trigger = trigger,
-                timing = timing,
-                actions =
+                new EquipmentAbilityBindingImportModel
                 {
-                    new EquipmentAbilityActionDef
+                    binding_id = "binding.test.direct_effect_dice",
+                    trait_id = "trait.weapon.flame",
+                    override_mode = "add",
+                    allowed_source_kinds = new[] { "equipment_fixed" },
+                    reactions = new[]
                     {
-                        action_id = "action.direct_effect_dice",
-                        kind = "add_damage_dice",
-                        payload = payload,
+                        new EquipmentAbilityReactionImportModel
+                        {
+                            reaction_id = "reaction.direct_effect_dice",
+                            trigger = trigger.ToString(),
+                            timing = timing.ToString(),
+                            actions = new[]
+                            {
+                                new EquipmentAbilityActionImportModel
+                                {
+                                    action_id = "action.direct_effect_dice",
+                                    kind = "add_damage_dice",
+                                    payload = payload,
+                                },
+                            },
+                        },
                     },
                 },
-            }
-        );
-        pack.bindings.Add(binding);
-        return pack;
+            },
+        };
     }
 
     private static EquipmentAbilityContentValidationContext BuildValidationContext()

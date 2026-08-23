@@ -254,8 +254,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
 
     private TestContext BuildContext()
     {
-        GDictionary itemDefs = BuildItemDefs();
-        Dictionary<StringName, ItemDefinition> itemDefIndex = BuildItemDefIndex(itemDefs);
+        Dictionary<StringName, ItemDefinition> itemDefIndex = BuildItemDefs();
         PartyState partyState = new()
         {
             leader_member_id = HeroId,
@@ -291,14 +290,13 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             guidance,
             faith,
             battleRuntime,
-            itemDefs,
             itemDefIndex
         );
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
-        ItemDef darkWeapon = new()
+        TestItemDefinitionBuilder darkWeapon = new()
         {
             item_id = ShadowHalberdId,
             display_name = "Shadow Halberd",
@@ -312,7 +310,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             crafting_groups = new GStringNameArray { "dark", "misfortune" },
         };
 
-        ItemDef calamityShard = new()
+        TestItemDefinitionBuilder calamityShard = new()
         {
             item_id = BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
             display_name = "灾厄碎片",
@@ -323,25 +321,11 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             crafting_groups = new GStringNameArray { "misfortune" },
         };
 
-        return new GDictionary
+        return new Dictionary<StringName, ItemDefinition>
         {
-            [darkWeapon.item_id] = darkWeapon,
-            [calamityShard.item_id] = calamityShard,
+            [darkWeapon.item_id] = darkWeapon.ToDefinition(),
+            [calamityShard.item_id] = calamityShard.ToDefinition(),
         };
-    }
-
-    private static Dictionary<StringName, ItemDefinition> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        var result = new Dictionary<StringName, ItemDefinition>();
-        foreach (Variant key in itemDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            ItemDef itemDef = itemDefs[key].As<ItemDef>();
-            if (itemDef != null)
-                result[key.AsStringName()] = itemDef.ToDefinition();
-        }
-        return result;
     }
 
     private static PartyMemberState BuildMemberState()
@@ -602,7 +586,6 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             MisfortuneGuidanceService guidance,
             FaithService faith,
             BattleRuntimeModule battleRuntime,
-            GDictionary itemDefs,
             IReadOnlyDictionary<StringName, ItemDefinition> itemDefIndex
         )
         {
@@ -611,7 +594,6 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             Guidance = guidance;
             Faith = faith;
             BattleRuntime = battleRuntime;
-            ItemDefs = itemDefs;
             ItemDefIndex = itemDefIndex;
         }
 
@@ -620,7 +602,6 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         public MisfortuneGuidanceService Guidance { get; }
         public FaithService Faith { get; }
         public BattleRuntimeModule BattleRuntime { get; }
-        public GDictionary ItemDefs { get; }
         public IReadOnlyDictionary<StringName, ItemDefinition> ItemDefIndex { get; }
 
         public void Dispose()

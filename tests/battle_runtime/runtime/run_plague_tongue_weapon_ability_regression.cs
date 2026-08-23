@@ -97,17 +97,10 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         if (!fixture.ItemDefs.ContainsKey(PlagueTongueItemId))
             return;
 
-        ItemDef rawPlagueTongue = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_plague_tongue.tres"
-        );
+        ItemDefinition rawPlagueTongue = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_plague_tongue_099");
         _test.True(rawPlagueTongue != null, "瘟疫之舌原始资源应能加载。");
         if (rawPlagueTongue != null)
         {
-            _test.Eq(
-                rawPlagueTongue.base_item_id,
-                new StringName("weapon_type_battleaxe_base"),
-                "瘟疫之舌原始资源应声明继承 battleaxe 模板。"
-            );
         }
 
         BattleUnitState equipped = fixture.BuildPlagueTongueUnit("projection");

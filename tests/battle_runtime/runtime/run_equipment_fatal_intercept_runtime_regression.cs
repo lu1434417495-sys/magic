@@ -29,28 +29,11 @@ public partial class run_equipment_fatal_intercept_runtime_regression : Lifecycl
 
     private void TestAuthoringValidationAndProjection()
     {
-        var binding = new EquipmentAbilityBindingDef
-        {
-            binding_id = "binding.test.fatal",
-            trait_id = "trait.test.fatal",
-            override_mode = "add",
-        };
-        binding.required_effective_trait_ids.Add("trait.test.threshold");
-        var recoveryTerm = new DiceExpressionTermDef { dice_count = 2, dice_sides = 6 };
-        var recoveryDice = new DiceExpressionDef();
-        recoveryDice.terms.Add(recoveryTerm);
-        var intercept = new EquipmentFatalInterceptDef
-        {
-            intercept_id = "second_wind",
-            resolution_order = 20,
-            protection_priority = 100,
-            usage_period_kind = "per_battle",
-            max_attempts_per_period = 1,
-            consume_on_attempt = true,
-            recovery_kind = "hp_dice",
-            recovery_dice = recoveryDice,
-        };
-        binding.fatal_intercepts.Add(intercept);
+        EquipmentAbilityBindingImportModel binding = BuildFatalAuthoringBinding(
+            recoveryKind: "hp_dice",
+            recoveryPercentBasisPoints: 0,
+            includeRecoveryDice: true
+        );
 
         var validator = new EquipmentAbilityBindingValidator(
             EquipmentAbilityBuiltInHandlerSpecs.BuildConditionSpecs(),
@@ -106,12 +89,13 @@ public partial class run_equipment_fatal_intercept_runtime_regression : Lifecycl
             "unknown required effective trait gates should fail validation."
         );
 
-        intercept.recovery_kind = "max_hp_percent";
-        intercept.recovery_dice = null;
-        intercept.recovery_percent_basis_points = 0;
         errors.Clear();
         validator.ValidateBinding(
-            binding,
+            BuildFatalAuthoringBinding(
+                recoveryKind: "max_hp_percent",
+                recoveryPercentBasisPoints: 0,
+                includeRecoveryDice: false
+            ),
             new EquipmentAbilityContentValidationContext
             {
                 KnownTraitIds = new HashSet<StringName>
@@ -381,25 +365,26 @@ public partial class run_equipment_fatal_intercept_runtime_regression : Lifecycl
 
     private void TestPerWorldMonthAttemptUsage()
     {
-        var authoredBinding = new EquipmentAbilityBindingDef
+        EquipmentAbilityBindingImportModel authoredBinding = new()
         {
             binding_id = "binding.test.monthly.authoring",
             trait_id = "trait.test.monthly.authoring",
             override_mode = "add",
-        };
-        authoredBinding.fatal_intercepts.Add(
-            new EquipmentFatalInterceptDef
+            fatal_intercepts = new[]
             {
-                intercept_id = "monthly_rebirth",
-                resolution_order = 500,
-                protection_priority = 100,
-                usage_period_kind = "per_world_month",
-                max_attempts_per_period = 1,
-                consume_on_attempt = true,
-                recovery_kind = "max_hp_percent",
-                recovery_percent_basis_points = 3000,
-            }
-        );
+                new EquipmentFatalInterceptImportModel
+                {
+                    intercept_id = "monthly_rebirth",
+                    resolution_order = 500,
+                    protection_priority = 100,
+                    usage_period_kind = "per_world_month",
+                    max_attempts_per_period = 1,
+                    consume_on_attempt = true,
+                    recovery_kind = "max_hp_percent",
+                    recovery_percent_basis_points = 3000,
+                },
+            },
+        };
         var validator = new EquipmentAbilityBindingValidator(
             EquipmentAbilityBuiltInHandlerSpecs.BuildConditionSpecs(),
             EquipmentAbilityBuiltInHandlerSpecs.BuildActionSpecs(),
@@ -700,6 +685,45 @@ public partial class run_equipment_fatal_intercept_runtime_regression : Lifecycl
             BattleTestFixture.DisposeBattleUnit(executeTraitTarget);
         }
     }
+
+    private static EquipmentAbilityBindingImportModel BuildFatalAuthoringBinding(
+        string recoveryKind,
+        int recoveryPercentBasisPoints,
+        bool includeRecoveryDice
+    ) => new()
+    {
+        binding_id = "binding.test.fatal",
+        trait_id = "trait.test.fatal",
+        override_mode = "add",
+        required_effective_trait_ids = new[] { "trait.test.threshold" },
+        fatal_intercepts = new[]
+        {
+            new EquipmentFatalInterceptImportModel
+            {
+                intercept_id = "second_wind",
+                resolution_order = 20,
+                protection_priority = 100,
+                usage_period_kind = "per_battle",
+                max_attempts_per_period = 1,
+                consume_on_attempt = true,
+                recovery_kind = recoveryKind,
+                recovery_dice = includeRecoveryDice
+                    ? new DiceExpressionImportModel
+                    {
+                        terms = new[]
+                        {
+                            new DiceExpressionTermImportModel
+                            {
+                                dice_count = 2,
+                                dice_sides = 6,
+                            },
+                        },
+                    }
+                    : null!,
+                recovery_percent_basis_points = recoveryPercentBasisPoints,
+            },
+        },
+    };
 
     private static EquipmentAbilityBindingDefinition Binding(
         StringName bindingId,

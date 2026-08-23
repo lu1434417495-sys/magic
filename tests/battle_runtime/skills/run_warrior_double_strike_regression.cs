@@ -29,10 +29,7 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
 
     private void TestFixedRepeatSchema()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef invalidCount = new()
         {
             effect_type = "fixed_repeat_attack",

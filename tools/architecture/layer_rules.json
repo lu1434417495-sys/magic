@@ -49,7 +49,6 @@
     { "glob": "scripts/enemies/TraceDictionaryProjection.cs", "layer": "infrastructure" },
     { "glob": "scripts/systems/content/EngineAssetAccess.cs", "layer": "infrastructure" },
     { "glob": "scripts/systems/content/EngineAssetResolver.cs", "layer": "infrastructure" },
-    { "glob": "scripts/systems/content/IContentResourceLoader.cs", "layer": "infrastructure" },
     { "glob": "scripts/systems/content/ContentValueNormalizer.cs", "layer": "infrastructure" },
     { "glob": "scripts/systems/platform/**/*.cs", "layer": "infrastructure" },
 

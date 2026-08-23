@@ -70,15 +70,12 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         if (!fixture.ItemDefs.ContainsKey(GloryItemId))
             return;
 
-        ItemDef rawGlory = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_glory.tres"
-        );
+        ItemDefinition rawGlory = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_glory_261");
         _test.True(rawGlory != null, "荣耀之刃原始资源应能加载。");
         if (rawGlory != null)
         {
-            _test.Eq(rawGlory.base_item_id, new StringName("weapon_type_longsword_base"), "荣耀之刃应继承 longsword 模板。");
-            _test.Eq(rawGlory.base_price, 78000, "荣耀之刃价格应落成 78000。");
-            _test.True(ContainsStringName(rawGlory.tags, "glory"), "荣耀之刃物品 tag 应包含 glory。");
+            _test.Eq(rawGlory.BasePrice, 78000, "荣耀之刃价格应落成 78000。");
+            _test.True(ContainsStringName(rawGlory.Tags, "glory"), "荣耀之刃物品 tag 应包含 glory。");
         }
 
         BattleUnitState equipped = fixture.BuildGloryUnit("projection");

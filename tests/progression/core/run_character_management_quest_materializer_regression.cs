@@ -73,7 +73,7 @@ public partial class run_character_management_quest_materializer_regression : Li
     private void TestSubmitItemObjectiveTracksProgressAndFailures()
     {
         PartyState party = BuildPartyWithMember("hero", 4);
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefs = BuildItemDefs();
 
         QuestTestDefinitionBuilder submitQuest = BuildSubmitItemQuest(
             "contract_supply_delivery",
@@ -131,7 +131,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             questDefinitions
         );
         PartyWarehouseService warehouse = new();
-        warehouse.Setup(party, BuildItemDefIndex(itemDefs));
+        warehouse.Setup(party, itemDefs);
 
         QuestState partialQuest = new() { quest_id = submitQuest.quest_id };
         partialQuest.MarkAccepted(3);
@@ -271,7 +271,7 @@ public partial class run_character_management_quest_materializer_regression : Li
 
     private void TestQuestRewardMaterializesGoldItemsAndOverflow()
     {
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefs = BuildItemDefs();
         QuestTestDefinitionBuilder rewardQuest = BuildRewardQuest(
             "contract_supply_receipt",
             "Supply receipt",
@@ -301,7 +301,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new[] { rewardQuest, overflowQuest }
         );
         PartyWarehouseService warehouse = new();
-        warehouse.Setup(party, BuildItemDefIndex(itemDefs));
+        warehouse.Setup(party, itemDefs);
         party.SetClaimableQuestState(BuildClaimableQuest("contract_supply_receipt", 4, 6));
 
         using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
@@ -322,7 +322,7 @@ public partial class run_character_management_quest_materializer_regression : Li
 
         PartyState overflowParty = BuildPartyWithMember("porter", 1);
         PartyWarehouseService overflowWarehouse = new();
-        overflowWarehouse.Setup(overflowParty, BuildItemDefIndex(itemDefs));
+        overflowWarehouse.Setup(overflowParty, itemDefs);
         overflowWarehouse.AddItemTyped("bronze_sword", 1);
         CharacterManagementModule overflowManager = BuildManager(
             overflowParty,
@@ -844,7 +844,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             if (testCase.ExpectImportRejection)
             {
                 _test.True(
-                    importRejection.Contains("skill.tres.invalid_resource")
+                    importRejection.Contains("skill.fixture.invalid_input")
                         && importRejection.Contains("/entries/0/attribute_growth_progress/"),
                     $"{testCase.Label} should fail at the canonical Resource import boundary. error={importRejection}"
                 );
@@ -922,7 +922,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new Dictionary<StringName, SkillDefinition> { [charge.SkillId] = charge },
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(BuildItemDefs()),
+            BuildItemDefs(),
             new Dictionary<StringName, QuestDefinition>()
         );
 
@@ -973,13 +973,13 @@ public partial class run_character_management_quest_materializer_regression : Li
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyList<QuestTestDefinitionBuilder> questDefs
     ) => BuildManager(party, itemDefs, BuildQuestDefinitionIndex(questDefs));
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
@@ -989,7 +989,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(itemDefs),
+            itemDefs,
             questDefs
         );
         return manager;
@@ -1031,45 +1031,27 @@ public partial class run_character_management_quest_materializer_regression : Li
         return party;
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
-        ItemDef ironOre = new()
+        TestItemDefinitionBuilder ironOre = new()
         {
             item_id = "iron_ore",
             display_name = "Iron Ore",
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
         };
-        ItemDef bronzeSword = new()
+        TestItemDefinitionBuilder bronzeSword = new()
         {
             item_id = "bronze_sword",
             display_name = "Bronze Sword",
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
         };
-        return new GDictionary
+        return new Dictionary<StringName, ItemDefinition>
         {
-            [ironOre.item_id] = ironOre,
-            [bronzeSword.item_id] = bronzeSword,
+            [ironOre.item_id] = ironOre.ToDefinition(),
+            [bronzeSword.item_id] = bronzeSword.ToDefinition(),
         };
-    }
-
-    private static Dictionary<StringName, ItemDefinition> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDefinition> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef.ToDefinition();
-        }
-        return result;
     }
 
     private static Dictionary<StringName, QuestDefinition> BuildQuestDefinitionIndex(

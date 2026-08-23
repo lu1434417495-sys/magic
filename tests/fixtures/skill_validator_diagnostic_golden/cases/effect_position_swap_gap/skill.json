@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_position_swap_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_position_swap_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_position_swap_gap",
+        "target_mode": "ground",
+        "target_selection_mode": "single_coord",
+        "passive_effect_defs": [
+          {
+            "effect_type": "position_swap",
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "trigger_event": "attack_hit"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_position_swap_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

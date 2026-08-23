@@ -97,8 +97,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestItemRegistryAcceptsEquipmentSeedData()
     {
-        using TestContentResourceLoader loader = new();
-        using ItemContentRegistry registry = new(loader);
+        using ItemContentRegistry registry = new();
         _test.Eq(registry.Validate().Count, 0, "Equipment seed item definitions should validate.");
 
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = registry.GetItemDefsTyped();
@@ -1606,10 +1605,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         System.ArgumentNullException.ThrowIfNull(source);
         return new ItemDefinition(
             source.ItemId,
-            source.BaseItemId,
             source.DisplayName,
             source.Description,
-            source.Icon,
+            source.IconAssetId,
             source.IsStackable,
             source.BasePrice,
             source.BuyPrice,

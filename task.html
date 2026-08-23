@@ -44,7 +44,7 @@ th{background:var(--code);font-weight:600}
 <main>
 
 <h1>内容 JSON 迁移 · 分步任务书</h1>
-<p class="sub">配套设计文档：<code>docs/proposals/migrations/content_json_direct_load.md</code>（v1.4）。本文件只负责拆分与排序，<strong>设计细节一律以该文档为准</strong>，两者冲突时以设计文档为准并回报冲突。</p>
+<p class="sub">历史实施方案：<code>docs/archive/implementation-plans/landed/2026-08-23-content-json-direct-load.md</code>（v1.4）；当前实现真相见 <code>docs/design/foundations/content_json_authoring.md</code>。</p>
 
 <h2 id="how">如何使用</h2>
 <p>任务按 ID 顺序执行。每个任务是一次独立会话的工作量，完成后提交一次。<strong>标注「闸门」的地方必须停下</strong>，把结果报告给用户后再继续，不要自行判定通过并推进。</p>
@@ -888,15 +888,67 @@ godot --headless -s res://tests/&lt;domain&gt;/&lt;runner&gt;.cs</code></pre>
 <p>world 三个 JSON domain 已由 code-owned discovery 独占加载；preset、root generation 与 mounted submap 全部使用稳定 ID；SaveVersion 20、SaveIndexVersion 5 的新档 round-trip 与旧版本严格拒绝证据通过；13 个 world Resource source、authoring/projector、静态路径 registry 与 basename fallback 已删除；schema/CLI、parity、snapshot/lifecycle、world behavior、routine full suite 与 Windows export 证据已报告。未满足任一项不得宣称阶段 7 完成，也不得进入阶段 8。</p>
 </div>
 
-<h2 id="later">阶段 8 · 后续（届时重新细化）</h2>
-<p class="note">阶段 8 仍是方向性描述，开始前必须按当时实际代码重新拆任务。</p>
+<h2 id="stage8">阶段 8 · JSON 终态清理（已完成）</h2>
+<p class="note"><strong>状态：已完成。</strong>本阶段按进入时的实际代码重新拆分，并以当前 checkout 的静态库存、严格全量回归、生命周期 soak 与 Windows export 结果作为完成证据；不包含外部 CI 声明。</p>
 
-<table>
-<thead><tr><th>阶段</th><th>内容</th><th>要点</th></tr></thead>
-<tbody>
-<tr><td>8</td><td>终态清理</td><td>删除全部 content Resource loader/discovery 分支、全部 TresAdapter、migration-only 反向索引；确认 <code>ProcessContentHost</code> 只剩 snapshot 发布与 engine asset catalog owner；更新 <code>docs/design/</code> 与 <code>project_context_units.md</code></td></tr>
-</tbody>
-</table>
+<div class="task">
+<h4><span class="id">T8.1</span>闭合生产内容与 Dragon Scale JSON 迁移</h4>
+<p class="meta">依赖：DG-7</p>
+<dl>
+<dt>步骤</dt><dd>把 Dragon Scale 的 item、trait、gear set、equipment ability 与 granted skill 切换为 canonical JSON，删除对应 13 个 <code>.tres</code>；补齐 save-tag bonus、按伤害类型减伤、来源清理与引擎资产 ID 投影。</dd>
+<dt>验收</dt><dd>生产内容共 29 个 JSON domain 均由 code-owned discovery 加载；Dragon Scale 套装、龙威、trait save tag、条件减伤与来源清理行为回归通过。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T8.2</span>删除 content Resource loader 与迁移期反向索引</h4>
+<p class="meta">依赖：T8.1</p>
+<dl>
+<dt>步骤</dt><dd>删除 <code>IContentResourceLoader</code>、registry 的 loader 参数、content root/load API、authored-path 反向索引与 item icon migration manifest；生产 <code>ResourceLoader.Load</code> 仅保留 engine asset catalog/resolver 所有权。</dd>
+<dt>验收</dt><dd>生产代码不存在 content Resource discovery、旧 authored-path lookup 或 migration-only icon path；<code>ProcessContentHost</code> 只发布 immutable snapshot 并持有 engine asset resolver。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T8.3</span>收口诊断 fixture 与非引擎 Resource 边界</h4>
+<p class="meta">依赖：T8.2</p>
+<dl>
+<dt>步骤</dt><dd>把 91 个 skill validator fixture 迁移为 JSON，删除全部 TresAdapter/ResourceProjectionAdapter 命名与共享 Resource loader；诊断投影统一复用生产 import normalizer；非引擎内容 authoring 类型改为 plain value/RefCounted。</dd>
+<dt>验收</dt><dd><code>data/</code> 与 <code>tests/</code> 中仅 engine asset catalog 及其 fixture 保留 <code>.tres</code>；fixture collateral golden 为 518 个诊断、75 个 fixture；不存在 <code>FromResource</code> 与临时 skill <code>.tres</code> 保存路径。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T8.4</span>简化 snapshot registry 与生命周期所有权</h4>
+<p class="meta">依赖：T8.3</p>
+<dl>
+<dt>步骤</dt><dd>删除 progression/skill registry 的 raw Resource bucket、替换式 authoring API 与 finalizer 清理；把生命周期语义从 content load/root 改为 snapshot build/published engine asset count，并移除废弃 root diagnostic。</dd>
+<dt>验收</dt><dd>snapshot、registry、shutdown pipeline 与 lifecycle 边界回归通过；110 次 soak 中 owner、borrower、job、scope、lease、violation、suppression 与 quarantine 均为零。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T8.5</span>更新当前设计真相并归档迁移方案</h4>
+<p class="meta">依赖：T8.4</p>
+<dl>
+<dt>步骤</dt><dd>更新 content authoring、skill、equipment、AI、lifecycle 与 <code>project_context_units.md</code> 的当前 owner/read set；把已落地的混合路线图移入 landed archive，并同步 schema association、内容数量与验证文档。</dd>
+<dt>验收</dt><dd><code>docs/design/</code> 只陈述当前实现，历史计划明确标为已落地归档；计数与当前 production JSON inventory 一致。</dd>
+</dl>
+</div>
+
+<div class="task warn">
+<h4><span class="id">T8.6</span>累计验证与交付审计</h4>
+<p class="meta">依赖：T8.5</p>
+<dl>
+<dt>步骤</dt><dd>执行 build、29 域 offline CLI、schema/export smoke、Dragon 与诊断定点回归、严格 routine full suite、lifecycle correctness/soak、Windows export，以及静态残留与 staged-theme 审计。</dd>
+<dt>验收</dt><dd><code>dotnet build</code> 为 0 warning/0 error；29/29 domain、519/519 routine regression、8/8 lifecycle lane、110/110 soak 与 Windows export smoke 全部通过；未运行的外部 CI 不得写成通过。</dd>
+</dl>
+</div>
+
+<div class="gate">
+<h4>闸门 DG-8 — 终态迁移完成</h4>
+<p>生产内容 JSON discovery 已覆盖 29 个 domain；内容 Resource loader、TresAdapter、migration-only 反向索引与非引擎 <code>.tres</code> authoring 均已删除；<code>ProcessContentHost</code> 仅承担 snapshot 发布与 engine asset resolver 所有权；当前设计文档、context index、schema 与交付证据已同步。阶段 8 为本迁移任务的终止闸门，不再隐含后续兼容层或迁移阶段。</p>
+</div>
 
 <h2 id="stop">停止条件</h2>
 <p>触发任意一条时<strong>停止扩大范围并向用户报告</strong>，不要用临时兼容层继续推进：</p>

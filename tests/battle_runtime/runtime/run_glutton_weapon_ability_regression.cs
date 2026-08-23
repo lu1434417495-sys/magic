@@ -74,28 +74,19 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             fixture.Bindings.ContainsKey(DevouringChopBindingId),
             "真实装备能力内容应包含吞食斩 binding。"
         );
-
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_glutton.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_glutton_090");
         _test.True(rawItem != null, "贪食者原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "贪食者", "贪食者显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "贪食者应继承 greataxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 42000, "贪食者价格应为 42000。");
-            _test.True(rawItem.trait_ids.Contains(SatedTraitId), "贪食者物品应声明饱食。");
-            _test.True(rawItem.trait_ids.Contains(UnsatisfiedTraitId), "贪食者物品应声明永不满足。");
-            _test.True(rawItem.trait_ids.Contains(DevouringChopTraitId), "贪食者物品应声明吞食斩。");
+            _test.Eq(rawItem.DisplayName, "贪食者", "贪食者显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 42000, "贪食者价格应为 42000。");
+            _test.True(rawItem.TraitIds.Contains(SatedTraitId), "贪食者物品应声明饱食。");
+            _test.True(rawItem.TraitIds.Contains(UnsatisfiedTraitId), "贪食者物品应声明永不满足。");
+            _test.True(rawItem.TraitIds.Contains(DevouringChopTraitId), "贪食者物品应声明吞食斩。");
             _test.False(
-                ContainsText(rawItem.description, "长休")
-                    || ContainsText(rawItem.description, "三日")
-                    || ContainsText(rawItem.description, "necrotic"),
+                ContainsText(rawItem.Description, "长休")
+                    || ContainsText(rawItem.Description, "三日")
+                    || ContainsText(rawItem.Description, "necrotic"),
                 "玩家说明不应包含已延后的长休、三日或英文负能量反噬文本。"
             );
         }

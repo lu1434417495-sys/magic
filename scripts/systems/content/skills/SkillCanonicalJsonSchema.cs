@@ -32,7 +32,7 @@ internal static partial class SkillCanonicalJsonSchema
         ContentCanonicalJsonValue.StableBusinessString<SkillImportStatId>(
             static value => value.Value
         );
-    private static readonly SkillImportAssetId EmptyAssetId = SkillImportAssetId.FromResource("");
+    private static readonly SkillImportAssetId EmptyAssetId = SkillImportAssetId.FromRaw("");
     private static readonly SkillImportStatId EmptyStatId = CreateStatId("");
 
     private static readonly ContentCanonicalJsonValueSchema<

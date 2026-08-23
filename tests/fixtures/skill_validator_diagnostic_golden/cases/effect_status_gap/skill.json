@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_status_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_status_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_status_gap",
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "status_id": "maintained",
+            "upkeep_resource": "mp",
+            "upkeep_base_cost": 1,
+            "upkeep_escalation_interval_tu": 1,
+            "upkeep_cost_multiplier": 2
+          }
+        ]
+      },
+      "icon_id": "diagnostic_status_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

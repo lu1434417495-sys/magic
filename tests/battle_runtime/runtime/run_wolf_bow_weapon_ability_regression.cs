@@ -64,28 +64,25 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         _test.True(fixture.Bindings.ContainsKey(WolfSpiritBindingId), "真实装备能力内容应包含狼灵召唤 binding。");
         _test.True(fixture.SkillDefs.ContainsKey(WolfSpiritSkillId), "真实技能内容应包含狼灵召唤装备技能。");
 
-        ItemDef rawItem = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longbow_wolf.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_bow_wolf_325");
         _test.True(rawItem != null, "狼牙弓原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_longbow_base"), "狼牙弓应继承 longbow 模板。");
-            _test.Eq(rawItem.base_price, 42000, "狼牙弓价格应为 42000。");
-            _test.True(ContainsStringName(rawItem.tags, "wolf_bow"), "狼牙弓物品 tag 应包含 wolf_bow。");
-            _test.True(rawItem.trait_ids.Contains(WolfPackTacticsTraitId), "狼牙弓应固定声明狼群战术 trait。");
-            _test.True(rawItem.trait_ids.Contains(WolfSpiritTraitId), "狼牙弓应固定声明狼灵召唤 trait。");
-            WeaponProfileDef profile = rawItem.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawItem.BasePrice, 42000, "狼牙弓价格应为 42000。");
+            _test.True(ContainsStringName(rawItem.Tags, "wolf_bow"), "狼牙弓物品 tag 应包含 wolf_bow。");
+            _test.True(rawItem.TraitIds.Contains(WolfPackTacticsTraitId), "狼牙弓应固定声明狼群战术 trait。");
+            _test.True(rawItem.TraitIds.Contains(WolfSpiritTraitId), "狼牙弓应固定声明狼灵召唤 trait。");
+            WeaponProfileDefinition profile = rawItem.WeaponProfile;
             _test.True(profile != null, "狼牙弓应声明 weapon_profile。");
             if (profile != null)
             {
-                _test.Eq(profile.attack_range, 10, "狼牙弓攻击距离应为 10。");
-                _test.Eq(profile.damage_tag, new StringName("physical_pierce"), "狼牙弓基础伤害标签应为 physical_pierce。");
-                _test.Eq(profile.two_handed_dice?.dice_count ?? 0, 1, "狼牙弓双手伤害应为 1D8+2。");
-                _test.Eq(profile.two_handed_dice?.dice_sides ?? 0, 8, "狼牙弓双手伤害应为 1D8+2。");
-                _test.Eq(profile.two_handed_dice?.flat_bonus ?? 0, 2, "狼牙弓双手伤害应为 1D8+2。");
-                _test.True(profile.properties.Contains("two_handed"), "狼牙弓应声明 two_handed property。");
-                _test.True(profile.properties.Contains("heavy"), "狼牙弓应声明 heavy property。");
+                _test.Eq(profile.AttackRange, 10, "狼牙弓攻击距离应为 10。");
+                _test.Eq(profile.DamageTag, new StringName("physical_pierce"), "狼牙弓基础伤害标签应为 physical_pierce。");
+                _test.Eq(profile.TwoHandedDice?.DiceCount ?? 0, 1, "狼牙弓双手伤害应为 1D8+2。");
+                _test.Eq(profile.TwoHandedDice?.DiceSides ?? 0, 8, "狼牙弓双手伤害应为 1D8+2。");
+                _test.Eq(profile.TwoHandedDice?.FlatBonus ?? 0, 2, "狼牙弓双手伤害应为 1D8+2。");
+                _test.True(profile.Properties.Contains("two_handed"), "狼牙弓应声明 two_handed property。");
+                _test.True(profile.Properties.Contains("heavy"), "狼牙弓应声明 heavy property。");
             }
         }
 

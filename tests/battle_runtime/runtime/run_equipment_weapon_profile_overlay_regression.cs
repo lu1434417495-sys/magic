@@ -40,10 +40,10 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private void TestRangeDeltaAndClampApplied()
     {
-        ItemDef sword = MakeWeapon(
+        TestItemDefinitionBuilder sword = MakeWeapon(
             "overlay_reach_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -88,10 +88,10 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private void TestDiceAddAndOverrideApplied()
     {
-        ItemDef sword = MakeWeapon(
+        TestItemDefinitionBuilder sword = MakeWeapon(
             "overlay_dice_longsword",
             "longsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 8, 0),
             MakeWeaponDice(1, 10, 0),
@@ -153,17 +153,17 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private void TestDamageTagAndGripOverridesApplied()
     {
-        ItemDef sword = MakeWeapon(
+        TestItemDefinitionBuilder sword = MakeWeapon(
             "overlay_grip_longsword",
             "longsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 8, 0),
             MakeWeaponDice(1, 10, 0),
             new[] { new StringName("versatile") }
         );
         sword.trait_ids = new GStringNameArray { "trait.weapon.overlay_grip" };
-        ItemDef shield = MakeOffHandEquipment("overlay_shield");
+        TestItemDefinitionBuilder shield = MakeOffHandEquipment("overlay_shield");
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithOverlays(
             new[] { sword, shield },
             BuildOverlayTraitMap("trait.weapon.overlay_grip"),
@@ -200,7 +200,7 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
         BattleWeaponProjectionValues forced = unit.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
             forced.PhysicalDamageTag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             "physical damage tag override should replace the base tag."
         );
         _test.True(
@@ -221,7 +221,7 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private void TestRequireEquippedWeaponSkipsUnarmedUnit()
     {
-        ItemDef armor = MakeBodyArmor("overlay_plate", "plate");
+        TestItemDefinitionBuilder armor = MakeBodyArmor("overlay_plate", "plate");
         armor.trait_ids = new GStringNameArray { "trait.armor.overlay_reach" };
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithOverlays(
             new[] { armor },
@@ -269,12 +269,12 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private void TestRequiredWeaponFamilyFilterSkips()
     {
-        ItemDef armor = MakeBodyArmor("overlay_bow_plate", "plate");
+        TestItemDefinitionBuilder armor = MakeBodyArmor("overlay_bow_plate", "plate");
         armor.trait_ids = new GStringNameArray { "trait.armor.overlay_bow" };
-        ItemDef sword = MakeWeapon(
+        TestItemDefinitionBuilder sword = MakeWeapon(
             "overlay_family_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -327,17 +327,17 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private void TestEquipmentTagConditionGatesOverlay()
     {
-        ItemDef sword = MakeWeapon(
+        TestItemDefinitionBuilder sword = MakeWeapon(
             "overlay_condition_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
             Array.Empty<StringName>()
         );
         sword.trait_ids = new GStringNameArray { "trait.weapon.overlay_condition" };
-        ItemDef charm = MakeOffHandEquipment("overlay_lucky_charm");
+        TestItemDefinitionBuilder charm = MakeOffHandEquipment("overlay_lucky_charm");
         charm.tags = new GStringNameArray { "lucky" };
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithOverlays(
             new[] { sword, charm },
@@ -402,10 +402,10 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private void TestRemovalRestoresBaselineAndRefreshIsIdempotent()
     {
-        ItemDef sword = MakeWeapon(
+        TestItemDefinitionBuilder sword = MakeWeapon(
             "overlay_cleanup_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -458,10 +458,10 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private void TestOverlayPriorityDeterminesOverrideWinner()
     {
-        ItemDef sword = MakeWeapon(
+        TestItemDefinitionBuilder sword = MakeWeapon(
             "overlay_priority_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -500,17 +500,17 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
         );
         _test.Eq(
             unit.GetWeaponProjectionReadViewTyped().Values.PhysicalDamageTag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             "the higher-priority overlay should win override fields (last-wins in stable order)."
         );
     }
 
     private void TestEnemyWeaponProjectionAppliesOverlays()
     {
-        ItemDef blade = MakeWeapon(
+        TestItemDefinitionBuilder blade = MakeWeapon(
             "enemy_overlay_blade",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -651,7 +651,7 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
 
     private BattleUnitState BuildEquippedAllyUnit(
         BattleRuntimeScope runtimeScope,
-        ItemDef weapon,
+        TestItemDefinitionBuilder weapon,
         StringName instanceId
     )
     {
@@ -671,14 +671,17 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
     }
 
     private BattleRuntimeScope BuildRuntimeWithOverlays(
-        IReadOnlyList<ItemDef> items,
+        IReadOnlyList<TestItemDefinitionBuilder> items,
         Dictionary<StringName, TraitDefinition> traitDefs,
         Dictionary<StringName, EquipmentAbilityBindingDefinition> bindings
     )
     {
         PartyState partyState = BuildPartyState("hero");
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
-        foreach (ItemDef itemDef in items ?? Array.Empty<ItemDef>())
+        foreach (
+            TestItemDefinitionBuilder itemDef
+            in items ?? Array.Empty<TestItemDefinitionBuilder>()
+        )
         {
             if (itemDef == null)
                 continue;
@@ -803,17 +806,17 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
         return partyState;
     }
 
-    private static ItemDef MakeWeapon(
+    private static TestItemDefinitionBuilder MakeWeapon(
         StringName itemId,
         StringName weaponTypeId,
         StringName damageTag,
         int attackRange,
-        WeaponDamageDiceDef oneHandedDice,
-        WeaponDamageDiceDef twoHandedDice,
+        TestWeaponDamageDiceDefinitionBuilder oneHandedDice,
+        TestWeaponDamageDiceDefinitionBuilder twoHandedDice,
         IReadOnlyList<StringName> properties
     )
     {
-        var itemDef = new ItemDef
+        var itemDef = new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -823,7 +826,7 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
             max_stack = 1,
             tags = new GStringNameArray { "melee", "blade" },
         };
-        var profile = new WeaponProfileDef
+        var profile = new TestWeaponProfileDefinitionBuilder
         {
             weapon_type_id = weaponTypeId,
             training_group = "martial",
@@ -833,7 +836,6 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
             attack_range = attackRange,
             one_handed_dice = oneHandedDice,
             two_handed_dice = twoHandedDice,
-            properties_mode = (int)WeaponProfileDef.PropertyMergeMode.REPLACE,
         };
         foreach (StringName property in properties ?? Array.Empty<StringName>())
         {
@@ -846,9 +848,9 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
         return itemDef;
     }
 
-    private static ItemDef MakeBodyArmor(StringName itemId, StringName tag)
+    private static TestItemDefinitionBuilder MakeBodyArmor(StringName itemId, StringName tag)
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -860,9 +862,9 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
         };
     }
 
-    private static ItemDef MakeOffHandEquipment(StringName itemId)
+    private static TestItemDefinitionBuilder MakeOffHandEquipment(StringName itemId)
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -873,9 +875,13 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
         };
     }
 
-    private static WeaponDamageDiceDef MakeWeaponDice(int count, int sides, int bonus)
+    private static TestWeaponDamageDiceDefinitionBuilder MakeWeaponDice(
+        int count,
+        int sides,
+        int bonus
+    )
     {
-        return new WeaponDamageDiceDef
+        return new TestWeaponDamageDiceDefinitionBuilder
         {
             dice_count = count,
             dice_sides = sides,

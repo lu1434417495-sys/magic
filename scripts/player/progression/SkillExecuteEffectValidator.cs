@@ -614,7 +614,7 @@ internal sealed class SkillExecuteEffectValidator
         bool hasTemporalRelease = false;
         foreach ((CombatEffectDef effect, string _) in labeledEffects)
         {
-            if (IsTemporalReleaseEffectResource(effect))
+            if (IsTemporalReleaseEffectFixture(effect))
             {
                 hasTemporalRelease = true;
                 break;
@@ -624,7 +624,7 @@ internal sealed class SkillExecuteEffectValidator
             return;
         foreach ((CombatEffectDef effect, string label) in labeledEffects)
         {
-            if (effect == null || IsTemporalReleaseEffectResource(effect))
+            if (effect == null || IsTemporalReleaseEffectFixture(effect))
                 continue;
             errors.Add(
                 $"Skill {skillId} {label} cannot mix {effect.effect_type} with temporal release effects; temporal release skills must stay temporal-only."
@@ -632,11 +632,11 @@ internal sealed class SkillExecuteEffectValidator
         }
     }
 
-    private static bool IsTemporalReleaseEffectResource(CombatEffectDef effectDef)
+    private static bool IsTemporalReleaseEffectFixture(CombatEffectDef effectDef)
     {
         try
         {
-            CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(
+            CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromDiagnosticFixture(
                 effectDef,
                 "skill_content_validation.temporal_release_effect"
             );
@@ -644,7 +644,7 @@ internal sealed class SkillExecuteEffectValidator
         }
         catch (System.IO.InvalidDataException)
         {
-            // This legacy Resource validator remains only for synthetic Resource-level tests.
+            // Diagnostic fixtures can represent malformed states that JSON rejects earlier.
             // Structural import failures are already reported by their owning checks and cannot
             // safely participate in this secondary temporal-mix classification.
             return false;

@@ -107,7 +107,7 @@ internal readonly record struct SkillImportAssetId
 
     internal string Value { get; }
 
-    internal static SkillImportAssetId FromResource(string? value) => new(value ?? "");
+    internal static SkillImportAssetId FromRaw(string? value) => new(value ?? "");
 
     internal static bool TryCreate(string? value, out SkillImportAssetId result)
     {

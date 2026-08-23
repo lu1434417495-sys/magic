@@ -437,7 +437,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             target_order = targetOrder,
             required_target_status_id = requiredTargetStatusId,
         };
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test://combat_effect_heal_floor_target_limiter"
         );

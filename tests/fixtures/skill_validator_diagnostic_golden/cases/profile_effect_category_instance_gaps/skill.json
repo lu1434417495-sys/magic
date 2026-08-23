@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_effect_category_instance_gaps",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_effect_category_instance_gaps",
+      "display_name": "Effect category instance diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "dragon_breath",
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_effect_category_instance_gaps",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "poison",
+            "dice_count": 1,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "dispel_magic",
+            "payload": {}
+          }
+        ],
+        "delivery_categories": [
+          "nonmagical_missile"
+        ]
+      },
+      "icon_id": "diagnostic_effect_category_instance_gaps",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -82,17 +82,10 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
         if (!fixture.ItemDefs.ContainsKey(ButcherItemId))
             return;
 
-        ItemDef rawButcher = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_butcher.tres"
-        );
+        ItemDefinition rawButcher = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_butcher_094");
         _test.True(rawButcher != null, "屠夫原始资源应能加载。");
         if (rawButcher != null)
         {
-            _test.Eq(
-                rawButcher.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "屠夫原始资源应声明继承 greataxe 模板。"
-            );
         }
 
         BattleUnitState equipped = fixture.BuildButcherUnit("projection");

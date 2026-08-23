@@ -33,7 +33,7 @@ public sealed class CombatSequentialLineHitDefinition
     public int GetFollowUpAttackPenalty(int skillLevel) =>
         Mathf.Max(ReadCurveValue(FollowUpAttackPenaltyCurve, skillLevel, 0), 0);
 
-    internal static CombatSequentialLineHitDefinition FromResource(
+    internal static CombatSequentialLineHitDefinition FromDiagnosticFixture(
         CombatSequentialLineHitDef source
     ) =>
         source == null

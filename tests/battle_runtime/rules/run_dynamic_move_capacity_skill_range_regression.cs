@@ -132,7 +132,7 @@ public partial class run_dynamic_move_capacity_skill_range_regression : Lifecycl
                 display_name = profile.skill_id.ToString(),
                 combat_profile = profile,
             };
-            return SkillDefinition.FromResource(resource);
+            return SkillDefinition.FromDiagnosticFixture(resource);
         }
     }
 

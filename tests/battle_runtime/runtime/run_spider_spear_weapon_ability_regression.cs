@@ -66,20 +66,13 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
         if (!fixture.ItemDefs.ContainsKey(SpiderItemId))
             return;
 
-        ItemDef rawSpider = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_spear_spider_spear.tres"
-        );
+        ItemDefinition rawSpider = TestItemDefinitionLookup.GetProductionItem("weapon_unique_polearm_spider_spear_136");
         _test.True(rawSpider != null, "蛛矛原始资源应能加载。");
         if (rawSpider != null)
         {
-            _test.Eq(
-                rawSpider.base_item_id,
-                new StringName("weapon_type_spear_base"),
-                "蛛矛应继承 spear 模板。"
-            );
-            _test.Eq(rawSpider.display_name, "蛛矛", "蛛矛显示名应匹配设计。");
-            _test.Eq(rawSpider.base_price, 35000, "蛛矛价格应为 35000。");
-            _test.True(rawSpider.trait_ids.Contains(WebBindingTraitId), "物品应声明蛛丝束缚 trait。");
+            _test.Eq(rawSpider.DisplayName, "蛛矛", "蛛矛显示名应匹配设计。");
+            _test.Eq(rawSpider.BasePrice, 35000, "蛛矛价格应为 35000。");
+            _test.True(rawSpider.TraitIds.Contains(WebBindingTraitId), "物品应声明蛛丝束缚 trait。");
         }
 
         BattleUnitState equipped = fixture.BuildSpiderUnit("projection");

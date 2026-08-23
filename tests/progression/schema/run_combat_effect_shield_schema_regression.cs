@@ -19,7 +19,7 @@ public partial class run_combat_effect_shield_schema_regression : LifecycleTestS
     private void TestTypedShieldFieldsProject()
     {
         using CombatEffectDef resource = BuildValidShield();
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test.shield.typed_projection"
         );
@@ -30,10 +30,7 @@ public partial class run_combat_effect_shield_schema_regression : LifecycleTestS
 
     private void TestShieldFieldValidation()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef valid = BuildValidShield();
         AssertErrors(registry, valid);
 

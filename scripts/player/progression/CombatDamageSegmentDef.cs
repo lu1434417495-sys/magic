@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public sealed partial class CombatDamageSegmentDef : Resource
+public sealed partial class CombatDamageSegmentDef : RefCounted
 {
     [Export]
     public StringName damage_tag { get; set; } = "";

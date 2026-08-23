@@ -14,7 +14,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
     private void Run()
     {
         TestProjectsTypedEquipmentDurabilitySlotWeights();
-        TestLegacyParamsSlotWeightMapFailsAtImportBoundary();
+        TestLegacyParamsSlotWeightMapIsNotProjected();
         TestSkillContentValidationUsesTypedSlotWeights();
 
         RequestTestExit(_test.Finish("Combat effect equipment durability schema regression"));
@@ -30,7 +30,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
                 new() { slot_id = "off_hand", weight = 20 },
             };
 
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test.combat_effect_durability.typed_slot_weights"
         );
@@ -62,7 +62,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
         );
     }
 
-    private void TestLegacyParamsSlotWeightMapFailsAtImportBoundary()
+    private void TestLegacyParamsSlotWeightMapIsNotProjected()
     {
         CombatEffectDef resource = BuildDurabilityEffectResource();
         resource.@params["slot_weight_map"] = new GDictionary
@@ -70,30 +70,27 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
             [new StringName("main_hand")] = 99,
         };
 
-        string rejection = "";
+        bool rejected = false;
         try
         {
-            CombatEffectDefinition.FromResource(
+            CombatEffectDefinition.FromDiagnosticFixture(
                 resource,
                 "test.combat_effect_durability.legacy_param"
             );
         }
         catch (System.IO.InvalidDataException exception)
         {
-            rejection = exception.Message;
+            rejected = exception.Message.Contains("slot_weight_map");
         }
         _test.True(
-            rejection.Contains("/payload/slot_weight_map"),
-            "legacy params.slot_weight_map should fail at the canonical import boundary."
+            rejected,
+            "strict Resource import should reject legacy params.slot_weight_map before projection."
         );
     }
 
     private void TestSkillContentValidationUsesTypedSlotWeights()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef valid = BuildDurabilityEffectResource();
         valid.equipment_durability_slot_weights =
             new Godot.Collections.Array<CombatEffectSlotWeightDef>

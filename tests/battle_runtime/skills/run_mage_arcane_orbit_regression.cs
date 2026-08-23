@@ -402,7 +402,7 @@ public partial class run_mage_arcane_orbit_regression : LifecycleTestSceneTree
             },
             "mage_arcane_orbit:three_w_effect"
         );
-        CombatEffectDefinition effect = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition effect = CombatEffectDefinition.FromDiagnosticFixture(
             rawEffect,
             "test.arcane_orbit.three_w_effect"
         );

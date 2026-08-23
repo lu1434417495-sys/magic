@@ -59,15 +59,6 @@ public sealed class WeaponDamageDiceDefinition
         return errors;
     }
 
-    internal static WeaponDamageDiceDefinition FromResource(WeaponDamageDiceDef source) =>
-        source == null
-            ? null
-            : new WeaponDamageDiceDefinition(
-                source.dice_count,
-                source.dice_sides,
-                source.flat_bonus
-            );
-
     internal static WeaponDamageDiceDefinition CopyOf(WeaponDamageDiceDefinition source) =>
         source == null
             ? null

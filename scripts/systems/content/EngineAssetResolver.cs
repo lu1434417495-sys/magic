@@ -24,6 +24,25 @@ internal sealed class EngineAssetResolver : IDisposable
     internal bool HasCatalogRoot => _catalogRoot != null;
     internal bool HasPublishedCatalog => _catalogPublished;
 
+    internal IReadOnlySet<StringName> GetPublishedContentAssetIds<T>()
+        where T : Resource
+    {
+        ThrowIfDisposed();
+        if (!_catalogPublished)
+        {
+            throw new InvalidOperationException(
+                "Engine asset catalog has not been published."
+            );
+        }
+        var result = new HashSet<StringName>();
+        foreach ((StringName assetId, Resource asset) in _catalogAssets)
+        {
+            if (asset is T)
+                result.Add(assetId);
+        }
+        return result;
+    }
+
     internal EngineAssetCatalogDef LoadAndPublishCatalogBorrowed(string catalogPath)
     {
         ThrowIfLoadUnavailable();
@@ -62,7 +81,7 @@ internal sealed class EngineAssetResolver : IDisposable
             this,
             canonicalPath
         );
-        LifecycleAuditRegistry.Shared.RegisterProcessContentRoot(
+        LifecycleAuditRegistry.Shared.RegisterEngineAssetRoot(
             CatalogAuditPathPrefix + canonicalPath,
             loaded.GetType(),
             loaded
@@ -118,22 +137,6 @@ internal sealed class EngineAssetResolver : IDisposable
         return ResolveCanonicalPathBorrowed<T>(canonicalPath);
     }
 
-    // Delete this seam as the item, skill, and enemy domains migrate their authored
-    // presentation paths to engine-asset catalog IDs. New code-owned callers must use
-    // ResolveCodeAssetBorrowed instead.
-    internal T ResolveAuthoredContentPathBorrowedDuringMigration<T>(
-        string authoredContentPath
-    )
-        where T : Resource
-    {
-        ThrowIfLoadUnavailable();
-        string canonicalPath = CanonicalizeResPath(
-            authoredContentPath,
-            nameof(authoredContentPath)
-        );
-        return ResolveCanonicalPathBorrowed<T>(canonicalPath);
-    }
-
     private T ResolveCanonicalPathBorrowed<T>(string canonicalPath)
         where T : Resource
     {
@@ -162,7 +165,7 @@ internal sealed class EngineAssetResolver : IDisposable
             this,
             canonicalPath
         );
-        LifecycleAuditRegistry.Shared.RegisterProcessContentRoot(
+        LifecycleAuditRegistry.Shared.RegisterEngineAssetRoot(
             AuditPathPrefix + canonicalPath,
             loaded.GetType(),
             loaded
@@ -189,7 +192,7 @@ internal sealed class EngineAssetResolver : IDisposable
         _catalogPublished = false;
         if (_catalogRoot != null)
         {
-            LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(
+            LifecycleAuditRegistry.Shared.ReleaseEngineAssetRoot(
                 CatalogAuditPathPrefix + _catalogCanonicalPath
             );
             _catalogRoot = null;
@@ -198,7 +201,7 @@ internal sealed class EngineAssetResolver : IDisposable
 
         foreach (string canonicalPath in _assets.Keys)
         {
-            LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(
+            LifecycleAuditRegistry.Shared.ReleaseEngineAssetRoot(
                 AuditPathPrefix + canonicalPath
             );
         }
@@ -209,7 +212,6 @@ internal sealed class EngineAssetResolver : IDisposable
     {
         var assetsById = new Dictionary<StringName, Resource>();
         var idsByInstance = new Dictionary<ulong, StringName>();
-
         RegisterTextureEntries(
             catalog.texture_assets,
             assetsById,
@@ -377,6 +379,7 @@ internal sealed class EngineAssetResolver : IDisposable
 
         assetsById.Add(assetId, asset);
         idsByInstance.Add(instanceId, assetId);
+
     }
 
     private static bool IsEmptyAssetId(StringName assetId) =>

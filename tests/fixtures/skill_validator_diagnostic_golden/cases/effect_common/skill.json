@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_common",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_effect_common",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_effect_common",
+        "effect_defs": [
+          {
+            "effect_type": "position_swap",
+            "payload": {}
+          },
+          {
+            "effect_type": "position_swap",
+            "payload": {}
+          },
+          {
+            "effect_type": "position_swap",
+            "min_skill_level": -1,
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 1,
+            "payload": {},
+            "heal_to_hp_percent_floor": 101,
+            "heal_missing_hp_percent": -1,
+            "dice_sides": 1,
+            "dice_sides_base": 1,
+            "dice_sides_per_constitution_mod": -1,
+            "dice_sides_per_willpower_mod": -1,
+            "shield_family": "family",
+            "shield_roll_per_target": true,
+            "chain_base_hop_range": 1,
+            "fixed_attack_count": 1,
+            "follow_up_damage_multiplier_percent": 0,
+            "follow_up_attack_roll_bonus_curve": [
+              -1
+            ],
+            "effect_categories": [
+              "",
+              "projectile",
+              "ranged_projectile"
+            ],
+            "max_affected_targets": -1,
+            "required_target_creature_type_tag": "diagnostic_value",
+            "forced_move_max_target_body_size": 1,
+            "source_retreat_distance": 1,
+            "tick_interval_tu": 1,
+            "save_dc": -1,
+            "save_dc_bonus": 1,
+            "save_dc_source_ability": "strength",
+            "save_ability": "strength",
+            "save_failure_status_id": "failed",
+            "save_partial_on_success": true,
+            "skip_turn": true,
+            "effect_tags": [
+              ""
+            ]
+          }
+        ]
+      },
+      "icon_id": "diagnostic_effect_common",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

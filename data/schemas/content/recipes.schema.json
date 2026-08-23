@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:recipes:v1",
+  "title": "Magic recipe JSON authoring schema",
+  "description": "Expanded recipe entries with stable item-ID dependencies.",
+  "$ref": "#/$defs/RecipeJsonDocumentDto",
+  "$defs": {
+    "RecipeIngredientJsonDto": {
+      "description": "One recipe input item and its positive quantity.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "quantity"
+      ]
+    },
+    "RecipeJsonDocumentDto": {
+      "description": "Recipe authoring document with file-local templates.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "recipes"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeJsonDto__authoring_recipe_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/RecipeJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "RecipeJsonDto": {
+      "description": "Strict expanded recipe entry. All item references are stable IDs.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "failure_reason": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeIngredientJsonDto"
+          }
+        },
+        "output_item_id": {
+          "type": "string"
+        },
+        "output_quantity": {
+          "type": "integer"
+        },
+        "recipe_id": {
+          "type": "string"
+        },
+        "required_facility_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "description",
+        "display_name",
+        "failure_reason",
+        "inputs",
+        "output_item_id",
+        "output_quantity",
+        "recipe_id",
+        "required_facility_tags"
+      ]
+    },
+    "RecipeJsonDto__authoring_recipe_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded recipe entry. All item references are stable IDs.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RecipeJsonDto"
+        },
+        {
+          "$ref": "#/$defs/RecipeJsonDto__templated_recipe_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "RecipeJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded recipe entry. All item references are stable IDs.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "failure_reason": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeIngredientJsonDto"
+          }
+        },
+        "output_item_id": {
+          "type": "string"
+        },
+        "output_quantity": {
+          "type": "integer"
+        },
+        "recipe_id": {
+          "type": "string"
+        },
+        "required_facility_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "RecipeJsonDto__templated_recipe_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded recipe entry. All item references are stable IDs.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "failure_reason": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeIngredientJsonDto"
+          }
+        },
+        "output_item_id": {
+          "type": "string"
+        },
+        "output_quantity": {
+          "type": "integer"
+        },
+        "recipe_id": {
+          "type": "string"
+        },
+        "required_facility_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "recipe_id",
+        "template"
+      ]
+    }
+  }
+}

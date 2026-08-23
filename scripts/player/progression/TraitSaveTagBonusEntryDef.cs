@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class TraitSaveTagBonusEntryDef : Resource
+public partial class TraitSaveTagBonusEntryDef : RefCounted
 {
     [Export]
     public StringName save_tag { get; set; } = "";

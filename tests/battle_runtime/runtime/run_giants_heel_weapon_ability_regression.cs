@@ -86,20 +86,13 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
         if (!fixture.ItemDefs.ContainsKey(GiantsHeelItemId))
             return;
 
-        ItemDef rawGiantsHeel = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greatsword_giants_heel.tres"
-        );
+        ItemDefinition rawGiantsHeel = TestItemDefinitionLookup.GetProductionItem("weapon_unique_greatsword_giants_heel_024");
         _test.True(rawGiantsHeel != null, "巨人之踵原始资源应能加载。");
         if (rawGiantsHeel != null)
         {
-            _test.Eq(
-                rawGiantsHeel.base_item_id,
-                new StringName("weapon_type_greatsword_base"),
-                "巨人之踵应继承 greatsword 模板。"
-            );
             _test.True(
-                rawGiantsHeel.equip_requirement is EquipmentRequirement requirement
-                    && requirement.min_body_size == 3,
+                rawGiantsHeel.EquipRequirement is EquipmentRequirementDefinition requirement
+                    && requirement.MinBodySize == 3,
                 "巨人之踵应通过 EquipmentRequirement.min_body_size=3 限制装备。"
             );
         }

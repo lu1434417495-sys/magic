@@ -49,7 +49,11 @@ public partial class run_skill_book_item_helpers_regression : LifecycleTestScene
         _test.Eq(generatedBook.ItemId, aimedShotItemId, "技能书 item_id 应使用 canonical id。");
         _test.True(!string.IsNullOrWhiteSpace(generatedBook.DisplayName), "技能书应生成非空显示名。");
         _test.True(!string.IsNullOrWhiteSpace(generatedBook.Description), "技能书应生成非空说明。");
-        _test.Eq(generatedBook.Icon, "res://icon.svg", "技能书应使用默认图标。");
+        _test.Eq(
+            generatedBook.IconAssetId,
+            EngineAssetIds.DefaultItemIcon,
+            "技能书应使用默认图标 asset id。"
+        );
         _test.Eq(generatedBook.MaxStack, 20, "技能书默认最大堆叠应为 20。");
         _test.Eq(generatedBook.CategoryKind, ItemCategoryKind.SkillBook, "技能书分类应为 skill_book。");
         _test.Eq(generatedBook.GrantedSkillId, new StringName("archer_aimed_shot"), "技能书应授予对应技能。");
@@ -139,7 +143,7 @@ public partial class run_skill_book_item_helpers_regression : LifecycleTestScene
         string grantedSkillId
     )
     {
-        ItemDef raw = new()
+        TestItemDefinitionBuilder raw = new()
         {
             item_id = new StringName(itemId),
             CategoryKind = category,

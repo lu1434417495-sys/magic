@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_ranged_reaction_negative_bonus",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_ranged_reaction_negative_bonus",
+      "display_name": "Ranged reaction negative bonus diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_ranged_reaction_negative_bonus",
+        "ranged_weapon_reaction_profile": {
+          "attack_roll_bonus_by_skill_level": [
+            -1,
+            -1
+          ]
+        }
+      },
+      "icon_id": "diagnostic_ranged_reaction_negative_bonus",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

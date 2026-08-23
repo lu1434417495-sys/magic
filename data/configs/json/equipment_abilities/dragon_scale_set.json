@@ -1,0 +1,795 @@
+{
+  "schema": 1,
+  "domain": "equipment_abilities",
+  "family": "equipment_ability.gear_set.dragon_scale",
+  "templates": {},
+  "entries": [
+    {
+      "pack_id": "equipment_ability.gear_set.dragon_scale",
+      "schema_version": 1,
+      "load_order": 254,
+      "dependencies": [],
+      "bindings": [
+        {
+          "binding_id": "binding.armor.dragon_scale.head.dragon_slayer_focus",
+          "trait_id": "armor.dragon_scale.head.dragon_slayer_focus",
+          "override_mode": "add",
+          "replaces_binding_id": "",
+          "allowed_source_kinds": [
+            "equipment_fixed"
+          ],
+          "required_trait_categories": [
+            "equipment_ability"
+          ],
+          "required_effective_trait_ids": [],
+          "required_item_tags": [],
+          "supported_equipment_type_ids": [],
+          "activation_status_id": "",
+          "state_schemas": [],
+          "reactions": [
+            {
+              "reaction_id": "reaction.dragon_scale.head.dragon_slayer_focus.before_hit",
+              "trigger": "on_hit",
+              "timing": "before_hit",
+              "priority": 100,
+              "once_scope": "",
+              "requires_player_confirmation": false,
+              "condition_group": {
+                "mode": "all",
+                "negate": false,
+                "conditions": [
+                  {
+                    "condition_id": "condition.dragon_scale.target_dragon",
+                    "kind": "compare_fact",
+                    "payload": {
+                      "left": {
+                        "query_kind": "fact",
+                        "fact_id": "creature_type_tags",
+                        "subject": "target",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name_set",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": ""
+                      },
+                      "compare": "contains",
+                      "right": {
+                        "query_kind": "literal",
+                        "fact_id": "",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": "dragon"
+                      }
+                    }
+                  }
+                ],
+                "groups": []
+              },
+              "roll_gate": null,
+              "outcome_table": null,
+              "projected_effect_categories": [],
+              "actions": [
+                {
+                  "action_id": "action.dragon_scale.head.dragon_slayer_focus.attack_bonus",
+                  "kind": "attack_roll_bonus",
+                  "payload": {
+                    "target_selector": "attack_target",
+                    "bonus": 2,
+                    "attribute_modifier_id": "",
+                    "stack_mode": "max",
+                    "label": "\u9F99\u9CDE\u5934\u76D4\u5C60\u9F99\u4E13\u6CE8",
+                    "require_weapon_damage": false
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                }
+              ]
+            }
+          ],
+          "fatal_intercepts": [],
+          "mitigation_auras": [],
+          "movement_trails": [],
+          "granted_actions": [],
+          "temporal_progress_modifiers": [],
+          "cognition_ceiling_modifiers": [],
+          "weapon_profile_overlays": [],
+          "world_effects": []
+        },
+        {
+          "binding_id": "binding.armor.dragon_scale.hands.dragon_rend",
+          "trait_id": "armor.dragon_scale.hands.dragon_rend",
+          "override_mode": "add",
+          "replaces_binding_id": "",
+          "allowed_source_kinds": [
+            "equipment_fixed"
+          ],
+          "required_trait_categories": [
+            "equipment_ability"
+          ],
+          "required_effective_trait_ids": [],
+          "required_item_tags": [],
+          "supported_equipment_type_ids": [],
+          "activation_status_id": "",
+          "state_schemas": [],
+          "reactions": [
+            {
+              "reaction_id": "reaction.dragon_scale.hands.dragon_rend.before_damage",
+              "trigger": "on_damage_roll",
+              "timing": "before_damage",
+              "priority": 100,
+              "once_scope": "",
+              "requires_player_confirmation": false,
+              "condition_group": {
+                "mode": "all",
+                "negate": false,
+                "conditions": [
+                  {
+                    "condition_id": "condition.dragon_scale.target_dragon",
+                    "kind": "compare_fact",
+                    "payload": {
+                      "left": {
+                        "query_kind": "fact",
+                        "fact_id": "creature_type_tags",
+                        "subject": "target",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name_set",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": ""
+                      },
+                      "compare": "contains",
+                      "right": {
+                        "query_kind": "literal",
+                        "fact_id": "",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": "dragon"
+                      }
+                    }
+                  },
+                  {
+                    "condition_id": "condition.dragon_scale.hands.source_weapon_melee",
+                    "kind": "compare_fact",
+                    "payload": {
+                      "left": {
+                        "query_kind": "fact",
+                        "fact_id": "weapon_range_type",
+                        "subject": "source",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": ""
+                      },
+                      "compare": "eq",
+                      "right": {
+                        "query_kind": "literal",
+                        "fact_id": "",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": "melee"
+                      }
+                    }
+                  }
+                ],
+                "groups": []
+              },
+              "roll_gate": null,
+              "outcome_table": null,
+              "projected_effect_categories": [],
+              "actions": [
+                {
+                  "action_id": "action.dragon_scale.hands.dragon_rend.add_damage",
+                  "kind": "add_damage_dice",
+                  "payload": {
+                    "target_selector": "attack_target",
+                    "dice": {
+                      "terms": [
+                        {
+                          "dice_count": 1,
+                          "dice_sides": 4,
+                          "count_bonus_fact": null,
+                          "count_bonus_multiplier": 0,
+                          "max_dice_count": 0
+                        }
+                      ],
+                      "flat_bonus": 0,
+                      "preview_policy": ""
+                    },
+                    "damage_type": "",
+                    "damage_type_mode": "inherit_primary",
+                    "require_weapon_damage": true,
+                    "subtract": false,
+                    "replacement_group_id": "",
+                    "replacement_priority": 0,
+                    "damage_tags": [],
+                    "mitigation_bypass_damage_tags": [],
+                    "mitigation_bypass_tiers": []
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                }
+              ]
+            }
+          ],
+          "fatal_intercepts": [],
+          "mitigation_auras": [],
+          "movement_trails": [],
+          "granted_actions": [],
+          "temporal_progress_modifiers": [],
+          "cognition_ceiling_modifiers": [],
+          "weapon_profile_overlays": [],
+          "world_effects": []
+        },
+        {
+          "binding_id": "binding.gear_set.dragon_scale.4.dragonslayer_oath",
+          "trait_id": "gear_set.dragon_scale.4.dragonslayer_oath",
+          "override_mode": "add",
+          "replaces_binding_id": "",
+          "allowed_source_kinds": [
+            "gear_set_threshold"
+          ],
+          "required_trait_categories": [
+            "equipment_ability"
+          ],
+          "required_effective_trait_ids": [],
+          "required_item_tags": [],
+          "supported_equipment_type_ids": [],
+          "activation_status_id": "",
+          "state_schemas": [],
+          "reactions": [
+            {
+              "reaction_id": "reaction.dragon_scale.oath.attack_bonus.before_hit",
+              "trigger": "on_hit",
+              "timing": "before_hit",
+              "priority": 100,
+              "once_scope": "",
+              "requires_player_confirmation": false,
+              "condition_group": {
+                "mode": "all",
+                "negate": false,
+                "conditions": [
+                  {
+                    "condition_id": "condition.dragon_scale.target_dragon",
+                    "kind": "compare_fact",
+                    "payload": {
+                      "left": {
+                        "query_kind": "fact",
+                        "fact_id": "creature_type_tags",
+                        "subject": "target",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name_set",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": ""
+                      },
+                      "compare": "contains",
+                      "right": {
+                        "query_kind": "literal",
+                        "fact_id": "",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": "dragon"
+                      }
+                    }
+                  }
+                ],
+                "groups": []
+              },
+              "roll_gate": null,
+              "outcome_table": null,
+              "projected_effect_categories": [],
+              "actions": [
+                {
+                  "action_id": "action.dragon_scale.oath.attack_bonus",
+                  "kind": "attack_roll_bonus",
+                  "payload": {
+                    "target_selector": "attack_target",
+                    "bonus": 2,
+                    "attribute_modifier_id": "",
+                    "stack_mode": "max",
+                    "label": "\u5C60\u9F99\u8005\u4E4B\u8A93",
+                    "require_weapon_damage": false
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                }
+              ]
+            },
+            {
+              "reaction_id": "reaction.dragon_scale.oath.per_effect_dice.before_damage",
+              "trigger": "on_damage_roll",
+              "timing": "before_damage",
+              "priority": 100,
+              "once_scope": "",
+              "requires_player_confirmation": false,
+              "condition_group": {
+                "mode": "all",
+                "negate": false,
+                "conditions": [
+                  {
+                    "condition_id": "condition.dragon_scale.target_dragon",
+                    "kind": "compare_fact",
+                    "payload": {
+                      "left": {
+                        "query_kind": "fact",
+                        "fact_id": "creature_type_tags",
+                        "subject": "target",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name_set",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": ""
+                      },
+                      "compare": "contains",
+                      "right": {
+                        "query_kind": "literal",
+                        "fact_id": "",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": "dragon"
+                      }
+                    }
+                  }
+                ],
+                "groups": []
+              },
+              "roll_gate": null,
+              "outcome_table": null,
+              "projected_effect_categories": [],
+              "actions": [
+                {
+                  "action_id": "action.dragon_scale.oath.per_effect_dice",
+                  "kind": "add_damage_dice",
+                  "payload": {
+                    "target_selector": "attack_target",
+                    "dice": {
+                      "terms": [
+                        {
+                          "dice_count": 1,
+                          "dice_sides": 4,
+                          "count_bonus_fact": null,
+                          "count_bonus_multiplier": 0,
+                          "max_dice_count": 0
+                        }
+                      ],
+                      "flat_bonus": 0,
+                      "preview_policy": ""
+                    },
+                    "damage_type": "",
+                    "damage_type_mode": "inherit_primary",
+                    "require_weapon_damage": false,
+                    "subtract": false,
+                    "replacement_group_id": "",
+                    "replacement_priority": 0,
+                    "damage_tags": [],
+                    "mitigation_bypass_damage_tags": [],
+                    "mitigation_bypass_tiers": []
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                }
+              ]
+            },
+            {
+              "reaction_id": "reaction.dragon_scale.oath.breath_mitigation_tier.before_damage",
+              "trigger": "on_damage_roll",
+              "timing": "before_damage",
+              "priority": 100,
+              "once_scope": "",
+              "requires_player_confirmation": false,
+              "condition_group": {
+                "mode": "all",
+                "negate": false,
+                "conditions": [
+                  {
+                    "condition_id": "condition.dragon_scale.target_dragon",
+                    "kind": "compare_fact",
+                    "payload": {
+                      "left": {
+                        "query_kind": "fact",
+                        "fact_id": "creature_type_tags",
+                        "subject": "target",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name_set",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": ""
+                      },
+                      "compare": "contains",
+                      "right": {
+                        "query_kind": "literal",
+                        "fact_id": "",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": "dragon"
+                      }
+                    }
+                  },
+                  {
+                    "condition_id": "condition.dragon_scale.oath.breath_save_tag",
+                    "kind": "compare_fact",
+                    "payload": {
+                      "left": {
+                        "query_kind": "fact",
+                        "fact_id": "save_tag",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": ""
+                      },
+                      "compare": "eq",
+                      "right": {
+                        "query_kind": "literal",
+                        "fact_id": "",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": "dragon_breath"
+                      }
+                    }
+                  }
+                ],
+                "groups": []
+              },
+              "roll_gate": null,
+              "outcome_table": null,
+              "projected_effect_categories": [],
+              "actions": [
+                {
+                  "action_id": "action.dragon_scale.oath.breath_mitigation_tier",
+                  "kind": "grant_mitigation_tier",
+                  "payload": {
+                    "target_selector": "holder",
+                    "mitigation_tier": "half",
+                    "damage_tags": [
+                      "fire",
+                      "freeze",
+                      "poison",
+                      "acid",
+                      "lightning"
+                    ],
+                    "label": "\u9F99\u9CDE\u9884\u5224\u5410\u606F"
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                }
+              ]
+            },
+            {
+              "reaction_id": "reaction.dragon_scale.boil.attack_bonus.before_hit",
+              "trigger": "on_hit",
+              "timing": "before_hit",
+              "priority": 110,
+              "once_scope": "",
+              "requires_player_confirmation": false,
+              "condition_group": {
+                "mode": "all",
+                "negate": false,
+                "conditions": [
+                  {
+                    "condition_id": "condition.dragon_scale.target_dragon",
+                    "kind": "compare_fact",
+                    "payload": {
+                      "left": {
+                        "query_kind": "fact",
+                        "fact_id": "creature_type_tags",
+                        "subject": "target",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name_set",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": ""
+                      },
+                      "compare": "contains",
+                      "right": {
+                        "query_kind": "literal",
+                        "fact_id": "",
+                        "subject": "",
+                        "binding_id": "",
+                        "state_key": "",
+                        "status_id": "",
+                        "require_source_unit_match": false,
+                        "attribute_id": "",
+                        "aggregation": "",
+                        "value_kind": "string_name",
+                        "bool_literal": false,
+                        "int_literal": 0,
+                        "float_literal": 0,
+                        "string_name_literal": "dragon"
+                      }
+                    }
+                  },
+                  {
+                    "condition_id": "condition.dragon_scale.boil.has_status",
+                    "kind": "has_status",
+                    "payload": {
+                      "subject": "source",
+                      "status_id": "dragon_scale_dragon_blood_boil"
+                    }
+                  }
+                ],
+                "groups": []
+              },
+              "roll_gate": null,
+              "outcome_table": null,
+              "projected_effect_categories": [],
+              "actions": [
+                {
+                  "action_id": "action.dragon_scale.boil.attack_bonus",
+                  "kind": "attack_roll_bonus",
+                  "payload": {
+                    "target_selector": "attack_target",
+                    "bonus": 3,
+                    "attribute_modifier_id": "",
+                    "stack_mode": "max",
+                    "label": "\u9F99\u8840\u6CB8\u817E",
+                    "require_weapon_damage": false
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                }
+              ]
+            },
+            {
+              "reaction_id": "reaction.dragon_scale.boil.apply_status.after_skill",
+              "trigger": "on_granted_skill_used",
+              "timing": "after_skill",
+              "priority": 100,
+              "once_scope": "",
+              "requires_player_confirmation": false,
+              "condition_group": null,
+              "roll_gate": null,
+              "outcome_table": null,
+              "projected_effect_categories": [],
+              "actions": [
+                {
+                  "action_id": "action.dragon_scale.boil.apply_status",
+                  "kind": "apply_status",
+                  "payload": {
+                    "target_selector": "source",
+                    "status_id": "dragon_scale_dragon_blood_boil",
+                    "duration_turns": 0,
+                    "duration_tu": 180,
+                    "stack_delta": 3,
+                    "stack_behavior": "add",
+                    "stack_limit": 3,
+                    "display_label": "\u9F99\u8840\u6CB8\u817E",
+                    "attack_roll_penalty": 0,
+                    "armor_class_bonus_per_stack": 0,
+                    "source_bound_attack_roll_penalty": 0,
+                    "source_bound_attack_roll_penalty_min_stacks": 1,
+                    "source_bound_incoming_attack_roll_bonus_per_stack": 0,
+                    "source_bound_incoming_attack_roll_bonus_min_stacks": 1,
+                    "override_heal_multiplier_percent": false,
+                    "heal_multiplier_percent": 100,
+                    "move_point_capacity_delta": 0,
+                    "forced_move_immune": false,
+                    "damage_tag": "",
+                    "damage_tags": [],
+                    "mitigation_tier": "",
+                    "counts_as_debuff_override": true,
+                    "counts_as_debuff": false,
+                    "undispellable": true,
+                    "dispellable_magic": false,
+                    "dispellable_harmful_magic": false,
+                    "dispellable_beneficial_magic": false,
+                    "lock_counterattack": false,
+                    "lock_guard": false,
+                    "lock_dodge_bonus": false,
+                    "tick_interval_tu": 0,
+                    "timeline_damage_dice_count": 0,
+                    "timeline_damage_dice_sides": 0,
+                    "timeline_damage_flat_bonus": 0,
+                    "save_dc": 0,
+                    "save_ability": "",
+                    "save_tag": "",
+                    "apply_on_save_failure": false,
+                    "remove_on_source_deactivated": true
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                }
+              ]
+            },
+            {
+              "reaction_id": "reaction.dragon_scale.boil.consume_heal.after_hit",
+              "trigger": "on_attack_hit",
+              "timing": "after_hit",
+              "priority": 100,
+              "once_scope": "",
+              "requires_player_confirmation": false,
+              "condition_group": {
+                "mode": "all",
+                "negate": false,
+                "conditions": [
+                  {
+                    "condition_id": "condition.dragon_scale.boil.has_status",
+                    "kind": "has_status",
+                    "payload": {
+                      "subject": "source",
+                      "status_id": "dragon_scale_dragon_blood_boil"
+                    }
+                  }
+                ],
+                "groups": []
+              },
+              "roll_gate": null,
+              "outcome_table": null,
+              "projected_effect_categories": [],
+              "actions": [
+                {
+                  "action_id": "action.dragon_scale.boil.consume_stack",
+                  "kind": "consume_status_stacks",
+                  "payload": {
+                    "target_selector": "source",
+                    "status_id": "dragon_scale_dragon_blood_boil",
+                    "count": 1,
+                    "require_source_unit_match": false,
+                    "selection_mode": ""
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                },
+                {
+                  "action_id": "action.dragon_scale.boil.heal",
+                  "kind": "heal",
+                  "payload": {
+                    "target_selector": "source",
+                    "dice": {
+                      "terms": [
+                        {
+                          "dice_count": 1,
+                          "dice_sides": 6,
+                          "count_bonus_fact": null,
+                          "count_bonus_multiplier": 0,
+                          "max_dice_count": 0
+                        }
+                      ],
+                      "flat_bonus": 0,
+                      "preview_policy": ""
+                    }
+                  },
+                  "condition_group": null,
+                  "roll_gate": null
+                }
+              ]
+            }
+          ],
+          "fatal_intercepts": [],
+          "mitigation_auras": [],
+          "movement_trails": [],
+          "granted_actions": [
+            {
+              "granted_action_id": "grant.dragon_scale.oath.dragon_blood_boil",
+              "granted_kind": "skill",
+              "skill_id": "equipment_dragon_scale_dragon_blood_boil",
+              "skill_level": 1,
+              "usage_period_kind": "per_world_day",
+              "max_uses_per_period": 1,
+              "display_category": "equipment",
+              "display_priority": 200,
+              "availability_conditions": null
+            }
+          ],
+          "temporal_progress_modifiers": [],
+          "cognition_ceiling_modifiers": [],
+          "weapon_profile_overlays": [],
+          "world_effects": []
+        }
+      ]
+    }
+  ]
+}

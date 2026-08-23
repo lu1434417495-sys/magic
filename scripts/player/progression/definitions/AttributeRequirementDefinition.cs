@@ -17,7 +17,7 @@ public sealed class AttributeRequirementDefinition
     public bool MatchesValue(int value) =>
         ProgressionDataUtils.MatchesValueRange(value, MinValue, MaxValue);
 
-    internal static AttributeRequirementDefinition FromResource(
+    internal static AttributeRequirementDefinition FromDiagnosticFixture(
         AttributeRequirement source,
         string path
     )

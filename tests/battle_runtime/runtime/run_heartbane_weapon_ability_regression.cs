@@ -105,17 +105,10 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         if (!fixture.ItemDefs.ContainsKey(HeartbaneItemId))
             return;
 
-        ItemDef rawHeartbane = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_rapier_heartbane.tres"
-        );
+        ItemDefinition rawHeartbane = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_heartbane_004");
         _test.True(rawHeartbane != null, "噬心者原始资源应能加载。");
         if (rawHeartbane != null)
         {
-            _test.Eq(
-                rawHeartbane.base_item_id,
-                new StringName("weapon_type_rapier_base"),
-                "噬心者原始资源应声明继承 rapier 模板。"
-            );
         }
 
         // 机制文本落在 trait（心碎之刺）里，物品说明只保留风味文字。

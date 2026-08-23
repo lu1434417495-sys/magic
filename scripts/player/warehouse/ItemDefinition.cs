@@ -4,6 +4,30 @@ using System.Collections.ObjectModel;
 using System.IO;
 using Godot;
 
+internal enum ItemCategoryKind
+{
+    Unknown = 0,
+    Misc,
+    Equipment,
+    SkillBook,
+}
+
+internal enum ItemEquipmentTypeKind
+{
+    Unknown = 0,
+    Weapon,
+    Armor,
+    Accessory,
+}
+
+internal enum WeaponPhysicalDamageTagKind
+{
+    Unknown = 0,
+    Slash,
+    Pierce,
+    Blunt,
+}
+
 public sealed class ItemDefinition
 {
     private static readonly StringName ItemCategoryMisc = "misc";
@@ -17,10 +41,9 @@ public sealed class ItemDefinition
     private static readonly StringName DamageTagPhysicalBlunt = "physical_blunt";
     public ItemDefinition(
         StringName itemId,
-        StringName baseItemId,
         string displayName,
         string description,
-        string icon,
+        string iconAssetId,
         bool isStackable,
         int basePrice,
         int buyPrice,
@@ -44,10 +67,9 @@ public sealed class ItemDefinition
     )
     {
         ItemId = itemId;
-        BaseItemId = baseItemId;
         DisplayName = displayName ?? throw new ArgumentNullException(nameof(displayName));
         Description = description ?? throw new ArgumentNullException(nameof(description));
-        Icon = icon ?? throw new ArgumentNullException(nameof(icon));
+        IconAssetId = iconAssetId ?? throw new ArgumentNullException(nameof(iconAssetId));
         IsStackable = isStackable;
         BasePrice = basePrice;
         BuyPrice = buyPrice;
@@ -71,10 +93,9 @@ public sealed class ItemDefinition
     }
 
     public StringName ItemId { get; }
-    public StringName BaseItemId { get; }
     public string DisplayName { get; }
     public string Description { get; }
-    public string Icon { get; }
+    public string IconAssetId { get; }
     public bool IsStackable { get; }
     public int BasePrice { get; }
     public int BuyPrice { get; }
@@ -82,15 +103,15 @@ public sealed class ItemDefinition
     public bool Sellable { get; }
     public int MaxStack { get; }
     public StringName ItemCategory { get; }
-    public IReadOnlyList<StringName> Tags { get; }
-    public IReadOnlyList<StringName> CraftingGroups { get; }
-    public IReadOnlyList<StringName> QuestGroups { get; }
-    public IReadOnlyList<StringName> TraitIds { get; }
-    public IReadOnlyList<TraitRollGroupDefinition> TraitRollGroups { get; }
-    public IReadOnlyList<string> EquipmentSlotIds { get; }
-    public IReadOnlyList<AttributeModifierDefinition> AttributeModifiers { get; }
+    public ReadOnlyCollection<StringName> Tags { get; }
+    public ReadOnlyCollection<StringName> CraftingGroups { get; }
+    public ReadOnlyCollection<StringName> QuestGroups { get; }
+    public ReadOnlyCollection<StringName> TraitIds { get; }
+    public ReadOnlyCollection<TraitRollGroupDefinition> TraitRollGroups { get; }
+    public ReadOnlyCollection<string> EquipmentSlotIds { get; }
+    public ReadOnlyCollection<AttributeModifierDefinition> AttributeModifiers { get; }
     public StringName GrantedSkillId { get; }
-    public IReadOnlyList<string> OccupiedSlotIds { get; }
+    public ReadOnlyCollection<string> OccupiedSlotIds { get; }
     public EquipmentRequirementDefinition EquipRequirement { get; }
     public StringName EquipmentTypeId { get; }
     public WeaponProfileDefinition WeaponProfile { get; }
@@ -207,144 +228,6 @@ public sealed class ItemDefinition
             : new List<StringName>();
     }
 
-    internal static ItemDefinition FromResource(ItemDef source)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-
-        var traitRollGroups = new List<TraitRollGroupDefinition>();
-        int groupIndex = 0;
-        foreach (
-            TraitRollGroupDef group in WarehouseDefinitionProjection.RequireCollection(
-                source.TraitRollGroupsProjectionBorrowed,
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.trait_roll_groups"
-            )
-        )
-        {
-            string groupPath =
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.trait_roll_groups[{groupIndex}]";
-            if (group == null)
-                throw WarehouseDefinitionProjection.Invalid(groupPath, "resource is null");
-            traitRollGroups.Add(TraitRollGroupDefinition.FromResource(group, groupPath));
-            groupIndex++;
-        }
-
-        var attributeModifiers = new List<AttributeModifierDefinition>();
-        int modifierIndex = 0;
-        foreach (
-            AttributeModifier modifier in WarehouseDefinitionProjection.RequireCollection(
-                source.AttributeModifiersProjectionBorrowed,
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.attribute_modifiers"
-            )
-        )
-        {
-            string modifierPath =
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.attribute_modifiers[{modifierIndex}]";
-            if (modifier == null)
-                throw WarehouseDefinitionProjection.Invalid(modifierPath, "resource is null");
-            attributeModifiers.Add(AttributeModifierDefinition.FromResource(modifier));
-            modifierIndex++;
-        }
-
-        return new ItemDefinition(
-            source.item_id,
-            source.base_item_id,
-            source.display_name,
-            source.description,
-            source.icon,
-            source.is_stackable,
-            source.base_price,
-            source.buy_price,
-            source.sell_price,
-            source.sellable,
-            source.max_stack,
-            source.item_category,
-            CopyBorrowedValues(
-                source.TagsProjectionBorrowed,
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.tags"
-            ),
-            CopyBorrowedValues(
-                source.CraftingGroupsProjectionBorrowed,
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.crafting_groups"
-            ),
-            CopyBorrowedValues(
-                source.QuestGroupsProjectionBorrowed,
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.quest_groups"
-            ),
-            CopyBorrowedValues(
-                source.TraitIdsProjectionBorrowed,
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.trait_ids"
-            ),
-            traitRollGroups,
-            CopyBorrowedValues(
-                source.EquipmentSlotIdsProjectionBorrowed,
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.equipment_slot_ids"
-            ),
-            attributeModifiers,
-            source.granted_skill_id,
-            CopyBorrowedValues(
-                source.OccupiedSlotIdsProjectionBorrowed,
-                $"item.{WarehouseDefinitionProjection.PathId(source.item_id)}.occupied_slot_ids"
-            ),
-            EquipmentRequirementDefinition.FromResource(
-                source.EquipRequirementProjectionBorrowed
-            ),
-            source.equipment_type_id,
-            WeaponProfileDefinition.FromResource(source.WeaponProfileProjectionBorrowed),
-            source.max_dex_bonus
-        );
-    }
-
-    internal static ItemDefinition MergeWithTemplate(
-        ItemDefinition template,
-        ItemDefinition instance
-    )
-    {
-        ArgumentNullException.ThrowIfNull(template);
-        ArgumentNullException.ThrowIfNull(instance);
-
-        return new ItemDefinition(
-            instance.ItemId,
-            "",
-            instance.DisplayName != "" ? instance.DisplayName : template.DisplayName,
-            instance.Description != "" ? instance.Description : template.Description,
-            instance.Icon != "" ? instance.Icon : template.Icon,
-            instance.IsStackable,
-            instance.BasePrice != 0 ? instance.BasePrice : template.BasePrice,
-            instance.BuyPrice != 0 ? instance.BuyPrice : template.BuyPrice,
-            instance.SellPrice != 0 ? instance.SellPrice : template.SellPrice,
-            instance.Sellable,
-            instance.MaxStack,
-            instance.ItemCategory != "" ? instance.ItemCategory : template.ItemCategory,
-            MergeStringNameList(template.Tags, instance.Tags),
-            MergeStringNameList(template.CraftingGroups, instance.CraftingGroups),
-            MergeStringNameList(template.QuestGroups, instance.QuestGroups),
-            MergeStringNameList(template.TraitIds, instance.TraitIds),
-            MergeTraitRollGroups(template.TraitRollGroups, instance.TraitRollGroups),
-            instance.EquipmentSlotIds.Count > 0
-                ? instance.EquipmentSlotIds
-                : template.EquipmentSlotIds,
-            MergeAttributeModifiers(
-                template.AttributeModifiers,
-                instance.AttributeModifiers,
-                instance.ItemId
-            ),
-            instance.GrantedSkillId != ""
-                ? instance.GrantedSkillId
-                : template.GrantedSkillId,
-            instance.OccupiedSlotIds.Count > 0
-                ? instance.OccupiedSlotIds
-                : template.OccupiedSlotIds,
-            EquipmentRequirementDefinition.CopyOf(
-                instance.EquipRequirement ?? template.EquipRequirement
-            ),
-            instance.EquipmentTypeId != ""
-                ? instance.EquipmentTypeId
-                : template.EquipmentTypeId,
-            WeaponProfileDefinition.Merge(template.WeaponProfile, instance.WeaponProfile),
-            instance.MaxDexBonus >= 0 ? instance.MaxDexBonus : template.MaxDexBonus
-        );
-    }
-
     internal static ItemCategoryKind ToItemCategoryKind(StringName value)
     {
         if (value == "" || value == ItemCategoryMisc)
@@ -405,111 +288,6 @@ public sealed class ItemDefinition
             _ => "",
         };
 
-    private static IReadOnlyList<TraitRollGroupDefinition> MergeTraitRollGroups(
-        IReadOnlyList<TraitRollGroupDefinition> templateGroups,
-        IReadOnlyList<TraitRollGroupDefinition> instanceGroups
-    )
-    {
-        ValidateMergeTraitRollGroups(templateGroups, "template");
-        ValidateMergeTraitRollGroups(instanceGroups, "instance");
-        var result = new List<TraitRollGroupDefinition>();
-        var indexById = new Dictionary<StringName, int>();
-
-        void AddOrReplace(TraitRollGroupDefinition group)
-        {
-            if (group.GroupId == "")
-                return;
-            TraitRollGroupDefinition copy = TraitRollGroupDefinition.CopyOf(group);
-            if (indexById.TryGetValue(copy.GroupId, out int existingIndex))
-            {
-                result[existingIndex] = copy;
-                return;
-            }
-            indexById[copy.GroupId] = result.Count;
-            result.Add(copy);
-        }
-
-        foreach (TraitRollGroupDefinition group in templateGroups)
-            AddOrReplace(group);
-        foreach (TraitRollGroupDefinition group in instanceGroups)
-            AddOrReplace(group);
-        return result;
-    }
-
-    private static void ValidateMergeTraitRollGroups(
-        IReadOnlyList<TraitRollGroupDefinition> groups,
-        string ownerPath
-    )
-    {
-        ArgumentNullException.ThrowIfNull(groups);
-        var seen = new HashSet<StringName>();
-        for (int index = 0; index < groups.Count; index++)
-        {
-            TraitRollGroupDefinition group = groups[index];
-            string path = $"item_merge.{ownerPath}.trait_roll_groups[{index}]";
-            if (group == null)
-                throw WarehouseDefinitionProjection.Invalid(path, "definition is null");
-            if (group.GroupId == "")
-                throw WarehouseDefinitionProjection.Invalid(path + ".group_id", "value is empty");
-            if (!seen.Add(group.GroupId))
-            {
-                throw WarehouseDefinitionProjection.Invalid(
-                    path + ".group_id",
-                    $"duplicate value '{group.GroupId}'"
-                );
-            }
-        }
-    }
-
-    private static IReadOnlyList<StringName> MergeStringNameList(
-        IReadOnlyList<StringName> templateValues,
-        IReadOnlyList<StringName> instanceValues
-    )
-    {
-        var result = new List<StringName>();
-        var seen = new HashSet<StringName>();
-        void AddValues(IReadOnlyList<StringName> values)
-        {
-            foreach (StringName value in values)
-            {
-                StringName normalized = ProgressionDataUtils.to_string_name(value);
-                if (normalized != "" && seen.Add(normalized))
-                    result.Add(normalized);
-            }
-        }
-        AddValues(templateValues);
-        AddValues(instanceValues);
-        return result;
-    }
-
-    private static IReadOnlyList<AttributeModifierDefinition> MergeAttributeModifiers(
-        IReadOnlyList<AttributeModifierDefinition> templateModifiers,
-        IReadOnlyList<AttributeModifierDefinition> instanceModifiers,
-        StringName finalItemId
-    )
-    {
-        var result = new List<AttributeModifierDefinition>();
-        void AddValues(IReadOnlyList<AttributeModifierDefinition> values)
-        {
-            foreach (AttributeModifierDefinition modifier in values)
-            {
-                result.Add(
-                    new AttributeModifierDefinition(
-                        modifier.AttributeId,
-                        modifier.Mode,
-                        modifier.Value,
-                        modifier.ValuePerRank,
-                        modifier.SourceType,
-                        finalItemId
-                    )
-                );
-            }
-        }
-        AddValues(templateModifiers);
-        AddValues(instanceModifiers);
-        return result;
-    }
-
     private static List<StringName> NormalizeStringNameList(
         IReadOnlyList<StringName> values
     )
@@ -524,7 +302,10 @@ public sealed class ItemDefinition
         return result;
     }
 
-    private static IReadOnlyList<T> FreezeValues<T>(IReadOnlyList<T> values, string parameterName)
+    private static ReadOnlyCollection<T> FreezeValues<T>(
+        IReadOnlyList<T> values,
+        string parameterName
+    )
     {
         ArgumentNullException.ThrowIfNull(values, parameterName);
         var copied = new List<T>(values.Count);
@@ -536,9 +317,6 @@ public sealed class ItemDefinition
         }
         return new ReadOnlyCollection<T>(copied);
     }
-
-    private static IReadOnlyList<T> CopyBorrowedValues<T>(IEnumerable<T> values, string path) =>
-        new List<T>(WarehouseDefinitionProjection.RequireCollection(values, path));
 
 }
 

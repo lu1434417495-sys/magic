@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class CombatDirectionalPiercingDef : Resource
+public partial class CombatDirectionalPiercingDef : RefCounted
 {
     [Export]
     public int[] base_damage_percent_curve { get; set; } = System.Array.Empty<int>();

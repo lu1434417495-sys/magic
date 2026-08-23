@@ -119,6 +119,8 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
     {
         if (group == null)
             return true;
+        if (group.Mode != "" && group.Mode != "all" && group.Mode != "any")
+            return false;
         bool anyMode = group.Mode == "any";
         bool sawAny = false;
         bool passed = anyMode ? false : true;
@@ -795,7 +797,10 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         EquipmentAbilityFactContext factContext
     )
     {
-        if (query == null || query.QueryKind != QueryKindFact)
+        if (
+            query == null
+            || query.QueryKind != QueryKindFact
+        )
             return Array.Empty<StringName>();
         if (query.FactId == FactCreatureTypeTags)
         {

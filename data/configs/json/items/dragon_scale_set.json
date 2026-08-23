@@ -1,0 +1,209 @@
+{
+  "schema": 1,
+  "domain": "items",
+  "family": "dragon_scale_set",
+  "templates": {},
+  "entries": [
+    {
+      "item_id": "armor_dragon_scale_head",
+      "display_name": "龙鳞头盔",
+      "description": "一顶由五色龙鳞拼缀而成的重型头盔，鳞片中仍残留着龙威的气息。\n\n装备者受到的 fire 伤害减半，对 dragon 类型生物的攻击检定 \u002B2。集齐龙鳞铠甲套装可唤醒更强的屠龙之力。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 20000,
+      "buy_price": 20000,
+      "sell_price": 10000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "head",
+        "metal",
+        "heavy_armor",
+        "dragon_scale_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "armor.dragon_scale.head.fire_resistance",
+        "armor.dragon_scale.head.dragon_slayer_focus"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "head"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_dragon_scale_head"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": 1
+    },
+    {
+      "item_id": "armor_dragon_scale_body",
+      "display_name": "龙鳞胸甲",
+      "description": "一副由五条不同龙种的鳞甲拼接而成的全身胸甲，每一种龙鳞都保留了其原主的元素抗性。\n\n装备者受到的 fire、freeze、lightning 伤害减半，最大生命 \u002B10。集齐龙鳞铠甲套装可唤醒更强的屠龙之力。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 36000,
+      "buy_price": 36000,
+      "sell_price": 18000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "body",
+        "metal",
+        "heavy_armor",
+        "dragon_scale_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "armor.dragon_scale.body.element_resistance"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "body"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 7,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_dragon_scale_body"
+        },
+        {
+          "attribute_id": "hp_max",
+          "mode": "flat",
+          "value": 10,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_dragon_scale_body"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": 1
+    },
+    {
+      "item_id": "armor_dragon_scale_hands",
+      "display_name": "龙鳞护手",
+      "description": "一对覆盖着龙爪鳞片的重型护手，手背处各嵌有一片龙逆鳞。握紧拳头时，逆鳞会微微竖起，释放出龙威的残余气息。\n\n装备者攻击检定 \u002B2；每次近战武器命中 dragon 类型生物时，该段主直接伤害额外 \u002B1D4（伤害标签继承主武器伤害），重复攻击与随机链逐段独立触发。集齐龙鳞铠甲套装可唤醒更强的屠龙之力。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 16000,
+      "buy_price": 16000,
+      "sell_price": 8000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "hands",
+        "metal",
+        "heavy_armor",
+        "dragon_scale_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "armor.dragon_scale.hands.dragon_rend"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "hands"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_dragon_scale_hands"
+        },
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_dragon_scale_hands"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "armor_dragon_scale_feet",
+      "display_name": "龙鳞胫甲",
+      "description": "一双由龙骨与龙鳞锻铸而成的沉重金靴，靴底刻有龙爪纹路。\n\n装备者对 frightened 与 dragon_frightful_presence 豁免检定 \u002B3，并免疫龙威（dragon_frightful_presence）。集齐龙鳞铠甲套装可唤醒更强的屠龙之力。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 16000,
+      "buy_price": 16000,
+      "sell_price": 8000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "feet",
+        "metal",
+        "heavy_armor",
+        "dragon_scale_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "armor.dragon_scale.feet.fear_ward"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "feet"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_dragon_scale_feet"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    }
+  ]
+}

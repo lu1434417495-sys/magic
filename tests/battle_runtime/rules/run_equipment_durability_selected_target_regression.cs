@@ -20,7 +20,6 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
         TestConfiguredWeightMapDoesNotDefaultUnweightedSlot();
         TestOccupiedSlotSelectionReportsMatchedSlot();
         TestTypedCombatEffectSlotWeightsBuildSelectorQuery();
-        TestLegacySlotWeightMapFailsAtImportBoundary();
 
         RequestTestExit(_test.Finish("Equipment durability selected target regression"));
     }
@@ -256,7 +255,7 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
         BattleUnitState target = BuildUnit("legacy_weight_target", "enemy");
         EquipInstance(target, "main_hand", "bronze_sword", "eq_legacy_weight", 20);
 
-        CombatEffectDefinition effect = DisjunctionEffectFromResource(
+        CombatEffectDefinition effect = DisjunctionEffectFromDiagnosticFixture(
             7,
             targetSlots: Names("main_hand"),
             typedSlotWeights: CombatEffectSlotWeights(("main_hand", 1))
@@ -292,44 +291,6 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             selection.TotalWeight,
             1,
             "typed selector query should preserve the typed main_hand weight."
-        );
-    }
-
-    private void TestLegacySlotWeightMapFailsAtImportBoundary()
-    {
-        using var legacyEffect = new CombatEffectDef
-        {
-            effect_type = "equipment_durability_damage",
-            power = 7,
-            effect_target_team_filter = "enemy",
-            save_dc_mode = "caster_spell",
-            save_ability = "willpower",
-            save_dc_source_ability = "intelligence",
-            save_tag = "equipment_disjunction",
-            require_damage_applied = true,
-            equipment_durability_slot_weights = CombatEffectSlotWeights(("main_hand", 1)),
-            @params = new GDictionary
-            {
-                ["max_damaged_items"] = 1,
-                ["slot_weight_map"] = WeightMap(("off_hand", 5)),
-                ["target_slots"] = Names("main_hand"),
-            },
-        };
-        string rejection = "";
-        try
-        {
-            CombatEffectDefinition.FromResource(
-                legacyEffect,
-                "test.equipment_durability_selected_target.legacy_slot_weight_map"
-            );
-        }
-        catch (System.IO.InvalidDataException exception)
-        {
-            rejection = exception.Message;
-        }
-        _test.True(
-            rejection.Contains("/payload/slot_weight_map"),
-            "legacy params.slot_weight_map must fail at the canonical import boundary."
         );
     }
 
@@ -430,12 +391,12 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             }
         );
 
-    private static CombatEffectDefinition DisjunctionEffectFromResource(
+    private static CombatEffectDefinition DisjunctionEffectFromDiagnosticFixture(
         int power,
         GStringNameArray targetSlots = null,
         Godot.Collections.Array<CombatEffectSlotWeightDef> typedSlotWeights = null
     ) =>
-        CombatEffectDefinition.FromResource(
+        CombatEffectDefinition.FromDiagnosticFixture(
             new CombatEffectDef
             {
                 effect_type = "equipment_durability_damage",

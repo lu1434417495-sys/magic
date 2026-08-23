@@ -52,8 +52,7 @@ public sealed class GearSetDefinition
         string description,
         IReadOnlyList<StringName> memberItemIds,
         StringName usageAnchorItemId,
-        IReadOnlyList<GearSetThresholdDefinition> thresholds,
-        string resourcePath
+        IReadOnlyList<GearSetThresholdDefinition> thresholds
     )
     {
         GearSetId = ProgressionDataUtils.to_string_name(gearSetId);
@@ -62,7 +61,6 @@ public sealed class GearSetDefinition
         MemberItemIds = Freeze(memberItemIds);
         UsageAnchorItemId = ProgressionDataUtils.to_string_name(usageAnchorItemId);
         Thresholds = Freeze(thresholds);
-        ResourcePath = resourcePath ?? "";
     }
 
     public StringName GearSetId { get; }
@@ -71,7 +69,6 @@ public sealed class GearSetDefinition
     public IReadOnlyList<StringName> MemberItemIds { get; }
     public StringName UsageAnchorItemId { get; }
     public IReadOnlyList<GearSetThresholdDefinition> Thresholds { get; }
-    public string ResourcePath { get; }
 
     public GearSetThresholdDefinition GetThresholdById(StringName thresholdId)
     {
@@ -98,75 +95,6 @@ public sealed class GearSetDefinition
             }
         }
         return null;
-    }
-
-    internal static GearSetDefinition FromResource(GearSetDef source, string resourcePath)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        StringName gearSetId = ProgressionDataUtils.to_string_name(source.gear_set_id);
-        var members = CopyStringNames(source.member_item_ids);
-        var thresholds = new List<GearSetThresholdDefinition>();
-        foreach (GearSetThresholdDef threshold in source.thresholds ?? new())
-        {
-            if (threshold == null)
-            {
-                thresholds.Add(null);
-                continue;
-            }
-
-            StringName thresholdId = ProgressionDataUtils.to_string_name(threshold.threshold_id);
-            var modifiers = new List<AttributeModifierDefinition>();
-            foreach (AttributeModifier modifier in threshold.attribute_modifiers ?? new())
-            {
-                if (modifier == null)
-                {
-                    modifiers.Add(null);
-                    continue;
-                }
-                modifiers.Add(
-                    new AttributeModifierDefinition(
-                        modifier.attribute_id,
-                        modifier.mode,
-                        modifier.value,
-                        modifier.value_per_rank,
-                        "gear_set",
-                        new StringName($"gear_set::{gearSetId}::{thresholdId}")
-                    )
-                );
-            }
-
-            thresholds.Add(
-                new GearSetThresholdDefinition(
-                    thresholdId,
-                    threshold.required_piece_count,
-                    threshold.display_name,
-                    threshold.description,
-                    CopyStringNames(threshold.mandatory_member_item_ids),
-                    modifiers,
-                    CopyStringNames(threshold.granted_trait_ids)
-                )
-            );
-        }
-
-        return new GearSetDefinition(
-            gearSetId,
-            source.display_name,
-            source.description,
-            members,
-            source.usage_anchor_item_id,
-            thresholds,
-            resourcePath
-        );
-    }
-
-    private static List<StringName> CopyStringNames(IEnumerable<StringName> values)
-    {
-        var result = new List<StringName>();
-        if (values == null)
-            return result;
-        foreach (StringName value in values)
-            result.Add(ProgressionDataUtils.to_string_name(value));
-        return result;
     }
 
     private static IReadOnlyList<T> Freeze<T>(IReadOnlyList<T> values)

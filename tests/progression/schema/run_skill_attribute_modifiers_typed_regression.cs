@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GResourceArray = Godot.Collections.Array<Godot.Resource>;
 
 public partial class run_skill_attribute_modifiers_typed_regression : LifecycleTestSceneTree
 {
@@ -22,8 +21,7 @@ public partial class run_skill_attribute_modifiers_typed_regression : LifecycleT
 
     private void TestOfficialSkillResourcesExposeTypedAttributeModifiers()
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new ProgressionContentRegistry(loader);
+        using var registry = new ProgressionContentRegistry();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 
@@ -88,7 +86,7 @@ public partial class run_skill_attribute_modifiers_typed_regression : LifecycleT
                 unit_progress = progress,
                 skill_definitions = new Dictionary<StringName, SkillDefinition>
                 {
-                    [skill.skill_id] = SkillDefinition.FromResource(skill),
+                    [skill.skill_id] = SkillDefinition.FromDiagnosticFixture(skill),
                 },
             }
         );
@@ -132,9 +130,9 @@ public partial class run_skill_attribute_modifiers_typed_regression : LifecycleT
         return new AttributeModifier
         {
             attribute_id = attributeId,
-            mode = string.IsNullOrEmpty(mode?.ToString())
-                ? AttributeModifier.ToStringName(AttributeModifierMode.Flat)
-                : mode,
+            mode = mode != null && mode != ""
+                ? mode
+                : AttributeModifier.ToStringName(AttributeModifierMode.Flat),
             value = value,
             value_per_rank = valuePerRank,
         };

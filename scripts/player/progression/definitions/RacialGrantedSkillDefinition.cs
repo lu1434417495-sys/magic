@@ -21,7 +21,7 @@ public sealed class RacialGrantedSkillDefinition
     public int Charges { get; }
     internal RacialSkillChargeKind ChargeKindKind => RacialGrantedSkill.ToChargeKind(ChargeKind);
 
-    internal static RacialGrantedSkillDefinition FromResource(
+    internal static RacialGrantedSkillDefinition FromDiagnosticFixture(
         RacialGrantedSkill source,
         string path
     )

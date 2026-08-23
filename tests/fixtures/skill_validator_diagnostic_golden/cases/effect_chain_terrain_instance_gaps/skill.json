@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_chain_terrain_instance_gaps",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_chain_terrain_instance_gaps",
+      "display_name": "Chain terrain instance diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_chain_terrain_instance_gaps",
+        "effect_defs": [
+          {
+            "effect_type": "chain_damage",
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 1,
+            "dice_sides": 6,
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 1,
+            "chain_conductive_terrain_effect_ids": [
+              "",
+              "wet_ground",
+              "wet_ground"
+            ]
+          }
+        ]
+      },
+      "icon_id": "diagnostic_chain_terrain_instance_gaps",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

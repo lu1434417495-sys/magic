@@ -303,16 +303,16 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         string rejectionMessage = "";
         try
         {
-            BuildLevelDescriptionFromResource(wrongConfigType, 0, new GDictionary());
+            BuildLevelDescriptionFromDiagnosticFixture(wrongConfigType, 0, new GDictionary());
         }
         catch (System.IO.InvalidDataException exception)
         {
             rejectionMessage = exception.Message;
         }
         _test.True(
-            rejectionMessage.Contains("skill.tres.invalid_resource")
+            rejectionMessage.Contains("skill.fixture.invalid_input")
                 && rejectionMessage.Contains(
-                    "<SkillDef:wrong_config_type_fixture>/entries/0/level_description_configs/0"
+                    "<SkillDiagnosticFixture:wrong_config_type_fixture>/entries/0/level_description_configs/0"
                 ),
             "等级配置不是字典时应由投影边界按精确路径拒绝"
         );
@@ -483,13 +483,13 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             runtimeContext
         );
 
-    private static string BuildLevelDescriptionFromResource(
+    private static string BuildLevelDescriptionFromDiagnosticFixture(
         SkillDef skillDef,
         int level,
         GDictionary runtimeContext
     ) =>
         SkillLevelDescriptionFormatter.BuildLevelDescription(
-            SkillDefinition.FromResource(skillDef),
+            SkillDefinition.FromDiagnosticFixture(skillDef),
             level,
             runtimeContext
         );

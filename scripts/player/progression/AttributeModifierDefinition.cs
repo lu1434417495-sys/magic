@@ -27,7 +27,7 @@ public sealed class AttributeModifierDefinition
     public StringName SourceType { get; }
     public StringName SourceId { get; }
 
-    internal static AttributeModifierDefinition FromResource(AttributeModifier source) =>
+    internal static AttributeModifierDefinition FromDiagnosticFixture(AttributeModifier source) =>
         source == null
             ? null
             : new AttributeModifierDefinition(

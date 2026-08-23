@@ -11,8 +11,6 @@ public class SkillContentRegistry : System.IDisposable
 
     private static readonly StringName[] PracticeTrackTags = { "meditation", "cultivation" };
 
-    public Dictionary _skill_defs { get; set; } = new();
-    private readonly IContentResourceLoader _resourceLoader;
     private readonly List<string> _validationErrors = new();
     private readonly System.Collections.Generic.Dictionary<StringName, SkillImportModel>
         _skillImports = new();
@@ -36,20 +34,15 @@ public class SkillContentRegistry : System.IDisposable
     private readonly SkillCombatProfileValidator _combatProfileValidator;
     private readonly SkillImportModelValidator _importModelValidator = new();
 
-    internal SkillContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal SkillContentRegistry()
+        : this(loadDefaultContent: true) { }
 
-    internal SkillContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
-    )
+    internal SkillContentRegistry(bool loadDefaultContent)
     {
         _combatProfileValidator = new SkillCombatProfileValidator(
             _damageEffectValidator,
             _executeEffectValidator
         );
-        _resourceLoader = resourceLoader
-            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
         if (loadDefaultContent)
             Rebuild();
     }
@@ -71,7 +64,6 @@ public class SkillContentRegistry : System.IDisposable
             return;
         }
         _disposed = true;
-        _skill_defs.Clear();
         _skillImports.Clear();
         _skillDefinitions.Clear();
         _validationErrors.Clear();
@@ -84,7 +76,6 @@ public class SkillContentRegistry : System.IDisposable
 
     public void LoadFromDirectory(string directoryPath)
     {
-        _skill_defs.Clear();
         _skillImports.Clear();
         _skillDefinitions.Clear();
         _validationErrors.Clear();
@@ -239,52 +230,6 @@ public class SkillContentRegistry : System.IDisposable
         if (skillDef.combat_profile != null)
         {
             _combatProfileValidator.AppendCombatProfileValidationErrors(errors, skillId, skillDef.combat_profile, skillDef);
-            AppendSpellReactionReferenceValidationErrors(errors, skillId, skillDef.combat_profile);
-        }
-    }
-
-    private void AppendSpellReactionReferenceValidationErrors(
-        Array<string> errors,
-        StringName skillId,
-        CombatSkillDef combatProfile
-    )
-    {
-        StringName reactionSkillId = ProgressionDataUtils.to_string_name(
-            combatProfile?.spell_reaction_profile?.reaction_skill_id ?? new StringName("")
-        );
-        if (reactionSkillId == "")
-            return;
-        SkillDef reactionSkill = GetTyped<SkillDef>(_skill_defs, reactionSkillId);
-        if (reactionSkill == null)
-        {
-            errors.Add(
-                $"Skill {skillId} combat_profile.spell_reaction_profile references missing reaction skill {reactionSkillId}."
-            );
-            return;
-        }
-        bool hasWeaponDamage = false;
-        foreach (
-            CombatEffectDef effect
-            in reactionSkill.combat_profile?.effect_defs
-                ?? new Godot.Collections.Array<CombatEffectDef>()
-        )
-        {
-            if (effect?.EffectKind == BattleEffectKind.Damage && effect.add_weapon_dice)
-            {
-                hasWeaponDamage = true;
-                break;
-            }
-        }
-        if (
-            reactionSkill.SkillTypeKind != SkillTypeKind.Active
-            || reactionSkill.combat_profile == null
-            || reactionSkill.combat_profile.TargetModeKind != BattleTargetMode.Unit
-            || !hasWeaponDamage
-        )
-        {
-            errors.Add(
-                $"Skill {skillId} combat_profile.spell_reaction_profile reaction skill {reactionSkillId} must be an active unit skill with weapon-dice damage."
-            );
         }
     }
 
@@ -833,14 +778,6 @@ public class SkillContentRegistry : System.IDisposable
             Vector2I coord => Variant.From(coord),
             _ => Variant.From(key?.ToString() ?? ""),
         };
-    }
-
-    private static T GetTyped<T>(Dictionary dictionary, StringName key)
-        where T : class
-    {
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsGodotObject() as T;
-        return null;
     }
 
     private static void AppendArray(List<string> target, Array<string> source)

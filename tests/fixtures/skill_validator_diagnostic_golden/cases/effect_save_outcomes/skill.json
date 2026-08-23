@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_save_outcomes",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_save_outcomes",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_save_outcomes",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "save_dc_bonus": -1,
+            "save_ability": "strength",
+            "save_failure_status_id": "legacy",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "diagnostic_outcome_0",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 5,
+                  "payload": {},
+                  "status_id": "diagnostic_status"
+                }
+              },
+              {
+                "outcome_id": "diagnostic_outcome_1",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 5,
+                  "payload": {},
+                  "status_id": "diagnostic_status"
+                }
+              },
+              {
+                "outcome_id": "diagnostic_outcome_2",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 5,
+                  "payload": {},
+                  "status_id": "diagnostic_status"
+                }
+              },
+              {
+                "outcome_id": "duplicate",
+                "weight": 2147483647,
+                "status_effect": {
+                  "effect_type": "status",
+                  "payload": {},
+                  "status_id": "nested"
+                }
+              }
+            ],
+            "save_partial_on_success": true
+          },
+          {
+            "effect_type": "heal",
+            "payload": {},
+            "save_dc": 10,
+            "save_ability": "strength",
+            "save_failure_status_id": "failed",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "diagnostic_outcome_0",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 5,
+                  "payload": {},
+                  "status_id": "diagnostic_status"
+                }
+              }
+            ],
+            "save_partial_on_success": true
+          }
+        ]
+      },
+      "icon_id": "diagnostic_save_outcomes",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -38,24 +38,21 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
     private void Run()
     {
         TestResult result;
-        using (var loader = new TestContentResourceLoader())
+        try
         {
-            try
-            {
-                ContentFixture content = LoadContentFixture(loader);
-                TestContentRebindClearsAiBorrowers(content);
-                TestStateRebindClearsAiPlanAndDecisionContext(content);
-                TestEquipmentAbilityServiceDisposeRequiresExplicitRebind();
-                TestSuccessfulBorrowerFirstTeardownAndDoubleDispose(content);
-                TestExceptionalFinalLeaseCloseStillClearsBorrowers(content);
-            }
-            catch (Exception exception)
-            {
-                _test.Fail($"Unhandled exception: {exception}");
-            }
-
-            result = _test.Finish("Battle runtime borrower teardown regression");
+            ContentFixture content = LoadContentFixture();
+            TestContentRebindClearsAiBorrowers(content);
+            TestStateRebindClearsAiPlanAndDecisionContext(content);
+            TestEquipmentAbilityServiceDisposeRequiresExplicitRebind();
+            TestSuccessfulBorrowerFirstTeardownAndDoubleDispose(content);
+            TestExceptionalFinalLeaseCloseStillClearsBorrowers(content);
         }
+        catch (Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+
+        result = _test.Finish("Battle runtime borrower teardown regression");
 
         RequestTestExit(result);
     }
@@ -455,28 +452,21 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         AssertModuleBorrowersBound(actual, label);
     }
 
-    private ContentFixture LoadContentFixture(TestContentResourceLoader loader)
+    private ContentFixture LoadContentFixture()
     {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
             "mage_arcane_aegis"
         );
-        ItemDef itemResource = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/whetstone.tres"
-        );
-        ItemDefinition itemDefinition = itemResource.ToDefinition();
-        TraitDef traitResource = loader.LoadCanonical<TraitDef>(
-            "res://data/configs/traits/brave.tres"
-        );
-        TraitDefinition traitDefinition = TraitDefinition.FromResource(traitResource);
-        using var enemyRegistry = new EnemyContentRegistry(loadDefaultContent: false);
-        enemyRegistry.Rebuild(
-            new EnemyContentValidationContext(
-                new Dictionary<StringName, ItemDefinition> { [itemDefinition.ItemId] = itemDefinition },
-                new Dictionary<StringName, SkillDefinition> { [skillDefinition.SkillId] = skillDefinition }
-            )
-        );
-        EnemyTemplateDefinition enemyTemplate = enemyRegistry.GetEnemyTemplatesTyped()["zombie_shambler"];
-        EnemyAiBrainDefinition enemyBrain = enemyRegistry.GetEnemyAiBrainsTyped()["melee_aggressor"];
+        ItemDefinition itemResource = TestItemDefinitionLookup.GetProductionItem("whetstone");
+        ItemDefinition itemDefinition = itemResource;
+        using TraitContentRegistry traitRegistry = new();
+        TraitDefinition traitDefinition = traitRegistry.GetTraitDef("brave")
+            ?? throw new InvalidOperationException(
+                "Production trait JSON does not define brave."
+            );
+        EnemyTemplateDefinition enemyTemplate = snapshot.EnemyTemplates["zombie_shambler"];
+        EnemyAiBrainDefinition enemyBrain = snapshot.EnemyBrains["melee_aggressor"];
         var equipmentBinding = new EquipmentAbilityBindingDefinition
         {
             BindingId = "borrower_teardown_binding",

@@ -18,6 +18,7 @@ public partial class run_skill_generation_validation_pipeline_regression
             TestSchemaRejectionStopsPipeline();
             TestDomainRejectionStopsPipeline();
             TestCrossDomainRejectionStopsPipeline();
+            TestUnknownIconAssetStopsPipeline();
             TestBattleSimulationRejectionUsesDedicatedExitCode();
             TestValidBatchPassesAllFourStages();
             TestMachineReadableDiagnosticsAreByteStable();
@@ -139,6 +140,38 @@ public partial class run_skill_generation_validation_pipeline_regression
             expectedStageCount: 4
         );
         _test.Eq(simulation.CallCount, 1, "BattleSim should run after three passing gates");
+    }
+
+    private void TestUnknownIconAssetStopsPipeline()
+    {
+        var simulation = new FakeSimulationGate();
+        SkillGenerationValidationReport report = Validate(
+            Entry(
+                "unknown_icon",
+                "\"skill_type\":\"passive\",\"max_level\":0,\"icon_id\":\"scene_not_texture\""
+            ),
+            simulation,
+            new HashSet<StringName> { "known_texture" }
+        );
+
+        AssertRejected(
+            report,
+            SkillGenerationValidationStageKind.CrossDomain,
+            SkillGenerationValidationExitCodes.CrossDomainRejected,
+            expectedStageCount: 3
+        );
+        _test.Eq(
+            simulation.CallCount,
+            0,
+            "unknown or wrong-type icon ID must stop before BattleSim"
+        );
+        _test.True(
+            report.Stages[2].Diagnostics.Any(value =>
+                value.RuleId == SkillGenerationCrossDomainRules.MissingTextureAsset
+                && value.JsonPointer == "/entries/0/icon_id"
+            ),
+            "icon asset rejection should identify the exact authored field"
+        );
     }
 
     private void TestValidBatchPassesAllFourStages()
@@ -268,7 +301,8 @@ public partial class run_skill_generation_validation_pipeline_regression
 
     private SkillGenerationValidationReport Validate(
         string entryJson,
-        FakeSimulationGate simulation
+        FakeSimulationGate simulation,
+        IReadOnlySet<StringName>? textureAssetIds = null
     )
     {
         var reader = new FakeSourceReader(new ContentJsonSourceText(
@@ -278,7 +312,8 @@ public partial class run_skill_generation_validation_pipeline_regression
         ));
         return new SkillGenerationValidationService(
             SyntheticContentSnapshotFactory.CreateEmpty(),
-            simulation
+            simulation,
+            textureAssetIds
         ).Validate(SourceDirectory, reader);
     }
 

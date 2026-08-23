@@ -11,11 +11,8 @@ internal static class TestProgressionDefinitionProjection
         source?.ToDefinition(Path("quest", source.quest_id))
         ?? throw new ArgumentNullException(nameof(source));
 
-    internal static TraitDefinition Trait(TraitDef source) =>
-        TraitDefinition.FromResource(source);
-
     internal static TagRequirementDefinition TagRequirement(TagRequirement source) =>
-        TagRequirementDefinition.FromResource(source, "test.tag_requirement");
+        TagRequirementDefinition.FromDiagnosticFixture(source, "test.tag_requirement");
 
     internal static Dictionary<StringName, AchievementDefinition> Achievements(
         IReadOnlyDictionary<StringName, AchievementDef> source
@@ -24,10 +21,6 @@ internal static class TestProgressionDefinitionProjection
     internal static Dictionary<StringName, QuestDefinition> Quests(
         IReadOnlyDictionary<StringName, QuestTestDefinitionBuilder> source
     ) => Project(source, Quest);
-
-    internal static Dictionary<StringName, TraitDefinition> Traits(
-        IReadOnlyDictionary<StringName, TraitDef> source
-    ) => Project(source, Trait);
 
     private static Dictionary<StringName, TDefinition> Project<TSource, TDefinition>(
         IReadOnlyDictionary<StringName, TSource> source,

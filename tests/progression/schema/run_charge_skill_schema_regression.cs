@@ -29,7 +29,7 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
             effect_type = "charge",
             charge_trap_immunity_min_skill_level = 7,
         };
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             effect,
             "test.charge.typed_trap_immunity"
         );
@@ -43,10 +43,7 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
 
     private void TestLegacyChargeParametersAreRejected()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "charge",
@@ -75,10 +72,7 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
 
     private void TestInvalidTrapImmunityLevelIsRejected()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "charge",
@@ -110,7 +104,7 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
             repeat_hit_status_duration_tu = 60,
             repeat_hit_status_log_template = "{target} 连续命中 {hit_count} 次。",
         };
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             effect,
             "test.path_step_aoe.typed"
         );
@@ -126,10 +120,7 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
 
     private void TestLegacyPathStepAoeParametersAreRejected()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "path_step_aoe",

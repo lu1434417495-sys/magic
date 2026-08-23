@@ -9,11 +9,12 @@ internal static class EquipmentAbilityPayloadValidators
     private static readonly StringName StatusStackRefresh = "refresh";
     private static readonly StringName StatusStackAdd = "add";
 
-    internal static StringName ReadStringNamePayloadMember(Resource payload, string memberName)
+    internal static StringName ReadStringNamePayloadMember(IEquipmentAbilityPayloadImportModel payload, string memberName)
     {
         if (payload == null || string.IsNullOrWhiteSpace(memberName))
             return "";
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+        const BindingFlags flags =
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         Type type = payload.GetType();
         PropertyInfo property = type.GetProperty(memberName, flags);
         object raw = property != null ? property.GetValue(payload) : null;
@@ -30,7 +31,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateAddDamageDicePayload(
-        AddDamageDiceActionPayloadDef payload,
+        AddDamageDiceActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -127,7 +128,7 @@ internal static class EquipmentAbilityPayloadValidators
         }
         if (payload.dice != null)
         {
-            foreach (DiceExpressionTermDef term in payload.dice.terms)
+            foreach (DiceExpressionTermImportModel term in payload.dice.terms)
             {
                 if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
                 {
@@ -143,7 +144,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateImmediateWeaponAttackPayload(
-        ImmediateWeaponAttackActionPayloadDef payload,
+        ImmediateWeaponAttackActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -184,7 +185,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateDealDamagePayload(
-        DealDamageActionPayloadDef payload,
+        DealDamageActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -233,7 +234,7 @@ internal static class EquipmentAbilityPayloadValidators
         );
         if (payload.dice != null)
         {
-            foreach (DiceExpressionTermDef term in payload.dice.terms)
+            foreach (DiceExpressionTermImportModel term in payload.dice.terms)
             {
                 if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
                 {
@@ -249,7 +250,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateHealPayload(
-        HealActionPayloadDef payload,
+        HealActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -267,7 +268,7 @@ internal static class EquipmentAbilityPayloadValidators
         }
         if (payload.dice != null)
         {
-            foreach (DiceExpressionTermDef term in payload.dice.terms)
+            foreach (DiceExpressionTermImportModel term in payload.dice.terms)
             {
                 if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
                 {
@@ -283,7 +284,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateHealFromFactPayload(
-        HealFromFactActionPayloadDef payload,
+        HealFromFactActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -311,7 +312,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     private static void ValidateDamageTagArray(
-        Godot.Collections.Array<StringName> damageTags,
+        IReadOnlyList<string> damageTags,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -345,8 +346,8 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     private static void ValidateMitigationBypassArrays(
-        Godot.Collections.Array<StringName> damageTags,
-        Godot.Collections.Array<StringName> tiers,
+        IReadOnlyList<string> damageTags,
+        IReadOnlyList<string> tiers,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -390,7 +391,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateAttackRollBonusPayload(
-        AttackRollBonusActionPayloadDef payload,
+        AttackRollBonusActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -409,7 +410,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateAttackRollAdvantagePayload(
-        AttackRollAdvantageActionPayloadDef payload,
+        AttackRollAdvantageActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -426,7 +427,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateAttackDefenseModifierPayload(
-        EquipmentAttackDefenseModifierDef payload,
+        EquipmentAttackDefenseModifierImportModel payload,
         string path,
         List<string> errors
     )
@@ -449,7 +450,7 @@ internal static class EquipmentAbilityPayloadValidators
         }
 
         var ignored = new HashSet<StringName>();
-        foreach (StringName componentId in payload.ignored_ac_components ?? new Godot.Collections.Array<StringName>())
+        foreach (string componentId in payload.ignored_ac_components ?? Array.Empty<string>())
         {
             if (!AttributeContentRules.IsArmorClassComponentAttributeId(componentId))
             {
@@ -464,7 +465,7 @@ internal static class EquipmentAbilityPayloadValidators
             ignored.Add(componentId);
         }
 
-        foreach (EquipmentAcComponentMultiplierDef multiplier in payload.ac_component_multipliers ?? new Godot.Collections.Array<EquipmentAcComponentMultiplierDef>())
+        foreach (EquipmentAcComponentMultiplierImportModel multiplier in payload.ac_component_multipliers ?? Array.Empty<EquipmentAcComponentMultiplierImportModel>())
         {
             if (multiplier == null)
                 continue;
@@ -559,7 +560,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateDamageRollModeOverridePayload(
-        DamageRollModeOverrideActionPayloadDef payload,
+        DamageRollModeOverrideActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -583,7 +584,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateDamageReductionPayload(
-        DamageReductionActionPayloadDef payload,
+        DamageReductionActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -626,7 +627,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateGrantMitigationTierPayload(
-        GrantMitigationTierActionPayloadDef payload,
+        GrantMitigationTierActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -686,7 +687,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateLootQuantityMultiplierPayload(
-        LootQuantityMultiplierActionPayloadDef payload,
+        LootQuantityMultiplierActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -715,7 +716,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateApplyStatusPayload(
-        ApplyStatusActionPayloadDef payload,
+        ApplyStatusActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -894,7 +895,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateModifyActionPointsPayload(
-        ModifyActionPointsActionPayloadDef payload,
+        ModifyActionPointsActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -968,7 +969,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateMarkTargetPayload(
-        MarkTargetActionPayloadDef payload,
+        MarkTargetActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1006,7 +1007,7 @@ internal static class EquipmentAbilityPayloadValidators
                 errors
             );
         }
-        foreach (StringName statusId in payload.clear_status_ids_on_replace ?? new Godot.Collections.Array<StringName>())
+        foreach (string statusId in payload.clear_status_ids_on_replace ?? Array.Empty<string>())
         {
             EquipmentAbilityBindingValidator.ValidateStatusReference(
                 statusId,
@@ -1018,7 +1019,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateSummonUnitsPayload(
-        SummonUnitsActionPayloadDef payload,
+        SummonUnitsActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1067,7 +1068,7 @@ internal static class EquipmentAbilityPayloadValidators
                 "summon_units cognition_kind must be mindless, instinctive, or sapient"
             );
         }
-        foreach (StringName skillId in payload?.known_active_skill_ids ?? new Godot.Collections.Array<StringName>())
+        foreach (string skillId in payload?.known_active_skill_ids ?? Array.Empty<string>())
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
             if (normalizedSkillId == "")
@@ -1102,7 +1103,7 @@ internal static class EquipmentAbilityPayloadValidators
         if (hasNaturalWeapon)
         {
             bool hasOneDiceTerm = payload.natural_weapon_damage_dice?.terms?.Count == 1;
-            DiceExpressionTermDef term = hasOneDiceTerm
+            DiceExpressionTermImportModel term = hasOneDiceTerm
                 ? payload.natural_weapon_damage_dice.terms[0]
                 : null;
             if (
@@ -1134,7 +1135,7 @@ internal static class EquipmentAbilityPayloadValidators
                 );
             }
         }
-        foreach (DiceExpressionTermDef term in payload?.count_dice?.terms ?? new Godot.Collections.Array<DiceExpressionTermDef>())
+        foreach (DiceExpressionTermImportModel term in payload?.count_dice?.terms ?? Array.Empty<DiceExpressionTermImportModel>())
         {
             if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
             {
@@ -1149,7 +1150,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateConsumeSummonedUnitsPayload(
-        ConsumeSummonedUnitsActionPayloadDef payload,
+        ConsumeSummonedUnitsActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1166,7 +1167,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateConsumeStatusStacksPayload(
-        ConsumeStatusStacksActionPayloadDef payload,
+        ConsumeStatusStacksActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1195,7 +1196,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateSummonedUnitAttackRollModifierPayload(
-        SummonedUnitAttackRollModifierActionPayloadDef payload,
+        SummonedUnitAttackRollModifierActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1228,7 +1229,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateClearStatusPayload(
-        ClearStatusActionPayloadDef payload,
+        ClearStatusActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1259,7 +1260,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateCriticalHitOverridePayload(
-        CriticalHitOverrideActionPayloadDef payload,
+        CriticalHitOverrideActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1276,7 +1277,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateTriggerSkillPayload(
-        TriggerSkillActionPayloadDef payload,
+        TriggerSkillActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1362,7 +1363,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateScheduleAreaEffectPayload(
-        ScheduleAreaEffectActionPayloadDef payload,
+        ScheduleAreaEffectActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1520,7 +1521,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateApplyBattleTerrainEffectAfterCheckPayload(
-        ApplyBattleTerrainEffectAfterCheckActionPayloadDef payload,
+        ApplyBattleTerrainEffectAfterCheckActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1570,7 +1571,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateApplyEdgeFeaturePayload(
-        ApplyEdgeFeatureActionPayloadDef payload,
+        ApplyEdgeFeatureActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1682,7 +1683,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateModifyAbilityStatePayload(
-        ModifyAbilityStateActionPayloadDef payload,
+        ModifyAbilityStateActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1716,7 +1717,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateDurabilityPayload(
-        EquipmentDurabilityDamageActionPayloadDef payload,
+        EquipmentDurabilityDamageActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1750,8 +1751,8 @@ internal static class EquipmentAbilityPayloadValidators
             );
         }
         foreach (
-            StringName slot in payload.target_slots
-                ?? new Godot.Collections.Array<StringName>()
+            string slot in payload.target_slots
+                ?? Array.Empty<string>()
         )
         {
             if (!EquipmentRules.IsValidSlot(slot))
@@ -1769,7 +1770,7 @@ internal static class EquipmentAbilityPayloadValidators
         {
             for (int index = 0; index < payload.slot_weights.Count; index++)
             {
-                EquipmentSlotWeightDef weight = payload.slot_weights[index];
+                EquipmentSlotWeightImportModel weight = payload.slot_weights[index];
                 if (weight == null || weight.slot_id == "" || weight.weight <= 0)
                 {
                     EquipmentAbilityContentRegistry.AddError(

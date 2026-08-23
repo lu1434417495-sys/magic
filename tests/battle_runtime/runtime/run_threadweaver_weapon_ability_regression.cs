@@ -85,14 +85,11 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         if (!fixture.ItemDefs.ContainsKey(ThreadweaverItemId))
             return;
 
-        ItemDef rawThreadweaver = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_rapier_threadweaver.tres"
-        );
+        ItemDefinition rawThreadweaver = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_threadweaver_019");
         _test.True(rawThreadweaver != null, "Threadweaver raw item resource should load.");
         if (rawThreadweaver != null)
         {
-            _test.Eq(rawThreadweaver.base_item_id, new StringName("weapon_type_rapier_base"), "Threadweaver should inherit the rapier base item.");
-            _test.Eq(rawThreadweaver.base_price, 120000, "Threadweaver should keep the source price.");
+            _test.Eq(rawThreadweaver.BasePrice, 120000, "Threadweaver should keep the source price.");
         }
 
         BattleUnitState equipped = fixture.BuildThreadweaverUnit("projection");

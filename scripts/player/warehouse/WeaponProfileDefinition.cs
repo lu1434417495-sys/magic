@@ -49,7 +49,7 @@ public sealed class WeaponProfileDefinition
     public WeaponDamageDiceDefinition OneHandedDice { get; }
     public WeaponDamageDiceDefinition TwoHandedDice { get; }
     public int PropertiesMode { get; }
-    public IReadOnlyList<StringName> Properties { get; }
+    public ReadOnlyCollection<StringName> Properties { get; }
 
     public bool HasAttackRangeOverride() => AttackRange != AttackRangeInherit;
 
@@ -93,30 +93,6 @@ public sealed class WeaponProfileDefinition
     public static bool IsValidPropertiesMode(int mode) =>
         mode >= (int)PropertyMergeMode.INHERIT
         && mode <= (int)PropertyMergeMode.REMOVE;
-
-    internal static WeaponProfileDefinition FromResource(WeaponProfileDef source)
-    {
-        if (source == null)
-            return null;
-
-        return new WeaponProfileDefinition(
-            source.weapon_type_id,
-            source.training_group,
-            source.range_type,
-            source.family,
-            source.damage_tag,
-            source.attack_range,
-            WeaponDamageDiceDefinition.FromResource(source.OneHandedDiceProjectionBorrowed),
-            WeaponDamageDiceDefinition.FromResource(source.TwoHandedDiceProjectionBorrowed),
-            source.properties_mode,
-            new List<StringName>(
-                WarehouseDefinitionProjection.RequireCollection(
-                    source.PropertiesProjectionBorrowed,
-                    "weapon_profile.properties"
-                )
-            )
-        );
-    }
 
     internal static WeaponProfileDefinition CopyOf(WeaponProfileDefinition source)
     {
@@ -241,7 +217,7 @@ public sealed class WeaponProfileDefinition
         return result;
     }
 
-    private static IReadOnlyList<StringName> FreezeProperties(
+    private static ReadOnlyCollection<StringName> FreezeProperties(
         IReadOnlyList<StringName> properties
     )
     {

@@ -24,7 +24,7 @@ internal enum TagRequirementSelectionRole
 }
 
 [GlobalClass]
-public partial class TagRequirement : Resource
+public partial class TagRequirement : RefCounted
 {
     private static readonly StringName SkillStateLearned = "learned";
     private static readonly StringName SkillStateCore = "core";

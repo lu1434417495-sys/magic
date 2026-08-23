@@ -27,6 +27,11 @@ internal static class ContentJsonSchemaCatalog
                 contentFileMatch: "/data/configs/json/schema_fixture/**/*.json"
             ),
             SkillContentJsonAuthoringDomain.SchemaRegistration,
+            ItemContentJsonAuthoringDomain.SchemaRegistration,
+            TraitContentJsonAuthoringDomain.SchemaRegistration,
+            EquipmentAbilityContentJsonAuthoringDomain.SchemaRegistration,
+            GearSetContentJsonAuthoringDomain.SchemaRegistration,
+            RecipeContentJsonAuthoringDomain.SchemaRegistration,
             EnemyContentJsonDomains.BrainSchemaRegistration,
             EnemyContentJsonDomains.TemplateSchemaRegistration,
             EnemyContentJsonDomains.RosterSchemaRegistration,

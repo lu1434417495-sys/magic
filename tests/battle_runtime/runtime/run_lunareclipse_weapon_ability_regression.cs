@@ -87,23 +87,14 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
             fixture.SkillDefs.ContainsKey(EclipseShadowstepSkillId),
             "月蚀影步应落成真实 SkillDef，而不是 trait 文本。"
         );
-
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_lunareclipse.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_battleaxe_lunareclipse");
         _test.True(rawItem != null, "月蚀原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "月蚀 item_id 不应带源表数字。");
-            _test.Eq(rawItem.display_name, "月蚀", "月蚀显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_battleaxe_base"),
-                "月蚀应继承 battleaxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 56000, "月蚀价格应为 56000。");
-            _test.Eq(rawItem.trait_ids.Count, 3, "月蚀应有且只有 3 个新特性。");
+            _test.Eq(rawItem.ItemId, ItemId, "月蚀 item_id 不应带源表数字。");
+            _test.Eq(rawItem.DisplayName, "月蚀", "月蚀显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 56000, "月蚀价格应为 56000。");
+            _test.Eq(rawItem.TraitIds.Count, 3, "月蚀应有且只有 3 个新特性。");
             foreach (
                 StringName traitId in new[]
                 {
@@ -113,19 +104,19 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
                 }
             )
             {
-                _test.True(rawItem.trait_ids.Contains(traitId), $"月蚀 item 应声明 {traitId}。");
+                _test.True(rawItem.TraitIds.Contains(traitId), $"月蚀 item 应声明 {traitId}。");
             }
 
-            WeaponProfileDef profile = rawItem.weapon_profile as WeaponProfileDef;
+            WeaponProfileDefinition profile = rawItem.WeaponProfile;
             _test.True(profile != null, "月蚀应声明 weapon_profile。");
             if (profile != null)
             {
-                _test.Eq(profile.one_handed_dice?.dice_count ?? 0, 1, "月蚀单手应为 1D8+2。");
-                _test.Eq(profile.one_handed_dice?.dice_sides ?? 0, 8, "月蚀单手应为 1D8+2。");
-                _test.Eq(profile.one_handed_dice?.flat_bonus ?? 0, 2, "月蚀单手应为 1D8+2。");
-                _test.Eq(profile.two_handed_dice?.dice_count ?? 0, 1, "月蚀双手应为 1D10+2。");
-                _test.Eq(profile.two_handed_dice?.dice_sides ?? 0, 10, "月蚀双手应为 1D10+2。");
-                _test.Eq(profile.two_handed_dice?.flat_bonus ?? 0, 2, "月蚀双手应为 1D10+2。");
+                _test.Eq(profile.OneHandedDice?.DiceCount ?? 0, 1, "月蚀单手应为 1D8+2。");
+                _test.Eq(profile.OneHandedDice?.DiceSides ?? 0, 8, "月蚀单手应为 1D8+2。");
+                _test.Eq(profile.OneHandedDice?.FlatBonus ?? 0, 2, "月蚀单手应为 1D8+2。");
+                _test.Eq(profile.TwoHandedDice?.DiceCount ?? 0, 1, "月蚀双手应为 1D10+2。");
+                _test.Eq(profile.TwoHandedDice?.DiceSides ?? 0, 10, "月蚀双手应为 1D10+2。");
+                _test.Eq(profile.TwoHandedDice?.FlatBonus ?? 0, 2, "月蚀双手应为 1D10+2。");
                 _test.True(
                     ContainsStringName(profile.GetPropertiesTyped(), "versatile"),
                     "月蚀应保留 versatile。"
@@ -654,27 +645,24 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
 
         private static ItemDefinition BuildHeavyArmorItem()
         {
-            ItemDef rawItem = TestResourceOwnership.Own(
-                new ItemDef
+            TestItemDefinitionBuilder rawItem = new()
+            {
+                item_id = HeavyArmorItemId,
+                display_name = "测试重甲",
+                is_stackable = false,
+                max_stack = 1,
+                item_category = "equipment",
+                equipment_type_id = "armor",
+                equipment_slot_ids = new Godot.Collections.Array<string> { "body" },
+                tags = new Godot.Collections.Array<StringName>
                 {
-                    item_id = HeavyArmorItemId,
-                    display_name = "测试重甲",
-                    is_stackable = false,
-                    max_stack = 1,
-                    item_category = "equipment",
-                    equipment_type_id = "armor",
-                    equipment_slot_ids = new Godot.Collections.Array<string> { "body" },
-                    tags = new Godot.Collections.Array<StringName>
-                    {
-                        "armor",
-                        "body",
-                        "metal",
-                        "heavy_armor",
-                    },
-                    max_dex_bonus = 0,
+                    "armor",
+                    "body",
+                    "metal",
+                    "heavy_armor",
                 },
-                "LunareclipseFixture.BuildHeavyArmorItem"
-            );
+                max_dex_bonus = 0,
+            };
             return rawItem.ToDefinition();
         }
 

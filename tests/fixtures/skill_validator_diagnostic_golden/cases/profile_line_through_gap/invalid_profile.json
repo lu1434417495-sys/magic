@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_line_through_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_line_through_profile_gap",
+      "display_name": "Line-through profile diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_line_through_profile_gap",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 6
+          }
+        ],
+        "line_through_attack_profile": {
+          "maximum_weapon_range": 0,
+          "intermediate_weapon_dice_multiplier": 0,
+          "successful_intermediate_hit_bonus_weapon_dice": -1,
+          "successful_intermediate_hit_attack_roll_bonus": -1
+        },
+        "attack_roll_bonus": 1,
+        "special_resolution_profile_id": "invalid",
+        "target_selection_mode": "multi_unit",
+        "min_target_count": 0,
+        "max_target_count": 2,
+        "allow_repeat_target": true,
+        "max_hits_per_target": 2,
+        "cast_variants": [
+          {
+            "variant_id": "invalid"
+          }
+        ],
+        "allows_natural_weapon": true
+      },
+      "icon_id": "diagnostic_line_through_profile_gap",
+      "mastery_curve": [
+        10
+      ],
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true
+      }
+    }
+  ]
+}

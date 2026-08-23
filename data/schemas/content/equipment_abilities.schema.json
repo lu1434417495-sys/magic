@@ -1,0 +1,3384 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:equipment_abilities:v1",
+  "title": "Magic equipment ability JSON authoring schema",
+  "description": "Strict equipment ability pack schema with closed condition/action kind and payload shapes; stable runtime vocabularies are validated by the domain layer.",
+  "$ref": "#/$defs/EquipmentAbilityJsonDocumentDto",
+  "$defs": {
+    "AddDamageDiceActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "damage_type": {
+          "type": "string"
+        },
+        "damage_type_mode": {
+          "type": "string"
+        },
+        "dice": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "mitigation_bypass_damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mitigation_bypass_tiers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "replacement_group_id": {
+          "type": "string"
+        },
+        "replacement_priority": {
+          "type": "integer"
+        },
+        "require_weapon_damage": {
+          "type": "boolean"
+        },
+        "subtract": {
+          "type": "boolean"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "damage_tags",
+        "damage_type",
+        "dice",
+        "mitigation_bypass_damage_tags",
+        "mitigation_bypass_tiers",
+        "replacement_group_id",
+        "replacement_priority",
+        "require_weapon_damage",
+        "subtract",
+        "target_selector"
+      ]
+    },
+    "ApplyBattleTerrainEffectAfterCheckActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anchor_selector": {
+          "type": "string"
+        },
+        "check_attribute_modifier_id": {
+          "type": "string"
+        },
+        "check_compare": {
+          "type": "string"
+        },
+        "check_threshold": {
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "move_cost_delta": {
+          "type": "integer"
+        },
+        "natural_one_auto_failure": {
+          "type": "boolean"
+        },
+        "natural_twenty_auto_success": {
+          "type": "boolean"
+        },
+        "overlay_priority": {
+          "type": "integer"
+        },
+        "render_overlay_id": {
+          "type": "string"
+        },
+        "stack_behavior": {
+          "type": "string"
+        },
+        "target_team_filter": {
+          "type": "string"
+        },
+        "terrain_effect_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchor_selector",
+        "check_attribute_modifier_id",
+        "check_compare",
+        "check_threshold",
+        "display_name",
+        "move_cost_delta",
+        "natural_one_auto_failure",
+        "natural_twenty_auto_success",
+        "overlay_priority",
+        "render_overlay_id",
+        "stack_behavior",
+        "target_team_filter",
+        "terrain_effect_id"
+      ]
+    },
+    "ApplyEdgeFeatureActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "blocks_los": {
+          "type": "boolean"
+        },
+        "blocks_move": {
+          "type": "boolean"
+        },
+        "blocks_occupancy": {
+          "type": "boolean"
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "feature_kind": {
+          "type": "string"
+        },
+        "from_selector": {
+          "type": "string"
+        },
+        "interaction_kind": {
+          "type": "string"
+        },
+        "max_active_edges": {
+          "type": "integer"
+        },
+        "refresh_existing": {
+          "type": "boolean"
+        },
+        "render_kind": {
+          "type": "string"
+        },
+        "render_layers": {
+          "type": "integer"
+        },
+        "require_adjacent": {
+          "type": "boolean"
+        },
+        "state_tag": {
+          "type": "string"
+        },
+        "to_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "blocks_los",
+        "blocks_move",
+        "blocks_occupancy",
+        "duration_tu",
+        "feature_kind",
+        "from_selector",
+        "interaction_kind",
+        "max_active_edges",
+        "refresh_existing",
+        "render_kind",
+        "render_layers",
+        "require_adjacent",
+        "state_tag",
+        "to_selector"
+      ]
+    },
+    "ApplyStatusActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apply_on_save_failure": {
+          "type": "boolean"
+        },
+        "armor_class_bonus_per_stack": {
+          "type": "integer"
+        },
+        "attack_roll_penalty": {
+          "type": "integer"
+        },
+        "counts_as_debuff": {
+          "type": "boolean"
+        },
+        "counts_as_debuff_override": {
+          "type": "boolean"
+        },
+        "damage_tag": {
+          "type": "string"
+        },
+        "damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dispellable_beneficial_magic": {
+          "type": "boolean"
+        },
+        "dispellable_harmful_magic": {
+          "type": "boolean"
+        },
+        "dispellable_magic": {
+          "type": "boolean"
+        },
+        "display_label": {
+          "type": "string"
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "duration_turns": {
+          "type": "integer"
+        },
+        "forced_move_immune": {
+          "type": "boolean"
+        },
+        "heal_multiplier_percent": {
+          "type": "integer"
+        },
+        "lock_counterattack": {
+          "type": "boolean"
+        },
+        "lock_dodge_bonus": {
+          "type": "boolean"
+        },
+        "lock_guard": {
+          "type": "boolean"
+        },
+        "mitigation_tier": {
+          "type": "string"
+        },
+        "move_point_capacity_delta": {
+          "type": "integer"
+        },
+        "override_heal_multiplier_percent": {
+          "type": "boolean"
+        },
+        "remove_on_source_deactivated": {
+          "type": "boolean"
+        },
+        "save_ability": {
+          "type": "string"
+        },
+        "save_dc": {
+          "type": "integer"
+        },
+        "save_tag": {
+          "type": "string"
+        },
+        "source_bound_attack_roll_penalty": {
+          "type": "integer"
+        },
+        "source_bound_attack_roll_penalty_min_stacks": {
+          "type": "integer"
+        },
+        "source_bound_incoming_attack_roll_bonus_min_stacks": {
+          "type": "integer"
+        },
+        "source_bound_incoming_attack_roll_bonus_per_stack": {
+          "type": "integer"
+        },
+        "stack_behavior": {
+          "type": "string"
+        },
+        "stack_delta": {
+          "type": "integer"
+        },
+        "stack_limit": {
+          "type": "integer"
+        },
+        "status_id": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        },
+        "tick_interval_tu": {
+          "type": "integer"
+        },
+        "timeline_damage_dice_count": {
+          "type": "integer"
+        },
+        "timeline_damage_dice_sides": {
+          "type": "integer"
+        },
+        "timeline_damage_flat_bonus": {
+          "type": "integer"
+        },
+        "undispellable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "apply_on_save_failure",
+        "armor_class_bonus_per_stack",
+        "attack_roll_penalty",
+        "counts_as_debuff",
+        "counts_as_debuff_override",
+        "damage_tag",
+        "damage_tags",
+        "dispellable_beneficial_magic",
+        "dispellable_harmful_magic",
+        "dispellable_magic",
+        "display_label",
+        "duration_tu",
+        "duration_turns",
+        "forced_move_immune",
+        "heal_multiplier_percent",
+        "lock_counterattack",
+        "lock_dodge_bonus",
+        "lock_guard",
+        "mitigation_tier",
+        "move_point_capacity_delta",
+        "override_heal_multiplier_percent",
+        "save_ability",
+        "save_dc",
+        "save_tag",
+        "source_bound_attack_roll_penalty",
+        "source_bound_attack_roll_penalty_min_stacks",
+        "source_bound_incoming_attack_roll_bonus_min_stacks",
+        "source_bound_incoming_attack_roll_bonus_per_stack",
+        "stack_behavior",
+        "stack_delta",
+        "stack_limit",
+        "status_id",
+        "target_selector",
+        "tick_interval_tu",
+        "timeline_damage_dice_count",
+        "timeline_damage_dice_sides",
+        "timeline_damage_flat_bonus",
+        "undispellable"
+      ]
+    },
+    "AttackRollAdvantageActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "stack_mode": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "mode",
+        "stack_mode",
+        "target_selector"
+      ]
+    },
+    "AttackRollBonusActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_modifier_id": {
+          "type": "string"
+        },
+        "bonus": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "require_weapon_damage": {
+          "type": "boolean"
+        },
+        "stack_mode": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attribute_modifier_id",
+        "bonus",
+        "label",
+        "require_weapon_damage",
+        "stack_mode",
+        "target_selector"
+      ]
+    },
+    "ClearStatusActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clear_target_mark": {
+          "type": "boolean"
+        },
+        "mark_binding_id": {
+          "type": "string"
+        },
+        "mark_state_key": {
+          "type": "string"
+        },
+        "require_source_unit_match": {
+          "type": "boolean"
+        },
+        "status_id": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "clear_target_mark",
+        "mark_binding_id",
+        "mark_state_key",
+        "require_source_unit_match",
+        "status_id",
+        "target_selector"
+      ]
+    },
+    "CompareFactConditionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compare": {
+          "type": "string"
+        },
+        "left": {
+          "$ref": "#/$defs/EquipmentAbilityFactQueryJsonDto"
+        },
+        "right": {
+          "$ref": "#/$defs/EquipmentAbilityFactQueryJsonDto"
+        }
+      },
+      "required": [
+        "compare",
+        "left",
+        "right"
+      ]
+    },
+    "ConsumeStatusStacksActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "require_source_unit_match": {
+          "type": "boolean"
+        },
+        "selection_mode": {
+          "type": "string"
+        },
+        "status_id": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "count",
+        "require_source_unit_match",
+        "selection_mode",
+        "status_id",
+        "target_selector"
+      ]
+    },
+    "ConsumeSummonedUnitsActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "selection_mode": {
+          "type": "string"
+        },
+        "source_binding_id": {
+          "type": "string"
+        },
+        "state_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "count",
+        "selection_mode",
+        "source_binding_id",
+        "state_key"
+      ]
+    },
+    "CriticalHitOverrideActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "require_weapon_damage": {
+          "type": "boolean"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "require_weapon_damage",
+        "target_selector"
+      ]
+    },
+    "DamageReductionActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "integer"
+        },
+        "damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "label": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "damage_tags",
+        "label",
+        "target_selector"
+      ]
+    },
+    "DamageRollModeOverrideActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "roll_mode": {
+          "type": "string"
+        },
+        "stack_mode": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "roll_mode",
+        "stack_mode",
+        "target_selector"
+      ]
+    },
+    "DealDamageActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "damage_type": {
+          "type": "string"
+        },
+        "dice": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "mitigation_bypass_damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mitigation_bypass_tiers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "damage_tags",
+        "damage_type",
+        "dice",
+        "mitigation_bypass_damage_tags",
+        "mitigation_bypass_tiers",
+        "target_selector"
+      ]
+    },
+    "DiceExpressionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flat_bonus": {
+          "type": "integer"
+        },
+        "preview_policy": {
+          "type": "string"
+        },
+        "terms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DiceExpressionTermJsonDto"
+          }
+        }
+      },
+      "required": [
+        "flat_bonus",
+        "preview_policy",
+        "terms"
+      ]
+    },
+    "DiceExpressionTermJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count_bonus_fact": {
+          "$ref": "#/$defs/EquipmentAbilityFactQueryJsonDto"
+        },
+        "count_bonus_multiplier": {
+          "type": "number"
+        },
+        "dice_count": {
+          "type": "integer"
+        },
+        "dice_sides": {
+          "type": "integer"
+        },
+        "max_dice_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "count_bonus_fact",
+        "count_bonus_multiplier",
+        "dice_count",
+        "dice_sides",
+        "max_dice_count"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__add_damage_dice"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__apply_battle_terrain_effect_after_check"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__apply_edge_feature"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__apply_status"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__attack_defense_modifier"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__attack_roll_advantage"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__attack_roll_bonus"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__clear_status"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__consume_status_stacks"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__consume_summoned_units"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__critical_hit_override"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__damage_reduction"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__damage_roll_mode_override"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__deal_damage"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__equipment_durability_damage"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__grant_mitigation_tier"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__heal"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__heal_from_fact"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__immediate_weapon_attack"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__loot_quantity_multiplier"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__mark_target"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__modify_ability_state"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__modify_action_points"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__schedule_area_effect"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__summon_units"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__summoned_unit_attack_roll_modifier"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityActionJsonDto__trigger_skill"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "add_damage_dice": "#/$defs/EquipmentAbilityActionJsonDto__add_damage_dice",
+          "apply_battle_terrain_effect_after_check": "#/$defs/EquipmentAbilityActionJsonDto__apply_battle_terrain_effect_after_check",
+          "apply_edge_feature": "#/$defs/EquipmentAbilityActionJsonDto__apply_edge_feature",
+          "apply_status": "#/$defs/EquipmentAbilityActionJsonDto__apply_status",
+          "attack_defense_modifier": "#/$defs/EquipmentAbilityActionJsonDto__attack_defense_modifier",
+          "attack_roll_advantage": "#/$defs/EquipmentAbilityActionJsonDto__attack_roll_advantage",
+          "attack_roll_bonus": "#/$defs/EquipmentAbilityActionJsonDto__attack_roll_bonus",
+          "clear_status": "#/$defs/EquipmentAbilityActionJsonDto__clear_status",
+          "consume_status_stacks": "#/$defs/EquipmentAbilityActionJsonDto__consume_status_stacks",
+          "consume_summoned_units": "#/$defs/EquipmentAbilityActionJsonDto__consume_summoned_units",
+          "critical_hit_override": "#/$defs/EquipmentAbilityActionJsonDto__critical_hit_override",
+          "damage_reduction": "#/$defs/EquipmentAbilityActionJsonDto__damage_reduction",
+          "damage_roll_mode_override": "#/$defs/EquipmentAbilityActionJsonDto__damage_roll_mode_override",
+          "deal_damage": "#/$defs/EquipmentAbilityActionJsonDto__deal_damage",
+          "equipment_durability_damage": "#/$defs/EquipmentAbilityActionJsonDto__equipment_durability_damage",
+          "grant_mitigation_tier": "#/$defs/EquipmentAbilityActionJsonDto__grant_mitigation_tier",
+          "heal": "#/$defs/EquipmentAbilityActionJsonDto__heal",
+          "heal_from_fact": "#/$defs/EquipmentAbilityActionJsonDto__heal_from_fact",
+          "immediate_weapon_attack": "#/$defs/EquipmentAbilityActionJsonDto__immediate_weapon_attack",
+          "loot_quantity_multiplier": "#/$defs/EquipmentAbilityActionJsonDto__loot_quantity_multiplier",
+          "mark_target": "#/$defs/EquipmentAbilityActionJsonDto__mark_target",
+          "modify_ability_state": "#/$defs/EquipmentAbilityActionJsonDto__modify_ability_state",
+          "modify_action_points": "#/$defs/EquipmentAbilityActionJsonDto__modify_action_points",
+          "schedule_area_effect": "#/$defs/EquipmentAbilityActionJsonDto__schedule_area_effect",
+          "summon_units": "#/$defs/EquipmentAbilityActionJsonDto__summon_units",
+          "summoned_unit_attack_roll_modifier": "#/$defs/EquipmentAbilityActionJsonDto__summoned_unit_attack_roll_modifier",
+          "trigger_skill": "#/$defs/EquipmentAbilityActionJsonDto__trigger_skill"
+        }
+      }
+    },
+    "EquipmentAbilityActionJsonDto__add_damage_dice": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "add_damage_dice"
+        },
+        "payload": {
+          "$ref": "#/$defs/AddDamageDiceActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__apply_battle_terrain_effect_after_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "apply_battle_terrain_effect_after_check"
+        },
+        "payload": {
+          "$ref": "#/$defs/ApplyBattleTerrainEffectAfterCheckActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__apply_edge_feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "apply_edge_feature"
+        },
+        "payload": {
+          "$ref": "#/$defs/ApplyEdgeFeatureActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__apply_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "apply_status"
+        },
+        "payload": {
+          "$ref": "#/$defs/ApplyStatusActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__attack_defense_modifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "attack_defense_modifier"
+        },
+        "payload": {
+          "$ref": "#/$defs/EquipmentAttackDefenseModifierJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__attack_roll_advantage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "attack_roll_advantage"
+        },
+        "payload": {
+          "$ref": "#/$defs/AttackRollAdvantageActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__attack_roll_bonus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "attack_roll_bonus"
+        },
+        "payload": {
+          "$ref": "#/$defs/AttackRollBonusActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__clear_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "clear_status"
+        },
+        "payload": {
+          "$ref": "#/$defs/ClearStatusActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__consume_status_stacks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "consume_status_stacks"
+        },
+        "payload": {
+          "$ref": "#/$defs/ConsumeStatusStacksActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__consume_summoned_units": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "consume_summoned_units"
+        },
+        "payload": {
+          "$ref": "#/$defs/ConsumeSummonedUnitsActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__critical_hit_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "critical_hit_override"
+        },
+        "payload": {
+          "$ref": "#/$defs/CriticalHitOverrideActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__damage_reduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "damage_reduction"
+        },
+        "payload": {
+          "$ref": "#/$defs/DamageReductionActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__damage_roll_mode_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "damage_roll_mode_override"
+        },
+        "payload": {
+          "$ref": "#/$defs/DamageRollModeOverrideActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__deal_damage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "deal_damage"
+        },
+        "payload": {
+          "$ref": "#/$defs/DealDamageActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__equipment_durability_damage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "equipment_durability_damage"
+        },
+        "payload": {
+          "$ref": "#/$defs/EquipmentDurabilityDamageActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__grant_mitigation_tier": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "grant_mitigation_tier"
+        },
+        "payload": {
+          "$ref": "#/$defs/GrantMitigationTierActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__heal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "heal"
+        },
+        "payload": {
+          "$ref": "#/$defs/HealActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__heal_from_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "heal_from_fact"
+        },
+        "payload": {
+          "$ref": "#/$defs/HealFromFactActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__immediate_weapon_attack": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "immediate_weapon_attack"
+        },
+        "payload": {
+          "$ref": "#/$defs/ImmediateWeaponAttackActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__loot_quantity_multiplier": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "loot_quantity_multiplier"
+        },
+        "payload": {
+          "$ref": "#/$defs/LootQuantityMultiplierActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__mark_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "mark_target"
+        },
+        "payload": {
+          "$ref": "#/$defs/MarkTargetActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__modify_ability_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "modify_ability_state"
+        },
+        "payload": {
+          "$ref": "#/$defs/ModifyAbilityStateActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__modify_action_points": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "modify_action_points"
+        },
+        "payload": {
+          "$ref": "#/$defs/ModifyActionPointsActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__schedule_area_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "schedule_area_effect"
+        },
+        "payload": {
+          "$ref": "#/$defs/ScheduleAreaEffectActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__summon_units": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "summon_units"
+        },
+        "payload": {
+          "$ref": "#/$defs/SummonUnitsActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__summoned_unit_attack_roll_modifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "summoned_unit_attack_roll_modifier"
+        },
+        "payload": {
+          "$ref": "#/$defs/SummonedUnitAttackRollModifierActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityActionJsonDto__trigger_skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "kind": {
+          "type": "string",
+          "const": "trigger_skill"
+        },
+        "payload": {
+          "$ref": "#/$defs/TriggerSkillActionPayloadJsonDto"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        }
+      },
+      "required": [
+        "action_id",
+        "condition_group",
+        "kind",
+        "payload",
+        "roll_gate"
+      ]
+    },
+    "EquipmentAbilityBindingJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "activation_status_id": {
+          "type": "string"
+        },
+        "allowed_source_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "binding_id": {
+          "type": "string"
+        },
+        "cognition_ceiling_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentCognitionCeilingModifierJsonDto"
+          }
+        },
+        "fatal_intercepts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentFatalInterceptJsonDto"
+          }
+        },
+        "granted_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentGrantedActionJsonDto"
+          }
+        },
+        "mitigation_auras": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentMitigationAuraJsonDto"
+          }
+        },
+        "movement_trails": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentMovementTrailJsonDto"
+          }
+        },
+        "override_mode": {
+          "type": "string"
+        },
+        "reactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityReactionJsonDto"
+          }
+        },
+        "replaces_binding_id": {
+          "type": "string"
+        },
+        "required_effective_trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_item_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_trait_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "state_schemas": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityStateSchemaJsonDto"
+          }
+        },
+        "supported_equipment_type_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "temporal_progress_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentTemporalProgressModifierJsonDto"
+          }
+        },
+        "trait_id": {
+          "type": "string"
+        },
+        "weapon_profile_overlays": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentWeaponProfileOverlayJsonDto"
+          }
+        },
+        "world_effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentWorldEffectJsonDto"
+          }
+        }
+      },
+      "required": [
+        "activation_status_id",
+        "allowed_source_kinds",
+        "binding_id",
+        "cognition_ceiling_modifiers",
+        "fatal_intercepts",
+        "granted_actions",
+        "mitigation_auras",
+        "movement_trails",
+        "override_mode",
+        "reactions",
+        "replaces_binding_id",
+        "required_effective_trait_ids",
+        "required_item_tags",
+        "required_trait_categories",
+        "state_schemas",
+        "supported_equipment_type_ids",
+        "temporal_progress_modifiers",
+        "trait_id",
+        "weapon_profile_overlays",
+        "world_effects"
+      ]
+    },
+    "EquipmentAbilityConditionGroupJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityConditionJsonDto"
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+          }
+        },
+        "mode": {
+          "type": "string"
+        },
+        "negate": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "conditions",
+        "groups",
+        "mode",
+        "negate"
+      ]
+    },
+    "EquipmentAbilityConditionJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EquipmentAbilityConditionJsonDto__compare_fact"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityConditionJsonDto__has_equipment_tag"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityConditionJsonDto__has_status"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "compare_fact": "#/$defs/EquipmentAbilityConditionJsonDto__compare_fact",
+          "has_equipment_tag": "#/$defs/EquipmentAbilityConditionJsonDto__has_equipment_tag",
+          "has_status": "#/$defs/EquipmentAbilityConditionJsonDto__has_status"
+        }
+      }
+    },
+    "EquipmentAbilityConditionJsonDto__compare_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "condition_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "compare_fact"
+        },
+        "payload": {
+          "$ref": "#/$defs/CompareFactConditionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "condition_id",
+        "kind",
+        "payload"
+      ]
+    },
+    "EquipmentAbilityConditionJsonDto__has_equipment_tag": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "condition_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "has_equipment_tag"
+        },
+        "payload": {
+          "$ref": "#/$defs/HasEquipmentTagConditionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "condition_id",
+        "kind",
+        "payload"
+      ]
+    },
+    "EquipmentAbilityConditionJsonDto__has_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "condition_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "has_status"
+        },
+        "payload": {
+          "$ref": "#/$defs/HasStatusConditionPayloadJsonDto"
+        }
+      },
+      "required": [
+        "condition_id",
+        "kind",
+        "payload"
+      ]
+    },
+    "EquipmentAbilityContentPackJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityBindingJsonDto"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "load_order": {
+          "type": "integer"
+        },
+        "pack_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bindings",
+        "dependencies",
+        "load_order",
+        "pack_id",
+        "schema_version"
+      ]
+    },
+    "EquipmentAbilityContentPackJsonDto__authoring_pack_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EquipmentAbilityContentPackJsonDto"
+        },
+        {
+          "$ref": "#/$defs/EquipmentAbilityContentPackJsonDto__templated_pack_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "EquipmentAbilityContentPackJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityBindingJsonDto"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "load_order": {
+          "type": "integer"
+        },
+        "pack_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "EquipmentAbilityContentPackJsonDto__templated_pack_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityBindingJsonDto"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "load_order": {
+          "type": "integer"
+        },
+        "pack_id": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "pack_id",
+        "template"
+      ]
+    },
+    "EquipmentAbilityFactQueryJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aggregation": {
+          "type": "string"
+        },
+        "attribute_id": {
+          "type": "string"
+        },
+        "binding_id": {
+          "type": "string"
+        },
+        "bool_literal": {
+          "type": "boolean"
+        },
+        "fact_id": {
+          "type": "string"
+        },
+        "float_literal": {
+          "type": "number"
+        },
+        "int_literal": {
+          "type": "integer"
+        },
+        "query_kind": {
+          "type": "string"
+        },
+        "require_source_unit_match": {
+          "type": "boolean"
+        },
+        "state_key": {
+          "type": "string"
+        },
+        "status_id": {
+          "type": "string"
+        },
+        "string_name_literal": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "value_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "aggregation",
+        "attribute_id",
+        "binding_id",
+        "bool_literal",
+        "fact_id",
+        "float_literal",
+        "int_literal",
+        "query_kind",
+        "require_source_unit_match",
+        "state_key",
+        "status_id",
+        "string_name_literal",
+        "subject",
+        "value_kind"
+      ]
+    },
+    "EquipmentAbilityJsonDocumentDto": {
+      "description": "Equipment ability authoring document. Production files contain expanded entries; templates remain file-local schema controls only.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "equipment_abilities"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityContentPackJsonDto__authoring_pack_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/EquipmentAbilityContentPackJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "EquipmentAbilityReactionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityActionJsonDto"
+          }
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "once_scope": {
+          "type": "string"
+        },
+        "outcome_table": {
+          "$ref": "#/$defs/EquipmentOutcomeTableJsonDto"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "projected_effect_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reaction_id": {
+          "type": "string"
+        },
+        "requires_player_confirmation": {
+          "type": "boolean"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        },
+        "timing": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actions",
+        "condition_group",
+        "once_scope",
+        "outcome_table",
+        "priority",
+        "projected_effect_categories",
+        "reaction_id",
+        "requires_player_confirmation",
+        "roll_gate",
+        "timing",
+        "trigger"
+      ]
+    },
+    "EquipmentAbilityStateSchemaJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "initial_int_value": {
+          "type": "integer"
+        },
+        "max_int_value": {
+          "type": "integer"
+        },
+        "owner_scope": {
+          "type": "string"
+        },
+        "persist_outside_battle": {
+          "type": "boolean"
+        },
+        "reset_timing": {
+          "type": "string"
+        },
+        "state_key": {
+          "type": "string"
+        },
+        "sync_aggregation": {
+          "type": "string"
+        },
+        "sync_int_literal": {
+          "type": "integer"
+        },
+        "sync_source_state_key": {
+          "type": "string"
+        },
+        "value_kind": {
+          "type": "string"
+        },
+        "visible_to_ui": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "initial_int_value",
+        "max_int_value",
+        "owner_scope",
+        "persist_outside_battle",
+        "reset_timing",
+        "state_key",
+        "sync_aggregation",
+        "sync_int_literal",
+        "sync_source_state_key",
+        "value_kind",
+        "visible_to_ui"
+      ]
+    },
+    "EquipmentAcComponentMultiplierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ac_component_id": {
+          "type": "string"
+        },
+        "multiplier_percent": {
+          "type": "integer"
+        },
+        "stack_mode": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ac_component_id",
+        "multiplier_percent",
+        "stack_mode"
+      ]
+    },
+    "EquipmentAttackDefenseModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ac_component_multipliers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAcComponentMultiplierJsonDto"
+          }
+        },
+        "cover_policy": {
+          "type": "string"
+        },
+        "ignored_ac_components": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lock_dodge_bonus": {
+          "type": "boolean"
+        },
+        "modifier_id": {
+          "type": "string"
+        },
+        "projectile_obstacle_policy": {
+          "type": "string"
+        },
+        "required_target_equipment_selector": {
+          "type": "string"
+        },
+        "required_target_equipment_type_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_target_item_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trace_label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ac_component_multipliers",
+        "cover_policy",
+        "ignored_ac_components",
+        "lock_dodge_bonus",
+        "modifier_id",
+        "projectile_obstacle_policy",
+        "required_target_equipment_selector",
+        "required_target_equipment_type_ids",
+        "required_target_item_tags",
+        "trace_label"
+      ]
+    },
+    "EquipmentCognitionCeilingModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cognition_ceiling": {
+          "type": "string"
+        },
+        "modifier_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cognition_ceiling",
+        "modifier_id"
+      ]
+    },
+    "EquipmentDurabilityDamageActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "durability_loss": {
+          "type": "integer"
+        },
+        "max_damaged_items": {
+          "type": "integer"
+        },
+        "max_target_rarity": {
+          "type": "integer"
+        },
+        "require_attack_success": {
+          "type": "boolean"
+        },
+        "required_equipment_type_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_item_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_dc": {
+          "type": "integer"
+        },
+        "save_tag": {
+          "type": "string"
+        },
+        "slot_weights": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentSlotWeightJsonDto"
+          }
+        },
+        "target_selector": {
+          "type": "string"
+        },
+        "target_slots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "durability_loss",
+        "max_damaged_items",
+        "max_target_rarity",
+        "require_attack_success",
+        "required_equipment_type_ids",
+        "required_item_tags",
+        "save_dc",
+        "save_tag",
+        "slot_weights",
+        "target_selector",
+        "target_slots"
+      ]
+    },
+    "EquipmentFatalInterceptJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "consume_on_attempt": {
+          "type": "boolean"
+        },
+        "intercept_id": {
+          "type": "string"
+        },
+        "max_attempts_per_period": {
+          "type": "integer"
+        },
+        "protection_priority": {
+          "type": "integer"
+        },
+        "recovery_dice": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "recovery_kind": {
+          "type": "string"
+        },
+        "recovery_percent_basis_points": {
+          "type": "integer"
+        },
+        "resolution_order": {
+          "type": "integer"
+        },
+        "roll_gate": {
+          "$ref": "#/$defs/EquipmentRollGateJsonDto"
+        },
+        "success_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityActionJsonDto"
+          }
+        },
+        "usage_period_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "consume_on_attempt",
+        "intercept_id",
+        "max_attempts_per_period",
+        "protection_priority",
+        "recovery_dice",
+        "recovery_kind",
+        "recovery_percent_basis_points",
+        "resolution_order",
+        "roll_gate",
+        "success_actions",
+        "usage_period_kind"
+      ]
+    },
+    "EquipmentGrantedActionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability_conditions": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "display_category": {
+          "type": "string"
+        },
+        "display_priority": {
+          "type": "integer"
+        },
+        "granted_action_id": {
+          "type": "string"
+        },
+        "granted_kind": {
+          "type": "string"
+        },
+        "max_uses_per_period": {
+          "type": "integer"
+        },
+        "skill_id": {
+          "type": "string"
+        },
+        "skill_level": {
+          "type": "integer"
+        },
+        "usage_period_kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "availability_conditions",
+        "display_category",
+        "display_priority",
+        "granted_action_id",
+        "granted_kind",
+        "max_uses_per_period",
+        "skill_id",
+        "skill_level",
+        "usage_period_kind"
+      ]
+    },
+    "EquipmentMitigationAuraJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aura_id": {
+          "type": "string"
+        },
+        "damage_tag": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "mitigation_tier": {
+          "type": "string"
+        },
+        "radius": {
+          "type": "integer"
+        },
+        "target_team_filter": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "aura_id",
+        "damage_tag",
+        "label",
+        "mitigation_tier",
+        "radius",
+        "target_team_filter"
+      ]
+    },
+    "EquipmentMovementTrailJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_dice": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "damage_tag": {
+          "type": "string"
+        },
+        "damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "replacement_group_id": {
+          "type": "string"
+        },
+        "required_skill_id": {
+          "type": "string"
+        },
+        "target_team_filter": {
+          "type": "string"
+        },
+        "trail_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "damage_dice",
+        "damage_tag",
+        "damage_tags",
+        "display_name",
+        "duration_tu",
+        "priority",
+        "replacement_group_id",
+        "required_skill_id",
+        "target_team_filter",
+        "trail_id"
+      ]
+    },
+    "EquipmentOutcomeEntryJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityActionJsonDto"
+          }
+        },
+        "max_roll": {
+          "type": "integer"
+        },
+        "min_roll": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "actions",
+        "max_roll",
+        "min_roll"
+      ]
+    },
+    "EquipmentOutcomeTableJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentOutcomeEntryJsonDto"
+          }
+        },
+        "roll": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "table_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entries",
+        "roll",
+        "table_id"
+      ]
+    },
+    "EquipmentRollGateJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compare": {
+          "type": "string"
+        },
+        "rng_stream": {
+          "type": "string"
+        },
+        "roll": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "threshold": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "compare",
+        "rng_stream",
+        "roll",
+        "threshold"
+      ]
+    },
+    "EquipmentSlotWeightJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "slot_id": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slot_id",
+        "weight"
+      ]
+    },
+    "EquipmentTemporalProgressModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "applies_to_action_progress": {
+          "type": "boolean"
+        },
+        "applies_to_cast_progress": {
+          "type": "boolean"
+        },
+        "attribute_modifier_id": {
+          "type": "string"
+        },
+        "failure_rate_percent": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "modifier_id": {
+          "type": "string"
+        },
+        "save_dc": {
+          "type": "integer"
+        },
+        "success_rate_percent": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "applies_to_action_progress",
+        "applies_to_cast_progress",
+        "attribute_modifier_id",
+        "failure_rate_percent",
+        "label",
+        "modifier_id",
+        "save_dc",
+        "success_rate_percent"
+      ]
+    },
+    "EquipmentWeaponDiceOverlayJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dice_count_delta": {
+          "type": "integer"
+        },
+        "dice_override": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "dice_sides_override": {
+          "type": "integer"
+        },
+        "flat_bonus_delta": {
+          "type": "integer"
+        },
+        "mode": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dice_count_delta",
+        "dice_override",
+        "dice_sides_override",
+        "flat_bonus_delta",
+        "mode"
+      ]
+    },
+    "EquipmentWeaponProfileOverlayJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack_range_delta": {
+          "type": "integer"
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "grip_override": {
+          "type": "string"
+        },
+        "is_versatile_override": {
+          "type": "boolean"
+        },
+        "max_attack_range": {
+          "type": "integer"
+        },
+        "min_attack_range": {
+          "type": "integer"
+        },
+        "one_handed_dice_overlay": {
+          "$ref": "#/$defs/EquipmentWeaponDiceOverlayJsonDto"
+        },
+        "overlay_id": {
+          "type": "string"
+        },
+        "physical_damage_tag_override": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "require_equipped_weapon": {
+          "type": "boolean"
+        },
+        "required_weapon_families": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_weapon_type_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "two_handed_dice_overlay": {
+          "$ref": "#/$defs/EquipmentWeaponDiceOverlayJsonDto"
+        },
+        "uses_two_hands_override": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "attack_range_delta",
+        "condition_group",
+        "grip_override",
+        "is_versatile_override",
+        "max_attack_range",
+        "min_attack_range",
+        "one_handed_dice_overlay",
+        "overlay_id",
+        "physical_damage_tag_override",
+        "priority",
+        "require_equipped_weapon",
+        "required_weapon_families",
+        "required_weapon_type_ids",
+        "two_handed_dice_overlay",
+        "uses_two_hands_override"
+      ]
+    },
+    "EquipmentWorldEffectJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EquipmentAbilityActionJsonDto"
+          }
+        },
+        "condition_group": {
+          "$ref": "#/$defs/EquipmentAbilityConditionGroupJsonDto"
+        },
+        "timing": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string"
+        },
+        "world_effect_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actions",
+        "condition_group",
+        "timing",
+        "trigger",
+        "world_effect_id"
+      ]
+    },
+    "GrantMitigationTierActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "label": {
+          "type": "string"
+        },
+        "mitigation_tier": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "damage_tags",
+        "label",
+        "mitigation_tier",
+        "target_selector"
+      ]
+    },
+    "HasEquipmentTagConditionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "all_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "any_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "equipment_selector": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "all_tags",
+        "any_tags",
+        "equipment_selector",
+        "subject"
+      ]
+    },
+    "HasStatusConditionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status_id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status_id",
+        "subject"
+      ]
+    },
+    "HealActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dice": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dice",
+        "target_selector"
+      ]
+    },
+    "HealFromFactActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount_fact": {
+          "$ref": "#/$defs/EquipmentAbilityFactQueryJsonDto"
+        },
+        "max_amount": {
+          "type": "integer"
+        },
+        "multiplier_percent": {
+          "type": "integer"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount_fact",
+        "max_amount",
+        "multiplier_percent",
+        "target_selector"
+      ]
+    },
+    "ImmediateWeaponAttackActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anchor_selector": {
+          "type": "string"
+        },
+        "max_attacks": {
+          "type": "integer"
+        },
+        "radius": {
+          "type": "integer"
+        },
+        "require_weapon_range": {
+          "type": "boolean"
+        },
+        "skill_id": {
+          "type": "string"
+        },
+        "target_team_filter": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchor_selector",
+        "max_attacks",
+        "radius",
+        "require_weapon_range",
+        "skill_id",
+        "target_team_filter"
+      ]
+    },
+    "LootQuantityMultiplierActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "affected_drop_kinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "any_item_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "multiplier_percent": {
+          "type": "integer"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "affected_drop_kinds",
+        "any_item_tags",
+        "multiplier_percent",
+        "target_selector"
+      ]
+    },
+    "MarkTargetActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clear_status_ids_on_replace": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mirror_status_display_label": {
+          "type": "string"
+        },
+        "mirror_status_duration_tu": {
+          "type": "integer"
+        },
+        "mirror_status_id": {
+          "type": "string"
+        },
+        "mirror_status_stack_behavior": {
+          "type": "string"
+        },
+        "mirror_status_stack_limit": {
+          "type": "integer"
+        },
+        "remove_on_source_missing": {
+          "type": "boolean"
+        },
+        "remove_on_target_defeated": {
+          "type": "boolean"
+        },
+        "stack_delta": {
+          "type": "integer"
+        },
+        "state_key": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        },
+        "unique_per_source": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "clear_status_ids_on_replace",
+        "mirror_status_display_label",
+        "mirror_status_duration_tu",
+        "mirror_status_id",
+        "mirror_status_stack_behavior",
+        "mirror_status_stack_limit",
+        "remove_on_source_missing",
+        "remove_on_target_defeated",
+        "stack_delta",
+        "state_key",
+        "target_selector",
+        "unique_per_source"
+      ]
+    },
+    "ModifyAbilityStateActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "type": "string"
+        },
+        "int_delta": {
+          "type": "integer"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "state_key": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_id",
+        "int_delta",
+        "operation",
+        "state_key",
+        "target_selector"
+      ]
+    },
+    "ModifyActionPointsActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "integer"
+        },
+        "display_label": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "status_id": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "display_label",
+        "mode",
+        "status_id",
+        "target_selector"
+      ]
+    },
+    "ScheduleAreaEffectActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anchor_selector": {
+          "type": "string"
+        },
+        "area_pattern": {
+          "type": "string"
+        },
+        "area_value": {
+          "type": "integer"
+        },
+        "contact_apply_on_save_failure": {
+          "type": "boolean"
+        },
+        "contact_blocked_by_trait_id": {
+          "type": "string"
+        },
+        "contact_counts_as_debuff": {
+          "type": "boolean"
+        },
+        "contact_counts_as_debuff_override": {
+          "type": "boolean"
+        },
+        "contact_dispellable_beneficial_magic": {
+          "type": "boolean"
+        },
+        "contact_dispellable_harmful_magic": {
+          "type": "boolean"
+        },
+        "contact_dispellable_magic": {
+          "type": "boolean"
+        },
+        "contact_save_ability": {
+          "type": "string"
+        },
+        "contact_save_dc": {
+          "type": "integer"
+        },
+        "contact_save_tag": {
+          "type": "string"
+        },
+        "contact_stack_behavior": {
+          "type": "string"
+        },
+        "contact_stack_limit": {
+          "type": "integer"
+        },
+        "contact_status_display_label": {
+          "type": "string"
+        },
+        "contact_status_duration_tu": {
+          "type": "integer"
+        },
+        "contact_status_id": {
+          "type": "string"
+        },
+        "contact_tick_interval_tu": {
+          "type": "integer"
+        },
+        "contact_timeline_damage_dice_count": {
+          "type": "integer"
+        },
+        "contact_timeline_damage_dice_sides": {
+          "type": "integer"
+        },
+        "contact_timeline_damage_flat_bonus": {
+          "type": "integer"
+        },
+        "contact_undispellable": {
+          "type": "boolean"
+        },
+        "delay_tu": {
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "effect_type": {
+          "type": "string"
+        },
+        "lifetime_policy": {
+          "type": "string"
+        },
+        "overlay_priority": {
+          "type": "integer"
+        },
+        "render_overlay_id": {
+          "type": "string"
+        },
+        "stack_behavior": {
+          "type": "string"
+        },
+        "target_team_filter": {
+          "type": "string"
+        },
+        "terrain_effect_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchor_selector",
+        "area_pattern",
+        "area_value",
+        "contact_apply_on_save_failure",
+        "contact_blocked_by_trait_id",
+        "contact_counts_as_debuff",
+        "contact_counts_as_debuff_override",
+        "contact_dispellable_beneficial_magic",
+        "contact_dispellable_harmful_magic",
+        "contact_dispellable_magic",
+        "contact_save_ability",
+        "contact_save_dc",
+        "contact_save_tag",
+        "contact_stack_behavior",
+        "contact_stack_limit",
+        "contact_status_display_label",
+        "contact_status_duration_tu",
+        "contact_status_id",
+        "contact_tick_interval_tu",
+        "contact_timeline_damage_dice_count",
+        "contact_timeline_damage_dice_sides",
+        "contact_timeline_damage_flat_bonus",
+        "contact_undispellable",
+        "delay_tu",
+        "display_name",
+        "effect_type",
+        "lifetime_policy",
+        "overlay_priority",
+        "render_overlay_id",
+        "stack_behavior",
+        "target_team_filter",
+        "terrain_effect_id"
+      ]
+    },
+    "SummonUnitsActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_points": {
+          "type": "integer"
+        },
+        "ai_brain_id": {
+          "type": "string"
+        },
+        "ai_state_id": {
+          "type": "string"
+        },
+        "anchor_selector": {
+          "type": "string"
+        },
+        "armor_class": {
+          "type": "integer"
+        },
+        "attack_bonus": {
+          "type": "integer"
+        },
+        "base_attack_bonus": {
+          "type": "integer"
+        },
+        "body_size_category": {
+          "type": "string"
+        },
+        "cognition_kind": {
+          "type": "string"
+        },
+        "control_mode": {
+          "type": "string"
+        },
+        "count_dice": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "creature_type_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "hp_max": {
+          "type": "integer"
+        },
+        "known_active_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_living_units": {
+          "type": "integer"
+        },
+        "move_points": {
+          "type": "integer"
+        },
+        "movement_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "natural_weapon_attack_range": {
+          "type": "integer"
+        },
+        "natural_weapon_damage_dice": {
+          "$ref": "#/$defs/DiceExpressionJsonDto"
+        },
+        "natural_weapon_damage_tag": {
+          "type": "string"
+        },
+        "natural_weapon_family": {
+          "type": "string"
+        },
+        "natural_weapon_profile_type_id": {
+          "type": "string"
+        },
+        "spawn_radius": {
+          "type": "integer"
+        },
+        "state_key": {
+          "type": "string"
+        },
+        "unit_display_name": {
+          "type": "string"
+        },
+        "unit_id_prefix": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_points",
+        "ai_brain_id",
+        "ai_state_id",
+        "anchor_selector",
+        "armor_class",
+        "attack_bonus",
+        "base_attack_bonus",
+        "body_size_category",
+        "cognition_kind",
+        "control_mode",
+        "count_dice",
+        "creature_type_tags",
+        "duration_tu",
+        "hp_max",
+        "known_active_skill_ids",
+        "max_living_units",
+        "move_points",
+        "movement_tags",
+        "natural_weapon_attack_range",
+        "natural_weapon_damage_dice",
+        "natural_weapon_damage_tag",
+        "natural_weapon_family",
+        "natural_weapon_profile_type_id",
+        "spawn_radius",
+        "state_key",
+        "unit_display_name",
+        "unit_id_prefix"
+      ]
+    },
+    "SummonedUnitAttackRollModifierActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bonus_per_unit": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "max_absolute_bonus": {
+          "type": "integer"
+        },
+        "min_units": {
+          "type": "integer"
+        },
+        "radius": {
+          "type": "integer"
+        },
+        "source_binding_id": {
+          "type": "string"
+        },
+        "stack_mode": {
+          "type": "string"
+        },
+        "state_key": {
+          "type": "string"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bonus_per_unit",
+        "label",
+        "max_absolute_bonus",
+        "min_units",
+        "radius",
+        "source_binding_id",
+        "stack_mode",
+        "state_key",
+        "target_selector"
+      ]
+    },
+    "TriggerSkillActionPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "activation_log": {
+          "type": "string"
+        },
+        "handle_target_defeat": {
+          "type": "boolean"
+        },
+        "merge_into_parent_result": {
+          "type": "boolean"
+        },
+        "save_log_label": {
+          "type": "string"
+        },
+        "skill_id": {
+          "type": "string"
+        },
+        "skill_level": {
+          "type": "integer"
+        },
+        "target_selector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "activation_log",
+        "handle_target_defeat",
+        "merge_into_parent_result",
+        "save_log_label",
+        "skill_id",
+        "skill_level",
+        "target_selector"
+      ]
+    }
+  }
+}

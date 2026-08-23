@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=64 format=3]
+[gd_resource type="Resource" script_class="EngineAssetCatalogDef" load_steps=65 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineAssetCatalogDef.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/systems/content/assets/EngineTextureAssetEntryDef.cs" id="2_texture"]
@@ -34,6 +34,12 @@
 [ext_resource type="Texture2D" path="res://assets/main/battle/units/enemy/wolf_board.png" id="32_enemy_wolf"]
 [ext_resource type="Texture2D" path="res://assets/main/battle/units/enemy/wolf_alpha_board.png" id="33_enemy_wolf_alpha"]
 [ext_resource type="Texture2D" path="res://assets/main/battle/units/enemy/militia_board.png" id="34_enemy_militia"]
+[ext_resource type="Texture2D" path="res://icon.svg" id="35_item_icon"]
+
+[sub_resource type="Resource" id="TextureEntry_item_icon"]
+script = ExtResource("2_texture")
+asset_id = &"ui.item.icon.default"
+texture = ExtResource("35_item_icon")
 
 [sub_resource type="Resource" id="TextureEntry_marker_preview"]
 script = ExtResource("2_texture")
@@ -182,7 +188,7 @@ texture = ExtResource("34_enemy_militia")
 
 [resource]
 script = ExtResource("1_catalog")
-texture_assets = Array[ExtResource("2_texture")]([SubResource("TextureEntry_marker_preview"), SubResource("TextureEntry_archer_aimed_shot"), SubResource("TextureEntry_archer_armor_piercer"), SubResource("TextureEntry_archer_arrow_rain"), SubResource("TextureEntry_archer_multishot"), SubResource("TextureEntry_archer_pinning_shot"), SubResource("TextureEntry_basic_attack"), SubResource("TextureEntry_mage_banshee_wail"), SubResource("TextureEntry_mage_blink"), SubResource("TextureEntry_mage_dimension_swap"), SubResource("TextureEntry_mage_force_lance"), SubResource("TextureEntry_mage_fossil_to_mud"), SubResource("TextureEntry_saint_blade_combo"), SubResource("TextureEntry_vajra_body"), SubResource("TextureEntry_warrior_aura_slash"), SubResource("TextureEntry_warrior_battle_recovery"), SubResource("TextureEntry_warrior_combo_strike"), SubResource("TextureEntry_warrior_heavy_strike"), SubResource("TextureEntry_warrior_last_stand"), SubResource("TextureEntry_warrior_shield_bash"), SubResource("TextureEntry_warrior_spin_slash"), SubResource("TextureEntry_warrior_sweeping_slash"), SubResource("TextureEntry_warrior_war_cry"), SubResource("TextureEntry_warrior_whirlwind_slash"), SubResource("TextureEntry_enemy_wolf"), SubResource("TextureEntry_enemy_wolf_alpha"), SubResource("TextureEntry_enemy_militia")])
+texture_assets = Array[ExtResource("2_texture")]([SubResource("TextureEntry_marker_preview"), SubResource("TextureEntry_item_icon"), SubResource("TextureEntry_archer_aimed_shot"), SubResource("TextureEntry_archer_armor_piercer"), SubResource("TextureEntry_archer_arrow_rain"), SubResource("TextureEntry_archer_multishot"), SubResource("TextureEntry_archer_pinning_shot"), SubResource("TextureEntry_basic_attack"), SubResource("TextureEntry_mage_banshee_wail"), SubResource("TextureEntry_mage_blink"), SubResource("TextureEntry_mage_dimension_swap"), SubResource("TextureEntry_mage_force_lance"), SubResource("TextureEntry_mage_fossil_to_mud"), SubResource("TextureEntry_saint_blade_combo"), SubResource("TextureEntry_vajra_body"), SubResource("TextureEntry_warrior_aura_slash"), SubResource("TextureEntry_warrior_battle_recovery"), SubResource("TextureEntry_warrior_combo_strike"), SubResource("TextureEntry_warrior_heavy_strike"), SubResource("TextureEntry_warrior_last_stand"), SubResource("TextureEntry_warrior_shield_bash"), SubResource("TextureEntry_warrior_spin_slash"), SubResource("TextureEntry_warrior_sweeping_slash"), SubResource("TextureEntry_warrior_war_cry"), SubResource("TextureEntry_warrior_whirlwind_slash"), SubResource("TextureEntry_enemy_wolf"), SubResource("TextureEntry_enemy_wolf_alpha"), SubResource("TextureEntry_enemy_militia")])
 scene_assets = Array[ExtResource("3_scene")]([SubResource("SceneEntry_battle_board_prop")])
 audio_assets = Array[ExtResource("4_audio")]([])
 shader_assets = Array[ExtResource("5_shader")]([SubResource("ShaderEntry_skill_icon_grayscale")])

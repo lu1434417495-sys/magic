@@ -2,7 +2,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class ContingencyAutomationDef : Resource
+public partial class ContingencyAutomationDef : RefCounted
 {
     [Export]
     public bool can_be_stored_in_contingency { get; set; }

@@ -1,29 +1,29 @@
 # 战斗武器骰与战斗内换装设计口径
 
 更新日期：`2026-06-12`
-核对日期：`2026-07-22`
+核对日期：`2026-08-19`
 
 ## 状态
 
 - 当前状态：`Implemented Design Record`
 - 范围：BG3 风格武器 profile、武器骰、战斗内换装、battle-local 队伍共享背包、敌方攻击装备投影与掉落边界。
-- 本文记录当前 C# 主线的设计真相源。旧 `.gd` 文件名、旧 `ItemDef` 顶层武器字段、`TYPE_EQUIP` / `TYPE_UNEQUIP` 拆分方案，以及旧 PR 分期讨论均不再作为实现依据。
+- 本文记录当前 C# 主线的设计真相源。旧 `.gd` 文件名、旧 item 顶层武器字段、`TYPE_EQUIP` / `TYPE_UNEQUIP` 拆分方案，以及旧 PR 分期讨论均不再作为实现依据。
 
 ## 真相源
 
 ### 物品与武器 Profile
 
-- `scripts/player/warehouse/ItemDef.cs`
-  - `ItemDef.weapon_profile` 是物品侧武器运行时真相源。
+- `data/configs/json/items/items.json` / `scripts/player/warehouse/ItemDefinition.cs`
+  - JSON `weapon_profile` 经 `ItemDefinitionProjector` 投影为 immutable `WeaponProfileDefinition`，是物品侧武器运行时真相源。
   - 不恢复旧 `weapon_attack_range` / `weapon_physical_damage_tag` 顶层字段 fallback。
-- `scripts/player/warehouse/WeaponProfileDef.cs`
+- `scripts/player/warehouse/WeaponProfileDefinition.cs`
   - 持有 `weapon_type_id`、`training_group`、`range_type`、`family`、`damage_tag`、`attack_range`、`one_handed_dice`、`two_handed_dice`、`properties_mode`、`properties`。
-  - 模板继承由 `WeaponProfileDef.Merge(...)` / `ItemContentRegistry` 的模板合并链完成。
-- `scripts/player/warehouse/WeaponDamageDiceDef.cs`
+  - 旧 31 类 template 的最终值已经展开进每个 item JSON；production 不执行模板继承或 merge。
+- `scripts/player/warehouse/WeaponDamageDiceDefinition.cs`
   - 持有 `dice_count`、`dice_sides`、`flat_bonus`。
-  - dice 校验是程序集内部规则，不作为 public Godot helper 扩散。
-- `data/configs/items_templates/weapon_type_*_base.tres`
-  - 当前覆盖 `docs/reference/rules/weapon_types_damage.md` 中整理的 31 类 BG3 基础 weapon type。
+  - dice 校验位于 pure CLR item import validator，不作为 public Godot helper 扩散。
+- `scripts/systems/content/items/ItemImportModels.cs`
+  - weapon type/profile/dice 的 plain import shape 覆盖 `docs/reference/rules/weapon_types_damage.md` 整理的 31 类 BG3 基础 weapon type。
 
 ### 战斗投影
 
@@ -118,13 +118,13 @@ base_damage = weapon_dice_if_add_weapon_dice
 - 不扩展 `SaveSerializer` 的 battle payload 来保存战斗中换装状态。
 - 不添加旧武器字段 fallback：
   - 旧 `weapon_attack_range` / `weapon_physical_damage_tag` 不作为运行时来源。
-  - 资源校验和仓库模板回归应拒绝旧裸字段路径。
+  - JSON import validator 与 item golden 应拒绝旧裸字段或未知字段。
 
 ## 敌方攻击装备与掉落
 
 - `scripts/enemies/EnemyTemplateDef.cs`
   - `attack_equipment_item_id` 是非 `beast` 敌人的攻击装备来源。
-  - 非 `beast` 模板必须显式引用一个有效武器 `ItemDef.weapon_profile`。
+  - 非 `beast` 模板必须显式引用一个具有有效 `WeaponProfileDefinition` 的 item ID。
   - 旧 `attribute_overrides.weapon_attack_range` / `weapon_physical_damage_tag` 是配置错误。
 - `beast` 模板默认投影天生武器：
   - kind: `natural_weapon`

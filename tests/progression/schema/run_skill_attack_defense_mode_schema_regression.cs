@@ -90,7 +90,7 @@ public partial class run_skill_attack_defense_mode_schema_regression : Lifecycle
             skill_id = "attack_defense_projection_probe",
             combat_profile = profile,
         };
-        SkillDefinition definition = SkillDefinition.FromResource(skill);
+        SkillDefinition definition = SkillDefinition.FromDiagnosticFixture(skill);
 
         _test.Eq(
             definition.CombatProfile.GetEffectiveAttackDefenseMode(1),

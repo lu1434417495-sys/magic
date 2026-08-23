@@ -180,10 +180,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
     {
         using EncounterRosterBuilder builder = new();
         StringName grantedSkillId = "enemy_flame_equipment_skill";
-        ItemDef weapon = TestResourceOwnership.Own(
-            MakeWeapon("enemy_flame_blade"),
-            "EncounterRosterBuilderTypedBoundary.enemy_flame_blade"
-        );
+        TestItemDefinitionBuilder weapon = MakeWeapon("enemy_flame_blade");
         weapon.trait_ids = new GStringNameArray { "trait.weapon.flame" };
         weapon.tags = new GStringNameArray { "blade" };
         ItemDefinition weaponDefinition = weapon.ToDefinition();
@@ -680,9 +677,9 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         };
     }
 
-    private static ItemDef MakeWeapon(StringName itemId)
+    private static TestItemDefinitionBuilder MakeWeapon(StringName itemId)
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -690,15 +687,15 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             is_stackable = false,
             max_stack = 1,
-            weapon_profile = new WeaponProfileDef
+            weapon_profile = new TestWeaponProfileDefinitionBuilder
             {
                 weapon_type_id = "shortsword",
                 training_group = "martial",
                 range_type = "melee",
                 family = "sword",
-                damage_tag = ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+                damage_tag = TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
                 attack_range = 1,
-                one_handed_dice = new WeaponDamageDiceDef
+                one_handed_dice = new TestWeaponDamageDiceDefinitionBuilder
                 {
                     dice_count = 1,
                     dice_sides = 6,

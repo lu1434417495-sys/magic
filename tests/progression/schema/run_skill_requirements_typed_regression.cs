@@ -31,7 +31,10 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
         };
 
         SkillDef badSkillLevelRequirement = BuildSkill("invalid_skill_level_requirement");
-        badSkillLevelRequirement.skill_level_requirements = new GDictionary { ["charge"] = "5" };
+        badSkillLevelRequirement.skill_level_requirements = new GDictionary
+        {
+            ["missing_skill"] = 5,
+        };
 
         SkillDef badAttributeRequirement = BuildSkill("invalid_attribute_requirement");
         badAttributeRequirement.attribute_requirements = new GDictionary { ["hp_max"] = 1 };
@@ -47,6 +50,7 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
             prerequisite,
             validReference,
             badLearnRequirement,
+            badSkillLevelRequirement,
             badAttributeRequirement,
             badUpgradeSources
         );
@@ -54,34 +58,15 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
         AssertOnlyValidationErrors(
             errors,
             "Skill invalid_learn_requirement references missing skill missing_skill in learn_requirements.",
+            "Skill invalid_skill_level_requirement references missing skill missing_skill in skill_level_requirements.",
             "Skill invalid_attribute_requirement references unsupported attribute hp_max in attribute_requirements.",
             "Skill invalid_upgrade_sources references missing skill missing_upgrade_skill in upgrade_source_skill_ids."
-        );
-
-        ContentImportStageResult<SkillImportModel> invalidRequirementImport =
-            SkillResourceProjectionAdapter.TryAdapt(
-                new JsonContentEntryContext(
-                    SkillContentJsonAuthoringDomain.DomainId,
-                    badSkillLevelRequirement.skill_id.ToString(),
-                    "test.skill_requirements.invalid_skill_level_requirement",
-                    "/entries/0"
-                ),
-                badSkillLevelRequirement
-            );
-        string importErrors = "";
-        foreach (ContentJsonDiagnostic diagnostic in invalidRequirementImport.Diagnostics)
-            importErrors += $"{diagnostic.RuleId} {diagnostic.JsonPointer}: {diagnostic.Message} | ";
-        _test.True(
-            !invalidRequirementImport.HasValue
-                && importErrors.Contains("skill.tres.invalid_resource")
-                && importErrors.Contains("/entries/0/skill_level_requirements"),
-            $"non-int skill requirement should fail at the canonical import boundary. errors={importErrors}"
         );
     }
 
     private void TestOfficialSkillResourcesExposeTypedRequirementsAndSources()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using ProgressionContentRegistry registry = new();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 
@@ -156,18 +141,23 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
 
     private static GStringArray CollectValidationErrors(params SkillDef[] skillDefs)
     {
-        GDictionary indexedSkillDefs = new();
+        var indexedSkillDefinitions = new Dictionary<StringName, SkillDefinition>();
         foreach (SkillDef skillDef in skillDefs)
         {
             if (skillDef != null && skillDef.skill_id != "")
-                indexedSkillDefs[skillDef.skill_id] = skillDef;
+            {
+                indexedSkillDefinitions[skillDef.skill_id] =
+                    SkillDefinition.FromDiagnosticFixture(skillDef);
+            }
         }
 
-        using ProgressionContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
+        registry.ReplaceDefinitionsForValidation(
+            new ProgressionDefinitionSources
+            {
+                SkillDefinitions = indexedSkillDefinitions,
+            }
         );
-        registry.ReplaceSkillAuthoringResourcesForValidation(indexedSkillDefs);
         return registry.CollectValidationErrors();
     }
 

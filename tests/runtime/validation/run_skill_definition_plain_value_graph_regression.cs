@@ -30,8 +30,8 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             TestStrictDictionaryAndPackedValueRejection();
             TestSyntheticIllegalObjectAndCycleRejection();
             TestResourceDefaultsAreEffectiveWithoutWritingBack();
-            TestResourceLevelOverrideProjectionRules();
-            TestResourceDescriptionVariablesRequireStrings();
+            TestDiagnosticFixtureLevelOverrideProjectionRules();
+            TestDiagnosticFixtureDescriptionVariablesRequireStrings();
             TestFormalFlawReadOverrideMigrationPreservesEffectiveBehavior();
             TestFingerprintAndLevelDescriptionRemainStable();
         }
@@ -384,7 +384,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             "skill-typed-resource-skill"
         );
 
-        SkillDefinition skill = SkillDefinition.FromResource(skillResource);
+        SkillDefinition skill = SkillDefinition.FromDiagnosticFixture(skillResource);
         CombatSkillDefinition combat = skill.CombatProfile;
         _test.True(combat != null, "Typed Resource probe should project a combat definition.");
         if (combat == null)
@@ -640,8 +640,8 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             );
 
             AssertInvalidDataPath(
-                () => SkillDefinition.FromResource(effectSkill),
-                "<SkillDef:charge>/entries/0/combat_profile/effect_defs/0/payload/outer",
+                () => SkillDefinition.FromDiagnosticFixture(effectSkill),
+                "<SkillDiagnosticFixture:charge>/entries/0/combat_profile/effect_defs/0/payload/outer",
                 "Nested effect Object rejection should identify the complete authored skill path."
             );
         }
@@ -681,8 +681,8 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             );
 
             AssertInvalidDataPath(
-                () => SkillDefinition.FromResource(variantSkill),
-                "<SkillDef:teleport>/entries/0/combat_profile/cast_variants/0/payload/nested",
+                () => SkillDefinition.FromDiagnosticFixture(variantSkill),
+                "<SkillDiagnosticFixture:teleport>/entries/0/combat_profile/cast_variants/0/payload/nested",
                 "Cast-variant Object rejection should identify the complete authored skill path."
             );
         }
@@ -803,7 +803,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
                 "plain-value-default-skill"
             );
 
-            SkillDefinition definition = SkillDefinition.FromResource(rawSkill);
+            SkillDefinition definition = SkillDefinition.FromDiagnosticFixture(rawSkill);
             _test.True(definition != null, "Default probe should project a SkillDefinition.");
             _test.Eq(
                 definition?.IconId?.ToString() ?? "",
@@ -823,7 +823,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         }
     }
 
-    private void TestResourceLevelOverrideProjectionRules()
+    private void TestDiagnosticFixtureLevelOverrideProjectionRules()
     {
         using (
             var resetScope = new NativeLeaseScope(
@@ -871,7 +871,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
                 "skill-level-override-reset-skill"
             );
 
-            CombatSkillDefinition combat = SkillDefinition.FromResource(skillResource).CombatProfile;
+            CombatSkillDefinition combat = SkillDefinition.FromDiagnosticFixture(skillResource).CombatProfile;
             _test.Eq(
                 combat.GetEffectiveAttackResolutionMode(0),
                 CombatSkillAttackResolutionMode.FateAttack,
@@ -919,24 +919,24 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             1,
             "future_field",
             1,
-            "<SkillDef:unknown_override_field>/entries/0/combat_profile/level_overrides/1/future_field",
-            "Unknown Resource level override fields must fail closed."
+            "<SkillDiagnosticFixture:unknown_override_field>/entries/0/combat_profile/level_overrides/1/future_field",
+            "Unknown diagnostic fixture level override fields must fail closed."
         );
         AssertInvalidLevelOverrideProjection(
             "overflow_override_value",
             1,
             "ap_cost",
             (long)int.MaxValue + 1L,
-            "<SkillDef:overflow_override_value>/entries/0/combat_profile/level_overrides/1/ap_cost",
-            "Resource level override integers outside Int32 must fail explicitly."
+            "<SkillDiagnosticFixture:overflow_override_value>/entries/0/combat_profile/level_overrides/1/ap_cost",
+            "Diagnostic fixture level override integers outside Int32 must fail explicitly."
         );
         AssertInvalidLevelOverrideProjection(
             "overflow_override_level",
             (long)int.MaxValue + 1L,
             "ap_cost",
             1,
-            "<SkillDef:overflow_override_level>/entries/0/combat_profile/level_overrides",
-            "Resource level keys outside Int32 must fail explicitly."
+            "<SkillDiagnosticFixture:overflow_override_level>/entries/0/combat_profile/level_overrides",
+            "Diagnostic fixture level keys outside Int32 must fail explicitly."
         );
     }
 
@@ -970,13 +970,13 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             $"skill-level-override-invalid-{skillId}-skill"
         );
         AssertInvalidDataPath(
-            () => SkillDefinition.FromResource(skillResource),
+            () => SkillDefinition.FromDiagnosticFixture(skillResource),
             expectedPath,
             message
         );
     }
 
-    private void TestResourceDescriptionVariablesRequireStrings()
+    private void TestDiagnosticFixtureDescriptionVariablesRequireStrings()
     {
         AssertInvalidDescriptionVariable(
             "description_string_name",
@@ -1015,9 +1015,9 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             $"skill-description-variable-{skillId}-skill"
         );
         AssertInvalidDataPath(
-            () => SkillDefinition.FromResource(skillResource),
-            $"<SkillDef:{skillId}>/entries/0/level_description_configs/0/power",
-            $"Resource description variable {typeLabel} values must be rejected."
+            () => SkillDefinition.FromDiagnosticFixture(skillResource),
+            $"<SkillDiagnosticFixture:{skillId}>/entries/0/level_description_configs/0/power",
+            $"Diagnostic fixture description variable {typeLabel} values must be rejected."
         );
     }
 

@@ -1659,7 +1659,6 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
     {
         return new ItemDefinition(
             itemId,
-            "",
             displayName,
             description,
             "",

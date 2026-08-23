@@ -24,9 +24,9 @@ public partial class run_character_management_weapon_projection_regression : Lif
     private void TestWeaponPhysicalDamageTagUsesTypedEquipmentState()
     {
         PartyState party = BuildPartyWithMember("hero");
-        ItemDef spear = MakeWeapon(
+        TestItemDefinitionBuilder spear = MakeWeapon(
             "test_spear",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce)
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce)
         );
         CharacterManagementModule manager = BuildManager(party, spear);
 
@@ -37,7 +37,7 @@ public partial class run_character_management_weapon_projection_regression : Lif
         );
         _test.Eq(
             manager.GetMemberWeaponPhysicalDamageTag("hero"),
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
             "empty main hand should use the unarmed physical damage tag."
         );
 
@@ -45,7 +45,7 @@ public partial class run_character_management_weapon_projection_regression : Lif
 
         _test.Eq(
             manager.GetMemberWeaponPhysicalDamageTag("hero"),
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             "equipped weapon should expose its typed physical damage tag."
         );
     }
@@ -53,13 +53,13 @@ public partial class run_character_management_weapon_projection_regression : Lif
     private void TestWeaponPhysicalDamageTagRejectsBadMainHandStates()
     {
         PartyState party = BuildPartyWithMember("hero");
-        ItemDef ore = new()
+        TestItemDefinitionBuilder ore = new()
         {
             item_id = "iron_ore",
             display_name = "Iron Ore",
             CategoryKind = ItemCategoryKind.Misc,
         };
-        ItemDef invalidWeapon = MakeWeapon("invalid_blade", "elemental_fire");
+        TestItemDefinitionBuilder invalidWeapon = MakeWeapon("invalid_blade", "elemental_fire");
         CharacterManagementModule manager = BuildManager(party, ore, invalidWeapon);
 
         EquipMainHand(party.GetMemberState("hero"), "missing_sword");
@@ -87,15 +87,15 @@ public partial class run_character_management_weapon_projection_regression : Lif
     private void TestWeaponProjectionForEquipmentViewUsesTypedDto()
     {
         PartyState party = BuildPartyWithMember("hero");
-        ItemDef longsword = MakeWeapon(
+        TestItemDefinitionBuilder longsword = MakeWeapon(
             "training_longsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash)
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash)
         );
-        WeaponProfileDef weaponProfile = longsword.weapon_profile as WeaponProfileDef;
+        TestWeaponProfileDefinitionBuilder weaponProfile = longsword.weapon_profile as TestWeaponProfileDefinitionBuilder;
         weaponProfile.attack_range = 2;
         weaponProfile.family = "sword";
         weaponProfile.weapon_type_id = "longsword";
-        weaponProfile.one_handed_dice = new WeaponDamageDiceDef
+        weaponProfile.one_handed_dice = new TestWeaponDamageDiceDefinitionBuilder
         {
             dice_count = 1,
             dice_sides = 8,
@@ -114,7 +114,7 @@ public partial class run_character_management_weapon_projection_regression : Lif
         );
         _test.Eq(
             unarmed.weapon_physical_damage_tag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
             "typed unarmed projection should keep the blunt damage tag."
         );
 
@@ -150,18 +150,18 @@ public partial class run_character_management_weapon_projection_regression : Lif
         );
         _test.Eq(
             equipped.weapon_physical_damage_tag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             "typed weapon projection should preserve physical damage tag."
         );
     }
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        params ItemDef[] itemDefs
+        params TestItemDefinitionBuilder[] itemDefs
     )
     {
         Dictionary<StringName, ItemDefinition> indexedItemDefs = new();
-        foreach (ItemDef itemDef in itemDefs)
+        foreach (TestItemDefinitionBuilder itemDef in itemDefs)
         {
             if (itemDef != null)
                 indexedItemDefs[itemDef.item_id] = itemDef.ToDefinition();
@@ -191,7 +191,7 @@ public partial class run_character_management_weapon_projection_regression : Lif
         return party;
     }
 
-    private static ItemDef MakeWeapon(StringName itemId, StringName damageTag) =>
+    private static TestItemDefinitionBuilder MakeWeapon(StringName itemId, StringName damageTag) =>
         new()
         {
             item_id = itemId,
@@ -200,14 +200,14 @@ public partial class run_character_management_weapon_projection_regression : Lif
             is_stackable = false,
             equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
-            weapon_profile = new WeaponProfileDef
+            weapon_profile = new TestWeaponProfileDefinitionBuilder
             {
                 weapon_type_id = "test_weapon_type",
                 family = "test_family",
                 range_type = "melee",
                 damage_tag = damageTag,
                 attack_range = 1,
-                one_handed_dice = new WeaponDamageDiceDef(),
+                one_handed_dice = new TestWeaponDamageDiceDefinitionBuilder(),
             },
         };
 

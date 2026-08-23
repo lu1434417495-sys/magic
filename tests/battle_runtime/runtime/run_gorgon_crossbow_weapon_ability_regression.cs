@@ -92,33 +92,26 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
         if (!fixture.ItemDefs.ContainsKey(GorgonCrossbowItemId))
             return;
 
-        ItemDef rawGorgon = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_heavy_crossbow_gorgon.tres"
-        );
+        ItemDefinition rawGorgon = TestItemDefinitionLookup.GetProductionItem("weapon_unique_crossbow_gorgon_329");
         _test.True(rawGorgon != null, "蛇发女妖之弩原始资源应能加载。");
         if (rawGorgon != null)
         {
-            _test.Eq(rawGorgon.display_name, "蛇发女妖之弩", "显示名应来自设计源。");
-            _test.Eq(
-                rawGorgon.base_item_id,
-                new StringName("weapon_type_heavy_crossbow_base"),
-                "蛇发女妖之弩应继承 heavy crossbow 模板。"
-            );
-            _test.Eq(rawGorgon.base_price, 58000, "蛇发女妖之弩基础价格应为 58000。");
-            WeaponProfileDef profile = rawGorgon.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawGorgon.DisplayName, "蛇发女妖之弩", "显示名应来自设计源。");
+            _test.Eq(rawGorgon.BasePrice, 58000, "蛇发女妖之弩基础价格应为 58000。");
+            WeaponProfileDefinition profile = rawGorgon.WeaponProfile;
             _test.True(profile != null, "蛇发女妖之弩应声明武器 profile override。");
             if (profile != null)
             {
-                _test.Eq(profile.weapon_type_id, new StringName("heavy_crossbow"), "武器类型应为 heavy_crossbow。");
-                _test.Eq(profile.training_group, new StringName("martial"), "训练组应为 martial。");
-                _test.Eq(profile.range_type, new StringName("ranged"), "射程类型应为 ranged。");
-                _test.Eq(profile.family, new StringName("crossbow"), "武器家族应为 crossbow。");
-                _test.Eq(profile.damage_tag, new StringName("physical_pierce"), "基础伤害应为穿刺。");
-                _test.Eq(profile.attack_range, 10, "攻击距离应为 10。");
-                _test.True(profile.one_handed_dice == null, "重弩不应声明单手伤害。");
-                _test.Eq(profile.two_handed_dice?.dice_count ?? 0, 1, "重弩伤害应为 1D10+2。");
-                _test.Eq(profile.two_handed_dice?.dice_sides ?? 0, 10, "重弩伤害应为 1D10+2。");
-                _test.Eq(profile.two_handed_dice?.flat_bonus ?? 0, 2, "重弩伤害应为 1D10+2。");
+                _test.Eq(profile.WeaponTypeId, new StringName("heavy_crossbow"), "武器类型应为 heavy_crossbow。");
+                _test.Eq(profile.TrainingGroup, new StringName("martial"), "训练组应为 martial。");
+                _test.Eq(profile.RangeType, new StringName("ranged"), "射程类型应为 ranged。");
+                _test.Eq(profile.Family, new StringName("crossbow"), "武器家族应为 crossbow。");
+                _test.Eq(profile.DamageTag, new StringName("physical_pierce"), "基础伤害应为穿刺。");
+                _test.Eq(profile.AttackRange, 10, "攻击距离应为 10。");
+                _test.True(profile.OneHandedDice == null, "重弩不应声明单手伤害。");
+                _test.Eq(profile.TwoHandedDice?.DiceCount ?? 0, 1, "重弩伤害应为 1D10+2。");
+                _test.Eq(profile.TwoHandedDice?.DiceSides ?? 0, 10, "重弩伤害应为 1D10+2。");
+                _test.Eq(profile.TwoHandedDice?.FlatBonus ?? 0, 2, "重弩伤害应为 1D10+2。");
                 _test.True(ContainsStringName(profile.GetPropertiesTyped(), "two_handed"), "应声明 two_handed。");
                 _test.True(ContainsStringName(profile.GetPropertiesTyped(), "heavy"), "应声明 heavy。");
                 _test.True(ContainsStringName(profile.GetPropertiesTyped(), "loading"), "应声明 loading。");

@@ -409,7 +409,7 @@ public partial class run_weapon_hit_combo_stack_regression : LifecycleTestSceneT
             damage_tag = addWeaponDice ? new StringName("") : new StringName("force"),
             @params = new GDictionary(),
         };
-        return CombatEffectDefinition.FromResource(
+        return CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "weapon_hit_combo_stack_regression"
         );

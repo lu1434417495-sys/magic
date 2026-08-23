@@ -1,0 +1,44 @@
+{
+  "entries": [
+    {
+      "skill_id": "equipment_dragon_scale_dragon_blood_boil",
+      "display_name": "龙血沸腾",
+      "description": "龙鳞铠甲四件套装备技能。消耗1 AP，使自身进入180 TU龙血沸腾：对 dragon 攻击检定 +3，前三次真实攻击命中各恢复1D6 HP。每日一次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "dragon_scale_set",
+        "buff",
+        "dragon_slayer",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_dragon_scale_dragon_blood_boil",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "ap_cost": 1,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "dragon_scale_set",
+          "buff",
+          "dragon_slayer"
+        ],
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    }
+  ],
+  "family": "equipment_dragon_scale",
+  "templates": {
+    "non_core_max_level_1": {
+      "non_core_max_level": 1
+    }
+  },
+  "domain": "skills",
+  "schema": 1
+}

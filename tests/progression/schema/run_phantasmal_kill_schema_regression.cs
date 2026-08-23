@@ -5,11 +5,8 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneTree
 {
-    private const string TempSkillDirectory = "user://phantasmal_kill_schema_regression";
     private readonly TestHarness _test = new();
     private readonly List<SkillDef> _validationSkillRoots = new();
-    private readonly List<SkillContentRegistry> _validationRegistries = new();
-    private readonly List<TestContentResourceLoader> _validationLoaders = new();
     private readonly List<GStringArray> _validationResults = new();
     private int _validationCaseIndex;
 
@@ -329,7 +326,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         _validationSkillRoots.Add(skill);
         _validationCaseIndex++;
         GStringArray validationResult =
-            TestSkillDefinitionProjection.ValidateSyntheticSkillResource(
+            TestSkillDefinitionProjection.ValidateSyntheticSkillFixture(
                 skill,
                 $"phantasmal_kill_schema_{_validationCaseIndex}"
             );
@@ -340,36 +337,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
     private void ReleaseValidationResources()
     {
         _validationResults.Clear();
-        for (int index = _validationRegistries.Count - 1; index >= 0; index--)
-            _validationRegistries[index].Dispose();
-        _validationRegistries.Clear();
-        for (int index = _validationLoaders.Count - 1; index >= 0; index--)
-            _validationLoaders[index].Dispose();
-        _validationLoaders.Clear();
         _validationSkillRoots.Clear();
-        CleanupTempSkillDirectory();
-    }
-
-    private static void CleanupTempSkillDirectory()
-    {
-        string absolute = ProjectSettings.GlobalizePath(TempSkillDirectory);
-        if (!DirAccess.DirExistsAbsolute(absolute))
-            return;
-        using DirAccess dir = DirAccess.Open(TempSkillDirectory);
-        if (dir == null)
-            return;
-        dir.ListDirBegin();
-        while (true)
-        {
-            string entry = dir.GetNext();
-            if (string.IsNullOrEmpty(entry))
-                break;
-            if (entry == "." || entry == "..")
-                continue;
-            dir.Remove(entry);
-        }
-        dir.ListDirEnd();
-        DirAccess.RemoveAbsolute(absolute);
     }
 
     private void AssertContains(string haystack, string needle, string message)

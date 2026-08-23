@@ -9,7 +9,7 @@ internal enum BattleAiMeteorFriendlyFireProfile
     Reckless,
 }
 
-public partial class BattleAiScoreProfile : Resource
+public partial class BattleAiScoreProfile : RefCounted
 {
     private static readonly KeyValuePair<StringName, int>[] DefaultActionBaseScoreEntries =
     {
@@ -368,7 +368,7 @@ public partial class BattleAiScoreProfile : Resource
     }
 
     internal BattleAiScoreProfileDefinition ToDefinition() =>
-        BattleAiScoreProfileDefinition.FromResource(this);
+        BattleAiScoreProfileDefinition.FromDiagnosticFixture(this);
 
     internal static BattleAiMeteorFriendlyFireProfile ToMeteorFriendlyFireProfile(
         StringName value

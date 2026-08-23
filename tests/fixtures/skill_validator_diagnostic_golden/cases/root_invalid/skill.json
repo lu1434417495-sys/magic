@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "root_invalid",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_root_invalid",
+      "display_name": "   ",
+      "description": "T1a.7 diagnostic fixture.",
+      "max_level": -1,
+      "icon_id": "diagnostic_root_invalid",
+      "non_core_max_level": -1,
+      "dynamic_max_level_base": 1,
+      "dynamic_max_level_per_stat": 1,
+      "mastery_curve": [
+        -1
+      ],
+      "attribute_growth_progress": {
+        "strength": 1
+      },
+      "practice_tier": "basic"
+    }
+  ]
+}

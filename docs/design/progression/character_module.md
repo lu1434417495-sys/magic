@@ -138,6 +138,7 @@ setup 后应建立并持有以下 typed 索引：
 - `IReadOnlyDictionary<StringName, ProfessionDefinition>`。
 - `IReadOnlyDictionary<StringName, AchievementDefinition>`。
 - `IReadOnlyDictionary<StringName, ItemDefinition>`。
+- `IReadOnlyDictionary<StringName, GearSetDefinition>`、`IReadOnlyDictionary<StringName, TraitDefinition>`。
 - `IReadOnlyDictionary<StringName, QuestDefinition>`。
 - `ProgressionIdentityCatalogData`。
 
@@ -257,7 +258,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public GDictionary ToDictionary()`
 - `public new void Dispose()`
 - `public PartyState GetPartyState() => _party_state;`
-- `public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _item_def_index;`
+- `public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() => _item_def_view;`
 - `public bool HasItemDefCatalog() => _item_def_index.Count > 0;`
 - `public void SetPartyState(PartyState party_state)`
 - `internal AttributeSourceContext build_attribute_source_context(StringName member_id) =>`
@@ -295,7 +296,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public void CommitBattleDeath(StringName member_id)`
 - `public void CommitBattleKo(StringName member_id) => CommitBattleDeath(member_id);`
 - `public int FlushAfterBattle() => (int)Error.Ok;`
-- `public ItemDef GetItemDef(StringName itemId) =>`
+- `public ItemDefinition GetItemDef(StringName itemId) =>`
 - `private sealed class PendingCharacterRewardEntryData`
 - `private sealed class QuestSubmitItemPreviewData`
 - `private sealed class QuestObjectiveDefData`

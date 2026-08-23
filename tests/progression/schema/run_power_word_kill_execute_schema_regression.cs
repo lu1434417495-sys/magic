@@ -5,7 +5,6 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_power_word_kill_execute_schema_regression : LifecycleTestSceneTree
 {
-    private const string TempSkillDirectory = "user://power_word_kill_execute_schema_regression";
     private readonly TestHarness _test = new();
     private int _validationCaseIndex;
 
@@ -236,32 +235,10 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
     private GStringArray ValidateSkill(SkillDef skill)
     {
         _validationCaseIndex++;
-        return TestSkillDefinitionProjection.ValidateSyntheticSkillResource(
+        return TestSkillDefinitionProjection.ValidateSyntheticSkillFixture(
             skill,
             $"pwk_schema_{_validationCaseIndex}"
         );
-    }
-
-    private static void CleanupTempSkillDirectory()
-    {
-        string absolute = ProjectSettings.GlobalizePath(TempSkillDirectory);
-        if (!DirAccess.DirExistsAbsolute(absolute))
-            return;
-        using DirAccess dir = DirAccess.Open(TempSkillDirectory);
-        if (dir == null)
-            return;
-        dir.ListDirBegin();
-        while (true)
-        {
-            string entry = dir.GetNext();
-            if (string.IsNullOrEmpty(entry))
-                break;
-            if (entry == "." || entry == "..")
-                continue;
-            dir.Remove(entry);
-        }
-        dir.ListDirEnd();
-        DirAccess.RemoveAbsolute(absolute);
     }
 
     private void AssertContains(string haystack, string needle, string message)

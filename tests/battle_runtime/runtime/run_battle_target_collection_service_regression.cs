@@ -25,7 +25,7 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
     {
         BattleState state = BuildFlatState(new Vector2I(5, 5));
         var service = new BattleTargetCollectionService();
-        CombatSkillDefinition combatProfile = CombatSkillDefinition.FromResource(
+        CombatSkillDefinition combatProfile = CombatSkillDefinition.FromDiagnosticFixture(
             new CombatSkillDef
             {
                 target_mode = "ground",
@@ -71,7 +71,7 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
             state,
             gridService,
             sourceUnit.GetAnchorCoord(),
-            CombatSkillDefinition.FromResource(
+            CombatSkillDefinition.FromDiagnosticFixture(
                 new CombatSkillDef
                 {
                     target_mode = "unit",
@@ -95,7 +95,7 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
             state,
             gridService,
             sourceUnit.GetAnchorCoord(),
-            CombatSkillDefinition.FromResource(
+            CombatSkillDefinition.FromDiagnosticFixture(
                 new CombatSkillDef { target_mode = "unit" },
                 "target_collection_unit",
                 "test.target_collection.unit_profile"

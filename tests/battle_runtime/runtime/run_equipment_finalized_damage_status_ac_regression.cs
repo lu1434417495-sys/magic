@@ -39,30 +39,29 @@ public partial class run_equipment_finalized_damage_status_ac_regression
 
     private void TestApplyStatusArmorClassAuthoringProjection()
     {
-        using ApplyStatusActionPayloadDef payload = new()
-        {
-            target_selector = "source",
-            status_id = BurningArmorStatusId,
-            armor_class_bonus_per_stack = 3,
-        };
-        using EquipmentAbilityActionDef action = new()
-        {
-            action_id = "action.test.status_ac_projection",
-            kind = "apply_status",
-            payload = payload,
-        };
-        using EquipmentAbilityReactionDef reaction = new()
-        {
-            reaction_id = "reaction.test.status_ac_projection",
-            trigger = "on_damage_taken_finalized",
-            timing = "after_damage",
-        };
-        reaction.actions.Add(action);
-        using EquipmentAbilityBindingDef binding = new()
+        ApplyStatusActionPayloadImportModel payload = BuildStatusAcPayload(3);
+        EquipmentAbilityBindingImportModel binding = new()
         {
             binding_id = "binding.test.status_ac_projection",
+            reactions = new[]
+            {
+                new EquipmentAbilityReactionImportModel
+                {
+                    reaction_id = "reaction.test.status_ac_projection",
+                    trigger = "on_damage_taken_finalized",
+                    timing = "after_damage",
+                    actions = new[]
+                    {
+                        new EquipmentAbilityActionImportModel
+                        {
+                            action_id = "action.test.status_ac_projection",
+                            kind = "apply_status",
+                            payload = payload,
+                        },
+                    },
+                },
+            },
         };
-        binding.reactions.Add(reaction);
 
         EquipmentAbilityBindingDefinition projected =
             EquipmentAbilityDefinitionProjection.ProjectBinding(binding);
@@ -88,10 +87,9 @@ public partial class run_equipment_finalized_damage_status_ac_regression
             $"positive status AC should validate. errors={string.Join(" | ", validErrors)}"
         );
 
-        payload.armor_class_bonus_per_stack = -1;
         var invalidErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateApplyStatusPayload(
-            payload,
+            BuildStatusAcPayload(-1),
             BuildValidationContext(),
             "test.invalid_status_ac",
             invalidErrors
@@ -101,6 +99,17 @@ public partial class run_equipment_finalized_damage_status_ac_regression
             "negative status AC per stack should fail closed."
         );
     }
+
+    private static ApplyStatusActionPayloadImportModel BuildStatusAcPayload(
+        int armorClassBonusPerStack
+    ) => new()
+    {
+        target_selector = "source",
+        status_id = BurningArmorStatusId.ToString(),
+        armor_class_bonus_per_stack = armorClassBonusPerStack,
+        source_bound_attack_roll_penalty_min_stacks = 1,
+        source_bound_incoming_attack_roll_bonus_min_stacks = 1,
+    };
 
     private void TestRawFireFactsAndOriginFilters(Fixture fixture)
     {

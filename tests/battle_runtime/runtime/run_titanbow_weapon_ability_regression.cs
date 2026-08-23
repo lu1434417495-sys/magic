@@ -88,28 +88,21 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
         if (!fixture.ItemDefs.ContainsKey(TitanbowItemId))
             return;
 
-        ItemDef rawTitanbow = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longbow_titanbow.tres"
-        );
+        ItemDefinition rawTitanbow = TestItemDefinitionLookup.GetProductionItem("weapon_unique_bow_titanbow_173");
         _test.True(rawTitanbow != null, "泰坦之弓原始资源应能加载。");
         if (rawTitanbow != null)
         {
-            _test.Eq(
-                rawTitanbow.base_item_id,
-                new StringName("weapon_type_longbow_base"),
-                "泰坦之弓原始资源应声明继承 longbow 模板。"
-            );
-            _test.Eq(rawTitanbow.trait_ids.Count, 3, "泰坦之弓应固定声明三个 weapon trait。");
+            _test.Eq(rawTitanbow.TraitIds.Count, 3, "泰坦之弓应固定声明三个 weapon trait。");
             _test.True(
-                rawTitanbow.trait_ids.Contains(BehemothSlayerTraitId),
+                rawTitanbow.TraitIds.Contains(BehemothSlayerTraitId),
                 "泰坦之弓应固定声明巨兽杀手 trait。"
             );
             _test.True(
-                rawTitanbow.trait_ids.Contains(ScalePiercerTraitId),
+                rawTitanbow.TraitIds.Contains(ScalePiercerTraitId),
                 "泰坦之弓应固定声明穿透鳞甲 trait。"
             );
             _test.True(
-                rawTitanbow.trait_ids.Contains(StrengthRequirementTraitId),
+                rawTitanbow.TraitIds.Contains(StrengthRequirementTraitId),
                 "泰坦之弓应固定声明力量需求 trait。"
             );
         }

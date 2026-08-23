@@ -75,7 +75,7 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
 
     private static ItemDefinition BuildItem(string description, params string[] traitIds)
     {
-        var item = new ItemDef { item_id = "demo_item", description = description };
+        var item = new TestItemDefinitionBuilder { item_id = "demo_item", description = description };
         foreach (string traitId in traitIds)
             item.trait_ids.Add(traitId);
         return item.ToDefinition();

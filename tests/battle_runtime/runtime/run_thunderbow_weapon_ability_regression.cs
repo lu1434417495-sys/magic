@@ -69,37 +69,30 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
             "蓄雷矢应落成真实 SkillDef，而不是 trait 文本。"
         );
 
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_longbow_thunderbow.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_bow_thunderbow_156");
         _test.True(rawItem != null, "雷鸣弓原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ThunderbowItemId, "雷鸣弓 item_id 应保留设计源编号。");
-            _test.Eq(rawItem.display_name, "雷鸣弓", "雷鸣弓显示名应匹配设计源。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_longbow_base"),
-                "雷鸣弓应继承 longbow 模板。"
-            );
-            _test.Eq(rawItem.base_price, 58000, "雷鸣弓基础价格应为 58000。");
-            _test.Eq(rawItem.trait_ids.Count, 3, "雷鸣弓应只声明 3 个已落地特性。");
-            _test.True(rawItem.trait_ids.Contains(ThunderArrowTraitId), "雷鸣弓应声明雷鸣矢。");
-            _test.True(rawItem.trait_ids.Contains(StoredThunderShotTraitId), "雷鸣弓应声明蓄雷矢。");
-            _test.True(rawItem.trait_ids.Contains(DeafenedResonanceTraitId), "雷鸣弓应声明震鸣共振。");
+            _test.Eq(rawItem.ItemId, ThunderbowItemId, "雷鸣弓 item_id 应保留设计源编号。");
+            _test.Eq(rawItem.DisplayName, "雷鸣弓", "雷鸣弓显示名应匹配设计源。");
+            _test.Eq(rawItem.BasePrice, 58000, "雷鸣弓基础价格应为 58000。");
+            _test.Eq(rawItem.TraitIds.Count, 3, "雷鸣弓应只声明 3 个已落地特性。");
+            _test.True(rawItem.TraitIds.Contains(ThunderArrowTraitId), "雷鸣弓应声明雷鸣矢。");
+            _test.True(rawItem.TraitIds.Contains(StoredThunderShotTraitId), "雷鸣弓应声明蓄雷矢。");
+            _test.True(rawItem.TraitIds.Contains(DeafenedResonanceTraitId), "雷鸣弓应声明震鸣共振。");
 
-            WeaponProfileDef rawProfile = rawItem.weapon_profile as WeaponProfileDef;
+            WeaponProfileDefinition rawProfile = rawItem.WeaponProfile;
             _test.True(rawProfile != null, "雷鸣弓应声明 weapon_profile 覆写。");
             if (rawProfile != null)
             {
-                _test.False(
-                    rawProfile.HasAttackRangeOverride(),
-                    "雷鸣弓不应覆写攻击射程，应继承 longbow 基础射程 4。"
+                _test.Eq(
+                    rawProfile.AttackRange,
+                    4,
+                    "扁平 JSON 应保留雷鸣弓从 longbow 模板展开的攻击射程 4。"
                 );
-                _test.Eq(rawProfile.two_handed_dice?.dice_count ?? 0, 1, "雷鸣弓双手伤害应为 1D8+2。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_sides ?? 0, 8, "雷鸣弓双手伤害应为 1D8+2。");
-                _test.Eq(rawProfile.two_handed_dice?.flat_bonus ?? 0, 2, "雷鸣弓双手伤害应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceCount ?? 0, 1, "雷鸣弓双手伤害应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceSides ?? 0, 8, "雷鸣弓双手伤害应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.FlatBonus ?? 0, 2, "雷鸣弓双手伤害应为 1D8+2。");
                 _test.True(
                     ContainsStringName(rawProfile.GetPropertiesTyped(), "heavy"),
                     "雷鸣弓应声明 heavy 属性。"

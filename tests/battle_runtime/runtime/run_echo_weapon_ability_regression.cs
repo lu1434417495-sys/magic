@@ -61,30 +61,21 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
             fixture.SkillDefs.ContainsKey(EchoThrowSkillId),
             "回音投掷应落成真实 SkillDef，而不是 trait 文本。"
         );
-
-        using TestContentResourceLoader loader = new();
-        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_handaxe_echo.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_echo_095");
         _test.True(rawItem != null, "回音原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "回音", "回音显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_handaxe_base"),
-                "回音应继承 handaxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 36000, "回音价格应为 36000。");
-            _test.True(rawItem.trait_ids.Contains(EchoThrowTraitId), "回音物品应声明回音投掷。");
-            _test.True(rawItem.trait_ids.Contains(EchoCutTraitId), "回音物品应声明回声斩。");
+            _test.Eq(rawItem.DisplayName, "回音", "回音显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 36000, "回音价格应为 36000。");
+            _test.True(rawItem.TraitIds.Contains(EchoThrowTraitId), "回音物品应声明回音投掷。");
+            _test.True(rawItem.TraitIds.Contains(EchoCutTraitId), "回音物品应声明回声斩。");
             _test.False(
-                ContainsText(rawItem.description, "洞穴")
-                    || ContainsText(rawItem.description, "沉默")
-                    || ContainsText(rawItem.description, "undead")
-                    || ContainsText(rawItem.description, "construct")
-                    || ContainsText(rawItem.description, "cave")
-                    || ContainsText(rawItem.description, "silence"),
+                ContainsText(rawItem.Description, "洞穴")
+                    || ContainsText(rawItem.Description, "沉默")
+                    || ContainsText(rawItem.Description, "undead")
+                    || ContainsText(rawItem.Description, "construct")
+                    || ContainsText(rawItem.Description, "cave")
+                    || ContainsText(rawItem.Description, "silence"),
                 "玩家说明不应保留旧洞穴/沉默设定或英文目标类型。"
             );
         }

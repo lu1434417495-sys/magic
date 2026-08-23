@@ -76,7 +76,7 @@ public partial class run_skill_generation_stage3_admission_regression
                     && skill.CombatProfile != null,
                     $"{admissionCase.SkillId} should remain an internal active spell"
                 );
-                CombatSkillDefinition combat = skill.CombatProfile;
+                CombatSkillDefinition combat = skill.CombatProfile!;
                 CombatSkillResourceCosts costs =
                     combat.GetEffectiveResourceCostValues(1);
                 _test.True(

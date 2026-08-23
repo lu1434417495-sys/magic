@@ -70,8 +70,8 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
         IReadOnlyList<AttributeModifierDefinition> modifiers =
             service.ResolveTraitAttributeModifiers(set);
 
-        AttributeModifierDefinition attack = FindModifier(modifiers, "attack_bonus");
-        _test.True(attack != null, "Trait attribute modifiers should include attack_bonus.");
+        AttributeModifierDefinition attack = FindModifier(modifiers, "armor_class");
+        _test.True(attack != null, "Trait attribute modifiers should include armor_class.");
         _test.Eq(
             attack.Value,
             4,
@@ -93,12 +93,12 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
     {
         var gateway = new FakeGateway();
         return new CharacterTraitService(
-            TestProgressionDefinitionProjection.Traits(BuildTraitDefs()).Values,
+            BuildTraitDefs().Values,
             gateway
         );
     }
 
-    private static Dictionary<StringName, TraitDef> BuildTraitDefs() =>
+    private static Dictionary<StringName, TraitDefinition> BuildTraitDefs() =>
         new()
         {
             ["identity_watch"] = BuildTrait("identity_watch", "identity", "unique_by_trait"),
@@ -108,10 +108,10 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
             ["lucky_roll"] = BuildRollTrait("lucky_roll", "highest_roll", "amount"),
             [
                 "additive_power"
-            ] = BuildTrait("additive_power", "character", "additive", "attack_bonus", 2),
+            ] = BuildTrait("additive_power", "character", "additive", "armor_class", 2),
         };
 
-    private static TraitDef BuildTrait(
+    private static TraitDefinition BuildTrait(
         string traitId,
         string sourceKind,
         string stackPolicy,
@@ -119,50 +119,50 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
         int value = 0
     )
     {
-        TraitDef trait = new()
-        {
-            trait_id = traitId,
-            display_name = traitId,
-            description = traitId,
-            allowed_source_kinds = new Godot.Collections.Array<StringName> { sourceKind },
-            effect_type = "attribute_modifier",
-            trigger_type = "passive",
-            stack_policy = stackPolicy,
-            charge_scope = "none",
-            charge_reset_timing = "none",
-        };
-        if (!string.IsNullOrEmpty(attributeId))
-        {
-            trait.attribute_modifiers.Add(
-                new AttributeModifier
+        IReadOnlyList<TraitAttributeModifierImportModel> modifiers =
+            string.IsNullOrEmpty(attributeId)
+                ? System.Array.Empty<TraitAttributeModifierImportModel>()
+                : new[]
                 {
-                    attribute_id = attributeId,
-                    mode = "flat",
-                    value = value,
-                    value_per_rank = 0,
-                }
-            );
-        }
-        return trait;
+                    new TraitAttributeModifierImportModel(
+                        attributeId,
+                        "flat",
+                        value,
+                        0,
+                        "",
+                        ""
+                    ),
+                };
+        return TraitTestData.Definition(
+            traitId,
+            new[] { sourceKind },
+            stackPolicy: stackPolicy,
+            attributeModifiers: modifiers
+        );
     }
 
-    private static TraitDef BuildRollTrait(string traitId, string stackPolicy, string compareKey)
-    {
-        TraitDef trait = BuildTrait(traitId, "equipment_roll", stackPolicy);
-        trait.charge_scope = "per_turn";
-        trait.charge_reset_timing = "turn_start";
-        trait.highest_roll_compare_key = compareKey;
-        trait.roll_value_schema.Add(
-            new TraitRollValueSchemaEntry
-            {
-                key = compareKey,
-                value_type = "int",
-                min_value = 0,
-                max_value = 20,
-            }
-        );
-        return trait;
-    }
+    private static TraitDefinition BuildRollTrait(
+        string traitId,
+        string stackPolicy,
+        string compareKey
+    ) => TraitTestData.Definition(
+        traitId,
+        new[] { "equipment_roll" },
+        stackPolicy: stackPolicy,
+        chargeScope: "per_turn",
+        chargeResetTiming: "turn_start",
+        highestRollCompareKey: compareKey,
+        rollValueSchema: new[]
+        {
+            new TraitRollValueSchemaEntryImportModel(
+                compareKey,
+                "int",
+                0,
+                20,
+                System.Array.Empty<string>()
+            ),
+        }
+    );
 
     private static AttributeModifierDefinition FindModifier(
         IEnumerable<AttributeModifierDefinition> modifiers,
@@ -239,14 +239,11 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
                 )
             );
 
-            ItemDef itemResource = TestResourceOwnership.Own(
-                new ItemDef
-                {
-                    item_id = "iron_sword",
-                    trait_ids = new Godot.Collections.Array<StringName> { "fixed_guard" },
-                },
-                "run_character_trait_service_regression.FakeGateway.iron_sword"
-            );
+            TestItemDefinitionBuilder itemResource = new()
+            {
+                item_id = "iron_sword",
+                trait_ids = new Godot.Collections.Array<StringName> { "fixed_guard" },
+            };
             _items["iron_sword"] = itemResource.ToDefinition();
 
             EquipmentInstanceState equipmentInstance =

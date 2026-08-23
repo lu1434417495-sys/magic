@@ -136,17 +136,10 @@ public partial class run_starfragment_weapon_ability_regression : LifecycleTestS
         if (!fixture.ItemDefs.ContainsKey(StarfragmentItemId))
             return;
 
-        ItemDef rawStarfragment = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_starfragment.tres"
-        );
+        ItemDefinition rawStarfragment = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_starfragment_100");
         _test.True(rawStarfragment != null, "星辰碎片原始资源应能加载。");
         if (rawStarfragment != null)
         {
-            _test.Eq(
-                rawStarfragment.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "星辰碎片原始资源应声明继承 greataxe 模板。"
-            );
         }
 
         BattleUnitState equipped = fixture.BuildStarfragmentUnit("projection");

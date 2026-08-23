@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Godot;
@@ -11,17 +12,14 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
             {
                 ["has_status"] = Condition(
                     "has_status",
-                    typeof(HasStatusConditionPayloadDef),
                     typeof(HasStatusConditionPayloadDefinition)
                 ),
                 ["compare_fact"] = Condition(
                     "compare_fact",
-                    typeof(CompareFactConditionPayloadDef),
                     typeof(CompareFactConditionPayloadDefinition)
                 ),
                 ["has_equipment_tag"] = Condition(
                     "has_equipment_tag",
-                    typeof(HasEquipmentTagConditionPayloadDef),
                     typeof(HasEquipmentTagConditionPayloadDefinition)
                 ),
             }
@@ -33,159 +31,123 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
         return ReadOnly(
             new Dictionary<StringName, EquipmentAbilityHandlerSpec>
             {
-                // §8.4：add_damage_dice 同时服务 weapon-hit（on_hit）与 per-main-direct-effect
-                // （on_damage_roll/before_damage）query；两条 query 都在 canonical 伤害结算管线内
-                // 纯读取运行，execute/preview/AI 共用同一 ResolveDamageOutcome 路径，期望值按
-                // 预计实际主伤害结算次数逐段累计。
                 ["add_damage_dice"] = Action(
                     "add_damage_dice",
-                    typeof(AddDamageDiceActionPayloadDef),
                     typeof(AddDamageDiceActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["immediate_weapon_attack"] = Action(
                     "immediate_weapon_attack",
-                    typeof(ImmediateWeaponAttackActionPayloadDef),
                     typeof(ImmediateWeaponAttackActionPayloadDefinition)
                 ),
                 ["deal_damage"] = Action(
                     "deal_damage",
-                    typeof(DealDamageActionPayloadDef),
                     typeof(DealDamageActionPayloadDefinition)
                 ),
                 ["heal"] = Action(
                     "heal",
-                    typeof(HealActionPayloadDef),
                     typeof(HealActionPayloadDefinition)
                 ),
                 ["heal_from_fact"] = Action(
                     "heal_from_fact",
-                    typeof(HealFromFactActionPayloadDef),
                     typeof(HealFromFactActionPayloadDefinition)
                 ),
                 ["attack_roll_bonus"] = Action(
                     "attack_roll_bonus",
-                    typeof(AttackRollBonusActionPayloadDef),
                     typeof(AttackRollBonusActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["attack_roll_advantage"] = Action(
                     "attack_roll_advantage",
-                    typeof(AttackRollAdvantageActionPayloadDef),
                     typeof(AttackRollAdvantageActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["critical_hit_override"] = Action(
                     "critical_hit_override",
-                    typeof(CriticalHitOverrideActionPayloadDef),
                     typeof(CriticalHitOverrideActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["attack_defense_modifier"] = Action(
                     "attack_defense_modifier",
-                    typeof(EquipmentAttackDefenseModifierDef),
                     typeof(EquipmentAttackDefenseModifierDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["damage_roll_mode_override"] = Action(
                     "damage_roll_mode_override",
-                    typeof(DamageRollModeOverrideActionPayloadDef),
                     typeof(DamageRollModeOverrideActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["damage_reduction"] = Action(
                     "damage_reduction",
-                    typeof(DamageReductionActionPayloadDef),
                     typeof(DamageReductionActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["grant_mitigation_tier"] = Action(
                     "grant_mitigation_tier",
-                    typeof(GrantMitigationTierActionPayloadDef),
                     typeof(GrantMitigationTierActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["loot_quantity_multiplier"] = Action(
                     "loot_quantity_multiplier",
-                    typeof(LootQuantityMultiplierActionPayloadDef),
                     typeof(LootQuantityMultiplierActionPayloadDefinition)
                 ),
                 ["apply_status"] = Action(
                     "apply_status",
-                    typeof(ApplyStatusActionPayloadDef),
                     typeof(ApplyStatusActionPayloadDefinition)
                 ),
                 ["modify_action_points"] = Action(
                     "modify_action_points",
-                    typeof(ModifyActionPointsActionPayloadDef),
                     typeof(ModifyActionPointsActionPayloadDefinition)
                 ),
                 ["schedule_area_effect"] = Action(
                     "schedule_area_effect",
-                    typeof(ScheduleAreaEffectActionPayloadDef),
                     typeof(ScheduleAreaEffectActionPayloadDefinition)
                 ),
                 ["apply_battle_terrain_effect_after_check"] = Action(
                     "apply_battle_terrain_effect_after_check",
-                    typeof(ApplyBattleTerrainEffectAfterCheckActionPayloadDef),
                     typeof(ApplyBattleTerrainEffectAfterCheckActionPayloadDefinition)
                 ),
                 ["apply_edge_feature"] = Action(
                     "apply_edge_feature",
-                    typeof(ApplyEdgeFeatureActionPayloadDef),
                     typeof(ApplyEdgeFeatureActionPayloadDefinition)
                 ),
                 ["modify_ability_state"] = Action(
                     "modify_ability_state",
-                    typeof(ModifyAbilityStateActionPayloadDef),
                     typeof(ModifyAbilityStateActionPayloadDefinition),
                     stateAccess: WritesDeclaredBindingState()
                 ),
                 ["mark_target"] = Action(
                     "mark_target",
-                    typeof(MarkTargetActionPayloadDef),
                     typeof(MarkTargetActionPayloadDefinition),
                     stateAccess: WritesDeclaredTargetMark()
                 ),
                 ["clear_status"] = Action(
                     "clear_status",
-                    typeof(ClearStatusActionPayloadDef),
                     typeof(ClearStatusActionPayloadDefinition)
                 ),
                 ["trigger_skill"] = Action(
                     "trigger_skill",
-                    typeof(TriggerSkillActionPayloadDef),
                     typeof(TriggerSkillActionPayloadDefinition)
-                ),
-                ["grant_skill"] = Action(
-                    "grant_skill",
-                    typeof(GrantSkillActionPayloadDef),
-                    typeof(GrantSkillActionPayloadDefinition)
                 ),
                 ["summon_units"] = Action(
                     "summon_units",
-                    typeof(SummonUnitsActionPayloadDef),
                     typeof(SummonUnitsActionPayloadDefinition)
                 ),
                 ["consume_summoned_units"] = Action(
                     "consume_summoned_units",
-                    typeof(ConsumeSummonedUnitsActionPayloadDef),
                     typeof(ConsumeSummonedUnitsActionPayloadDefinition)
                 ),
                 ["consume_status_stacks"] = Action(
                     "consume_status_stacks",
-                    typeof(ConsumeStatusStacksActionPayloadDef),
                     typeof(ConsumeStatusStacksActionPayloadDefinition)
                 ),
                 ["summoned_unit_attack_roll_modifier"] = Action(
                     "summoned_unit_attack_roll_modifier",
-                    typeof(SummonedUnitAttackRollModifierActionPayloadDef),
                     typeof(SummonedUnitAttackRollModifierActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
                 ["equipment_durability_damage"] = Action(
                     "equipment_durability_damage",
-                    typeof(EquipmentDurabilityDamageActionPayloadDef),
                     typeof(EquipmentDurabilityDamageActionPayloadDefinition),
                     consumerSupport: ConsumerSupport(includePreview: true)
                 ),
@@ -214,13 +176,6 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
                     Trigger = EquipmentAbilityTriggerKind.OnKill,
                     AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
                         new[] { EquipmentAbilityTimingKind.AfterKill }
-                    ),
-                },
-                [EquipmentAbilityTriggerKind.OnBattleEnd] = new()
-                {
-                    Trigger = EquipmentAbilityTriggerKind.OnBattleEnd,
-                    AllowedTimings = EquipmentAbilityReadOnlySet<EquipmentAbilityTimingKind>.From(
-                        new[] { EquipmentAbilityTimingKind.AfterBattle }
                     ),
                 },
                 [EquipmentAbilityTriggerKind.OnGrantedSkillUsed] = new()
@@ -292,16 +247,25 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
 
     private static EquipmentAbilityHandlerSpec Condition(
         StringName handlerId,
-        System.Type payloadResourceType,
         System.Type payloadDefinitionType
     )
     {
+        if (
+            !EquipmentAbilityPayloadKindCatalog.TryGetCondition(
+                handlerId.ToString(),
+                out EquipmentAbilityPayloadKindSpec payloadSpec
+            )
+        )
+        {
+            throw new InvalidOperationException($"Condition handler {handlerId} is not aligned with the canonical payload kind catalog.");
+        }
         return new EquipmentAbilityHandlerSpec
         {
             HandlerId = handlerId,
             HandlerKind = EquipmentAbilityHandlerKind.Condition,
             Origin = EquipmentAbilityHandlerOriginKind.Builtin,
-            PayloadResourceType = payloadResourceType,
+            PayloadJsonDtoType = payloadSpec.JsonDtoType,
+            PayloadImportModelType = payloadSpec.ImportModelType,
             PayloadDefinitionType = payloadDefinitionType,
             MutationPolicy = EquipmentAbilityMutationPolicyKind.None,
             ConsumerSupport = ConsumerSupport(includePreview: true),
@@ -311,18 +275,27 @@ internal static class EquipmentAbilityBuiltInHandlerSpecs
 
     private static EquipmentAbilityHandlerSpec Action(
         StringName handlerId,
-        System.Type payloadResourceType,
         System.Type payloadDefinitionType,
         EquipmentAbilityStateAccessSpec stateAccess = null,
         IReadOnlyList<EquipmentAbilityConsumerSupportSpec> consumerSupport = null
     )
     {
+        if (
+            !EquipmentAbilityPayloadKindCatalog.TryGetAction(
+                handlerId.ToString(),
+                out EquipmentAbilityPayloadKindSpec payloadSpec
+            )
+        )
+        {
+            throw new InvalidOperationException($"Action handler {handlerId} is not aligned with the canonical payload kind catalog.");
+        }
         return new EquipmentAbilityHandlerSpec
         {
             HandlerId = handlerId,
             HandlerKind = EquipmentAbilityHandlerKind.Action,
             Origin = EquipmentAbilityHandlerOriginKind.Builtin,
-            PayloadResourceType = payloadResourceType,
+            PayloadJsonDtoType = payloadSpec.JsonDtoType,
+            PayloadImportModelType = payloadSpec.ImportModelType,
             PayloadDefinitionType = payloadDefinitionType,
             MutationPolicy = EquipmentAbilityMutationPolicyKind.Mutating,
             ConsumerSupport = consumerSupport ?? ConsumerSupport(includePreview: false),

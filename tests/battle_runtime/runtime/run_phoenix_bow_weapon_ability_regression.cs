@@ -56,30 +56,23 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
         if (!fixture.ItemDefs.ContainsKey(PhoenixItemId))
             return;
 
-        ItemDef rawPhoenix = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longbow_phoenix.tres"
-        );
+        ItemDefinition rawPhoenix = TestItemDefinitionLookup.GetProductionItem("weapon_unique_bow_phoenix_330");
         _test.True(rawPhoenix != null, "凤凰之弓原始资源应能加载。");
         if (rawPhoenix != null)
         {
-            _test.Eq(rawPhoenix.display_name, "凤凰之弓", "凤凰之弓显示名应来自设计源。");
-            _test.Eq(
-                rawPhoenix.base_item_id,
-                new StringName("weapon_type_longbow_base"),
-                "凤凰之弓应继承 longbow 模板。"
-            );
-            _test.Eq(rawPhoenix.base_price, 75000, "凤凰之弓基础价格应为 75000。");
-            _test.True(rawPhoenix.tags.Contains(new StringName("phoenix_bow")), "凤凰之弓应声明 phoenix_bow item tag。");
-            _test.True(rawPhoenix.trait_ids.Contains(FireArrowTraitId), "凤凰之弓应固定声明火焰箭 trait。");
-            WeaponProfileDef rawProfile = rawPhoenix.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawPhoenix.DisplayName, "凤凰之弓", "凤凰之弓显示名应来自设计源。");
+            _test.Eq(rawPhoenix.BasePrice, 75000, "凤凰之弓基础价格应为 75000。");
+            _test.True(rawPhoenix.Tags.Contains(new StringName("phoenix_bow")), "凤凰之弓应声明 phoenix_bow item tag。");
+            _test.True(rawPhoenix.TraitIds.Contains(FireArrowTraitId), "凤凰之弓应固定声明火焰箭 trait。");
+            WeaponProfileDefinition rawProfile = rawPhoenix.WeaponProfile;
             _test.True(rawProfile != null, "凤凰之弓应声明武器 profile override。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.attack_range, 10, "凤凰之弓攻击距离应覆盖为 10。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_count ?? 0, 1, "凤凰之弓应为 1D8+2。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_sides ?? 0, 8, "凤凰之弓应为 1D8+2。");
-                _test.Eq(rawProfile.two_handed_dice?.flat_bonus ?? 0, 2, "凤凰之弓应为 1D8+2。");
-                _test.True(rawProfile.properties.Contains(new StringName("heavy")), "凤凰之弓应添加 heavy 属性。");
+                _test.Eq(rawProfile.AttackRange, 10, "凤凰之弓攻击距离应覆盖为 10。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceCount ?? 0, 1, "凤凰之弓应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceSides ?? 0, 8, "凤凰之弓应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.FlatBonus ?? 0, 2, "凤凰之弓应为 1D8+2。");
+                _test.True(rawProfile.Properties.Contains(new StringName("heavy")), "凤凰之弓应添加 heavy 属性。");
             }
         }
 

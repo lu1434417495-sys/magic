@@ -968,7 +968,7 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
         levelDescriptionTemplate: "Value {a}",
         levelDescriptionConfigs: descriptionConfigs,
         combatProfile: combatProfile,
-        iconId: SkillImportAssetId.FromResource(""),
+        iconId: SkillImportAssetId.FromRaw(""),
         nonCoreMaxLevel: 0,
         dynamicMaxLevelStatId: default,
         dynamicMaxLevelBase: 0,

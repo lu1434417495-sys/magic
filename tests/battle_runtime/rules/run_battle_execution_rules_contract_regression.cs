@@ -32,7 +32,7 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
             "BattleExecutionRulesContract.execute-fields-effect"
         );
 
-        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromDiagnosticFixture(
             effect,
             "test.battle_execution_rules.execute_effect"
         );
@@ -54,7 +54,7 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
 
     private void TestSkillSchemaRejectsPromotedExecuteParamsInLegacyPayload()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "execute",

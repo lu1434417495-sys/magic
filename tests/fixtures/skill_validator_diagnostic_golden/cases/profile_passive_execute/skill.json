@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_passive_execute",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_passive_execute",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_passive_execute",
+        "passive_effect_defs": [
+          {
+            "effect_type": "execute",
+            "payload": {}
+          }
+        ]
+      },
+      "icon_id": "diagnostic_passive_execute",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

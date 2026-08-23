@@ -51,8 +51,7 @@ public partial class run_character_management_trait_attribute_regression : Lifec
         CharacterManagementModule manager = new();
         try
         {
-            Dictionary<StringName, TraitDefinition> traitDefs =
-                TestProgressionDefinitionProjection.Traits(BuildTraitDefs());
+            Dictionary<StringName, TraitDefinition> traitDefs = BuildTraitDefs();
             manager.setup(
                 partyState,
                 new Dictionary<StringName, SkillDefinition>(),
@@ -91,32 +90,26 @@ public partial class run_character_management_trait_attribute_regression : Lifec
         }
     }
 
-    private static Dictionary<StringName, TraitDef> BuildTraitDefs() =>
+    private static Dictionary<StringName, TraitDefinition> BuildTraitDefs() =>
         new()
         {
             [
                 "character_boost"
-            ] = new TraitDef
-            {
-                trait_id = "character_boost",
-                display_name = "Character Boost",
-                description = "Fixture character trait.",
-                allowed_source_kinds = new Godot.Collections.Array<StringName> { "character" },
-                effect_type = "attribute_modifier",
-                trigger_type = "passive",
-                stack_policy = "unique_by_trait",
-                charge_scope = "none",
-                charge_reset_timing = "none",
-                attribute_modifiers = new Godot.Collections.Array<AttributeModifier>
+            ] = TraitTestData.Definition(
+                "character_boost",
+                new[] { "character" },
+                attributeModifiers: new[]
                 {
-                    new()
-                    {
-                        attribute_id = "strength",
-                        mode = AttributeModifier.ToStringName(AttributeModifierMode.Flat),
-                        value = 3,
-                    },
-                },
-            },
+                    new TraitAttributeModifierImportModel(
+                        "strength",
+                        "flat",
+                        3,
+                        0,
+                        "",
+                        ""
+                    ),
+                }
+            ),
         };
 
     private static UnitProgress MakeProgress(StringName unitId)

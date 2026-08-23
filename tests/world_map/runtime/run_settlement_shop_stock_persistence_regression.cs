@@ -15,25 +15,14 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
         SettlementShopService service = null;
         try
         {
-            var itemDefs = _runtimeScope.OwnWrapper(
-                new GDictionary
-                {
-                    [new StringName("potion")] = _runtimeScope.OwnWrapper(
-                        new ItemDef
-                        {
-                            item_id = "potion",
-                            display_name = "Potion",
-                            base_price = 10,
-                            max_stack = 99,
-                            sellable = true,
-                        },
-                        "potion-item"
-                    ),
-                },
-                "item-defs"
-            );
-            ItemDefinition potionDefinition = ((ItemDef)
-                itemDefs[new StringName("potion")]).ToDefinition();
+            ItemDefinition potionDefinition = new TestItemDefinitionBuilder
+            {
+                item_id = "potion",
+                display_name = "Potion",
+                base_price = 10,
+                max_stack = 99,
+                sellable = true,
+            }.ToDefinition();
             var typedItemDefs = new Dictionary<StringName, ItemDefinition>
             {
                 [new StringName("potion")] = potionDefinition,

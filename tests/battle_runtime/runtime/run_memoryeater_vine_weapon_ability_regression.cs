@@ -79,26 +79,21 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         _test.True(fixture.Bindings.ContainsKey(BlackBloomAwakeningBindingId), "应包含黑花将醒 binding。");
         if (!fixture.ItemDefs.ContainsKey(ItemId))
             return;
-
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_rapier_memoryeater_vine.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_rapier_memoryeater_vine");
         _test.True(rawItem != null, "噬忆血蔓原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "噬忆血蔓 item_id 不应包含来源编号。");
-            _test.Eq(rawItem.display_name, "噬忆血蔓", "装备名应更具传奇性。");
-            _test.True(ContainsText(rawItem.description, "生命故事"), "简介应跟随新名称与生命故事主题更新。");
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_rapier_base"), "噬忆血蔓应继承 rapier 模板。");
-            _test.Eq(rawItem.base_price, 75000, "噬忆血蔓基础价格应保持 75000。");
-            _test.Eq(rawItem.trait_ids.Count, 6, "噬忆血蔓应固定 6 个特性。");
-            _test.True(ContainsStringName(rawItem.trait_ids, LifebloodLedgerTraitId), "应固定生命簿血计。");
-            _test.True(ContainsStringName(rawItem.trait_ids, SymbioticSiphonTraitId), "应固定共生虹吸。");
-            _test.True(ContainsStringName(rawItem.trait_ids, MemoryThornEdgeTraitId), "应固定忆刺锋芽。");
-            _test.True(ContainsStringName(rawItem.trait_ids, StoryRootSnareTraitId), "应固定故事根缚。");
-            _test.True(ContainsStringName(rawItem.trait_ids, MourningVineLungeTraitId), "应固定哀藤追刺。");
-            _test.True(ContainsStringName(rawItem.trait_ids, BlackBloomAwakeningTraitId), "应固定黑花将醒。");
+            _test.Eq(rawItem.ItemId, ItemId, "噬忆血蔓 item_id 不应包含来源编号。");
+            _test.Eq(rawItem.DisplayName, "噬忆血蔓", "装备名应更具传奇性。");
+            _test.True(ContainsText(rawItem.Description, "生命故事"), "简介应跟随新名称与生命故事主题更新。");
+            _test.Eq(rawItem.BasePrice, 75000, "噬忆血蔓基础价格应保持 75000。");
+            _test.Eq(rawItem.TraitIds.Count, 6, "噬忆血蔓应固定 6 个特性。");
+            _test.True(ContainsStringName(rawItem.TraitIds, LifebloodLedgerTraitId), "应固定生命簿血计。");
+            _test.True(ContainsStringName(rawItem.TraitIds, SymbioticSiphonTraitId), "应固定共生虹吸。");
+            _test.True(ContainsStringName(rawItem.TraitIds, MemoryThornEdgeTraitId), "应固定忆刺锋芽。");
+            _test.True(ContainsStringName(rawItem.TraitIds, StoryRootSnareTraitId), "应固定故事根缚。");
+            _test.True(ContainsStringName(rawItem.TraitIds, MourningVineLungeTraitId), "应固定哀藤追刺。");
+            _test.True(ContainsStringName(rawItem.TraitIds, BlackBloomAwakeningTraitId), "应固定黑花将醒。");
         }
 
         ModifyAbilityStateActionPayloadDefinition lifebloodAction =

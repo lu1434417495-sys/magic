@@ -33,7 +33,7 @@ internal static class SkillRootCombatJsonNormalizer
     {
         int start = diagnostics.Count;
         string rawIconId = dto.IconId ?? "";
-        SkillImportAssetId iconId = SkillImportAssetId.FromResource(rawIconId);
+        SkillImportAssetId iconId = SkillImportAssetId.FromRaw(rawIconId);
         if (
             rawIconId.Length > 0
             && !SkillImportAssetId.TryCreate(rawIconId, out iconId)

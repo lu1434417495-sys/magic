@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class CombatSequentialLineHitDef : Resource
+public partial class CombatSequentialLineHitDef : RefCounted
 {
     [Export]
     public int[] minimum_primary_distance_curve { get; set; } = System.Array.Empty<int>();

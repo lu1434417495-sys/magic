@@ -434,7 +434,10 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
 
         var immediateErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateImmediateWeaponAttackPayload(
-            new ImmediateWeaponAttackActionPayloadDef { skill_id = SkillId },
+            new ImmediateWeaponAttackActionPayloadImportModel
+            {
+                skill_id = SkillId.ToString(),
+            },
             context,
             "test.immediate_weapon_attack",
             immediateErrors
@@ -446,7 +449,10 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
 
         var triggerErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateTriggerSkillPayload(
-            new TriggerSkillActionPayloadDef { skill_id = SkillId },
+            new TriggerSkillActionPayloadImportModel
+            {
+                skill_id = SkillId.ToString(),
+            },
             context,
             "test.trigger_skill",
             triggerErrors
@@ -464,7 +470,7 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
             delayed_resolution_cost_per_5_tu = 7,
         };
         BattleAiScoreProfileDefinition definition =
-            BattleAiScoreProfileDefinition.FromResource(resource);
+            BattleAiScoreProfileDefinition.FromDiagnosticFixture(resource);
 
         _test.Eq(
             definition.DelayedResolutionCostPer5Tu,
@@ -1174,8 +1180,7 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
 
     private static SkillDefinition LoadSkillWithHeavyRequirement(bool requiresHeavyWeapon)
     {
-        using var loader = new TestContentResourceLoader();
-        using var registry = new SkillContentRegistry(loader);
+        using var registry = new SkillContentRegistry();
         SkillDefinition skill = registry.GetSkillDefinitionsTyped()[SkillId];
         System.Reflection.FieldInfo field = typeof(CombatSkillDefinition).GetField(
             "<RequiresHeavyWeapon>k__BackingField",

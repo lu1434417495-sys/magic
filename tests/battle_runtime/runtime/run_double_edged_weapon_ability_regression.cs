@@ -84,15 +84,12 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
         if (!fixture.ItemDefs.ContainsKey(DoubleEdgedItemId))
             return;
 
-        ItemDef raw = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_double_edged.tres"
-        );
+        ItemDefinition raw = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_double_edged_263");
         _test.True(raw != null, "双面刃原始资源应能加载。");
         if (raw != null)
         {
-            _test.Eq(raw.base_item_id, new StringName("weapon_type_longsword_base"), "双面刃应继承 longsword 模板。");
-            _test.Eq(raw.base_price, 65000, "双面刃价格应落成 65000。");
-            _test.True(ContainsStringName(raw.tags, "double_edged"), "双面刃物品 tag 应包含 double_edged。");
+            _test.Eq(raw.BasePrice, 65000, "双面刃价格应落成 65000。");
+            _test.True(ContainsStringName(raw.Tags, "double_edged"), "双面刃物品 tag 应包含 double_edged。");
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");

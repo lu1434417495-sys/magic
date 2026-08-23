@@ -144,7 +144,7 @@ public partial class run_extra_damage_segment_critical_regression : LifecycleTes
             power = 1,
         };
         resource.extra_damage_segments.Add(segment);
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test://extra_damage_segment_critical"
         );
