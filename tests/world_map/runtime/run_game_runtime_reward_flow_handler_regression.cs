@@ -257,7 +257,10 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
         runtime.SetupForTestFixture(
             partyState: partyState
         );
-        runtime._settlement_command_handler.SetupRuntime(runtime);
+        runtime._settlement_command_handler.SetupRuntime(
+            runtime,
+            GameSessionTestFactory.GetProcessSnapshot().GameplayConfiguration
+        );
         runtime._warehouse_handler.Setup(runtime);
         runtime._party_command_handler.Setup(runtime);
         runtime._reward_flow_handler.Setup(runtime);

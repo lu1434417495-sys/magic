@@ -173,12 +173,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     private static readonly StringName SaveDirtyScopePostDecodeRepair = "post_decode_repair";
     private static readonly StringName SaveDirtyScopeBattleLockedSave = "battle_locked_save";
 
-    private static readonly StringName StartingMeleeWeaponItemId = "steel_longsword";
-    private static readonly StringName StartingArcherWeaponItemId = "ash_shortbow";
-    private static readonly StringName StartingCrossbowWeaponItemId = "militia_light_crossbow";
-    private static readonly StringName StartingMageWeaponItemId = "oak_quarterstaff";
-    private static readonly StringName StartingPriestWeaponItemId = "watchman_mace";
-
     internal string _active_save_id = "";
     internal string _active_save_path = "";
     private readonly Dictionary<string, object> _activeSaveMeta = new(StringComparer.Ordinal);
@@ -1305,6 +1299,9 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     public IReadOnlyDictionary<StringName, AchievementDefinition> GetAchievementDefsTyped() =>
         RequireContentSnapshot().Achievements;
+
+    public GameplayConfigurationDefinition GetGameplayConfigurationTyped() =>
+        RequireContentSnapshot().GameplayConfiguration;
 
     public QuestDefinition GetQuestDef(StringName quest_id)
     {

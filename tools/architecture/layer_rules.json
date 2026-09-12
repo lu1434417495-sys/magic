@@ -62,6 +62,7 @@
     { "glob": "scripts/enemies/EnemyAiDistanceReference.cs", "layer": "content_definition" },
     { "glob": "scripts/enemies/EnemyAiTargetSelectorRules.cs", "layer": "content_definition" },
     { "glob": "scripts/systems/content/ContentSnapshot.cs", "layer": "content_definition" },
+    { "glob": "scripts/systems/content/configuration/GameplayConfigurationDefinition.cs", "layer": "content_definition" },
     { "glob": "scripts/systems/content/skills/SkillCatalog.cs", "layer": "application" },
     { "glob": "scripts/systems/content/skills/**/*.cs", "layer": "content_definition" },
     { "glob": "scripts/systems/world/*Definition.cs", "layer": "content_definition" },

@@ -23,23 +23,23 @@ public partial class run_character_management_achievement_summary_regression : L
 
     private void TestAchievementSummarySortsActiveProgressWithTypedEntries()
     {
-        AchievementDef gamma = MakeAchievement("gamma", "Gamma", 20);
-        AchievementDef aardvark = MakeAchievement("aardvark", "Aardvark", 10);
-        AchievementDef alpha = MakeAchievement("alpha", "Alpha", 10);
-        AchievementDef beta = MakeAchievement("beta", "Beta", 8);
-        AchievementDef unlockedOld = MakeAchievement("unlocked_old", "Old Unlock", 1);
-        AchievementDef unlockedRecent = MakeAchievement("unlocked_recent", "Recent Unlock", 1);
-        AchievementDef zeroProgress = MakeAchievement("zero_progress", "Zero", 5);
+        AchievementDefinition gamma = MakeAchievement("gamma", "Gamma", 20);
+        AchievementDefinition aardvark = MakeAchievement("aardvark", "Aardvark", 10);
+        AchievementDefinition alpha = MakeAchievement("alpha", "Alpha", 10);
+        AchievementDefinition beta = MakeAchievement("beta", "Beta", 8);
+        AchievementDefinition unlockedOld = MakeAchievement("unlocked_old", "Old Unlock", 1);
+        AchievementDefinition unlockedRecent = MakeAchievement("unlocked_recent", "Recent Unlock", 1);
+        AchievementDefinition zeroProgress = MakeAchievement("zero_progress", "Zero", 5);
 
         PartyState party = BuildPartyWithMember("hero");
         UnitProgress progression = party.GetMemberState("hero").progression;
-        SetAchievementProgress(progression, gamma.achievement_id, 12);
-        SetAchievementProgress(progression, aardvark.achievement_id, 5);
-        SetAchievementProgress(progression, alpha.achievement_id, 5);
-        SetAchievementProgress(progression, beta.achievement_id, 4);
-        SetAchievementProgress(progression, zeroProgress.achievement_id, 0);
-        SetAchievementUnlocked(progression, unlockedOld.achievement_id, 10);
-        SetAchievementUnlocked(progression, unlockedRecent.achievement_id, 12);
+        SetAchievementProgress(progression, gamma.AchievementId, 12);
+        SetAchievementProgress(progression, aardvark.AchievementId, 5);
+        SetAchievementProgress(progression, alpha.AchievementId, 5);
+        SetAchievementProgress(progression, beta.AchievementId, 4);
+        SetAchievementProgress(progression, zeroProgress.AchievementId, 0);
+        SetAchievementUnlocked(progression, unlockedOld.AchievementId, 10);
+        SetAchievementUnlocked(progression, unlockedRecent.AchievementId, 12);
 
         CharacterManagementModule manager = BuildManager(
             party,
@@ -73,11 +73,19 @@ public partial class run_character_management_achievement_summary_regression : L
 
     private void TestAchievementPendingRewardSummaryTextUsesStringMetaOrDescription()
     {
-        AchievementDef customSummary = MakeAchievement("custom_summary", "Custom Summary", 1);
-        customSummary.rewards.Add(MakeAttributeReward("custom reason"));
-        AchievementDef defaultSummary = MakeAchievement("default_summary", "Default Summary", 1);
-        defaultSummary.description = "Achievement description fallback.";
-        defaultSummary.rewards.Add(MakeAttributeReward("default reason"));
+        AchievementDefinition customSummary = MakeAchievement(
+            "custom_summary",
+            "Custom Summary",
+            1,
+            rewards: [MakeAttributeReward("custom reason")]
+        );
+        AchievementDefinition defaultSummary = MakeAchievement(
+            "default_summary",
+            "Default Summary",
+            1,
+            "Achievement description fallback.",
+            [MakeAttributeReward("default reason")]
+        );
 
         PartyState party = BuildPartyWithMember("hero");
         CharacterManagementModule manager = BuildManager(party, customSummary, defaultSummary);
@@ -85,7 +93,7 @@ public partial class run_character_management_achievement_summary_regression : L
         _test.True(
             manager.UnlockAchievement(
                 "hero",
-                customSummary.achievement_id,
+                customSummary.AchievementId,
                 new GDictionary { ["summary_text"] = "Custom achievement summary." }
             ),
             "custom summary achievement should unlock."
@@ -101,7 +109,7 @@ public partial class run_character_management_achievement_summary_regression : L
 
         party.pending_character_rewards.Clear();
         _test.True(
-            manager.UnlockAchievement("hero", defaultSummary.achievement_id),
+            manager.UnlockAchievement("hero", defaultSummary.AchievementId),
             "default summary achievement should unlock."
         );
         reward = party.GetNextPendingCharacterReward();
@@ -116,24 +124,22 @@ public partial class run_character_management_achievement_summary_regression : L
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        params AchievementDef[] achievementDefs
+        params AchievementDefinition[] achievementDefs
     )
     {
-        Dictionary<StringName, AchievementDef> indexedAchievementDefs = new();
-        foreach (AchievementDef achievementDef in achievementDefs)
+        Dictionary<StringName, AchievementDefinition> achievementDefinitions = new();
+        foreach (AchievementDefinition achievementDefinition in achievementDefs)
         {
-            if (achievementDef != null)
-                indexedAchievementDefs[achievementDef.achievement_id] = achievementDef;
+            if (achievementDefinition != null)
+                achievementDefinitions[achievementDefinition.AchievementId] = achievementDefinition;
         }
-        Dictionary<StringName, AchievementDefinition> projectedAchievementDefs =
-            TestProgressionDefinitionProjection.Achievements(indexedAchievementDefs);
 
         CharacterManagementModule manager = new();
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
-            projectedAchievementDefs,
+            achievementDefinitions,
             new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
             null,
@@ -155,28 +161,31 @@ public partial class run_character_management_achievement_summary_regression : L
         return party;
     }
 
-    private static AchievementDef MakeAchievement(
+    private static AchievementDefinition MakeAchievement(
         StringName achievementId,
         string displayName,
-        int threshold
+        int threshold,
+        string description = null,
+        IReadOnlyList<AchievementRewardDefinition> rewards = null
     ) =>
-        new()
-        {
-            achievement_id = achievementId,
-            display_name = displayName,
-            description = $"{displayName} description",
-            event_type = "test_event",
-            threshold = threshold,
-        };
+        new(
+            achievementId,
+            displayName,
+            description ?? $"{displayName} description",
+            "test_event",
+            "",
+            threshold,
+            rewards ?? System.Array.Empty<AchievementRewardDefinition>()
+        );
 
-    private static AchievementRewardDef MakeAttributeReward(string reasonText) =>
-        new()
-        {
-            RewardKind = PendingCharacterRewardEntryKind.AttributeDelta,
-            target_id = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
-            amount = 1,
-            reason_text = reasonText,
-        };
+    private static AchievementRewardDefinition MakeAttributeReward(string reasonText) =>
+        new(
+            "attribute_delta",
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
+            "Strength",
+            1,
+            reasonText
+        );
 
     private static void SetAchievementProgress(
         UnitProgress progression,

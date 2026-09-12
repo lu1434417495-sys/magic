@@ -8,28 +8,23 @@ using Godot;
 
 internal static class SkillGenerationBattleSimScenarioFactory
 {
-    private static readonly StringName BasicAttackSkillId = "basic_attack";
-    private static readonly StringName ArcaneMissileSkillId = "mage_arcane_missile";
-    private static readonly StringName FireballSkillId = "mage_fireball";
-    private static readonly StringName FrostBoltSkillId = "mage_frost_bolt";
-    private static readonly StringName MeleeBrainId = "melee_aggressor";
-    private static readonly StringName MageBrainId = "mage_controller";
-    private static readonly StringName RangedArcherBrainId = "ranged_archer";
     private static readonly Vector2I AllyCoord = new(1, 1);
     private static readonly Vector2I EnemyCoord = new(5, 1);
 
     internal static BattleSimScenarioDefinition Create(
         SkillDefinition candidate,
+        SkillGenerationBattleSimFixtureDefinition fixture,
         bool includeCandidate,
         IReadOnlyList<int> seeds
     )
     {
         ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(fixture);
         ArgumentNullException.ThrowIfNull(seeds);
         StringName candidateId = candidate.SkillId;
-        StringName benchmarkSkillId = ResolveBenchmarkSkillId(candidate);
-        StringName allyBrainId = ResolveAllyBrain(candidate);
-        StringName allyStateId = allyBrainId == MeleeBrainId ? "engage" : "pressure";
+        StringName benchmarkSkillId = ResolveBenchmarkSkillId(candidate, fixture);
+        StringName allyBrainId = ResolveAllyBrain(candidate, fixture);
+        StringName allyStateId = allyBrainId == fixture.MeleeBrainId ? "engage" : "pressure";
         ResourceCapacities resourceCapacities = ResolveResourceCapacities(candidate);
         BattleUnitState ally = BuildUnit(
             unitId: "generated_probe",
@@ -38,8 +33,8 @@ internal static class SkillGenerationBattleSimScenarioFactory
             brainId: allyBrainId,
             stateId: allyStateId,
             skills: includeCandidate
-                ? DistinctSkills(BasicAttackSkillId, candidateId)
-                : DistinctSkills(BasicAttackSkillId, benchmarkSkillId),
+                ? DistinctSkills(fixture.BasicAttackSkillId, candidateId)
+                : DistinctSkills(fixture.BasicAttackSkillId, benchmarkSkillId),
             candidate: candidate,
             resourceCapacities: resourceCapacities
         );
@@ -47,9 +42,9 @@ internal static class SkillGenerationBattleSimScenarioFactory
             unitId: "generated_control",
             factionId: "hostile",
             coord: EnemyCoord,
-            brainId: MeleeBrainId,
+            brainId: fixture.MeleeBrainId,
             stateId: "engage",
-            skills: new[] { BasicAttackSkillId },
+            skills: new[] { fixture.BasicAttackSkillId },
             candidate: null,
             resourceCapacities: ResourceCapacities.Standard
         );
@@ -243,28 +238,34 @@ internal static class SkillGenerationBattleSimScenarioFactory
         };
     }
 
-    private static StringName ResolveAllyBrain(SkillDefinition candidate)
+    private static StringName ResolveAllyBrain(
+        SkillDefinition candidate,
+        SkillGenerationBattleSimFixtureDefinition fixture
+    )
     {
         CombatSkillDefinition combat = candidate.CombatProfile;
         if (combat.TargetSelectionModeKind == BattleTargetSelectionMode.MultiUnit)
-            return RangedArcherBrainId;
+            return fixture.RangedBrainId;
         return combat.TargetModeKind == BattleTargetMode.Ground
             || combat.RangeValue > 1
             || combat.ProjectileKind == (StringName)"magical"
-            ? MageBrainId
-            : MeleeBrainId;
+            ? fixture.MageBrainId
+            : fixture.MeleeBrainId;
     }
 
-    private static StringName ResolveBenchmarkSkillId(SkillDefinition candidate)
+    private static StringName ResolveBenchmarkSkillId(
+        SkillDefinition candidate,
+        SkillGenerationBattleSimFixtureDefinition fixture
+    )
     {
         CombatSkillDefinition combat = candidate.CombatProfile;
         if (combat.TargetModeKind == BattleTargetMode.Ground)
-            return FireballSkillId;
+            return fixture.GroundBenchmarkSkillId;
         if (combat.TargetSelectionModeKind == BattleTargetSelectionMode.MultiUnit)
-            return ArcaneMissileSkillId;
-        return ResolveAllyBrain(candidate) == MageBrainId
-            ? FrostBoltSkillId
-            : BasicAttackSkillId;
+            return fixture.MultiTargetBenchmarkSkillId;
+        return ResolveAllyBrain(candidate, fixture) == fixture.MageBrainId
+            ? fixture.RangedUnitBenchmarkSkillId
+            : fixture.BasicAttackSkillId;
     }
 
     private static ResourceCapacities ResolveResourceCapacities(

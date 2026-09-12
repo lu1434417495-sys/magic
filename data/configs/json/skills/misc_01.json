@@ -53,6 +53,7 @@
     },
     {
       "skill_id": "black_contract_push",
+      "runtime_behavior": "black_contract_push",
       "display_name": "黑契推进",
       "description": "主动失去生命 / Guard / 下一回合行动力，换取一次必定命中但不暴击的推进打击。",
       "tags": [
@@ -63,6 +64,7 @@
       ],
       "combat_profile": {
         "skill_id": "black_contract_push",
+        "attack_resolution_mode": "force_hit_no_crit",
         "range_value": 5,
         "effect_defs": [
           {
@@ -99,6 +101,7 @@
     },
     {
       "skill_id": "black_crown_seal",
+      "runtime_behavior": "black_crown_seal",
       "display_name": "黑冠封印",
       "description": "每战 1 次，只能对 boss 施放 1 回合封印：可选择不能反击或不能暴击。",
       "tags": [
@@ -153,6 +156,7 @@
     },
     {
       "skill_id": "black_star_brand",
+      "runtime_behavior": "black_star_brand",
       "display_name": "黑星烙印",
       "description": "每战首次免费施放；之后每次施放消耗 1 点 calamity。普通敌人被封锁反击与格挡，elite/boss 则失去暴击、命中下降，并在第一次受击时被穿透部分格挡。",
       "tags": [
@@ -281,6 +285,7 @@
     },
     {
       "skill_id": "crown_break",
+      "runtime_behavior": "crown_break",
       "display_name": "折冠",
       "description": "消耗 2 点 calamity，只能对已被黑星烙印的 elite / boss 施放；断牙禁暴击，折手禁反击与追击，遮目禁闪避，持续 2 回合。",
       "tags": [
@@ -341,6 +346,7 @@
     },
     {
       "skill_id": "doom_sentence",
+      "runtime_behavior": "doom_sentence",
       "display_name": "厄命宣判",
       "description": "每战 1 次，消耗 5 点 calamity；仅能对 elite / boss 施放 2 回合【厄命宣判】：目标不能暴击、反击或闪避，且进入全伤害易伤；若其已有 2 个以上 debuff，则主技能失效。",
       "tags": [
@@ -373,6 +379,7 @@
     },
     {
       "skill_id": "doom_shift",
+      "runtime_behavior": "doom_shift",
       "display_name": "断命换位",
       "description": "自给 1 个 debuff，并立刻与 3 格内队友交换位置。",
       "tags": [

@@ -214,8 +214,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["charged"] = result.Charged,
             ["reserved_mp_max"] = result.ReservedMpMax,
             ["effective_mp_max"] = result.EffectiveMpMax,
-            ["material_item_id"] = "special_contingency_gem",
-            ["material_quantity"] = GetContingencyMaterialQuantity(result.MaterialCosts),
+            ["material_costs"] = BuildContingencyMaterialCosts(result.MaterialCosts),
         };
     }
 
@@ -260,7 +259,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["display_name"] = setup.DisplayName,
             ["charged"] = setup.Charged,
             ["reserved_mp_max"] = setup.ReservedMpMax,
-            ["material_quantity"] = GetContingencyMaterialQuantity(setup.MaterialCosts),
+            ["material_costs"] = BuildContingencyMaterialCosts(setup.MaterialCosts),
             ["trigger"] = BuildContingencyTriggerSnapshot(setup.Trigger),
             ["release_mode"] = setup.ReleaseMode.ToString(),
             ["stored_spells"] = BuildContingencyStoredSpellSnapshots(setup.StoredSpells),
@@ -303,17 +302,22 @@ public sealed class GameRuntimeSnapshotBuilder
         return result;
     }
 
-    private static int GetContingencyMaterialQuantity(
+    private static PlainList BuildContingencyMaterialCosts(
         IReadOnlyList<ContingencyMaterialCostState> costs
     )
     {
-        int total = 0;
+        var result = new PlainList();
         foreach (ContingencyMaterialCostState cost in costs ?? System.Array.Empty<ContingencyMaterialCostState>())
         {
-            if (cost != null && cost.ItemId == "special_contingency_gem")
-                total += cost.Quantity;
+            if (cost == null)
+                continue;
+            result.Add(new PlainDictionary(StringComparer.Ordinal)
+            {
+                ["item_id"] = cost.ItemId.ToString(),
+                ["quantity"] = cost.Quantity,
+            });
         }
-        return total;
+        return result;
     }
 
     private PlainDictionary BuildQuestSnapshot(PartyState partyState)

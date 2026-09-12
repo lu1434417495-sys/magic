@@ -20,15 +20,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private const string PERSIST_FAILURE_ROLLBACK_MESSAGE = "存档提交失败，操作已回滚。";
     internal static readonly StringName NPC_OFFER_LISTING_CHANNEL = "npc_offer";
 
-    internal static readonly HashSet<string> SHOP_INTERACTION_IDS = new()
-    {
-        "service_basic_supply",
-        "service_local_trade",
-        "service_city_market",
-        "service_military_supply",
-        "service_grand_auction",
-    };
-
     internal static readonly HashSet<string> STAGECOACH_INTERACTION_IDS = new()
     {
         "service_stagecoach",
@@ -166,7 +157,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal void SetupRuntime(IGameRuntimeSettlementCommandPort runtimePort)
     {
+        ArgumentNullException.ThrowIfNull(runtimePort);
+        SetupRuntime(runtimePort, runtimePort.GetGameplayConfiguration());
+    }
+
+    internal void SetupRuntime(
+        IGameRuntimeSettlementCommandPort runtimePort,
+        GameplayConfigurationDefinition gameplayConfiguration
+    )
+    {
+        ArgumentNullException.ThrowIfNull(runtimePort);
+        ArgumentNullException.ThrowIfNull(gameplayConfiguration);
         Port = runtimePort;
+        _shop_service.SetDefinitions(
+            gameplayConfiguration.SettlementShopsByInteractionId
+        );
     }
 
     public void Dispose()
@@ -644,7 +649,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 $"已打开 {ReadString(payload, "facility_name", "据点任务板")} 的任务板。"
             );
         }
-        if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
+        if (_shop_service.HasShop(interactionScriptId))
         {
             return RuntimeCommandResultProjection.Project(
                 _serviceWindowHandler.OpenShopModalTyped(settlement_id, payload)

@@ -733,7 +733,11 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
                 gameSession.GetSkillDefinitionsTyped(),
                 enemyTemplates,
                 gameSession.GetEnemyAiBrainDefinitions(),
-                encounterBuilder
+                encounterBuilder,
+                basic_attack_skill_id: gameSession
+                    .GetGameplayConfigurationTyped()
+                    .BattleSkillRoles
+                    .BasicAttackSkillId
             );
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
             return new BattleRuntimeScope(runtime, encounterBuilder, gameSession);
@@ -804,7 +808,15 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         }
 
         var builder = new EncounterRosterBuilder();
-        builder.Setup(encounters, rosters, enemyTemplates);
+        builder.Setup(
+            encounters,
+            rosters,
+            enemyTemplates,
+            GameSessionTestFactory.GetProcessSnapshot()
+                .GameplayConfiguration
+                .BattleSkillRoles
+                .BasicAttackSkillId
+        );
         return builder;
     }
 

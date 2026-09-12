@@ -25,6 +25,7 @@ internal sealed partial class SkillJsonDto
     private IReadOnlyList<string>? _masterySources;
     private IReadOnlyDictionary<string, int>? _attributeGrowthProgress;
     private IReadOnlyList<AttributeModifierJsonDto>? _attributeModifiers;
+    private string? _runtimeBehavior;
 
     [JsonPropertyName("icon_id")] public string IconId { get => _iconId ?? ""; init => _iconId = value; }
     [JsonPropertyName("non_core_max_level")] public int NonCoreMaxLevel { get; init; }
@@ -61,6 +62,9 @@ internal sealed partial class SkillJsonDto
     public string PracticeTier { get => _practiceTier ?? ""; init => _practiceTier = value; }
     [JsonPropertyName("attribute_modifiers")] public IReadOnlyList<AttributeModifierJsonDto> AttributeModifiers { get => _attributeModifiers ?? Array.Empty<AttributeModifierJsonDto>(); init => _attributeModifiers = value; }
     [JsonPropertyName("contingency_automation_profile")] public ContingencyAutomationJsonDto? ContingencyAutomationProfile { get; init; }
+    [JsonPropertyName("runtime_behavior")]
+    [ContentJsonSchemaStableStringValues(typeof(SkillRuntimeBehaviorSchemaValues))]
+    public string RuntimeBehavior { get => _runtimeBehavior ?? ""; init => _runtimeBehavior = value; }
 
     private static IReadOnlyDictionary<string, int> EmptyIntMap { get; } =
         new ReadOnlyDictionary<string, int>(new Dictionary<string, int>());
@@ -356,7 +360,7 @@ internal sealed class CombatSpellReactionJsonDto
     private IReadOnlyList<int>? _saveDcBonusBySkillLevel;
 
     [JsonPropertyName("trigger_delivery_category")] public string TriggerDeliveryCategory { get => _triggerDeliveryCategory ?? "spell"; init => _triggerDeliveryCategory = value; }
-    [JsonPropertyName("reaction_skill_id")] public string ReactionSkillId { get => _reactionSkillId ?? "basic_attack"; init => _reactionSkillId = value; }
+    [JsonPropertyName("reaction_skill_id")] public string ReactionSkillId { get => _reactionSkillId ?? ""; init => _reactionSkillId = value; }
     [JsonPropertyName("readiness_status_id")] public string ReadinessStatusId { get => _readinessStatusId ?? ""; init => _readinessStatusId = value; }
     [JsonPropertyName("required_weapon_family")] public string RequiredWeaponFamily { get => _requiredWeaponFamily ?? ""; init => _requiredWeaponFamily = value; }
     [JsonPropertyName("save_ability")]

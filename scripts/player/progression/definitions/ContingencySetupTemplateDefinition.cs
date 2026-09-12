@@ -76,6 +76,8 @@ public sealed record ContingencyTargetResolverDefinition(
         ContingencyContractRules.ToTargetResolverKind(Type);
 }
 
+public sealed record ContingencyMaterialCostDefinition(StringName ItemId, int Quantity);
+
 public sealed class ContingencyStoredSpellTemplateDefinition
 {
     public ContingencyStoredSpellTemplateDefinition(
@@ -126,6 +128,8 @@ public sealed class ContingencySetupTemplateDefinition
         string displayName,
         StringName sourceSkillId,
         int matrixLoad,
+        int reservedMpPerMatrixLoad,
+        IReadOnlyList<ContingencyMaterialCostDefinition> chargeMaterialCosts,
         StringName releaseMode,
         ContingencyTriggerDefinition trigger,
         IReadOnlyList<ContingencyStoredSpellTemplateDefinition> storedSpells
@@ -138,6 +142,11 @@ public sealed class ContingencySetupTemplateDefinition
             );
         SourceSkillId = sourceSkillId;
         MatrixLoad = matrixLoad;
+        ReservedMpPerMatrixLoad = reservedMpPerMatrixLoad;
+        ChargeMaterialCosts = ProgressionDefinitionProjection.FreezeValues(
+            chargeMaterialCosts,
+            "ContingencySetupTemplateDefinition.ChargeMaterialCosts"
+        );
         ReleaseMode = releaseMode;
         Trigger = trigger
             ?? throw new InvalidDataException(
@@ -153,6 +162,8 @@ public sealed class ContingencySetupTemplateDefinition
     public string DisplayName { get; }
     public StringName SourceSkillId { get; }
     public int MatrixLoad { get; }
+    public int ReservedMpPerMatrixLoad { get; }
+    public IReadOnlyList<ContingencyMaterialCostDefinition> ChargeMaterialCosts { get; }
     public StringName ReleaseMode { get; }
     public ContingencyTriggerDefinition Trigger { get; }
     public IReadOnlyList<ContingencyStoredSpellTemplateDefinition> StoredSpells { get; }
@@ -174,10 +185,30 @@ public sealed class ContingencySetupTemplateDefinition
             throw ContingencyDefinitionProjection.Invalid(path + ".source_skill_id", "must not be empty");
         if (source.MatrixLoad <= 0)
             throw ContingencyDefinitionProjection.Invalid(path + ".matrix_load", "must be positive");
+        if (source.ReservedMpPerMatrixLoad <= 0)
+            throw ContingencyDefinitionProjection.Invalid(path + ".reserved_mp_per_matrix_load", "must be positive");
+        if (source.ChargeMaterialCosts.Count == 0)
+            throw ContingencyDefinitionProjection.Invalid(path + ".charge_material_costs", "must not be empty");
         if (string.IsNullOrWhiteSpace(source.ReleaseMode))
             throw ContingencyDefinitionProjection.Invalid(path + ".release_mode", "must not be empty");
 
         ContingencyTriggerDefinition trigger = ProjectTrigger(source.Trigger, path + ".trigger");
+        var materialCosts = new List<ContingencyMaterialCostDefinition>(
+            source.ChargeMaterialCosts.Count
+        );
+        for (int index = 0; index < source.ChargeMaterialCosts.Count; index++)
+        {
+            ContingencyMaterialCostImportModel cost = source.ChargeMaterialCosts[index];
+            if (string.IsNullOrWhiteSpace(cost.ItemId) || cost.Quantity <= 0)
+                throw ContingencyDefinitionProjection.Invalid(
+                    $"{path}.charge_material_costs[{index}]",
+                    "item_id and positive quantity are required"
+                );
+            materialCosts.Add(new ContingencyMaterialCostDefinition(
+                new StringName(cost.ItemId),
+                cost.Quantity
+            ));
+        }
         var spells = new List<ContingencyStoredSpellTemplateDefinition>(
             source.StoredSpells.Count
         );
@@ -190,6 +221,8 @@ public sealed class ContingencySetupTemplateDefinition
             source.DisplayName,
             new StringName(source.SourceSkillId),
             source.MatrixLoad,
+            source.ReservedMpPerMatrixLoad,
+            new ReadOnlyCollection<ContingencyMaterialCostDefinition>(materialCosts),
             new StringName(source.ReleaseMode),
             trigger,
             new ReadOnlyCollection<ContingencyStoredSpellTemplateDefinition>(spells)

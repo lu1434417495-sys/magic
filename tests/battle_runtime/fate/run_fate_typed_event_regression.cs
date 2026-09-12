@@ -27,7 +27,10 @@ public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
             fateRuntime.Setup(
                 fate_event_bus: bus,
                 unit_by_member_id_resolver: memberId =>
-                    memberId == new StringName("hero_member") ? hero : null
+                    memberId == new StringName("hero_member") ? hero : null,
+                // 门禁判定只能从 SkillDefinition 读行为；这个夹具不带技能内容，
+                // 但 resolver 仍必须接上，否则 MisfortuneService 会按装配缺陷抛错。
+                skill_definition_resolver: _ => null
             );
             fateRuntime.BeginBattle(new BattleCalamityStore());
 
@@ -63,7 +66,8 @@ public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
             hero.SetCurrentHp(1);
             fateRuntime.Setup(
                 unit_by_member_id_resolver: memberId =>
-                    memberId == new StringName("low_hp_member") ? hero : null
+                    memberId == new StringName("low_hp_member") ? hero : null,
+                skill_definition_resolver: _ => null
             );
             fateRuntime.BeginBattle(new BattleCalamityStore());
 

@@ -332,6 +332,14 @@ internal static partial class SkillCanonicalJsonSchema
                 static value => value.ContingencyAutomationProfile!,
                 null!,
                 ContingencyAutomation
+            ),
+            ContentCanonicalJsonProperty<SkillImportModel>.Optional(
+                "runtime_behavior",
+                static value => value.RuntimeBehavior,
+                SkillRuntimeBehaviorImportKind.None,
+                ContentCanonicalJsonValue.StableBusinessString<SkillRuntimeBehaviorImportKind>(
+                    SkillRootCombatImportValueRules.GetWireValue
+                )
             )
         );
 

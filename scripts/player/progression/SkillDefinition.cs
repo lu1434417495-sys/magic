@@ -1,7 +1,21 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using Godot;
+
+public enum SkillRuntimeBehaviorKind
+{
+    None = 0,
+    Unknown,
+    BlackContractPush,
+    DoomShift,
+    BlackCrownSeal,
+    BlackStarBrand,
+    CrownBreak,
+    DoomSentence,
+    MisstepToScheme,
+}
 
 internal static class SkillDefinitionCollectionFreeze
 {
@@ -70,7 +84,8 @@ public sealed class SkillDefinition
         string levelDescriptionTemplate,
         IReadOnlyDictionary<int, SkillDescriptionVariables> levelDescriptionConfigs,
         CombatSkillDefinition combatProfile,
-        ContingencyAutomationDefinition contingencyAutomationProfile = null
+        ContingencyAutomationDefinition contingencyAutomationProfile = null,
+        SkillRuntimeBehaviorKind runtimeBehaviorKind = SkillRuntimeBehaviorKind.None
     )
     {
         SkillId = skillId;
@@ -116,6 +131,7 @@ public sealed class SkillDefinition
         LevelDescriptionConfigs = SkillTypedLevelValueMaps.Freeze(levelDescriptionConfigs);
         CombatProfile = combatProfile;
         ContingencyAutomationProfile = contingencyAutomationProfile;
+        RuntimeBehaviorKind = runtimeBehaviorKind;
     }
 
     public StringName SkillId { get; }
@@ -149,6 +165,7 @@ public sealed class SkillDefinition
     public IReadOnlyDictionary<int, SkillDescriptionVariables> LevelDescriptionConfigs { get; }
     public CombatSkillDefinition CombatProfile { get; }
     public ContingencyAutomationDefinition ContingencyAutomationProfile { get; }
+    public SkillRuntimeBehaviorKind RuntimeBehaviorKind { get; }
     internal SkillTypeKind SkillTypeKind => SkillContentRules.ToSkillType(SkillType);
     internal SkillLearnSourceKind LearnSourceKind => SkillContentRules.ToLearnSource(LearnSource);
     internal SkillUnlockMode UnlockModeKind => SkillContentRules.ToUnlockMode(UnlockMode);
@@ -191,7 +208,8 @@ public sealed class SkillDefinition
             LevelDescriptionTemplate,
             LevelDescriptionConfigs,
             combatProfile,
-            ContingencyAutomationProfile
+            ContingencyAutomationProfile,
+            RuntimeBehaviorKind
         );
 
     internal static SkillPracticeTierKind ToPracticeTier(StringName value) =>

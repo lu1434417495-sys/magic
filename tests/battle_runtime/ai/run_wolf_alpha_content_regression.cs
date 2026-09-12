@@ -224,14 +224,16 @@ public partial class run_wolf_alpha_content_regression : LifecycleTestSceneTree
             template,
             snapshot.Skills,
             generationSeed: 7301,
-            unitIndex: 0
+            unitIndex: 0,
+            basicAttackSkillId: snapshot.GameplayConfiguration.BattleSkillRoles.BasicAttackSkillId
         );
         EnemySkillLevelGenerationService.ApplyGeneratedLevels(
             repeated,
             template,
             snapshot.Skills,
             generationSeed: 7301,
-            unitIndex: 0
+            unitIndex: 0,
+            basicAttackSkillId: snapshot.GameplayConfiguration.BattleSkillRoles.BasicAttackSkillId
         );
         _test.Eq(BuildLevelSignature(first, template), BuildLevelSignature(repeated, template), "相同seed与单位序号必须生成相同技能等级。");
         AssertGeneratedLevelShape(first, template, snapshot.Skills);
@@ -245,7 +247,8 @@ public partial class run_wolf_alpha_content_regression : LifecycleTestSceneTree
                 template,
                 snapshot.Skills,
                 seed,
-                unitIndex: 0
+                unitIndex: 0,
+                basicAttackSkillId: snapshot.GameplayConfiguration.BattleSkillRoles.BasicAttackSkillId
             );
             AssertGeneratedLevelShape(candidate, template, snapshot.Skills);
             signatures.Add(BuildLevelSignature(candidate, template));

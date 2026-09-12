@@ -39,7 +39,7 @@ public partial class run_item_icon_asset_catalog_validator_regression : Lifecycl
             .Where(definition => !string.IsNullOrEmpty(definition?.IconAssetId))
             .ToArray();
 
-        _test.Eq(withIcons.Length, 109, "formal items should retain 109 non-empty icon asset IDs");
+        _test.Eq(withIcons.Length, 110, "formal items should retain 110 non-empty icon asset IDs");
         _test.True(
             withIcons.All(definition =>
                 definition.IconAssetId == EngineAssetIds.DefaultItemIcon

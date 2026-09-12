@@ -40,6 +40,7 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, BattleEncounterDefinition> _battleEncounterDefinitions;
     private IReadOnlyDictionary<StringName, BattleSimProfileDefinition> _battleSimProfiles;
     private IBattleSpecialProfileView _battleSpecialProfileView;
+    private GameplayConfigurationDefinition _gameplayConfiguration;
 
     public GameContentCatalog()
     {
@@ -91,6 +92,7 @@ public sealed class GameContentCatalog
         _battleEncounterDefinitions = snapshot.BattleEncounters;
         _battleSimProfiles = snapshot.BattleSimProfiles;
         _battleSpecialProfileView = snapshot.BattleSpecialProfiles;
+        _gameplayConfiguration = snapshot.GameplayConfiguration;
         _revision++;
     }
 
@@ -118,6 +120,7 @@ public sealed class GameContentCatalog
         _battleEncounterDefinitions = EmptyTyped<BattleEncounterDefinition>();
         _battleSimProfiles = EmptyTyped<BattleSimProfileDefinition>();
         _battleSpecialProfileView = BattleSpecialProfileRuntimeView.Empty;
+        _gameplayConfiguration = null;
     }
 
     /// <summary>catalog 绑定版本号；每次 snapshot bind 或 <see cref="ClearSessionBinding"/>
@@ -214,6 +217,9 @@ public sealed class GameContentCatalog
 
     internal IBattleSpecialProfileView GetBattleSpecialProfileView() =>
         _battleSpecialProfileView ?? BattleSpecialProfileRuntimeView.Empty;
+
+    public GameplayConfigurationDefinition GetGameplayConfigurationTyped() =>
+        _gameplayConfiguration;
 
     private static IReadOnlyDictionary<StringName, T> EmptyTyped<T>()
     {

@@ -13,6 +13,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     {
         TestOfficialWorldJsonRegistryAndDefinitions();
         TestValidatorRejectsInvalidPlainDefinition();
+        TestTypedValidatorRejectsDuplicateTierAndVerticalBand();
         TestStrictWorldJsonDiagnosticsPreserveRuleSourceAndPointer();
         TestRegistryRejectsMissingCrossDomainGenerationId();
         TestRegistryRejectsMissingSharedContentAndMountedCycle();
@@ -97,6 +98,70 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         );
     }
 
+    private void TestTypedValidatorRejectsDuplicateTierAndVerticalBand()
+    {
+        WorldGenerationDefinition source = TestWorldGenerationDefinitionFactory.Load("test");
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        var validator = new WorldMapContentValidator();
+
+        var duplicateTierPools =
+            new Dictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition>(
+                source.SettlementNamePools
+            );
+        WorldMapSettlementNamePoolDefinition townPool =
+            duplicateTierPools[SettlementTierKind.Town];
+        duplicateTierPools[SettlementTierKind.Town] =
+            new WorldMapSettlementNamePoolDefinition(
+                SettlementTierKind.Village,
+                townPool.DisplayNames
+            );
+        WorldGenerationDefinition duplicateTier = CloneWithRulesAndNamePools(
+            source,
+            source.WildMonsterDistribution,
+            source.DefaultWildSpawnBundle,
+            duplicateTierPools
+        );
+        List<string> duplicateTierErrors = validator.ValidateGenerationConfigTyped(
+            duplicateTier,
+            "duplicate_tier",
+            snapshot.BattleEncounters.Keys
+        );
+        _test.True(
+            duplicateTierErrors.Any(error =>
+                error.Contains(
+                    "duplicate settlement name pool tier Village",
+                    StringComparison.Ordinal
+                )
+            ),
+            $"typed validator 应拒绝重复 settlement tier: {Format(duplicateTierErrors)}"
+        );
+
+        IReadOnlyList<WildSpawnRuleDefinition> sourceRules =
+            source.DefaultWildSpawnBundle.WildMonsterDistribution;
+        var duplicateBandRules = new[]
+        {
+            sourceRules[0],
+            CloneWithVerticalBand(sourceRules[1], sourceRules[0].VerticalBand),
+        };
+        WorldGenerationDefinition duplicateBand = CloneWithRulesAndNamePools(
+            source,
+            duplicateBandRules,
+            defaultWildSpawnBundle: null,
+            namePools: source.SettlementNamePools
+        );
+        List<string> duplicateBandErrors = validator.ValidateGenerationConfigTyped(
+            duplicateBand,
+            "duplicate_band",
+            snapshot.BattleEncounters.Keys
+        );
+        _test.True(
+            duplicateBandErrors.Any(error =>
+                error.Contains("duplicate wild spawn vertical_band North", StringComparison.Ordinal)
+            ),
+            $"typed validator 应拒绝重复 vertical band: {Format(duplicateBandErrors)}"
+        );
+    }
+
     private void TestStrictWorldJsonDiagnosticsPreserveRuleSourceAndPointer()
     {
         string generations = ReadGenerations();
@@ -139,23 +204,64 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
             "world generation 非法数值应以稳定 rule/source/pointer fail closed。"
         );
 
-        string unknownPoolShared = ReadShared().Replace(
-            "\"pool_id\": \"village\"",
-            "\"pool_id\": \"future_pool\"",
+        string unknownTierShared = ReadShared().Replace(
+            "\"settlement_tier\": \"village\"",
+            "\"settlement_tier\": \"future_tier\"",
             StringComparison.Ordinal
         );
-        ContentImportBatch<WorldSharedImportModel> unknownPoolBatch =
+        ContentImportBatch<WorldSharedImportModel> unknownTierBatch =
             WorldJsonImport.CreateSharedDescriptor(
                 WorldJsonDomains.SharedDirectoryPath,
-                new DirectoryReader(ReadPresets(), generations, unknownPoolShared)
+                new DirectoryReader(ReadPresets(), generations, unknownTierShared)
             ).Import();
         _test.True(
-            unknownPoolBatch.Diagnostics.Any(diagnostic =>
+            unknownTierBatch.Diagnostics.Any(diagnostic =>
                 diagnostic.RuleId == WorldJsonRules.UnknownValue
                 && diagnostic.SourceLabel == "core.json#main_world_defaults"
-                && diagnostic.JsonPointer == "/entries/0/settlement_name_pools/0/pool_id"
+                && diagnostic.JsonPointer
+                    == "/entries/0/settlement_name_pools/0/settlement_tier"
             ),
-            "world shared 未注册 name-pool ID 应以稳定 rule/source/pointer fail closed。"
+            "world shared 未注册 settlement tier 应以稳定 rule/source/pointer fail closed。"
+        );
+
+        string duplicateTierShared = ReadShared().Replace(
+            "\"settlement_tier\": \"town\"",
+            "\"settlement_tier\": \"village\"",
+            StringComparison.Ordinal
+        );
+        ContentImportBatch<WorldSharedImportModel> duplicateTierBatch =
+            WorldJsonImport.CreateSharedDescriptor(
+                WorldJsonDomains.SharedDirectoryPath,
+                new DirectoryReader(ReadPresets(), generations, duplicateTierShared)
+            ).Import();
+        _test.True(
+            duplicateTierBatch.Diagnostics.Any(diagnostic =>
+                diagnostic.RuleId == WorldJsonRules.DuplicateTypedKey
+                && diagnostic.SourceLabel == "core.json#main_world_defaults"
+                && diagnostic.JsonPointer
+                    == "/entries/0/settlement_name_pools/1/settlement_tier"
+            ),
+            "world shared 重复 settlement tier 应定位到重复项字段并 fail closed。"
+        );
+
+        string duplicateBandShared = ReadShared().Replace(
+            "\"vertical_band\": \"south\"",
+            "\"vertical_band\": \"north\"",
+            StringComparison.Ordinal
+        );
+        ContentImportBatch<WorldSharedImportModel> duplicateBandBatch =
+            WorldJsonImport.CreateSharedDescriptor(
+                WorldJsonDomains.SharedDirectoryPath,
+                new DirectoryReader(ReadPresets(), generations, duplicateBandShared)
+            ).Import();
+        _test.True(
+            duplicateBandBatch.Diagnostics.Any(diagnostic =>
+                diagnostic.RuleId == WorldJsonRules.DuplicateTypedKey
+                && diagnostic.SourceLabel == "core.json#main_world_defaults"
+                && diagnostic.JsonPointer
+                    == "/entries/0/wild_monster_distribution/1/vertical_band"
+            ),
+            "world shared 重复 vertical band 应定位到重复项字段并 fail closed。"
         );
     }
 
@@ -210,6 +316,65 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
 
     private static string ReadShared() =>
         FileAccess.GetFileAsString(WorldJsonDomains.SharedDirectoryPath + "/core.json");
+
+    private static WorldGenerationDefinition CloneWithRulesAndNamePools(
+        WorldGenerationDefinition source,
+        IReadOnlyList<WildSpawnRuleDefinition> wildSpawnRules,
+        WorldMapWildSpawnBundleDefinition defaultWildSpawnBundle,
+        IReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition> namePools
+    ) =>
+        new(
+            source.GenerationId,
+            source.Seed,
+            source.WorldSizeInChunks,
+            source.ChunkSize,
+            source.PlayerStartCoord,
+            source.PlayerVisionRange,
+            source.ProceduralGenerationEnabled,
+            source.ProceduralWildSpawnChunkChanceDenominator,
+            source.SharedContentId,
+            source.ProceduralVillageCount,
+            source.ProceduralTownCount,
+            source.ProceduralCityCount,
+            source.ProceduralCapitalCount,
+            source.ProceduralWorldStrongholdCount,
+            source.ProceduralMetropolisCount,
+            source.VillageSpacingCells,
+            source.TownSpacingCells,
+            source.CitySpacingCells,
+            source.CapitalSpacingCells,
+            source.WorldStrongholdSpacingCells,
+            source.MetropolisSpacingCells,
+            source.GuaranteeStartingWildEncounter,
+            source.StartingWildSpawnMinDistance,
+            source.StartingWildSpawnMaxDistance,
+            source.SettlementLibrary,
+            source.FacilityLibrary,
+            source.SettlementDistribution,
+            wildSpawnRules,
+            source.MountedSubmaps,
+            source.WorldEvents,
+            source.DefaultSettlementBundle,
+            defaultWildSpawnBundle,
+            namePools
+        );
+
+    private static WildSpawnRuleDefinition CloneWithVerticalBand(
+        WildSpawnRuleDefinition source,
+        WorldVerticalBandKind verticalBand
+    ) =>
+        new(
+            source.RegionTag,
+            verticalBand,
+            source.MonsterName,
+            source.EncounterProfileId,
+            source.SettlementEncounterProfileId,
+            source.SettlementEncounterDisplayName,
+            source.DensityPerChunk,
+            source.MinDistanceToSettlement,
+            source.VisionRange,
+            source.ChunkCoords
+        );
 
     private static string Format(IEnumerable<string> errors) =>
         string.Join(" | ", errors ?? Array.Empty<string>());

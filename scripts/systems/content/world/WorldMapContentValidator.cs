@@ -363,6 +363,10 @@ public class WorldMapContentValidator
     )
     {
         Vector2I worldSizeInChunks = generationDefinition.WorldSizeInChunks;
+        bool requireUniqueVerticalBands =
+            generationDefinition.ProceduralGenerationEnabled
+            || generationDefinition.GuaranteeStartingWildEncounter;
+        var verticalBands = new HashSet<WorldVerticalBandKind>();
         foreach (WildSpawnRuleDefinition rule in rules)
         {
             string regionTag = (rule.RegionTag ?? string.Empty).Trim();
@@ -373,6 +377,22 @@ public class WorldMapContentValidator
             {
                 errors.Add(
                     $"World generation config {label} has wild spawn rule missing region_tag."
+                );
+            }
+            if (
+                rule.VerticalBand != WorldVerticalBandKind.All
+                && rule.VerticalBand != WorldVerticalBandKind.North
+                && rule.VerticalBand != WorldVerticalBandKind.South
+            )
+            {
+                errors.Add(
+                    $"World generation config {label} wild spawn rule {regionTag} has invalid vertical_band {rule.VerticalBand}."
+                );
+            }
+            else if (requireUniqueVerticalBands && !verticalBands.Add(rule.VerticalBand))
+            {
+                errors.Add(
+                    $"World generation config {label} has duplicate wild spawn vertical_band {rule.VerticalBand}."
                 );
             }
             if (encounterProfileId.Length == 0)
@@ -572,29 +592,61 @@ public class WorldMapContentValidator
         List<string> errors
     )
     {
+        var settlementTiers = new HashSet<SettlementTierKind>();
+        foreach ((SettlementTierKind tier, WorldMapSettlementNamePoolDefinition namePool) in
+            definition.SettlementNamePools)
+        {
+            if (tier == SettlementTierKind.Unknown)
+            {
+                errors.Add(
+                    $"World generation config {label} has settlement name pool with invalid tier key {tier}."
+                );
+            }
+            if (namePool == null)
+            {
+                errors.Add(
+                    $"World generation config {label} has null settlement name pool for tier {tier}."
+                );
+                continue;
+            }
+            if (namePool.SettlementTier != tier)
+            {
+                errors.Add(
+                    $"World generation config {label} settlement name pool key {tier} does not match definition tier {namePool.SettlementTier}."
+                );
+            }
+            if (!settlementTiers.Add(namePool.SettlementTier))
+            {
+                errors.Add(
+                    $"World generation config {label} has duplicate settlement name pool tier {namePool.SettlementTier}."
+                );
+            }
+        }
         if (!definition.InjectDefaultMainWorldContent)
             return;
-        StringName[] requiredPoolIds =
+        SettlementTierKind[] requiredTiers =
         {
-            WorldGenerationDefinition.DefaultMainWorldSettlementNamePoolId,
-            WorldGenerationDefinition.DefaultMainWorldTownNamePoolId,
-            WorldGenerationDefinition.DefaultMainWorldCityNamePoolId,
-            WorldGenerationDefinition.DefaultMainWorldCapitalNamePoolId,
-            WorldGenerationDefinition.DefaultMainWorldMetropolisNamePoolId,
+            SettlementTierKind.Village,
+            SettlementTierKind.Town,
+            SettlementTierKind.City,
+            SettlementTierKind.Capital,
+            SettlementTierKind.Metropolis,
         };
-        foreach (StringName poolId in requiredPoolIds)
+        foreach (SettlementTierKind requiredTier in requiredTiers)
         {
+            bool hasNames = definition.SettlementNamePools.TryGetValue(
+                requiredTier,
+                out WorldMapSettlementNamePoolDefinition namePool
+            );
             if (
-                !definition.SettlementNamePools.TryGetValue(
-                    poolId,
-                    out WorldMapSettlementNamePoolDefinition namePool
-                )
+                !hasNames
                 || namePool == null
+                || namePool.SettlementTier != requiredTier
                 || namePool.DisplayNames.Count == 0
             )
             {
                 errors.Add(
-                    $"World generation config {label} has empty settlement name pool {poolId}."
+                    $"World generation config {label} has no non-empty settlement name pool for tier {requiredTier}."
                 );
             }
         }

@@ -435,6 +435,7 @@
     },
     {
       "skill_id": "misstep_to_scheme",
+      "runtime_behavior": "misstep_to_scheme",
       "display_name": "失手成筹",
       "description": "每战第一次大失败时，额外获得 1 点 calamity。该奖励与其他大失败计数独立结算。",
       "skill_type": "passive",

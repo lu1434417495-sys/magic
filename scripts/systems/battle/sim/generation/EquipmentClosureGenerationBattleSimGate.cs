@@ -34,13 +34,18 @@ internal sealed class EquipmentClosureGenerationBattleSimGate
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(processSnapshot);
-        if (!processSnapshot.Skills.ContainsKey("basic_attack"))
-            throw new InvalidOperationException(
-                "Equipment generation BattleSim requires basic_attack."
+        EquipmentGenerationBattleSimFixtureDefinition fixture = processSnapshot
+            .GameplayConfiguration?.EquipmentGenerationBattleSim
+            ?? throw new InvalidOperationException(
+                "Equipment generation BattleSim fixture configuration is unavailable."
             );
-        if (!processSnapshot.EnemyBrains.ContainsKey("melee_aggressor"))
+        if (!processSnapshot.Skills.ContainsKey(fixture.BasicAttackSkillId))
             throw new InvalidOperationException(
-                "Equipment generation BattleSim requires melee_aggressor."
+                $"Equipment generation BattleSim requires basic attack skill {fixture.BasicAttackSkillId}."
+            );
+        if (!processSnapshot.EnemyBrains.ContainsKey(fixture.MeleeBrainId))
+            throw new InvalidOperationException(
+                $"Equipment generation BattleSim requires melee brain {fixture.MeleeBrainId}."
             );
 
         var candidates = content.CandidateItems.Values
@@ -111,14 +116,16 @@ internal sealed class EquipmentClosureGenerationBattleSimGate
                         $"equipment_generation_{candidate.ItemId}_baseline_ally",
                         baselineItem,
                         content,
-                        processSnapshot
+                        processSnapshot,
+                        fixture
                     );
                 BattleUnitState candidateAlly =
                     EquipmentClosureGenerationBattleSimScenarioFactory.BuildProjectedAlly(
                         $"equipment_generation_{candidate.ItemId}_candidate_ally",
                         candidate,
                         content,
-                        processSnapshot
+                        processSnapshot,
+                        fixture
                     );
                 int sourceCount = candidateAlly
                     .GetEquipmentAbilitySourcesReadViewTyped()
@@ -129,7 +136,8 @@ internal sealed class EquipmentClosureGenerationBattleSimGate
                         baselineItem,
                         baselineAlly,
                         candidateArm: false,
-                        _options.Seeds
+                        _options.Seeds,
+                        fixture
                     ),
                     new[] { StandardProfile }
                 );
@@ -139,7 +147,8 @@ internal sealed class EquipmentClosureGenerationBattleSimGate
                         candidate,
                         candidateAlly,
                         candidateArm: true,
-                        _options.Seeds
+                        _options.Seeds,
+                        fixture
                     ),
                     new[] { StandardProfile }
                 );

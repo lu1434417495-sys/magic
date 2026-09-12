@@ -157,17 +157,12 @@ internal sealed class WorldContentRegistry
                 : new WorldMapWildSpawnBundleDefinition(
                     shared.WildMonsterDistribution.Select(ProjectWildSpawn).ToArray()
                 );
-            IReadOnlyDictionary<StringName, WorldMapSettlementNamePoolDefinition> namePools =
+            IReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition> namePools =
                 shared == null
-                    ? new ReadOnlyDictionary<StringName, WorldMapSettlementNamePoolDefinition>(
-                        new Dictionary<StringName, WorldMapSettlementNamePoolDefinition>()
+                    ? new ReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition>(
+                        new Dictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition>()
                     )
-                    : new ReadOnlyDictionary<StringName, WorldMapSettlementNamePoolDefinition>(
-                        shared.SettlementNamePools.ToDictionary(
-                            pool => new StringName(pool.PoolId),
-                            pool => new WorldMapSettlementNamePoolDefinition(pool.DisplayNames)
-                        )
-                    );
+                    : ProjectSettlementNamePools(shared.SettlementNamePools);
 
             var definition = new WorldGenerationDefinition(
                 generationKey,
@@ -261,6 +256,7 @@ internal sealed class WorldContentRegistry
     private static WildSpawnRuleDefinition ProjectWildSpawn(WorldWildSpawnImportModel import) =>
         new(
             import.RegionTag,
+            WorldContentKinds.ToVerticalBand(import.VerticalBand),
             import.MonsterName,
             new StringName(import.EncounterProfileId),
             new StringName(import.SettlementEncounterProfileId),
@@ -270,6 +266,40 @@ internal sealed class WorldContentRegistry
             import.VisionRange,
             import.ChunkCoords.Select(ProjectVector).ToArray()
         );
+
+    private static IReadOnlyDictionary<
+        SettlementTierKind,
+        WorldMapSettlementNamePoolDefinition
+    > ProjectSettlementNamePools(IReadOnlyList<WorldSettlementNamePoolImportModel> imports)
+    {
+        var definitions =
+            new Dictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition>();
+        foreach (WorldSettlementNamePoolImportModel import in imports)
+        {
+            SettlementTierKind tier = WorldContentKinds.ToSettlementTier(import.SettlementTier);
+            if (tier == SettlementTierKind.Unknown)
+            {
+                throw new InvalidDataException(
+                    $"settlement name pool has unknown settlement_tier '{import.SettlementTier}'."
+                );
+            }
+            if (
+                !definitions.TryAdd(
+                    tier,
+                    new WorldMapSettlementNamePoolDefinition(tier, import.DisplayNames)
+                )
+            )
+            {
+                throw new InvalidDataException(
+                    $"settlement name pools have duplicate settlement_tier '{import.SettlementTier}'."
+                );
+            }
+        }
+        return new ReadOnlyDictionary<
+            SettlementTierKind,
+            WorldMapSettlementNamePoolDefinition
+        >(definitions);
+    }
 
     private static WorldEventDefinition ProjectWorldEvent(WorldEventImportModel import) =>
         new(

@@ -356,10 +356,18 @@ public static class GameTextSnapshotRenderer
                 if (ContainsKey(trigger, "percent"))
                     triggerText = $"{triggerText}:{GetInt(trigger, "percent")}";
                 lines.Add(
-                    $"member_contingency={memberId} | {GetString(setup, "setup_id")} | charged={(ReadExactBool(setup, "charged") ? "yes" : "no")} | reserved_mp_max={GetInt(setup, "reserved_mp_max")} | effective_mp_max={GetInt(setup, "effective_mp_max")} | material=special_contingency_gem:{GetInt(setup, "material_quantity")} | trigger={triggerText} | release={GetString(setup, "release_mode")} | spells={FormatContingencySpells(GetArray(setup, "stored_spells"))}"
+                    $"member_contingency={memberId} | {GetString(setup, "setup_id")} | charged={(ReadExactBool(setup, "charged") ? "yes" : "no")} | reserved_mp_max={GetInt(setup, "reserved_mp_max")} | effective_mp_max={GetInt(setup, "effective_mp_max")} | materials={FormatContingencyMaterials(GetArray(setup, "material_costs"))} | trigger={triggerText} | release={GetString(setup, "release_mode")} | spells={FormatContingencySpells(GetArray(setup, "stored_spells"))}"
                 );
             }
         }
+    }
+
+    private static string FormatContingencyMaterials(GArray costs)
+    {
+        var parts = new List<string>();
+        foreach (GDictionary cost in Dictionaries(costs))
+            parts.Add($"{GetString(cost, "item_id")}:{GetInt(cost, "quantity")}");
+        return string.Join(",", parts);
     }
 
     private static string FormatContingencySpells(GArray spells)

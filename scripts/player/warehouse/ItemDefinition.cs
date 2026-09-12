@@ -140,10 +140,10 @@ public sealed class ItemDefinition
         // 防商店套利:折扣商店买价最低可到九折(basis points 9000),卖价一旦达到
         // 买价的 90% 就构成"折扣买入→原价卖出"的无限金币循环。生效卖价上限为
         // 买价的 50% 向上取整——现有内容对奇数买价按四舍五入配 50%(如 275/138),
-        // 向上取整让它们原值生效,同时对 90% 危险线仍留足余量。超限配置不报错,
-        // 静默回退到上限值;加载期由 ItemContentRegistry 对超限值打告警提示内容
-        // 作者。回退放在这个消费出口而非内容校验层,是为了让模板链继承、
-        // SkillBookItemFactory 生成等所有构造路径都无法绕过此线。
+        // 向上取整让它们原值生效,同时对 90% 危险线仍留足余量。这道上限放在消费出口
+        // 而非只放在内容校验层,是为了让模板链继承、SkillBookItemFactory 生成等所有
+        // 构造路径都无法绕过此线。手写内容超限则由 ItemContentRegistry 在加载期直接
+        // 判为校验错误——出口回退只兜生成路径,不再充当作者写错时的静默补丁。
         if (BuyPrice > 0)
             sellPrice = Math.Min(sellPrice, (BuyPrice + 1) / 2);
         return ItemPriceRules.ApplyBasisPoints(sellPrice, priceBasisPoints);

@@ -61,6 +61,7 @@ public sealed partial class GameRuntimeFacade
                     _character_management.ChargeContingencySetup(
                         member_id,
                         setup_id,
+                        ResolveContingencySetupTemplateDefinition(setup_id),
                         IsContingencyMutationBlocked
                     )
             )

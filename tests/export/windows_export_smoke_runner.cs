@@ -246,7 +246,7 @@ public partial class windows_export_smoke_runner : Node
         var reader = new GodotContentJsonSourceReader();
         AssertImportBatch(
             "items",
-            133,
+            134,
             ItemContentJsonAuthoringDomain.CreateImportDescriptor(
                 ItemContentJsonAuthoringDomain.ProductionDirectory,
                 reader

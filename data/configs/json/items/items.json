@@ -3112,6 +3112,37 @@
       "max_dex_bonus": -1
     },
     {
+      "item_id": "special_contingency_gem",
+      "display_name": "特殊应急宝石",
+      "description": "用于为连锁应急术矩阵充能的专用法术材料。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 99,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "contingency"
+      ],
+      "crafting_groups": [
+        "contingency"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
       "item_id": "steel_halberd",
       "display_name": "Steel Halberd",
       "description": "A two-handed reach polearm with slashing damage.",

@@ -54,7 +54,6 @@ public sealed class BattleSkillResolutionPolicy
 public sealed class BattleSkillResolutionRules : IDisposable
 {
     private static readonly StringName EmptyStringName = "";
-    private static readonly StringName BlackContractPushSkillId = "black_contract_push";
     private static readonly StringName FatePreviewModeNone = "";
     private static readonly StringName FatePreviewModeStandard = "standard";
     private static readonly StringName FatePreviewModeForceHitNoCritName = "force_hit_no_crit";
@@ -569,7 +568,8 @@ public sealed class BattleSkillResolutionRules : IDisposable
                     GetUnitSkillLevel(activeUnit, skillDefinition.SkillId)
                 )
                     == CombatSkillAttackResolutionMode.ForceHitNoCrit
-                || skillDefinition.SkillId == BlackContractPushSkillId
+                || skillDefinition.RuntimeBehaviorKind
+                    == SkillRuntimeBehaviorKind.BlackContractPush
             );
     }
 
@@ -584,7 +584,8 @@ public sealed class BattleSkillResolutionRules : IDisposable
                     GetUnitSkillLevel(activeUnit, skillDefinition.SkillId)
                 )
                     == CombatSkillAttackResolutionMode.ForceHitNoCrit
-                || skillDefinition.SkillId == BlackContractPushSkillId
+                || skillDefinition.RuntimeBehaviorKind
+                    == SkillRuntimeBehaviorKind.BlackContractPush
             );
     }
 

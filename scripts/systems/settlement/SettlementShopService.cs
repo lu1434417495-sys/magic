@@ -6,167 +6,39 @@ using GDictionary = Godot.Collections.Dictionary;
 public sealed class SettlementShopService : IDisposable
 {
     internal const string ShopActionId = "shop:trade";
-    private const int PriceBasisPointsDefault = 10000;
-    private const int UniqueEquipmentOfferChancePercent = 5;
-    private enum ShopItemId
-    {
-        HealingHerb,
-        TravelRation,
-        BandageRoll,
-        TorchBundle,
-        AntidoteHerb,
-        IronOre,
-        BeastHide,
-        BronzeSword,
-        MilitiaAxe,
-        LeatherCap,
-        LeatherJerkin,
-        ScoutCharm,
-        IronGreatsword,
-        WatchmanMace,
-        HardwoodLumber,
-        LinenCloth,
-    }
-
-    private readonly record struct ShopItemSeed(
-        ShopItemId ItemId,
-        int MinQty,
-        int MaxQty,
-        int Weight = 0,
-        int PriceBasisPoints = PriceBasisPointsDefault
-    );
-
-    private sealed record ShopDefinition(
-        string InteractionScriptId,
-        string ShopId,
-        string Title,
-        int RefreshIntervalSteps,
-        ShopItemSeed[] GuaranteedItems,
-        ShopItemSeed[] RandomPool,
-        int MaxRandomItems
-    );
-
     private sealed record ShopStateResolution(
         WorldMapSettlementStateData SettlementState,
         SettlementShopStateData ShopState,
         bool StateChanged
     );
-    private static readonly ShopDefinition[] ShopDefs =
-    {
-        new(
-            "service_basic_supply",
-            "village_basic_supply",
-            "临时补给",
-            12,
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.HealingHerb, 2, 4),
-                new ShopItemSeed(ShopItemId.TravelRation, 2, 4),
-            },
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.BandageRoll, 1, 3, 6),
-                new ShopItemSeed(ShopItemId.TorchBundle, 1, 3, 5),
-                new ShopItemSeed(ShopItemId.AntidoteHerb, 1, 2, 4, 11000),
-                new ShopItemSeed(ShopItemId.IronOre, 1, 2, 2),
-            },
-            2
-        ),
-        new(
-            "service_local_trade",
-            "town_local_trade",
-            "镇集交易",
-            10,
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.HealingHerb, 3, 6, PriceBasisPoints: 9500),
-                new ShopItemSeed(ShopItemId.BandageRoll, 2, 4),
-                new ShopItemSeed(ShopItemId.TravelRation, 2, 5, PriceBasisPoints: 9500),
-                new ShopItemSeed(ShopItemId.BeastHide, 2, 4),
-                new ShopItemSeed(ShopItemId.BronzeSword, 1, 1),
-                new ShopItemSeed(ShopItemId.MilitiaAxe, 1, 1),
-                new ShopItemSeed(ShopItemId.LeatherCap, 1, 1),
-                new ShopItemSeed(ShopItemId.LeatherJerkin, 1, 1),
-            },
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.TorchBundle, 1, 3, 4),
-                new ShopItemSeed(ShopItemId.AntidoteHerb, 1, 3, 4),
-                new ShopItemSeed(ShopItemId.IronOre, 2, 4, 3),
-                new ShopItemSeed(ShopItemId.ScoutCharm, 1, 1, 2, 11000),
-                new ShopItemSeed(ShopItemId.IronGreatsword, 1, 1, 1, 11500),
-            },
-            4
-        ),
-        new(
-            "service_city_market",
-            "city_market",
-            "城市市场",
-            8,
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.BronzeSword, 1, 1, PriceBasisPoints: 9500),
-                new ShopItemSeed(ShopItemId.MilitiaAxe, 1, 1),
-                new ShopItemSeed(ShopItemId.WatchmanMace, 1, 1),
-                new ShopItemSeed(ShopItemId.LeatherCap, 1, 1, PriceBasisPoints: 9500),
-                new ShopItemSeed(ShopItemId.LeatherJerkin, 1, 1, PriceBasisPoints: 9500),
-                new ShopItemSeed(ShopItemId.ScoutCharm, 1, 1),
-                new ShopItemSeed(ShopItemId.IronGreatsword, 1, 1),
-                new ShopItemSeed(ShopItemId.AntidoteHerb, 2, 4, PriceBasisPoints: 9500),
-                new ShopItemSeed(ShopItemId.HardwoodLumber, 3, 6, PriceBasisPoints: 9500),
-                new ShopItemSeed(ShopItemId.LinenCloth, 3, 6, PriceBasisPoints: 9500),
-            },
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.BandageRoll, 2, 4, 5, 9500),
-                new ShopItemSeed(ShopItemId.TravelRation, 2, 5, 4, 9000),
-                new ShopItemSeed(ShopItemId.TorchBundle, 1, 3, 3, 9500),
-                new ShopItemSeed(ShopItemId.IronOre, 3, 6, 2, 9500),
-            },
-            4
-        ),
-        new(
-            "service_military_supply",
-            "capital_military_supply",
-            "军需总署",
-            6,
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.IronGreatsword, 1, 1, PriceBasisPoints: 9500),
-                new ShopItemSeed(ShopItemId.LeatherJerkin, 1, 1, PriceBasisPoints: 9000),
-                new ShopItemSeed(ShopItemId.BandageRoll, 3, 5, PriceBasisPoints: 9000),
-            },
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.BronzeSword, 1, 1, 2, 9000),
-                new ShopItemSeed(ShopItemId.ScoutCharm, 1, 1, 3, 9500),
-                new ShopItemSeed(ShopItemId.AntidoteHerb, 2, 4, 5, 9000),
-            },
-            3
-        ),
-        new(
-            "service_grand_auction",
-            "metropolis_grand_auction",
-            "大拍卖行",
-            5,
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.IronGreatsword, 1, 1, PriceBasisPoints: 11000),
-                new ShopItemSeed(ShopItemId.ScoutCharm, 1, 1, PriceBasisPoints: 10500),
-            },
-            new[]
-            {
-                new ShopItemSeed(ShopItemId.BronzeSword, 1, 1, 1),
-                new ShopItemSeed(ShopItemId.LeatherJerkin, 1, 1, 1),
-                new ShopItemSeed(ShopItemId.AntidoteHerb, 2, 4, 3),
-                new ShopItemSeed(ShopItemId.TorchBundle, 2, 4, 2),
-            },
-            4
-        ),
-    };
+    private IReadOnlyDictionary<StringName, SettlementShopDefinition> _shopDefinitions;
 
     private readonly RuntimeRandom _rng = new();
     private Func<int, int, int> _uniqueOfferRollRangeForTesting;
+
+    internal SettlementShopService() { }
+
+    public SettlementShopService(
+        IReadOnlyDictionary<StringName, SettlementShopDefinition> shopDefinitions
+    )
+    {
+        SetDefinitions(shopDefinitions);
+    }
+
+    internal void SetDefinitions(
+        IReadOnlyDictionary<StringName, SettlementShopDefinition> shopDefinitions
+    )
+    {
+        ArgumentNullException.ThrowIfNull(shopDefinitions);
+        _shopDefinitions = shopDefinitions;
+    }
+
+    internal bool HasShop(StringName interactionScriptId)
+    {
+        IReadOnlyDictionary<StringName, SettlementShopDefinition> definitions =
+            RequireDefinitions();
+        return interactionScriptId != "" && definitions.ContainsKey(interactionScriptId);
+    }
 
     internal void SetUniqueOfferRollRangeForTesting(Func<int, int, int> rollRange) =>
         _uniqueOfferRollRangeForTesting = rollRange;
@@ -188,7 +60,7 @@ public sealed class SettlementShopService : IDisposable
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
         WorldUniqueEquipmentPoolState uniqueEquipmentPool = null)
     {
-        ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
+        SettlementShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null || settlementState == null)
         {
             return new SettlementShopWindowBuildResult(
@@ -355,7 +227,7 @@ public sealed class SettlementShopService : IDisposable
         WorldUniqueEquipmentPoolState uniqueEquipmentPool = null,
         string settlementId = "")
     {
-        ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
+        SettlementShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
         {
             return BuildFail("当前据点没有可交易的商店。");
@@ -491,7 +363,7 @@ public sealed class SettlementShopService : IDisposable
         string settlementId = "",
         bool transferUniqueInstanceToShop = false)
     {
-        ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
+        SettlementShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
         {
             return BuildFail("当前据点没有可交易的商店。");
@@ -624,7 +496,7 @@ public sealed class SettlementShopService : IDisposable
     }
 
     private ShopStateResolution GetOrRefreshShopState(
-        ShopDefinition shopDef,
+        SettlementShopDefinition shopDef,
         WorldMapSettlementStateData settlementState,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         int currentWorldStep,
@@ -653,7 +525,7 @@ public sealed class SettlementShopService : IDisposable
     }
 
     private SettlementShopStateData GenerateShopState(
-        ShopDefinition shopDef,
+        SettlementShopDefinition shopDef,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         int currentWorldStep,
         string settlementId = "",
@@ -663,23 +535,23 @@ public sealed class SettlementShopService : IDisposable
         long seed = TrueRandomSeedService.GenerateSeed();
         _rng.Reseed(seed);
         var inventory = new List<SettlementShopStockEntryData>();
-        foreach (ShopItemSeed source in shopDef.GuaranteedItems)
+        foreach (SettlementShopItemDefinition source in shopDef.GuaranteedItems)
         {
             SettlementShopStockEntryData built = BuildShopEntry(source, itemDefs);
             if (built != null)
                 inventory.Add(built);
         }
 
-        var randomPool = new List<ShopItemSeed>(shopDef.RandomPool);
+        var randomPool = new List<SettlementShopItemDefinition>(shopDef.RandomPool);
         for (int i = 0; i < shopDef.MaxRandomItems; i++)
         {
-            ShopItemSeed? picked = PickWeightedRandomEntry(randomPool, _rng);
-            if (!picked.HasValue)
+            SettlementShopItemDefinition picked = PickWeightedRandomEntry(randomPool, _rng);
+            if (picked == null)
             {
                 break;
             }
 
-            SettlementShopStockEntryData built = BuildShopEntry(picked.Value, itemDefs);
+            SettlementShopStockEntryData built = BuildShopEntry(picked, itemDefs);
             if (built != null)
                 MergeShopEntry(inventory, built);
         }
@@ -700,7 +572,7 @@ public sealed class SettlementShopService : IDisposable
 
     private void TryAppendUniqueEquipmentOffer(
         List<SettlementShopStockEntryData> inventory,
-        ShopDefinition shopDef,
+        SettlementShopDefinition shopDef,
         string settlementId,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         WorldUniqueEquipmentPoolState uniqueEquipmentPool
@@ -709,7 +581,7 @@ public sealed class SettlementShopService : IDisposable
         if (uniqueEquipmentPool == null || string.IsNullOrWhiteSpace(settlementId))
             return;
         int chanceRoll = RollUniqueOfferRange(1, 100);
-        if (chanceRoll > UniqueEquipmentOfferChancePercent)
+        if (chanceRoll > shopDef.UniqueEquipmentOfferChancePercent)
             return;
         if (
             !uniqueEquipmentPool.TryAssignRandomReserveToShop(
@@ -724,7 +596,7 @@ public sealed class SettlementShopService : IDisposable
             return;
         }
         ItemDefinition itemDefinition = GetItemDef(itemDefs, itemId.ToString());
-        int unitPrice = ResolveBuyPrice(itemDefinition, PriceBasisPointsDefault);
+        int unitPrice = ResolveBuyPrice(itemDefinition, shopDef.DefaultPriceBasisPoints);
         SettlementShopStockEntryData offer = unitPrice > 0
             ? SettlementShopStockEntryData.Create(itemId.ToString(), 1, unitPrice)
             : null;
@@ -753,21 +625,29 @@ public sealed class SettlementShopService : IDisposable
             : _rng.RandiRange(minInclusive, maxInclusive);
 
     private SettlementShopStockEntryData BuildShopEntry(
-        ShopItemSeed source,
+        SettlementShopItemDefinition source,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
-        string itemId = ToItemIdString(source.ItemId);
-        ItemDefinition itemDef = GetItemDef(itemDefs, itemId);
-        if (string.IsNullOrEmpty(itemId) || itemDef == null)
-            return null;
+        // GameplayConfigurationCrossDomainValidator 已保证商店商品存在且买价为正；
+        // 静默返回 null 会让 guaranteed 备货凭空少一格，没人看得出来。
+        string itemId = source.ItemId.ToString();
+        ItemDefinition itemDef =
+            GetItemDef(itemDefs, itemId)
+            ?? throw new InvalidOperationException(
+                $"Settlement shop stock references unknown item {itemId}."
+            );
 
-        int minQty = Mathf.Max(source.MinQty, 1);
-        int maxQty = Mathf.Max(source.MaxQty, minQty);
+        int minQty = Mathf.Max(source.MinQuantity, 1);
+        int maxQty = Mathf.Max(source.MaxQuantity, minQty);
         int quantity = _rng.RandiRange(minQty, maxQty);
         int unitPrice = ResolveBuyPrice(itemDef, source.PriceBasisPoints);
         if (unitPrice <= 0)
-            return null;
+        {
+            throw new InvalidOperationException(
+                $"Settlement shop stock item {itemId} resolved to a non-positive buy price."
+            );
+        }
         return SettlementShopStockEntryData.Create(itemId, quantity, unitPrice);
     }
 
@@ -794,10 +674,13 @@ public sealed class SettlementShopService : IDisposable
         inventory.Add(builtEntry);
     }
 
-    private static ShopItemSeed? PickWeightedRandomEntry(List<ShopItemSeed> pool, RuntimeRandom rng)
+    private static SettlementShopItemDefinition PickWeightedRandomEntry(
+        List<SettlementShopItemDefinition> pool,
+        RuntimeRandom rng
+    )
     {
         int totalWeight = 0;
-        foreach (ShopItemSeed entry in pool)
+        foreach (SettlementShopItemDefinition entry in pool)
         {
             totalWeight += Mathf.Max(entry.Weight, 0);
         }
@@ -810,7 +693,7 @@ public sealed class SettlementShopService : IDisposable
         int cursor = 0;
         for (int i = 0; i < pool.Count; i++)
         {
-            ShopItemSeed entry = pool[i];
+            SettlementShopItemDefinition entry = pool[i];
             cursor += Mathf.Max(entry.Weight, 0);
             if (roll > cursor)
             {
@@ -881,7 +764,7 @@ public sealed class SettlementShopService : IDisposable
     }
 
     private static WorldMapSettlementStateData BuildUniqueResaleSettlementState(
-        ShopDefinition shopDef,
+        SettlementShopDefinition shopDef,
         WorldMapSettlementStateData settlementState,
         ItemDefinition itemDef,
         string itemId
@@ -892,7 +775,7 @@ public sealed class SettlementShopService : IDisposable
         SettlementShopStateData shopState = settlementState.GetShopState(shopDef.ShopId);
         if (shopState == null)
             return null;
-        int unitPrice = ResolveBuyPrice(itemDef, PriceBasisPointsDefault);
+        int unitPrice = ResolveBuyPrice(itemDef, shopDef.DefaultPriceBasisPoints);
         SettlementShopStockEntryData resaleEntry =
             SettlementShopStockEntryData.Create(itemId, 1, unitPrice);
         if (resaleEntry == null)
@@ -943,17 +826,23 @@ public sealed class SettlementShopService : IDisposable
             ? selection.ItemId.ToString()
             : "";
 
-    private static ShopDefinition ResolveShopDef(string interactionScriptId)
+    private SettlementShopDefinition ResolveShopDef(string interactionScriptId)
     {
-        foreach (ShopDefinition shopDef in ShopDefs)
-        {
-            if (shopDef.InteractionScriptId == interactionScriptId)
-            {
-                return shopDef;
-            }
-        }
-        return null;
+        IReadOnlyDictionary<StringName, SettlementShopDefinition> definitions =
+            RequireDefinitions();
+        if (string.IsNullOrWhiteSpace(interactionScriptId))
+            return null;
+        return definitions.TryGetValue(
+            new StringName(interactionScriptId),
+            out SettlementShopDefinition shopDefinition
+        ) ? shopDefinition : null;
     }
+
+    private IReadOnlyDictionary<StringName, SettlementShopDefinition> RequireDefinitions() =>
+        _shopDefinitions
+        ?? throw new InvalidOperationException(
+            "SettlementShopService requires published settlement shop definitions before use."
+        );
 
     private static ItemDefinition GetItemDef(
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
@@ -974,30 +863,6 @@ public sealed class SettlementShopService : IDisposable
         return itemDef != null && itemDef.DisplayName.Length > 0
             ? itemDef.DisplayName
             : itemId;
-    }
-
-    private static string ToItemIdString(ShopItemId itemId)
-    {
-        return itemId switch
-        {
-            ShopItemId.HealingHerb => "healing_herb",
-            ShopItemId.TravelRation => "travel_ration",
-            ShopItemId.BandageRoll => "bandage_roll",
-            ShopItemId.TorchBundle => "torch_bundle",
-            ShopItemId.AntidoteHerb => "antidote_herb",
-            ShopItemId.IronOre => "iron_ore",
-            ShopItemId.BeastHide => "beast_hide",
-            ShopItemId.BronzeSword => "bronze_sword",
-            ShopItemId.MilitiaAxe => "militia_axe",
-            ShopItemId.LeatherCap => "leather_cap",
-            ShopItemId.LeatherJerkin => "leather_jerkin",
-            ShopItemId.ScoutCharm => "scout_charm",
-            ShopItemId.IronGreatsword => "iron_greatsword",
-            ShopItemId.WatchmanMace => "watchman_mace",
-            ShopItemId.HardwoodLumber => "hardwood_lumber",
-            ShopItemId.LinenCloth => "linen_cloth",
-            _ => "",
-        };
     }
 
     private static string NormalizeId(StringName value)

@@ -52,9 +52,29 @@ internal static class SkillDefinitionProjector
             source.LevelDescriptionTemplate,
             source.LevelDescriptionConfigs,
             ProjectCombat(source.CombatProfile, source.SkillId),
-            ProjectContingency(source.ContingencyAutomationProfile)
+            ProjectContingency(source.ContingencyAutomationProfile),
+            ProjectRuntimeBehavior(source.RuntimeBehavior)
         );
     }
+
+    private static SkillRuntimeBehaviorKind ProjectRuntimeBehavior(
+        SkillRuntimeBehaviorImportKind source
+    ) => source switch
+    {
+        SkillRuntimeBehaviorImportKind.None => SkillRuntimeBehaviorKind.None,
+        SkillRuntimeBehaviorImportKind.BlackContractPush =>
+            SkillRuntimeBehaviorKind.BlackContractPush,
+        SkillRuntimeBehaviorImportKind.DoomShift => SkillRuntimeBehaviorKind.DoomShift,
+        SkillRuntimeBehaviorImportKind.BlackCrownSeal =>
+            SkillRuntimeBehaviorKind.BlackCrownSeal,
+        SkillRuntimeBehaviorImportKind.BlackStarBrand =>
+            SkillRuntimeBehaviorKind.BlackStarBrand,
+        SkillRuntimeBehaviorImportKind.CrownBreak => SkillRuntimeBehaviorKind.CrownBreak,
+        SkillRuntimeBehaviorImportKind.DoomSentence => SkillRuntimeBehaviorKind.DoomSentence,
+        SkillRuntimeBehaviorImportKind.MisstepToScheme =>
+            SkillRuntimeBehaviorKind.MisstepToScheme,
+        _ => SkillRuntimeBehaviorKind.Unknown,
+    };
 
     internal static IReadOnlyDictionary<StringName, SkillDefinition> ProjectIndex(
         IEnumerable<SkillImportModel>? sources

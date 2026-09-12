@@ -5,9 +5,10 @@ using GArray = Godot.Collections.Array;
 
 internal sealed class BattleUnitFactory
 {
-    private static readonly StringName BASIC_ATTACK_SKILL_ID = "basic_attack";
     private static readonly StringName DEFAULT_ENEMY_MELEE_DAMAGE_TAG = "physical_slash";
     private BattleRuntimeModule _runtime;
+
+    private StringName BasicAttackSkillId => _runtime?.GetBasicAttackSkillId() ?? "";
 
     private static AttributeSnapshot _snap(BattleUnitState us) =>
         us?.attribute_snapshot as AttributeSnapshot;
@@ -875,11 +876,12 @@ internal sealed class BattleUnitFactory
     {
         var pre = new StringNameList
         {
-            BASIC_ATTACK_SKILL_ID,
             "warrior_heavy_strike",
             "warrior_combo_strike",
             "warrior_guard_break",
         };
+        if (BasicAttackSkillId != "")
+            pre.Insert(0, BasicAttackSkillId);
         foreach (var p in pre)
             if (_is_valid_enemy_skill(_skill_definition_from_runtime(p)))
                 return new StringNameList { p };
@@ -1265,22 +1267,24 @@ internal sealed class BattleUnitFactory
 
     private void _ensure_basic_attack_skill(BattleUnitState us)
     {
-        if (us == null || !_runtime_has_skill(BASIC_ATTACK_SKILL_ID))
+        StringName basicAttackSkillId = BasicAttackSkillId;
+        if (us == null || basicAttackSkillId == "" || !_runtime_has_skill(basicAttackSkillId))
             return;
-        us.AddKnownActiveSkill(BASIC_ATTACK_SKILL_ID);
-        us.SetKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID, 0, preserveZero: true);
+        us.AddKnownActiveSkill(basicAttackSkillId);
+        us.SetKnownSkillLevelTyped(basicAttackSkillId, 0, preserveZero: true);
     }
 
     private void _ensure_enemy_basic_attack_affordability(BattleUnitState us)
     {
-        if (us == null || !us.KnowsActiveSkill(BASIC_ATTACK_SKILL_ID))
+        StringName basicAttackSkillId = BasicAttackSkillId;
+        if (us == null || basicAttackSkillId == "" || !us.KnowsActiveSkill(basicAttackSkillId))
             return;
-        SkillDefinition basicAttack = _skill_definition_from_runtime(BASIC_ATTACK_SKILL_ID);
+        SkillDefinition basicAttack = _skill_definition_from_runtime(basicAttackSkillId);
         CombatSkillDefinition combatProfile = basicAttack?.CombatProfile;
         if (combatProfile == null)
             return;
-        int sl = us.HasKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID)
-            ? Mathf.Max(us.GetKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID), 0)
+        int sl = us.HasKnownSkillLevelTyped(basicAttackSkillId)
+            ? Mathf.Max(us.GetKnownSkillLevelTyped(basicAttackSkillId), 0)
             : 0;
         CombatSkillResourceCosts costs = combatProfile.GetEffectiveResourceCostValues(sl);
         int sc = Mathf.Max(costs.StaminaCost, 0);

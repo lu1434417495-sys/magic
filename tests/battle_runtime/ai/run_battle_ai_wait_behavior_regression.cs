@@ -268,7 +268,11 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplateDefinitions(),
             enemyAiBrains,
-            null
+            null,
+            basic_attack_skill_id: gameSession
+                .GetGameplayConfigurationTyped()
+                .BattleSkillRoles
+                .BasicAttackSkillId
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();

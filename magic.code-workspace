@@ -110,6 +110,12 @@
       },
       {
         "fileMatch": [
+          "/data/configs/json/gameplay_configuration/**/*.json"
+        ],
+        "url": "./data/schemas/content/gameplay_configuration.schema.json"
+      },
+      {
+        "fileMatch": [
           "/data/configs/json/professions/**/*.json"
         ],
         "url": "./data/schemas/content/professions.schema.json"

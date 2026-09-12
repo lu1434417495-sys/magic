@@ -34,6 +34,7 @@ internal sealed class SyntheticContentSnapshotSeed
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters { get; set; }
     internal IReadOnlyDictionary<StringName, BattleEncounterDefinition> BattleEncounters { get; set; }
     internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> BattleSimProfiles { get; set; }
+    internal GameplayConfigurationDefinition GameplayConfiguration { get; set; }
 }
 
 internal static class SyntheticContentSnapshotFactory
@@ -74,7 +75,8 @@ internal static class SyntheticContentSnapshotFactory
             OrEmpty(seed.EnemyBrains),
             OrEmpty(seed.EncounterRosters),
             OrEmpty(seed.BattleEncounters),
-            OrEmpty(seed.BattleSimProfiles)
+            OrEmpty(seed.BattleSimProfiles),
+            seed.GameplayConfiguration
         );
     }
 
@@ -113,6 +115,7 @@ internal static class SyntheticContentSnapshotFactory
             EncounterRosters = source.EncounterRosters,
             BattleEncounters = source.BattleEncounters,
             BattleSimProfiles = source.BattleSimProfiles,
+            GameplayConfiguration = source.GameplayConfiguration,
         };
     }
 

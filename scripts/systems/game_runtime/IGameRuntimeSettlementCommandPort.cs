@@ -63,6 +63,7 @@ internal interface IGameRuntimeSettlementStatePort
 
 internal interface IGameRuntimeSettlementContentPort
 {
+    GameplayConfigurationDefinition GetGameplayConfiguration();
     IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefinitions();
     IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefinitions();
     IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefinitions();

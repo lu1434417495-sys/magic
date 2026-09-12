@@ -7,7 +7,7 @@ public partial class CombatSpellReactionDef : RefCounted
     public StringName trigger_delivery_category { get; set; } = "spell";
 
     [Export]
-    public StringName reaction_skill_id { get; set; } = "basic_attack";
+    public StringName reaction_skill_id { get; set; } = "";
 
     [Export]
     public StringName readiness_status_id { get; set; } = "";

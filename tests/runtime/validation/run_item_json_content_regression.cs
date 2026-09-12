@@ -56,7 +56,7 @@ public partial class run_item_json_content_regression : LifecycleTestSceneTree
             0,
             $"tracked item JSON should be valid. errors={FormatDiagnostics(imported.Diagnostics)}"
         );
-        _test.Eq(imported.Entries.Count, 133, "tracked JSON must expose the pinned 133 items");
+        _test.Eq(imported.Entries.Count, 134, "tracked JSON must expose the pinned 134 items");
         _test.False(
             trackedJson.Contains("base_item_id", StringComparison.Ordinal),
             "flat item JSON must not retain base_item_id"
@@ -76,7 +76,7 @@ public partial class run_item_json_content_regression : LifecycleTestSceneTree
         int emptyIconCount = imported.Entries.Count(entry =>
             entry.Import.IconAssetId.Length == 0
         );
-        _test.Eq(defaultIconCount, 109, "default icon asset mapping count should be pinned");
+        _test.Eq(defaultIconCount, 110, "default icon asset mapping count should be pinned");
         _test.Eq(emptyIconCount, 24, "empty icon IDs should remain empty");
 
     }
@@ -200,7 +200,7 @@ public partial class run_item_json_content_regression : LifecycleTestSceneTree
         );
         IReadOnlyDictionary<StringName, ItemDefinition> definitions =
             registry.GetItemDefsTyped();
-        _test.Eq(definitions.Count, 133, "production registry should expose 133 JSON items");
+        _test.Eq(definitions.Count, 134, "production registry should expose 134 JSON items");
         if (imported.HasErrors || definitions.Count != imported.Entries.Count)
             return;
 

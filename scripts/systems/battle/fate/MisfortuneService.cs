@@ -5,15 +5,6 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-internal enum MisfortuneSkillKind
-{
-    Unknown = 0,
-    BlackStarBrand,
-    CrownBreak,
-    DoomSentence,
-    BlackCrownSeal,
-}
-
 internal sealed class MisfortuneService : IDisposable
 {
     private static readonly StringName CalamityReasonOrdinaryMiss = "ordinary_miss";
@@ -26,16 +17,6 @@ internal sealed class MisfortuneService : IDisposable
 
     private static readonly StringName CalamityCapacityBonusStatId = "calamity_capacity_bonus";
     private static readonly StringName ReverseFortuneStatusId = "reverse_fortune";
-    private static readonly StringName MisstepToSchemeSkillId = "misstep_to_scheme";
-    private static readonly StringName BlackStarBrandSkillId =
-        MisfortuneContentRules.BlackStarBrandSkillId;
-    private static readonly StringName CrownBreakSkillId =
-        MisfortuneContentRules.CrownBreakSkillId;
-    private static readonly StringName DoomSentenceSkillId =
-        MisfortuneContentRules.DoomSentenceSkillId;
-    private static readonly StringName BlackCrownSealSkillId =
-        MisfortuneContentRules.BlackCrownSealSkillId;
-
     private const int BaseCalamityCap = 3;
     private const int MaxCalamityCapacityBonus = 2;
     private const int ReverseFortuneDurationTu = 60;
@@ -43,31 +24,22 @@ internal sealed class MisfortuneService : IDisposable
     private const int CrownBreakCalamityCost = 2;
     private const int DoomSentenceCalamityCost = 5;
 
-    private static readonly StringName GateTypeBlackStarBrand = "black_star_brand";
-    private static readonly StringName GateTypeCrownBreak = "crown_break";
-    private static readonly StringName GateTypeDoomSentence = "doom_sentence";
-    private static readonly StringName GateTypeBlackCrownSeal = "black_crown_seal";
-
-    private static readonly Dictionary<StringName, MisfortuneSkillGateRule> MisfortuneSkillGateRules =
+    private static readonly Dictionary<SkillRuntimeBehaviorKind, MisfortuneSkillGateRule> MisfortuneSkillGateRules =
         new()
     {
-        [BlackStarBrandSkillId] = new MisfortuneSkillGateRule(
-            GateTypeBlackStarBrand,
+        [SkillRuntimeBehaviorKind.BlackStarBrand] = new MisfortuneSkillGateRule(
             "黑星烙印的 calamity sidecar 未初始化。",
             "calamity 不足，无法施放黑星烙印。"
         ),
-        [CrownBreakSkillId] = new MisfortuneSkillGateRule(
-            GateTypeCrownBreak,
+        [SkillRuntimeBehaviorKind.CrownBreak] = new MisfortuneSkillGateRule(
             "折冠的 calamity sidecar 未初始化。",
             "calamity 不足，无法施放折冠。"
         ),
-        [DoomSentenceSkillId] = new MisfortuneSkillGateRule(
-            GateTypeDoomSentence,
+        [SkillRuntimeBehaviorKind.DoomSentence] = new MisfortuneSkillGateRule(
             "厄命宣判的 calamity sidecar 未初始化。",
             "calamity 不足，无法施放厄命宣判。"
         ),
-        [BlackCrownSealSkillId] = new MisfortuneSkillGateRule(
-            GateTypeBlackCrownSeal,
+        [SkillRuntimeBehaviorKind.BlackCrownSeal] = new MisfortuneSkillGateRule(
             "黑冠封印的 battle sidecar 未初始化。",
             "黑冠封印每战只能施放 1 次。"
         ),
@@ -75,6 +47,7 @@ internal sealed class MisfortuneService : IDisposable
 
     private BattleFateEventBus _fateEventBus = null;
     private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
+    private Func<StringName, SkillDefinition> _skillDefinitionResolver;
     private BattleCalamityStore _calamityByMemberId = new();
     private readonly Dictionary<StringName, HashSet<StringName>> _reasonFlagsByMemberId = new();
     private readonly HashSet<StringName> _processedAdjacentDefeatUnitIds = new();
@@ -83,54 +56,40 @@ internal sealed class MisfortuneService : IDisposable
     private readonly HashSet<StringName> _blackCrownSealUsedByMemberId = new();
     private readonly HashSet<StringName> _doomSentenceUsedByMemberId = new();
 
-    internal static StringName ToStringName(MisfortuneSkillKind kind)
-    {
-        return kind switch
-        {
-            MisfortuneSkillKind.BlackStarBrand => BlackStarBrandSkillId,
-            MisfortuneSkillKind.CrownBreak => CrownBreakSkillId,
-            MisfortuneSkillKind.DoomSentence => DoomSentenceSkillId,
-            MisfortuneSkillKind.BlackCrownSeal => BlackCrownSealSkillId,
-            _ => "",
-        };
-    }
+    public static bool IsMisfortuneGatedBehavior(SkillRuntimeBehaviorKind behavior) =>
+        MisfortuneContentRules.IsGatedBehavior(behavior);
 
-    public static bool IsMisfortuneGatedSkill(StringName skillId)
+    public static string GetSkillSidecarMissingMessage(SkillRuntimeBehaviorKind behavior)
     {
-        return MisfortuneContentRules.IsGatedSkill(skillId);
-    }
-
-    public static string GetSkillSidecarMissingMessage(StringName skillId)
-    {
-        return TryGetSkillGateRule(skillId, out MisfortuneSkillGateRule rule)
+        return TryGetSkillGateRule(behavior, out MisfortuneSkillGateRule rule)
             ? rule.SidecarMissingMessage
             : "Misfortune battle sidecar 未初始化。";
     }
 
-    public static string GetSkillDefaultBlockMessage(StringName skillId)
+    public static string GetSkillDefaultBlockMessage(SkillRuntimeBehaviorKind behavior)
     {
-        return TryGetSkillGateRule(skillId, out MisfortuneSkillGateRule rule)
+        return TryGetSkillGateRule(behavior, out MisfortuneSkillGateRule rule)
             ? rule.DefaultBlockMessage
             : "calamity 不足，无法施放该技能。";
     }
 
     private static bool TryGetSkillGateRule(
-        StringName skillId,
+        SkillRuntimeBehaviorKind behavior,
         out MisfortuneSkillGateRule rule
     )
     {
         rule = default(MisfortuneSkillGateRule);
-        var normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
-        return normalizedSkillId != ""
-            && MisfortuneSkillGateRules.TryGetValue(normalizedSkillId, out rule);
+        return MisfortuneSkillGateRules.TryGetValue(behavior, out rule);
     }
 
     internal void Setup(
         BattleFateEventBus fateEventBus,
-        Func<StringName, BattleUnitState> unitByMemberIdResolver
+        Func<StringName, BattleUnitState> unitByMemberIdResolver,
+        Func<StringName, SkillDefinition> skillDefinitionResolver
     )
     {
         _unitByMemberIdResolver = unitByMemberIdResolver;
+        _skillDefinitionResolver = skillDefinitionResolver;
         BindFateEventBus(fateEventBus);
     }
 
@@ -160,6 +119,7 @@ internal sealed class MisfortuneService : IDisposable
         System.GC.SuppressFinalize(this);
         BindFateEventBus(null);
         _unitByMemberIdResolver = null;
+        _skillDefinitionResolver = null;
         _calamityByMemberId = new BattleCalamityStore();
         _reasonFlagsByMemberId.Clear();
         _processedAdjacentDefeatUnitIds.Clear();
@@ -210,18 +170,18 @@ internal sealed class MisfortuneService : IDisposable
 
     internal string GetSkillCastBlockMessage(BattleUnitState unitState, StringName skillId)
     {
-        if (!TryGetSkillGateRule(skillId, out MisfortuneSkillGateRule rule))
+        SkillDefinition skillDefinition = RequireSkillDefinitionResolver().Invoke(skillId);
+        if (!TryGetSkillGateRule(skillDefinition?.RuntimeBehaviorKind ?? SkillRuntimeBehaviorKind.None, out _))
             return "";
-        var gateType = rule.GateType;
-        switch ((string)gateType)
+        switch (skillDefinition.RuntimeBehaviorKind)
         {
-            case "black_star_brand":
-                return CanCastBlackStarBrand(unitState) ? "" : GetSkillDefaultBlockMessage(skillId);
-            case "crown_break":
-                return CanCastCrownBreak(unitState) ? "" : GetSkillDefaultBlockMessage(skillId);
-            case "doom_sentence":
+            case SkillRuntimeBehaviorKind.BlackStarBrand:
+                return CanCastBlackStarBrand(unitState) ? "" : GetSkillDefaultBlockMessage(skillDefinition.RuntimeBehaviorKind);
+            case SkillRuntimeBehaviorKind.CrownBreak:
+                return CanCastCrownBreak(unitState) ? "" : GetSkillDefaultBlockMessage(skillDefinition.RuntimeBehaviorKind);
+            case SkillRuntimeBehaviorKind.DoomSentence:
                 return GetDoomSentenceCastBlockReason(unitState);
-            case "black_crown_seal":
+            case SkillRuntimeBehaviorKind.BlackCrownSeal:
                 return GetBlackCrownSealCastBlockReason(unitState);
             default:
                 return "";
@@ -233,23 +193,23 @@ internal sealed class MisfortuneService : IDisposable
         StringName skillId
     )
     {
-        if (!TryGetSkillGateRule(skillId, out MisfortuneSkillGateRule rule))
+        SkillDefinition skillDefinition = RequireSkillDefinitionResolver().Invoke(skillId);
+        if (!TryGetSkillGateRule(skillDefinition?.RuntimeBehaviorKind ?? SkillRuntimeBehaviorKind.None, out _))
             return MisfortuneSkillCastResult.Success(
                 unitState != null
                     ? ProgressionDataUtils.to_string_name(unitState.source_member_id)
                     : default,
                 gated: false
             );
-        var gateType = rule.GateType;
-        switch ((string)gateType)
+        switch (skillDefinition.RuntimeBehaviorKind)
         {
-            case "black_star_brand":
+            case SkillRuntimeBehaviorKind.BlackStarBrand:
                 return ConsumeBlackStarBrandCastResult(unitState);
-            case "crown_break":
+            case SkillRuntimeBehaviorKind.CrownBreak:
                 return ConsumeCrownBreakCastResult(unitState);
-            case "doom_sentence":
+            case SkillRuntimeBehaviorKind.DoomSentence:
                 return ConsumeDoomSentenceCastResult(unitState);
-            case "black_crown_seal":
+            case SkillRuntimeBehaviorKind.BlackCrownSeal:
                 return ConsumeBlackCrownSealCastResult(unitState);
             default:
                 return MisfortuneSkillCastResult.Success(
@@ -769,7 +729,7 @@ internal sealed class MisfortuneService : IDisposable
             return 0;
         if (_misstepToSchemeUsedByMemberId.Contains(memberId))
             return 0;
-        if (!_UnitHasSkill(unitState, MisstepToSchemeSkillId))
+        if (!_UnitHasRuntimeBehavior(unitState, SkillRuntimeBehaviorKind.MisstepToScheme))
             return 0;
         _misstepToSchemeUsedByMemberId.Add(memberId);
         return 1;
@@ -784,8 +744,41 @@ internal sealed class MisfortuneService : IDisposable
         return unitState.GetKnownSkillLevelTyped(skillId) > 0;
     }
 
+    private bool _UnitHasRuntimeBehavior(
+        BattleUnitState unitState,
+        SkillRuntimeBehaviorKind behavior
+    )
+    {
+        if (unitState == null)
+            return false;
+        Func<StringName, SkillDefinition> resolver = RequireSkillDefinitionResolver();
+        foreach (StringName skillId in unitState.GetKnownActiveSkillsViewTyped())
+        {
+            if (resolver(skillId)?.RuntimeBehaviorKind == behavior)
+                return true;
+        }
+        foreach (StringName skillId in unitState.GetKnownSkillLevelsTyped().Keys)
+        {
+            if (
+                unitState.GetKnownSkillLevelTyped(skillId) > 0
+                && resolver(skillId)?.RuntimeBehaviorKind == behavior
+            )
+                return true;
+        }
+        return false;
+    }
+
+    /// 技能行为只能从 SkillDefinition 读出。resolver 缺失时无法判断一个技能是否受厄运门禁
+    /// 约束，退化成 "不受约束" 会让 calamity 不扣费、黑冠封印每战一次失效且毫无痕迹，
+    /// 所以这里按装配缺陷处理。
+    private Func<StringName, SkillDefinition> RequireSkillDefinitionResolver() =>
+        _skillDefinitionResolver
+        ?? throw new InvalidOperationException(
+            "MisfortuneService.Setup was not given a skill definition resolver; misfortune skill "
+                + "gating cannot be evaluated."
+        );
+
     private readonly record struct MisfortuneSkillGateRule(
-        StringName GateType,
         string SidecarMissingMessage,
         string DefaultBlockMessage
     );

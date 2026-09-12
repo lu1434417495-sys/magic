@@ -296,7 +296,11 @@ public sealed partial class GameRuntimeFacade
         _encounter_roster_builder.Setup(
             _content_catalog.GetBattleEncounterDefinitions(),
             _content_catalog.GetEncounterRosterDefinitions(),
-            _content_catalog.GetEnemyTemplateDefinitions()
+            _content_catalog.GetEnemyTemplateDefinitions(),
+            _content_catalog
+                .GetGameplayConfigurationTyped()
+                .BattleSkillRoles
+                .BasicAttackSkillId
         );
         _party_state = _game_session.GetPartyState();
         _player_coord = _game_session.GetPlayerCoord();
@@ -346,7 +350,11 @@ public sealed partial class GameRuntimeFacade
             skill_catalog: _content_catalog.GetSkillCatalogTyped(),
             skill_definitions: _content_catalog.GetSkillDefinitionsTyped(),
             battle_special_profile_view: _content_catalog.GetBattleSpecialProfileView(),
-            barrier_profile_definitions: _content_catalog.GetBarrierProfileDefinitionsTyped()
+            barrier_profile_definitions: _content_catalog.GetBarrierProfileDefinitionsTyped(),
+            basic_attack_skill_id: _content_catalog
+                .GetGameplayConfigurationTyped()
+                .BattleSkillRoles
+                .BasicAttackSkillId
         );
 
         _snapshot_builder.Setup(this);

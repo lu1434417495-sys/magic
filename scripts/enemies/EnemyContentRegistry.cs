@@ -13,13 +13,19 @@ internal sealed record EnemyContentDefinitionGraph(
 
 internal sealed class EnemyContentValidationContext
 {
-    internal EnemyContentValidationContext(IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions, IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions)
+    internal EnemyContentValidationContext(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName basicAttackSkillId
+    )
     {
         ItemDefinitions = itemDefinitions ?? throw new ArgumentNullException(nameof(itemDefinitions));
         SkillDefinitions = skillDefinitions ?? throw new ArgumentNullException(nameof(skillDefinitions));
+        BasicAttackSkillId = basicAttackSkillId ?? "";
     }
     internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions { get; }
     internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; }
+    internal StringName BasicAttackSkillId { get; }
 }
 
 public sealed class EnemyContentRegistry : IValidatableRegistry, IDisposable
@@ -264,7 +270,10 @@ public sealed class EnemyContentRegistry : IValidatableRegistry, IDisposable
                     $"Enemy template {template.TemplateId} skill {skillId} level {skillLevel} is outside 1..{skill.MaxLevel}."
                 );
             }
-            if (skillId != "basic_attack" && skill.MaxLevel > 0)
+            if (
+                (context.BasicAttackSkillId == "" || skillId != context.BasicAttackSkillId)
+                && skill.MaxLevel > 0
+            )
                 eligibleGeneratedSkillCount += 1;
         }
         foreach ((StringName skillId, int _) in template.SkillLevels)

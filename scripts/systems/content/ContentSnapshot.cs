@@ -39,7 +39,8 @@ internal sealed class ContentSnapshot
         IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyBrains = null,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters = null,
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters = null,
-        IReadOnlyDictionary<StringName, BattleSimProfileDefinition> battleSimProfiles = null
+        IReadOnlyDictionary<StringName, BattleSimProfileDefinition> battleSimProfiles = null,
+        GameplayConfigurationDefinition gameplayConfiguration = null
     )
     {
         if (epoch <= 0)
@@ -85,6 +86,7 @@ internal sealed class ContentSnapshot
         EncounterRosters = Freeze(encounterRosters);
         BattleEncounters = Freeze(battleEncounters);
         BattleSimProfiles = Freeze(battleSimProfiles);
+        GameplayConfiguration = gameplayConfiguration;
     }
 
     internal long Epoch { get; }
@@ -118,6 +120,7 @@ internal sealed class ContentSnapshot
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters { get; }
     internal IReadOnlyDictionary<StringName, BattleEncounterDefinition> BattleEncounters { get; }
     internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> BattleSimProfiles { get; }
+    internal GameplayConfigurationDefinition GameplayConfiguration { get; }
 
     private static IReadOnlyDictionary<TKey, TValue> Freeze<TKey, TValue>(
         IReadOnlyDictionary<TKey, TValue> source,

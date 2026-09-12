@@ -7,7 +7,6 @@ using GDictionary = Godot.Collections.Dictionary;
 internal sealed class BattleSkillMasteryService : IDisposable
 {
     private static readonly StringName BattleRatingSourceType = "battle_rating";
-    private static readonly StringName BasicAttackSkillId = "basic_attack";
     private static readonly StringName BowTrainingSkillId = "bow_training";
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
     private static readonly StringName BossTargetStatId = "boss_target";
@@ -24,6 +23,12 @@ internal sealed class BattleSkillMasteryService : IDisposable
     private static readonly StringName StaminaMax = "stamina_max";
 
     private readonly List<SkillMasteryResolutionEvent> _resolutionEvents = new();
+    private StringName _basicAttackSkillId = "";
+
+    internal void Setup(StringName basicAttackSkillId)
+    {
+        _basicAttackSkillId = basicAttackSkillId ?? "";
+    }
 
     internal void Clear()
     {
@@ -239,7 +244,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
     public StringName ResolveMasteryRewardSkillId(BattleUnitState sourceUnit, StringName skillId)
     {
         var normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
-        if (normalizedSkillId != BasicAttackSkillId)
+        if (_basicAttackSkillId == "" || normalizedSkillId != _basicAttackSkillId)
             return normalizedSkillId;
         if (sourceUnit == null)
             return normalizedSkillId;

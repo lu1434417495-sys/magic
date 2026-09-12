@@ -103,6 +103,9 @@ public sealed class BattleSimContentProvider : IDisposable
         return RequireSnapshot().BattleSimProfiles;
     }
 
+    internal StringName GetBasicAttackSkillId() =>
+        RequireSnapshot().GameplayConfiguration.BattleSkillRoles.BasicAttackSkillId;
+
     private ContentSnapshot RequireSnapshot() =>
         _snapshot ?? throw new ObjectDisposedException(nameof(BattleSimContentProvider));
 

@@ -77,7 +77,8 @@ internal static class TestSkillDefinitionProjection
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers = null,
         string levelDescriptionTemplate = "",
         IReadOnlyDictionary<int, SkillDescriptionVariables> levelDescriptionConfigs = null,
-        ContingencyAutomationDefinition contingencyAutomationProfile = null
+        ContingencyAutomationDefinition contingencyAutomationProfile = null,
+        SkillRuntimeBehaviorKind runtimeBehaviorKind = SkillRuntimeBehaviorKind.None
     )
     {
         return new SkillDefinition(
@@ -113,7 +114,8 @@ internal static class TestSkillDefinitionProjection
             levelDescriptionConfigs: levelDescriptionConfigs
                 ?? new Dictionary<int, SkillDescriptionVariables>(),
             combatProfile: combatProfile,
-            contingencyAutomationProfile: contingencyAutomationProfile
+            contingencyAutomationProfile: contingencyAutomationProfile,
+            runtimeBehaviorKind: runtimeBehaviorKind
         );
     }
 

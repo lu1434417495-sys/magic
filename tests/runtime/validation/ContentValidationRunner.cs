@@ -262,7 +262,7 @@ internal static class ContentValidationRunner
         if (itemDefinitions != null && skillDefinitions != null)
         {
             registry.Rebuild(
-                new EnemyContentValidationContext(itemDefinitions, skillDefinitions)
+                new EnemyContentValidationContext(itemDefinitions, skillDefinitions, "")
             );
             return;
         }

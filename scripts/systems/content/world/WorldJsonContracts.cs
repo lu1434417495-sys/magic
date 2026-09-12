@@ -68,6 +68,7 @@ internal static class WorldJsonRules
     internal const string TextRequired = "world.text.required";
     internal const string ValueOutOfRange = "world.value.out_of_range";
     internal const string DuplicateNestedId = "world.nested_id.duplicate";
+    internal const string DuplicateTypedKey = "world.typed_key.duplicate";
     internal const string UnknownValue = "world.value.unknown";
 }
 
@@ -430,6 +431,10 @@ internal sealed class WorldWildSpawnJsonDto
     [JsonPropertyName("region_tag"), JsonRequired]
     public string RegionTag { get; init; } = "";
 
+    [JsonPropertyName("vertical_band"), JsonRequired]
+    [ContentJsonSchemaStableStringValues(typeof(WorldVerticalBandJsonValues))]
+    public string VerticalBand { get; init; } = "";
+
     [JsonPropertyName("monster_name"), JsonRequired]
     public string MonsterName { get; init; } = "";
 
@@ -504,9 +509,9 @@ internal sealed class WorldEventJsonDto
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class WorldSettlementNamePoolJsonDto
 {
-    [JsonPropertyName("pool_id"), JsonRequired]
-    [ContentJsonSchemaStableStringValues(typeof(WorldSettlementNamePoolJsonValues))]
-    public string PoolId { get; init; } = "";
+    [JsonPropertyName("settlement_tier"), JsonRequired]
+    [ContentJsonSchemaStableStringValues(typeof(WorldSettlementTierJsonValues))]
+    public string SettlementTier { get; init; } = "";
 
     [JsonPropertyName("display_names"), JsonRequired]
     public IReadOnlyList<string> DisplayNames { get; init; } = Array.Empty<string>();
@@ -517,10 +522,16 @@ internal sealed class WorldEventTypeJsonValues : IContentJsonSchemaStableStringV
     public IReadOnlyList<string> Values { get; } = Array.AsReadOnly(new[] { "enter_submap" });
 }
 
-internal sealed class WorldSettlementNamePoolJsonValues : IContentJsonSchemaStableStringValues
+internal sealed class WorldSettlementTierJsonValues : IContentJsonSchemaStableStringValues
 {
     public IReadOnlyList<string> Values { get; } =
-        Array.AsReadOnly(new[] { "village", "town", "city", "capital", "metropolis" });
+        Array.AsReadOnly(new[] { "village", "town", "city", "capital", "world_stronghold", "metropolis" });
+}
+
+internal sealed class WorldVerticalBandJsonValues : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } =
+        Array.AsReadOnly(new[] { "all", "north", "south" });
 }
 
 internal sealed record WorldVector2IImportModel(int X, int Y);
@@ -609,6 +620,7 @@ internal sealed record WorldSettlementDistributionImportModel(
 );
 internal sealed record WorldWildSpawnImportModel(
     string RegionTag,
+    string VerticalBand,
     string MonsterName,
     string EncounterProfileId,
     string SettlementEncounterProfileId,
@@ -635,7 +647,7 @@ internal sealed record WorldEventImportModel(
     string PromptText
 );
 internal sealed record WorldSettlementNamePoolImportModel(
-    string PoolId,
+    string SettlementTier,
     IReadOnlyList<string> DisplayNames
 );
 

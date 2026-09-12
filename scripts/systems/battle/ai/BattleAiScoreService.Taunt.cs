@@ -278,7 +278,7 @@ public partial class BattleAiScoreService
                 );
             SkillDefinition basicAttack = GetSkillDefinition(
                 skillDefinitions,
-                new StringName("basic_attack")
+                context.basic_attack_skill_id
             );
             if (
                 basicAttack != null

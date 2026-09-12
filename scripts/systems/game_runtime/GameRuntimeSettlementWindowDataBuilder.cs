@@ -272,7 +272,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
     internal SettlementPanelKind _resolve_service_panel_kind(GDictionary service_data)
     {
         string interactionScriptId = GameRuntimeSettlementCommandHandler.ReadString(service_data, "interaction_script_id").Trim();
-        if (GameRuntimeSettlementCommandHandler.SHOP_INTERACTION_IDS.Contains(interactionScriptId))
+        if (_owner._shop_service.HasShop(interactionScriptId))
         {
             return SettlementPanelKind.Shop;
         }
@@ -338,7 +338,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         {
             return new SettlementServiceMetadata("查看任务", true);
         }
-        if (GameRuntimeSettlementCommandHandler.SHOP_INTERACTION_IDS.Contains(interactionScriptId))
+        if (_owner._shop_service.HasShop(interactionScriptId))
         {
             return new SettlementServiceMetadata("按商品计价", true);
         }

@@ -30,6 +30,17 @@ internal readonly record struct SkillImportStringName
 internal enum SkillImportUnlockMode { Standard, CompositeUpgrade }
 internal enum SkillImportCoreSkillTransitionMode { Inherit, ReplaceSourcesWithResult }
 internal enum SkillImportProgressionTier { None, Basic, Intermediate, Advanced, Ultimate }
+internal enum SkillRuntimeBehaviorImportKind
+{
+    None,
+    BlackContractPush,
+    DoomShift,
+    BlackCrownSeal,
+    BlackStarBrand,
+    CrownBreak,
+    DoomSentence,
+    MisstepToScheme,
+}
 internal enum AttributeModifierImportMode { Flat, Percent }
 internal enum CombatWeaponRangePolicyImportKind { CurrentWeapon, Configured, CurrentWeaponPlusConfigured }
 internal enum CombatMasteryTriggerImportKind
@@ -256,7 +267,8 @@ internal sealed partial class SkillImportModel
         IEnumerable<KeyValuePair<SkillImportIdentifier, int>> attributeGrowthProgress,
         SkillImportProgressionTier practiceTier,
         IEnumerable<AttributeModifierImportModel> attributeModifiers,
-        ContingencyAutomationImportModel? contingencyAutomationProfile
+        ContingencyAutomationImportModel? contingencyAutomationProfile,
+        SkillRuntimeBehaviorImportKind runtimeBehavior = SkillRuntimeBehaviorImportKind.None
     )
     {
         ArgumentNullException.ThrowIfNull(displayName);
@@ -319,6 +331,7 @@ internal sealed partial class SkillImportModel
         PracticeTier = practiceTier;
         AttributeModifiers = SkillImportCollections.Freeze(attributeModifiers);
         ContingencyAutomationProfile = contingencyAutomationProfile;
+        RuntimeBehavior = runtimeBehavior;
     }
 
     internal SkillImportAssetId IconId { get; }
@@ -342,6 +355,7 @@ internal sealed partial class SkillImportModel
     internal SkillImportProgressionTier PracticeTier { get; }
     internal IReadOnlyList<AttributeModifierImportModel> AttributeModifiers { get; }
     internal ContingencyAutomationImportModel? ContingencyAutomationProfile { get; }
+    internal SkillRuntimeBehaviorImportKind RuntimeBehavior { get; }
 }
 
 internal sealed class CombatWindupImportModel

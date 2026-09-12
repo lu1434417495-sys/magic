@@ -3021,12 +3021,14 @@ IReadOnlyList<StringName> values
                 errors.Add(
                     $"Skill {skillId} {contextLabel} cannot combine casting_time_tu with identity-granted learn_source {skillDef.LearnSource}."
                 );
-            if (MisfortuneContentRules.IsGatedSkill(skillDef.SkillId))
+            if (MisfortuneContentRules.IsGatedBehavior(skillDef.RuntimeBehaviorKind))
                 errors.Add(
                     $"Skill {skillId} {contextLabel} cannot combine casting_time_tu with misfortune-gated skills."
                 );
         }
-        if (skillId == "black_contract_push")
+        if (
+            skillDef?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.BlackContractPush
+        )
             errors.Add(
                 $"Skill {skillId} {contextLabel} cannot combine casting_time_tu with black-contract-push variants."
             );

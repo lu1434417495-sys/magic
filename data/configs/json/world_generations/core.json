@@ -766,6 +766,7 @@
       "wild_monster_distribution": [
         {
           "region_tag": "cathedral_ruins",
+          "vertical_band": "all",
           "monster_name": "炭化朝圣者",
           "encounter_profile_id": "mist_hollow",
           "settlement_encounter_profile_id": "",
@@ -802,6 +803,7 @@
         },
         {
           "region_tag": "drowned_stacks",
+          "vertical_band": "all",
           "monster_name": "沉钟幽形",
           "encounter_profile_id": "mist_hollow",
           "settlement_encounter_profile_id": "",
@@ -842,6 +844,7 @@
         },
         {
           "region_tag": "grave_slope",
+          "vertical_band": "all",
           "monster_name": "墓火失犬",
           "encounter_profile_id": "wolf_wilds",
           "settlement_encounter_profile_id": "wolf_den",
@@ -878,6 +881,7 @@
         },
         {
           "region_tag": "abyss_fringe",
+          "vertical_band": "all",
           "monster_name": "深渊噬猎犬",
           "encounter_profile_id": "wolf_wilds",
           "settlement_encounter_profile_id": "",

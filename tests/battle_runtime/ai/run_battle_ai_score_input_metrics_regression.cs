@@ -1788,10 +1788,9 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
 
         BattleAiScoreInput specialForceHitScore =
             ScoreIsolatedTauntThreat(
-                BuildThreatDamageSkill(
-                    "black_contract_push",
-                    "",
-                    0,
+                BuildThreatDamageSkillWithRuntimeBehavior(
+                    "taunt_typed_force_hit_threat",
+                    SkillRuntimeBehaviorKind.BlackContractPush,
                     damageEffect
                 ),
                 bindCastRules: false
@@ -2205,6 +2204,24 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
                 targetTeamFilter: "enemy",
                 rangeValue: 5
             )
+        );
+
+    private static SkillDefinition BuildThreatDamageSkillWithRuntimeBehavior(
+        StringName skillId,
+        SkillRuntimeBehaviorKind runtimeBehaviorKind,
+        params CombatEffectDefinition[] effects
+    ) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Taunt Typed Behavior Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects,
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 5
+            ),
+            runtimeBehaviorKind: runtimeBehaviorKind
         );
 
     private static SkillDefinition BuildThreatDamageSkill(

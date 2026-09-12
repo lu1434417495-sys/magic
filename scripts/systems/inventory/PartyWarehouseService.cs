@@ -1320,16 +1320,12 @@ public sealed class PartyWarehouseService : IDisposable
         }
 
         // ReadValue() only ever yields boxed Variants out of a Godot dictionary.
-        if (rawValue is Variant variantValue)
+        // 类型不符时 Variant 转换给的是空字典而不是异常，原先的 catch 既不会触发，
+        // 又会让"不是字典"变成一次成功的空字典读取。
+        if (rawValue is Variant variantValue && variantValue.VariantType == Variant.Type.Dictionary)
         {
-            try
-            {
-                value = variantValue.AsGodotDictionary();
-                return value != null;
-            }
-            catch
-            {
-            }
+            value = variantValue.AsGodotDictionary();
+            return value != null;
         }
 
         value = null;

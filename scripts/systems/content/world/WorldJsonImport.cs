@@ -12,11 +12,14 @@ internal static class WorldJsonImport
     private static readonly HashSet<string> EventTypes =
         new(new[] { "enter_submap" }, StringComparer.Ordinal);
 
-    private static readonly HashSet<string> NamePoolIds =
+    private static readonly HashSet<string> SettlementTiers =
         new(
-            new[] { "village", "town", "city", "capital", "metropolis" },
+            new[] { "village", "town", "city", "capital", "world_stronghold", "metropolis" },
             StringComparer.Ordinal
         );
+
+    private static readonly HashSet<string> VerticalBands =
+        new(new[] { "all", "north", "south" }, StringComparer.Ordinal);
 
     internal static JsonContentDomainDescriptor<WorldPresetJsonDto, WorldPresetImportModel>
         CreatePresetDescriptor(string sourceDirectory, IContentJsonSourceReader sourceReader) =>
@@ -166,7 +169,7 @@ internal static class WorldJsonImport
                 dto.WildMonsterDistribution.Select(WildSpawn).ToArray(),
                 dto.SettlementNamePools
                     .Select(pool => new WorldSettlementNamePoolImportModel(
-                        Trim(pool.PoolId),
+                        Trim(pool.SettlementTier),
                         pool.DisplayNames.Select(Trim).ToArray()
                     ))
                     .ToArray()
@@ -228,6 +231,7 @@ internal static class WorldJsonImport
     private static WorldWildSpawnImportModel WildSpawn(WorldWildSpawnJsonDto dto) =>
         new(
             Trim(dto.RegionTag),
+            Trim(dto.VerticalBand),
             Trim(dto.MonsterName),
             Trim(dto.EncounterProfileId),
             Trim(dto.SettlementEncounterProfileId),
@@ -342,7 +346,14 @@ internal static class WorldJsonImport
             RequireText(context, diagnostics, value.FactionId, pointer + "/faction_id", id: true);
             RequireNonNegativeVector(context, diagnostics, value.PreferredOrigin, pointer + "/preferred_origin");
         }
-        ValidateWildSpawns(context, diagnostics, import.WildMonsterDistribution, "/wild_monster_distribution");
+        ValidateWildSpawns(
+            context,
+            diagnostics,
+            import.WildMonsterDistribution,
+            "/wild_monster_distribution",
+            requireUniqueVerticalBands: import.ProceduralGenerationEnabled
+                || import.GuaranteeStartingWildEncounter
+        );
         DuplicateIds(
             context,
             diagnostics,
@@ -390,19 +401,27 @@ internal static class WorldJsonImport
         RequireText(context, diagnostics, import.SharedContentId, "/shared_content_id", id: true);
         ValidateSettlements(context, diagnostics, import.SettlementLibrary, "/settlement_library");
         ValidateFacilities(context, diagnostics, import.FacilityLibrary, "/facility_library");
-        ValidateWildSpawns(context, diagnostics, import.WildMonsterDistribution, "/wild_monster_distribution");
-        DuplicateIds(
+        ValidateWildSpawns(
             context,
             diagnostics,
-            import.SettlementNamePools.Select(value => value.PoolId),
-            "/settlement_name_pools"
+            import.WildMonsterDistribution,
+            "/wild_monster_distribution",
+            requireUniqueVerticalBands: true
         );
+        var settlementTiers = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < import.SettlementNamePools.Count; index++)
         {
             WorldSettlementNamePoolImportModel pool = import.SettlementNamePools[index];
             string pointer = $"/settlement_name_pools/{index}";
-            if (!NamePoolIds.Contains(pool.PoolId))
-                Unknown(context, diagnostics, pointer + "/pool_id", pool.PoolId);
+            if (!SettlementTiers.Contains(pool.SettlementTier))
+                Unknown(context, diagnostics, pointer + "/settlement_tier", pool.SettlementTier);
+            else if (!settlementTiers.Add(pool.SettlementTier))
+                DuplicateTypedKey(
+                    context,
+                    diagnostics,
+                    pointer + "/settlement_tier",
+                    pool.SettlementTier
+                );
             DuplicateIds(context, diagnostics, pool.DisplayNames, pointer + "/display_names");
             for (int nameIndex = 0; nameIndex < pool.DisplayNames.Count; nameIndex++)
                 RequireText(context, diagnostics, pool.DisplayNames[nameIndex], $"{pointer}/display_names/{nameIndex}");
@@ -486,14 +505,25 @@ internal static class WorldJsonImport
         JsonContentEntryContext context,
         List<ContentJsonDiagnostic> diagnostics,
         IReadOnlyList<WorldWildSpawnImportModel> values,
-        string basePointer
+        string basePointer,
+        bool requireUniqueVerticalBands
     )
     {
+        var verticalBands = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < values.Count; index++)
         {
             WorldWildSpawnImportModel value = values[index];
             string pointer = $"{basePointer}/{index}";
             RequireText(context, diagnostics, value.RegionTag, pointer + "/region_tag", id: true);
+            if (!VerticalBands.Contains(value.VerticalBand))
+                Unknown(context, diagnostics, pointer + "/vertical_band", value.VerticalBand);
+            else if (requireUniqueVerticalBands && !verticalBands.Add(value.VerticalBand))
+                DuplicateTypedKey(
+                    context,
+                    diagnostics,
+                    pointer + "/vertical_band",
+                    value.VerticalBand
+                );
             RequireText(context, diagnostics, value.MonsterName, pointer + "/monster_name");
             RequireText(context, diagnostics, value.EncounterProfileId, pointer + "/encounter_profile_id", id: true);
             if (value.DensityPerChunk <= 0)
@@ -504,6 +534,21 @@ internal static class WorldJsonImport
                 RequireNonNegativeVector(context, diagnostics, value.ChunkCoords[coordIndex], $"{pointer}/chunk_coords/{coordIndex}");
         }
     }
+
+    private static void DuplicateTypedKey(
+        JsonContentEntryContext context,
+        List<ContentJsonDiagnostic> diagnostics,
+        string pointer,
+        string value
+    ) =>
+        diagnostics.Add(
+            Diagnostic(
+                context,
+                WorldJsonRules.DuplicateTypedKey,
+                $"Duplicate typed key '{value}'.",
+                pointer
+            )
+        );
 
     private static void DuplicateIds(
         JsonContentEntryContext context,

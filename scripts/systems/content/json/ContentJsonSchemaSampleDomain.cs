@@ -42,6 +42,7 @@ internal static class ContentJsonSchemaCatalog
             BattleSpecialProfileJsonDomains.ProfileSchemaRegistration,
             QuestJsonContentDomain.SchemaRegistration,
             ContingencyJsonContentDomain.SchemaRegistration,
+            GameplayConfigurationJsonDomain.SchemaRegistration,
         };
         domains.AddRange(ProfessionIdentityJsonDomains.SchemaRegistrations);
         domains.AddRange(BattleSimJsonContentDomains.SchemaRegistrations);

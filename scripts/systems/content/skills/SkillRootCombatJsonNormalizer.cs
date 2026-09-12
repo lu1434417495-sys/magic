@@ -83,6 +83,15 @@ internal static class SkillRootCombatJsonNormalizer
             "/practice_tier",
             diagnostics
         );
+        SkillRuntimeBehaviorImportKind runtimeBehavior = CanonicalClosed<SkillRuntimeBehaviorImportKind>(
+            dto.RuntimeBehavior,
+            wasPresent: false,
+            SkillRootCombatImportValueRules.TryRuntimeBehavior,
+            "skill.dto.runtime_behavior.unknown",
+            context,
+            "/runtime_behavior",
+            diagnostics
+        );
 
         List<SkillImportIdentifier> learnRequirements = Identifiers(
             dto.LearnRequirements,
@@ -225,7 +234,8 @@ internal static class SkillRootCombatJsonNormalizer
                 attributeGrowthProgress,
                 practiceTier,
                 attributeModifiers,
-                contingency
+                contingency,
+                runtimeBehavior
             )
             : null;
     }

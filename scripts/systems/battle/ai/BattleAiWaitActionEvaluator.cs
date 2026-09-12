@@ -202,7 +202,7 @@ internal sealed class BattleAiWaitActionEvaluator
 
     private int ResolveDesiredRestStamina(WaitActionDefinition action, BattleAiContext context)
     {
-        int desiredCost = GetSkillStaminaCost(context, "basic_attack");
+        int desiredCost = GetSkillStaminaCost(context, context.basic_attack_skill_id);
         foreach (
             BattleAvailableSkillEntry entry in _helper.ResolveAvailableSkillEntries(
                 context,

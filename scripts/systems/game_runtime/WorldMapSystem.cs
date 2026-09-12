@@ -1090,7 +1090,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         PartyMemberState member = partyState?.GetMemberState(memberId);
         if (member == null)
             return;
-        contingency_setup_window.ShowForMember(member, _runtime_proxy.GetCharacterManagement());
+        contingency_setup_window.ShowForMember(
+            member,
+            _runtime_proxy.GetCharacterManagement(),
+            _game_session.GetContingencySetupTemplatesTyped()
+        );
     }
 
     public void _on_party_button_pressed()

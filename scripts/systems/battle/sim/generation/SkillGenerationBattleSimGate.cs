@@ -38,7 +38,10 @@ internal sealed class SkillGenerationBattleSimGate
         ArgumentNullException.ThrowIfNull(candidateContexts);
         ArgumentNullException.ThrowIfNull(combinedSkills);
         ArgumentNullException.ThrowIfNull(processSnapshot);
-        RequireInfrastructure(combinedSkills, processSnapshot);
+        SkillGenerationBattleSimFixtureDefinition fixture = RequireInfrastructure(
+            combinedSkills,
+            processSnapshot
+        );
 
         var diagnostics = new List<ContentJsonDiagnostic>();
         var metrics = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -89,6 +92,7 @@ internal sealed class SkillGenerationBattleSimGate
             BattleSimScenarioReport baseline = runner.RunScenario(
                 SkillGenerationBattleSimScenarioFactory.Create(
                     candidate,
+                    fixture,
                     includeCandidate: false,
                     seeds: _options.Seeds
                 ),
@@ -97,6 +101,7 @@ internal sealed class SkillGenerationBattleSimGate
             BattleSimScenarioReport candidateReport = runner.RunScenario(
                 SkillGenerationBattleSimScenarioFactory.Create(
                     candidate,
+                    fixture,
                     includeCandidate: true,
                     seeds: _options.Seeds
                 ),
@@ -130,22 +135,27 @@ internal sealed class SkillGenerationBattleSimGate
         );
     }
 
-    private static void RequireInfrastructure(
+    private static SkillGenerationBattleSimFixtureDefinition RequireInfrastructure(
         IReadOnlyDictionary<StringName, SkillDefinition> combinedSkills,
         ContentSnapshot processSnapshot
     )
     {
-        if (!combinedSkills.ContainsKey("basic_attack"))
+        SkillGenerationBattleSimFixtureDefinition fixture = processSnapshot
+            .GameplayConfiguration?.SkillGenerationBattleSim
+            ?? throw new InvalidOperationException(
+                "Skill generation BattleSim fixture configuration is unavailable."
+            );
+        if (!combinedSkills.ContainsKey(fixture.BasicAttackSkillId))
         {
             throw new InvalidOperationException(
-                "Skill generation BattleSim requires basic_attack in the combined skill catalog."
+                $"Skill generation BattleSim requires basic attack skill {fixture.BasicAttackSkillId}."
             );
         }
         foreach (StringName benchmarkSkillId in new[]
         {
-            new StringName("mage_arcane_missile"),
-            new StringName("mage_fireball"),
-            new StringName("mage_frost_bolt"),
+            fixture.MultiTargetBenchmarkSkillId,
+            fixture.GroundBenchmarkSkillId,
+            fixture.RangedUnitBenchmarkSkillId,
         })
         {
             if (!combinedSkills.ContainsKey(benchmarkSkillId))
@@ -157,9 +167,9 @@ internal sealed class SkillGenerationBattleSimGate
         }
         foreach (StringName brainId in new[]
         {
-            new StringName("melee_aggressor"),
-            new StringName("mage_controller"),
-            new StringName("ranged_archer"),
+            fixture.MeleeBrainId,
+            fixture.MageBrainId,
+            fixture.RangedBrainId,
         })
         {
             if (!processSnapshot.EnemyBrains.ContainsKey(brainId))
@@ -169,6 +179,7 @@ internal sealed class SkillGenerationBattleSimGate
                 );
             }
         }
+        return fixture;
     }
 
     private static JsonContentEntryContext RequireContext(

@@ -3,11 +3,16 @@ using System.Collections.Generic;
 
 public sealed class WorldMapSettlementNamePoolDefinition
 {
-    public WorldMapSettlementNamePoolDefinition(IReadOnlyList<string> displayNames)
+    public WorldMapSettlementNamePoolDefinition(
+        SettlementTierKind settlementTier,
+        IReadOnlyList<string> displayNames
+    )
     {
+        SettlementTier = settlementTier;
         DisplayNames = BuildUniqueDisplayNames(displayNames);
     }
 
+    public SettlementTierKind SettlementTier { get; }
     public IReadOnlyList<string> DisplayNames { get; }
 
     public IReadOnlyList<string> BuildUniqueDisplayNames() => DisplayNames;

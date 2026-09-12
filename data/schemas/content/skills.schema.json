@@ -28869,6 +28869,18 @@
         "retain_source_skills_on_unlock": {
           "type": "boolean"
         },
+        "runtime_behavior": {
+          "type": "string",
+          "enum": [
+            "black_contract_push",
+            "doom_shift",
+            "black_crown_seal",
+            "black_star_brand",
+            "crown_break",
+            "doom_sentence",
+            "misstep_to_scheme"
+          ]
+        },
         "skill_id": {
           "type": "string"
         },
@@ -29071,6 +29083,18 @@
         "retain_source_skills_on_unlock": {
           "type": "boolean"
         },
+        "runtime_behavior": {
+          "type": "string",
+          "enum": [
+            "black_contract_push",
+            "doom_shift",
+            "black_crown_seal",
+            "black_star_brand",
+            "crown_break",
+            "doom_sentence",
+            "misstep_to_scheme"
+          ]
+        },
         "skill_id": {
           "type": "string"
         },
@@ -29263,6 +29287,18 @@
         },
         "retain_source_skills_on_unlock": {
           "type": "boolean"
+        },
+        "runtime_behavior": {
+          "type": "string",
+          "enum": [
+            "black_contract_push",
+            "doom_shift",
+            "black_crown_seal",
+            "black_star_brand",
+            "crown_break",
+            "doom_sentence",
+            "misstep_to_scheme"
+          ]
         },
         "skill_id": {
           "type": "string"

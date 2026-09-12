@@ -5,12 +5,6 @@ using Godot;
 
 public sealed class WorldGenerationDefinition
 {
-    internal static readonly StringName DefaultMainWorldSettlementNamePoolId = "village";
-    internal static readonly StringName DefaultMainWorldTownNamePoolId = "town";
-    internal static readonly StringName DefaultMainWorldCityNamePoolId = "city";
-    internal static readonly StringName DefaultMainWorldCapitalNamePoolId = "capital";
-    internal static readonly StringName DefaultMainWorldMetropolisNamePoolId = "metropolis";
-
     public WorldGenerationDefinition(
         StringName generationId,
         int seed,
@@ -44,7 +38,7 @@ public sealed class WorldGenerationDefinition
         IReadOnlyList<WorldEventDefinition> worldEvents,
         WorldMapSettlementBundleDefinition defaultSettlementBundle,
         WorldMapWildSpawnBundleDefinition defaultWildSpawnBundle,
-        IReadOnlyDictionary<StringName, WorldMapSettlementNamePoolDefinition> settlementNamePools
+        IReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition> settlementNamePools
     )
     {
         if (generationId == "")
@@ -151,7 +145,7 @@ public sealed class WorldGenerationDefinition
     public IReadOnlyList<WorldEventDefinition> WorldEvents { get; }
     public WorldMapSettlementBundleDefinition DefaultSettlementBundle { get; }
     public WorldMapWildSpawnBundleDefinition DefaultWildSpawnBundle { get; }
-    public IReadOnlyDictionary<StringName, WorldMapSettlementNamePoolDefinition> SettlementNamePools { get; }
+    public IReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition> SettlementNamePools { get; }
     public IReadOnlyList<SettlementDefinition> EffectiveSettlementLibrary { get; }
     public IReadOnlyList<FacilityDefinition> EffectiveFacilityLibrary { get; }
     public IReadOnlyList<WildSpawnRuleDefinition> EffectiveWildSpawnRules { get; }

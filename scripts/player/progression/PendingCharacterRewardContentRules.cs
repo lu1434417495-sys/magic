@@ -24,6 +24,8 @@ internal static class PendingCharacterRewardContentRules
 
     private static readonly StringName EntryAttributeProgress = "attribute_progress";
 
+    private static readonly StringName PermanentHpMaxAttribute = "hp_max";
+
     internal static bool IsSupportedEntryType(StringName value) =>
         ToEntryKind(value) != PendingCharacterRewardEntryKind.Unknown;
 
@@ -40,6 +42,19 @@ internal static class PendingCharacterRewardContentRules
 
     internal static bool IsValidAttributeProgressTarget(StringName value) =>
         AttributeGrowthContentRules.IsValidAttributeId(value);
+
+    internal static bool IsValidAttributeDeltaTarget(StringName value) =>
+        UnitBaseAttributes.IsBaseAttributeId(value) || value == PermanentHpMaxAttribute;
+
+    internal static bool IsValidAttributeTarget(
+        PendingCharacterRewardEntryKind kind,
+        StringName value
+    ) => kind switch
+    {
+        PendingCharacterRewardEntryKind.AttributeDelta => IsValidAttributeDeltaTarget(value),
+        PendingCharacterRewardEntryKind.AttributeProgress => IsValidAttributeProgressTarget(value),
+        _ => false,
+    };
 
     internal static string ValidEntryTypeLabel()
     {

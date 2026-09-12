@@ -23,7 +23,7 @@ Exit codes are stable: `0` means valid, `1` means content diagnostics were produ
 the CLI/domain/input boundary failed. Every outcome uses protocol
 `magic.content_json.validation/v1`; no environment-dependent stack trace is written to stdout.
 
-The catalog contains 29 production domains (plus the test-only schema fixture): skills, inventory
+The catalog contains 30 production domains (plus the test-only schema fixture): skills, inventory
 and progression, enemy/encounter, barrier and battle-special profiles, quest/contingency,
 BattleSim, and world content. Each registration links the same
 strict DTO parser, plain import mapper, nullability policy, and domain-local validator used by the

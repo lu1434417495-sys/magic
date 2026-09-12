@@ -205,13 +205,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private static readonly StringName STATUS_CROWN_BREAK_BLINDED_EYE = "crown_break_blinded_eye";
     private static readonly StringName STATUS_DOOM_SENTENCE_VERDICT = "doom_sentence_verdict";
     private static readonly StringName PHASE_BATTLE_ENDED = "battle_ended";
-    private static readonly StringName BLACK_STAR_BRAND_SKILL_ID = "black_star_brand";
-    private static readonly StringName MISSTEP_TO_SCHEME_SKILL_ID = "misstep_to_scheme";
-    private static readonly StringName BLACK_CONTRACT_PUSH_SKILL_ID = "black_contract_push";
-    private static readonly StringName DOOM_SHIFT_SKILL_ID = "doom_shift";
-    private static readonly StringName BLACK_CROWN_SEAL_SKILL_ID = "black_crown_seal";
-    private static readonly StringName CROWN_BREAK_SKILL_ID = "crown_break";
-    private static readonly StringName DOOM_SENTENCE_SKILL_ID = "doom_sentence";
     private static readonly StringName FORTUNE_MARK_TARGET_STAT_ID = "fortune_mark_target";
     private static readonly StringName BOSS_TARGET_STAT_ID = "boss_target";
     private const int BATTLE_START_PLACEMENT_MAX_ATTEMPTS = 8;
@@ -221,6 +214,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal IBattleRuntimeCharacterGateway _characterGateway;
     internal ISkillCatalog _skillCatalog;
+    private StringName _basicAttackSkillId = "";
 
     internal readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private readonly Dictionary<StringName, EnemyTemplateDefinition> _enemyTemplateIndex = new();
@@ -376,12 +370,14 @@ public sealed partial class BattleRuntimeModule : IDisposable
         IBattleSpecialProfileView battle_special_profile_view = null,
         IReadOnlyDictionary<StringName, TraitDefinition> trait_defs = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipment_ability_bindings = null,
-        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrier_profile_definitions = null
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrier_profile_definitions = null,
+        StringName basic_attack_skill_id = default
     )
     {
         BeginContentCatalogRebind();
         _characterGateway = character_gateway;
         _skillCatalog = skill_catalog;
+        _basicAttackSkillId = basic_attack_skill_id ?? "";
         IReadOnlyDictionary<StringName, SkillDefinition> catalogSkillDefinitions =
             _skillCatalog?.GetSkillDefinitionsTyped();
         IReadOnlyDictionary<StringName, SkillDefinition> resolvedSkillDefinitions =
@@ -422,6 +418,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     )
     {
         _encounter_builder = encounter_builder ?? new EncounterRosterBuilder();
+        _encounter_builder.SetBasicAttackSkillId(_basicAttackSkillId);
         _equipment_drop_service = equipment_drop_service ?? new EquipmentDropService();
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
         if (terrain_generator != null)
@@ -435,6 +432,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BindEquipmentRulePorts();
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
+        _skill_mastery_service.Setup(_basicAttackSkillId);
         _battle_rating_system.Setup(this, _skill_mastery_service);
          _unit_factory.Setup(this);
         _moduleBorrowers.ChargeBridge.Setup(this);
@@ -445,7 +443,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _characterGateway,
             GetFateEventBus(),
             this,
-            _find_unit_by_member_id
+            _find_unit_by_member_id,
+            GetSkillDefinitionTyped
         );
         _change_equipment_resolver.Setup(this);
         _loot_resolver.Setup(this);
@@ -465,6 +464,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _setup_special_profile_runtime();
         CompleteContentCatalogRebind();
     }
+
+    internal StringName GetBasicAttackSkillId() => _basicAttackSkillId;
 
     internal void _setup_special_profile_runtime()
     {
@@ -1465,7 +1466,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
         StringName skill_id
     ) =>
         _fate_runtime == null
-            ? MisfortuneService.GetSkillSidecarMissingMessage(skill_id)
+            ? MisfortuneService.GetSkillSidecarMissingMessage(
+                GetSkillDefinitionTyped(skill_id)?.RuntimeBehaviorKind
+                    ?? SkillRuntimeBehaviorKind.None
+            )
             : _fate_runtime.GetMisfortuneSkillCastBlockReason(active_unit, skill_id);
 
     internal MisfortuneSkillCastResult ConsumeMisfortuneSkillCastResult(
@@ -1474,7 +1478,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
     ) =>
         _fate_runtime == null
             ? MisfortuneSkillCastResult.Failure(
-                MisfortuneService.GetSkillSidecarMissingMessage(skill_id)
+                MisfortuneService.GetSkillSidecarMissingMessage(
+                    GetSkillDefinitionTyped(skill_id)?.RuntimeBehaviorKind
+                        ?? SkillRuntimeBehaviorKind.None
+                )
             )
             : _fate_runtime.ConsumeMisfortuneSkillCastResult(active_unit, skill_id);
 
@@ -1693,7 +1700,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 _characterGateway,
                 GetFateEventBus(),
                 this,
-                _find_unit_by_member_id
+                _find_unit_by_member_id,
+                GetSkillDefinitionTyped
             );
         _change_equipment_resolver.Setup(this);
         _loot_resolver.Setup(this);

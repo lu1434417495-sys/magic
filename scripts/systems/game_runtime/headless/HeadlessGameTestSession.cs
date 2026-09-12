@@ -1001,7 +1001,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         string regionTag = encounterAnchor.region_tag.ToString().StripEdges().ToLower(System.Globalization.CultureInfo.GetCultureInfo(""));
         return regionTag switch
         {
-            "canyon" or "north_wilds" or "south_wilds" => "canyon",
+            "canyon" => "canyon",
             "narrow_assault" => "narrow_assault",
             "holdout_push" => "holdout_push",
             _ => "default",

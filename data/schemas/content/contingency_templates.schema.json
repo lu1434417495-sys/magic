@@ -203,6 +203,22 @@
         "templates"
       ]
     },
+    "ContingencyMaterialCostJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "quantity"
+      ]
+    },
     "ContingencySimpleTriggerPayloadJsonDto": {
       "type": "object",
       "additionalProperties": false,
@@ -560,6 +576,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "charge_material_costs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyMaterialCostJsonDto"
+          }
+        },
         "display_name": {
           "type": "string"
         },
@@ -568,6 +590,9 @@
         },
         "release_mode": {
           "type": "string"
+        },
+        "reserved_mp_per_matrix_load": {
+          "type": "integer"
         },
         "source_skill_id": {
           "type": "string"
@@ -586,9 +611,11 @@
         }
       },
       "required": [
+        "charge_material_costs",
         "display_name",
         "matrix_load",
         "release_mode",
+        "reserved_mp_per_matrix_load",
         "source_skill_id",
         "stored_spells",
         "template_id",
@@ -609,6 +636,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "charge_material_costs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyMaterialCostJsonDto"
+          }
+        },
         "display_name": {
           "type": "string"
         },
@@ -617,6 +650,9 @@
         },
         "release_mode": {
           "type": "string"
+        },
+        "reserved_mp_per_matrix_load": {
+          "type": "integer"
         },
         "source_skill_id": {
           "type": "string"
@@ -644,6 +680,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "charge_material_costs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyMaterialCostJsonDto"
+          }
+        },
         "display_name": {
           "type": "string"
         },
@@ -652,6 +694,9 @@
         },
         "release_mode": {
           "type": "string"
+        },
+        "reserved_mp_per_matrix_load": {
+          "type": "integer"
         },
         "source_skill_id": {
           "type": "string"

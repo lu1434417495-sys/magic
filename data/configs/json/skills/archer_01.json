@@ -793,6 +793,7 @@
         },
         "stamina_cost": 30,
         "spell_reaction_profile": {
+          "reaction_skill_id": "basic_attack",
           "readiness_status_id": "disrupting_arrow_ready",
           "required_weapon_family": "bow",
           "attack_roll_bonus_by_skill_level": [

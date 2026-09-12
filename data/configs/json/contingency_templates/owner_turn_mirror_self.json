@@ -9,6 +9,13 @@
       "display_name": "起手镜影",
       "source_skill_id": "mage_chain_contingency",
       "matrix_load": 3,
+      "reserved_mp_per_matrix_load": 2,
+      "charge_material_costs": [
+        {
+          "item_id": "special_contingency_gem",
+          "quantity": 1
+        }
+      ],
       "release_mode": "burst_release",
       "trigger": {
         "kind": "owner_turn_started",

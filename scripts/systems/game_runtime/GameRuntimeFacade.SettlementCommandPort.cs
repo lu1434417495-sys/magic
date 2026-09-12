@@ -6,6 +6,10 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public sealed partial class GameRuntimeFacade : IGameRuntimeSettlementCommandPort
 {
+    GameplayConfigurationDefinition
+        IGameRuntimeSettlementContentPort.GetGameplayConfiguration() =>
+            GetContentCatalogTyped()?.GetGameplayConfigurationTyped();
+
     bool IGameRuntimeSettlementStatePort.IsBattleActive() => IsBattleActive();
 
     void IGameRuntimeSettlementStatePort.UpdateStatus(string message) =>

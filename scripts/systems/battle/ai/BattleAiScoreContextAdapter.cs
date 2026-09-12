@@ -15,6 +15,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
     private BattleState _state;
     private BattleUnitState _unitState;
     private BattleGridService _gridService;
+    private StringName _basicAttackSkillId = "";
     private BattleAiScoreService _scoreService;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions =
         EmptySkillDefinitions;
@@ -35,6 +36,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
     BattleUnitState IBattleAiScoreContext.unit_state => _unitState;
 
     BattleGridService IBattleAiScoreContext.grid_service => _gridService;
+
+    StringName IBattleAiScoreContext.basic_attack_skill_id => _basicAttackSkillId;
 
     IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
         _skillDefinitions;
@@ -71,7 +74,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             BattleSkillCastBlockReasonKind
         > skillCastBlockReasonCallback = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
+        StringName basicAttackSkillId = default
     )
     {
         ClearRuntimeBindings();
@@ -110,6 +114,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _state = battleState;
         _unitState = actorUnitState;
         _gridService = battleGridService;
+        _basicAttackSkillId = basicAttackSkillId ?? "";
         _skillDefinitions =
             skillDefinitions
             ?? skillCatalog?.GetSkillDefinitionsTyped()
@@ -131,6 +136,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _state = null;
         _unitState = null;
         _gridService = null;
+        _basicAttackSkillId = "";
         _skillDefinitions = EmptySkillDefinitions;
         _equipmentAbilityBindings = EmptyEquipmentAbilityBindings;
         _itemDefinitions = EmptyItemDefinitions;

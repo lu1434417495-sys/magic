@@ -38,7 +38,7 @@ internal static class TestWorldGenerationDefinitionFactory
         IReadOnlyList<WorldEventDefinition> worldEvents = null,
         WorldMapSettlementBundleDefinition defaultSettlementBundle = null,
         WorldMapWildSpawnBundleDefinition defaultWildSpawnBundle = null,
-        IReadOnlyDictionary<StringName, WorldMapSettlementNamePoolDefinition> settlementNamePools = null
+        IReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition> settlementNamePools = null
     ) =>
         new(
             generationId == default ? new StringName("test_fixture") : generationId,
@@ -74,8 +74,8 @@ internal static class TestWorldGenerationDefinitionFactory
             defaultSettlementBundle,
             defaultWildSpawnBundle,
             settlementNamePools
-                ?? new ReadOnlyDictionary<StringName, WorldMapSettlementNamePoolDefinition>(
-                    new Dictionary<StringName, WorldMapSettlementNamePoolDefinition>()
+                ?? new ReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition>(
+                    new Dictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition>()
                 )
         );
 }

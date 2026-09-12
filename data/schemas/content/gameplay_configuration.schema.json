@@ -1,0 +1,619 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:gameplay_configuration:v1",
+  "title": "Magic gameplay configuration JSON schema",
+  "description": "Process-scoped achievements, settlement shops, new-game party, and generation BattleSim fixture roles.",
+  "$ref": "#/$defs/GameplayConfigurationJsonDocumentDto",
+  "$defs": {
+    "BattleSkillRolesJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "basic_attack_skill_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "basic_attack_skill_id"
+      ]
+    },
+    "BattleSkillRolesJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "basic_attack_skill_id": {
+          "type": "string"
+        }
+      }
+    },
+    "EquipmentGenerationBattleSimFixtureJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "melee_brain_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "melee_brain_id"
+      ]
+    },
+    "EquipmentGenerationBattleSimFixtureJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "melee_brain_id": {
+          "type": "string"
+        }
+      }
+    },
+    "GameplayAchievementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "achievement_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "event_type": {
+          "type": "string"
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GameplayAchievementRewardJsonDto"
+          }
+        },
+        "subject_id": {
+          "type": "string"
+        },
+        "threshold": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "achievement_id",
+        "description",
+        "display_name",
+        "event_type",
+        "rewards",
+        "subject_id",
+        "threshold"
+      ]
+    },
+    "GameplayAchievementRewardJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "integer"
+        },
+        "reason_text": {
+          "type": "string"
+        },
+        "reward_type": {
+          "type": "string",
+          "enum": [
+            "attribute_delta",
+            "attribute_progress",
+            "skill_unlock",
+            "skill_mastery",
+            "knowledge_unlock"
+          ]
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "target_label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "reason_text",
+        "reward_type",
+        "target_id",
+        "target_label"
+      ]
+    },
+    "GameplayConfigurationJsonDocumentDto": {
+      "description": "Strict process-scoped gameplay configuration document.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "gameplay_configuration"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GameplayConfigurationJsonDto__authoring_configuration_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/GameplayConfigurationJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "GameplayConfigurationJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "achievements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GameplayAchievementJsonDto"
+          }
+        },
+        "battle_skill_roles": {
+          "$ref": "#/$defs/BattleSkillRolesJsonDto"
+        },
+        "configuration_id": {
+          "type": "string"
+        },
+        "equipment_generation_battle_sim": {
+          "$ref": "#/$defs/EquipmentGenerationBattleSimFixtureJsonDto"
+        },
+        "new_game_party": {
+          "$ref": "#/$defs/NewGamePartyJsonDto"
+        },
+        "settlement_shops": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SettlementShopJsonDto"
+          }
+        },
+        "skill_generation_battle_sim": {
+          "$ref": "#/$defs/SkillGenerationBattleSimFixtureJsonDto"
+        }
+      },
+      "required": [
+        "achievements",
+        "battle_skill_roles",
+        "configuration_id",
+        "equipment_generation_battle_sim",
+        "new_game_party",
+        "settlement_shops",
+        "skill_generation_battle_sim"
+      ]
+    },
+    "GameplayConfigurationJsonDto__authoring_configuration_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GameplayConfigurationJsonDto"
+        },
+        {
+          "$ref": "#/$defs/GameplayConfigurationJsonDto__templated_configuration_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "GameplayConfigurationJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "achievements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GameplayAchievementJsonDto"
+          }
+        },
+        "battle_skill_roles": {
+          "$ref": "#/$defs/BattleSkillRolesJsonDto__partial"
+        },
+        "configuration_id": {
+          "type": "string"
+        },
+        "equipment_generation_battle_sim": {
+          "$ref": "#/$defs/EquipmentGenerationBattleSimFixtureJsonDto__partial"
+        },
+        "new_game_party": {
+          "$ref": "#/$defs/NewGamePartyJsonDto__partial"
+        },
+        "settlement_shops": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SettlementShopJsonDto"
+          }
+        },
+        "skill_generation_battle_sim": {
+          "$ref": "#/$defs/SkillGenerationBattleSimFixtureJsonDto__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "GameplayConfigurationJsonDto__templated_configuration_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "achievements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GameplayAchievementJsonDto"
+          }
+        },
+        "battle_skill_roles": {
+          "$ref": "#/$defs/BattleSkillRolesJsonDto__partial"
+        },
+        "configuration_id": {
+          "type": "string"
+        },
+        "equipment_generation_battle_sim": {
+          "$ref": "#/$defs/EquipmentGenerationBattleSimFixtureJsonDto__partial"
+        },
+        "new_game_party": {
+          "$ref": "#/$defs/NewGamePartyJsonDto__partial"
+        },
+        "settlement_shops": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SettlementShopJsonDto"
+          }
+        },
+        "skill_generation_battle_sim": {
+          "$ref": "#/$defs/SkillGenerationBattleSimFixtureJsonDto__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "configuration_id",
+        "template"
+      ]
+    },
+    "NewGameMemberJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "age_profile_id": {
+          "type": "string"
+        },
+        "age_years": {
+          "type": "integer"
+        },
+        "base_attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "body_size_category": {
+          "type": "string"
+        },
+        "control_mode": {
+          "type": "string"
+        },
+        "current_mp": {
+          "type": "integer"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "effective_age_stage_id": {
+          "type": "string"
+        },
+        "faction_id": {
+          "type": "string"
+        },
+        "member_id": {
+          "type": "string"
+        },
+        "natural_age_stage_id": {
+          "type": "string"
+        },
+        "portrait_id": {
+          "type": "string"
+        },
+        "race_id": {
+          "type": "string"
+        },
+        "starting_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "storage_space": {
+          "type": "integer"
+        },
+        "subrace_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "age_profile_id",
+        "age_years",
+        "base_attributes",
+        "body_size_category",
+        "control_mode",
+        "current_mp",
+        "display_name",
+        "effective_age_stage_id",
+        "faction_id",
+        "member_id",
+        "natural_age_stage_id",
+        "portrait_id",
+        "race_id",
+        "starting_skill_ids",
+        "storage_space",
+        "subrace_id"
+      ]
+    },
+    "NewGamePartyJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_member_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gold": {
+          "type": "integer"
+        },
+        "leader_member_id": {
+          "type": "string"
+        },
+        "main_character_member_id": {
+          "type": "string"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NewGameMemberJsonDto"
+          }
+        },
+        "reserve_member_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "starting_weapon_fallback_item_id": {
+          "type": "string"
+        },
+        "starting_weapon_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NewGameStartingWeaponRuleJsonDto"
+          }
+        }
+      },
+      "required": [
+        "active_member_ids",
+        "gold",
+        "leader_member_id",
+        "main_character_member_id",
+        "members",
+        "reserve_member_ids",
+        "starting_weapon_fallback_item_id",
+        "starting_weapon_rules"
+      ]
+    },
+    "NewGamePartyJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_member_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gold": {
+          "type": "integer"
+        },
+        "leader_member_id": {
+          "type": "string"
+        },
+        "main_character_member_id": {
+          "type": "string"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NewGameMemberJsonDto"
+          }
+        },
+        "reserve_member_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "starting_weapon_fallback_item_id": {
+          "type": "string"
+        },
+        "starting_weapon_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NewGameStartingWeaponRuleJsonDto"
+          }
+        }
+      }
+    },
+    "NewGameStartingWeaponRuleJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string"
+        },
+        "required_skill_tags_any": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "item_id",
+        "required_skill_tags_any"
+      ]
+    },
+    "SettlementShopItemJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string"
+        },
+        "max_quantity": {
+          "type": "integer"
+        },
+        "min_quantity": {
+          "type": "integer"
+        },
+        "price_basis_points": {
+          "type": "integer"
+        },
+        "weight": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "max_quantity",
+        "min_quantity",
+        "price_basis_points",
+        "weight"
+      ]
+    },
+    "SettlementShopJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_price_basis_points": {
+          "type": "integer"
+        },
+        "guaranteed_items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SettlementShopItemJsonDto"
+          }
+        },
+        "interaction_script_id": {
+          "type": "string"
+        },
+        "max_random_items": {
+          "type": "integer"
+        },
+        "random_pool": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SettlementShopItemJsonDto"
+          }
+        },
+        "refresh_interval_steps": {
+          "type": "integer"
+        },
+        "shop_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "unique_equipment_offer_chance_percent": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "default_price_basis_points",
+        "guaranteed_items",
+        "interaction_script_id",
+        "max_random_items",
+        "random_pool",
+        "refresh_interval_steps",
+        "shop_id",
+        "title",
+        "unique_equipment_offer_chance_percent"
+      ]
+    },
+    "SkillGenerationBattleSimFixtureJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ground_benchmark_skill_id": {
+          "type": "string"
+        },
+        "mage_brain_id": {
+          "type": "string"
+        },
+        "melee_brain_id": {
+          "type": "string"
+        },
+        "multi_target_benchmark_skill_id": {
+          "type": "string"
+        },
+        "ranged_brain_id": {
+          "type": "string"
+        },
+        "ranged_unit_benchmark_skill_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ground_benchmark_skill_id",
+        "mage_brain_id",
+        "melee_brain_id",
+        "multi_target_benchmark_skill_id",
+        "ranged_brain_id",
+        "ranged_unit_benchmark_skill_id"
+      ]
+    },
+    "SkillGenerationBattleSimFixtureJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ground_benchmark_skill_id": {
+          "type": "string"
+        },
+        "mage_brain_id": {
+          "type": "string"
+        },
+        "melee_brain_id": {
+          "type": "string"
+        },
+        "multi_target_benchmark_skill_id": {
+          "type": "string"
+        },
+        "ranged_brain_id": {
+          "type": "string"
+        },
+        "ranged_unit_benchmark_skill_id": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

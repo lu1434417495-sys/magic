@@ -6,6 +6,7 @@
   "entries": [
     {
       "skill_id": "black_star_brand",
+      "runtime_behavior": "black_star_brand",
       "display_name": "Diagnostic fixture",
       "description": "T1a.7 diagnostic fixture.",
       "tags": [

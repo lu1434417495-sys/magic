@@ -8,10 +8,6 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSessionSurface
 {
     private static readonly StringName StatusBlackStarBrandElite = "black_star_brand_elite";
-    private static readonly StringName CrownBreakSkillId = "crown_break";
-    private static readonly StringName DoomSentenceSkillId = "doom_sentence";
-    private static readonly StringName DoomShiftSkillId = "doom_shift";
-    private static readonly StringName BlackCrownSealSkillId = "black_crown_seal";
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
     private static readonly StringName BossTargetStatId = "boss_target";
     private static readonly StringName GroundTargetMode = BattleTypedNames.TargetModeGround;
@@ -1942,26 +1938,22 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
 
     private static bool IsCrownBreakSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null
-            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == CrownBreakSkillId;
+        return skillDefinition?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.CrownBreak;
     }
 
     private static bool IsDoomSentenceSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null
-            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == DoomSentenceSkillId;
+        return skillDefinition?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.DoomSentence;
     }
 
     private static bool IsDoomShiftSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null
-            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == DoomShiftSkillId;
+        return skillDefinition?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.DoomShift;
     }
 
     private static bool IsBlackCrownSealSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null
-            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == BlackCrownSealSkillId;
+        return skillDefinition?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.BlackCrownSeal;
     }
 
     private static bool IsCrownBreakTargetEligible(

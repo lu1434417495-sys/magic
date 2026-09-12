@@ -667,6 +667,7 @@
       "wild_monster_distribution": [
         {
           "region_tag": "north_wilds",
+          "vertical_band": "north",
           "monster_name": "荒狼群",
           "encounter_profile_id": "wolf_wilds",
           "settlement_encounter_profile_id": "wolf_den",
@@ -687,6 +688,7 @@
         },
         {
           "region_tag": "south_wilds",
+          "vertical_band": "south",
           "monster_name": "雾沼异兽",
           "encounter_profile_id": "mist_hollow",
           "settlement_encounter_profile_id": "",
@@ -708,7 +710,7 @@
       ],
       "settlement_name_pools": [
         {
-          "pool_id": "village",
+          "settlement_tier": "village",
           "display_names": [
             "白鹿渡口村",
             "白鹿磨坊村",
@@ -1713,7 +1715,7 @@
           ]
         },
         {
-          "pool_id": "town",
+          "settlement_tier": "town",
           "display_names": [
             "白鹿渡桥镇",
             "白鹿磨坊镇",
@@ -2218,7 +2220,7 @@
           ]
         },
         {
-          "pool_id": "city",
+          "settlement_tier": "city",
           "display_names": [
             "白鹿渡桥城",
             "白鹿磨坊城",
@@ -2523,7 +2525,7 @@
           ]
         },
         {
-          "pool_id": "capital",
+          "settlement_tier": "capital",
           "display_names": [
             "白鹿王国王都",
             "银松王国王都",
@@ -2628,7 +2630,7 @@
           ]
         },
         {
-          "pool_id": "metropolis",
+          "settlement_tier": "metropolis",
           "display_names": [
             "白鹿帝国帝都",
             "银松帝国帝都",

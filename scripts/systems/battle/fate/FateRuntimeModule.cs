@@ -10,16 +10,13 @@ internal sealed class FateRuntimeModule
     private const int BaseCalamityCap = 3;
     private const int BlackStarBrandRepeatCalamityCost = 1;
 
-    private static readonly StringName BlackStarBrandSkillId = "black_star_brand";
-    private static readonly StringName CrownBreakSkillId = "crown_break";
-    private static readonly StringName DoomSentenceSkillId = "doom_sentence";
-    private static readonly StringName BlackCrownSealSkillId = "black_crown_seal";
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
 
     private IBattleRuntimeCharacterGateway _characterGateway;
     private IMisfortuneGuidanceBattleQuery _battleRuntimeGateway;
     private BattleFateEventBus _fateEventBus;
     private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
+    private Func<StringName, SkillDefinition> _skillDefinitionResolver;
     private FortuneService _fortuneService = new();
     private FortunaGuidanceService _fortunaGuidanceService = new();
     private LowLuckEventService _lowLuckEventService = new();
@@ -30,12 +27,14 @@ internal sealed class FateRuntimeModule
         IBattleRuntimeCharacterGateway character_gateway = null,
         BattleFateEventBus fate_event_bus = null,
         IMisfortuneGuidanceBattleQuery battle_runtime_gateway = null,
-        Func<StringName, BattleUnitState> unit_by_member_id_resolver = null
+        Func<StringName, BattleUnitState> unit_by_member_id_resolver = null,
+        Func<StringName, SkillDefinition> skill_definition_resolver = null
     )
     {
         _characterGateway = character_gateway;
         _battleRuntimeGateway = battle_runtime_gateway;
         _unitByMemberIdResolver = unit_by_member_id_resolver;
+        _skillDefinitionResolver = skill_definition_resolver;
 
         // Guidance must see the pre-mark state before FortuneService mutates fortune_marked on the same bus event.
         IFateCharacterGateway fateCharacterGateway =
@@ -44,7 +43,11 @@ internal sealed class FateRuntimeModule
         _fortuneService?.Setup(_characterGateway);
         _lowLuckEventService?.Setup(_characterGateway);
         BindFateEventBusAdapters(fate_event_bus);
-        _misfortuneService?.Setup(fate_event_bus, _unitByMemberIdResolver);
+        _misfortuneService?.Setup(
+            fate_event_bus,
+            _unitByMemberIdResolver,
+            _skillDefinitionResolver
+        );
         _misfortuneGuidanceService?.Setup(_characterGateway, _battleRuntimeGateway);
     }
 
@@ -60,6 +63,7 @@ internal sealed class FateRuntimeModule
         _battleRuntimeGateway = null;
         _fateEventBus = null;
         _unitByMemberIdResolver = null;
+        _skillDefinitionResolver = null;
     }
 
     internal FateRuntimeRollbackState CaptureRollbackState() =>
@@ -369,18 +373,12 @@ internal sealed class FateRuntimeModule
         }
     }
 
-    private static string GetSkillSidecarMissingMessage(StringName skillId)
+    private string GetSkillSidecarMissingMessage(StringName skillId)
     {
-        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
-        if (normalizedSkillId == BlackStarBrandSkillId)
-            return "黑星烙印的 calamity sidecar 未初始化。";
-        if (normalizedSkillId == CrownBreakSkillId)
-            return "折冠的 calamity sidecar 未初始化。";
-        if (normalizedSkillId == DoomSentenceSkillId)
-            return "厄命宣判的 calamity sidecar 未初始化。";
-        if (normalizedSkillId == BlackCrownSealSkillId)
-            return "黑冠封印的 battle sidecar 未初始化。";
-        return "Misfortune battle sidecar 未初始化。";
+        SkillRuntimeBehaviorKind behavior =
+            _skillDefinitionResolver?.Invoke(skillId)?.RuntimeBehaviorKind
+            ?? SkillRuntimeBehaviorKind.None;
+        return MisfortuneService.GetSkillSidecarMissingMessage(behavior);
     }
 
     private static bool IsEmpty(StringName value)

@@ -30,6 +30,7 @@ internal static class ContentJsonOfflineValidationCatalog
         domains.AddRange(ProfessionIdentityJsonImport.CreateOfflineDomains());
         domains.AddRange(QuestJsonContentDomain.CreateOfflineDomains());
         domains.AddRange(ContingencyJsonContentDomain.CreateOfflineDomains());
+        domains.Add(GameplayConfigurationJsonDomain.CreateOfflineDomain());
         domains.AddRange(BattleSimJsonContentDomains.CreateOfflineDomains());
         domains.AddRange(WorldJsonImport.CreateOfflineDomains());
         return Array.AsReadOnly(domains.ToArray());

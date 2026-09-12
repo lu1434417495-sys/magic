@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -126,6 +127,13 @@ internal sealed class ContingencyTemplateJsonDto
     [JsonPropertyName("matrix_load"), JsonRequired]
     public int MatrixLoad { get; init; }
 
+    [JsonPropertyName("reserved_mp_per_matrix_load"), JsonRequired]
+    public int ReservedMpPerMatrixLoad { get; init; }
+
+    [JsonPropertyName("charge_material_costs"), JsonRequired]
+    public IReadOnlyList<ContingencyMaterialCostJsonDto> ChargeMaterialCosts { get; init; } =
+        Array.Empty<ContingencyMaterialCostJsonDto>();
+
     [JsonPropertyName("release_mode"), JsonRequired]
     public string ReleaseMode { get; init; } = "";
 
@@ -135,6 +143,16 @@ internal sealed class ContingencyTemplateJsonDto
     [JsonPropertyName("stored_spells"), JsonRequired]
     public IReadOnlyList<ContingencyStoredSpellJsonDto> StoredSpells { get; init; } =
         Array.Empty<ContingencyStoredSpellJsonDto>();
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class ContingencyMaterialCostJsonDto
+{
+    [JsonPropertyName("item_id"), JsonRequired]
+    public string ItemId { get; init; } = "";
+
+    [JsonPropertyName("quantity"), JsonRequired]
+    public int Quantity { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -337,10 +355,14 @@ internal sealed record ContingencyTemplateImportModel(
     string DisplayName,
     string SourceSkillId,
     int MatrixLoad,
+    int ReservedMpPerMatrixLoad,
+    IReadOnlyList<ContingencyMaterialCostImportModel> ChargeMaterialCosts,
     string ReleaseMode,
     ContingencyTriggerImportModel Trigger,
     IReadOnlyList<ContingencyStoredSpellImportModel> StoredSpells
 );
+
+internal sealed record ContingencyMaterialCostImportModel(string ItemId, int Quantity);
 
 internal sealed record ContingencyTriggerImportModel(
     string Type,
@@ -437,6 +459,13 @@ internal static class ContingencyJsonImportParser
                 dto.DisplayName,
                 dto.SourceSkillId,
                 dto.MatrixLoad,
+                dto.ReservedMpPerMatrixLoad,
+                dto.ChargeMaterialCosts
+                    .Select(cost => new ContingencyMaterialCostImportModel(
+                        cost.ItemId,
+                        cost.Quantity
+                    ))
+                    .ToArray(),
                 dto.ReleaseMode,
                 trigger,
                 new ReadOnlyCollection<ContingencyStoredSpellImportModel>(spells)
@@ -655,6 +684,16 @@ internal static class ContingencyImportValidator
             Add(diagnostics, context, ContingencyJsonRules.IdMismatch, "template_id must match the envelope entry ID.", "/template_id");
         if (import.StoredSpells.Count == 0)
             Add(diagnostics, context, ContingencyJsonRules.CollectionRequired, "stored_spells must not be empty.", "/stored_spells");
+        if (import.ReservedMpPerMatrixLoad <= 0)
+            Add(diagnostics, context, ContingencyJsonRules.CollectionRequired, "reserved_mp_per_matrix_load must be positive.", "/reserved_mp_per_matrix_load");
+        if (import.ChargeMaterialCosts.Count == 0)
+            Add(diagnostics, context, ContingencyJsonRules.CollectionRequired, "charge_material_costs must not be empty.", "/charge_material_costs");
+        for (int index = 0; index < import.ChargeMaterialCosts.Count; index++)
+        {
+            ContingencyMaterialCostImportModel cost = import.ChargeMaterialCosts[index];
+            if (string.IsNullOrWhiteSpace(cost.ItemId) || cost.Quantity <= 0)
+                Add(diagnostics, context, ContingencyJsonRules.CollectionRequired, "charge material item_id and positive quantity are required.", $"/charge_material_costs/{index}");
+        }
         return diagnostics;
     }
 
@@ -664,6 +703,7 @@ internal static class ContingencyImportValidator
 
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata, PropertyNamingPolicy = JsonKnownNamingPolicy.Unspecified)]
 [JsonSerializable(typeof(ContingencyTemplateJsonDto))]
+[JsonSerializable(typeof(ContingencyMaterialCostJsonDto))]
 [JsonSerializable(typeof(ContingencySimpleTriggerPayloadJsonDto))]
 [JsonSerializable(typeof(ContingencyHpTriggerPayloadJsonDto))]
 [JsonSerializable(typeof(ContingencyIncomingDamageTriggerPayloadJsonDto))]

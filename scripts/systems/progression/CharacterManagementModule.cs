@@ -406,11 +406,16 @@ public sealed partial class CharacterManagementModule
     internal ContingencySetupMutationResult ChargeContingencySetup(
         StringName member_id,
         StringName setup_id,
+        ContingencySetupTemplateDefinition template_definition,
         Func<bool> battleMutationBlockedProvider = null
     )
     {
         SetupContingencySetupService(battleMutationBlockedProvider ?? (() => false));
-        return _party_contingency_setup_service.ChargeSetup(member_id, setup_id);
+        return _party_contingency_setup_service.ChargeSetup(
+            member_id,
+            setup_id,
+            template_definition
+        );
     }
 
     internal ContingencySetupMutationResult ClearContingencyCharge(

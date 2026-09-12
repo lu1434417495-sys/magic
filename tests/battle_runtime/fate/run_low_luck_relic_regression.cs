@@ -272,7 +272,10 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         int plainHpMax = Math.Max(plainSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), plainMember.current_hp);
         int plainMpMax = Math.Max(plainSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), plainMember.current_mp);
         GameRuntimeSettlementCommandHandler plainHandler = new();
-        plainHandler.SetupRuntime(plainRuntime);
+        plainHandler.SetupRuntime(
+            plainRuntime,
+            GameSessionTestFactory.GetProcessSnapshot().GameplayConfiguration
+        );
         plainHandler.RestorePartyResources(1.0f, true);
 
         PartyState shawlParty = BuildRestoreParty(
@@ -306,7 +309,10 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
             shawlMpMax
         );
         GameRuntimeSettlementCommandHandler shawlHandler = new();
-        shawlHandler.SetupRuntime(shawlRuntime);
+        shawlHandler.SetupRuntime(
+            shawlRuntime,
+            GameSessionTestFactory.GetProcessSnapshot().GameplayConfiguration
+        );
         shawlHandler.RestorePartyResources(1.0f, true);
 
         _test.Eq(plainMember.current_hp, plainHpMax, "未装备血债披肩时 full restore 应恢复到 HP 上限。");

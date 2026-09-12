@@ -36,7 +36,6 @@ internal sealed class BattleRuntimeSkillTurnResolver
     private static readonly StringName STATUS_GUARDING = "guarding";
     private static readonly StringName STATUS_BLACK_STAR_BRAND_NORMAL = "black_star_brand_normal";
     private static readonly StringName STATUS_CROWN_BREAK_BROKEN_HAND = "crown_break_broken_hand";
-    private static readonly StringName BLACK_CONTRACT_PUSH_SKILL_ID = "black_contract_push";
     private static readonly StringName BLACK_CONTRACT_PUSH_OPTION_BLOOD = "blood_tithe";
     private static readonly StringName BLACK_CONTRACT_PUSH_OPTION_GUARD = "guard_tithe";
     private static readonly StringName BLACK_CONTRACT_PUSH_OPTION_ACTION = "action_tithe";
@@ -508,7 +507,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 "厄命宣判压制了主技能，无法施放该技能。",
             BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing =>
                 MisfortuneService.GetSkillSidecarMissingMessage(
-                    skillDefinition?.SkillId ?? Empty
+                    skillDefinition?.RuntimeBehaviorKind ?? SkillRuntimeBehaviorKind.None
                 ),
             BattleSkillCastBlockReasonKind.MisfortuneBlocked =>
                 GetMisfortuneSkillCastBlockReason(active_unit, skillDefinition),
@@ -824,13 +823,16 @@ internal sealed class BattleRuntimeSkillTurnResolver
     )
     {
         StringName skillId = skillDefinition?.SkillId ?? Empty;
-        if (skillDefinition == null || !MisfortuneService.IsMisfortuneGatedSkill(skillId))
+        if (
+            skillDefinition == null
+            || !MisfortuneService.IsMisfortuneGatedBehavior(skillDefinition.RuntimeBehaviorKind)
+        )
         {
             return "";
         }
         if (_runtime == null)
         {
-            return MisfortuneService.GetSkillSidecarMissingMessage(skillId);
+            return MisfortuneService.GetSkillSidecarMissingMessage(skillDefinition.RuntimeBehaviorKind);
         }
         return _runtime.GetMisfortuneSkillCastBlockReason(active_unit, skillId);
     }
@@ -841,13 +843,16 @@ internal sealed class BattleRuntimeSkillTurnResolver
     )
     {
         StringName skillId = skillDefinition?.SkillId ?? Empty;
-        if (skillDefinition == null || !MisfortuneService.IsMisfortuneGatedSkill(skillId))
+        if (
+            skillDefinition == null
+            || !MisfortuneService.IsMisfortuneGatedBehavior(skillDefinition.RuntimeBehaviorKind)
+        )
         {
             return "";
         }
         if (_runtime == null)
         {
-            return MisfortuneService.GetSkillSidecarMissingMessage(skillId);
+            return MisfortuneService.GetSkillSidecarMissingMessage(skillDefinition.RuntimeBehaviorKind);
         }
         BattleUnitState unitState = ResolveRuntimeUnit(active_unit);
         return _runtime.GetMisfortuneSkillCastBlockReason(unitState, skillId);
@@ -1129,7 +1134,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
     )
     {
         StringName skillId = skillDefinition?.SkillId ?? Empty;
-        if (skillDefinition == null || !MisfortuneService.IsMisfortuneGatedSkill(skillId))
+        if (
+            skillDefinition == null
+            || !MisfortuneService.IsMisfortuneGatedBehavior(skillDefinition.RuntimeBehaviorKind)
+        )
         {
             return true;
         }
@@ -1137,7 +1145,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             AppendLog(
                 batch,
-                MisfortuneService.GetSkillSidecarMissingMessage(skillId)
+                MisfortuneService.GetSkillSidecarMissingMessage(skillDefinition.RuntimeBehaviorKind)
             );
             return false;
         }
@@ -1151,7 +1159,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 batch,
                 !string.IsNullOrEmpty(consumeResult.Message)
                     ? consumeResult.Message
-                    : MisfortuneService.GetSkillDefaultBlockMessage(skillId)
+                    : MisfortuneService.GetSkillDefaultBlockMessage(skillDefinition.RuntimeBehaviorKind)
             );
             return false;
         }
@@ -2957,7 +2965,8 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal bool _is_black_contract_push_skill(StringName skill_id)
     {
-        return skill_id == BLACK_CONTRACT_PUSH_SKILL_ID;
+        return _runtime?.GetSkillDefinitionTyped(skill_id)?.RuntimeBehaviorKind
+            == SkillRuntimeBehaviorKind.BlackContractPush;
     }
 
     private static BattleCommand NewBattleCommand()

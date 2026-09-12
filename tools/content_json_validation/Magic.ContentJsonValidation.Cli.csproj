@@ -39,6 +39,7 @@
     <Compile Include="../../scripts/systems/content/skills/SkillRootCombatJsonNormalizer.cs" Link="Shared/SkillRootCombatJsonNormalizer.cs" />
     <Compile Include="../../scripts/systems/content/skills/SkillJsonImportParser.cs" Link="Shared/SkillJsonImportParser.cs" />
     <Compile Include="../../scripts/systems/content/skills/SkillContentJsonAuthoringDomain.cs" Link="Shared/SkillContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/systems/content/configuration/GameplayConfigurationJsonContent.cs" Link="Shared/GameplayConfigurationJsonContent.cs" />
     <Compile Include="../../scripts/systems/content/items/ItemImportModels.cs" Link="Shared/ItemImportModels.cs" />
     <Compile Include="../../scripts/systems/content/items/ItemJsonImportContracts.cs" Link="Shared/ItemJsonImportContracts.cs" />
     <Compile Include="../../scripts/systems/content/items/ItemJsonImportParser.cs" Link="Shared/ItemJsonImportParser.cs" />

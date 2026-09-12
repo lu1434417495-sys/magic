@@ -45,17 +45,6 @@ public class BattleSpecialSkillResolver
     private static readonly StringName STATUS_CROWN_BREAK_BROKEN_FANG = "crown_break_broken_fang";
     private static readonly StringName STATUS_CROWN_BREAK_BROKEN_HAND = "crown_break_broken_hand";
     private static readonly StringName STATUS_CROWN_BREAK_BLINDED_EYE = "crown_break_blinded_eye";
-    private static readonly StringName BLACK_CONTRACT_PUSH_SKILL_ID = "black_contract_push";
-    private static readonly StringName DOOM_SHIFT_SKILL_ID = "doom_shift";
-
-    private static readonly StringName BLACK_CROWN_SEAL_SKILL_ID =
-        MisfortuneService.ToStringName(MisfortuneSkillKind.BlackCrownSeal);
-    private static readonly StringName BLACK_STAR_BRAND_SKILL_ID =
-        MisfortuneService.ToStringName(MisfortuneSkillKind.BlackStarBrand);
-    private static readonly StringName CROWN_BREAK_SKILL_ID =
-        MisfortuneService.ToStringName(MisfortuneSkillKind.CrownBreak);
-    private static readonly StringName DOOM_SENTENCE_SKILL_ID =
-        MisfortuneService.ToStringName(MisfortuneSkillKind.DoomSentence);
     private const int BLACK_STAR_BRAND_DURATION_TU = 60;
     private const int DOOM_SHIFT_SELF_DEBUFF_DURATION_TU = 60;
 
@@ -929,22 +918,22 @@ public class BattleSpecialSkillResolver
 
     public bool IsBlackStarBrandSkill(StringName skill_id)
     {
-        return ProgressionDataUtils.to_string_name(skill_id) == BLACK_STAR_BRAND_SKILL_ID;
+        return HasRuntimeBehavior(skill_id, SkillRuntimeBehaviorKind.BlackStarBrand);
     }
 
     public bool IsBlackContractPushSkill(StringName skill_id)
     {
-        return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CONTRACT_PUSH_SKILL_ID;
+        return HasRuntimeBehavior(skill_id, SkillRuntimeBehaviorKind.BlackContractPush);
     }
 
     public bool IsDoomShiftSkill(StringName skill_id)
     {
-        return ProgressionDataUtils.to_string_name(skill_id) == DOOM_SHIFT_SKILL_ID;
+        return HasRuntimeBehavior(skill_id, SkillRuntimeBehaviorKind.DoomShift);
     }
 
     public bool IsBlackCrownSealSkill(StringName skill_id)
     {
-        return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CROWN_SEAL_SKILL_ID;
+        return HasRuntimeBehavior(skill_id, SkillRuntimeBehaviorKind.BlackCrownSeal);
     }
 
     public void ClearCrownBreakSealStatuses(BattleUnitState unit_state)
@@ -970,7 +959,7 @@ public class BattleSpecialSkillResolver
 
     public bool IsCrownBreakSkill(StringName skill_id)
     {
-        return ProgressionDataUtils.to_string_name(skill_id) == CROWN_BREAK_SKILL_ID;
+        return HasRuntimeBehavior(skill_id, SkillRuntimeBehaviorKind.CrownBreak);
     }
 
     public bool IsDoomSentenceTargetEligible(
@@ -995,8 +984,12 @@ public class BattleSpecialSkillResolver
 
     public bool IsDoomSentenceSkill(StringName skill_id)
     {
-        return ProgressionDataUtils.to_string_name(skill_id) == DOOM_SENTENCE_SKILL_ID;
+        return HasRuntimeBehavior(skill_id, SkillRuntimeBehaviorKind.DoomSentence);
     }
+
+    private bool HasRuntimeBehavior(StringName skillId, SkillRuntimeBehaviorKind behavior) =>
+        _runtime?.GetSkillDefinitionTyped(ProgressionDataUtils.to_string_name(skillId))
+            ?.RuntimeBehaviorKind == behavior;
 
     public int ApplyForcedMoveEffect(
         BattleUnitState sourceUnit,

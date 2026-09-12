@@ -314,60 +314,40 @@ public partial class GameSession
 
     private PartyState CreateDefaultPartyState()
     {
+        NewGamePartyDefinition partyDefinition = GetGameplayConfigurationTyped()?.NewGameParty
+            ?? throw new InvalidOperationException("New-game party configuration is unavailable.");
         var partyState = new PartyState();
-        partyState.gold = 180;
-
-        PartyMemberState swordMember = BuildDefaultMemberState(
-            "player_sword_01",
-            "剑士",
-            "warrior_heavy_strike",
-            "portrait_sword",
-            0,
-            4,
-            2,
-            3,
-            1,
-            1,
-            1,
-            12
-        );
-
-        partyState.SetMemberState(swordMember);
-        partyState.leader_member_id = "player_sword_01";
-        partyState.main_character_member_id = "player_sword_01";
-        partyState.active_member_ids = new StringNameList { "player_sword_01" };
-        partyState.reserve_member_ids = new StringNameList();
+        partyState.gold = partyDefinition.Gold;
+        foreach (NewGameMemberDefinition memberDefinition in partyDefinition.Members)
+            partyState.SetMemberState(BuildDefaultMemberState(memberDefinition));
+        partyState.leader_member_id = partyDefinition.LeaderMemberId;
+        partyState.main_character_member_id = partyDefinition.MainCharacterMemberId;
+        partyState.active_member_ids = new StringNameList(partyDefinition.ActiveMemberIds);
+        partyState.reserve_member_ids = new StringNameList(partyDefinition.ReserveMemberIds);
         return partyState;
     }
 
-    private PartyMemberState BuildDefaultMemberState(
-        StringName member_id,
-        string display_name,
-        StringName starting_skill_id,
-        StringName portrait_id,
-        int current_mp,
-        int strength,
-        int agility,
-        int constitution,
-        int perception,
-        int intelligence,
-        int willpower,
-        int storage_space = 0
-    )
+    private PartyMemberState BuildDefaultMemberState(NewGameMemberDefinition definition)
     {
         var memberState = new PartyMemberState
         {
-            member_id = member_id,
-            display_name = display_name,
-            faction_id = "player",
-            portrait_id = portrait_id,
-            control_mode = "manual",
+            member_id = definition.MemberId,
+            display_name = definition.DisplayName,
+            faction_id = definition.FactionId,
+            portrait_id = definition.PortraitId,
+            control_mode = definition.ControlMode,
         };
-        memberState.SetCurrentMp(current_mp);
-        memberState.SetIdentity("human", "common_human");
-        memberState.SetAgeProjection(24, 24, 0, 0);
-        memberState.SetAgeStageProjection("human_age_profile", "adult", "adult", "", "");
-        memberState.SetBodySizeCategory("medium");
+        memberState.SetCurrentMp(definition.CurrentMp);
+        memberState.SetIdentity(definition.RaceId, definition.SubraceId);
+        memberState.SetAgeProjection(definition.AgeYears, definition.AgeYears, 0, 0);
+        memberState.SetAgeStageProjection(
+            definition.AgeProfileId,
+            definition.NaturalAgeStageId,
+            definition.EffectiveAgeStageId,
+            "",
+            ""
+        );
+        memberState.SetBodySizeCategory(definition.BodySizeCategory);
         memberState.SetVersatilityPick("");
         memberState.SetActiveStageAdvancementModifierIds(Array.Empty<StringName>());
         memberState.ClearBloodline();
@@ -375,38 +355,45 @@ public partial class GameSession
 
         var progression = new UnitProgress
         {
-            unit_id = member_id,
-            display_name = display_name,
+            unit_id = definition.MemberId,
+            display_name = definition.DisplayName,
             character_level = 0,
         };
 
-        var unitBaseAttributes = new UnitBaseAttributes
-        {
-            strength = strength,
-            agility = agility,
-            constitution = constitution,
-            perception = perception,
-            intelligence = intelligence,
-            willpower = willpower,
-        };
-        int initialHpMax = CharacterCreationService.CalculateInitialHpMax(constitution);
-        unitBaseAttributes.custom_stats["hp_max"] = initialHpMax;
-        unitBaseAttributes.custom_stats["mp_max"] = current_mp;
-        unitBaseAttributes.custom_stats["storage_space"] = Mathf.Max(storage_space, 0);
+        var unitBaseAttributes = new UnitBaseAttributes();
+        foreach (KeyValuePair<StringName, int> attribute in definition.BaseAttributes)
+            unitBaseAttributes.SetAttributeValue(attribute.Key, attribute.Value);
+        int initialHpMax = CharacterCreationService.CalculateInitialHpMax(
+            unitBaseAttributes.GetAttributeValue(
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)
+            )
+        );
+        unitBaseAttributes.SetAttributeValue(
+            AttributeService.ToStringName(AttributeIdKind.HpMax),
+            initialHpMax
+        );
+        unitBaseAttributes.SetAttributeValue(
+            AttributeService.ToStringName(AttributeIdKind.MpMax),
+            definition.CurrentMp
+        );
+        unitBaseAttributes.SetAttributeValue("storage_space", definition.StorageSpace);
         memberState.SetCurrentHp(initialHpMax);
         progression.unit_base_attributes = unitBaseAttributes;
 
-        var starterSkill = new UnitSkillProgress
+        foreach (StringName startingSkillId in definition.StartingSkillIds)
         {
-            skill_id = starting_skill_id,
-            is_learned = true,
-            is_core = false,
-            granted_source_type = UnitSkillProgress.ToStringName(
-                UnitSkillGrantSourceType.Player
-            ),
-            granted_source_id = "character_creation",
-        };
-        progression.SetSkillProgress(starterSkill);
+            var starterSkill = new UnitSkillProgress
+            {
+                skill_id = startingSkillId,
+                is_learned = true,
+                is_core = false,
+                granted_source_type = UnitSkillProgress.ToStringName(
+                    UnitSkillGrantSourceType.Player
+                ),
+                granted_source_id = "character_creation",
+            };
+            progression.SetSkillProgress(starterSkill);
+        }
 
         SkillDefinition randomStartingSkillDefinition = GrantRandomStartingBookSkill(progression);
         memberState.progression = progression;
@@ -498,16 +485,16 @@ public partial class GameSession
         if (member_state?.equipment_state == null)
             return;
         StringName itemId = ResolveStartingWeaponItemIdForSkill(skillDefinition);
-        if (itemId == "")
-            return;
-        if (
-            !GetItemDefsTyped().TryGetValue(itemId, out ItemDefinition itemDefinition)
-            || !itemDefinition.IsWeapon()
-        )
-            return;
+        // FirstValidStartingWeaponItemId 已经保证返回值存在且是武器，这里不再重复判定；
+        // 重复判定一旦命中只会让新角色空手开局且毫无痕迹。
+        ItemDefinition itemDefinition = GetItemDefsTyped()[itemId];
         StringName instanceId = AllocateEquipmentInstanceId();
         if (instanceId == "")
-            return;
+        {
+            throw new InvalidOperationException(
+                $"Could not allocate an equipment instance id for the starting weapon {itemId}."
+            );
+        }
         EquipmentInstanceState equipmentInstance = EquipmentInstanceState.CreateInstance(
             itemId,
             instanceId
@@ -525,68 +512,33 @@ public partial class GameSession
 
     private StringName ResolveStartingWeaponItemIdForSkill(SkillDefinition skillDefinition)
     {
-        List<StringName> candidates = new();
-        if (
-            SkillMatchesStartingWeaponType(
-                skillDefinition,
-                new StringName[] { "crossbow" },
-                new[] { "crossbow" }
-            )
-        )
-            candidates.Add(StartingCrossbowWeaponItemId);
-        if (
-            SkillMatchesStartingWeaponType(
-                skillDefinition,
-                new StringName[] { "archer", "bow" },
-                new[] { "archer_" }
-            )
-        )
-            candidates.Add(StartingArcherWeaponItemId);
-        if (
-            SkillMatchesStartingWeaponType(
-                skillDefinition,
-                new StringName[] { "mage", "magic", "spell" },
-                new[] { "mage_" }
-            )
-        )
-            candidates.Add(StartingMageWeaponItemId);
-        if (
-            SkillMatchesStartingWeaponType(
-                skillDefinition,
-                new StringName[] { "priest", "faith", "heal" },
-                new[] { "priest_", "saint_" }
-            )
-        )
-            candidates.Add(StartingPriestWeaponItemId);
-        if (
-            SkillMatchesStartingWeaponType(
-                skillDefinition,
-                new StringName[] { "warrior", "melee", "shield" },
-                new[] { "warrior_" }
-            )
-        )
-            candidates.Add(StartingMeleeWeaponItemId);
-        candidates.Add(StartingMeleeWeaponItemId);
+        // 与 CreateDefaultPartyState 同一份配置，处理方式必须一致：那边是 ?? throw，
+        // 这边返回 "" 会让新角色空手开局。
+        NewGamePartyDefinition partyDefinition =
+            GetGameplayConfigurationTyped()?.NewGameParty
+            ?? throw new InvalidOperationException(
+                "New-game party configuration is unavailable."
+            );
+        var candidates = new List<StringName>();
+        foreach (NewGameStartingWeaponRuleDefinition rule in partyDefinition.StartingWeaponRules)
+        {
+            if (SkillHasAnyTag(skillDefinition, rule.RequiredSkillTagsAny))
+                candidates.Add(rule.ItemId);
+        }
+        candidates.Add(partyDefinition.StartingWeaponFallbackItemId);
         return FirstValidStartingWeaponItemId(candidates);
     }
 
-    private bool SkillMatchesStartingWeaponType(
+    private static bool SkillHasAnyTag(
         SkillDefinition skillDefinition,
-        IReadOnlyList<StringName> tag_ids,
-        IReadOnlyList<string> skill_id_prefixes
+        IReadOnlyList<StringName> tagIds
     )
     {
         if (skillDefinition == null)
             return false;
-        foreach (StringName tagId in tag_ids)
+        foreach (StringName tagId in tagIds)
         {
             if (skillDefinition.HasTag(tagId))
-                return true;
-        }
-        string skillIdText = skillDefinition.SkillId.ToString();
-        foreach (string prefix in skill_id_prefixes)
-        {
-            if (skillIdText.StartsWith(prefix))
                 return true;
         }
         return false;
@@ -604,7 +556,11 @@ public partial class GameSession
             )
                 return itemId;
         }
-        return "";
+        // 候选列表末尾始终是 starting_weapon_fallback_item_id，而
+        // GameplayConfigurationCrossDomainValidator 已保证它存在且是武器。
+        throw new InvalidOperationException(
+            "No starting weapon candidate resolved to a registered weapon item."
+        );
     }
 
     private void RefreshProgressionRuntimeState(UnitProgress progression)

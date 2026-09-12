@@ -456,7 +456,7 @@ internal sealed class BattleEquipmentSummonResolver
             unit.AddKnownActiveSkill(normalizedSkillId);
             unit.SetKnownSkillLevelTyped(
                 normalizedSkillId,
-                normalizedSkillId == "basic_attack" ? 0 : 1,
+                normalizedSkillId == _runtime?.GetBasicAttackSkillId() ? 0 : 1,
                 preserveZero: true
             );
         }

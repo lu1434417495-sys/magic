@@ -88,7 +88,7 @@ internal static partial class SkillCanonicalJsonSchema
             ContentCanonicalJsonValue.Object(
                 new ContentCanonicalJsonObjectSchema<CombatSpellReactionImportModel>(
                     OName<CombatSpellReactionImportModel>("trigger_delivery_category", static x => x.TriggerDeliveryCategory, "spell"),
-                    OName<CombatSpellReactionImportModel>("reaction_skill_id", static x => x.ReactionSkillId, "basic_attack"),
+                    OName<CombatSpellReactionImportModel>("reaction_skill_id", static x => x.ReactionSkillId),
                     OName<CombatSpellReactionImportModel>("readiness_status_id", static x => x.ReadinessStatusId),
                     OName<CombatSpellReactionImportModel>("required_weapon_family", static x => x.RequiredWeaponFamily),
                     OEnum<CombatSpellReactionImportModel, CombatSaveAbilityImportKind>("save_ability", static x => x.SaveAbility, CombatSaveAbilityImportKind.Constitution, SkillRootCombatImportValueRules.GetWireValue),

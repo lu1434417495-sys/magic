@@ -34,31 +34,20 @@ public sealed class TraitContentRegistry : IDisposable
     {
         _traitDefinitions.Clear();
         _validationErrors.Clear();
-        try
-        {
-            ContentImportBatch<TraitImportModel> batch =
-                TraitContentJsonAuthoringDomain
-                    .CreateImportDescriptor(directoryPath, sourceReader)
-                    .Import();
-            foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
-                _validationErrors.Add(FormatDiagnostic(diagnostic));
-            if (batch.HasErrors)
-                return;
+        // 内容形状问题走 batch.Diagnostics；目录打不开、权限不足、编码损坏这类 IO 故障
+        // 由 reader 抛出并直接上浮，跟其它 *ContentRegistry 一致——把它们改写成
+        // 校验错误字符串会丢掉异常类型和调用栈，还会把磁盘问题误报成内容作者的错。
+        ContentImportBatch<TraitImportModel> batch =
+            TraitContentJsonAuthoringDomain
+                .CreateImportDescriptor(directoryPath, sourceReader)
+                .Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            _validationErrors.Add(FormatDiagnostic(diagnostic));
+        if (batch.HasErrors)
+            return;
 
-            foreach (ContentImportEntry<TraitImportModel> entry in batch.Entries)
-                RegisterImport(entry.Import, entry.Context.SourceLabel);
-        }
-        catch (Exception exception) when (
-            exception is InvalidOperationException
-                or IOException
-                or UnauthorizedAccessException
-                or FormatException
-        )
-        {
-            _validationErrors.Add(
-                $"TraitContentRegistry JSON load failed for {directoryPath}: {exception.Message}"
-            );
-        }
+        foreach (ContentImportEntry<TraitImportModel> entry in batch.Entries)
+            RegisterImport(entry.Import, entry.Context.SourceLabel);
     }
 
     public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefsTyped() =>

@@ -178,7 +178,10 @@ public partial class run_world_map_system_surface_regression : LifecycleTestScen
     private static GameRuntimeFacade BuildRuntime()
     {
         GameRuntimeFacade runtime = new();
-        runtime._settlement_command_handler.SetupRuntime(runtime);
+        runtime._settlement_command_handler.SetupRuntime(
+            runtime,
+            GameSessionTestFactory.GetProcessSnapshot().GameplayConfiguration
+        );
         return runtime;
     }
 

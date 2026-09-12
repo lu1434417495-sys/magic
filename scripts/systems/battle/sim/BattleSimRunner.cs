@@ -264,7 +264,8 @@ public sealed class BattleSimRunner
                 terrain_generator: useFormalTerrain ? null : _terrainGenerator,
                 barrier_profile_definitions: barrierProfileDefinitions,
                 trait_defs: traitDefinitions,
-                equipment_ability_bindings: equipmentAbilityBindings
+                equipment_ability_bindings: equipmentAbilityBindings,
+                basic_attack_skill_id: _contentProvider.GetBasicAttackSkillId()
             );
             runtime.SetAiTraceEnabled(scenarioDefinition.TraceEnabled);
             runtime.SetAiScoreProfile(overrides.AiScoreProfile);

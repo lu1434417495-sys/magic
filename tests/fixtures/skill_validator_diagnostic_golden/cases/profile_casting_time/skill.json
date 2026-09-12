@@ -6,6 +6,7 @@
   "entries": [
     {
       "skill_id": "black_contract_push",
+      "runtime_behavior": "black_contract_push",
       "display_name": "Diagnostic fixture",
       "description": "T1a.7 diagnostic fixture.",
       "learn_source": "race",

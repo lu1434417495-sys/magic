@@ -3175,12 +3175,12 @@ internal sealed class SkillCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} {contextLabel} cannot combine casting_time_tu with identity-granted learn_source {skillDef.learn_source}."
                 );
-            if (MisfortuneContentRules.IsGatedSkill(skillDef.skill_id))
-                errors.Add(
-                    $"Skill {skillId} {contextLabel} cannot combine casting_time_tu with misfortune-gated skills."
-                );
         }
-        if (skillId == "black_contract_push")
+        if (
+            combatProfile.AttackResolutionModeKind
+                == CombatSkillAttackResolutionMode.ForceHitNoCrit
+            && combatProfile.cast_variants.Count > 0
+        )
             errors.Add(
                 $"Skill {skillId} {contextLabel} cannot combine casting_time_tu with black-contract-push variants."
             );

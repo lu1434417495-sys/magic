@@ -6,7 +6,6 @@ using System;
 
 public sealed class EncounterRosterBuilder : IDisposable
 {
-    private static readonly StringName BasicAttackSkillId = "basic_attack";
     private sealed class ParsedDropDefinition
     {
         public ParsedDropDefinition(
@@ -128,11 +127,13 @@ public sealed class EncounterRosterBuilder : IDisposable
     private Dictionary<StringName, WildEncounterRosterDefinition> _wildEncounterRosterIndex = new();
     private Dictionary<StringName, EnemyTemplateDefinition> _enemyTemplateIndex = new();
     private Dictionary<StringName, BattleEncounterDefinition> _battleEncounterIndex = new();
+    private StringName _basicAttackSkillId = "";
 
     internal void Setup(
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters,
-        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+        StringName basicAttackSkillId = default
     )
     {
         _battleEncounterIndex = new Dictionary<StringName, BattleEncounterDefinition>(
@@ -144,6 +145,12 @@ public sealed class EncounterRosterBuilder : IDisposable
         _enemyTemplateIndex = new Dictionary<StringName, EnemyTemplateDefinition>(
             enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDefinition>()
         );
+        SetBasicAttackSkillId(basicAttackSkillId);
+    }
+
+    internal void SetBasicAttackSkillId(StringName basicAttackSkillId)
+    {
+        _basicAttackSkillId = basicAttackSkillId ?? "";
     }
 
     // Canonical Godot projection boundary only. Formal battle startup must
@@ -862,7 +869,8 @@ public sealed class EncounterRosterBuilder : IDisposable
                 template,
                 buildContext.SkillDefinitions,
                 buildContext.GenerationSeed,
-                globalIndex
+                globalIndex,
+                _basicAttackSkillId
             );
             SyncEnemyUnlockedResources(unitState, buildContext.SkillDefinitions);
             enemyUnits.Add(unitState);
@@ -946,17 +954,18 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
-    private static IReadOnlyList<StringName> PickDefaultEnemySkillIds(
+    private IReadOnlyList<StringName> PickDefaultEnemySkillIds(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        StringName[] preferredSkillIds =
+        var preferredSkillIds = new List<StringName>
         {
-            BasicAttackSkillId,
             "warrior_heavy_strike",
             "warrior_combo_strike",
             "warrior_guard_break",
         };
+        if (_basicAttackSkillId != "")
+            preferredSkillIds.Insert(0, _basicAttackSkillId);
         foreach (StringName preferredSkillId in preferredSkillIds)
         {
             if (IsValidEnemyCombatSkill(GetSkillDefinition(skillDefinitions, preferredSkillId)))
@@ -1001,20 +1010,21 @@ public sealed class EncounterRosterBuilder : IDisposable
         return combatProfile.TargetFilterKind == BattleTargetFilter.Enemy;
     }
 
-    private static void EnsureBasicAttackSkill(
+    private void EnsureBasicAttackSkill(
         BattleUnitState unitState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         if (
             unitState == null
+            || _basicAttackSkillId == ""
             || skillDefinitions == null
-            || !skillDefinitions.ContainsKey(BasicAttackSkillId)
+            || !skillDefinitions.ContainsKey(_basicAttackSkillId)
         )
         {
             return;
         }
-        unitState.AddKnownActiveSkill(BasicAttackSkillId);
+        unitState.AddKnownActiveSkill(_basicAttackSkillId);
     }
 
     private static void SyncEnemyUnlockedResources(

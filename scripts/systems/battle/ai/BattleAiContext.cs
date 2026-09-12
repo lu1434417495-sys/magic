@@ -36,6 +36,7 @@ public class BattleAiContext : IBattleAiScoreContext
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
     public BattleGridService grid_service { get; set; }
+    public StringName basic_attack_skill_id { get; private set; } = "";
     public BattleAiScoreProfileDefinition active_score_profile { get; set; }
     internal ISkillCatalog skill_catalog { get; private set; }
     IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
@@ -452,6 +453,11 @@ public class BattleAiContext : IBattleAiScoreContext
         return ai_query_service;
     }
 
+    internal void SetBasicAttackSkillId(StringName basicAttackSkillId)
+    {
+        basic_attack_skill_id = basicAttackSkillId ?? "";
+    }
+
     internal void ResetForDecision(
         BattleState battleState,
         BattleUnitState actorUnitState,
@@ -462,12 +468,14 @@ public class BattleAiContext : IBattleAiScoreContext
         ISkillCatalog skillCatalog = null,
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
+        StringName basicAttackSkillId = default
     )
     {
         state = battleState;
         unit_state = actorUnitState;
         grid_service = battleGridService;
+        basic_attack_skill_id = basicAttackSkillId ?? "";
         active_score_profile = null;
         skill_catalog = skillCatalog;
         runtime_action_plan = actionPlan;
@@ -491,6 +499,7 @@ public class BattleAiContext : IBattleAiScoreContext
         state = null;
         unit_state = null;
         grid_service = null;
+        basic_attack_skill_id = "";
         active_score_profile = null;
         runtime_action_plan = null;
         ai_query_service = null;

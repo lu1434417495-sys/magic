@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -24,6 +25,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             await TestSettlementHandlerRoutesActionsAndModalState();
             await TestContractBoardEvaluatorAndFeedback();
             await TestSettlementHandlerRejectsStringNameSubmissionFields();
+            TestSettlementShopServiceRejectsMissingDefinitionCatalog();
             TestSettlementShopServiceRejectsBadEntrySchema();
             await TestSettlementHandlerRejectsInvalidOrSpoofedActions();
             await TestWorldGenerationExposesResearchService();
@@ -36,6 +38,40 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         {
             RequestTestExit(_test.Finish("Game runtime settlement command handler regression"));
         }
+    }
+
+    private void TestSettlementShopServiceRejectsMissingDefinitionCatalog()
+    {
+        _test.True(
+            Throws<ArgumentNullException>(() => _ = new SettlementShopService(null)),
+            "SettlementShopService constructor should reject a null definition catalog."
+        );
+
+        using var unconfigured = new SettlementShopService();
+        _test.True(
+            Throws<InvalidOperationException>(
+                () => unconfigured.HasShop("service_basic_supply")
+            ),
+            "An unconfigured settlement shop service should fail before serving lookups."
+        );
+        _test.True(
+            Throws<ArgumentNullException>(() => unconfigured.SetDefinitions(null)),
+            "SettlementShopService.SetDefinitions should reject a null catalog."
+        );
+
+        using var configured = new SettlementShopService(
+            GameSessionTestFactory.GetProcessSnapshot()
+                .GameplayConfiguration
+                .SettlementShopsByInteractionId
+        );
+        _test.True(
+            Throws<ArgumentNullException>(() => configured.SetDefinitions(null)),
+            "A failed null rebind should reject rather than replace the configured shop catalog."
+        );
+        _test.True(
+            configured.HasShop("service_basic_supply"),
+            "A rejected null rebind should preserve the previously configured shop catalog."
+        );
     }
 
     private async Task TestFacadeUsesSettlementHandlerSurface()
@@ -858,7 +894,11 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
 
     private void TestSettlementShopServiceRejectsBadEntrySchema()
     {
-        var shopService = new SettlementShopService();
+        var shopService = new SettlementShopService(
+            GameSessionTestFactory.GetProcessSnapshot()
+                .GameplayConfiguration
+                .SettlementShopsByInteractionId
+        );
         Dictionary<StringName, ItemDefinition> itemDefs = new(
             GameSessionTestFactory.GetProcessSnapshot().Items
         );
@@ -1857,6 +1897,20 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 _test.Fail($"{message} | actual=[{string.Join(", ", actual)}] expected=[{string.Join(", ", expected)}]");
                 return;
             }
+        }
+    }
+
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
         }
     }
 

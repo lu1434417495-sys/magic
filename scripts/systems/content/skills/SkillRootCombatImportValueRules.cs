@@ -24,6 +24,25 @@ internal static class SkillRootCombatImportValueRules
         }
     }
 
+    internal static bool TryRuntimeBehavior(
+        string? value,
+        out SkillRuntimeBehaviorImportKind result
+    )
+    {
+        switch (value)
+        {
+            case "": result = SkillRuntimeBehaviorImportKind.None; return true;
+            case "black_contract_push": result = SkillRuntimeBehaviorImportKind.BlackContractPush; return true;
+            case "doom_shift": result = SkillRuntimeBehaviorImportKind.DoomShift; return true;
+            case "black_crown_seal": result = SkillRuntimeBehaviorImportKind.BlackCrownSeal; return true;
+            case "black_star_brand": result = SkillRuntimeBehaviorImportKind.BlackStarBrand; return true;
+            case "crown_break": result = SkillRuntimeBehaviorImportKind.CrownBreak; return true;
+            case "doom_sentence": result = SkillRuntimeBehaviorImportKind.DoomSentence; return true;
+            case "misstep_to_scheme": result = SkillRuntimeBehaviorImportKind.MisstepToScheme; return true;
+            default: result = default; return false;
+        }
+    }
+
     internal static bool TryAttributeModifierMode(string? value, out AttributeModifierImportMode result) =>
         Try(value, "flat", AttributeModifierImportMode.Flat, "percent", AttributeModifierImportMode.Percent, out result);
 
@@ -258,6 +277,19 @@ internal static class SkillRootCombatImportValueRules
         _ => throw Unknown(value),
     };
 
+    internal static string GetWireValue(SkillRuntimeBehaviorImportKind value) => value switch
+    {
+        SkillRuntimeBehaviorImportKind.None => "",
+        SkillRuntimeBehaviorImportKind.BlackContractPush => "black_contract_push",
+        SkillRuntimeBehaviorImportKind.DoomShift => "doom_shift",
+        SkillRuntimeBehaviorImportKind.BlackCrownSeal => "black_crown_seal",
+        SkillRuntimeBehaviorImportKind.BlackStarBrand => "black_star_brand",
+        SkillRuntimeBehaviorImportKind.CrownBreak => "crown_break",
+        SkillRuntimeBehaviorImportKind.DoomSentence => "doom_sentence",
+        SkillRuntimeBehaviorImportKind.MisstepToScheme => "misstep_to_scheme",
+        _ => throw Unknown(value),
+    };
+
     internal static string GetWireValue(AttributeModifierImportMode value) => value switch
     {
         AttributeModifierImportMode.Flat => "flat",
@@ -464,6 +496,14 @@ internal static class SkillRootCombatSchemaValues
 internal sealed class SkillUnlockModeSchemaValues : IContentJsonSchemaStableStringValues
 {
     public IReadOnlyList<string> Values { get; } = SkillRootCombatSchemaValues.Of("standard", "composite_upgrade");
+}
+
+internal sealed class SkillRuntimeBehaviorSchemaValues : IContentJsonSchemaStableStringValues
+{
+    public IReadOnlyList<string> Values { get; } = SkillRootCombatSchemaValues.Of(
+        "black_contract_push", "doom_shift", "black_crown_seal", "black_star_brand",
+        "crown_break", "doom_sentence", "misstep_to_scheme"
+    );
 }
 
 internal sealed class SkillCoreTransitionSchemaValues : IContentJsonSchemaStableStringValues

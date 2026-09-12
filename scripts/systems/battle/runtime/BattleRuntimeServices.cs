@@ -14,6 +14,7 @@ internal readonly struct BattleAiDecisionContextSetup
     internal readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
         EquipmentAbilityBindings;
     internal readonly IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions;
+    internal readonly StringName BasicAttackSkillId;
     internal readonly bool TraceEnabled;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly Func<BattleUnitState, Vector2I, int> MoveCostCallback;
@@ -50,6 +51,7 @@ internal readonly struct BattleAiDecisionContextSetup
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        StringName basicAttackSkillId,
         bool traceEnabled,
         ISkillCatalog skillCatalog,
         Func<BattleUnitState, Vector2I, int> moveCostCallback,
@@ -86,6 +88,7 @@ internal readonly struct BattleAiDecisionContextSetup
         BarrierProfileDefinitions = barrierProfileDefinitions;
         EquipmentAbilityBindings = equipmentAbilityBindings;
         ItemDefinitions = itemDefinitions;
+        BasicAttackSkillId = basicAttackSkillId;
         TraceEnabled = traceEnabled;
         SkillCatalog = skillCatalog;
         MoveCostCallback = moveCostCallback;
@@ -106,6 +109,7 @@ internal readonly struct BattleAiHelperBindingContext
     internal readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
         EquipmentAbilityBindings;
     internal readonly IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions;
+    internal readonly StringName BasicAttackSkillId;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly BattleAiScoreService ScoreService;
     internal readonly Func<StringName, Vector2I, Vector2I, int> MoveQueryCostCallback;
@@ -153,6 +157,7 @@ internal readonly struct BattleAiHelperBindingContext
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        StringName basicAttackSkillId,
         ISkillCatalog skillCatalog,
         BattleAiScoreService scoreService,
         Func<StringName, Vector2I, Vector2I, int> moveQueryCostCallback,
@@ -200,6 +205,7 @@ internal readonly struct BattleAiHelperBindingContext
         BarrierProfileDefinitions = barrierProfileDefinitions;
         EquipmentAbilityBindings = equipmentAbilityBindings;
         ItemDefinitions = itemDefinitions;
+        BasicAttackSkillId = basicAttackSkillId;
         SkillCatalog = skillCatalog;
         ScoreService = scoreService;
         MoveQueryCostCallback = moveQueryCostCallback;
@@ -286,7 +292,8 @@ internal sealed class BattleRuntimeServices : IDisposable
             context.SkillCatalog,
             context.BarrierProfileDefinitions,
             context.EquipmentAbilityBindings,
-            context.ItemDefinitions
+            context.ItemDefinitions,
+            context.BasicAttackSkillId
         );
         BindContextCallbacks(AiDecisionContext, context);
         return AiDecisionContext;
@@ -314,6 +321,7 @@ internal sealed class BattleRuntimeServices : IDisposable
             );
         }
 
+        aiContext.SetBasicAttackSkillId(context.BasicAttackSkillId);
         BindContextCallbacks(aiContext, context);
 
         using (new BattleAiTraceSpan("bind_ai_helpers:movement_query_setup"))
@@ -338,7 +346,8 @@ internal sealed class BattleRuntimeServices : IDisposable
                 context.BarrierProfileDefinitions,
                 context.SkillCastBlockReasonCallback,
                 context.EquipmentAbilityBindings,
-                context.ItemDefinitions
+                context.ItemDefinitions,
+                context.BasicAttackSkillId
             );
         }
 

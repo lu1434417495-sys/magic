@@ -242,7 +242,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
         AssertWireInventory(
             SkillCanonicalJsonSchema.EntrySchema,
             typeof(SkillJsonDto),
-            31,
+            32,
             "skill root"
         );
         AssertWireInventory(

@@ -21,6 +21,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
     {
         TestCatalogContainsRealChainContingencySkill();
         TestCatalogContainsV1StorableAutomationProfiles();
+        TestChargeMaterialItemReferencesAreValidatedBeforePublication();
         TestStoredSkillWithoutAutomationProfileIsRejected();
         TestCanBeStoredFalseIsRejected();
         TestNonPlayerLearnedSourceSkillIsRejected();
@@ -33,6 +34,48 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         TestLoadSaveFailsWhenPersistedSetupReferencesInvalidStoredSkill();
 
         RequestTestExit(_test.Finish("Contingency content validator regression"));
+    }
+
+    private void TestChargeMaterialItemReferencesAreValidatedBeforePublication()
+    {
+        ContingencySetupTemplateDefinition validTemplate = BuildCrossDomainTemplate(
+            "known_charge_material",
+            "healing_herb"
+        );
+        IReadOnlyList<string> validErrors = ContingencyTemplateCrossDomainValidator.Validate(
+            new Dictionary<StringName, ContingencySetupTemplateDefinition>
+            {
+                [validTemplate.TemplateId] = validTemplate,
+            },
+            GameSessionTestFactory.GetProcessSnapshot().Items
+        );
+        _test.Eq(
+            validErrors.Count,
+            0,
+            "A contingency charge material present in the published item index should pass cross-domain validation."
+        );
+
+        ContingencySetupTemplateDefinition missingTemplate = BuildCrossDomainTemplate(
+            "missing_charge_material",
+            "missing_contingency_material"
+        );
+        IReadOnlyList<string> missingErrors = ContingencyTemplateCrossDomainValidator.Validate(
+            new Dictionary<StringName, ContingencySetupTemplateDefinition>
+            {
+                [missingTemplate.TemplateId] = missingTemplate,
+            },
+            GameSessionTestFactory.GetProcessSnapshot().Items
+        );
+        _test.Eq(
+            missingErrors.Count,
+            1,
+            "A missing contingency charge material should produce one stable cross-domain diagnostic."
+        );
+        _test.Eq(
+            missingErrors.Count == 1 ? missingErrors[0] : "",
+            "Contingency template missing_charge_material charge_material_costs[0].item_id references missing item missing_contingency_material.",
+            "The missing charge material diagnostic should identify the template, field index, and item id."
+        );
     }
 
     private void TestCatalogContainsRealChainContingencySkill()
@@ -690,6 +733,48 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
             },
         };
     }
+
+    private static ContingencySetupTemplateDefinition BuildCrossDomainTemplate(
+        StringName templateId,
+        StringName itemId
+    ) =>
+        new(
+            templateId,
+            templateId.ToString(),
+            "mage_chain_contingency",
+            3,
+            2,
+            new[] { new ContingencyMaterialCostDefinition(itemId, 1) },
+            "burst_release",
+            new ContingencyTriggerDefinition(
+                "hp_below_percent",
+                "owner",
+                "after_hp_changed",
+                30,
+                true,
+                0,
+                "",
+                "",
+                "",
+                0,
+                "",
+                "",
+                Array.Empty<StringName>(),
+                "",
+                ""
+            ),
+            new[]
+            {
+                new ContingencyStoredSpellTemplateDefinition(
+                    "mage_mirror_image",
+                    1,
+                    1,
+                    new ContingencyTargetResolverDefinition("self", "", 0),
+                    new Dictionary<string, object>(),
+                    "skip_if_invalid"
+                ),
+            }
+        );
 
     private static GodotProjectionLease<GDictionary> BuildSavePayloadForSession(
         GameSession gameSession,

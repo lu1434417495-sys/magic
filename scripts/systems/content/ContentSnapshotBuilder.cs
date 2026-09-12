@@ -12,7 +12,14 @@ internal sealed class ContentSnapshotBuilder
         if (epoch <= 0)
             throw new ArgumentOutOfRangeException(nameof(epoch), epoch, "Snapshot epoch must be positive.");
 
-        using var progression = new ProgressionContentRegistry();
+        var gameplayConfiguration = new GameplayConfigurationContentRegistry();
+        gameplayConfiguration.Rebuild();
+        ThrowIfInvalid(gameplayConfiguration.GetValidationErrors());
+        GameplayConfigurationDefinition gameplayConfigurationDefinition =
+            gameplayConfiguration.GetDefinition();
+
+        using var progression = new ProgressionContentRegistry(loadDefaultContent: false);
+        progression.RebuildWithAchievements(gameplayConfigurationDefinition.Achievements);
         using var barrier = new BarrierContentRegistry();
         using var items = new ItemContentRegistry();
         using var gearSets = new GearSetContentRegistry();
@@ -49,7 +56,11 @@ internal sealed class ContentSnapshotBuilder
         IReadOnlyDictionary<StringName, GearSetDefinition> gearSetDefinitions =
             gearSets.GetDefinitionsTyped();
         enemies.Rebuild(
-            new EnemyContentValidationContext(itemDefinitions, skillDefinitions)
+            new EnemyContentValidationContext(
+                itemDefinitions,
+                skillDefinitions,
+                gameplayConfigurationDefinition.BattleSkillRoles.BasicAttackSkillId
+            )
         );
         EnemyContentDefinitionGraph enemyDefinitions = enemies.ProjectDefinitions(
             itemDefinitions
@@ -124,6 +135,25 @@ internal sealed class ContentSnapshotBuilder
             worldGenerations,
             battleEncounterDefinitions.Keys.ToArray()
         );
+        AppendErrors(
+            validationErrors,
+            GameplayConfigurationCrossDomainValidator.Validate(
+                gameplayConfigurationDefinition,
+                skillDefinitions,
+                itemDefinitions,
+                enemyDefinitions.EnemyBrains,
+                progression.GetRaceDefsTyped(),
+                progression.GetSubraceDefsTyped(),
+                progression.GetAgeProfileDefsTyped()
+            )
+        );
+        AppendErrors(
+            validationErrors,
+            ContingencyTemplateCrossDomainValidator.Validate(
+                progression.GetContingencySetupTemplatesTyped(),
+                itemDefinitions
+            )
+        );
         ThrowIfInvalid(validationErrors);
 
         return new ContentSnapshot(
@@ -156,7 +186,8 @@ internal sealed class ContentSnapshotBuilder
             enemyDefinitions.EnemyBrains,
             enemyDefinitions.EncounterRosters,
             battleEncounterDefinitions,
-            simulationProfileDefinitions
+            simulationProfileDefinitions,
+            gameplayConfigurationDefinition
         );
     }
 

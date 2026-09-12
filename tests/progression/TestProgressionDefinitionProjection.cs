@@ -4,19 +4,12 @@ using Godot;
 
 internal static class TestProgressionDefinitionProjection
 {
-    internal static AchievementDefinition Achievement(AchievementDef source) =>
-        AchievementDefinition.FromSeed(source, Path("achievement", source?.achievement_id ?? ""));
-
     internal static QuestDefinition Quest(QuestTestDefinitionBuilder source) =>
         source?.ToDefinition(Path("quest", source.quest_id))
         ?? throw new ArgumentNullException(nameof(source));
 
     internal static TagRequirementDefinition TagRequirement(TagRequirement source) =>
         TagRequirementDefinition.FromDiagnosticFixture(source, "test.tag_requirement");
-
-    internal static Dictionary<StringName, AchievementDefinition> Achievements(
-        IReadOnlyDictionary<StringName, AchievementDef> source
-    ) => Project(source, Achievement);
 
     internal static Dictionary<StringName, QuestDefinition> Quests(
         IReadOnlyDictionary<StringName, QuestTestDefinitionBuilder> source

@@ -224,7 +224,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.Eq(DictString(setup, "display_name"), "濒死镜影", "save should write stable display name.");
         _test.False(DictBool(setup, "charged", true), "saved setup should be uncharged.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 0, "saved setup should reserve no MP.");
-        _test.Eq(DictInt(setup, "material_quantity", -1), 0, "saved setup should show zero material receipt.");
+        _test.Eq(ArrayValue(setup, "material_costs").Count, 0, "saved setup should show no material receipt.");
         _test.Eq(DictString(Dict(setup, "trigger"), "type"), "hp_below_percent", "saved setup should expose trigger type.");
         _test.Eq(DictInt(Dict(setup, "trigger"), "percent", -1), 30, "saved setup should expose trigger percent.");
         _test.Eq(DictString(setup, "release_mode"), "burst_release", "saved setup should expose release mode.");
@@ -251,11 +251,13 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.True(DictBool(setup, "charged", false), "charged status should report charged=true.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 6, "charged status should reserve matrix_load * 2 MP.");
         _test.Eq(DictInt(setup, "effective_mp_max", -1), 24, "charged status should expose effective MP max after reservation.");
-        _test.Eq(DictInt(setup, "material_quantity", -1), 1, "charged status should show one gem receipt.");
+        IReadOnlyDictionary<string, object> materialCost = FirstDictionary(ArrayValue(setup, "material_costs"));
+        _test.Eq(DictString(materialCost, "item_id"), GemId.ToString(), "charged status material id mismatch.");
+        _test.Eq(DictInt(materialCost, "quantity", -1), 1, "charged status should show one gem receipt.");
         _test.True(textSnapshot.Contains("charged=yes"), "text snapshot should render charged state.");
         _test.True(textSnapshot.Contains("reserved_mp_max=6"), "text snapshot should render reserved MP.");
         _test.True(textSnapshot.Contains("effective_mp_max=24"), "text snapshot should render effective MP max.");
-        _test.True(textSnapshot.Contains("material=special_contingency_gem:1"), "text snapshot should render material receipt.");
+        _test.True(textSnapshot.Contains("materials=special_contingency_gem:1"), "text snapshot should render material receipt.");
     }
 
     private void TestHeadlessBattleContingencySnapshot()
@@ -385,9 +387,9 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         IReadOnlyDictionary<string, object> setup = FirstSetup(MemberStatus(snapshot, memberId));
         _test.False(DictBool(setup, "charged", true), "clear status should report charged=false.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 0, "clear status should remove MP reservation.");
-        _test.Eq(DictInt(setup, "material_quantity", -1), 0, "clear status should remove material receipt.");
+        _test.Eq(ArrayValue(setup, "material_costs").Count, 0, "clear status should remove material receipt.");
         _test.True(textSnapshot.Contains("charged=no"), "text snapshot should render cleared uncharged state.");
-        _test.True(textSnapshot.Contains("material=special_contingency_gem:0"), "text snapshot should render cleared material receipt.");
+        _test.True(textSnapshot.Contains("materials="), "text snapshot should render cleared material receipt.");
     }
 
     private void AssertNoSavedSetup(
@@ -421,8 +423,14 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.Eq(DictString(result, "setup_id"), setupId, "last contingency result setup mismatch.");
         _test.Eq(DictBool(result, "charged", !charged), charged, "last contingency result charged mismatch.");
         _test.Eq(DictInt(result, "reserved_mp_max", -1), reservedMpMax, "last contingency result reserved MP mismatch.");
-        _test.Eq(DictString(result, "material_item_id"), GemId.ToString(), "last contingency result material id mismatch.");
-        _test.Eq(DictInt(result, "material_quantity", -1), materialQuantity, "last contingency result material quantity mismatch.");
+        IReadOnlyList<object> materialCosts = ArrayValue(result, "material_costs");
+        _test.Eq(materialCosts.Count, materialQuantity > 0 ? 1 : 0, "last contingency result material cost count mismatch.");
+        if (materialQuantity > 0)
+        {
+            IReadOnlyDictionary<string, object> materialCost = FirstDictionary(materialCosts);
+            _test.Eq(DictString(materialCost, "item_id"), GemId.ToString(), "last contingency result material id mismatch.");
+            _test.Eq(DictInt(materialCost, "quantity", -1), materialQuantity, "last contingency result material quantity mismatch.");
+        }
     }
 
     private void AssertWarehouseQuantity(

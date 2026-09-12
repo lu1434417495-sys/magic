@@ -603,7 +603,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
                 enemyTemplates,
                 _sharedSession.GetEnemyAiBrainDefinitions(),
                 encounterBuilder,
-                item_defs: _sharedSession.GetItemDefsTyped()
+                item_defs: _sharedSession.GetItemDefsTyped(),
+                basic_attack_skill_id: _sharedSession
+                    .GetGameplayConfigurationTyped()
+                    .BattleSkillRoles
+                    .BasicAttackSkillId
             );
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
             var damageResolver = new FixedSuccessOneDamageResolver();
@@ -671,7 +675,15 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         }
 
         var builder = new EncounterRosterBuilder();
-        builder.Setup(encounters, rosters, enemyTemplates);
+        builder.Setup(
+            encounters,
+            rosters,
+            enemyTemplates,
+            GameSessionTestFactory.GetProcessSnapshot()
+                .GameplayConfiguration
+                .BattleSkillRoles
+                .BasicAttackSkillId
+        );
         return builder;
     }
 

@@ -20,6 +20,7 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 item_id = "potion",
                 display_name = "Potion",
                 base_price = 10,
+                buy_price = 10,
                 max_stack = 99,
                 sellable = true,
             }.ToDefinition();
@@ -86,7 +87,7 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 }
             );
 
-            service = new SettlementShopService();
+            service = new SettlementShopService(BuildShopDefinitions());
             SettlementShopWindowBuildResult windowResult = service.BuildWindowDataTyped(
                 "service_basic_supply",
                 new GDictionary
@@ -195,5 +196,25 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
         }
 
         RequestTestExit(_test.Finish("shop stock mutation persists in settlement state"));
+    }
+
+    private static IReadOnlyDictionary<StringName, SettlementShopDefinition>
+        BuildShopDefinitions()
+    {
+        var definition = new SettlementShopDefinition(
+            "service_basic_supply",
+            "village_basic_supply",
+            "Fixture Supply",
+            12,
+            new[] { new SettlementShopItemDefinition("potion", 1, 1, 0, 10000) },
+            System.Array.Empty<SettlementShopItemDefinition>(),
+            0,
+            0,
+            10000
+        );
+        return new Dictionary<StringName, SettlementShopDefinition>
+        {
+            [definition.InteractionScriptId] = definition,
+        };
     }
 }

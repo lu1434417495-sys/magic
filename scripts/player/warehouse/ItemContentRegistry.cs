@@ -118,11 +118,14 @@ public sealed class ItemContentRegistry : System.IDisposable
             && definition.SellPrice > sellPriceCap
         )
         {
-            GameLog.Warning(
-                $"Item {itemId} declares sell_price {definition.SellPrice} above half of buy_price {definition.BuyPrice}; effective sell price is clamped to {sellPriceCap} to prevent shop arbitrage.",
-                "item.sell_price_clamped",
-                "content"
+            // 原先只发一条运行时警告然后按 clamp 后的价格卖，JSON 写的数和游戏跑的数
+            // 不一致且无人察觉。作者写错就该在内容校验期拒绝。
+            _validationErrors.Add(
+                $"Item {itemId} at {entry.Context.SourceLabel}{entry.Context.JsonPointer} declares "
+                    + $"sell_price {definition.SellPrice} above half of buy_price "
+                    + $"{definition.BuyPrice} (max {sellPriceCap}); shop arbitrage is not allowed."
             );
+            return;
         }
 
         _itemDefs.Add(itemId, definition);

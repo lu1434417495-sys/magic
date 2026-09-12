@@ -71,7 +71,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         var saveRequests = new List<(StringName MemberId, StringName PayloadName)>();
         window.save_requested += (memberId, payloadName) => saveRequests.Add((memberId, payloadName));
 
-        window.ShowForMember(member, manager);
+        window.ShowForMember(member, manager, BuildTemplateDefinitions());
         await ProcessFrames(1);
         int ownerTurnIndex = FindOptionIndex(window.trigger_selector, "owner_turn_started");
         _test.True(ownerTurnIndex >= 0, "trigger selector should expose owner_turn_started template.");
@@ -109,7 +109,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         PartyMemberState member = MakeMember("hero", "Hero", UnchargedSetup());
         using CharacterManagementModule manager = BuildManager(member);
 
-        window.ShowForMember(member, manager);
+        window.ShowForMember(member, manager, BuildTemplateDefinitions());
         await ProcessFrames(1);
 
         _test.True(window.Visible, "ShowForMember should show the contingency setup window.");
@@ -134,7 +134,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         PartyMemberState member = MakeMember("hero", "Hero", ChargedSetup());
         using CharacterManagementModule manager = BuildManager(member);
 
-        window.ShowForMember(member, manager);
+        window.ShowForMember(member, manager, BuildTemplateDefinitions());
         await ProcessFrames(1);
 
         _test.True(window.save_button.Disabled, "charged setup should disable direct save/edit.");
@@ -159,7 +159,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         window.charge_requested += (memberId, setupId) => chargeRequests.Add((memberId, setupId));
         window.clear_charge_requested += (memberId, setupId) => clearRequests.Add((memberId, setupId));
 
-        window.ShowForMember(member, manager);
+        window.ShowForMember(member, manager, BuildTemplateDefinitions());
         await ProcessFrames(1);
         window.clear_charge_button.EmitSignal(Button.SignalName.Pressed);
         await ProcessFrames(1);
@@ -311,6 +311,67 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
             is_core = false,
             granted_source_type = "test",
         };
+
+    private static IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> BuildTemplateDefinitions() =>
+        new Dictionary<StringName, ContingencySetupTemplateDefinition>
+        {
+            ["hp_mirror_self"] = BuildTemplate(
+                "hp_mirror_self",
+                "濒死镜影",
+                "hp_below_percent",
+                "after_hp_changed"
+            ),
+            ["owner_turn_mirror_self"] = BuildTemplate(
+                "owner_turn_mirror_self",
+                "起手镜影",
+                "owner_turn_started",
+                "owner_turn_started"
+            ),
+        };
+
+    private static ContingencySetupTemplateDefinition BuildTemplate(
+        StringName templateId,
+        string displayName,
+        StringName triggerType,
+        StringName timing
+    ) =>
+        new(
+            templateId,
+            displayName,
+            "mage_chain_contingency",
+            3,
+            2,
+            new[] { new ContingencyMaterialCostDefinition("special_contingency_gem", 1) },
+            "burst_release",
+            new ContingencyTriggerDefinition(
+                triggerType,
+                "owner",
+                timing,
+                triggerType == "hp_below_percent" ? 30 : 0,
+                triggerType == "hp_below_percent",
+                0,
+                "",
+                "",
+                "",
+                0,
+                "",
+                "",
+                System.Array.Empty<StringName>(),
+                "",
+                ""
+            ),
+            new[]
+            {
+                new ContingencyStoredSpellTemplateDefinition(
+                    "mage_mirror_image",
+                    2,
+                    1,
+                    new ContingencyTargetResolverDefinition("self", "", 0),
+                    new Dictionary<string, object>(),
+                    "skip_if_invalid"
+                ),
+            }
+        );
 
     private static Dictionary<StringName, SkillDefinition> BuildSkillIndex() =>
         new()

@@ -7,8 +7,6 @@ using Godot;
 
 internal static class EquipmentClosureGenerationBattleSimScenarioFactory
 {
-    private static readonly StringName BasicAttackSkillId = "basic_attack";
-    private static readonly StringName MeleeBrainId = "melee_aggressor";
     private static readonly Vector2I AllyCoord = new(1, 1);
     private static readonly Vector2I EnemyCoord = new(5, 1);
 
@@ -41,12 +39,14 @@ internal static class EquipmentClosureGenerationBattleSimScenarioFactory
         string label,
         ItemDefinition? equippedItem,
         EquipmentClosureGenerationProjectedContent content,
-        ContentSnapshot processSnapshot
+        ContentSnapshot processSnapshot,
+        EquipmentGenerationBattleSimFixtureDefinition fixture
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(processSnapshot);
+        ArgumentNullException.ThrowIfNull(fixture);
         PartyState partyState = BuildPartyState("equipment_probe");
         PartyMemberState member = partyState.GetMemberState("equipment_probe");
         StringName entrySlot = "";
@@ -91,7 +91,11 @@ internal static class EquipmentClosureGenerationBattleSimScenarioFactory
             processSnapshot.Skills,
             item_defs: content.CombinedItems,
             trait_defs: content.CombinedTraits,
-            equipment_ability_bindings: content.CombinedEquipmentAbilityBindings
+            equipment_ability_bindings: content.CombinedEquipmentAbilityBindings,
+            basic_attack_skill_id: processSnapshot
+                .GameplayConfiguration
+                .BattleSkillRoles
+                .BasicAttackSkillId
         );
         IReadOnlyList<BattleUnitState> units =
             projectionRuntime._unit_factory.BuildAllyUnits(partyState, null);
@@ -109,14 +113,17 @@ internal static class EquipmentClosureGenerationBattleSimScenarioFactory
                 $"Projected unit did not retain equipment candidate {equippedItem.ItemId}."
             );
         }
-        ConfigureCombatUnit(unit, label, "player", AllyCoord);
+        ConfigureCombatUnit(unit, label, "player", AllyCoord, fixture);
         return unit;
     }
 
-    internal static BattleUnitState BuildControlEnemy(string label)
+    internal static BattleUnitState BuildControlEnemy(
+        string label,
+        EquipmentGenerationBattleSimFixtureDefinition fixture
+    )
     {
         var unit = new BattleUnitState();
-        ConfigureCombatUnit(unit, label, "hostile", EnemyCoord);
+        ConfigureCombatUnit(unit, label, "hostile", EnemyCoord, fixture);
         return unit;
     }
 
@@ -125,15 +132,18 @@ internal static class EquipmentClosureGenerationBattleSimScenarioFactory
         ItemDefinition? equippedItem,
         BattleUnitState ally,
         bool candidateArm,
-        IReadOnlyList<int> seeds
+        IReadOnlyList<int> seeds,
+        EquipmentGenerationBattleSimFixtureDefinition fixture
     )
     {
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentNullException.ThrowIfNull(ally);
         ArgumentNullException.ThrowIfNull(seeds);
+        ArgumentNullException.ThrowIfNull(fixture);
         string suffix = candidateArm ? "candidate" : "baseline";
         BattleUnitState enemy = BuildControlEnemy(
-            $"equipment_generation_{candidate.ItemId}_{suffix}_enemy"
+            $"equipment_generation_{candidate.ItemId}_{suffix}_enemy",
+            fixture
         );
         return new BattleSimScenarioDefinition(
             scenarioId: new StringName(
@@ -191,7 +201,8 @@ internal static class EquipmentClosureGenerationBattleSimScenarioFactory
         BattleUnitState unit,
         string label,
         StringName factionId,
-        Vector2I coord
+        Vector2I coord,
+        EquipmentGenerationBattleSimFixtureDefinition fixture
     )
     {
         unit.unit_id = new StringName(label);
@@ -199,7 +210,7 @@ internal static class EquipmentClosureGenerationBattleSimScenarioFactory
         unit.display_name = label;
         unit.faction_id = factionId;
         unit.ControlModeKind = BattleUnitControlMode.Ai;
-        unit.ai_brain_id = MeleeBrainId;
+        unit.ai_brain_id = fixture.MeleeBrainId;
         unit.ai_state_id = "engage";
         if (!unit.SetBodySizeCategory("medium"))
             throw new InvalidOperationException("Standard BattleSim body size is invalid.");
@@ -236,8 +247,8 @@ internal static class EquipmentClosureGenerationBattleSimScenarioFactory
             ap: 2,
             movePoints: BattleUnitState.DefaultMovePointsPerTurn
         );
-        unit.SetKnownActiveSkillIds(new[] { BasicAttackSkillId });
-        unit.SetKnownSkillLevelTyped(BasicAttackSkillId, 1, preserveZero: true);
+        unit.SetKnownActiveSkillIds(new[] { fixture.BasicAttackSkillId });
+        unit.SetKnownSkillLevelTyped(fixture.BasicAttackSkillId, 1, preserveZero: true);
     }
 
     private static int PowerSurface(ItemDefinition item) =>

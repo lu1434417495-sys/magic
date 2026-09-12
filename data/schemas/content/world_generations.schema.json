@@ -745,6 +745,14 @@
         "settlement_encounter_profile_id": {
           "type": "string"
         },
+        "vertical_band": {
+          "type": "string",
+          "enum": [
+            "all",
+            "north",
+            "south"
+          ]
+        },
         "vision_range": {
           "type": "integer"
         }
@@ -758,6 +766,7 @@
         "region_tag",
         "settlement_encounter_display_name",
         "settlement_encounter_profile_id",
+        "vertical_band",
         "vision_range"
       ]
     }

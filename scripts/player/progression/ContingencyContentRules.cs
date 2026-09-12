@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Godot;
@@ -10,12 +11,53 @@ public readonly record struct ContingencyTemplateStoredSpellInfo(
 
 public static class ContingencyContentRules
 {
-    public static readonly StringName ChargeMaterialItemId = "special_contingency_gem";
-    public const int ChargeMaterialQuantity = 1;
-    public const int ReservedMpPerMatrixLoad = 2;
+    public static int ResolveReservedMpMax(ContingencySetupTemplateDefinition template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        if (template.MatrixLoad <= 0 || template.ReservedMpPerMatrixLoad <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Contingency template '{template.TemplateId}' must define positive matrix load and reserved MP per matrix load."
+            );
+        }
+        return checked(template.MatrixLoad * template.ReservedMpPerMatrixLoad);
+    }
 
-    public static int ResolveReservedMpMax(int matrixLoad) =>
-        Mathf.Max(matrixLoad * ReservedMpPerMatrixLoad, 1);
+    public static IReadOnlyList<ContingencyMaterialCostState> BuildChargeCosts(
+        ContingencySetupTemplateDefinition template
+    )
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        if (template.ChargeMaterialCosts == null || template.ChargeMaterialCosts.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Contingency template '{template.TemplateId}' must define at least one charge material cost."
+            );
+        }
+        var result = new List<ContingencyMaterialCostState>(template.ChargeMaterialCosts.Count);
+        for (int index = 0; index < template.ChargeMaterialCosts.Count; index++)
+        {
+            ContingencyMaterialCostDefinition definition = template.ChargeMaterialCosts[index];
+            if (definition == null || definition.ItemId == "" || definition.Quantity <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Contingency template '{template.TemplateId}' has an invalid charge material cost at index {index}."
+                );
+            }
+            ContingencyMaterialCostState state = ContingencyMaterialCostState.Create(
+                definition.ItemId,
+                definition.Quantity
+            );
+            if (state == null)
+            {
+                throw new InvalidOperationException(
+                    $"Contingency template '{template.TemplateId}' charge material cost at index {index} could not be projected."
+                );
+            }
+            result.Add(state);
+        }
+        return new ReadOnlyCollection<ContingencyMaterialCostState>(result);
+    }
 
     public static IReadOnlyList<ContingencyTemplateStoredSpellInfo> GetTemplateStoredSpellsTyped(
         ContingencySetupTemplateDefinition template

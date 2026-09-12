@@ -1,7 +1,7 @@
 # Content JSON 作者与生成边界
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-08-23`
+> 核对日期：`2026-08-24`
 
 ## 定位
 
@@ -25,17 +25,29 @@ adapter、Resource-to-Definition fallback 或 authored-path reverse lookup。`da
 保留的 `.tres` 是 `engine_assets/engine_asset_catalog.tres`；它和四类 typed entry 是唯一
 Godot Resource authoring 边界。
 
+file-local template 必须从至少一个 entry 经父模板链可达；孤立声明由
+`content.json.template.unused_template` 在 strict DTO parse 前 fail closed。当前 selector 仍是单个
+`template` ID，不把多轴组合伪装为多个互不生效的声明；需要多模板组合时应作为 schema cutover
+单独设计并全量迁移，而不是在 merger 中增加静默兼容格式。
+
 ## 当前域与所有权
 
 | Domain group | Production owners |
 |---|---|
 | progression/equipment | skills、items、traits、equipment abilities、gear sets、recipes |
 | enemy/battle | AI brains、enemy templates、encounter rosters、battle encounters、barriers/layers、special-profile manifest/profile |
-| quest/identity | quests、contingency templates、professions、races、subraces、faith、age profiles、bloodlines、ascensions、stage advancements |
+| quest/identity | quests、contingency templates、gameplay configuration、professions、races、subraces、faith、age profiles、bloodlines、ascensions、stage advancements |
 | tools/world | BattleSim profiles/scenarios、world presets/generations/shared |
 
 `ContentJsonSchemaCatalog.All` 是当前 domain 清单的代码权威；当前规模由各 registry 的 focused
 回归锁定，不在设计文档复制易漂移计数。
+
+`gameplay_configuration` 是进程级规则配置域，集中拥有成就定义、据点商店目录、
+新游戏队伍/起始武器标签规则、`battle_skill_roles` 核心战斗技能角色，以及技能/装备生成
+BattleSim 的基准角色 ID。基础攻击只在 `battle_skill_roles.basic_attack_skill_id` 声明一次，
+两个生成 fixture 借用该投影。运行时只消费
+投影后的 `GameplayConfigurationDefinition`；不得在 registry、session、商店服务或生成门禁中
+保留同一批内容 ID、价格、概率或初始成员的代码种子。
 
 物品 JSON 是旧 item-template 链的最终展开结果；production 不再执行模板继承或
 `MergeWithTemplate`。装备能力的 condition/action payload 是 plain import model；kind
@@ -46,16 +58,19 @@ Godot Resource authoring 边界。
 `ContentSnapshotBuilder` 显式保持依赖顺序，不把跨域构建塞进单域 descriptor：
 
 ```text
-progression definitions (skills + traits + equipment abilities)
+gameplay configuration (single import; achievements + battle skill roles)
+  -> progression definitions (skills + traits + equipment abilities; achievements injected)
   -> items
   -> gear sets (item + trait + equipment binding IDs)
   -> recipes (item IDs)
   -> remaining snapshot domains
+  -> gameplay/contingency cross-domain reference validation
 ```
 
 单域 validator 只验证本域 shape、closed vocabulary 和局部不变量。item icon、item
 trait/skill、equipment binding、gear-set member/trait、recipe input/output 等引用在组合
-图上验证。`RecipeContentRegistry.Setup(itemDefinitions)` 明确表达 recipe 对 item
+图上验证。contingency template 的充能材料同样必须在 snapshot publication 前解析为正式
+item definition。`RecipeContentRegistry.Setup(itemDefinitions)` 明确表达 recipe 对 item
 definition 的依赖。生成闭包的 cross-domain 层还复用正式
 `ItemTraitContentValidator`、`SkillBookItemContentValidator` 与 gear-set definition
 validator，避免只验证“ID 存在”却漏掉 trait source、skill learn-source、阈值顺序或
