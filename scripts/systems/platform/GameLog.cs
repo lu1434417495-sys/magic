@@ -251,24 +251,42 @@ public static class GameLog
         }
     }
 
-    private static void ReportSinkFailure(IGameLogSink sink, Exception exception)
+    private static void ReportSinkFailure(IGameLogSink failedSink, Exception exception)
     {
-        if (!IsConsoleOutputEnabled)
-            return;
-
         var failure = new GameLogRecord(
             GameLogLevel.Error,
             "log.sink.failed",
             "log",
-            $"Log sink {sink?.GetType().FullName ?? "<unknown>"} failed: {exception.GetType().Name}: {exception.Message}"
+            $"Log sink {failedSink?.GetType().FullName ?? "<unknown>"} failed: {exception.GetType().Name}: {exception.Message}"
         );
-        try
+
+        if (IsConsoleOutputEnabled)
         {
-            ConsoleLogSink.Instance.Write(failure);
+            try
+            {
+                ConsoleLogSink.Instance.Write(failure);
+            }
+            catch
+            {
+                // 控制台边界也失败了，继续退到其余 sink。
+            }
         }
-        catch
+
+        // 关闭控制台输出（headless / 测试）时原先直接 return，sink 失败完全无痕。
+        // 其余 sink 通常还是健康的，失败报告应该落到它们身上。
+        foreach (IGameLogSink sink in Volatile.Read(ref _sinks))
         {
-            // There is no safe fallback after the console boundary also fails.
+            if (ReferenceEquals(sink, failedSink))
+                continue;
+            try
+            {
+                sink.Write(failure);
+            }
+            catch
+            {
+                // 这个 sink 也坏了。不递归上报，继续试下一个；全部失败时确实已无处可写，
+                // 而记日志本身不允许变成应用的失败路径。
+            }
         }
     }
 
