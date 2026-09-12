@@ -17,16 +17,4 @@ public partial class FixedMissOneDamageResolver : BattleDamageResolver
         return 1;
     }
 
-    public int _roll_true_random_attack_range(
-        int min_value,
-        int max_value,
-        BattleState battle_state
-    )
-    {
-        if (battle_state != null)
-        {
-            battle_state.NextAttackRollNonce();
-        }
-        return Math.Min(min_value, max_value);
-    }
 }

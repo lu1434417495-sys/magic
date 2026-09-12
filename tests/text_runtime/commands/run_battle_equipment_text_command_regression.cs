@@ -39,7 +39,11 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         RunCommand(runner, $"warehouse add {RestrictedTestHelmId} 1");
         RunCommand(runner, "battle start settlement");
         RunCommand(runner, "battle confirm");
+        GameRuntimeFacade runtime = runner.GetSession().GetRuntimeFacade();
+        Dictionary<StringName, (int CurrentHp, int MaxHp)> manualUnitHp =
+            PrimeManualUnitSurvival(runtime);
         AdvanceToManualBattleTurn(runner);
+        RestoreManualUnitHp(runtime, manualUnitHp);
         BattleUnitState activeUnitState = GetActiveUnitState(runner);
         string activeMemberId = activeUnitState?.source_member_id.ToString() ?? "";
         _test.True(!string.IsNullOrEmpty(activeMemberId), "战斗换装回归前置：手动单位应关联队伍成员。");
@@ -184,6 +188,40 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             RunCommand(runner, "battle tick 1");
         }
         _test.Fail("战斗换装文本回归未能进入手动单位回合。");
+    }
+
+    private static Dictionary<StringName, (int CurrentHp, int MaxHp)> PrimeManualUnitSurvival(
+        GameRuntimeFacade runtime
+    )
+    {
+        var snapshots = new Dictionary<StringName, (int CurrentHp, int MaxHp)>();
+        foreach (BattleUnitState unit in runtime?.GetBattleState()?.GetUnitsTyped() ?? new List<BattleUnitState>())
+        {
+            if (unit?.control_mode != "manual" || unit.attribute_snapshot == null)
+                continue;
+            snapshots[unit.unit_id] = (
+                unit.GetCurrentHp(),
+                unit.attribute_snapshot.GetValue("hp_max")
+            );
+            unit.attribute_snapshot.SetValue("hp_max", 100);
+            unit.SetCurrentHp(100);
+        }
+        return snapshots;
+    }
+
+    private static void RestoreManualUnitHp(
+        GameRuntimeFacade runtime,
+        IReadOnlyDictionary<StringName, (int CurrentHp, int MaxHp)> snapshots
+    )
+    {
+        foreach ((StringName unitId, (int currentHp, int maxHp)) in snapshots)
+        {
+            BattleUnitState unit = runtime?.GetBattleState()?.GetUnit(unitId);
+            if (unit?.attribute_snapshot == null)
+                continue;
+            unit.attribute_snapshot.SetValue("hp_max", maxHp);
+            unit.SetCurrentHp(currentHp);
+        }
     }
 
     private void PrimeActiveUnitAp(GameTextCommandRunner runner, int currentAp)

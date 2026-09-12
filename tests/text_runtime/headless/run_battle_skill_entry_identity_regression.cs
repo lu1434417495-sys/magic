@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -33,13 +34,15 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
             AssertCommandOk(runner.ExecuteLine("battle start settlement"), "battle start settlement 应成功。");
             AdvanceUntilBattleActive(runner);
             AssertCommandOk(runner.ExecuteLine("battle confirm"), "battle confirm 应成功。");
-            AdvanceToManualBattleTurn(runner);
-
             HeadlessGameTestSession session = runner.GetSession();
             GameRuntimeFacade runtime = session?.GetRuntimeFacadeTyped();
             _test.True(runtime != null, "skill entry 回归应拿到 typed runtime。");
             if (runtime == null)
                 return;
+            Dictionary<StringName, (int CurrentHp, int MaxHp)> manualUnitHp =
+                PrimeManualUnitSurvival(runtime);
+            AdvanceToManualBattleTurn(runner);
+            RestoreManualUnitHp(runtime, manualUnitHp);
 
             BattleUnitState activeUnit = PrimeActiveManualKnownSkill(runtime);
             _test.True(activeUnit != null, "skill entry 回归应拿到当前手动单位。");
@@ -304,6 +307,40 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
             AssertCommandOk(runner.ExecuteLine("battle tick 1"), "推进到手动回合的 battle tick 应成功。");
         }
         _test.Fail("skill entry 回归未能进入手动单位回合。");
+    }
+
+    private static Dictionary<StringName, (int CurrentHp, int MaxHp)> PrimeManualUnitSurvival(
+        GameRuntimeFacade runtime
+    )
+    {
+        var snapshots = new Dictionary<StringName, (int CurrentHp, int MaxHp)>();
+        foreach (BattleUnitState unit in runtime?.GetBattleState()?.GetUnitsTyped() ?? new List<BattleUnitState>())
+        {
+            if (unit?.control_mode != "manual" || unit.attribute_snapshot == null)
+                continue;
+            snapshots[unit.unit_id] = (
+                unit.GetCurrentHp(),
+                unit.attribute_snapshot.GetValue("hp_max")
+            );
+            unit.attribute_snapshot.SetValue("hp_max", 100);
+            unit.SetCurrentHp(100);
+        }
+        return snapshots;
+    }
+
+    private static void RestoreManualUnitHp(
+        GameRuntimeFacade runtime,
+        IReadOnlyDictionary<StringName, (int CurrentHp, int MaxHp)> snapshots
+    )
+    {
+        foreach ((StringName unitId, (int currentHp, int maxHp)) in snapshots)
+        {
+            BattleUnitState unit = runtime?.GetBattleState()?.GetUnit(unitId);
+            if (unit?.attribute_snapshot == null)
+                continue;
+            unit.attribute_snapshot.SetValue("hp_max", maxHp);
+            unit.SetCurrentHp(currentHp);
+        }
     }
 
     private static GDictionary FindBattleUnit(GDictionary battleSnapshot, string unitId)

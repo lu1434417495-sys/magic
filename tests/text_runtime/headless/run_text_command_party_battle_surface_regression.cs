@@ -111,7 +111,10 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
                 runner.ExecuteLine("battle confirm"),
                 "battle confirm 应成功。"
             );
+            Dictionary<StringName, (int CurrentHp, int MaxHp)> manualUnitHp =
+                PrimeManualUnitSurvival(runtime);
             AdvanceToManualBattleTurn(runner);
+            RestoreManualUnitHp(runtime, manualUnitHp);
 
             PrimeActiveManualSkillBlocker(runtime, 0, 0);
             GameTextCommandResult skillBlockedResult = runner.ExecuteLine("battle skill 1");
@@ -292,6 +295,40 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
             AssertCommandOk(runner.ExecuteLine("battle tick 1"), "推进到手动回合的 battle tick 应成功。");
         }
         _test.Fail("文本 party/battle surface 回归未能进入手动单位回合。");
+    }
+
+    private static Dictionary<StringName, (int CurrentHp, int MaxHp)> PrimeManualUnitSurvival(
+        GameRuntimeFacade runtime
+    )
+    {
+        var snapshots = new Dictionary<StringName, (int CurrentHp, int MaxHp)>();
+        foreach (BattleUnitState unit in runtime?.GetBattleState()?.GetUnitsTyped() ?? new List<BattleUnitState>())
+        {
+            if (unit?.control_mode != "manual" || unit.attribute_snapshot == null)
+                continue;
+            snapshots[unit.unit_id] = (
+                unit.GetCurrentHp(),
+                unit.attribute_snapshot.GetValue("hp_max")
+            );
+            unit.attribute_snapshot.SetValue("hp_max", 100);
+            unit.SetCurrentHp(100);
+        }
+        return snapshots;
+    }
+
+    private static void RestoreManualUnitHp(
+        GameRuntimeFacade runtime,
+        IReadOnlyDictionary<StringName, (int CurrentHp, int MaxHp)> snapshots
+    )
+    {
+        foreach ((StringName unitId, (int currentHp, int maxHp)) in snapshots)
+        {
+            BattleUnitState unit = runtime?.GetBattleState()?.GetUnit(unitId);
+            if (unit?.attribute_snapshot == null)
+                continue;
+            unit.attribute_snapshot.SetValue("hp_max", maxHp);
+            unit.SetCurrentHp(currentHp);
+        }
     }
 
     private static void PrimeActiveManualSkillBlocker(

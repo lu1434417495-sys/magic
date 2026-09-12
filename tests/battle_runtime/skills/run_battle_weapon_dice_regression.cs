@@ -929,6 +929,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
                 [skillDefinition.SkillId] = skillDefinition,
             }
         );
+        runtime.ConfigureDamageResolverForTests(new FixedHitMaxDamageResolver());
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         BattleUnitState attacker = BuildUnit("heavy_strike_weapon_gate_user");
         attacker.SetCurrentStamina(100);
 

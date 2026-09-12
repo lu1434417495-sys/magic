@@ -7,16 +7,21 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class FixedRollDamageResolver : BattleDamageResolver
 {
     private readonly Queue<int> _damageRolls = new();
-    private readonly Queue<int> _attackRolls = new();
+    private readonly FixedQueueHitResolver _fixedHitResolver = new();
 
-    public FixedRollDamageResolver() { }
+    public FixedRollDamageResolver()
+    {
+        SetHitResolver(_fixedHitResolver);
+    }
 
     public FixedRollDamageResolver(GArray damageRolls)
+        : this()
     {
         SetRolls(damageRolls, null);
     }
 
     public FixedRollDamageResolver(GArray damageRolls, GArray attackRolls)
+        : this()
     {
         SetRolls(damageRolls, attackRolls);
     }
@@ -34,15 +39,10 @@ public partial class FixedRollDamageResolver : BattleDamageResolver
             }
         }
 
-        _attackRolls.Clear();
-        if (attackRolls != null)
-        {
-            foreach (var roll in attackRolls)
-            {
-                _attackRolls.Enqueue(roll.AsInt32());
-            }
-        }
+        _fixedHitResolver.SetRolls(attackRolls);
     }
+
+    internal BattleHitResolver GetHitResolver() => _fixedHitResolver;
 
     public override int _roll_damage_die(int dice_sides)
     {
@@ -54,22 +54,31 @@ public partial class FixedRollDamageResolver : BattleDamageResolver
         return Math.Clamp(_damageRolls.Dequeue(), 1, normalizedSides);
     }
 
-    public int _roll_true_random_attack_range(
-        int min_value,
-        int max_value,
-        BattleState battle_state
-    )
+    private sealed class FixedQueueHitResolver : BattleHitResolver
     {
-        int lower = Math.Min(min_value, max_value);
-        int upper = Math.Max(min_value, max_value);
-        if (battle_state != null)
+        private readonly Queue<int> _attackRolls = new();
+
+        internal void SetRolls(GArray attackRolls)
         {
-            battle_state.NextAttackRollNonce();
+            _attackRolls.Clear();
+            if (attackRolls == null)
+                return;
+            foreach (Variant roll in attackRolls)
+                _attackRolls.Enqueue(roll.AsInt32());
         }
-        if (_attackRolls.Count == 0)
+
+        protected override int RollTrueRandomAttackRange(
+            int minValue,
+            int maxValue,
+            BattleState battleState
+        )
         {
-            return upper;
+            int lower = Math.Min(minValue, maxValue);
+            int upper = Math.Max(minValue, maxValue);
+            battleState?.NextAttackRollNonce();
+            return _attackRolls.Count == 0
+                ? upper
+                : Math.Clamp(_attackRolls.Dequeue(), lower, upper);
         }
-        return Math.Clamp(_attackRolls.Dequeue(), lower, upper);
     }
 }

@@ -92,7 +92,10 @@ public partial class run_shared_test_fixture_regression : LifecycleTestSceneTree
 
     private void TestFixedResolversUseInjectedRolls()
     {
-        var resolver = new FixedRollDamageResolver(new GArray { 2 }, new GArray { 20 });
+        var resolver = new FixedRollDamageResolver(
+            new GArray { 2 },
+            new GArray { 3, 7, 11 }
+        );
 
         BattleUnitState source = BattleTestFixture.BuildUnit("source", "player", Vector2I.Zero);
         BattleUnitState target = BattleTestFixture.BuildUnit("target", "enemy", Vector2I.Right);
@@ -115,6 +118,37 @@ public partial class run_shared_test_fixture_regression : LifecycleTestSceneTree
             );
         GDictionary result = resultLease.Value;
         _test.Eq(DictInt(result, "damage"), 3, "FixedRollDamageResolver 应使用注入 damage roll。");
+
+        var attackState = new BattleState();
+        int[] expectedAttackRolls = { 3, 7, 11 };
+        foreach (int expectedRoll in expectedAttackRolls)
+        {
+            AttackEffectResolutionResult injectedAttack = resolver.ResolveAttackEffects(
+                source,
+                target,
+                new[] { effect },
+                new AttackCheckInput(
+                    requiredRoll: 21,
+                    naturalOneAutoMiss: false,
+                    naturalTwentyAutoHit: false
+                ),
+                new AttackContext { BattleState = attackState }
+            );
+            _test.Eq(
+                injectedAttack.HitRoll,
+                expectedRoll,
+                "FixedRollDamageResolver 应按顺序消费注入 attack roll。"
+            );
+            _test.False(
+                injectedAttack.AttackSuccess,
+                "required roll 21 且关闭 natural-20 auto-hit 时，注入骰应保持普通 miss。"
+            );
+        }
+        _test.Eq(
+            (int)attackState.attack_roll_nonce,
+            expectedAttackRolls.Length,
+            "每次固定攻击骰仍应推进正式 attack-roll nonce。"
+        );
 
         var hitResolver = new FixedHitResolver(17);
         AttackRollResult hit = hitResolver.RollAttackCheck(

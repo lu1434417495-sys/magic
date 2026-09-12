@@ -487,6 +487,7 @@ public partial class run_equipment_attack_hit_reaction_regression : LifecycleTes
             // 因此 after-hit 反应（含 heal）都走同一 fixed-roll seam。
             var resolver = new FixedRollDamageResolver();
             BattleTestFixture.ConfigureDamageResolverForTests(runtime, resolver);
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, resolver.GetHitResolver());
 
             BattleUnitState holder = Unit("attack_hit_holder", "heroes");
             BattleUnitState target = Unit("attack_hit_target", "enemies");
@@ -568,7 +569,7 @@ public partial class run_equipment_attack_hit_reaction_regression : LifecycleTes
 
         internal AttackEffectResolutionResult ResolveAttackMiss(CombatEffectDefinition effect)
         {
-            // requiredRoll 21 且关闭自然 20 自动命中：任意 D20 结果都是普通 miss。
+            // requiredRoll 21、关闭自然 20 自动命中并锁定暴击：任意 D20 都是普通 miss。
             return Resolver.ResolveAttackEffects(
                 Holder,
                 Target,
@@ -577,6 +578,7 @@ public partial class run_equipment_attack_hit_reaction_regression : LifecycleTes
                     requiredRoll: 21,
                     naturalOneAutoMiss: true,
                     naturalTwentyAutoHit: false,
+                    critLocked: true,
                     skillId: TestSkillId
                 ),
                 new AttackContext
