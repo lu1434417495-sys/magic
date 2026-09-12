@@ -851,7 +851,10 @@ public class BattleHitResolver : IDisposable
         int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
         bool forceHitNoCrit = attack_check.ForceHitNoCrit || attack_context.ForceHitNoCrit;
         bool forceHitAllowCrit = attack_context.ForceHitAllowCrit;
-        bool critLocked = BattleFateAttackRules.IsAttackCritLocked(source_unit) || forceHitNoCrit;
+        bool critLocked =
+            attack_check.CritLocked
+            || BattleFateAttackRules.IsAttackCritLocked(source_unit)
+            || forceHitNoCrit;
         int requiredRoll = attack_check.RequiredRoll;
         var metadata = new AttackResolutionMetadata
         {

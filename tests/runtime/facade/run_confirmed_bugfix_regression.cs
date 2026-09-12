@@ -16,6 +16,7 @@ public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
     private void Run()
     {
         TestAttackDispositionRespectsNaturalRollFlags();
+        TestAttackMetadataRespectsExplicitCritLock();
         TestMissingItemDefDoesNotTrapEquippedInstance();
 
         RequestTestExit(_test.Finish("Confirmed bugfix regression"));
@@ -38,6 +39,28 @@ public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
             new StringName("threshold_hit"),
             "关闭 natural_one_auto_miss 后，d20=1 且 required_roll=1 应按普通命中处理。"
         );
+    }
+
+    private void TestAttackMetadataRespectsExplicitCritLock()
+    {
+        BattleHitResolver hitResolver = new();
+        AttackCheckInput critLockedCheck = new(
+            requiredRoll: 21,
+            naturalTwentyAutoHit: false,
+            critLocked: true
+        );
+        AttackResolutionMetadata metadata = hitResolver.ResolveAttackMetadata(
+            BuildUnit("crit_lock_source"),
+            BuildUnit("crit_lock_target"),
+            critLockedCheck,
+            new AttackContext(new[] { 20 })
+        );
+
+        _test.Eq(metadata.HitRoll, 20, "显式禁暴击回归应固定掷出 d20=20。");
+        _test.True(metadata.CritLocked, "执行元数据应保留 AttackCheckInput.CritLocked。");
+        _test.False(metadata.AttackSuccess, "禁用自然 20 自动命中且门槛为 21 时应未命中。");
+        _test.False(metadata.CriticalHit, "显式禁暴击时 d20=20 不得提前判为暴击命中。");
+        _test.True(metadata.OrdinaryMiss, "显式禁暴击后的阈值失败应记为普通未命中。");
     }
 
     private void TestMissingItemDefDoesNotTrapEquippedInstance()
