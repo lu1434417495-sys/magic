@@ -889,14 +889,15 @@ godot --headless -s res://tests/&lt;domain&gt;/&lt;runner&gt;.cs</code></pre>
 </div>
 
 <h2 id="stage8">阶段 8 · JSON 终态清理（已完成）</h2>
-<p class="note"><strong>状态：已完成。</strong>本阶段按进入时的实际代码重新拆分，并以当前 checkout 的静态库存、严格全量回归、生命周期 soak 与 Windows export 结果作为完成证据；不包含外部 CI 声明。</p>
+<p class="note"><strong>状态：已完成。</strong>T8.1–T8.8 已落地；当前 checkout 的 build 为 0 warning/0 error，30/30 production offline CLI、31/31 schema check（含 test fixture）、520/520 routine regression、8/8 lifecycle lane、110/110 soak 与 Windows export smoke 全部通过。外部 CI 未运行，不声明通过。</p>
+<p class="note">2026-09-12 分主题提交复核：见 <code>docs/reviews/content_json_fix_commit_verification_20260912.md</code>；历史 DG-5/DG-6 的时序缺口仍按纠偏记录保留，不以当前复跑倒签。</p>
 
 <div class="task">
 <h4><span class="id">T8.1</span>闭合生产内容与 Dragon Scale JSON 迁移</h4>
 <p class="meta">依赖：DG-7</p>
 <dl>
 <dt>步骤</dt><dd>把 Dragon Scale 的 item、trait、gear set、equipment ability 与 granted skill 切换为 canonical JSON，删除对应 13 个 <code>.tres</code>；补齐 save-tag bonus、按伤害类型减伤、来源清理与引擎资产 ID 投影。</dd>
-<dt>验收</dt><dd>生产内容共 29 个 JSON domain 均由 code-owned discovery 加载；Dragon Scale 套装、龙威、trait save tag、条件减伤与来源清理行为回归通过。</dd>
+<dt>验收</dt><dd>生产内容共 30 个 JSON domain 均由 code-owned discovery 加载；Dragon Scale 套装、龙威、trait save tag、条件减伤与来源清理行为回归通过。</dd>
 </dl>
 </div>
 
@@ -940,14 +941,32 @@ godot --headless -s res://tests/&lt;domain&gt;/&lt;runner&gt;.cs</code></pre>
 <h4><span class="id">T8.6</span>累计验证与交付审计</h4>
 <p class="meta">依赖：T8.5</p>
 <dl>
-<dt>步骤</dt><dd>执行 build、29 域 offline CLI、schema/export smoke、Dragon 与诊断定点回归、严格 routine full suite、lifecycle correctness/soak、Windows export，以及静态残留与 staged-theme 审计。</dd>
-<dt>验收</dt><dd><code>dotnet build</code> 为 0 warning/0 error；29/29 domain、519/519 routine regression、8/8 lifecycle lane、110/110 soak 与 Windows export smoke 全部通过；未运行的外部 CI 不得写成通过。</dd>
+<dt>步骤</dt><dd>执行 build、30 域 offline CLI、schema/export smoke、Dragon 与诊断定点回归、严格 routine full suite、lifecycle correctness/soak、Windows export，以及静态残留与 staged-theme 审计。</dd>
+<dt>验收</dt><dd><code>dotnet build</code> 为 0 warning/0 error；30/30 domain、520/520 routine regression、8/8 lifecycle lane、110/110 soak 与 Windows export smoke 全部通过；未运行的外部 CI 不得写成通过。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T8.7</span>清除迁移后残留的内容与行为硬编码</h4>
+<p class="meta">依赖：T8.6</p>
+<dl>
+<dt>步骤</dt><dd>把成就、据点商店、新游戏队伍/起始武器规则及生成门禁 fixture 收口到严格 <code>gameplay_configuration</code> 域；把 contingency 消耗、世界名称层级/垂直分带与特殊技能运行时分派分别投影为 immutable Definition、closed enum 或显式配置字段。</dd>
+<dt>验收</dt><dd>上述直接迁移范围不再从 seed、固定内容 ID、ID 前缀、数组位置或展示标签推断业务行为；<code>gameplay_configuration</code> 与 contingency 的跨域引用在 snapshot 发布前严格校验，配置诊断不会被投影异常吞掉，世界名称 tier 与垂直分带均使用 typed key。</dd>
+</dl>
+</div>
+
+<div class="task">
+<h4><span class="id">T8.8</span>收口核心战斗技能角色与剩余基础攻击硬编码</h4>
+<p class="meta">依赖：T8.7</p>
+<dl>
+<dt>步骤</dt><dd>在 <code>gameplay_configuration.battle_skill_roles</code> 中单点声明基础攻击技能角色，并把该角色注入 enemy registry、encounter builder、battle runtime、AI score/wait、mastery、summon 与生成 BattleSim；正式 spell reaction 内容显式声明反应技能。固定 BattleSim benchmark fixture 继续作为测试场景身份，不冒充生产规则配置。</dd>
+<dt>验收</dt><dd>生产 registry、world encounter、battle runtime/resolver 与 AI 不再以 <code>"basic_attack"</code> 字面量分派业务；两个生成 fixture 借用同一个 typed 角色 ID，snapshot 发布前验证该技能引用；<code>BattleSimFormalCombatFixture</code> 的显式 benchmark 身份不计入生产硬编码残留。</dd>
 </dl>
 </div>
 
 <div class="gate">
 <h4>闸门 DG-8 — 终态迁移完成</h4>
-<p>生产内容 JSON discovery 已覆盖 29 个 domain；内容 Resource loader、TresAdapter、migration-only 反向索引与非引擎 <code>.tres</code> authoring 均已删除；<code>ProcessContentHost</code> 仅承担 snapshot 发布与 engine asset resolver 所有权；当前设计文档、context index、schema 与交付证据已同步。阶段 8 为本迁移任务的终止闸门，不再隐含后续兼容层或迁移阶段。</p>
+<p>T8.7 与 T8.8 均完成后，生产内容 JSON discovery 已覆盖 30 个 domain；内容 Resource loader、TresAdapter、migration-only 反向索引与非引擎 <code>.tres</code> authoring 均已删除；<code>ProcessContentHost</code> 仅承担 snapshot 发布与 engine asset resolver 所有权；进程级内容种子、核心战斗技能角色与特殊技能行为已改由严格配置/闭集类型投影；当前设计文档、context index、schema 与交付证据已同步。阶段 8 为本迁移任务的终止闸门，不再隐含后续兼容层或迁移阶段。</p>
 </div>
 
 <h2 id="stop">停止条件</h2>

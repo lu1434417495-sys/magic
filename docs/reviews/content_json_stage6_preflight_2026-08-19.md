@@ -1,7 +1,9 @@
 # 阶段 6 配置 JSON 迁移 preflight
 
 日期：2026-08-19
-状态：Point-in-time audit / implementation input
+状态：Superseded historical input / 不构成 DG-6 证据
+
+> 2026-08-24 状态更正：本文件随阶段 5/6 整块迁移后的文档提交一并进入仓库，且下述逐域完成台账从未形成执行记录。因此它只能保留为历史 implementation input，不能被引用为 contemporaneous preflight、DG-6 PASS 或进入阶段 7 的授权。处置结论与提交时序见 `docs/reviews/content_json_stage5_stage6_gate_retrospective_20260824.md`。
 
 ## 范围与基线
 
