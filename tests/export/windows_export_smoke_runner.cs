@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using Godot;
 
@@ -6,9 +7,10 @@ public partial class windows_export_smoke_runner : Node
 {
     private const string ProbePath =
         "res://data/configs/engine_assets/export_smoke_probe.json";
+    private const string DiagnosticFixturePath =
+        "res://tests/fixtures/skill_validator_diagnostic_golden/cases/active_missing_profile/skill.json";
     private const string MissingProbePath =
         "res://data/configs/engine_assets/export_smoke_missing.json";
-    private const string ExpectedProbeId = "engine_asset_export_smoke_v1";
 
     private static readonly StringName TextureAssetId =
         "battle.terrain.marker_preview";
@@ -73,13 +75,15 @@ public partial class windows_export_smoke_runner : Node
         switch (smokeCase)
         {
             case "success":
-                AssertProbePackaged(ProbePath);
+                AssertJsonNotPackaged(ProbePath);
+                AssertJsonNotPackaged(DiagnosticFixturePath);
+                AssertOnlyProductionJsonPackaged();
                 AssertProductionCatalogPackaged();
                 AssertStageFourJsonPackaged();
                 AssertWorldJsonCatalogPackaged();
                 return;
             case "missing_file":
-                AssertProbePackaged(MissingProbePath);
+                AssertJsonPackaged(MissingProbePath);
                 throw new InvalidOperationException(
                     "Missing-file smoke case unexpectedly found its probe."
                 );
@@ -106,7 +110,7 @@ public partial class windows_export_smoke_runner : Node
         }
     }
 
-    private static void AssertProbePackaged(string path)
+    private static void AssertJsonPackaged(string path)
     {
         using Godot.FileAccess file = Godot.FileAccess.Open(
             path,
@@ -120,21 +124,81 @@ public partial class windows_export_smoke_runner : Node
         }
 
         using JsonDocument document = JsonDocument.Parse(file.GetAsText(skipCr: false));
-        JsonElement root = document.RootElement;
-        if (
-            !root.TryGetProperty("probe_id", out JsonElement probeId)
-            || probeId.ValueKind != JsonValueKind.String
-            || !string.Equals(
-                probeId.GetString(),
-                ExpectedProbeId,
-                StringComparison.Ordinal
-            )
-        )
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
             throw new InvalidOperationException(
-                $"Packaged JSON probe has an unexpected probe_id: {path}."
+                $"Packaged JSON file must contain an object root: {path}."
             );
         }
+    }
+
+    private static void AssertJsonNotPackaged(string path)
+    {
+        using Godot.FileAccess file = Godot.FileAccess.Open(
+            path,
+            Godot.FileAccess.ModeFlags.Read
+        );
+        if (file != null)
+        {
+            throw new InvalidOperationException(
+                $"Excluded JSON unexpectedly exists in the exported PCK: {path}."
+            );
+        }
+    }
+
+    private static void AssertOnlyProductionJsonPackaged()
+    {
+        var unexpectedPaths = new List<string>();
+        CollectUnexpectedPackagedJson("res://", unexpectedPaths);
+        if (unexpectedPaths.Count != 0)
+        {
+            throw new InvalidOperationException(
+                "Exported PCK contains JSON outside data/configs/json: "
+                    + string.Join(", ", unexpectedPaths)
+            );
+        }
+    }
+
+    private static void CollectUnexpectedPackagedJson(
+        string directoryPath,
+        List<string> unexpectedPaths
+    )
+    {
+        using DirAccess directory = DirAccess.Open(directoryPath);
+        if (directory == null)
+        {
+            throw new InvalidOperationException(
+                $"Unable to enumerate exported PCK directory: {directoryPath}."
+            );
+        }
+
+        directory.ListDirBegin();
+        string entryName = directory.GetNext();
+        while (!string.IsNullOrEmpty(entryName))
+        {
+            if (!entryName.StartsWith(".", StringComparison.Ordinal))
+            {
+                string entryPath = directoryPath.EndsWith("/", StringComparison.Ordinal)
+                    ? directoryPath + entryName
+                    : directoryPath + "/" + entryName;
+                if (directory.CurrentIsDir())
+                {
+                    CollectUnexpectedPackagedJson(entryPath, unexpectedPaths);
+                }
+                else if (
+                    entryName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                    && !entryPath.StartsWith(
+                        "res://data/configs/json/",
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    unexpectedPaths.Add(entryPath);
+                }
+            }
+            entryName = directory.GetNext();
+        }
+        directory.ListDirEnd();
     }
 
     private static void AssertProductionCatalogPackaged()
