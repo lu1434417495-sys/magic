@@ -281,23 +281,10 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
                 7,
                 "冲锋陷阱免疫门槛应使用 typed 字段。"
             );
-            foreach (
-                string legacyKey in new[]
-                {
-                    "skill_id",
-                    "base_distance",
-                    "distance_by_level",
-                    "trap_immunity_level",
-                    "collision_base_damage",
-                    "collision_size_gap_damage",
-                }
-            )
-            {
-                _test.False(
-                    chargeEffect.Parameters.ContainsKey(legacyKey),
-                    $"冲锋不应继续携带旧参数 {legacyKey}。"
-                );
-            }
+            _test.True(
+                chargeEffect.Payload is EmptyCombatEffectPayloadDefinition,
+                "冲锋不应携带额外 payload。"
+            );
         }
 
         string level6Description = SkillLevelDescriptionFormatter.BuildLevelDescription(
@@ -339,9 +326,9 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
                 : null;
         _test.True(whirlwindCharge != null, "旋风斩应保留 charge effect。");
         _test.Eq(
-            whirlwindCharge?.Parameters.Count ?? -1,
-            0,
-            "旋风斩 charge effect 不应继续携带无效碰撞伤害或距离参数。"
+            whirlwindCharge?.Payload is EmptyCombatEffectPayloadDefinition,
+            true,
+            "旋风斩 charge effect 不应携带无效碰撞伤害或距离 payload。"
         );
     }
 

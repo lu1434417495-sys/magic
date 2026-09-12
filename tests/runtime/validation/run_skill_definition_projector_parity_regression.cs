@@ -14,7 +14,7 @@ public partial class run_skill_definition_projector_parity_regression
     : LifecycleTestSceneTree
 {
     private const string ExpectedDefinitionGoldenSha256 =
-        "E05FF7957084B96674E3C66364FC94A493AC330C56E00BC07BAEF14B93D5A303";
+        "D7AAC4D932184171477982D4F1FC64B8013869CFBDA95C17D567B58C622B8512";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
@@ -25,6 +25,7 @@ public partial class run_skill_definition_projector_parity_regression
         {
             var validator = new SkillImportModelValidator();
             var goldenRows = new List<string>();
+            var observedPayloadKinds = new HashSet<CombatEffectPayloadKind>();
             ContentImportBatch<SkillImportModel> batch =
                 SkillContentJsonAuthoringDomain.CreateImportDescriptor(
                     "res://data/configs/json/skills",
@@ -43,7 +44,15 @@ public partial class run_skill_definition_projector_parity_regression
                 );
 
                 SkillDefinition jsonDefinition = SkillDefinitionProjector.Project(import);
+                AssertTypedPayloadGraph(skillId, jsonDefinition, observedPayloadKinds);
                 goldenRows.Add($"{skillId}\t{Serialize(ToCanonicalValue(jsonDefinition))}");
+            }
+            foreach (CombatEffectPayloadKind payloadKind in Enum.GetValues<CombatEffectPayloadKind>())
+            {
+                _test.True(
+                    observedPayloadKinds.Contains(payloadKind),
+                    $"production skill catalog should exercise typed payload kind {payloadKind}"
+                );
             }
             TestProductionProjectionPaths();
             _test.Eq(
@@ -68,6 +77,81 @@ public partial class run_skill_definition_projector_parity_regression
 
         RequestTestExit(_test.Finish("Skill definition projector parity regression"));
     }
+
+    private void AssertTypedPayloadGraph(
+        string skillId,
+        SkillDefinition definition,
+        ISet<CombatEffectPayloadKind> observedPayloadKinds
+    )
+    {
+        CombatSkillDefinition? profile = definition?.CombatProfile;
+        if (profile == null)
+            return;
+        AssertTypedPayloads(skillId, "effects", profile.EffectDefinitions, observedPayloadKinds);
+        AssertTypedPayloads(
+            skillId,
+            "passive_effects",
+            profile.PassiveEffectDefinitions,
+            observedPayloadKinds
+        );
+        foreach (CombatCastVariantDefinition variant in profile.CastVariants)
+        {
+            AssertTypedPayloads(
+                skillId,
+                $"cast_variant[{variant.VariantId}]",
+                variant.EffectDefinitions,
+                observedPayloadKinds
+            );
+        }
+    }
+
+    private void AssertTypedPayloads(
+        string skillId,
+        string owner,
+        IReadOnlyList<CombatEffectDefinition> effects,
+        ISet<CombatEffectPayloadKind> observedPayloadKinds
+    )
+    {
+        for (int index = 0; index < effects.Count; index += 1)
+        {
+            CombatEffectDefinition effect = effects[index];
+            _test.True(
+                PayloadMatchesEffectKind(effect),
+                $"{skillId} {owner}[{index}] {effect.EffectType} should own its closed typed payload"
+            );
+            observedPayloadKinds.Add(effect.Payload.Kind);
+            foreach (CombatWeightedStatusOutcomeDefinition outcome in effect.SaveFailureStatusOutcomes)
+            {
+                AssertTypedPayloads(
+                    skillId,
+                    $"{owner}[{index}].save_failure_status_outcomes[{outcome.OutcomeId}]",
+                    new[] { outcome.StatusEffect },
+                    observedPayloadKinds
+                );
+            }
+        }
+    }
+
+    private static bool PayloadMatchesEffectKind(CombatEffectDefinition effect) =>
+        effect.EffectKind switch
+        {
+            BattleEffectKind.Status or BattleEffectKind.ApplyStatus =>
+                effect.Payload is StatusEffectPayloadDefinition,
+            BattleEffectKind.Heal => effect.Payload is HealEffectPayloadDefinition,
+            BattleEffectKind.EquipmentDurabilityDamage =>
+                effect.Payload is EquipmentDurabilityDamageEffectPayloadDefinition,
+            BattleEffectKind.RepeatAttackUntilFail =>
+                effect.Payload is RepeatAttackUntilFailEffectPayloadDefinition,
+            BattleEffectKind.LayeredBarrier =>
+                effect.Payload is LayeredBarrierEffectPayloadDefinition,
+            BattleEffectKind.GradedSaveExecute =>
+                effect.Payload is GradedSaveExecuteEffectPayloadDefinition,
+            BattleEffectKind.DispelMagic =>
+                effect.Payload is DispelMagicEffectPayloadDefinition,
+            BattleEffectKind.OnKillGainResources =>
+                effect.Payload is OnKillGainResourcesEffectPayloadDefinition,
+            _ => effect.Payload is EmptyCombatEffectPayloadDefinition,
+        };
 
     private void TestProductionProjectionPaths()
     {

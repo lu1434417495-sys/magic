@@ -887,27 +887,6 @@ public sealed partial class BattleAiScoreService : IDisposable
         return result;
     }
 
-    private static StringName ReadStringNameParameter(
-        CombatEffectDefinition effectDefinition,
-        string key
-    )
-    {
-        return effectDefinition == null || string.IsNullOrEmpty(key)
-            ? ""
-            : effectDefinition.GetStringNameParamTyped(key, "");
-    }
-
-    private static int ReadIntParameter(
-        CombatEffectDefinition effectDefinition,
-        string key,
-        int fallback = 0
-    )
-    {
-        return effectDefinition == null || string.IsNullOrEmpty(key)
-            ? fallback
-            : effectDefinition.GetIntParamTyped(key, fallback);
-    }
-
     private static void AddStatusId(
         List<StringName> result,
         HashSet<StringName> seen,

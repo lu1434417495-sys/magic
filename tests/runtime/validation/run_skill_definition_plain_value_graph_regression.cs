@@ -229,15 +229,20 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             "plain_graph_skill",
             levelOverrides: levelOverrides
         );
+        var payloadSlots = new List<StringName> { "body" };
         CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
-            "status",
-            parameters: valueSource
+            "equipment_durability_damage",
+            payload: new EquipmentDurabilityDamageEffectPayloadDefinition(
+                1,
+                payloadSlots
+            )
         );
+        var variantEffects = new List<CombatEffectDefinition> { effect };
         CombatCastVariantDefinition castVariant = TestSkillDefinitionProjection.BuildCastVariant(
             "plain_graph_variant",
             0,
-            Array.Empty<CombatEffectDefinition>(),
-            parameters: valueSource
+            variantEffects,
+            square2Corner: CombatCastSquare2CornerKind.BottomRight
         );
 
         valueSource["number"] = 99;
@@ -246,6 +251,8 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         descriptionSource["number"] = "99";
         descriptionLevels[1] = new SkillDescriptionVariables();
         levelOverrides[1] = new CombatSkillLevelOverrideImportModel(apCost: 99);
+        payloadSlots[0] = "head";
+        variantEffects.Clear();
 
         _test.Eq(
             skill.LevelDescriptionConfigs[1]["number"],
@@ -258,13 +265,25 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
             4,
             "CombatSkillDefinition should freeze the typed level override map."
         );
-        AssertFrozenGraph(effect.Parameters, "CombatEffectDefinition");
-        AssertFrozenGraph(castVariant.Parameters, "CombatCastVariantDefinition");
+        _test.Eq(castVariant.Square2Corner, CombatCastSquare2CornerKind.BottomRight,
+            "Cast variant should retain its typed corner.");
+        _test.Eq(castVariant.EffectDefinitions.Count, 1,
+            "Cast variant should defensively copy its effects.");
+        _test.True(ReferenceEquals(castVariant.EffectDefinitions[0], effect),
+            "Cast variant should retain the immutable effect definition.");
+        EquipmentDurabilityDamageEffectPayloadDefinition effectPayload =
+            effect.Payload as EquipmentDurabilityDamageEffectPayloadDefinition;
+        _test.True(effectPayload != null, "CombatEffectDefinition should retain its typed payload.");
+        _test.Eq(
+            effectPayload?.TargetSlots[0] ?? new StringName(""),
+            new StringName("body"),
+            "CombatEffectDefinition payload should defensively copy target slots."
+        );
 
         bool mapMutationRejected = false;
         try
         {
-            ((IDictionary<string, object>)effect.Parameters)["new"] = 1L;
+            ((IDictionary<string, object>)contingency.AllowedParameterBindings)["new"] = 1L;
         }
         catch (NotSupportedException)
         {
@@ -275,13 +294,35 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         bool listMutationRejected = false;
         try
         {
-            ((IList<object>)effect.Parameters["nested"])[0] = 12L;
+            ((IList<object>)contingency.AllowedParameterBindings["nested"])[0] = 12L;
         }
         catch (NotSupportedException)
         {
             listMutationRejected = true;
         }
         _test.True(listMutationRejected, "Nested normalized lists must reject mutation.");
+
+        bool variantMutationRejected = false;
+        try
+        {
+            ((IList<CombatEffectDefinition>)castVariant.EffectDefinitions).Clear();
+        }
+        catch (NotSupportedException)
+        {
+            variantMutationRejected = true;
+        }
+        _test.True(variantMutationRejected, "Cast variant effect lists must reject mutation.");
+
+        bool payloadMutationRejected = false;
+        try
+        {
+            ((IList<StringName>)effectPayload.TargetSlots)[0] = "head";
+        }
+        catch (NotSupportedException)
+        {
+            payloadMutationRejected = true;
+        }
+        _test.True(payloadMutationRejected, "Typed payload lists must reject mutation.");
     }
 
     private void TestTypedSkillResourceFieldsProjectToFrozenPlainGraph()
@@ -743,9 +784,9 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
         AssertInvalidDataPath(
             () => ContentValueNormalizer.NormalizeDictionary(
                 illegal,
-                "CombatEffectDefinition.Parameters"
+                "synthetic.illegal"
             ),
-            "CombatEffectDefinition.Parameters.outer[0].bad",
+            "synthetic.illegal.outer[0].bad",
             "Synthetic illegal objects must be rejected with the full nested path."
         );
 

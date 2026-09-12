@@ -27,7 +27,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
     private TestResult Run()
     {
         RunCase("TestAddWeaponDiceExplicitFormula", TestAddWeaponDiceExplicitFormula);
-        RunCase("TestLegacySkillDiceAliasesAreNotUsed", TestLegacySkillDiceAliasesAreNotUsed);
+        RunCase("TestAbsentSkillDiceRemainZero", TestAbsentSkillDiceRemainZero);
         RunCase("TestPhysicalDamageDoesNotAddWeaponDiceByDefault", TestPhysicalDamageDoesNotAddWeaponDiceByDefault);
         RunCase("TestCriticalHitRollsExtraWeaponAndSkillDiceOnce", TestCriticalHitRollsExtraWeaponAndSkillDiceOnce);
         RunCase("TestEachDamageEffectReadsAddWeaponDiceIndependently", TestEachDamageEffectReadsAddWeaponDiceIndependently);
@@ -100,21 +100,12 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         );
     }
 
-    private void TestLegacySkillDiceAliasesAreNotUsed()
+    private void TestAbsentSkillDiceRemainZero()
     {
         var resolver = BuildFixedRollDamageResolver(new[] { 6, 6, 6 });
-        BattleUnitState source = BuildUnit("legacy_dice_alias_user");
-        BattleUnitState target = BuildUnit("legacy_dice_alias_target");
-        CombatEffectDefinition effect = BuildDamageEffect(
-            5,
-            false,
-            parameters: new Dictionary<string, object>
-            {
-                ["damage_dice_count"] = 3,
-                ["damage_dice_sides"] = 6,
-                ["damage_dice_bonus"] = 9,
-            }
-        );
+        BattleUnitState source = BuildUnit("no_skill_dice_user");
+        BattleUnitState target = BuildUnit("no_skill_dice_target");
+        CombatEffectDefinition effect = BuildDamageEffect(5, false);
 
         using GodotProjectionLease<GDictionary> resultLease =
             AttackEffectResolutionResultReader.BuildGodotPayloadLease(
@@ -130,22 +121,22 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
             5,
-            "旧技能骰 alias 不应加入真实伤害。"
+            "未配置技能骰时不应加入额外伤害。"
         );
         _test.Eq(
             DictInt(damageEvent, "damage_dice_count", -1),
             0,
-            "旧 damage_dice_count alias 不应再被读取。"
+            "未配置技能骰时数量应为 0。"
         );
         _test.Eq(
             DictInt(damageEvent, "damage_dice_sides", -1),
             0,
-            "旧 damage_dice_sides alias 不应再被读取。"
+            "未配置技能骰时骰面应为 0。"
         );
         _test.Eq(
             DictInt(damageEvent, "damage_dice_bonus", -1),
             0,
-            "旧 damage_dice_bonus alias 不应再被读取。"
+            "未配置技能骰时加值应为 0。"
         );
     }
 
@@ -1126,8 +1117,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         int diceCount = 0,
         int diceSides = 0,
         int diceBonus = 0,
-        StringName damageTag = default,
-        IReadOnlyDictionary<string, object> parameters = null
+        StringName damageTag = default
     )
     {
         if (damageTag == default || damageTag == (StringName)"")
@@ -1142,8 +1132,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             addWeaponDice: addWeaponDice,
             diceCount: diceCount,
             diceSides: diceSides,
-            diceBonus: diceBonus,
-            parameters: parameters
+            diceBonus: diceBonus
         );
     }
 

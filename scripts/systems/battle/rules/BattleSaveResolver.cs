@@ -814,42 +814,6 @@ public static class BattleSaveResolver
         return bonus;
     }
 
-    private static int GetInt(Godot.Collections.Dictionary source, string key, int fallback = 0)
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-        {
-            return fallback;
-        }
-        try
-        {
-            return source[key].AsInt32();
-        }
-        catch
-        {
-            return int.TryParse(source[key].ToString(), out int parsed) ? parsed : fallback;
-        }
-    }
-
-    private static int GetInt(
-        Godot.Collections.Dictionary source,
-        StringName key,
-        int fallback = 0
-    )
-    {
-        if (source == null || IsEmpty(key) || !source.ContainsKey(key))
-        {
-            return fallback;
-        }
-        try
-        {
-            return source[key].AsInt32();
-        }
-        catch
-        {
-            return int.TryParse(source[key].ToString(), out int parsed) ? parsed : fallback;
-        }
-    }
-
     private static int GetAttributeValue(AttributeSnapshot attributeSnapshot, StringName attributeId)
     {
         if (attributeSnapshot == null || IsEmpty(attributeId))

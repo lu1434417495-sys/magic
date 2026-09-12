@@ -1727,35 +1727,7 @@ internal sealed class SkillDefinitionCombatProfileValidator
             effectDef.SaveImmunityTags
         );
 
-        IReadOnlyDictionary<string, object> parameters = effectDef.Parameters ?? new System.Collections.Generic.Dictionary<string, object>();
-        var unsupportedParamAliases = new System.Collections.Generic.Dictionary<string, string>
-        {
-            { "damage_dice_count", "dice_count" },
-            { "damage_dice_sides", "dice_sides" },
-            { "damage_dice_bonus", "dice_bonus" },
-            { "tag", "damage_tag" },
-            { "bypass_tag", "dr_bypass_tag" },
-            { "low_hp_ratio", "hp_ratio_threshold_percent" },
-        };
-        foreach (var alias in unsupportedParamAliases)
-        {
-            if (parameters.ContainsKey(alias.Key))
-                errors.Add(
-                    $"Skill {skillId} effect {contextLabel} params.{alias.Key} is unsupported; use {alias.Value}."
-                );
-        }
-        if (parameters.ContainsKey("duration"))
-            errors.Add(
-                $"Skill {skillId} effect {contextLabel} params.duration is unsupported; use CombatEffectDef.duration_tu."
-            );
-        if (parameters.ContainsKey("effect_tags"))
-            errors.Add(
-                $"Skill {skillId} effect {contextLabel} params.effect_tags is unsupported; use CombatEffectDef.effect_tags."
-            );
-        if (parameters.ContainsKey("status_tags"))
-            errors.Add(
-                $"Skill {skillId} effect {contextLabel} params.status_tags is unsupported; status tags are projected from CombatEffectDef.effect_tags."
-            );
+        AppendPayloadCompatibilityErrors(errors, skillId, effectDef, contextLabel);
         AppendStringNameArrayValidationErrors(
             errors,
             skillId,
@@ -1789,7 +1761,6 @@ internal sealed class SkillDefinitionCombatProfileValidator
         }
         _executeEffectValidator.AppendSaveBonusByTagValidationErrors(errors, skillId, effectDef, contextLabel);
         _executeEffectValidator.AppendTemporalStatusEffectValidationErrors(errors, skillId, effectDef, contextLabel);
-        AppendTypedEffectParamValidationErrors(errors, skillId, effectDef, contextLabel);
         AppendChainDamageValidationErrors(errors, skillId, effectDef, contextLabel);
         AppendAttributeScaledDiceValidationErrors(errors, skillId, effectDef, contextLabel);
         if (
@@ -1920,18 +1891,6 @@ internal sealed class SkillDefinitionCombatProfileValidator
                         $"Skill {skillId} status effect in {contextLabel} on_removed_status_save_immunity_tags contains unsupported save tag {saveImmunityTag}."
                     );
             }
-            if (effectDef.TerrainEffectId == "" && parameters.ContainsKey("duration_tu"))
-                errors.Add(
-                    $"Skill {skillId} effect {contextLabel} params.duration_tu is unsupported; use CombatEffectDef.duration_tu."
-                );
-            if (effectDef.TerrainEffectId == "" && parameters.ContainsKey("tick_interval_tu"))
-                errors.Add(
-                    $"Skill {skillId} effect {contextLabel} params.tick_interval_tu is unsupported; use CombatEffectDef.tick_interval_tu."
-                );
-            if (parameters.ContainsKey("range_bonus"))
-                errors.Add(
-                    $"Skill {skillId} status effect in {contextLabel} params.range_bonus is unsupported; use CombatEffectDef.range_bonus."
-                );
             bool hasSourceBoundWeaponBonusDice =
                 effectDef.SourceBoundWeaponBonusDamageDiceCount > 0
                 || effectDef.SourceBoundWeaponBonusDamageDiceSides > 0
@@ -2165,11 +2124,6 @@ internal sealed class SkillDefinitionCombatProfileValidator
                     || effectDef.Power != 0
                     || effectDef.DiceCount != 0
                     || effectDef.DiceSides != 0
-                    || parameters.ContainsKey("contact_status_id")
-                    || parameters.ContainsKey("contact_damage_dice_count")
-                    || parameters.ContainsKey("contact_damage_dice_sides")
-                    || parameters.ContainsKey("contact_damage_flat_bonus")
-                    || parameters.ContainsKey("contact_damage_tag")
                 )
                     errors.Add(
                         $"Skill {skillId} terrain_effect in {contextLabel} movement interruption cannot also author damage or status payloads."
@@ -2186,26 +2140,6 @@ internal sealed class SkillDefinitionCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} terrain_effect in {contextLabel} source replacement currently requires terrain_max_active_instances_per_source=1."
                 );
-            if (parameters.ContainsKey("render_overlay_id"))
-                errors.Add(
-                    $"Skill {skillId} terrain_effect in {contextLabel} params.render_overlay_id is unsupported; use CombatEffectDef.render_overlay_id."
-                );
-            if (parameters.ContainsKey("overlay_priority"))
-                errors.Add(
-                    $"Skill {skillId} terrain_effect in {contextLabel} params.overlay_priority is unsupported; use CombatEffectDef.overlay_priority."
-                );
-            if (parameters.ContainsKey("display_name"))
-                errors.Add(
-                    $"Skill {skillId} terrain_effect in {contextLabel} params.display_name is unsupported; use CombatEffectDef.display_name."
-                );
-            if (parameters.ContainsKey("does_not_stack_with_status_id"))
-                errors.Add(
-                    $"Skill {skillId} terrain_effect in {contextLabel} params.does_not_stack_with_status_id is unsupported; use CombatEffectDef.does_not_stack_with_status_id."
-                );
-            if (parameters.ContainsKey("does_not_stack_with_status_ids"))
-                errors.Add(
-                    $"Skill {skillId} terrain_effect in {contextLabel} params.does_not_stack_with_status_ids is unsupported; use CombatEffectDef.does_not_stack_with_status_ids."
-                );
             AppendStringNameArrayValidationErrors(
                 errors,
                 skillId,
@@ -2221,14 +2155,6 @@ internal sealed class SkillDefinitionCombatProfileValidator
                 if (effectDef.StatusId == "")
                     errors.Add(
                         $"Skill {skillId} terrain_effect in {contextLabel} with tick_effect_type=status is missing status_id."
-                    );
-                if (parameters.ContainsKey("status_id"))
-                    errors.Add(
-                        $"Skill {skillId} terrain_effect in {contextLabel} params.status_id is unsupported; use CombatEffectDef.status_id."
-                    );
-                if (parameters.ContainsKey("duration_tu"))
-                    errors.Add(
-                        $"Skill {skillId} terrain_effect in {contextLabel} params.duration_tu is unsupported; use CombatEffectDef.applied_status_duration_tu."
                     );
                 if (!SkillDefinitionValidationRules.IsValidTuValue(effectDef.AppliedStatusDurationTu) || effectDef.AppliedStatusDurationTu <= 0)
                     errors.Add(
@@ -2320,14 +2246,6 @@ internal sealed class SkillDefinitionCombatProfileValidator
         }
         else if (effectKind == BattleEffectKind.ForcedMove)
         {
-            if (parameters.ContainsKey("mode"))
-                errors.Add(
-                    $"Skill {skillId} forced_move effect in {contextLabel} params.mode is unsupported; use forced_move_mode."
-                );
-            if (parameters.ContainsKey("distance"))
-                errors.Add(
-                    $"Skill {skillId} forced_move effect in {contextLabel} params.distance is unsupported; use forced_move_distance."
-                );
             if (effectDef.ForcedMoveMode == "")
                 errors.Add(
                     $"Skill {skillId} forced_move effect in {contextLabel} is missing forced_move_mode."
@@ -2415,10 +2333,6 @@ internal sealed class SkillDefinitionCombatProfileValidator
         }
         else if (effectKind == BattleEffectKind.SourceRetreat)
         {
-            if (parameters.ContainsKey("distance"))
-                errors.Add(
-                    $"Skill {skillId} source_retreat effect in {contextLabel} params.distance is unsupported; use source_retreat_distance."
-                );
             if (effectDef.SourceRetreatDistance <= 0)
                 errors.Add(
                     $"Skill {skillId} source_retreat effect in {contextLabel} must have source_retreat_distance >= 1."
@@ -2426,25 +2340,6 @@ internal sealed class SkillDefinitionCombatProfileValidator
         }
         else if (effectKind == BattleEffectKind.Charge)
         {
-            foreach (
-                string legacyParam in new[]
-                {
-                    "skill_id",
-                    "base_distance",
-                    "distance_by_level",
-                    "trap_immunity_level",
-                    "collision_base_damage",
-                    "collision_size_gap_damage",
-                }
-            )
-            {
-                if (parameters.ContainsKey(legacyParam))
-                {
-                    errors.Add(
-                        $"Skill {skillId} charge effect in {contextLabel} params.{legacyParam} is unsupported; charge distance comes from combat_profile range_value/level_overrides and collision damage comes from terrain interaction."
-                    );
-                }
-            }
             if (effectDef.ChargeTrapImmunityMinSkillLevel < -1)
             {
                 errors.Add(
@@ -2770,20 +2665,37 @@ internal sealed class SkillDefinitionCombatProfileValidator
             );
     }
 
-    private void AppendTypedEffectParamValidationErrors(
+    private static void AppendPayloadCompatibilityErrors(
         Array<string> errors,
         StringName skillId,
         CombatEffectDefinition effectDef,
         string contextLabel
     )
     {
-        IReadOnlyDictionary<string, object> parameters = effectDef.Parameters ?? new System.Collections.Generic.Dictionary<string, object>();
-        foreach (var migratedParam in TypedEffectParamTargets)
+        bool compatible = effectDef.EffectKind switch
         {
-            if (parameters.ContainsKey(migratedParam.Key))
-                errors.Add(
-                    $"Skill {skillId} effect {contextLabel} params.{migratedParam.Key} is unsupported; use CombatEffectDef.{migratedParam.Value}."
-                );
+            BattleEffectKind.Status or BattleEffectKind.ApplyStatus =>
+                effectDef.Payload is StatusEffectPayloadDefinition,
+            BattleEffectKind.Heal => effectDef.Payload is HealEffectPayloadDefinition,
+            BattleEffectKind.EquipmentDurabilityDamage =>
+                effectDef.Payload is EquipmentDurabilityDamageEffectPayloadDefinition,
+            BattleEffectKind.RepeatAttackUntilFail =>
+                effectDef.Payload is RepeatAttackUntilFailEffectPayloadDefinition,
+            BattleEffectKind.LayeredBarrier =>
+                effectDef.Payload is LayeredBarrierEffectPayloadDefinition,
+            BattleEffectKind.GradedSaveExecute =>
+                effectDef.Payload is GradedSaveExecuteEffectPayloadDefinition,
+            BattleEffectKind.DispelMagic =>
+                effectDef.Payload is DispelMagicEffectPayloadDefinition,
+            BattleEffectKind.OnKillGainResources =>
+                effectDef.Payload is OnKillGainResourcesEffectPayloadDefinition,
+            _ => effectDef.Payload is EmptyCombatEffectPayloadDefinition,
+        };
+        if (!compatible)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} payload {effectDef.Payload?.Kind} is incompatible with effect_type {effectDef.EffectType}."
+            );
         }
     }
 

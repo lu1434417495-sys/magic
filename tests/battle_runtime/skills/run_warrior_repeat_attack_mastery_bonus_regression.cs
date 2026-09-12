@@ -606,12 +606,11 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         );
         CombatEffectDefinition repeatEffect = TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
-            parameters: new Dictionary<string, object>
-            {
-                ["cost_resource"] = "aura",
-                ["follow_up_fixed_cost"] = 0,
-                ["follow_up_attack_penalty"] = 0,
-            }
+            payload: new RepeatAttackUntilFailEffectPayloadDefinition(
+                costResource: "aura",
+                followUpFixedCost: 0,
+                followUpAttackPenalty: 0
+            )
         );
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,

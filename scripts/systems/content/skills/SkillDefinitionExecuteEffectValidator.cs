@@ -279,12 +279,6 @@ IReadOnlyList<CombatEffectDefinition> baseEffects,
                 $"Skill {skillId} effect {contextLabel}.soul_fracture_duration_tu must be 0 or a positive value divisible by {SkillDefinitionValidationRules.TuGranularity}."
             );
         }
-        if (effectDef.Parameters != null && effectDef.Parameters.Count > 0)
-        {
-            errors.Add(
-                $"Skill {skillId} effect {contextLabel} execute must not use params payload."
-            );
-        }
     }
 
     internal void AppendGradedSaveExecuteValidationErrors(
@@ -345,137 +339,112 @@ IReadOnlyList<CombatEffectDefinition> baseEffects,
             false
         );
 
-        IReadOnlyDictionary<string, object> parameters = effectDef.Parameters ?? new System.Collections.Generic.Dictionary<string, object>();
-        AppendGradedSaveExecuteParamKeyValidationErrors(
+        if (
+            effectDef.Payload
+            is not GradedSaveExecuteEffectPayloadDefinition payload
+        )
+        {
+            return;
+        }
+        RequirePayloadName(
             errors,
             skillId,
-            parameters,
-            contextLabel
-        );
-        SkillDefinitionValidationRules.RequireStringNameParam(
-            errors,
-            skillId,
-            parameters,
             contextLabel,
             "profile_id",
+            payload.ProfileId,
             "phantasmal_kill"
         );
-        SkillDefinitionValidationRules.RequireNonNegativeIntParam(
+        RequirePayloadNonNegative(
             errors,
             skillId,
-            parameters,
             contextLabel,
-            "failure_execute_threshold_fixed"
+            "failure_execute_threshold_fixed",
+            payload.FailureExecuteThresholdFixed
         );
-        SkillDefinitionValidationRules.RequireIntRangeParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "failure_execute_threshold_max_hp_percent",
-            1,
-            100
-        );
-        SkillDefinitionValidationRules.RequirePositiveIntParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "failure_damage_dice_count"
-        );
-        SkillDefinitionValidationRules.RequirePositiveIntParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "failure_damage_dice_sides"
-        );
-        SkillDefinitionValidationRules.RequirePositiveTuParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "failure_frightened_duration_tu"
-        );
-        SkillDefinitionValidationRules.RequirePositiveTuParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "failure_reaction_lock_duration_tu"
-        );
-        SkillDefinitionValidationRules.RequireIntRangeParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "critical_failure_execute_threshold_max_hp_percent",
-            1,
-            100
-        );
-        SkillDefinitionValidationRules.RequirePositiveIntParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "critical_failure_damage_dice_count"
-        );
-        SkillDefinitionValidationRules.RequirePositiveIntParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "critical_failure_damage_dice_sides"
-        );
-        SkillDefinitionValidationRules.RequirePositiveTuParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "critical_failure_frightened_duration_tu"
-        );
-        SkillDefinitionValidationRules.RequirePositiveTuParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "critical_failure_stunned_duration_tu"
-        );
-        SkillDefinitionValidationRules.RequirePositiveTuParam(
-            errors,
-            skillId,
-            parameters,
-            contextLabel,
-            "success_aftershock_duration_tu"
-        );
+        RequirePayloadRange(errors, skillId, contextLabel, "failure_execute_threshold_max_hp_percent", payload.FailureExecuteThresholdMaxHpPercent, 1, 100);
+        RequirePayloadPositive(errors, skillId, contextLabel, "failure_damage_dice_count", payload.FailureDamageDiceCount);
+        RequirePayloadPositive(errors, skillId, contextLabel, "failure_damage_dice_sides", payload.FailureDamageDiceSides);
+        RequirePayloadPositiveTu(errors, skillId, contextLabel, "failure_frightened_duration_tu", payload.FailureFrightenedDurationTu);
+        RequirePayloadPositiveTu(errors, skillId, contextLabel, "failure_reaction_lock_duration_tu", payload.FailureReactionLockDurationTu);
+        RequirePayloadRange(errors, skillId, contextLabel, "critical_failure_execute_threshold_max_hp_percent", payload.CriticalFailureExecuteThresholdMaxHpPercent, 1, 100);
+        RequirePayloadPositive(errors, skillId, contextLabel, "critical_failure_damage_dice_count", payload.CriticalFailureDamageDiceCount);
+        RequirePayloadPositive(errors, skillId, contextLabel, "critical_failure_damage_dice_sides", payload.CriticalFailureDamageDiceSides);
+        RequirePayloadPositiveTu(errors, skillId, contextLabel, "critical_failure_frightened_duration_tu", payload.CriticalFailureFrightenedDurationTu);
+        RequirePayloadPositiveTu(errors, skillId, contextLabel, "critical_failure_stunned_duration_tu", payload.CriticalFailureStunnedDurationTu);
+        RequirePayloadPositiveTu(errors, skillId, contextLabel, "success_aftershock_duration_tu", payload.SuccessAftershockDurationTu);
     }
 
-    private static void AppendGradedSaveExecuteParamKeyValidationErrors(
+    private static void RequirePayloadName(
         Array<string> errors,
         StringName skillId,
-        IReadOnlyDictionary<string, object> parameters,
-        string contextLabel
+        string contextLabel,
+        string fieldName,
+        StringName actual,
+        StringName expected
     )
     {
-        parameters ??= new System.Collections.Generic.Dictionary<string, object>();
-        foreach (string rawKey in parameters.Keys)
-        {
-            string keyLabel = SkillDefinitionValidationRules.ParameterKeyLabel(rawKey);
-            if (!GradedSaveExecuteParamKeySet.Contains(keyLabel))
-            {
-                errors.Add(
-                    $"Skill {skillId} effect {contextLabel} params.{keyLabel} is unsupported; expected only {GradedSaveExecuteParamKeyLabel}."
-                );
-            }
-        }
+        if (actual != expected)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{fieldName} must be {expected}."
+            );
+    }
 
-        foreach (string requiredKey in GradedSaveExecuteParamKeys)
-        {
-            if (!parameters.ContainsKey(requiredKey))
-                errors.Add(
-                    $"Skill {skillId} effect {contextLabel} params.{requiredKey} is required."
-                );
-        }
+    private static void RequirePayloadNonNegative(
+        Array<string> errors,
+        StringName skillId,
+        string contextLabel,
+        string fieldName,
+        int value
+    )
+    {
+        if (value < 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{fieldName} must be >= 0."
+            );
+    }
+
+    private static void RequirePayloadRange(
+        Array<string> errors,
+        StringName skillId,
+        string contextLabel,
+        string fieldName,
+        int value,
+        int minimum,
+        int maximum
+    )
+    {
+        if (value < minimum || value > maximum)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{fieldName} must be between {minimum} and {maximum}."
+            );
+    }
+
+    private static void RequirePayloadPositive(
+        Array<string> errors,
+        StringName skillId,
+        string contextLabel,
+        string fieldName,
+        int value
+    )
+    {
+        if (value <= 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{fieldName} must be a positive int."
+            );
+    }
+
+    private static void RequirePayloadPositiveTu(
+        Array<string> errors,
+        StringName skillId,
+        string contextLabel,
+        string fieldName,
+        int value
+    )
+    {
+        if (value <= 0 || !SkillDefinitionValidationRules.IsValidTuValue(value))
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{fieldName} must be a positive multiple of {SkillDefinitionValidationRules.TuGranularity}."
+            );
     }
 
     internal void AppendSaveBonusByTagValidationErrors(
@@ -485,32 +454,15 @@ IReadOnlyList<CombatEffectDefinition> baseEffects,
         string contextLabel
     )
     {
-        IReadOnlyDictionary<string, object> parameters = effectDef.Parameters ?? new System.Collections.Generic.Dictionary<string, object>();
-        if (!parameters.ContainsKey("save_bonus_by_tag"))
+        if (effectDef.Payload is not StatusEffectPayloadDefinition payload)
             return;
-        object rawMap = parameters["save_bonus_by_tag"];
-        if (
-            rawMap
-            is not IReadOnlyDictionary<string, object> bonusMap
-        )
+        foreach ((StringName saveTag, int value) in payload.SaveBonusByTag)
         {
-            errors.Add(
-                $"Skill {skillId} effect {contextLabel} params.save_bonus_by_tag must be a Dictionary."
-            );
-            return;
-        }
-        foreach (string rawKey in bonusMap.Keys)
-        {
-            StringName saveTag = rawKey;
             if (!BattleSaveContentRules.IsValidSaveTag(saveTag))
                 errors.Add(
                     $"Skill {skillId} effect {contextLabel} params.save_bonus_by_tag uses unsupported save tag {saveTag}."
                 );
-            object rawValue = bonusMap[rawKey];
-            if (
-                !SkillDefinitionValidationRules.TryStrictInt(rawValue, out int value)
-                || value < 1
-            )
+            if (value < 1)
                 errors.Add(
                     $"Skill {skillId} effect {contextLabel} params.save_bonus_by_tag.{saveTag} must be an int >= 1."
                 );

@@ -12,7 +12,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         TestPowerOnlyDamagePreview();
         TestWeaponAndSkillDiceDamageRange();
         TestMultipleDamageEffectsAreSummed();
-        TestTwoHandedWeaponDiceIgnoresAliasSkillDiceFields();
+        TestTwoHandedWeaponDiceUsesOnlyFormalSkillDiceFields();
         TestDiceBonusWithoutDiceIsIgnored();
 
         RequestTestExit(_test.Finish("Battle damage preview range contract regression"));
@@ -116,7 +116,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         }
     }
 
-    private void TestTwoHandedWeaponDiceIgnoresAliasSkillDiceFields()
+    private void TestTwoHandedWeaponDiceUsesOnlyFormalSkillDiceFields()
     {
         BattleUnitState source = BuildUnit("two_handed_preview_user");
         source.ApplyWeaponProjectionTyped(
@@ -143,28 +143,19 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
                 weapon_physical_damage_tag = "physical_slash",
             }
         );
-        CombatEffectDefinition effect = BuildDamageEffect(
-            1,
-            true,
-            parameters: new Dictionary<string, object>
-            {
-                ["damage_dice_count"] = 3,
-                ["damage_dice_sides"] = 3,
-                ["damage_dice_bonus"] = 2,
-            }
-        );
+        CombatEffectDefinition effect = BuildDamageEffect(1, true);
 
         BattleDamagePreviewRangeService.SkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(source, new[] { effect });
         BattleDamagePreviewRangeService.DamageEffectRange damageRange = preview.DamageRanges[0];
 
-        _test.Eq(preview.MinDamage, 7, "旧技能骰 alias 不应加入预览最小伤害。");
-        _test.Eq(preview.MaxDamage, 17, "旧技能骰 alias 不应加入预览最大伤害。");
+        _test.Eq(preview.MinDamage, 7, "只应加入正式配置的双手武器最小伤害。");
+        _test.Eq(preview.MaxDamage, 17, "只应加入正式配置的双手武器最大伤害。");
         _test.Eq(damageRange.WeaponDiceRange.DiceCount, 2, "双手武器骰数量应来自 two_handed_dice。");
         _test.Eq(damageRange.WeaponDiceRange.DiceSides, 6, "双手武器骰面应来自 two_handed_dice。");
-        _test.Eq(damageRange.SkillDiceRange.DiceCount, 0, "旧 damage_dice_count alias 不应再被读取。");
-        _test.Eq(damageRange.SkillDiceRange.DiceSides, 0, "旧 damage_dice_sides alias 不应再被读取。");
-        _test.Eq(damageRange.SkillDiceRange.DiceBonus, 0, "旧 damage_dice_bonus alias 不应再被读取。");
+        _test.Eq(damageRange.SkillDiceRange.DiceCount, 0, "未配置正式技能骰时数量应为 0。");
+        _test.Eq(damageRange.SkillDiceRange.DiceSides, 0, "未配置正式技能骰时骰面应为 0。");
+        _test.Eq(damageRange.SkillDiceRange.DiceBonus, 0, "未配置正式技能骰时加值应为 0。");
     }
 
     private void TestDiceBonusWithoutDiceIsIgnored()
@@ -184,8 +175,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         bool addWeaponDice = false,
         int diceCount = 0,
         int diceSides = 0,
-        int diceBonus = 0,
-        IReadOnlyDictionary<string, object> parameters = null
+        int diceBonus = 0
     )
     {
         return TestSkillDefinitionProjection.BuildEffect(
@@ -194,8 +184,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
             addWeaponDice: addWeaponDice,
             diceCount: diceCount,
             diceSides: diceSides,
-            diceBonus: diceBonus,
-            parameters: parameters
+            diceBonus: diceBonus
         );
     }
 

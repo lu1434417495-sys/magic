@@ -1343,27 +1343,16 @@ public class BattleSpecialSkillResolver
             target_unit.unit_id
         );
 
-        using (
-            GodotProjectionLease<GDictionary> parametersProjection =
-                RuntimePlainPayload.ProjectDictionaryLease(
-                    effect_definition.Parameters,
-                    "battle-special-skill-effect-parameters",
-                    LifetimeDomain.Battle,
-                    "BattleSpecialSkillResolver.body_size_override_parameters"
-                )
-        )
-        {
-            SetRuntimeBodySizeOverrideStatusEffect(
-                target_unit,
-                statusId,
-                durationTu,
-                source_unit != null ? source_unit.unit_id : new StringName(""),
-                Math.Max(effect_definition.Power, 1),
-                parametersProjection.Value,
-                targetCategory,
-                restoreCategory
-            );
-        }
+        SetRuntimeBodySizeOverrideStatusEffect(
+            target_unit,
+            statusId,
+            durationTu,
+            source_unit != null ? source_unit.unit_id : new StringName(""),
+            Math.Max(effect_definition.Power, 1),
+            null,
+            targetCategory,
+            restoreCategory
+        );
         AppendChangedCoords(batch, previousOccupiedCoords);
         AppendChangedUnitCoords(batch, target_unit);
         AppendChangedUnitId(batch, target_unit.unit_id);

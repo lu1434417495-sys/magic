@@ -2358,34 +2358,6 @@ public partial class BattleDamageResolver : IDisposable
         return normalized != "" ? normalized : fallback ?? new StringName("");
     }
 
-    private static GArray GetArrayParam(
-        GDictionary @params,
-        StringName key,
-        GArray fallback = null
-    )
-    {
-        if (@params == null || !@params.ContainsKey(key))
-            return fallback ?? new GArray();
-        try
-        {
-            return (GArray)@params[key];
-        }
-        catch
-        {
-            return fallback ?? new GArray();
-        }
-    }
-
-    private static IReadOnlyList<object> GetArrayParam(
-        IReadOnlyDictionary<string, object> @params,
-        StringName key
-    )
-    {
-        if (!TryGetStatusParamTyped(@params, key, out object rawValue))
-            return Array.Empty<object>();
-        return rawValue as IReadOnlyList<object> ?? Array.Empty<object>();
-    }
-
     private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         GDictionary damageOutcome,

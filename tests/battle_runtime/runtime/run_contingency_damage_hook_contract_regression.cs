@@ -295,11 +295,10 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
             EffectArray(
                 DamageEffect(
                     0,
-                    new GDictionary
-                    {
-                        ["grant_status_id"] = "on_hit_focus",
-                        ["grant_status_power"] = 1,
-                    }
+                    new CombatSourceStatusGrantDefinition(
+                        statusId: "on_hit_focus",
+                        power: 1
+                    )
                 )
             ),
             DamageResolutionContext
@@ -402,13 +401,16 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         );
     }
 
-    private static CombatEffectDefinition DamageEffect(int power, GDictionary parameters = null) =>
+    private static CombatEffectDefinition DamageEffect(
+        int power,
+        CombatSourceStatusGrantDefinition sourceStatusGrantOnHit = null
+    ) =>
         TestSkillDefinitionProjection.BuildEffect(
             "damage",
             effectTargetTeamFilter: "enemy",
             damageTag: "physical_slash",
             power: power,
-            parameters: BattleRuntimeEffectDefinitions.CopyVariantDictionary(parameters)
+            sourceStatusGrantOnHit: sourceStatusGrantOnHit
         );
 
     private static CombatEffectDefinition ExecuteEffect() =>
@@ -433,22 +435,21 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
             saveAbility: "willpower",
             saveTag: "illusion",
             savePartialOnSuccess: false,
-            parameters: new Dictionary<string, object>
-            {
-                ["profile_id"] = "phantasmal_kill",
-                ["failure_execute_threshold_fixed"] = 50,
-                ["failure_execute_threshold_max_hp_percent"] = 25,
-                ["failure_damage_dice_count"] = 6,
-                ["failure_damage_dice_sides"] = 6,
-                ["failure_frightened_duration_tu"] = 60,
-                ["failure_reaction_lock_duration_tu"] = 30,
-                ["critical_failure_execute_threshold_max_hp_percent"] = 35,
-                ["critical_failure_damage_dice_count"] = 10,
-                ["critical_failure_damage_dice_sides"] = 6,
-                ["critical_failure_frightened_duration_tu"] = 90,
-                ["critical_failure_stunned_duration_tu"] = 30,
-                ["success_aftershock_duration_tu"] = 30,
-            }
+            payload: new GradedSaveExecuteEffectPayloadDefinition(
+                profileId: "phantasmal_kill",
+                failureExecuteThresholdFixed: 50,
+                failureExecuteThresholdMaxHpPercent: 25,
+                failureDamageDiceCount: 6,
+                failureDamageDiceSides: 6,
+                failureFrightenedDurationTu: 60,
+                failureReactionLockDurationTu: 30,
+                criticalFailureExecuteThresholdMaxHpPercent: 35,
+                criticalFailureDamageDiceCount: 10,
+                criticalFailureDamageDiceSides: 6,
+                criticalFailureFrightenedDurationTu: 90,
+                criticalFailureStunnedDurationTu: 30,
+                successAftershockDurationTu: 30
+            )
         );
 
     private static IReadOnlyList<CombatEffectDefinition> EffectArray(

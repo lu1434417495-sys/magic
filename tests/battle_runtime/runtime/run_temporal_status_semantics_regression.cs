@@ -375,13 +375,12 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             power: 1,
             durationTu: 60,
             effectTags: new[] { TemporalTag },
-            parameters: new Dictionary<string, object>
-            {
-                ["save_bonus_by_tag"] = new Dictionary<string, object>
+            payload: new StatusEffectPayloadDefinition(
+                saveBonusByTag: new Dictionary<StringName, int>
                 {
-                    [TemporalTag.ToString()] = 4,
-                },
-            }
+                    [TemporalTag] = 4,
+                }
+            )
         );
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
             effectDef,
@@ -412,13 +411,12 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             statusId: "string_key_probe",
             power: 1,
             durationTu: 60,
-            parameters: new Dictionary<string, object>
-            {
-                ["save_bonus_by_tag"] = new Dictionary<string, object>
+            payload: new StatusEffectPayloadDefinition(
+                saveBonusByTag: new Dictionary<StringName, int>
                 {
                     ["temporal"] = 4,
-                },
-            }
+                }
+            )
         );
         BattleStatusEffectState stringKeyEntry = BattleStatusSemanticTable.MergeStatus(
             stringKeyDef,
@@ -428,7 +426,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         _test.Eq(
             stringKeyEntry?.save_bonus_by_tag.GetValueOrDefault(TemporalTag, 0) ?? -1,
             4,
-            "save_bonus_by_tag 的 canonical string key 应恢复进 typed map。"
+            "typed save_bonus_by_tag 应保留 StringName 键。"
         );
     }
 

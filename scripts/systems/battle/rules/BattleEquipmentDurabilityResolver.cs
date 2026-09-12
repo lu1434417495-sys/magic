@@ -544,12 +544,6 @@ internal sealed class BattleEquipmentDurabilityResolver
         StringName overrideSlot = ProgressionDataUtils.to_string_name(
             damageContext?.EquipmentSlotOverride ?? new StringName("")
         );
-        if (overrideSlot == "" && effectDefinition != null)
-        {
-            overrideSlot = ProgressionDataUtils.to_string_name(
-                effectDefinition.GetStringNameParamTyped("equipment_slot_override")
-            );
-        }
         return new BattleDamageResolver.EquipmentDurabilitySelectionQuery
         {
             TargetUnit = targetUnit,
@@ -691,7 +685,14 @@ internal sealed class BattleEquipmentDurabilityResolver
         {
             return result;
         }
-        foreach (StringName slotId in effectDefinition.GetStringNameListParamTyped("target_slots"))
+        if (
+            effectDefinition.Payload
+            is not EquipmentDurabilityDamageEffectPayloadDefinition payload
+        )
+        {
+            return result;
+        }
+        foreach (StringName slotId in payload.TargetSlots)
         {
             if (EquipmentRules.IsValidSlot(slotId) && !result.Contains(slotId))
             {

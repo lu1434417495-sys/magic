@@ -1180,6 +1180,14 @@ public sealed class CombatSkillDefinition
 
 }
 
+public enum CombatCastSquare2CornerKind
+{
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
 public sealed class CombatCastVariantDefinition
 {
     public CombatCastVariantDefinition(
@@ -1192,7 +1200,7 @@ public sealed class CombatCastVariantDefinition
         int requiredCoordCount,
         IReadOnlyList<StringName> allowedBaseTerrains,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyDictionary<string, object> parameters,
+        CombatCastSquare2CornerKind? square2Corner = null,
         StringName projectileKindOverride = default
     )
     {
@@ -1208,10 +1216,9 @@ public sealed class CombatCastVariantDefinition
         );
         EffectDefinitions = SkillDefinitionCollectionFreeze.List(effectDefinitions);
         ProjectileKindOverride = projectileKindOverride;
-        Parameters = ContentValueNormalizer.NormalizeDictionary(
-            parameters,
-            "CombatCastVariantDefinition.Parameters"
-        );
+        if (square2Corner.HasValue && !Enum.IsDefined(square2Corner.Value))
+            throw new ArgumentOutOfRangeException(nameof(square2Corner));
+        Square2Corner = square2Corner;
     }
 
     public StringName VariantId { get; }
@@ -1224,7 +1231,7 @@ public sealed class CombatCastVariantDefinition
     public IReadOnlyList<StringName> AllowedBaseTerrains { get; }
     public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
     public StringName ProjectileKindOverride { get; }
-    public IReadOnlyDictionary<string, object> Parameters { get; }
+    public CombatCastSquare2CornerKind? Square2Corner { get; }
     internal BattleTargetMode TargetModeKind => BattleTypedNames.ToTargetMode(TargetMode);
     internal CombatCastFootprintPattern FootprintPatternKind =>
         CombatSkillTargetingContentRules.ToFootprintPattern(FootprintPattern);
@@ -1416,7 +1423,7 @@ public sealed class CombatEffectDefinition
         int diceSidesBase = 0,
         int diceSidesPerConstitutionMod = 0,
         int diceSidesPerWillpowerMod = 0,
-        IReadOnlyDictionary<string, object> parameters = null,
+        ICombatEffectPayloadDefinition payload = null,
         IReadOnlyList<StringName> effectCategories = null,
         bool allowRepeatHitsAcrossSteps = false,
         StringName tickEffectType = default,
@@ -1551,7 +1558,8 @@ public sealed class CombatEffectDefinition
         StringName onRemovedStatusId = default,
         IReadOnlyList<StringName> onRemovedStatusSaveImmunityTags = null,
         bool onRemovedStatusUndispellable = false,
-        bool onRemovedStatusConsumeAfterNormalTurn = false
+        bool onRemovedStatusConsumeAfterNormalTurn = false,
+        CombatSourceStatusGrantDefinition sourceStatusGrantOnHit = null
     )
     {
         EffectType = effectType;
@@ -1664,10 +1672,7 @@ public sealed class CombatEffectDefinition
             ShieldAttributeModifierId
         );
         ShieldRollPerTarget = shieldRollPerTarget;
-        Parameters = ContentValueNormalizer.NormalizeDictionary(
-            parameters,
-            "CombatEffectDefinition.Parameters"
-        );
+        Payload = payload ?? EmptyCombatEffectPayloadDefinition.Instance;
         EffectCategories = SkillDefinitionCollectionFreeze.List(effectCategories);
         AllowRepeatHitsAcrossSteps = allowRepeatHitsAcrossSteps;
         TickEffectType = tickEffectType;
@@ -1747,6 +1752,7 @@ public sealed class CombatEffectDefinition
         );
         OnRemovedStatusUndispellable = onRemovedStatusUndispellable;
         OnRemovedStatusConsumeAfterNormalTurn = onRemovedStatusConsumeAfterNormalTurn;
+        SourceStatusGrantOnHit = sourceStatusGrantOnHit;
         SaveBonus = saveBonus;
         ControlSaveBonus = controlSaveBonus;
         PassiveReduction = passiveReduction;
@@ -1883,7 +1889,7 @@ public sealed class CombatEffectDefinition
     public StringName ShieldAttributeModifierId { get; }
     internal AttributeSnapshotIdKind ShieldAttributeModifierKind { get; }
     public bool ShieldRollPerTarget { get; }
-    public IReadOnlyDictionary<string, object> Parameters { get; }
+    public ICombatEffectPayloadDefinition Payload { get; }
     public IReadOnlyList<StringName> EffectCategories { get; }
     public bool AllowRepeatHitsAcrossSteps { get; }
     public StringName TickEffectType { get; }
@@ -1962,6 +1968,7 @@ public sealed class CombatEffectDefinition
     public IReadOnlyList<StringName> OnRemovedStatusSaveImmunityTags { get; }
     public bool OnRemovedStatusUndispellable { get; }
     public bool OnRemovedStatusConsumeAfterNormalTurn { get; }
+    public CombatSourceStatusGrantDefinition SourceStatusGrantOnHit { get; }
     public int SaveBonus { get; }
     public int ControlSaveBonus { get; }
     public int PassiveReduction { get; }
@@ -2014,59 +2021,6 @@ public sealed class CombatEffectDefinition
     internal BattleSaveDcMode SaveDcModeKind =>
         BattleSaveContentRules.ToSaveDcMode(SaveDcMode);
 
-    internal int GetIntParamTyped(string key, int fallback = 0)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return fallback;
-        }
-        if (
-            Parameters.TryGetValue(key, out object value)
-            && value is long intValue
-            && intValue >= int.MinValue
-            && intValue <= int.MaxValue
-        )
-            return (int)intValue;
-        return fallback;
-    }
-
-    internal StringName GetStringNameParamTyped(string key, StringName fallback = default)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return fallback;
-        }
-        if (Parameters.TryGetValue(key, out object value))
-        {
-            StringName normalized = value switch
-            {
-                StringName stringName => stringName,
-                string text => new StringName(text),
-                _ => default,
-            };
-            return normalized != "" ? normalized : fallback;
-        }
-        return fallback;
-    }
-
-    internal double GetFloatParamTyped(string key, double fallback = 0.0)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return fallback;
-        }
-        if (Parameters.TryGetValue(key, out object value))
-        {
-            return value switch
-            {
-                long intValue => intValue,
-                double floatValue => floatValue,
-                _ => fallback,
-            };
-        }
-        return fallback;
-    }
-
     internal bool HasEffectTagTyped(StringName tag)
     {
         if (tag == "" || EffectTags == null)
@@ -2081,64 +2035,6 @@ public sealed class CombatEffectDefinition
             }
         }
         return false;
-    }
-
-    internal IReadOnlyList<StringName> GetStringNameListParamTyped(string key)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return System.Array.Empty<StringName>();
-        }
-        if (Parameters.TryGetValue(key, out object value))
-        {
-            if (value is not IReadOnlyList<object> values)
-                return System.Array.Empty<StringName>();
-            var result = new List<StringName>(values.Count);
-            foreach (object entry in values)
-            {
-                StringName normalized = entry switch
-                {
-                    StringName stringName => stringName,
-                    string text => new StringName(text),
-                    _ => default,
-                };
-                if (normalized != "")
-                    result.Add(normalized);
-            }
-            return result.Count == 0
-                ? System.Array.Empty<StringName>()
-                : new ReadOnlyCollection<StringName>(result);
-        }
-        return System.Array.Empty<StringName>();
-    }
-
-    internal IReadOnlyDictionary<StringName, int> GetStringNameIntMapParamTyped(string key)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return new Dictionary<StringName, int>();
-        }
-        if (
-            !Parameters.TryGetValue(key, out object value)
-            || value is not IReadOnlyDictionary<string, object> dictionary
-        )
-        {
-            return new Dictionary<StringName, int>();
-        }
-        var result = new Dictionary<StringName, int>();
-        foreach ((string rawKey, object rawValue) in dictionary)
-        {
-            StringName id = new(rawKey);
-            if (id == "")
-                continue;
-            if (
-                rawValue is long intValue
-                && intValue >= int.MinValue
-                && intValue <= int.MaxValue
-            )
-                result[id] = (int)intValue;
-        }
-        return result;
     }
 
     internal CombatEffectDefinition WithEffectType(StringName effectType)
@@ -2199,7 +2095,7 @@ public sealed class CombatEffectDefinition
             DiceSidesBase,
             DiceSidesPerConstitutionMod,
             DiceSidesPerWillpowerMod,
-            Parameters,
+            Payload,
             EffectCategories,
             AllowRepeatHitsAcrossSteps,
             TickEffectType,
@@ -2335,7 +2231,8 @@ public sealed class CombatEffectDefinition
             onRemovedStatusSaveImmunityTags: OnRemovedStatusSaveImmunityTags,
             onRemovedStatusUndispellable: OnRemovedStatusUndispellable,
             onRemovedStatusConsumeAfterNormalTurn:
-                OnRemovedStatusConsumeAfterNormalTurn
+                OnRemovedStatusConsumeAfterNormalTurn,
+            sourceStatusGrantOnHit: SourceStatusGrantOnHit
         );
     }
 
@@ -2406,7 +2303,7 @@ public sealed class CombatEffectDefinition
             DiceSidesBase,
             DiceSidesPerConstitutionMod,
             DiceSidesPerWillpowerMod,
-            Parameters,
+            Payload,
             EffectCategories,
             AllowRepeatHitsAcrossSteps,
             TickEffectType,
@@ -2543,7 +2440,8 @@ public sealed class CombatEffectDefinition
             onRemovedStatusSaveImmunityTags: OnRemovedStatusSaveImmunityTags,
             onRemovedStatusUndispellable: OnRemovedStatusUndispellable,
             onRemovedStatusConsumeAfterNormalTurn:
-                OnRemovedStatusConsumeAfterNormalTurn
+                OnRemovedStatusConsumeAfterNormalTurn,
+            sourceStatusGrantOnHit: SourceStatusGrantOnHit
         );
     }
 

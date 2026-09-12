@@ -924,6 +924,15 @@ public partial class run_skill_json_import_contract_regression : LifecycleTestSc
         );
         AssertSingleFailure(
             Parse(
+                "unknown_square_corner",
+                prefix + "{\"variant_id\":\"square\",\"footprint_pattern\":\"square2\",\"payload\":{\"square2_corner\":\"future\"}}]}}"
+            ),
+            "skill.dto.cast_payload.square2_corner.unknown",
+            "/entries/7/combat_profile/cast_variants/0/payload/square2_corner",
+            "unknown square2 corner"
+        );
+        AssertSingleFailure(
+            Parse(
                 "bad_footprint",
                 prefix + "{\"variant_id\":\"plain\",\"footprint_pattern\":\"future\"}]}}"
             ),

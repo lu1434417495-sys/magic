@@ -1174,10 +1174,9 @@ public partial class BattleDamageResolver
         {
             return;
         }
-        StringName grantStatusId = effectDefinition.GetStringNameParamTyped(
-            "grant_status_id",
-            ""
-        );
+        CombatSourceStatusGrantDefinition grant =
+            effectDefinition.SourceStatusGrantOnHit;
+        StringName grantStatusId = grant?.StatusId ?? new StringName("");
         if (
             grantStatusId == ""
             || grantStatusId == StatusMeleeComboStack
@@ -1186,18 +1185,9 @@ public partial class BattleDamageResolver
         {
             return;
         }
-        int grantPower = Math.Max(
-            effectDefinition.GetIntParamTyped("grant_status_power", 1),
-            1
-        );
-        int grantDuration = Math.Max(
-            effectDefinition.GetIntParamTyped("grant_status_duration_tu", 180),
-            0
-        );
-        int stackLimit = Math.Max(
-            effectDefinition.GetIntParamTyped("grant_status_stack_limit", 20),
-            1
-        );
+        int grantPower = Math.Max(grant.Power, 1);
+        int grantDuration = Math.Max(grant.DurationTu, 0);
+        int stackLimit = Math.Max(grant.StackLimit, 1);
         BattleStatusEffectState existingEntry = sourceUnit.GetStatusEffect(grantStatusId);
         if (existingEntry != null)
         {

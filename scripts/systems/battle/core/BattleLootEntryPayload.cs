@@ -447,16 +447,12 @@ internal static class BattleLootEntryPayload
         }
         // Loot payload members are read out of a Godot dictionary, so anything
         // that is not already a GDictionary arrives here as a boxed Variant.
-        if (rawValue is Variant variantValue)
+        // 判别类型即可；用 try/catch 兜住转换会连同真正的异常一起吞掉，而且
+        // Variant 转换失败时给出的是空字典而不是异常——那会把损坏的载荷当成合法空载荷。
+        if (rawValue is Variant variantValue && variantValue.VariantType == Variant.Type.Dictionary)
         {
-            try
-            {
-                value = variantValue.AsGodotDictionary();
-                return true;
-            }
-            catch
-            {
-            }
+            value = variantValue.AsGodotDictionary();
+            return true;
         }
         value = new GDictionary();
         return false;
@@ -464,16 +460,15 @@ internal static class BattleLootEntryPayload
 
     private static bool TryAsInt(object rawValue, out int value)
     {
-        if (rawValue is Variant variantValue)
+        // Int/Float 是唯二能无歧义读成数量的 Variant 类型。原先的 catch 从不触发，
+        // 真正的问题是 String 之类会被 Variant 静默解析成 0 并报告成功。
+        if (
+            rawValue is Variant variantValue
+            && variantValue.VariantType is Variant.Type.Int or Variant.Type.Float
+        )
         {
-            try
-            {
-                value = variantValue.AsInt32();
-                return true;
-            }
-            catch
-            {
-            }
+            value = variantValue.AsInt32();
+            return true;
         }
         if (rawValue is int intValue)
         {

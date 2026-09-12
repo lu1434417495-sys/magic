@@ -1391,30 +1391,6 @@ internal class BattleGroundEffectService
         return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
     }
 
-    internal static bool HasParameter(IReadOnlyDictionary<string, object> source, string key)
-    {
-        return source != null && !string.IsNullOrEmpty(key) && source.ContainsKey(key);
-    }
-
-    internal static string ReadString(
-        IReadOnlyDictionary<string, object> source,
-        string key,
-        string fallback = ""
-    )
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.TryGetValue(key, out object value))
-        {
-            return fallback;
-        }
-        string result = value switch
-        {
-            string text => text,
-            StringName stringName => stringName.ToString(),
-            _ => "",
-        };
-        return string.IsNullOrEmpty(result) ? fallback : result;
-    }
-
     private static GArray ReadArray(GDictionary source, string key)
     {
         if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))

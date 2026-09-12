@@ -77,7 +77,9 @@ public partial class run_warrior_guard_break_regression : LifecycleTestSceneTree
                 _test.Eq(effect.SaveDc, 12, "耐久效果应使用DC12。");
                 _test.Eq(effect.SaveAbility, new StringName("strength"), "耐久效果应进行力量豁免。");
                 _test.True(effect.RequireDamageApplied, "耐久效果只应在武器攻击命中后触发。");
-                IReadOnlyList<StringName> slots = effect.GetStringNameListParamTyped("target_slots");
+                IReadOnlyList<StringName> slots =
+                    (effect.Payload as EquipmentDurabilityDamageEffectPayloadDefinition)
+                        ?.TargetSlots ?? Array.Empty<StringName>();
                 _test.Eq(slots.Count, 1, "耐久效果只应指定一个装备槽。");
                 if (slots.Count == 1)
                     _test.Eq(slots[0], new StringName("body"), "耐久效果只应损伤身体护甲。");
@@ -184,10 +186,10 @@ public partial class run_warrior_guard_break_regression : LifecycleTestSceneTree
             int durabilityBefore = runtimeTarget.GetEquipmentView().GetEquippedInstance("body").current_durability;
             var durabilityResolver = new BattleEquipmentDurabilityResolver();
             CombatEffectDefinition activeDurabilityEffect = FindActiveDurabilityEffect(skill, 0);
-            _test.Eq(
-                ProgressionDataUtils.to_string_name(activeDurabilityEffect.GetStringNameParamTyped("equipment_slot_override")),
-                new StringName(""),
-                "未配置的装备槽覆盖经边界规范化后应保持为空。"
+            _test.True(
+                activeDurabilityEffect.Payload
+                    is EquipmentDurabilityDamageEffectPayloadDefinition,
+                "耐久效果应使用闭集 typed payload。"
             );
             _test.Eq(activeDurabilityEffect.EquipmentDurabilitySlotWeights.Count, 0, "摧甲击不应配置随机槽权重。");
             BattleDamageResolver.EquipmentDurabilitySelectionResult manualSelection =

@@ -324,21 +324,24 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         _test.Eq(effect.SaveTag, new StringName("illusion"), "Phantasmal Kill save_tag 应为 illusion。");
         _test.False(effect.SavePartialOnSuccess, "Phantasmal Kill 不应启用 save_partial_on_success。");
 
-        IReadOnlyDictionary<string, object> parameters = effect.Parameters;
-        _test.Eq(parameters?.Count ?? 0, 13, "Phantasmal Kill profile params 应为精确白名单。");
-        AssertParamString(parameters, "profile_id", "phantasmal_kill");
-        AssertParamInt(parameters, "failure_execute_threshold_fixed", 50);
-        AssertParamInt(parameters, "failure_execute_threshold_max_hp_percent", 25);
-        AssertParamInt(parameters, "failure_damage_dice_count", 6);
-        AssertParamInt(parameters, "failure_damage_dice_sides", 6);
-        AssertParamInt(parameters, "failure_frightened_duration_tu", 60);
-        AssertParamInt(parameters, "failure_reaction_lock_duration_tu", 30);
-        AssertParamInt(parameters, "critical_failure_execute_threshold_max_hp_percent", 35);
-        AssertParamInt(parameters, "critical_failure_damage_dice_count", 10);
-        AssertParamInt(parameters, "critical_failure_damage_dice_sides", 6);
-        AssertParamInt(parameters, "critical_failure_frightened_duration_tu", 90);
-        AssertParamInt(parameters, "critical_failure_stunned_duration_tu", 30);
-        AssertParamInt(parameters, "success_aftershock_duration_tu", 30);
+        GradedSaveExecuteEffectPayloadDefinition payload =
+            effect.Payload as GradedSaveExecuteEffectPayloadDefinition;
+        _test.True(payload != null, "Phantasmal Kill 应投影为 graded-save typed payload。");
+        if (payload == null)
+            return;
+        _test.Eq(payload.ProfileId, new StringName("phantasmal_kill"), "Phantasmal Kill profile_id 应匹配。");
+        _test.Eq(payload.FailureExecuteThresholdFixed, 50, "Phantasmal Kill 失败固定处决阈值应匹配。");
+        _test.Eq(payload.FailureExecuteThresholdMaxHpPercent, 25, "Phantasmal Kill 失败生命比例阈值应匹配。");
+        _test.Eq(payload.FailureDamageDiceCount, 6, "Phantasmal Kill 失败伤害骰数量应匹配。");
+        _test.Eq(payload.FailureDamageDiceSides, 6, "Phantasmal Kill 失败伤害骰面数应匹配。");
+        _test.Eq(payload.FailureFrightenedDurationTu, 60, "Phantasmal Kill 失败恐惧时长应匹配。");
+        _test.Eq(payload.FailureReactionLockDurationTu, 30, "Phantasmal Kill 失败反应锁时长应匹配。");
+        _test.Eq(payload.CriticalFailureExecuteThresholdMaxHpPercent, 35, "Phantasmal Kill 大失败生命比例阈值应匹配。");
+        _test.Eq(payload.CriticalFailureDamageDiceCount, 10, "Phantasmal Kill 大失败伤害骰数量应匹配。");
+        _test.Eq(payload.CriticalFailureDamageDiceSides, 6, "Phantasmal Kill 大失败伤害骰面数应匹配。");
+        _test.Eq(payload.CriticalFailureFrightenedDurationTu, 90, "Phantasmal Kill 大失败恐惧时长应匹配。");
+        _test.Eq(payload.CriticalFailureStunnedDurationTu, 30, "Phantasmal Kill 大失败震慑时长应匹配。");
+        _test.Eq(payload.SuccessAftershockDurationTu, 30, "Phantasmal Kill 成功余震时长应匹配。");
 
         for (int level = 0; level <= 9; level++)
         {

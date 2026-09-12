@@ -66,169 +66,99 @@ internal static class PhantasmalKillExecutionRules
             error = "effect_type must be graded_save_execute.";
             return false;
         }
-
-        if (!TryReadStringNameParam(effectDefinition, "profile_id", out StringName profileId))
-        {
-            error = "params.profile_id is required.";
-            return false;
-        }
-        if (profileId != PhantasmalKillProfileId)
-        {
-            error = "params.profile_id must be phantasmal_kill.";
-            return false;
-        }
-
         if (
-            !TryReadIntParam(
-                effectDefinition,
-                "failure_execute_threshold_fixed",
-                out int failureExecuteThresholdFixed
-            )
-            || failureExecuteThresholdFixed < 0
+            effectDefinition.Payload
+            is not GradedSaveExecuteEffectPayloadDefinition payload
         )
         {
-            error = "params.failure_execute_threshold_fixed must be a non-negative integer.";
+            error = "graded_save_execute payload is required.";
             return false;
         }
-        if (
-            !TryReadPercentParam(
-                effectDefinition,
-                "failure_execute_threshold_max_hp_percent",
-                out int failureExecuteThresholdMaxHpPercent
-            )
-        )
+        if (payload.ProfileId != PhantasmalKillProfileId)
         {
-            error = "params.failure_execute_threshold_max_hp_percent must be 1..100.";
+            error = "payload.profile_id must be phantasmal_kill.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "failure_damage_dice_count",
-                out int failureDamageDiceCount
-            )
-        )
+        if (payload.FailureExecuteThresholdFixed < 0)
         {
-            error = "params.failure_damage_dice_count must be positive.";
+            error = "payload.failure_execute_threshold_fixed must be a non-negative integer.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "failure_damage_dice_sides",
-                out int failureDamageDiceSides
-            )
-        )
+        if (!IsPercent(payload.FailureExecuteThresholdMaxHpPercent))
         {
-            error = "params.failure_damage_dice_sides must be positive.";
+            error = "payload.failure_execute_threshold_max_hp_percent must be 1..100.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "failure_frightened_duration_tu",
-                out int failureFrightenedDurationTu
-            )
-        )
+        if (payload.FailureDamageDiceCount <= 0)
         {
-            error = "params.failure_frightened_duration_tu must be positive.";
+            error = "payload.failure_damage_dice_count must be positive.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "failure_reaction_lock_duration_tu",
-                out int failureReactionLockDurationTu
-            )
-        )
+        if (payload.FailureDamageDiceSides <= 0)
         {
-            error = "params.failure_reaction_lock_duration_tu must be positive.";
+            error = "payload.failure_damage_dice_sides must be positive.";
             return false;
         }
-        if (
-            !TryReadPercentParam(
-                effectDefinition,
-                "critical_failure_execute_threshold_max_hp_percent",
-                out int criticalFailureExecuteThresholdMaxHpPercent
-            )
-        )
+        if (payload.FailureFrightenedDurationTu <= 0)
         {
-            error = "params.critical_failure_execute_threshold_max_hp_percent must be 1..100.";
+            error = "payload.failure_frightened_duration_tu must be positive.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "critical_failure_damage_dice_count",
-                out int criticalFailureDamageDiceCount
-            )
-        )
+        if (payload.FailureReactionLockDurationTu <= 0)
         {
-            error = "params.critical_failure_damage_dice_count must be positive.";
+            error = "payload.failure_reaction_lock_duration_tu must be positive.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "critical_failure_damage_dice_sides",
-                out int criticalFailureDamageDiceSides
-            )
-        )
+        if (!IsPercent(payload.CriticalFailureExecuteThresholdMaxHpPercent))
         {
-            error = "params.critical_failure_damage_dice_sides must be positive.";
+            error = "payload.critical_failure_execute_threshold_max_hp_percent must be 1..100.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "critical_failure_frightened_duration_tu",
-                out int criticalFailureFrightenedDurationTu
-            )
-        )
+        if (payload.CriticalFailureDamageDiceCount <= 0)
         {
-            error = "params.critical_failure_frightened_duration_tu must be positive.";
+            error = "payload.critical_failure_damage_dice_count must be positive.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "critical_failure_stunned_duration_tu",
-                out int criticalFailureStunnedDurationTu
-            )
-        )
+        if (payload.CriticalFailureDamageDiceSides <= 0)
         {
-            error = "params.critical_failure_stunned_duration_tu must be positive.";
+            error = "payload.critical_failure_damage_dice_sides must be positive.";
             return false;
         }
-        if (
-            !TryReadPositiveIntParam(
-                effectDefinition,
-                "success_aftershock_duration_tu",
-                out int successAftershockDurationTu
-            )
-        )
+        if (payload.CriticalFailureFrightenedDurationTu <= 0)
         {
-            error = "params.success_aftershock_duration_tu must be positive.";
+            error = "payload.critical_failure_frightened_duration_tu must be positive.";
+            return false;
+        }
+        if (payload.CriticalFailureStunnedDurationTu <= 0)
+        {
+            error = "payload.critical_failure_stunned_duration_tu must be positive.";
+            return false;
+        }
+        if (payload.SuccessAftershockDurationTu <= 0)
+        {
+            error = "payload.success_aftershock_duration_tu must be positive.";
             return false;
         }
 
         profile = new PhantasmalKillExecutionProfile(
-            profileId,
-            failureExecuteThresholdFixed,
-            failureExecuteThresholdMaxHpPercent,
-            failureDamageDiceCount,
-            failureDamageDiceSides,
-            failureFrightenedDurationTu,
-            failureReactionLockDurationTu,
-            criticalFailureExecuteThresholdMaxHpPercent,
-            criticalFailureDamageDiceCount,
-            criticalFailureDamageDiceSides,
-            criticalFailureFrightenedDurationTu,
-            criticalFailureStunnedDurationTu,
-            successAftershockDurationTu
+            payload.ProfileId,
+            payload.FailureExecuteThresholdFixed,
+            payload.FailureExecuteThresholdMaxHpPercent,
+            payload.FailureDamageDiceCount,
+            payload.FailureDamageDiceSides,
+            payload.FailureFrightenedDurationTu,
+            payload.FailureReactionLockDurationTu,
+            payload.CriticalFailureExecuteThresholdMaxHpPercent,
+            payload.CriticalFailureDamageDiceCount,
+            payload.CriticalFailureDamageDiceSides,
+            payload.CriticalFailureFrightenedDurationTu,
+            payload.CriticalFailureStunnedDurationTu,
+            payload.SuccessAftershockDurationTu
         );
         return true;
     }
+
+    private static bool IsPercent(int value) => value >= 1 && value <= 100;
 
     internal static GradedSaveExecutionGrade ResolveGrade(BattleSaveResult saveResult)
     {
@@ -457,88 +387,6 @@ internal static class PhantasmalKillExecutionRules
             0,
             BasisPointsDenominator
         );
-    }
-
-    private static bool TryReadStringNameParam(
-        CombatEffectDefinition effectDefinition,
-        string key,
-        out StringName value
-    )
-    {
-        value = "";
-        if (!HasParam(effectDefinition, key))
-        {
-            return false;
-        }
-        object rawValue = effectDefinition.Parameters[key];
-        value = rawValue switch
-        {
-            StringName stringName => stringName,
-            string text => new StringName(text),
-            _ => "",
-        };
-        return !IsEmpty(value);
-    }
-
-    private static bool TryReadIntParam(
-        CombatEffectDefinition effectDefinition,
-        string key,
-        out int value
-    )
-    {
-        value = 0;
-        if (!HasParam(effectDefinition, key))
-        {
-            return false;
-        }
-        object rawValue = effectDefinition.Parameters[key];
-        switch (rawValue)
-        {
-            case byte byteValue:
-                value = byteValue;
-                return true;
-            case short shortValue:
-                value = shortValue;
-                return true;
-            case int intValue:
-                value = intValue;
-                return true;
-            case long longValue when longValue >= int.MinValue && longValue <= int.MaxValue:
-                value = (int)longValue;
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    private static bool TryReadPositiveIntParam(
-        CombatEffectDefinition effectDefinition,
-        string key,
-        out int value
-    )
-    {
-        return TryReadIntParam(effectDefinition, key, out value) && value > 0;
-    }
-
-    private static bool TryReadPercentParam(
-        CombatEffectDefinition effectDefinition,
-        string key,
-        out int value
-    )
-    {
-        return TryReadIntParam(effectDefinition, key, out value) && value >= 1 && value <= 100;
-    }
-
-    private static bool HasParam(CombatEffectDefinition effectDefinition, string key)
-    {
-        return effectDefinition?.Parameters != null
-            && !string.IsNullOrEmpty(key)
-            && effectDefinition.Parameters.ContainsKey(key);
-    }
-
-    private static bool IsEmpty(StringName value)
-    {
-        return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
     private sealed class GradeCountAccumulator

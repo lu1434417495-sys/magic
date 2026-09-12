@@ -335,15 +335,14 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
     {
         return TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
-            parameters: new Dictionary<string, object>
-            {
-                ["base_attack_bonus"] = 1,
-                ["follow_up_attack_penalty"] = 2,
-                ["penalty_free_stages_by_level"] = new Dictionary<string, object>
+            payload: new RepeatAttackUntilFailEffectPayloadDefinition(
+                baseAttackBonus: 1,
+                followUpAttackPenalty: 2,
+                penaltyFreeStagesByLevel: new Dictionary<int, int>
                 {
-                    ["3"] = 1,
-                },
-            }
+                    [3] = 1,
+                }
+            )
         );
     }
 }

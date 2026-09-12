@@ -338,12 +338,12 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             saveDcMode: "static",
             saveAbility: "willpower",
             saveTag: "magic",
-            parameters: new Dictionary<string, object>
-            {
-                ["area_pattern"] = "diamond",
-                ["profile_id"] = "prismatic_sphere",
-                ["radius_cells"] = 2,
-            }
+            payload: new LayeredBarrierEffectPayloadDefinition(
+                areaPattern: "diamond",
+                profileId: "prismatic_sphere",
+                radiusCells: 2,
+                saveDc: 0
+            )
         );
         using var batch = new BattleEventBatch();
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
@@ -412,9 +412,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         CombatEffectDefinition repeat = TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
             effectTargetTeamFilter: "enemy",
-            parameters: new Dictionary<string, object>
-            {
-            }
+            payload: new RepeatAttackUntilFailEffectPayloadDefinition()
         );
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,

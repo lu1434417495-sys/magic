@@ -96,12 +96,14 @@ internal class BattleBarrierService
     {
         public static BarrierApplyParams FromEffect(CombatEffectDefinition effectDefinition)
         {
+            LayeredBarrierEffectPayloadDefinition payload =
+                effectDefinition?.Payload as LayeredBarrierEffectPayloadDefinition;
             return new BarrierApplyParams(
-                effectDefinition?.GetStringNameParamTyped("profile_id", "") ?? new StringName(""),
-                effectDefinition?.GetIntParamTyped("radius_cells", 0) ?? 0,
-                effectDefinition?.GetStringNameParamTyped("area_pattern", "") ?? new StringName(""),
-                effectDefinition?.GetIntParamTyped("duration_tu", 0) ?? 0,
-                effectDefinition?.GetIntParamTyped("save_dc", DEFAULT_SAVE_DC) ?? DEFAULT_SAVE_DC
+                payload?.ProfileId ?? new StringName(""),
+                payload?.RadiusCells ?? 0,
+                payload?.AreaPattern ?? new StringName(""),
+                effectDefinition?.DurationTu ?? 0,
+                payload?.SaveDc ?? DEFAULT_SAVE_DC
             );
         }
     }

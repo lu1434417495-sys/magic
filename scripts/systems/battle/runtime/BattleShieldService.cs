@@ -406,12 +406,7 @@ internal sealed class BattleShieldService
         {
             return 0;
         }
-        int durationTu = effect_definition.DurationTu;
-        if (durationTu > 0)
-        {
-            return durationTu;
-        }
-        return Math.Max(effect_definition.GetIntParamTyped("duration_tu", 0), 0);
+        return Math.Max(effect_definition.DurationTu, 0);
     }
 
     internal StringName _resolve_shield_family(

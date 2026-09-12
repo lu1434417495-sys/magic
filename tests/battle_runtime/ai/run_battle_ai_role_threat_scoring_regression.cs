@@ -13,7 +13,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
             TestMultiUnitSkillScoresRoleThreatTargetGroups();
             TestGroundSkillScoresRoleThreatAreaTargets();
             TestSkillScorePrioritizesLethalThreatTargets();
-            TestLowHpBonusUsesFormalParamOnly();
+            TestLowHpBonusUsesTypedThreshold();
         }
         catch (Exception exception)
         {
@@ -218,7 +218,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         );
     }
 
-    private void TestLowHpBonusUsesFormalParamOnly()
+    private void TestLowHpBonusUsesTypedThreshold()
     {
         using Fixture fixture = BuildFixture("low_hp_bonus_scoring");
         BattleUnitState actor = BuildUnit("low_hp_bonus_actor", "hostile", new Vector2I(1, 1));
@@ -239,20 +239,20 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
                 bonusDamageDiceSides: 1
             )
         );
-        SkillDefinition legacySkill = BuildSkill(
-            "legacy_low_hp_bonus_probe",
-            "Legacy Low HP Bonus",
+        SkillDefinition inactiveSkill = BuildSkill(
+            "inactive_low_hp_bonus_probe",
+            "Inactive Low HP Bonus",
             TestSkillDefinitionProjection.BuildEffect(
                 "damage",
                 power: 10,
                 bonusCondition: "target_low_hp",
-                parameters: new Dictionary<string, object> { ["low_hp_ratio"] = 0.7 },
+                hpRatioThresholdPercent: 50,
                 bonusDamageDiceCount: 2,
                 bonusDamageDiceSides: 1
             )
         );
         fixture.AddSkill(formalSkill);
-        fixture.AddSkill(legacySkill);
+        fixture.AddSkill(inactiveSkill);
 
         BattleAiContext context = fixture.BuildContext(actor);
         BattleAiScoreInput formalScore = fixture.ScoreService.BuildSkillScoreInput(
@@ -263,28 +263,28 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
             new[] { formalSkill.CombatProfile.EffectDefinitions[0] },
             new Dictionary<string, object>(StringComparer.Ordinal)
         );
-        BattleAiScoreInput legacyScore = fixture.ScoreService.BuildSkillScoreInput(
+        BattleAiScoreInput inactiveScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
-            legacySkill,
-            BuildCommand(actor, legacySkill.SkillId, target.GetAnchorCoord(), target),
+            inactiveSkill,
+            BuildCommand(actor, inactiveSkill.SkillId, target.GetAnchorCoord(), target),
             BuildPreview(target),
-            new[] { legacySkill.CombatProfile.EffectDefinitions[0] },
+            new[] { inactiveSkill.CombatProfile.EffectDefinitions[0] },
             new Dictionary<string, object>(StringComparer.Ordinal)
         );
 
-        _test.True(formalScore != null && legacyScore != null, "低血追加骰评分应生成两个合法 score input。");
-        if (formalScore == null || legacyScore == null)
+        _test.True(formalScore != null && inactiveScore != null, "低血追加骰评分应生成两个合法 score input。");
+        if (formalScore == null || inactiveScore == null)
         {
             return;
         }
         _test.True(
-            formalScore.estimated_damage > legacyScore.estimated_damage,
-            "AI 评分应读取正式 hp_ratio_threshold_percent 判定低血追加骰。"
+            formalScore.estimated_damage > inactiveScore.estimated_damage,
+            "AI 评分应读取 typed hp_ratio_threshold_percent 判定低血追加骰。"
         );
         _test.Eq(
-            legacyScore.estimated_damage,
+            inactiveScore.estimated_damage,
             10,
-            "AI 评分不应再读取旧 low_hp_ratio alias。"
+            "目标不满足 typed 低血阈值时不应加入追加骰。"
         );
     }
 

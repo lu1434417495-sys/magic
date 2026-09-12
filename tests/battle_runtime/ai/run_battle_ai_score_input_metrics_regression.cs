@@ -2377,12 +2377,12 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             "layered_barrier",
             effectTargetTeamFilter: "self",
             durationTu: 120,
-            parameters: new Dictionary<string, object>
-            {
-                ["profile_id"] = profileId,
-                ["radius_cells"] = 2L,
-                ["area_pattern"] = new StringName("diamond"),
-            }
+            payload: new LayeredBarrierEffectPayloadDefinition(
+                areaPattern: "diamond",
+                profileId: profileId,
+                radiusCells: 2,
+                saveDc: 0
+            )
         );
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,

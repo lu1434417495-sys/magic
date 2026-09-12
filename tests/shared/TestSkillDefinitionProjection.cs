@@ -249,7 +249,7 @@ internal static class TestSkillDefinitionProjection
         bool preventRepeatTarget = true,
         StringName forcedMoveMode = default,
         int forcedMoveDistance = 0,
-        IReadOnlyDictionary<string, object> parameters = null,
+        ICombatEffectPayloadDefinition payload = null,
         StringName bonusCondition = default,
         StringName triggerEvent = default,
         StringName triggerCondition = default,
@@ -330,7 +330,8 @@ internal static class TestSkillDefinitionProjection
         bool stopOnMiss = true,
         int forcedMoveMaxTargetBodySize = 0,
         CombatChainDamageDefinition chainDamage = null,
-        int saveDcBonus = 0
+        int saveDcBonus = 0,
+        CombatSourceStatusGrantDefinition sourceStatusGrantOnHit = null
     )
     {
         return new CombatEffectDefinition(
@@ -384,7 +385,7 @@ internal static class TestSkillDefinitionProjection
             triggerEvent: DefaultName(triggerEvent, ""),
             triggerCondition: DefaultName(triggerCondition, ""),
             power: power,
-            parameters: parameters,
+            payload: payload,
             forcedMoveDistance: forcedMoveDistance,
             jumpBaseBudget: jumpBaseBudget,
             jumpStrScale: jumpStrScale,
@@ -432,7 +433,8 @@ internal static class TestSkillDefinitionProjection
             stopOnMiss: stopOnMiss,
             forcedMoveMaxTargetBodySize: forcedMoveMaxTargetBodySize,
             chainDamage: chainDamage,
-            saveDcBonus: saveDcBonus
+            saveDcBonus: saveDcBonus,
+            sourceStatusGrantOnHit: sourceStatusGrantOnHit
         );
     }
 
@@ -443,7 +445,7 @@ internal static class TestSkillDefinitionProjection
         StringName targetMode = default,
         StringName footprintPattern = default,
         int requiredCoordCount = 0,
-        IReadOnlyDictionary<string, object> parameters = null,
+        CombatCastSquare2CornerKind? square2Corner = null,
         StringName projectileKindOverride = default
     )
     {
@@ -457,7 +459,7 @@ internal static class TestSkillDefinitionProjection
             requiredCoordCount: requiredCoordCount,
             allowedBaseTerrains: System.Array.Empty<StringName>(),
             effectDefinitions: effects ?? System.Array.Empty<CombatEffectDefinition>(),
-            parameters: parameters ?? new Dictionary<string, object>(),
+            square2Corner: square2Corner,
             projectileKindOverride: projectileKindOverride
         );
     }

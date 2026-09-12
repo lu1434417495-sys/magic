@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Linq;
 using Godot;
 
@@ -295,7 +294,7 @@ internal static class SkillDefinitionProjector
             diceSidesBase: source.DiceSidesBase,
             diceSidesPerConstitutionMod: source.DiceSidesPerConstitutionMod,
             diceSidesPerWillpowerMod: source.DiceSidesPerWillpowerMod,
-            parameters: ProjectParameters(source.Payload),
+            payload: ProjectPayload(source.Payload),
             effectCategories: Names(source.EffectCategories),
             allowRepeatHitsAcrossSteps: source.AllowRepeatHitsAcrossSteps,
             tickEffectType: Name(
@@ -669,125 +668,90 @@ internal static class SkillDefinitionProjector
         value.RequiredCoordCount,
         Names(value.AllowedBaseTerrains, SkillRootCombatImportValueRules.GetWireValue),
         ProjectEffects(value.EffectDefs),
-        ProjectCastVariantParameters(value.Payload),
+        ProjectCastSquare2Corner(value.Payload.Square2Corner),
         Name(SkillRootCombatImportValueRules.GetWireValue(value.ProjectileKindOverride))
     )).ToArray();
 
-    private static IReadOnlyDictionary<string, object> ProjectCastVariantParameters(
-        CombatCastVariantPayloadImportModel payload
-    )
+    private static CombatCastSquare2CornerKind? ProjectCastSquare2Corner(
+        CombatCastSquare2Corner? corner
+    ) => corner switch
     {
-        var result = new Dictionary<string, object>(StringComparer.Ordinal);
-        if (payload.Square2Corner.HasValue)
-        {
-            result["square2_corner"] =
-                SkillRootCombatImportValueRules.GetWireValue(payload.Square2Corner.Value);
-        }
-        return result;
-    }
+        null => null,
+        CombatCastSquare2Corner.TopLeft => CombatCastSquare2CornerKind.TopLeft,
+        CombatCastSquare2Corner.TopRight => CombatCastSquare2CornerKind.TopRight,
+        CombatCastSquare2Corner.BottomLeft => CombatCastSquare2CornerKind.BottomLeft,
+        CombatCastSquare2Corner.BottomRight => CombatCastSquare2CornerKind.BottomRight,
+        _ => throw new ArgumentOutOfRangeException(nameof(corner)),
+    };
 
-    private static IReadOnlyDictionary<string, object> ProjectParameters(
+    private static ICombatEffectPayloadDefinition ProjectPayload(
         ICombatEffectPayloadImportModel payload
-    )
+    ) => payload switch
     {
-        var result = new Dictionary<string, object>(StringComparer.Ordinal);
-        switch (payload)
-        {
-            case EmptyCombatEffectPayloadImportModel:
-                break;
-            case StatusEffectPayloadImportModel value:
-                AddName(result, "breaks_barrier_layer", value.BreaksBarrierLayer);
-                AddName(result, "source_skill_id", value.SourceSkillId);
-                break;
-            case HealEffectPayloadImportModel value:
-                result["con_mod_heal"] = value.ConModHeal;
-                break;
-            case EquipmentDurabilityDamageEffectPayloadImportModel value:
-                result["max_damaged_items"] = value.MaxDamagedItems;
-                result["target_slots"] = Names(
+        EmptyCombatEffectPayloadImportModel =>
+            EmptyCombatEffectPayloadDefinition.Instance,
+        StatusEffectPayloadImportModel value => new StatusEffectPayloadDefinition(
+            Name(value.BreaksBarrierLayer),
+            Name(value.SourceSkillId)
+        ),
+        HealEffectPayloadImportModel value =>
+            new HealEffectPayloadDefinition(value.ConModHeal),
+        EquipmentDurabilityDamageEffectPayloadImportModel value =>
+            new EquipmentDurabilityDamageEffectPayloadDefinition(
+                value.MaxDamagedItems,
+                Names(
                     value.TargetSlots,
                     SkillCombatEffectValueRules.GetWireValue
-                );
-                break;
-            case RepeatAttackUntilFailEffectPayloadImportModel value:
-                result["base_attack_bonus"] = value.BaseAttackBonus;
-                result["cost_resource"] =
-                    SkillCombatEffectValueRules.GetWireValue(value.CostResource);
-                result["follow_up_cost_addition"] = value.FollowUpCostAddition;
-                result["follow_up_cost_multiplier"] = value.FollowUpCostMultiplier;
-                result["follow_up_attack_penalty"] = value.FollowUpAttackPenalty;
-                result["penalty_free_stages_by_level"] = value.PenaltyFreeStagesByLevel
-                    .ToDictionary(
-                        pair => pair.Key.ToString(CultureInfo.InvariantCulture),
-                        pair => (object)pair.Value,
-                        StringComparer.Ordinal
-                    );
-                result["same_target_only"] = value.SameTargetOnly;
-                result["follow_up_fixed_cost"] = value.FollowUpFixedCost;
-                result["exponential_penalty"] = value.ExponentialPenalty;
-                result["stop_on_insufficient_resource"] =
-                    value.StopOnInsufficientResource;
-                break;
-            case LayeredBarrierEffectPayloadImportModel value:
-                result["area_pattern"] =
-                    SkillJsonImportValueRules.GetWireValue(value.AreaPattern);
-                result["profile_id"] = value.ProfileId.Value;
-                result["radius_cells"] = value.RadiusCells;
-                result["save_dc"] = value.SaveDc;
-                break;
-            case GradedSaveExecuteEffectPayloadImportModel value:
-                result["critical_failure_damage_dice_count"] =
-                    value.CriticalFailureDamageDiceCount;
-                result["critical_failure_damage_dice_sides"] =
-                    value.CriticalFailureDamageDiceSides;
-                result["critical_failure_execute_threshold_max_hp_percent"] =
-                    value.CriticalFailureExecuteThresholdMaxHpPercent;
-                result["critical_failure_frightened_duration_tu"] =
-                    value.CriticalFailureFrightenedDurationTu;
-                result["critical_failure_stunned_duration_tu"] =
-                    value.CriticalFailureStunnedDurationTu;
-                result["failure_damage_dice_count"] = value.FailureDamageDiceCount;
-                result["failure_damage_dice_sides"] = value.FailureDamageDiceSides;
-                result["failure_execute_threshold_fixed"] =
-                    value.FailureExecuteThresholdFixed;
-                result["failure_execute_threshold_max_hp_percent"] =
-                    value.FailureExecuteThresholdMaxHpPercent;
-                result["failure_frightened_duration_tu"] =
-                    value.FailureFrightenedDurationTu;
-                result["failure_reaction_lock_duration_tu"] =
-                    value.FailureReactionLockDurationTu;
-                result["profile_id"] = value.ProfileId.Value;
-                result["success_aftershock_duration_tu"] =
-                    value.SuccessAftershockDurationTu;
-                break;
-            case DispelMagicEffectPayloadImportModel value:
-                AddName(result, "breaks_barrier_layer", value.BreaksBarrierLayer);
-                break;
-            case OnKillGainResourcesEffectPayloadImportModel value:
-                result["grant_scope"] =
-                    SkillCombatEffectValueRules.GetWireValue(value.GrantScope);
-                result["require_target_defeated_by_same_skill"] =
-                    value.RequireTargetDefeatedBySameSkill;
-                result["stack_on_multiple_kills"] = value.StackOnMultipleKills;
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"Unsupported combat effect payload import model {payload.GetType().Name}."
-                );
-        }
-        return result;
-    }
-
-    private static void AddName(
-        IDictionary<string, object> target,
-        string key,
-        SkillImportStringName value
-    )
-    {
-        string projected = value.Value;
-        if (projected.Length > 0)
-            target[key] = projected;
-    }
+                )
+            ),
+        RepeatAttackUntilFailEffectPayloadImportModel value =>
+            new RepeatAttackUntilFailEffectPayloadDefinition(
+                value.BaseAttackBonus,
+                Name(SkillCombatEffectValueRules.GetWireValue(value.CostResource)),
+                value.FollowUpCostAddition,
+                value.FollowUpCostMultiplier,
+                value.FollowUpAttackPenalty,
+                value.PenaltyFreeStagesByLevel,
+                value.SameTargetOnly,
+                value.FollowUpFixedCost,
+                value.ExponentialPenalty,
+                value.StopOnInsufficientResource
+            ),
+        LayeredBarrierEffectPayloadImportModel value =>
+            new LayeredBarrierEffectPayloadDefinition(
+                Name(SkillJsonImportValueRules.GetWireValue(value.AreaPattern)),
+                Name(value.ProfileId),
+                value.RadiusCells,
+                value.SaveDc
+            ),
+        GradedSaveExecuteEffectPayloadImportModel value =>
+            new GradedSaveExecuteEffectPayloadDefinition(
+                value.CriticalFailureDamageDiceCount,
+                value.CriticalFailureDamageDiceSides,
+                value.CriticalFailureExecuteThresholdMaxHpPercent,
+                value.CriticalFailureFrightenedDurationTu,
+                value.CriticalFailureStunnedDurationTu,
+                value.FailureDamageDiceCount,
+                value.FailureDamageDiceSides,
+                value.FailureExecuteThresholdFixed,
+                value.FailureExecuteThresholdMaxHpPercent,
+                value.FailureFrightenedDurationTu,
+                value.FailureReactionLockDurationTu,
+                Name(value.ProfileId),
+                value.SuccessAftershockDurationTu
+            ),
+        DispelMagicEffectPayloadImportModel value =>
+            new DispelMagicEffectPayloadDefinition(Name(value.BreaksBarrierLayer)),
+        OnKillGainResourcesEffectPayloadImportModel value =>
+            new OnKillGainResourcesEffectPayloadDefinition(
+                Name(SkillCombatEffectValueRules.GetWireValue(value.GrantScope)),
+                value.RequireTargetDefeatedBySameSkill,
+                value.StackOnMultipleKills
+            ),
+        _ => throw new InvalidOperationException(
+            $"Unsupported combat effect payload import model {payload?.GetType().Name ?? "<null>"}."
+        ),
+    };
 
     private static IReadOnlyList<EquipmentSlotWeightDefinition> ProjectSlotWeights(
         IReadOnlyList<CombatEffectSlotWeightImportModel> values

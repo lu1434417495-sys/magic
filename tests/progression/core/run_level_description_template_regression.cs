@@ -428,7 +428,7 @@ public partial class run_level_description_template_regression : LifecycleTestSc
     {
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
             "locked_cast_variant_description_fixture",
-            levelDescriptionTemplate: "基础{base}{{?locked_param}}，高阶{locked_param}{{/locked_param}}",
+            levelDescriptionTemplate: "基础{base}{{?cost_resource}}，高阶{cost_resource}{{/cost_resource}}",
             levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>
             {
                 [0] = new SkillDescriptionVariables(
@@ -448,11 +448,10 @@ public partial class run_level_description_template_regression : LifecycleTestSc
                         new[]
                         {
                             TestSkillDefinitionProjection.BuildEffect(
-                                "damage",
-                                parameters: new Dictionary<string, object>
-                                {
-                                    ["locked_param"] = "未锁",
-                                }
+                                "repeat_attack_until_fail",
+                                payload: new RepeatAttackUntilFailEffectPayloadDefinition(
+                                    costResource: "aura"
+                                )
                             ),
                         }
                     ),
@@ -467,8 +466,8 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         );
         _test.Eq(
             BuildLevelDescription(skillDefinition, 3, new GDictionary()),
-            "基础可用，高阶未锁",
-            "达到施法形态等级后应合并该形态的 effect params。"
+            "基础可用，高阶aura",
+            "达到施法形态等级后应合并该形态的 typed effect payload。"
         );
     }
 

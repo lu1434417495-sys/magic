@@ -16,19 +16,13 @@ internal sealed class SkillDefinitionDamageEffectValidator
             CombatEffectDefinition effectDef
         )
         {
-            IReadOnlyDictionary<string, object> parameters = effectDef?.Parameters ?? new System.Collections.Generic.Dictionary<string, object>();
+            EquipmentDurabilityDamageEffectPayloadDefinition payload =
+                effectDef?.Payload as EquipmentDurabilityDamageEffectPayloadDefinition;
             return new EquipmentDurabilityDamageValidationParameters(
-                SkillDefinitionValidationRules.DictInt(parameters, "max_damaged_items", 1),
+                payload?.MaxDamagedItems ?? 0,
                 effectDef?.RequireDamageApplied ?? false,
-                ReadTargetSlotsMissingOrEmpty(parameters)
+                payload == null || payload.TargetSlots.Count == 0
             );
-        }
-
-        private static bool ReadTargetSlotsMissingOrEmpty(IReadOnlyDictionary<string, object> parameters)
-        {
-            if (!SkillDefinitionValidationRules.TryGetParameter(parameters, "target_slots", out object rawTargetSlots))
-                return true;
-            return SkillDefinitionValidationRules.TryAsArray(rawTargetSlots, out IReadOnlyList<object> targetSlots) && targetSlots.Count == 0;
         }
     }
 
@@ -41,14 +35,8 @@ internal sealed class SkillDefinitionDamageEffectValidator
     {
         if (effectDef == null)
             return;
-        IReadOnlyDictionary<string, object> parameters = effectDef.Parameters;
         var damageTag = effectDef.DamageTag;
         bool usesWeaponDamageTag = effectDef.UseWeaponPhysicalDamageTag;
-
-        if (parameters.ContainsKey("damage_tag"))
-            errors.Add(
-                $"Skill {skillId} damage effect in {contextLabel} params.damage_tag is unsupported on damage effects; use damage_tag or use_weapon_physical_damage_tag."
-            );
         if (usesWeaponDamageTag)
         {
             if (damageTag != "")
@@ -445,25 +433,6 @@ internal sealed class SkillDefinitionDamageEffectValidator
     {
         if (effectDef == null)
             return;
-        IReadOnlyDictionary<string, object> parameters = effectDef.Parameters ?? new System.Collections.Generic.Dictionary<string, object>();
-        if (parameters.ContainsKey("damage_tag"))
-        {
-            errors.Add(
-                $"Skill {skillId} status effect in {contextLabel} params.damage_tag is unsupported; use CombatEffectDef.damage_tag."
-            );
-        }
-        if (parameters.ContainsKey("damage_tags"))
-        {
-            errors.Add(
-                $"Skill {skillId} status effect in {contextLabel} params.damage_tags is unsupported; use CombatEffectDef.damage_tags."
-            );
-        }
-        if (parameters.ContainsKey("damage_category"))
-        {
-            errors.Add(
-                $"Skill {skillId} status effect in {contextLabel} params.damage_category is unsupported; use CombatEffectDef.damage_category."
-            );
-        }
         if (
             effectDef.DamageTag != ""
             && DamageTagContentRules.ToDamageTagKind(effectDef.DamageTag)
@@ -522,7 +491,6 @@ internal sealed class SkillDefinitionDamageEffectValidator
             errors.Add(
                 $"Skill {skillId} equipment_durability_damage effect in {contextLabel} must have power >= 1."
             );
-        IReadOnlyDictionary<string, object> parameters = effectDef.Parameters ?? new System.Collections.Generic.Dictionary<string, object>();
         bool hasDynamicSave = effectDef.SaveDcModeKind == BattleSaveDcMode.CasterSpell;
         if (effectDef.SaveDc <= 0 && !hasDynamicSave)
             errors.Add(
@@ -548,15 +516,9 @@ internal sealed class SkillDefinitionDamageEffectValidator
             errors,
             skillId,
             contextLabel,
-            parameters,
-            "target_slots"
+            (effectDef.Payload as EquipmentDurabilityDamageEffectPayloadDefinition)
+                ?.TargetSlots
         );
-        if (parameters.ContainsKey("slot_weight_map"))
-        {
-            errors.Add(
-                $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.slot_weight_map is unsupported; use equipment_durability_slot_weights."
-            );
-        }
         _append_equipment_slot_weight_validation_errors(
             errors,
             skillId,
@@ -569,34 +531,25 @@ internal sealed class SkillDefinitionDamageEffectValidator
         Array<string> errors,
         StringName skillId,
         string contextLabel,
-        IReadOnlyDictionary<string, object> parameters,
-        string paramName
+        IReadOnlyList<StringName> slotValues
     )
     {
-        if (parameters == null || !parameters.ContainsKey(paramName))
+        if (slotValues == null)
             return;
-        object value = parameters[paramName];
-        if (!SkillDefinitionValidationRules.TryAsArray(value, out IReadOnlyList<object> slotValues))
-        {
-            errors.Add(
-                $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} must be an Array."
-            );
-            return;
-        }
         var seenSlots = new HashSet<StringName>();
-        foreach (object rawSlotId in slotValues)
+        foreach (StringName rawSlotId in slotValues)
         {
             var slotId = ProgressionDataUtils.to_string_name(rawSlotId);
             if (!EquipmentRules.IsValidSlot(slotId))
             {
                 errors.Add(
-                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} uses unsupported slot {slotId}."
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} payload.target_slots uses unsupported slot {slotId}."
                 );
                 continue;
             }
             if (!seenSlots.Add(slotId))
                 errors.Add(
-                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} repeats slot {slotId}."
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} payload.target_slots repeats slot {slotId}."
                 );
         }
     }
@@ -652,32 +605,6 @@ internal sealed class SkillDefinitionDamageEffectValidator
     {
         if (effectDef == null)
             return;
-
-        IReadOnlyDictionary<string, object> parameters = effectDef.Parameters ?? new System.Collections.Generic.Dictionary<string, object>();
-        foreach (
-            string legacyParam in new[]
-            {
-                "apply_on_successful_step_only",
-                "path_step_log_label",
-                "repeat_hit_status_duration_tu",
-                "repeat_hit_status_id",
-                "repeat_hit_status_log_template",
-                "repeat_hit_status_min_skill_level",
-                "repeat_hit_status_params",
-                "repeat_hit_status_power",
-                "repeat_hit_status_threshold",
-                "step_radius",
-                "step_shape",
-            }
-        )
-        {
-            if (parameters != null && parameters.ContainsKey(legacyParam))
-            {
-                errors.Add(
-                    $"Skill {skillId} path_step_aoe effect in {contextLabel} params.{legacyParam} is unsupported; use typed CombatEffectDef path-step fields."
-                );
-            }
-        }
 
         if (
             effectDef.PathStepAreaPatternKind

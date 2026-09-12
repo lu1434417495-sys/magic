@@ -119,12 +119,12 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
             saveAbility: "willpower",
             saveTag: "magic",
             durationTu: 120,
-            parameters: new Dictionary<string, object>
-            {
-                ["area_pattern"] = "diamond",
-                ["profile_id"] = "prismatic_sphere",
-                ["radius_cells"] = 2,
-            }
+            payload: new LayeredBarrierEffectPayloadDefinition(
+                areaPattern: "diamond",
+                profileId: "prismatic_sphere",
+                radiusCells: 2,
+                saveDc: 0
+            )
         );
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
             caster,

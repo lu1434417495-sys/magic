@@ -65,14 +65,13 @@ internal class BattleGroundEffectCoordService
             targetCoords ?? System.Array.Empty<Vector2I>()
         );
         if (
-            castVariantDefinition != null
-            && BattleGroundEffectService.HasParameter(castVariantDefinition.Parameters, "square2_corner")
+            castVariantDefinition?.Square2Corner is CombatCastSquare2CornerKind corner
             && normalizedTargetCoords.Count == 1
         )
         {
             IReadOnlyList<Vector2I> expanded = ExpandSquare2Corner(
                 normalizedTargetCoords[0],
-                BattleGroundEffectService.ReadString(castVariantDefinition.Parameters, "square2_corner")
+                corner
             );
             var valid = new List<Vector2I>(expanded.Count);
             foreach (Vector2I coord in expanded)
@@ -123,14 +122,13 @@ internal class BattleGroundEffectCoordService
             targetCoords ?? System.Array.Empty<Vector2I>()
         );
         if (
-            castVariantDefinition != null
-            && BattleGroundEffectService.HasParameter(castVariantDefinition.Parameters, "square2_corner")
+            castVariantDefinition?.Square2Corner is CombatCastSquare2CornerKind corner
             && normalizedTargetCoords.Count == 1
         )
         {
             IReadOnlyList<Vector2I> expanded = ExpandSquare2Corner(
                 normalizedTargetCoords[0],
-                BattleGroundEffectService.ReadString(castVariantDefinition.Parameters, "square2_corner")
+                corner
             );
             var valid = new List<Vector2I>(expanded.Count);
             foreach (Vector2I coord in expanded)
@@ -346,36 +344,43 @@ internal class BattleGroundEffectCoordService
         return result;
     }
 
-    private static IReadOnlyList<Vector2I> ExpandSquare2Corner(Vector2I center, string corner)
+    private static IReadOnlyList<Vector2I> ExpandSquare2Corner(
+        Vector2I center,
+        CombatCastSquare2CornerKind corner
+    )
     {
         var expanded = new List<Vector2I>(4);
-        if (corner == "top_left")
+        if (corner == CombatCastSquare2CornerKind.TopLeft)
         {
             expanded.Add(center);
             expanded.Add(new Vector2I(center.X + 1, center.Y));
             expanded.Add(new Vector2I(center.X, center.Y + 1));
             expanded.Add(new Vector2I(center.X + 1, center.Y + 1));
         }
-        else if (corner == "top_right")
+        else if (corner == CombatCastSquare2CornerKind.TopRight)
         {
             expanded.Add(new Vector2I(center.X - 1, center.Y));
             expanded.Add(center);
             expanded.Add(new Vector2I(center.X - 1, center.Y + 1));
             expanded.Add(new Vector2I(center.X, center.Y + 1));
         }
-        else if (corner == "bottom_left")
+        else if (corner == CombatCastSquare2CornerKind.BottomLeft)
         {
             expanded.Add(new Vector2I(center.X, center.Y - 1));
             expanded.Add(new Vector2I(center.X + 1, center.Y - 1));
             expanded.Add(center);
             expanded.Add(new Vector2I(center.X + 1, center.Y));
         }
-        else if (corner == "bottom_right")
+        else if (corner == CombatCastSquare2CornerKind.BottomRight)
         {
             expanded.Add(new Vector2I(center.X - 1, center.Y - 1));
             expanded.Add(new Vector2I(center.X, center.Y - 1));
             expanded.Add(new Vector2I(center.X - 1, center.Y));
             expanded.Add(center);
+        }
+        else
+        {
+            throw new ArgumentOutOfRangeException(nameof(corner));
         }
         return expanded;
     }

@@ -202,6 +202,8 @@ public class BattleHitResolver : IDisposable
             avgSuccessRate = Mathf.RoundToInt((float)_average_ints(successRates));
             avgBaseHitRate = Mathf.RoundToInt((float)_average_ints(baseHitRates));
         }
+        RepeatAttackUntilFailEffectPayloadDefinition repeatPayload =
+            repeat_attack_effect?.Payload as RepeatAttackUntilFailEffectPayloadDefinition;
         return new AttackPreviewData
         {
             SummaryText = FormatRepeatAttackPreviewSummary(stageChecks),
@@ -209,9 +211,8 @@ public class BattleHitResolver : IDisposable
             HitRatePercent = avgSuccessRate,
             SuccessRatePercent = avgSuccessRate,
             BaseHitRatePercent = avgBaseHitRate,
-            BaseAttackBonus = repeat_attack_effect?.GetIntParamTyped("base_attack_bonus", 0) ?? 0,
-            FollowUpAttackPenalty =
-                repeat_attack_effect?.GetIntParamTyped("follow_up_attack_penalty", 0) ?? 0,
+            BaseAttackBonus = repeatPayload?.BaseAttackBonus ?? 0,
+            FollowUpAttackPenalty = repeatPayload?.FollowUpAttackPenalty ?? 0,
             RepeatAttackExpectedDamageBasisPoints = expectedDamageBasisPoints,
             RepeatAttackPotentialDamageBasisPoints = potentialDamageBasisPoints,
             FatePreview = stageChecks.Count > 0

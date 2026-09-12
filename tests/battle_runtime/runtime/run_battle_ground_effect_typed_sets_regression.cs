@@ -134,29 +134,102 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         Fixture fixture = BuildGroundEffectCoordsFixture();
         try
         {
-            CombatCastVariantDefinition castVariant = TestSkillDefinitionProjection.BuildCastVariant(
-                "square2_probe",
-                minSkillLevel: 0,
-                effects: Array.Empty<CombatEffectDefinition>(),
-                parameters: new Dictionary<string, object> { ["square2_corner"] = "top_left" }
-            );
-            IReadOnlyList<Vector2I> typedCoords = fixture.Runtime._ground_effect_service
-                .BuildGroundEffectCoords(
-                    null,
-                    new List<Vector2I> { new Vector2I(1, 1) },
-                    new Vector2I(-1, -1),
-                    null,
-                    castVariant
-                );
+            var cases = new[]
+            {
+                (Wire: "top_left", Kind: CombatCastSquare2CornerKind.TopLeft,
+                    Coords: new[] { new Vector2I(1, 1), new Vector2I(2, 1), new Vector2I(1, 2), new Vector2I(2, 2) },
+                    Edge: new Vector2I(3, 3)),
+                (Wire: "top_right", Kind: CombatCastSquare2CornerKind.TopRight,
+                    Coords: new[] { new Vector2I(0, 1), new Vector2I(1, 1), new Vector2I(0, 2), new Vector2I(1, 2) },
+                    Edge: new Vector2I(0, 3)),
+                (Wire: "bottom_left", Kind: CombatCastSquare2CornerKind.BottomLeft,
+                    Coords: new[] { new Vector2I(1, 0), new Vector2I(2, 0), new Vector2I(1, 1), new Vector2I(2, 1) },
+                    Edge: new Vector2I(3, 0)),
+                (Wire: "bottom_right", Kind: CombatCastSquare2CornerKind.BottomRight,
+                    Coords: new[] { new Vector2I(0, 0), new Vector2I(1, 0), new Vector2I(0, 1), new Vector2I(1, 1) },
+                    Edge: new Vector2I(0, 0)),
+            };
+            foreach (var testCase in cases)
+            {
+                CombatCastVariantDefinition variant = ImportSquare2Variant(testCase.Wire);
+                _test.Eq(variant.Square2Corner, testCase.Kind,
+                    $"{testCase.Wire} 应由 JSON 保真投影为 typed corner。");
+                AssertGroundCoords(fixture, variant, new[] { new Vector2I(1, 1) },
+                    testCase.Coords, $"{testCase.Wire} 四格展开");
+                AssertGroundCoords(fixture, variant, new[] { testCase.Edge },
+                    new[] { testCase.Edge }, $"{testCase.Wire} 地图角落裁剪");
+            }
 
-            _test.Eq(typedCoords.Count, 4, "typed ground effect coords 应展开 square2。");
-            _test.Eq(typedCoords[0], new Vector2I(1, 1), "typed ground effect coords 应按 Y/X 排序。");
-            _test.Eq(typedCoords[3], new Vector2I(2, 2), "typed ground effect coords 应包含右下角。");
+            CombatCastVariantDefinition topLeft = ImportSquare2Variant("top_left");
+            AssertGroundCoords(fixture, topLeft, new[] { new Vector2I(3, 1) },
+                new[] { new Vector2I(3, 1), new Vector2I(3, 2) }, "边缘裁剪保留两格");
+            AssertGroundCoords(fixture, topLeft, Array.Empty<Vector2I>(),
+                Array.Empty<Vector2I>(), "空目标不展开");
+            AssertGroundCoords(fixture, topLeft,
+                new[] { new Vector2I(2, 2), new Vector2I(0, 1) },
+                new[] { new Vector2I(0, 1), new Vector2I(2, 2) }, "显式多格目标只排序不再展开");
+
+            CombatCastVariantDefinition omitted = ImportSquare2Variant(null);
+            _test.False(omitted.Square2Corner.HasValue, "省略 corner 必须保留未配置语义。");
+            AssertGroundCoords(fixture, omitted, new[] { new Vector2I(1, 1) },
+                new[] { new Vector2I(1, 1) }, "未配置 corner 不触发局部展开");
+
+            bool invalidCornerRejected = false;
+            try
+            {
+                TestSkillDefinitionProjection.BuildCastVariant(
+                    "invalid_corner", 0, Array.Empty<CombatEffectDefinition>(),
+                    square2Corner: (CombatCastSquare2CornerKind)(-1)
+                );
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                invalidCornerRejected = true;
+            }
+            _test.True(invalidCornerRejected, "Definition 不得接收未定义的 corner 枚举值。");
         }
         finally
         {
             CleanupFixture(fixture, null);
         }
+    }
+
+    private CombatCastVariantDefinition ImportSquare2Variant(string corner)
+    {
+        string payload = corner == null
+            ? ""
+            : $",\"payload\":{{\"square2_corner\":\"{corner}\"}}";
+        ContentImportStageResult<SkillImportModel> import = SkillJsonImportParser.Parse(
+            new JsonContentEntryContext("skills", "square2_probe", "fixture.json#square2_probe", "/entries/0"),
+            "{\"skill_id\":\"square2_probe\",\"display_name\":\"Square\","
+                + "\"combat_profile\":{\"skill_id\":\"square2_probe\",\"cast_variants\":["
+                + "{\"variant_id\":\"square\",\"footprint_pattern\":\"square2\",\"required_coord_count\":1"
+                + payload + "}]}}"
+        );
+        if (!import.HasValue)
+            throw new InvalidOperationException(string.Join(" | ", import.Diagnostics.Select(d => d.RuleId)));
+        return SkillDefinitionProjector.Project(import.Value).CombatProfile.CastVariants[0];
+    }
+
+    private void AssertGroundCoords(
+        Fixture fixture,
+        CombatCastVariantDefinition variant,
+        IReadOnlyList<Vector2I> targets,
+        IReadOnlyList<Vector2I> expected,
+        string label
+    )
+    {
+        BattleGroundEffectService service = fixture.Runtime._ground_effect_service;
+        IReadOnlyList<Vector2I> stateCoords = service.BuildGroundEffectCoords(
+            null, targets, new Vector2I(-1, -1), (BattleUnitState)null, variant
+        );
+        IReadOnlyList<Vector2I> viewCoords = service.BuildGroundEffectCoords(
+            null, targets, new Vector2I(-1, -1), default(BattleUnitReadView), variant
+        );
+        _test.True(stateCoords.SequenceEqual(expected),
+            $"{label}：state 入口坐标应正确且按 Y/X 排序；actual={string.Join(",", stateCoords)}。");
+        _test.True(viewCoords.SequenceEqual(expected),
+            $"{label}：read-view 入口坐标应与 state 入口一致；actual={string.Join(",", viewCoords)}。");
     }
 
     private void TestDuplicateWeaponAttackEffectDamagesGroundTargetOnce()

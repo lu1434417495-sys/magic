@@ -13,7 +13,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         TestResolverUsesExplicitDeliveryAndEffectCategories();
         TestTypedProjectileKindsDeriveInteractionCategories();
         TestCastVariantProjectileOverrideWins();
-        TestResolverIgnoresLegacyParamsBarrierCategories();
+        TestResolverRequiresFormalEffectCategories();
         TestResolverDoesNotGuessFromSkillIdOrTags();
 
         RequestTestExit(_test.Finish("Battle effect category resolver contract regression"));
@@ -105,7 +105,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
             durationTu: 0,
             tickIntervalTu: 0,
             effectTags: Array.Empty<StringName>(),
-            parameters: null,
+            payload: EmptyCombatEffectPayloadDefinition.Instance,
             effectCategories: new[] { new StringName("force_effect"), new StringName("mental_attack") }
         );
 
@@ -227,19 +227,11 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         );
     }
 
-    private void TestResolverIgnoresLegacyParamsBarrierCategories()
+    private void TestResolverRequiresFormalEffectCategories()
     {
-        SkillDefinition skill = BuildSkill("contract_legacy_params", Array.Empty<StringName>());
+        SkillDefinition skill = BuildSkill("contract_without_categories", Array.Empty<StringName>());
         CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
-            "damage",
-            parameters: new Dictionary<string, object>
-            {
-                ["barrier_categories"] = new[]
-                {
-                    new StringName("spell"),
-                    new StringName("force_effect"),
-                },
-            }
+            "damage"
         );
 
         var categories = BattleEffectCategoryResolver.ResolveCategories(
@@ -249,11 +241,11 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
 
         _test.False(
             ContainsCategory(categories, "spell"),
-            "Resolver 不应读取 legacy params.barrier_categories。"
+            "未声明正式 effect_categories 时不应推导 spell 类别。"
         );
         _test.False(
             ContainsCategory(categories, "force_effect"),
-            "Resolver 不应读取 legacy params.barrier_categories。"
+            "未声明正式 effect_categories 时不应推导 force_effect 类别。"
         );
     }
 

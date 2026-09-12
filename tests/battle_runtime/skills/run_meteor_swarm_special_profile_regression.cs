@@ -617,12 +617,12 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             saveDcMode: "static",
             saveAbility: "willpower",
             saveTag: "magic",
-            parameters: new Dictionary<string, object>
-            {
-                ["area_pattern"] = "diamond",
-                ["profile_id"] = "prismatic_sphere",
-                ["radius_cells"] = 2,
-            }
+            payload: new LayeredBarrierEffectPayloadDefinition(
+                areaPattern: "diamond",
+                profileId: "prismatic_sphere",
+                radiusCells: 2,
+                saveDc: 0
+            )
         );
         using var batch = new BattleEventBatch();
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(

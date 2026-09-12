@@ -46,12 +46,11 @@ public partial class run_repeat_attack_decay_multiplier_regression : LifecycleTe
             "repeat_attack_until_fail",
             effectTargetTeamFilter: "enemy",
             followUpDamageMultiplierPercent: multiplierPercent,
-            parameters: new Dictionary<string, object>
-            {
-                ["cost_resource"] = "aura",
-                ["follow_up_fixed_cost"] = 1,
-                ["follow_up_attack_penalty"] = 0,
-            }
+            payload: new RepeatAttackUntilFailEffectPayloadDefinition(
+                costResource: "aura",
+                followUpFixedCost: 1,
+                followUpAttackPenalty: 0
+            )
         );
         SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
             skillId,

@@ -266,7 +266,8 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             "test effect should carry typed durability slot weights."
         );
         _test.Eq(
-            effect.GetStringNameListParamTyped("target_slots").Count,
+            (effect.Payload as EquipmentDurabilityDamageEffectPayloadDefinition)
+                ?.TargetSlots.Count ?? 0,
             1,
             "test effect should carry target_slots."
         );
@@ -276,7 +277,9 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
                 new BattleDamageResolver.EquipmentDurabilitySelectionQuery
                 {
                     TargetUnit = target,
-                    TargetSlots = effect.GetStringNameListParamTyped("target_slots"),
+                    TargetSlots =
+                        (effect.Payload as EquipmentDurabilityDamageEffectPayloadDefinition)
+                            ?.TargetSlots ?? System.Array.Empty<StringName>(),
                     SlotWeights = effect.EquipmentDurabilitySlotWeights,
                     ConsumeRandom = false,
                 }
@@ -384,11 +387,10 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             saveDcSourceAbility: "intelligence",
             saveTag: "equipment_disjunction",
             requireDamageApplied: true,
-            parameters: new System.Collections.Generic.Dictionary<string, object>
-            {
-                ["max_damaged_items"] = 1,
-                ["target_slots"] = targetSlots ?? Names("main_hand"),
-            }
+            payload: new EquipmentDurabilityDamageEffectPayloadDefinition(
+                maxDamagedItems: 1,
+                targetSlots: targetSlots ?? Names("main_hand")
+            )
         );
 
     private static CombatEffectDefinition DisjunctionEffectFromDiagnosticFixture(

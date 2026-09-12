@@ -171,13 +171,71 @@ public static class SkillLevelDescriptionFormatter
             level
         ))
         {
-            if (effectDefinition?.Parameters == null)
+            if (effectDefinition == null)
                 continue;
-            foreach ((string paramKey, object value) in effectDefinition.Parameters)
-            {
-                if (!config.ContainsKey(paramKey))
-                    config[paramKey] = value;
-            }
+            _merge_effect_payload(config, effectDefinition.Payload);
+        }
+    }
+
+    private static void _merge_effect_payload(
+        Dictionary<string, object> config,
+        ICombatEffectPayloadDefinition payload
+    )
+    {
+        switch (payload)
+        {
+            case StatusEffectPayloadDefinition value:
+                _set_if_missing(config, "breaks_barrier_layer", value.BreaksBarrierLayer.ToString());
+                _set_if_missing(config, "source_skill_id", value.SourceSkillId.ToString());
+                break;
+            case HealEffectPayloadDefinition value:
+                _set_if_missing(config, "con_mod_heal", value.ConModHeal);
+                break;
+            case EquipmentDurabilityDamageEffectPayloadDefinition value:
+                _set_if_missing(config, "max_damaged_items", value.MaxDamagedItems);
+                _set_if_missing(config, "target_slots", value.TargetSlots);
+                break;
+            case RepeatAttackUntilFailEffectPayloadDefinition value:
+                _set_if_missing(config, "base_attack_bonus", value.BaseAttackBonus);
+                _set_if_missing(config, "cost_resource", value.CostResource.ToString());
+                _set_if_missing(config, "follow_up_cost_addition", value.FollowUpCostAddition);
+                _set_if_missing(config, "follow_up_cost_multiplier", value.FollowUpCostMultiplier);
+                _set_if_missing(config, "follow_up_attack_penalty", value.FollowUpAttackPenalty);
+                _set_if_missing(config, "penalty_free_stages_by_level", value.PenaltyFreeStagesByLevel);
+                _set_if_missing(config, "same_target_only", value.SameTargetOnly);
+                _set_if_missing(config, "follow_up_fixed_cost", value.FollowUpFixedCost);
+                _set_if_missing(config, "exponential_penalty", value.ExponentialPenalty);
+                _set_if_missing(config, "stop_on_insufficient_resource", value.StopOnInsufficientResource);
+                break;
+            case LayeredBarrierEffectPayloadDefinition value:
+                _set_if_missing(config, "area_pattern", value.AreaPattern.ToString());
+                _set_if_missing(config, "profile_id", value.ProfileId.ToString());
+                _set_if_missing(config, "radius_cells", value.RadiusCells);
+                _set_if_missing(config, "save_dc", value.SaveDc);
+                break;
+            case GradedSaveExecuteEffectPayloadDefinition value:
+                _set_if_missing(config, "critical_failure_damage_dice_count", value.CriticalFailureDamageDiceCount);
+                _set_if_missing(config, "critical_failure_damage_dice_sides", value.CriticalFailureDamageDiceSides);
+                _set_if_missing(config, "critical_failure_execute_threshold_max_hp_percent", value.CriticalFailureExecuteThresholdMaxHpPercent);
+                _set_if_missing(config, "critical_failure_frightened_duration_tu", value.CriticalFailureFrightenedDurationTu);
+                _set_if_missing(config, "critical_failure_stunned_duration_tu", value.CriticalFailureStunnedDurationTu);
+                _set_if_missing(config, "failure_damage_dice_count", value.FailureDamageDiceCount);
+                _set_if_missing(config, "failure_damage_dice_sides", value.FailureDamageDiceSides);
+                _set_if_missing(config, "failure_execute_threshold_fixed", value.FailureExecuteThresholdFixed);
+                _set_if_missing(config, "failure_execute_threshold_max_hp_percent", value.FailureExecuteThresholdMaxHpPercent);
+                _set_if_missing(config, "failure_frightened_duration_tu", value.FailureFrightenedDurationTu);
+                _set_if_missing(config, "failure_reaction_lock_duration_tu", value.FailureReactionLockDurationTu);
+                _set_if_missing(config, "profile_id", value.ProfileId.ToString());
+                _set_if_missing(config, "success_aftershock_duration_tu", value.SuccessAftershockDurationTu);
+                break;
+            case DispelMagicEffectPayloadDefinition value:
+                _set_if_missing(config, "breaks_barrier_layer", value.BreaksBarrierLayer.ToString());
+                break;
+            case OnKillGainResourcesEffectPayloadDefinition value:
+                _set_if_missing(config, "grant_scope", value.GrantScope.ToString());
+                _set_if_missing(config, "require_target_defeated_by_same_skill", value.RequireTargetDefeatedBySameSkill);
+                _set_if_missing(config, "stack_on_multiple_kills", value.StackOnMultipleKills);
+                break;
         }
     }
 
@@ -440,6 +498,16 @@ public static class SkillLevelDescriptionFormatter
         Dictionary<string, object> config,
         string key,
         string value
+    )
+    {
+        if (!config.ContainsKey(key))
+            config[key] = value;
+    }
+
+    private static void _set_if_missing(
+        Dictionary<string, object> config,
+        string key,
+        object value
     )
     {
         if (!config.ContainsKey(key))

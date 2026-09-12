@@ -646,8 +646,7 @@ internal sealed class BattleChargeResolver
             CombatEffectDefinition statusEffect = BattleRuntimeEffectDefinitions.Status(
                 statusId,
                 statusPower,
-                statusDurationTu,
-                null
+                statusDurationTu
             );
             BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
                 statusEffect,

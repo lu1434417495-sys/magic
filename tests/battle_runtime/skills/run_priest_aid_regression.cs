@@ -62,7 +62,10 @@ public partial class run_priest_aid_regression : LifecycleTestSceneTree
             _test.Eq(effect.ShieldFamily, ShieldFamily, "援助术应使用 typed 神圣护盾族。");
             _test.Eq(effect.ShieldAttributeModifierId, new StringName("willpower_modifier"), "援助术应读取施法者意志调整值。");
             _test.True(effect.ShieldRollPerTarget, "援助术每个目标必须独立投骰。");
-            _test.False(effect.Parameters.ContainsKey("shield_family"), "护盾族不得残留在 params 兼容入口。");
+            _test.True(
+                effect.Payload is EmptyCombatEffectPayloadDefinition,
+                "护盾效果不得携带额外 payload。"
+            );
         }
     }
 

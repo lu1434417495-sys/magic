@@ -577,7 +577,7 @@ public static class BattleStatusSemanticTable
         var statusEntry = BattleStatusEffectState.CreateOrDuplicate(existingEntry);
         statusEntry.status_id = resolvedStatusId;
         statusEntry.source_unit_id = sourceUnitId;
-        AssignResidualParams(statusEntry, effectDefinition.Parameters);
+        BattleStatusPayloadProjector.Apply(statusEntry, effectDefinition.Payload);
         statusEntry.display_label = effectDefinition.DisplayName ?? "";
         statusEntry.counts_as_debuff_override = effectDefinition.CountsAsDebuffOverride;
         statusEntry.counts_as_debuff = effectDefinition.CountsAsDebuff;
@@ -613,9 +613,6 @@ public static class BattleStatusSemanticTable
         );
         statusEntry.save_immunity_tags = BuildStringNameList(effectDefinition.SaveImmunityTags);
         statusEntry.status_tags = BuildStringNameList(effectDefinition.EffectTags);
-        statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
-            effectDefinition.GetStringNameIntMapParamTyped("save_bonus_by_tag")
-        );
         statusEntry.attack_roll_penalty = Math.Max(
             statusEntry.attack_roll_penalty,
             effectDefinition.AttackRollPenalty
@@ -648,24 +645,6 @@ public static class BattleStatusSemanticTable
         statusEntry.attack_roll_advantage = effectDefinition.AttackRollAdvantage;
         statusEntry.consume_on_next_attack_check = effectDefinition.ConsumeOnNextAttackCheck;
         statusEntry.consume_on_next_save = effectDefinition.ConsumeOnNextSave;
-        statusEntry.source_bound_attack_roll_penalty =
-            effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty", 0);
-        statusEntry.source_bound_attack_roll_penalty_min_stacks = Math.Max(
-            effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty_min_stacks", 1),
-            1
-        );
-        statusEntry.source_bound_incoming_attack_roll_bonus_per_stack =
-            effectDefinition.GetIntParamTyped(
-                "source_bound_incoming_attack_roll_bonus_per_stack",
-                0
-            );
-        statusEntry.source_bound_incoming_attack_roll_bonus_min_stacks = Math.Max(
-            effectDefinition.GetIntParamTyped(
-                "source_bound_incoming_attack_roll_bonus_min_stacks",
-                1
-            ),
-            1
-        );
         statusEntry.source_bound_weapon_bonus_damage_dice_count = Math.Max(
             effectDefinition.SourceBoundWeaponBonusDamageDiceCount,
             0
@@ -1058,37 +1037,6 @@ public static class BattleStatusSemanticTable
             }
         }
         return result;
-    }
-
-    private static Dictionary<StringName, int> BuildStringNameIntMap(
-        IReadOnlyDictionary<StringName, int> values
-    )
-    {
-        var result = new Dictionary<StringName, int>();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (KeyValuePair<StringName, int> entry in values)
-        {
-            if (entry.Key != "")
-            {
-                result[entry.Key] = entry.Value;
-            }
-        }
-        return result;
-    }
-
-    private static void AssignResidualParams(
-        BattleStatusEffectState statusEntry,
-        IReadOnlyDictionary<string, object> parameters
-    )
-    {
-        if (statusEntry == null)
-            return;
-        statusEntry.SetParamsTyped(
-            BattleStatusEffectState.CopyResidualParamsPlain(parameters)
-        );
     }
 
     private static int NormalizePositiveTu(int value, string fieldLabel)

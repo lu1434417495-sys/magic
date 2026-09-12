@@ -749,8 +749,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             Array.Empty<StringName>(),
             withDamageEffect
                 ? new[] { BuildDamageEffect(effectType) }
-                : Array.Empty<CombatEffectDefinition>(),
-            new Dictionary<string, object>()
+                : Array.Empty<CombatEffectDefinition>()
         );
         return new SkillDefinition(
             skillId,

@@ -73,8 +73,6 @@ public readonly struct BattleRepeatAttackStageSpec
     )
     {
         int stageIndex = Mathf.Max(stage_index_value, 0);
-        IReadOnlyDictionary<string, object> parameters =
-            repeat_attack_effect?.Parameters ?? EmptyParameters;
         if (repeat_attack_effect == null)
         {
             return new BattleRepeatAttackStageSpec(
@@ -98,26 +96,26 @@ public readonly struct BattleRepeatAttackStageSpec
             );
         }
 
+        RepeatAttackUntilFailEffectPayloadDefinition payload =
+            repeat_attack_effect.Payload as RepeatAttackUntilFailEffectPayloadDefinition;
+
         return new BattleRepeatAttackStageSpec(
             stageIndex,
             stage_count_value,
             skill_level_value,
-            ReadInt(parameters, "base_attack_bonus")
+            (payload?.BaseAttackBonus ?? 0)
                 + (stageIndex > 0
                     ? repeat_attack_effect.GetFollowUpAttackRollBonus(skill_level_value)
                     : 0),
-            ReadInt(parameters, "follow_up_attack_penalty"),
-            ResolvePenaltyFreeStages(parameters, skill_level_value),
-            ReadBool(parameters, "exponential_penalty"),
-            CombatResourceKindUtils.FromStringName(
-                ReadStringName(parameters, "cost_resource", "aura"),
-                CombatResourceKind.Aura
-            ),
+            payload?.FollowUpAttackPenalty ?? 0,
+            ResolvePenaltyFreeStages(payload?.PenaltyFreeStagesByLevel, skill_level_value),
+            payload?.ExponentialPenalty ?? false,
+            payload?.CostResourceKind ?? CombatResourceKind.Aura,
             0,
             0,
-            ReadInt(parameters, "follow_up_fixed_cost"),
-            ReadInt(parameters, "follow_up_cost_addition"),
-            ReadFloat(parameters, "follow_up_cost_multiplier", 1.0),
+            payload?.FollowUpFixedCost ?? 0,
+            payload?.FollowUpCostAddition ?? 0,
+            payload?.FollowUpCostMultiplier ?? 1.0,
             ResolveStageDamageMultiplierPercent(
                 repeat_attack_effect.FollowUpDamageMultiplierPercent,
                 stageIndex
@@ -220,28 +218,24 @@ public readonly struct BattleRepeatAttackStageSpec
     }
 
     private static int ResolvePenaltyFreeStages(
-        IReadOnlyDictionary<string, object> parameters,
+        IReadOnlyDictionary<int, int> levelStagesMap,
         int skillLevel
     )
     {
-        IReadOnlyDictionary<string, object> levelStagesMap = ReadDictionary(
-            parameters,
-            "penalty_free_stages_by_level"
-        );
-        if (levelStagesMap.Count == 0)
+        if (levelStagesMap == null || levelStagesMap.Count == 0)
         {
             return 0;
         }
 
         int resolvedStages = 0;
         int bestLevel = -1;
-        foreach (KeyValuePair<string, object> entry in levelStagesMap)
+        foreach (KeyValuePair<int, int> entry in levelStagesMap)
         {
-            int levelValue = int.TryParse(entry.Key, out int parsedLevel) ? parsedLevel : -1;
+            int levelValue = entry.Key;
             if (levelValue <= skillLevel && levelValue > bestLevel)
             {
                 bestLevel = levelValue;
-                resolvedStages = ReadInt(entry.Value);
+                resolvedStages = entry.Value;
             }
         }
         return Mathf.Max(resolvedStages, 0);
@@ -265,105 +259,4 @@ public readonly struct BattleRepeatAttackStageSpec
         return percent;
     }
 
-    private static IReadOnlyDictionary<string, object> ReadDictionary(
-        IReadOnlyDictionary<string, object> data,
-        string key
-    )
-    {
-        if (
-            data == null
-            || !data.TryGetValue(key, out object value)
-            || value is not IReadOnlyDictionary<string, object> dictionary
-        )
-        {
-            return EmptyParameters;
-        }
-        return dictionary;
-    }
-
-    private static int ReadInt(object value, int fallback = 0)
-    {
-        return value switch
-        {
-            byte byteValue => byteValue,
-            short shortValue => shortValue,
-            int intValue => intValue,
-            long longValue when longValue >= int.MinValue && longValue <= int.MaxValue =>
-                (int)longValue,
-            float floatValue => Mathf.RoundToInt(floatValue),
-            double doubleValue => Mathf.RoundToInt((float)doubleValue),
-            string text => int.TryParse(text, out int parsed)
-                ? parsed
-                : fallback,
-            StringName stringName => int.TryParse(stringName.ToString(), out int parsed)
-                ? parsed
-                : fallback,
-            _ => fallback,
-        };
-    }
-
-    private static int ReadInt(
-        IReadOnlyDictionary<string, object> data,
-        string key,
-        int fallback = 0
-    )
-    {
-        if (data == null || !data.TryGetValue(key, out object value))
-            return fallback;
-        return ReadInt(value, fallback);
-    }
-
-    private static double ReadFloat(
-        IReadOnlyDictionary<string, object> data,
-        string key,
-        double fallback = 0.0
-    )
-    {
-        if (data == null || !data.TryGetValue(key, out object value))
-            return fallback;
-        return value switch
-        {
-            byte byteValue => byteValue,
-            short shortValue => shortValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            _ => fallback,
-        };
-    }
-
-    private static bool ReadBool(
-        IReadOnlyDictionary<string, object> data,
-        string key,
-        bool fallback = false
-    )
-    {
-        if (data == null || !data.TryGetValue(key, out object value))
-            return fallback;
-        return value is bool boolValue ? boolValue : fallback;
-    }
-
-    private static StringName ReadStringName(
-        IReadOnlyDictionary<string, object> data,
-        string key,
-        StringName fallback = default
-    )
-    {
-        if (data == null)
-            return fallback ?? new StringName("");
-        if (data.TryGetValue(key, out object value))
-        {
-            return value switch
-            {
-                StringName stringName => stringName,
-                string text => new StringName(text),
-                _ => fallback ?? new StringName(""),
-            };
-        }
-        return fallback ?? new StringName("");
-    }
-
-    private static readonly IReadOnlyDictionary<string, object> EmptyParameters =
-        new Dictionary<string, object>(StringComparer.Ordinal);
 }

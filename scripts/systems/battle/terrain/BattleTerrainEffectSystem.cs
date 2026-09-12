@@ -957,14 +957,10 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         BattleTerrainEffectState effectState
     )
     {
-        IReadOnlyDictionary<string, object> normalizedParams =
-            ContentValueNormalizer.NormalizeDictionary(
-                effectState?.ParamsSnapshotPlain
-                    ?? new Dictionary<string, object>(System.StringComparer.Ordinal),
-                "BattleTerrainEffectSystem.tick_effect.parameters"
-            );
+        StringName effectType = NormalizeStringName(effectState?.effect_type);
+        BattleEffectKind effectKind = BattleTypedNames.ToEffectKind(effectType);
         return new CombatEffectDefinition(
-            effectType: NormalizeStringName(effectState?.effect_type),
+            effectType: effectType,
             effectTargetTeamFilter: default,
             statusId: NormalizeStringName(effectState?.applied_status_id),
             saveFailureStatusId: default,
@@ -1010,7 +1006,11 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             effectTags: Array.Empty<StringName>(),
             triggerCondition: new StringName(""),
             power: effectState?.power ?? 0,
-            parameters: normalizedParams,
+            payload: effectKind is BattleEffectKind.Status or BattleEffectKind.ApplyStatus
+                ? new StatusEffectPayloadDefinition(
+                    sourceSkillId: effectState?.source_skill_id ?? new StringName("")
+                )
+                : EmptyCombatEffectPayloadDefinition.Instance,
             triggerEvent: new StringName("")
         );
     }
@@ -1163,21 +1163,10 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         );
         effectState.power = effectDefinition.Power;
         effectState.damage_tag = effectDefinition.DamageTag;
-        effectState.contact_damage_dice_count = Math.Max(
-            effectDefinition.GetIntParamTyped("contact_damage_dice_count"),
-            0
-        );
-        effectState.contact_damage_dice_sides = Math.Max(
-            effectDefinition.GetIntParamTyped("contact_damage_dice_sides"),
-            0
-        );
-        effectState.contact_damage_flat_bonus = Math.Max(
-            effectDefinition.GetIntParamTyped("contact_damage_flat_bonus"),
-            0
-        );
-        effectState.contact_damage_tag = effectDefinition.GetStringNameParamTyped(
-            "contact_damage_tag"
-        );
+        effectState.contact_damage_dice_count = Math.Max(effectDefinition.DiceCount, 0);
+        effectState.contact_damage_dice_sides = Math.Max(effectDefinition.DiceSides, 0);
+        effectState.contact_damage_flat_bonus = Math.Max(effectDefinition.DiceBonus, 0);
+        effectState.contact_damage_tag = effectDefinition.DamageTag;
         effectState.terrain_contact_mode =
             effectDefinition.TerrainContactMode ?? new StringName("");
         effectState.terrain_remaining_effective_triggers =
@@ -1219,7 +1208,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
 
         effectState.stack_behavior = _NormalizeStackBehavior(effectDefinition.StackBehavior);
         effectState.SetParamsTyped(
-            BattleTerrainEffectState.CopyResidualParamsPlain(effectDefinition.Parameters)
+            new Dictionary<string, object>(System.StringComparer.Ordinal)
         );
         return effectState;
     }
