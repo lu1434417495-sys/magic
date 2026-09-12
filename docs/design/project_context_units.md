@@ -104,6 +104,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/ui/DisplaySettingsWindow.cs`
   - `scenes/ui/character_creation_window.tscn`
   - `scripts/ui/CharacterCreationWindow.cs`
+  - `scripts/ui/CharacterCreationWindow.Layout.cs`
+  - `scripts/ui/CharacterCreationWindow.Appearance.cs`
+  - `scenes/ui/styles/character_creation_theme.tres`
+  - `assets/ui/character_creation/*`
+  - `scripts/ui/UiDisplayLabels.cs`
   - `scripts/ui/DisplaySettingsService.cs`
   - `scripts/systems/content/world/WorldContentRegistry.cs`
   - `scripts/systems/content/world/WorldJsonContracts.cs`
@@ -112,6 +117,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `data/configs/json/world_presets/*.json`
 - 负责：启动入口、世界预设入口、存档选择、显示设置、建卡入口。
 - 显示布局：`DisplaySettingsService` 保留所选物理分辨率，CanvasItems 的逻辑高度在高分屏限制为 1080（4K 为 2 倍 UI）；建卡各阶段的正文位于滚动容器，底部操作行独立保留在可视区。`UiDisplayLabels` 只处理玩家可见名称，不改变运行时标识或规则。
+- 建卡呈现：`CharacterCreationWindow.Appearance` 与专用 `character_creation_theme.tres` 拥有当前章节标题、局部样式、选项布局及阶段淡入；插画背景由场景引用，`Layout` 按视口调整右侧阅读区和渐变遮罩。界面仅在确认当前选择后展示下一阶段，没有步骤导航或未来阶段标签；各阶段提供确认当前选择与放弃创建。种族 / 年龄选项以原生 Button 接收指针与键盘确认，继续调用窗口原有身份选择与 payload 流程。该窗口的样式不修改其他选择卡片或全局主题。详见 `docs/design/ui/character_creation_presentation.md`。
 - 适合：开始菜单、建卡 UI、预设入口、存档列表、显示设置。
 - 邻接单元：CU-02、CU-03、CU-14。
 
