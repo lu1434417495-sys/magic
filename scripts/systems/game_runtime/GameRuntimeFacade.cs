@@ -2471,6 +2471,11 @@ public sealed partial class GameRuntimeFacade
     {
         if (_game_session == null || !_game_session.HasActiveWorld())
             return (int)Error.Ok;
+        if (_active_modal_kind == RuntimeModalKind.GameOver)
+        {
+            _game_session.DiscardPendingSave();
+            return (int)Error.Ok;
+        }
         if (_game_session.IsBattleSaveLocked())
             return (int)Error.Busy;
 

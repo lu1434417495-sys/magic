@@ -728,21 +728,16 @@ public sealed class SaveSerializer
 
         using GodotProjectionLease<GDictionary> payloadLease =
             partyState.ToDictionaryLease("SaveSerializer.NormalizePartyState");
-        GDictionary payload = payloadLease.Value;
-        PartyState normalized =
-            payload.Count > 0
-                ? PartyState.FromDictionary(payload)
-                : new PartyState();
-        if (normalized == null)
-            return new PartyState();
-
-        return NormalizeParsedPartyState(normalized);
+        // 往返失败只可能是运行时队伍带了非法值，或 PartyState.TO_DICT_FIELDS 与
+        // BuildSaveSnapshotPlain 漂移。两者都是缺陷。这里返回 null 让调用方按失败上报——
+        // 原先替换成空队伍会让 SetPartyState 报 Error.Ok，再把清空后的队伍写进下一次存档。
+        PartyState normalized = PartyState.FromDictionary(payloadLease.Value);
+        return normalized == null ? null : NormalizeParsedPartyState(normalized);
     }
 
     private PartyState NormalizeParsedPartyState(PartyState normalized)
     {
-        if (normalized == null)
-            return new PartyState();
+        ArgumentNullException.ThrowIfNull(normalized);
 
         var livingMemberIds = new StringNameList();
         foreach (string key in normalized.member_states.GetSortedIdStrings())

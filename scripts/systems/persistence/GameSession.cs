@@ -1115,8 +1115,23 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             return (int)Error.Ok;
         }
 
+        PartyState normalized = NormalizePartyState(party_state);
+        if (normalized == null)
+        {
+            // 往返失败的队伍绝不能落进 _party_state：原先会静默替换成空队伍并返回
+            // Error.Ok，随后的 CommitRuntimeState 就把空队伍写进存档。保持旧状态不动、
+            // 上报错误码，调用方（RuntimeTransaction）会因此跳过提交。
+            PushSessionError(
+                "session.party.normalize_failed",
+                "队伍状态无法通过存档往返校验，已拒绝写入并保留上一份状态。",
+                $"leader={party_state?.leader_member_id};"
+                    + $"member_count={party_state?.member_states?.GetSortedIdStrings()?.Count}"
+            );
+            return (int)Error.InvalidData;
+        }
+
         PartyState previousPartyState = _party_state;
-        _party_state = NormalizePartyState(party_state);
+        _party_state = normalized;
         DisposePartyStateGraph(previousPartyState, _party_state);
         MarkRuntimeStateDirty(SaveDirtyScopePartyState);
         return (int)Error.Ok;
@@ -1882,7 +1897,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     private PartyState NormalizePartyState(PartyState party_state)
     {
-        return _save_serializer.NormalizePartyState(party_state) ?? new PartyState();
+        return _save_serializer.NormalizePartyState(party_state);
     }
 
     private void RotateLogSession()
