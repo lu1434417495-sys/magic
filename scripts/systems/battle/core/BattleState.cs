@@ -891,7 +891,10 @@ public partial class BattleState
     internal Godot.Collections.Dictionary ProjectLayeredBarrierFields() =>
         _layeredBarrierStore.ProjectPayload();
 
-    internal void ReplaceLayeredBarrierFieldsPayload(Godot.Collections.Dictionary payload) =>
+    /// 返回 payload 是否被接受。非法 payload 会保留 live store 不变（见
+    /// run_battle_barrier_store_typed_regression），调用方必须能看到这一点，否则
+    /// "写入成功"和"写入被拒"从外部完全无法区分。
+    internal bool ReplaceLayeredBarrierFieldsPayload(Godot.Collections.Dictionary payload) =>
         _layeredBarrierStore.ReplaceFromPayload(payload ?? new Godot.Collections.Dictionary());
 
     internal void ReplaceLayeredBarrierFieldsTyped(
@@ -909,11 +912,17 @@ public partial class BattleState
         _layeredBarrierStore.Put(key, barrier);
     }
 
-    internal void PutLayeredBarrierFieldPayload(StringName key, Godot.Collections.Dictionary payload)
+    internal bool PutLayeredBarrierFieldPayload(
+        StringName key,
+        Godot.Collections.Dictionary payload
+    )
     {
         if (key == "")
-            return;
-        _layeredBarrierStore.PutFromPayload(key, payload ?? new Godot.Collections.Dictionary());
+            return false;
+        return _layeredBarrierStore.PutFromPayload(
+            key,
+            payload ?? new Godot.Collections.Dictionary()
+        );
     }
 
     internal void RemoveLayeredBarrierFieldPayload(StringName key)

@@ -201,15 +201,9 @@ internal sealed class BattleBarrierStore
             {
                 return false;
             }
-            GDictionary barrierPayload;
-            try
-            {
-                barrierPayload = rawValue.AsGodotDictionary();
-            }
-            catch
-            {
-                return false;
-            }
+            // 上一行已判定 VariantType == Dictionary，AsGodotDictionary 不会失败。
+            // 原先这里的 catch 从不触发，却会把真正的异常一并吞成"payload 非法"。
+            GDictionary barrierPayload = rawValue.AsGodotDictionary();
             if (!TryReadBarrierPayload(barrierKey, barrierPayload, out BattleBarrierInstanceState barrier))
             {
                 return false;
@@ -230,15 +224,10 @@ internal sealed class BattleBarrierStore
         {
             return false;
         }
-        try
-        {
-            barrier = BattleBarrierInstanceState.FromRuntimeDict(payload);
-        }
-        catch
-        {
-            barrier = null;
-            return false;
-        }
+        // FromRuntimeDict 本身不抛：所有字段读取都带默认值，Variant 类型不符时 Godot 返回
+        // 空容器而非异常（同 PartyWarehouseService 的既有结论）。非法 payload 由下面的
+        // IsEmpty / BarrierInstanceId 检查拒绝，不需要 catch 兜底。
+        barrier = BattleBarrierInstanceState.FromRuntimeDict(payload);
         if (barrier == null || barrier.IsEmpty || barrier.BarrierInstanceId == "")
         {
             return false;
