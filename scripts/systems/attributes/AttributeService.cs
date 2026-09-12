@@ -963,7 +963,6 @@ public sealed class AttributeService
     {
         var rules = new Dictionary<StringName, DerivedAttributeRule>();
         rules[STAMINA_MAX] = new DerivedAttributeRule(
-            STAMINA_MAX,
             24,
             new Dictionary<StringName, int>
             {
@@ -977,7 +976,6 @@ public sealed class AttributeService
             0
         );
         rules[ACTION_POINTS] = new DerivedAttributeRule(
-            ACTION_POINTS,
             1,
             new Dictionary<StringName, int>
             {

@@ -89,7 +89,6 @@ public partial class run_attribute_source_context_regression : LifecycleTestScen
     {
         Dictionary<StringName, int> coefficients = new() { ["strength"] = 1 };
         DerivedAttributeRule rule = new(
-            "half_strength",
             0,
             coefficients,
             2,
