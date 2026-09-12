@@ -25,17 +25,11 @@ public partial class BattleMapPanel
 
         ClearSkillIconPresentationBindings();
         _clear_container(skill_grid);
-        if (slots.Count == 0)
-        {
-            for (int index = 0; index < 20; index++)
-                skill_grid.AddChild(
-                    _create_skill_slot(new BattleHudSkillSlotSnapshot(index, true))
-                );
-            return;
-        }
         foreach (BattleHudSkillSlotSnapshot slot in slots)
         {
-            skill_grid.AddChild(_create_skill_slot(slot));
+            // Keep command indices stable without presenting unused placeholders.
+            if (!slot.IsEmpty)
+                skill_grid.AddChild(_create_skill_slot(slot));
         }
         _update_skill_grid_columns();
     }
@@ -72,7 +66,7 @@ public partial class BattleMapPanel
         int slotCount = skill_grid.GetChildCount();
         if (slotCount == 0)
             return;
-        float available = skill_grid.Size.X;
+        float available = (skill_grid.GetParent() as Control)?.Size.X ?? skill_grid.Size.X;
         if (available <= 0.0f)
             return;
         int hSeparation = skill_grid.GetThemeConstant("h_separation");
@@ -138,6 +132,10 @@ public partial class BattleMapPanel
 
         if (!isEmpty)
         {
+            // A PanelContainer stretches direct children; anchor the band inside
+            // a plain Control so it cannot cover the glyph and hotkey.
+            var overlay = new Control { MouseFilter = MouseFilterEnum.Ignore };
+            panel.AddChild(overlay);
             var glowBand = new ColorRect
             {
                 Name = "FateGlow",
@@ -156,7 +154,7 @@ public partial class BattleMapPanel
             if (isDisabled)
                 accentColor = new Color(accentColor.R, accentColor.G, accentColor.B, 0.32f);
             glowBand.Color = accentColor;
-            panel.AddChild(glowBand);
+            overlay.AddChild(glowBand);
         }
 
         var clickTarget = new BattleSkillSlotButton

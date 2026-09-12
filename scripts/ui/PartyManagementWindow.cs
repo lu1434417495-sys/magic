@@ -28,7 +28,7 @@ public partial class PartyManagementWindow : ModalWindowShell
     public delegate void closedEventHandler();
 
     private const int MaxActiveMemberCount = 4;
-    private const float PanelViewportRatio = 0.5f;
+    private const float PanelViewportRatio = 0.82f;
     private static readonly Vector2 MinPanelSize = new(860.0f, 540.0f);
     private static readonly Vector2 ViewportSafeMargin = new(48.0f, 30.0f);
     private const int ContentMargin = 24;
@@ -41,6 +41,7 @@ public partial class PartyManagementWindow : ModalWindowShell
     public Label meta_label;
     public ItemList active_list;
     public ItemList reserve_list;
+    private Label _reserve_empty_label;
     public Control lists_column;
     public Button set_leader_button;
     public Control controls_column;
@@ -90,6 +91,8 @@ public partial class PartyManagementWindow : ModalWindowShell
         meta_label = GetNode<Label>("%MetaLabel");
         active_list = GetNode<ItemList>("%ActiveList");
         reserve_list = GetNode<ItemList>("%ReserveList");
+        _reserve_empty_label = new Label { Text = "暂无替补成员", Name = "ReserveEmptyLabel" };
+        reserve_list.GetParent().AddChild(_reserve_empty_label);
         UiListTheme.Apply(active_list);
         UiListTheme.Apply(reserve_list);
         lists_column = GetNode<Control>("%Lists");
@@ -275,7 +278,7 @@ public partial class PartyManagementWindow : ModalWindowShell
             Mathf.Max(viewportSize.X - ViewportSafeMargin.X * 2.0f, 320.0f),
             Mathf.Max(viewportSize.Y - ViewportSafeMargin.Y * 2.0f, 320.0f)
         );
-        Vector2 preferredSize = viewportSize * PanelViewportRatio;
+        Vector2 preferredSize = (viewportSize * PanelViewportRatio).Min(new Vector2(1360, 850));
         Vector2 panelSize = new(
             Mathf.Clamp(
                 preferredSize.X,
@@ -296,7 +299,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         content_margin.AddThemeConstantOverride("margin_bottom", ContentMarginVertical);
 
         float contentWidth = Mathf.Max(panelSize.X - ContentMargin * 2.0f, 320.0f);
-        float listWidth = Mathf.Clamp(contentWidth * 0.26f, 200.0f, 260.0f);
+        float listWidth = Mathf.Clamp(contentWidth * 0.24f, 200.0f, 300.0f);
         float controlsWidth = Mathf.Clamp(contentWidth * 0.14f, 112.0f, 136.0f);
         if (contentWidth < 760.0f)
         {
@@ -415,6 +418,10 @@ public partial class PartyManagementWindow : ModalWindowShell
             reserve_list.AddItem(_build_member_list_label(memberState));
             _reserveListMemberIds.Add(memberId);
         }
+        bool hasReserve = _reserveListMemberIds.Count > 0;
+        reserve_list.Visible = hasReserve;
+        _reserve_empty_label.Visible = !hasReserve;
+        reserve_list.GetParent<Control>().SizeFlagsVertical = hasReserve ? SizeFlags.ExpandFill : SizeFlags.Fill;
     }
 
     private static string _build_member_list_label(PartyMemberState memberState)

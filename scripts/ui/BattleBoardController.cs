@@ -46,7 +46,7 @@ public sealed class BattleBoardController : IDisposable
     private static readonly Color UNIT_HEALTH_BAR_HIGH_COLOR = new(0.3f, 0.86f, 0.42f, 0.96f);
     private static readonly Color UNIT_HEALTH_BAR_MID_COLOR = new(0.9f, 0.76f, 0.24f, 0.96f);
     private static readonly Color UNIT_HEALTH_BAR_LOW_COLOR = new(0.9f, 0.28f, 0.22f, 0.96f);
-    private static readonly Color ACTIVE_SELECTED_MARKER_COLOR = new(0.0f, 0.0f, 1.0f, 1.0f);
+    private static readonly Color ACTIVE_SELECTED_MARKER_COLOR = new(0.22f, 0.58f, 0.86f, 0.42f);
     private static readonly Color MOVE_REACHABLE_MARKER_COLOR_DARK = new(0.14f, 0.37f, 0.5f, 1.0f);
     private static readonly Color MOVE_REACHABLE_MARKER_COLOR_LIGHT = new(
         0.46f,

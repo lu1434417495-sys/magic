@@ -170,8 +170,12 @@ public partial class BattleBoard2D : Node2D
 
     public void SetViewportSize(Vector2 viewport_size)
     {
+        if (_viewport_size.IsEqualApprox(viewport_size))
+            return;
         _viewport_size = viewport_size;
-        _fit_to_viewport();
+        // Re-focus after a physical resize: the previous clamped camera position
+        // can leave the acting unit outside a smaller viewport.
+        _fit_to_viewport(force_focus: true);
     }
 
     public void BeginViewportPan(Vector2 viewport_position)

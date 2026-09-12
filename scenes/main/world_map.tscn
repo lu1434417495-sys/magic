@@ -149,15 +149,28 @@ layout_mode = 2
 autowrap_mode = 3
 text = "点击任意地点返回原位置。"
 
-; Lightweight chrome layer that separates the top edge from the map.
-[node name="Panel" type="Panel" parent="."]
+[node name="StatusPanel" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 10.0
+offset_bottom = 48.0
 grow_horizontal = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="StatusMargin" type="MarginContainer" parent="StatusPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="StatusLabel" type="Label" parent="StatusPanel/StatusMargin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
 
 ; Fixed bottom action bar for world-map level commands.
 [node name="BottomActionBar" type="PanelContainer" parent="."]

@@ -111,6 +111,7 @@ public partial class BattleMapPanel : Control
 
     public PanelContainer map_frame;
     public SubViewportContainer map_viewport_container;
+    private Control _map_viewport_host;
     public PanelContainer top_bar;
     public PanelContainer bottom_panel;
     public Label header_title_label;
@@ -172,8 +173,13 @@ public partial class BattleMapPanel : Control
         Visible = false;
         map_frame = GetNode<PanelContainer>("%MapFrame");
         map_viewport_container = GetNode<SubViewportContainer>("%MapViewportContainer");
+        _map_viewport_host = GetNode<Control>("%MapViewportHost");
+        _map_viewport_host.Resized += _resize_map_viewport;
+        GetViewport().SizeChanged += _resize_map_viewport;
         top_bar = GetNode<PanelContainer>("%TopBar");
         bottom_panel = GetNode<PanelContainer>("%BottomPanel");
+        bottom_panel.Resized += _update_hud_layout;
+        top_bar.Resized += _update_hud_layout;
         header_title_label = GetNode<Label>("%HeaderTitleLabel");
         objective_status_label = GetNode<Label>("%ObjectiveStatusLabel");
         timeline_row = GetNode<HBoxContainer>("%TimelineRow");
@@ -222,7 +228,10 @@ public partial class BattleMapPanel : Control
     public override void _Notification(int what)
     {
         if (what == NotificationResized)
+        {
+            _update_hud_layout();
             _resize_map_viewport();
+        }
     }
 
     public override void _ExitTree()
@@ -232,8 +241,15 @@ public partial class BattleMapPanel : Control
         _clear_hover_preview_state();
         if (skill_grid != null)
             skill_grid.Resized -= _update_skill_grid_columns;
+        if (bottom_panel != null)
+            bottom_panel.Resized -= _update_hud_layout;
+        if (top_bar != null)
+            top_bar.Resized -= _update_hud_layout;
         if (map_viewport_container != null)
             map_viewport_container.GuiInput -= _on_map_viewport_container_gui_input;
+        if (_map_viewport_host != null)
+            _map_viewport_host.Resized -= _resize_map_viewport;
+        GetViewport().SizeChanged -= _resize_map_viewport;
         if (_battle_board != null)
         {
             _battle_board.battle_cell_clicked -= _on_battle_board_cell_clicked;
@@ -1009,8 +1025,8 @@ public partial class BattleMapPanel : Control
             return;
         hover_overlay.ResetSize();
         Vector2 overlaySize = hover_overlay.Size;
-        Vector2 mapPosition = map_viewport_container.Position;
-        Vector2 mapSize = map_viewport_container.Size;
+        Vector2 mapPosition = _map_viewport_host.GlobalPosition - GlobalPosition;
+        Vector2 mapSize = _map_viewport_host.Size;
         float x = mapPosition.X + HOVER_OVERLAY_EDGE_MARGIN;
         float y = mapPosition.Y + Mathf.Max((mapSize.Y - overlaySize.Y) * 0.5f, HOVER_OVERLAY_EDGE_MARGIN);
         hover_overlay.Position = new Vector2(x, y);
@@ -1117,16 +1133,37 @@ public partial class BattleMapPanel : Control
     {
         if (map_viewport_container == null || _map_subviewport == null || _battle_board == null)
             return;
-        Vector2 containerSize = map_viewport_container.Size;
+        if (_map_viewport_host == null)
+            return;
+        // Render the board at physical pixels, counter-scaled inside the logical
+        // UI host. Godot transforms mouse events into these same local pixels.
+        Vector2 pixelScale = GetViewport().GetStretchTransform().Scale;
+        pixelScale = new Vector2(Mathf.Max(pixelScale.X, 1.0f), Mathf.Max(pixelScale.Y, 1.0f));
+        Vector2 containerSize = _map_viewport_host.Size * pixelScale;
         Vector2I viewportSize = new(
             Mathf.Max(Mathf.RoundToInt(containerSize.X), 1),
             Mathf.Max(Mathf.RoundToInt(containerSize.Y), 1)
         );
         _map_subviewport.Size = viewportSize;
+        map_viewport_container.Size = viewportSize;
+        map_viewport_container.Scale = Vector2.One / pixelScale;
         if (_battle_background_rect != null)
             _battle_background_rect.Size = viewportSize;
         _battle_board.SetViewportSize(viewportSize);
         _request_map_viewport_update();
+    }
+
+    private void _update_hud_layout()
+    {
+        if (bottom_panel == null || top_bar == null || map_frame == null)
+            return;
+        float halfWidth = Mathf.Min(Size.X * 0.5f, 680.0f);
+        bottom_panel.AnchorLeft = 0.5f;
+        bottom_panel.AnchorRight = 0.5f;
+        bottom_panel.OffsetLeft = -halfWidth;
+        bottom_panel.OffsetRight = halfWidth;
+        map_frame.OffsetTop = top_bar.Size.Y + 8.0f;
+        map_frame.OffsetBottom = bottom_panel.OffsetBottom - bottom_panel.Size.Y - 8.0f;
     }
 
     private void _request_map_viewport_update()

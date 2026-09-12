@@ -21,7 +21,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
     {
         try
         {
-            await TestWindowUsesHalfViewportWithMinimumSize();
+            await TestWindowUsesBoundedReadableSize();
             await TestLeaderToReserveEmitsRosterBeforeLeader();
             await TestMemberDetailsTolerateMissingSkillAndOccupiedSlots();
             await TestMemberDetailsUseSkillDefinitionSnapshot();
@@ -279,7 +279,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         }
     }
 
-    private async Task TestWindowUsesHalfViewportWithMinimumSize()
+    private async Task TestWindowUsesBoundedReadableSize()
     {
         Root.Size = new Vector2I(1920, 1080);
         PartyManagementWindow window = await CreateWindow(new Vector2(1920, 1080));
@@ -287,7 +287,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         await ProcessFrames(1);
 
         Control panel = window.GetNode<Control>("%Panel");
-        AssertVector2Near(panel.CustomMinimumSize, new Vector2(960, 540), 0.1f, "1920x1080 下队伍管理窗口应使用半屏尺寸。");
+        AssertVector2Near(panel.CustomMinimumSize, new Vector2(1360, 850), 0.1f, "大屏下应扩大详情区并限制文本行宽。");
         _test.True(window.GetNodeOrNull("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/概览/OverviewLabel") != null, "概览应在右侧详情标签页内。");
         _test.True(window.GetNodeOrNull("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/属性/AttributesLabel") != null, "属性标签页应保留。");
         _test.True(window.GetNodeOrNull("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/装备/EquipmentLabel") != null, "装备标签页应保留。");
@@ -302,7 +302,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         await ProcessFrames(1);
 
         panel = window.GetNode<Control>("%Panel");
-        AssertVector2Near(panel.CustomMinimumSize, new Vector2(860, 540), 0.1f, "小窗口下队伍管理窗口应使用可读保底尺寸。");
+        AssertVector2Near(panel.CustomMinimumSize, new Vector2(860, 574), 0.1f, "小窗口下队伍管理窗口应保留安全边距。");
         _test.True(panel.CustomMinimumSize.X <= 1000.0f - 96.0f, "保底宽度不应超过横向安全区域。");
         _test.True(panel.CustomMinimumSize.Y <= 700.0f - 60.0f, "保底高度不应超过纵向安全区域。");
 

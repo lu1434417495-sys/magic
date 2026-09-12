@@ -251,11 +251,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             availableHeight,
             LOG_DOCK_MIN_HEIGHT
         );
-        if (isBattleActive && !runtime_log_dock.IsCollapsed())
+        if (!runtime_log_dock.IsCollapsed())
             preferredHeight = Mathf.Clamp(
                 preferredHeight,
-                LOG_DOCK_MIN_HEIGHT,
-                LOG_DOCK_MAX_HEIGHT
+                Mathf.Min(LOG_DOCK_MIN_HEIGHT, availableHeight),
+                Mathf.Min(isBattleActive ? LOG_DOCK_MAX_HEIGHT : 360.0f, availableHeight)
             );
         Vector2 panelSize = new(designPanelSize.X, preferredHeight);
 
@@ -312,7 +312,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (world_map_view == null || battle_map_panel == null)
             return;
         if (status_label != null)
+        {
             status_label.Text = worldViewModel.StatusText;
+            status_label.GetParent().GetParent<Control>().Visible = !_runtime_proxy.IsBattleActive();
+        }
         string modalId = worldViewModel.ActiveModalId;
         _update_responsive_log_layout();
         if (bottom_action_bar != null)

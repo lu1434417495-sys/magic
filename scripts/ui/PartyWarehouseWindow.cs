@@ -236,6 +236,7 @@ public partial class PartyWarehouseWindow : ModalWindowShell
         if (_entries.Count == 0)
         {
             item_icon.Texture = null;
+            item_icon.GetParent<Control>().Visible = false;
             details_label.Text = "仓库当前为空。";
             return;
         }
@@ -244,11 +245,13 @@ public partial class PartyWarehouseWindow : ModalWindowShell
         if (entry == null)
         {
             item_icon.Texture = null;
+            item_icon.GetParent<Control>().Visible = false;
             details_label.Text = "请选择一个条目查看详情。";
             return;
         }
 
         item_icon.Texture = _load_icon_texture(entry.Icon);
+        item_icon.GetParent<Control>().Visible = item_icon.Texture != null;
         string storageRuleText = entry.IsStackable
             ? $"每堆上限 {entry.StackLimit}"
             : "不可堆叠，按实例独立占格";

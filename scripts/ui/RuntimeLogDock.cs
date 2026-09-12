@@ -70,6 +70,7 @@ public partial class RuntimeLogDock : PanelContainer
         collapse_button.Pressed += _toggle_collapsed;
         opacity_button.Pressed += _cycle_opacity;
         ShowWorldLogs(new Dictionary<string, object>(StringComparer.Ordinal), "", "");
+        _toggle_collapsed();
     }
 
     public bool IsCollapsed()

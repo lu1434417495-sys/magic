@@ -9,11 +9,14 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         "res://scenes/ui/battle_map_panel.tscn"
     );
 
-    public override async void _Initialize()
+    public override void _Initialize() => RunAfterProcessStartup(Run);
+
+    private async void Run()
     {
         try
         {
             await TestBattleMapPanelAppliesFormalSnapshot();
+            await TestScaledViewportAndSkillHitTargets();
             await TestBattleMapPanelAppliesCommandDock();
             await TestBattleMapPanelViewportControlsAndFateRow();
             await TestBattleMapPanelRevealUsesDetachedSnapshotAndCancelsCleanly();
@@ -297,7 +300,8 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         string hintText = "",
         IEnumerable<string> recentLogLines = null,
         BattleHudCommandDockSnapshot commandDock = null,
-        BattleHudObjectiveProgressSnapshot objectiveProgress = null
+        BattleHudObjectiveProgressSnapshot objectiveProgress = null,
+        IEnumerable<BattleHudSkillSlotSnapshot> skillSlots = null
     ) =>
         new(
             "战斗地图",
@@ -309,7 +313,7 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             "技能矩阵",
             selectedSkillVariantName,
             skillSubtitle,
-            Array.Empty<BattleHudSkillSlotSnapshot>(),
+            skillSlots ?? Array.Empty<BattleHudSkillSlotSnapshot>(),
             "",
             "",
             BattlePresentationPayload.Empty,
@@ -376,5 +380,82 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
     {
         BattleHudResourceLineSnapshot line = new(0, 1, 0.0f, "", true);
         return new BattleHudResourceInfoSnapshot(line, line, line, line, line, line);
+    }
+
+    private async System.Threading.Tasks.Task TestScaledViewportAndSkillHitTargets()
+    {
+        Vector2I originalSize = Root.Size;
+        Vector2I originalContentSize = Root.ContentScaleSize;
+        Window.ContentScaleModeEnum originalMode = Root.ContentScaleMode;
+        var panel = BattleMapPanelScene.Instantiate<BattleMapPanel>();
+        try
+        {
+            Root.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
+            new DisplaySettingsService().ApplySettings(new(new Vector2I(3840, 2160), false), Root);
+            Root.AddChild(panel);
+            panel.Visible = true;
+            panel._apply_snapshot(BuildSnapshot(skillSlots: new[]
+            {
+                new BattleHudSkillSlotSnapshot(0, true),
+                new BattleHudSkillSlotSnapshot(4, false, displayName: "测试技能", shortName: "测试", hotkey: "5", accentColor: Colors.Purple),
+                new BattleHudSkillSlotSnapshot(5, true),
+            }));
+            for (int i = 0; i < 5; i++)
+                await ToSignal(this, SignalName.ProcessFrame);
+            _test.Eq(Root.ContentScaleSize, new Vector2I(1920, 1080), "4K 应保持可读的逻辑 UI 尺寸。");
+            _test.Eq(panel.skill_grid.GetChildCount(), 1, "空槽不应占据操作区。");
+            Control slot = panel.skill_grid.GetChild<Control>(0);
+            ColorRect glow = null;
+            BattleSkillSlotButton button = null;
+            foreach (Node node in slot.FindChildren("*", "Control", true, false))
+            {
+                if (node is ColorRect rect && rect.Name == "FateGlow") glow = rect;
+                if (node is BattleSkillSlotButton target) button = target;
+            }
+            _test.True(glow != null && glow.Size.Y <= 3.1f, "技能色条必须保持底部细线，不能覆盖图标。");
+            _test.True(glow != null && glow.GetGlobalRect().End.Y <= slot.GetGlobalRect().End.Y + 1, "色条应位于槽内。");
+            int selectedIndex = -1;
+            panel.battle_skill_slot_selected += index => selectedIndex = index;
+            var wait = new E2eWait(this);
+            var input = new E2eInputDriver(this, wait);
+            await input.ClickAsync(button);
+            _test.Eq(selectedIndex, 4, "隐藏空槽后，真实鼠标点击仍应提交原始技能索引。");
+
+            Control host = panel.GetNode<Control>("%MapViewportHost");
+            SubViewport map = panel.map_viewport_container.GetNode<SubViewport>("MapSubViewport");
+            Vector2 scale = Root.GetStretchTransform().Scale;
+            _test.True(Mathf.Abs(map.Size.X - host.Size.X * scale.X) <= 1, "地图渲染宽度应使用物理像素。");
+            _test.True(Mathf.Abs(panel.map_viewport_container.GetGlobalRect().Size.X - host.Size.X) <= 1, "地图显示和鼠标命中范围应与逻辑宿主一致。");
+            _test.True(panel.map_frame.GetGlobalRect().End.Y <= panel.bottom_panel.GlobalPosition.Y, "操作区不得覆盖地图可点击范围。");
+            BattleUnitState ally = BattleTestFixture.BuildUnit("scaled_ally", "player", Vector2I.Zero);
+            BattleUnitState enemy = BattleTestFixture.BuildUnit("scaled_enemy", "enemy", new Vector2I(2, 0));
+            using (BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+                "scaled_hit_test", new Vector2I(3, 2), new[] { ally }, new[] { enemy }))
+            {
+                ShowPendingBattle(panel, fixture.State);
+                for (int i = 0; i < 8; i++) await ToSignal(this, SignalName.ProcessFrame);
+                Vector2I clickedCoord = new(-1, -1);
+                Vector2I expectedCoord = new(1, 1);
+                panel.battle_cell_clicked += coord => clickedCoord = coord;
+                await input.ClickAtAsync(panel.map_viewport_container, panel._battle_board.CoordToViewportPosition(expectedCoord));
+                _test.Eq(clickedCoord, expectedCoord, "4K 地图缩放后，真实点击必须命中原来的格子。");
+                new DisplaySettingsService().ApplySettings(new(new Vector2I(1280, 720), false), Root);
+                for (int i = 0; i < 5; i++) await ToSignal(this, SignalName.ProcessFrame);
+                _test.True(new Rect2(Vector2.Zero, map.Size).HasPoint(panel._battle_board.CoordToViewportPosition(Vector2I.Zero)),
+                    "从 4K 缩回 720p 后焦点单位应继续位于视口内。");
+                panel.HideBattle();
+            }
+            new DisplaySettingsService().ApplySettings(new(new Vector2I(1280, 720), false), Root);
+            for (int i = 0; i < 5; i++) await ToSignal(this, SignalName.ProcessFrame);
+            _test.True(Mathf.Abs(map.Size.X - host.Size.X) <= 1, "缩回 720p 后地图不能保留 4K 最小尺寸。");
+        }
+        finally
+        {
+            panel.QueueFree();
+            await ToSignal(this, SignalName.ProcessFrame);
+            Root.ContentScaleMode = originalMode;
+            Root.ContentScaleSize = originalContentSize;
+            Root.Size = originalSize;
+        }
     }
 }
