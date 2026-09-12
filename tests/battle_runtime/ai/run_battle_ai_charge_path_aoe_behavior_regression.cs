@@ -119,16 +119,13 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, largeTarget, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseChargePathAoeAction
-        {
-            action_id = "whirlwind_path_aoe_probe",
-            target_selector = "nearest_enemy",
-            minimum_hit_count = 2,
-            },
-            "battle_ai_charge_path_aoe.action"
-        );
-        action.skill_ids.Add("warrior_whirlwind_slash");
+        UseChargePathAoeActionDefinition action =
+            TestEnemyDefinitionFactory.UseChargePathAoe(
+                "whirlwind_path_aoe_probe",
+                new StringName[] { "warrior_whirlwind_slash" },
+                targetSelector: "nearest_enemy",
+                minimumHitCount: 2
+            );
 
         BattleAiContext context = BuildAiContext(runtime, spinner);
         context.trace_enabled = true;
@@ -144,7 +141,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
             "旋风斩 AI 夹具不应被正式技能施放门槛阻挡。"
         );
         BattleAiDecision decision = new BattleAiChargePathAoeActionEvaluator().Evaluate(
-            (UseChargePathAoeActionDefinition)action.ToDefinition(),
+            action,
             context
         );
         AiActionTrace trace =
@@ -206,19 +203,14 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, largeTarget, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseChargePathAoeAction
-            {
-                action_id = "whirlwind_trace_exception",
-                target_selector = "nearest_enemy",
-                minimum_hit_count = 2,
-            },
-            "battle_ai_charge_path_aoe.trace_exception_action"
-        );
-        action.skill_ids.Add("warrior_whirlwind_slash");
-        BattleAiContext context = BuildAiContext(runtime, spinner);
         UseChargePathAoeActionDefinition definition =
-            (UseChargePathAoeActionDefinition)action.ToDefinition();
+            TestEnemyDefinitionFactory.UseChargePathAoe(
+                "whirlwind_trace_exception",
+                new StringName[] { "warrior_whirlwind_slash" },
+                targetSelector: "nearest_enemy",
+                minimumHitCount: 2
+            );
+        BattleAiContext context = BuildAiContext(runtime, spinner);
 
         BattleAiTraceExceptionProbe.AssertPreservedAndBalanced(
             _test,

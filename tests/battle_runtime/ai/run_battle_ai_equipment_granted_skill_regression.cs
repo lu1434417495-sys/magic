@@ -499,45 +499,33 @@ public partial class run_battle_ai_equipment_granted_skill_regression : Lifecycl
             [BindingId] = BuildBinding(),
         };
 
-        EnemyAiStateDef stateResource = TestResourceOwnership.Own(
-            new EnemyAiStateDef { state_id = StateId },
-            "BattleAiEquipmentGrantedSkill.state"
+        UseUnitSkillActionDefinition template =
+            TestEnemyDefinitionFactory.UseUnitSkill(
+                "fixture_unit_skill_template",
+                scoreBucketId: "fixture",
+                targetSelector: "nearest_enemy"
+            );
+        EnemyAiGenerationSlotDefinition slot =
+            TestEnemyDefinitionFactory.GenerationSlot(
+                "fixture_offense",
+                order: 10,
+                allowedAffordances: new StringName[] { "unit_hostile.damage" },
+                actionFamilies: new StringName[] { "use_unit_skill" },
+                styleTemplateActionId: template.ActionId,
+                scoreBucketId: "fixture",
+                targetSelector: "nearest_enemy"
+            );
+        EnemyAiStateDefinition stateDefinition = TestEnemyDefinitionFactory.State(
+            StateId,
+            new EnemyAiActionDefinition[] { template },
+            new[] { slot }
         );
-        UseUnitSkillAction template = TestResourceOwnership.Own(
-            new UseUnitSkillAction
-            {
-                action_id = "fixture_unit_skill_template",
-                score_bucket_id = "fixture",
-                target_selector = "nearest_enemy",
-            },
-            "BattleAiEquipmentGrantedSkill.template"
+        EnemyAiBrainDefinition brain = TestEnemyDefinitionFactory.Brain(
+            "fixture_equipment_skill_brain",
+            StateId,
+            new[] { stateDefinition }
         );
-        stateResource.actions.Add(template);
-        EnemyAiGenerationSlotDef slot = TestResourceOwnership.Own(
-            new EnemyAiGenerationSlotDef
-            {
-                slot_id = "fixture_offense",
-                order = 10,
-                style_template_action_id = template.action_id,
-                score_bucket_id = "fixture",
-                target_selector = "nearest_enemy",
-            },
-            "BattleAiEquipmentGrantedSkill.slot"
-        );
-        slot.allowed_affordances.Add("unit_hostile.damage");
-        slot.action_families.Add("use_unit_skill");
-        stateResource.generation_slots.Add(slot);
-
-        EnemyAiBrainDef brainResource = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
-            {
-                brain_id = "fixture_equipment_skill_brain",
-                default_state_id = StateId,
-            },
-            "BattleAiEquipmentGrantedSkill.brain"
-        );
-        brainResource.states.Add(stateResource);
-        actor.ai_brain_id = brainResource.brain_id;
+        actor.ai_brain_id = brain.BrainId;
 
         return new Fixture
         {
@@ -548,7 +536,7 @@ public partial class run_battle_ai_equipment_granted_skill_regression : Lifecycl
             SkillDefinitions = skillDefinitions,
             Bindings = bindings,
             ItemDefinitions = new Dictionary<StringName, ItemDefinition>(),
-            Brain = brainResource.ToDefinition(),
+            Brain = brain,
         };
     }
 
@@ -830,82 +818,61 @@ public partial class run_battle_ai_equipment_granted_skill_regression : Lifecycl
 
         private static EnemyAiBrainDefinition BuildBrain()
         {
-            UseUnitSkillAction unitTemplate = TestResourceOwnership.Own(
-                new UseUnitSkillAction
-                {
-                    action_id = "formal_phoenix_unit_template",
-                    score_bucket_id = "fixture",
-                    target_selector = "nearest_enemy",
-                    desired_min_distance = 0,
-                    desired_max_distance = 1,
-                    distance_reference = "target_unit",
-                },
-                "BattleAiEquipmentGrantedSkill.formal_unit_template"
+            UseUnitSkillActionDefinition unitTemplate =
+                TestEnemyDefinitionFactory.UseUnitSkill(
+                    "formal_phoenix_unit_template",
+                    scoreBucketId: "fixture",
+                    targetSelector: "nearest_enemy",
+                    desiredMinDistance: 0,
+                    desiredMaxDistance: 1,
+                    distanceReference: "target_unit"
+                );
+            UseGroundSkillActionDefinition groundTemplate =
+                TestEnemyDefinitionFactory.UseGroundSkill(
+                    "formal_phoenix_ground_template",
+                    scoreBucketId: "fixture",
+                    desiredMinDistance: 0,
+                    desiredMaxDistance: 0,
+                    distanceReference: "target_coord"
+                );
+            EnemyAiGenerationSlotDefinition unitSlot =
+                TestEnemyDefinitionFactory.GenerationSlot(
+                    "formal_phoenix_unit_offense",
+                    slotRole: "offense",
+                    order: 10,
+                    allowedAffordances: new StringName[] { "unit_hostile.damage" },
+                    actionFamilies: new StringName[] { "use_unit_skill" },
+                    styleTemplateActionId: unitTemplate.ActionId,
+                    scoreBucketId: "fixture",
+                    targetSelector: "nearest_enemy",
+                    desiredMinDistance: 0,
+                    desiredMaxDistance: 1,
+                    distanceReference: "target_unit"
+                );
+            EnemyAiGenerationSlotDefinition groundSlot =
+                TestEnemyDefinitionFactory.GenerationSlot(
+                    "formal_phoenix_ground_offense",
+                    slotRole: "offense",
+                    order: 20,
+                    allowedAffordances: new StringName[] { "ground_hostile.aoe" },
+                    actionFamilies: new StringName[] { "use_ground_skill" },
+                    styleTemplateActionId: groundTemplate.ActionId,
+                    scoreBucketId: "fixture",
+                    targetSelector: "nearest_enemy",
+                    desiredMinDistance: 0,
+                    desiredMaxDistance: 0,
+                    distanceReference: "target_coord"
+                );
+            EnemyAiStateDefinition stateDefinition = TestEnemyDefinitionFactory.State(
+                StateId,
+                new EnemyAiActionDefinition[] { unitTemplate, groundTemplate },
+                new[] { unitSlot, groundSlot }
             );
-            UseGroundSkillAction groundTemplate = TestResourceOwnership.Own(
-                new UseGroundSkillAction
-                {
-                    action_id = "formal_phoenix_ground_template",
-                    score_bucket_id = "fixture",
-                    desired_min_distance = 0,
-                    desired_max_distance = 0,
-                    distance_reference = "target_coord",
-                },
-                "BattleAiEquipmentGrantedSkill.formal_ground_template"
+            return TestEnemyDefinitionFactory.Brain(
+                "formal_phoenix_equipment_brain",
+                StateId,
+                new[] { stateDefinition }
             );
-            EnemyAiGenerationSlotDef unitSlot = TestResourceOwnership.Own(
-                new EnemyAiGenerationSlotDef
-                {
-                    slot_id = "formal_phoenix_unit_offense",
-                    slot_role = "offense",
-                    order = 10,
-                    style_template_action_id = unitTemplate.action_id,
-                    score_bucket_id = "fixture",
-                    target_selector = "nearest_enemy",
-                    desired_min_distance = 0,
-                    desired_max_distance = 1,
-                    distance_reference = "target_unit",
-                },
-                "BattleAiEquipmentGrantedSkill.formal_unit_slot"
-            );
-            unitSlot.allowed_affordances.Add("unit_hostile.damage");
-            unitSlot.action_families.Add("use_unit_skill");
-            EnemyAiGenerationSlotDef groundSlot = TestResourceOwnership.Own(
-                new EnemyAiGenerationSlotDef
-                {
-                    slot_id = "formal_phoenix_ground_offense",
-                    slot_role = "offense",
-                    order = 20,
-                    style_template_action_id = groundTemplate.action_id,
-                    score_bucket_id = "fixture",
-                    target_selector = "nearest_enemy",
-                    desired_min_distance = 0,
-                    desired_max_distance = 0,
-                    distance_reference = "target_coord",
-                },
-                "BattleAiEquipmentGrantedSkill.formal_ground_slot"
-            );
-            groundSlot.allowed_affordances.Add("ground_hostile.aoe");
-            groundSlot.action_families.Add("use_ground_skill");
-
-            EnemyAiStateDef stateResource = TestResourceOwnership.Own(
-                new EnemyAiStateDef { state_id = StateId },
-                "BattleAiEquipmentGrantedSkill.formal_state"
-            );
-            stateResource.actions.Add(unitTemplate);
-            stateResource.actions.Add(groundTemplate);
-            stateResource.generation_slots.Add(unitSlot);
-            stateResource.generation_slots.Add(groundSlot);
-            EnemyAiBrainDef brainResource = TestResourceOwnership.Own(
-                new EnemyAiBrainDef
-                {
-                    brain_id = "formal_phoenix_equipment_brain",
-                    default_state_id = StateId,
-                },
-                "BattleAiEquipmentGrantedSkill.formal_brain"
-            );
-            brainResource.states.Add(stateResource);
-            return brainResource.ToDefinition();
         }
 
         public void Dispose()

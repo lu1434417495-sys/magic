@@ -315,11 +315,11 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 ai_state_id = "idle",
             },
         };
-        var condition = new EnemyAiTransitionConditionDef
-        {
-            predicate = "always",
-            state_ids = new Godot.Collections.Array<StringName> { "idle" },
-        };
+        EnemyAiTransitionConditionDefinition condition =
+            TestEnemyDefinitionFactory.TransitionCondition(
+                "always",
+                stateIds: new StringName[] { "idle" }
+            );
         var transition = new BattleAiStateResolver.TransitionResult(
             "idle",
             "engage",
@@ -328,7 +328,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             new List<BattleAiStateResolver.TransitionConditionTrace>
             {
                 BattleAiStateResolver.TransitionConditionTrace.FromCondition(
-                    condition.ToDefinition()
+                    condition
                 ),
             }
         );

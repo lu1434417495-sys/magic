@@ -425,17 +425,19 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             );
     }
 
-    private static void InjectEnemyTemplate(GameRuntimeFacade facade, EnemyTemplateDef enemyTemplate)
+    private static void InjectEnemyTemplate(
+        GameRuntimeFacade facade,
+        TestEnemyTemplateDefinitionBuilder enemyTemplate
+    )
     {
         BattleRuntimeModule battleRuntime = facade?.GetBattleRuntime();
-        if (battleRuntime == null || enemyTemplate == null || enemyTemplate.template_id == "")
+        if (battleRuntime == null || enemyTemplate == null || enemyTemplate.TemplateId == "")
             return;
+        EnemyTemplateDefinition definition = enemyTemplate.Build(facade.GetItemDefsTyped());
         battleRuntime.ReplaceEnemyTemplatesTyped(
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [enemyTemplate.template_id] = enemyTemplate.ToDefinition(
-                    facade.GetItemDefsTyped()
-                ),
+                [definition.TemplateId] = definition,
             }
         );
     }
@@ -517,57 +519,49 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
         return memberState;
     }
 
-    private static EnemyTemplateDef BuildEnemyTemplateWithMixedLoot(StringName templateId)
+    private static TestEnemyTemplateDefinitionBuilder BuildEnemyTemplateWithMixedLoot(
+        StringName templateId
+    )
     {
-        EnemyTemplateDef template = new()
+        var template = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = "战利品荒狼",
-            cognition_kind = "instinctive",
+            TemplateId = templateId,
+            DisplayName = "战利品荒狼",
+            CognitionKind = "instinctive",
         };
-        template.drop_entries.Add(new DropEntryDef
-        {
-            drop_entry_id = "weapon_roll",
-            drop_type = "random_equipment",
-            item_id = "bronze_sword",
-            quantity = 1,
-        });
-        template.drop_entries.Add(new DropEntryDef
-        {
-            drop_entry_id = "hide_bundle",
-            drop_type = "item",
-            item_id = "beast_hide",
-            quantity = 2,
-        });
+        template.DropEntries.Add(
+            new DropEntryDefinition("weapon_roll", "random_equipment", "bronze_sword", 1)
+        );
+        template.DropEntries.Add(new DropEntryDefinition("hide_bundle", "item", "beast_hide", 2));
         return template;
     }
 
-    private static EnemyTemplateDef BuildEnemyTemplateWithRandomEquipmentOnly(StringName templateId)
+    private static TestEnemyTemplateDefinitionBuilder BuildEnemyTemplateWithRandomEquipmentOnly(
+        StringName templateId
+    )
     {
-        EnemyTemplateDef template = new()
+        var template = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = "中立掉落荒狼",
-            cognition_kind = "instinctive",
+            TemplateId = templateId,
+            DisplayName = "中立掉落荒狼",
+            CognitionKind = "instinctive",
         };
-        template.drop_entries.Add(new DropEntryDef
-        {
-            drop_entry_id = "weapon_roll",
-            drop_type = "random_equipment",
-            item_id = "bronze_sword",
-            quantity = 1,
-        });
+        template.DropEntries.Add(
+            new DropEntryDefinition("weapon_roll", "random_equipment", "bronze_sword", 1)
+        );
         return template;
     }
 
-    private static EnemyTemplateDef BuildEnemyTemplateWithAttackEquipmentOnly(StringName templateId)
+    private static TestEnemyTemplateDefinitionBuilder BuildEnemyTemplateWithAttackEquipmentOnly(
+        StringName templateId
+    )
     {
-        return new EnemyTemplateDef
+        return new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = "持钉锤敌人",
-            cognition_kind = "sapient",
-            attack_equipment_item_id = "watchman_mace",
+            TemplateId = templateId,
+            DisplayName = "持钉锤敌人",
+            CognitionKind = "sapient",
+            AttackEquipmentItemId = "watchman_mace",
         };
     }
 

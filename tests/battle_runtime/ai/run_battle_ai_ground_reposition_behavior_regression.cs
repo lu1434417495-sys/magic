@@ -52,22 +52,19 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         AddUnitToState(runtime, state, threat, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseGroundRepositionSkillAction
-            {
-                action_id = "blink_reposition_probe",
-                target_selector = "nearest_enemy",
-                minimum_safe_distance = 3,
-                safe_distance_margin = 0,
-                desired_max_distance_bonus = 2,
-                min_survival_margin_gain_to_escape = -1,
-            },
-            "battle_ai_ground_reposition.action"
-        );
-        action.skill_ids.Add("mage_blink");
+        UseGroundRepositionSkillActionDefinition action =
+            TestEnemyDefinitionFactory.UseGroundRepositionSkill(
+                "blink_reposition_probe",
+                new StringName[] { "mage_blink" },
+                targetSelector: "nearest_enemy",
+                minimumSafeDistance: 3,
+                safeDistanceMargin: 0,
+                desiredMaxDistanceBonus: 2,
+                minSurvivalMarginGainToEscape: -1
+            );
 
         BattleAiDecision decision = new BattleAiGroundRepositionActionEvaluator().Evaluate(
-            (UseGroundRepositionSkillActionDefinition)action.ToDefinition(),
+            action,
             BuildAiContext(runtime, mage)
         );
         _test.True(decision?.command != null, "blink reposition should produce a skill command.");
@@ -128,22 +125,19 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         AddUnitToState(runtime, state, threat, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseGroundRepositionSkillAction
-            {
-                action_id = "blink_already_safe_probe",
-                target_selector = "nearest_enemy",
-                minimum_safe_distance = 3,
-                safe_distance_margin = 0,
-                desired_max_distance_bonus = 2,
-                min_survival_margin_gain_to_escape = -1,
-            },
-            "battle_ai_ground_reposition.already_safe_action"
-        );
-        action.skill_ids.Add("mage_blink");
+        UseGroundRepositionSkillActionDefinition action =
+            TestEnemyDefinitionFactory.UseGroundRepositionSkill(
+                "blink_already_safe_probe",
+                new StringName[] { "mage_blink" },
+                targetSelector: "nearest_enemy",
+                minimumSafeDistance: 3,
+                safeDistanceMargin: 0,
+                desiredMaxDistanceBonus: 2,
+                minSurvivalMarginGainToEscape: -1
+            );
 
         BattleAiDecision decision = new BattleAiGroundRepositionActionEvaluator().Evaluate(
-            (UseGroundRepositionSkillActionDefinition)action.ToDefinition(),
+            action,
             BuildAiContext(runtime, mage)
         );
         _test.True(
@@ -177,22 +171,19 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         AddUnitToState(runtime, state, threat, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseGroundRepositionSkillAction
-            {
-                action_id = "blink_blocked_probe",
-                target_selector = "nearest_enemy",
-                minimum_safe_distance = 3,
-                safe_distance_margin = 0,
-                desired_max_distance_bonus = 2,
-                min_survival_margin_gain_to_escape = -1,
-            },
-            "battle_ai_ground_reposition.blocked_action"
-        );
-        action.skill_ids.Add("mage_blink");
+        UseGroundRepositionSkillActionDefinition action =
+            TestEnemyDefinitionFactory.UseGroundRepositionSkill(
+                "blink_blocked_probe",
+                new StringName[] { "mage_blink" },
+                targetSelector: "nearest_enemy",
+                minimumSafeDistance: 3,
+                safeDistanceMargin: 0,
+                desiredMaxDistanceBonus: 2,
+                minSurvivalMarginGainToEscape: -1
+            );
 
         BattleAiDecision decision = new BattleAiGroundRepositionActionEvaluator().Evaluate(
-            (UseGroundRepositionSkillActionDefinition)action.ToDefinition(),
+            action,
             BuildAiContext(runtime, mage)
         );
         _test.True(

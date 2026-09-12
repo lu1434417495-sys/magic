@@ -53,22 +53,19 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
                     [skillId] = BuildMultiUnitSkill(skillId),
                 }
             );
-            UseMultiUnitSkillAction action = TestResourceOwnership.Own(
-                new UseMultiUnitSkillAction
-                {
-                    action_id = "multi_unit_command_regression",
-                    score_bucket_id = "test",
-                    target_selector = "nearest_enemy",
-                    desired_min_distance = 0,
-                    desired_max_distance = 6,
-                    distance_reference = "target_unit",
-                },
-                "multi-unit-action"
-            );
-            action.skill_ids.Add(skillId);
+            UseMultiUnitSkillActionDefinition action =
+                TestEnemyDefinitionFactory.UseMultiUnitSkill(
+                    "multi_unit_command_regression",
+                    new[] { skillId },
+                    scoreBucketId: "test",
+                    targetSelector: "nearest_enemy",
+                    desiredMinDistance: 0,
+                    desiredMaxDistance: 6,
+                    distanceReference: "target_unit"
+                );
 
             BattleAiDecision decision = new BattleAiMultiUnitSkillEvaluator().Evaluate(
-                (UseMultiUnitSkillActionDefinition)action.ToDefinition(),
+                action,
                 context
             );
             BattleCommand command = decision?.command;

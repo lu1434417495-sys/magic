@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSceneTree
@@ -12,250 +13,240 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
         TestRejectsAmbiguousRuleOrderAndIds();
         TestRejectsEmptyConditionsAndUnknownPredicates();
         TestConditionTraceShapeIsTypedAndStable();
-
         RequestTestExit(_test.Finish("Enemy AI transition schema regression"));
     }
 
     private void TestAcceptsDeclaredTransitionRulesForCustomStateNames()
     {
-        EnemyAiBrainDef brain = BuildBrain();
-        EnemyAiTransitionRuleDef lowHpRule = Rule(
-            "recover_when_low",
-            10,
-            "recover",
-            Condition("self_hp_at_or_below_basis_points", basisPoints: 3000)
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics = Validate(
+            Rule(
+                "recover_when_low",
+                10,
+                "recover",
+                Condition("self_hp_at_or_below_basis_points", basisPoints: 3000)
+            ),
+            Rule(
+                "close_range_when_near",
+                20,
+                "close_range",
+                Condition("nearest_enemy_distance_at_or_below", maxDistance: 2)
+            ),
+            Rule("hold_default", 30, "hold", Condition("always"))
         );
-        EnemyAiTransitionRuleDef closeRangeRule = Rule(
-            "close_range_when_near",
-            20,
-            "close_range",
-            Condition("nearest_enemy_distance_at_or_below", maxDistance: 2)
+        _test.Eq(
+            diagnostics.Count,
+            0,
+            $"custom state transition schema 应合法: {FormatDiagnostics(diagnostics)}"
         );
-        EnemyAiTransitionRuleDef holdRule = Rule(
-            "hold_default",
-            30,
-            "hold",
-            Condition("always")
-        );
-        brain.transition_rules.Add(lowHpRule);
-        brain.transition_rules.Add(closeRangeRule);
-        brain.transition_rules.Add(holdRule);
-        TestResourceOwnership.Own(
-            brain,
-            "EnemyAiTransitionSchema.AcceptsDeclared.brain"
-        );
-
-        Godot.Collections.Array<string> errors = TestResourceOwnership.OwnWrapper(
-            brain.ValidateSchema(),
-            "EnemyAiTransitionSchema.AcceptsDeclared.errors"
-        );
-        _test.True(errors.Count == 0, $"custom state transition schema 应合法: {FormatErrors(errors)}");
     }
 
     private void TestRejectsAmbiguousRuleOrderAndIds()
     {
-        EnemyAiBrainDef brain = BuildBrain();
-        brain.transition_rules.Add(
-            Rule("duplicate", 10, "recover", Condition("always"))
-        );
-        brain.transition_rules.Add(
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics = Validate(
+            Rule("duplicate", 10, "recover", Condition("always")),
             Rule("duplicate", 10, "hold", Condition("always"))
         );
-        TestResourceOwnership.Own(
-            brain,
-            "EnemyAiTransitionSchema.RejectsAmbiguous.brain"
+        _test.Eq(
+            diagnostics.Count,
+            2,
+            $"重复 fixture 应只触发 rule_id/order 两条规则: {FormatDiagnostics(diagnostics)}"
         );
-
-        Godot.Collections.Array<string> errors = TestResourceOwnership.OwnWrapper(
-            brain.ValidateSchema(),
-            "EnemyAiTransitionSchema.RejectsAmbiguous.errors"
+        AssertDiagnostic(
+            diagnostics,
+            EnemyContentImportRules.DuplicateId,
+            "/transition_rules",
+            "Duplicate rule_id 'duplicate'",
+            "重复 rule_id 应命中 typed JSON validator。"
         );
-        _test.Eq(errors.Count, 2, $"重复 fixture 应只触发 rule_id/order 两条规则: {FormatErrors(errors)}");
-        AssertHasError(
-            errors,
-            "Enemy brain custom_transition_brain declares duplicate transition rule_id duplicate.",
-            "重复 rule_id 应命中精确诊断。"
-        );
-        AssertHasError(
-            errors,
-            "Enemy brain custom_transition_brain declares duplicate transition order 10.",
-            "重复 transition order 应命中精确诊断。"
+        AssertDiagnostic(
+            diagnostics,
+            EnemyContentImportRules.DuplicateId,
+            "/transition_rules",
+            "Duplicate order '10'",
+            "重复 transition order 应命中 typed JSON validator。"
         );
     }
 
     private void TestRejectsEmptyConditionsAndUnknownPredicates()
     {
-        EnemyAiBrainDef brain = BuildBrain();
-        brain.transition_rules.Add(Rule("empty_conditions", 10, "recover"));
-        brain.transition_rules.Add(
-            Rule("unknown_condition", 20, "hold", Condition("scripted_expression"))
-        );
-        brain.transition_rules.Add(
-            Rule("bad_target", 30, "missing_state", Condition("always"))
-        );
-        brain.transition_rules.Add(
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics = Validate(
+            Rule("empty_conditions", 10, "recover"),
+            Rule("unknown_condition", 20, "hold", Condition("scripted_expression")),
+            Rule("bad_target", 30, "missing_state", Condition("always")),
             Rule(
                 "bad_from",
                 40,
                 "hold",
-                new[] { new StringName("missing_from_state") },
+                new[] { "missing_from_state" },
                 Condition("always")
             )
         );
-        TestResourceOwnership.Own(
-            brain,
-            "EnemyAiTransitionSchema.RejectsInvalidConditions.brain"
+        _test.Eq(
+            diagnostics.Count,
+            4,
+            $"非法 transition fixture 应逐条触发四项目标规则: {FormatDiagnostics(diagnostics)}"
         );
-
-        Godot.Collections.Array<string> errors = TestResourceOwnership.OwnWrapper(
-            brain.ValidateSchema(),
-            "EnemyAiTransitionSchema.RejectsInvalidConditions.errors"
+        AssertDiagnostic(
+            diagnostics,
+            EnemyContentImportRules.CollectionRequired,
+            "/conditions",
+            "must declare at least one condition",
+            "空 conditions 应命中所属 rule。"
         );
-        _test.Eq(errors.Count, 4, $"非法 transition fixture 应逐条触发四项目标规则: {FormatErrors(errors)}");
-        AssertHasError(
-            errors,
-            "transition rule empty_conditions must declare at least one condition.",
-            "空 conditions 应命中所属 rule 的精确诊断。"
+        AssertDiagnostic(
+            diagnostics,
+            EnemyContentImportRules.ValueUnsupported,
+            "/predicate",
+            "Unsupported transition predicate 'scripted_expression'",
+            "未知 predicate 应命中所属 rule。"
         );
-        AssertHasError(
-            errors,
-            "transition rule unknown_condition transition condition uses unsupported predicate scripted_expression.",
-            "未知 predicate 应命中所属 rule 的精确诊断。"
+        AssertDiagnostic(
+            diagnostics,
+            EnemyContentImportRules.ReferenceMissing,
+            "/target_state_id",
+            "target_state_id 'missing_state' is not declared",
+            "缺失 target state 应命中所属 rule。"
         );
-        AssertHasError(
-            errors,
-            "transition rule bad_target target_state_id missing_state is not declared in states.",
-            "缺失 target state 应命中所属 rule 的精确诊断。"
-        );
-        AssertHasError(
-            errors,
-            "transition rule bad_from from_state_id missing_from_state is not declared in states.",
-            "缺失 from state 应命中所属 rule 的精确诊断。"
+        AssertDiagnostic(
+            diagnostics,
+            EnemyContentImportRules.ReferenceMissing,
+            "/from_state_ids/0",
+            "from_state_id 'missing_from_state' is not declared",
+            "缺失 from state 应命中所属 rule。"
         );
     }
 
     private void TestConditionTraceShapeIsTypedAndStable()
     {
-        EnemyAiTransitionConditionDef condition = Condition(
-            "has_skill_affordance",
-            affordances: new[] { new StringName("ally_heal"), new StringName("self_or_ally_buff") }
-        );
-        BattleAiStateResolver.TransitionConditionTrace trace =
-            BattleAiStateResolver.TransitionConditionTrace.FromCondition(
-                condition.ToDefinition()
+        EnemyAiTransitionConditionDefinition condition =
+            TestEnemyDefinitionFactory.TransitionCondition(
+                "has_skill_affordance",
+                affordances: new StringName[] { "ally_heal", "self_or_ally_buff" }
             );
+        BattleAiStateResolver.TransitionConditionTrace trace =
+            BattleAiStateResolver.TransitionConditionTrace.FromCondition(condition);
 
         _test.Eq(trace.Predicate, new StringName("has_skill_affordance"), "trace 应输出 predicate。");
         _test.Eq(trace.BasisPoints, -1, "未使用的 basis_points 应固定为 -1。");
         _test.Eq(trace.MaxDistance, -1, "未使用的 max_distance 应固定为 -1。");
         _test.Eq(trace.StateIds.Count, 0, "未使用的 state_ids 应固定为空数组。");
         AssertListHas(trace.Affordances, "ally_heal", "affordance trace 应包含 ally_heal。");
-        AssertListHas(trace.Affordances, "self_or_ally_buff", "affordance trace 应包含 self_or_ally_buff。");
-    }
-
-    private static EnemyAiBrainDef BuildBrain()
-    {
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "custom_transition_brain",
-            default_state_id = "hold",
-        };
-        brain.states.Add(State("hold"));
-        brain.states.Add(State("recover"));
-        brain.states.Add(State("close_range"));
-        return brain;
-    }
-
-    private static EnemyAiStateDef State(StringName stateId)
-    {
-        WaitAction waitAction = TestResourceOwnership.Own(
-            new WaitAction { action_id = $"{stateId}_wait" },
-            $"EnemyAiTransitionSchema.State.{stateId}.wait_action"
-        );
-        var state = new EnemyAiStateDef { state_id = stateId };
-        state.actions.Add(waitAction);
-        return TestResourceOwnership.Own(
-            state,
-            $"EnemyAiTransitionSchema.State.{stateId}"
+        AssertListHas(
+            trace.Affordances,
+            "self_or_ally_buff",
+            "affordance trace 应包含 self_or_ally_buff。"
         );
     }
 
-    private static EnemyAiTransitionRuleDef Rule(
-        StringName ruleId,
+    private static IReadOnlyList<ContentJsonDiagnostic> Validate(
+        params EnemyAiTransitionRuleJsonDto[] rules
+    ) =>
+        EnemyContentImportValidator.ValidateBrain(
+            new JsonContentEntryContext(
+                EnemyContentJsonDomains.BrainDomainId,
+                "custom_transition_brain",
+                "custom_transition_brain.json",
+                "/entries/0"
+            ),
+            BuildBrain(rules)
+        );
+
+    private static EnemyAiBrainImportModel BuildBrain(
+        IReadOnlyList<EnemyAiTransitionRuleJsonDto> rules
+    ) =>
+        new(
+            "custom_transition_brain",
+            "hold",
+            null,
+            new[] { State("hold"), State("recover"), State("close_range") },
+            rules
+        );
+
+    private static EnemyAiStateImportModel State(string stateId) =>
+        new(
+            stateId,
+            new EnemyAiActionImportModel[]
+            {
+                new(
+                    "wait",
+                    new WaitActionPayloadJsonDto
+                    {
+                        ActionId = $"{stateId}_wait",
+                        ScoreBucketId = "default",
+                        ActionIntent = "wait",
+                        ActiveRestActionBaseScore = 10,
+                        ActiveRestMinStaminaResidue = 1,
+                    }
+                ),
+            },
+            Array.Empty<EnemyAiGenerationSlotJsonDto>()
+        );
+
+    private static EnemyAiTransitionRuleJsonDto Rule(
+        string ruleId,
         int order,
-        StringName targetStateId,
-        params EnemyAiTransitionConditionDef[] conditions
-    )
-    {
-        return Rule(ruleId, order, targetStateId, Array.Empty<StringName>(), conditions);
-    }
+        string targetStateId,
+        params EnemyAiTransitionConditionJsonDto[] conditions
+    ) => Rule(ruleId, order, targetStateId, Array.Empty<string>(), conditions);
 
-    private static EnemyAiTransitionRuleDef Rule(
-        StringName ruleId,
+    private static EnemyAiTransitionRuleJsonDto Rule(
+        string ruleId,
         int order,
-        StringName targetStateId,
-        IEnumerable<StringName> fromStateIds,
-        params EnemyAiTransitionConditionDef[] conditions
-    )
-    {
-        var rule = new EnemyAiTransitionRuleDef
+        string targetStateId,
+        IReadOnlyList<string> fromStateIds,
+        params EnemyAiTransitionConditionJsonDto[] conditions
+    ) =>
+        new()
         {
-            rule_id = ruleId,
-            order = order,
-            target_state_id = targetStateId,
+            RuleId = ruleId,
+            Order = order,
+            TargetStateId = targetStateId,
+            FromStateIds = fromStateIds,
+            Conditions = conditions,
+            DesignerNote = "fixture",
         };
-        foreach (StringName fromStateId in fromStateIds ?? Array.Empty<StringName>())
-        {
-            rule.from_state_ids.Add(fromStateId);
-        }
-        foreach (EnemyAiTransitionConditionDef condition in conditions ?? Array.Empty<EnemyAiTransitionConditionDef>())
-        {
-            rule.conditions.Add(condition);
-        }
-        return TestResourceOwnership.Own(
-            rule,
-            $"EnemyAiTransitionSchema.Rule.{ruleId}"
-        );
-    }
 
-    private static EnemyAiTransitionConditionDef Condition(
-        StringName predicate,
+    private static EnemyAiTransitionConditionJsonDto Condition(
+        string predicate,
         int basisPoints = -1,
         int maxDistance = -1,
-        IEnumerable<StringName> stateIds = null,
-        IEnumerable<StringName> affordances = null
+        IReadOnlyList<string> stateIds = null,
+        IReadOnlyList<string> affordances = null
+    ) =>
+        new()
+        {
+            Predicate = predicate,
+            BasisPoints = basisPoints,
+            MaxDistance = maxDistance,
+            StateIds = stateIds ?? Array.Empty<string>(),
+            Affordances = affordances ?? Array.Empty<string>(),
+        };
+
+    private static string FormatDiagnostics(IEnumerable<ContentJsonDiagnostic> diagnostics) =>
+        string.Join(
+            "; ",
+            diagnostics.Select(value => $"{value.RuleId}@{value.JsonPointer}: {value.Message}")
+        );
+
+    private void AssertDiagnostic(
+        IEnumerable<ContentJsonDiagnostic> diagnostics,
+        string ruleId,
+        string pointerSuffix,
+        string messageFragment,
+        string message
     )
     {
-        var condition = new EnemyAiTransitionConditionDef
+        if (
+            diagnostics.Any(value =>
+                value.RuleId == ruleId
+                && value.JsonPointer.EndsWith(pointerSuffix, StringComparison.Ordinal)
+                && value.Message.Contains(messageFragment, StringComparison.Ordinal)
+            )
+        )
         {
-            predicate = predicate,
-            basis_points = basisPoints,
-            max_distance = maxDistance,
-        };
-        foreach (StringName stateId in stateIds ?? Array.Empty<StringName>())
-        {
-            condition.state_ids.Add(stateId);
+            return;
         }
-        foreach (StringName affordance in affordances ?? Array.Empty<StringName>())
-        {
-            condition.affordances.Add(affordance);
-        }
-        return TestResourceOwnership.Own(
-            condition,
-            $"EnemyAiTransitionSchema.Condition.{predicate}"
-        );
-    }
-
-    private static string FormatErrors(IEnumerable<string> errors) => string.Join("; ", errors);
-
-    private void AssertHasError(IEnumerable<string> errors, string fragment, string message)
-    {
-        foreach (string error in errors ?? Array.Empty<string>())
-        {
-            if ((error ?? "").Contains(fragment))
-                return;
-        }
-        _test.Fail($"{message} expected={fragment} errors={FormatErrors(errors)}");
+        _test.Fail($"{message} diagnostics={FormatDiagnostics(diagnostics)}");
     }
 
     private void AssertListHas(
@@ -264,14 +255,8 @@ public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSc
         string message
     )
     {
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            if (value == expected)
-            {
-                return;
-            }
-        }
+        if (values?.Contains(expected) == true)
+            return;
         _test.Fail(message);
     }
-
 }

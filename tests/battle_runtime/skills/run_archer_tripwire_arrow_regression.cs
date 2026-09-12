@@ -475,20 +475,19 @@ public partial class run_archer_tripwire_arrow_regression : LifecycleTestSceneTr
             "decision clone必须保留当回合可达事实。"
         );
         fixture.Runtime._bind_ai_helper_services_for_decision(archer, context);
-        using var action = new UseGroundSkillAction
-        {
-            action_id = "tripwire_ai_probe",
-            score_bucket_id = "archer_positioning",
-            minimum_hit_count = 1,
-            allow_empty_ground_control = true,
-            minimum_ground_control_score = 1,
-            desired_min_distance = 2,
-            desired_max_distance = 4,
-            distance_reference = "enemy_frontline",
-        };
-        action.skill_ids.Add(SkillId);
+        UseGroundSkillActionDefinition action = TestEnemyDefinitionFactory.UseGroundSkill(
+            "tripwire_ai_probe",
+            new StringName[] { SkillId },
+            scoreBucketId: "archer_positioning",
+            minimumHitCount: 1,
+            allowEmptyGroundControl: true,
+            minimumGroundControlScore: 1,
+            desiredMinDistance: 2,
+            desiredMaxDistance: 4,
+            distanceReference: "enemy_frontline"
+        );
         BattleAiDecision decision = new BattleAiGroundSkillActionEvaluator().Evaluate(
-            (UseGroundSkillActionDefinition)action.ToDefinition(),
+            action,
             context
         );
         AiActionTrace trace = context.GetActionTracesTyped().LastOrDefault();

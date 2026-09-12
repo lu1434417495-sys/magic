@@ -85,8 +85,8 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
                 Vector2I.Zero,
                 Vector2I.Zero
             );
-            using WildEncounterRosterDef growthRoster = BuildGrowthRoster();
-            InstallWildEncounterRoster(runtime, growthRoster.ToDefinition());
+            WildEncounterRosterDefinition growthRoster = BuildGrowthRoster();
+            InstallWildEncounterRoster(runtime, growthRoster);
             runtime.SetBattleEncounterDefinitionForTests(
                 new BattleEncounterDefinition(
                     "wolf_den",
@@ -185,19 +185,18 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
             suppressed_until_step = 0,
         };
 
-    private static WildEncounterRosterDef BuildGrowthRoster() =>
-        new()
-        {
-            profile_id = "wolf_den",
-            display_name = "Wolf Den",
-            initial_stage = 0,
-            growth_step_interval = 1,
-            stages = new Godot.Collections.Array<WildEncounterRosterStageDef>
+    private static WildEncounterRosterDefinition BuildGrowthRoster() =>
+        TestEnemyDefinitionFactory.Roster(
+            "wolf_den",
+            new[]
             {
-                new WildEncounterRosterStageDef { stage = 0 },
-                new WildEncounterRosterStageDef { stage = 1 },
+                TestEnemyDefinitionFactory.RosterStage(0),
+                TestEnemyDefinitionFactory.RosterStage(1),
             },
-        };
+            displayName: "Wolf Den",
+            initialStage: 0,
+            growthStepInterval: 1
+        );
 
     private void InstallWildEncounterRoster(
         GameRuntimeFacade runtime,

@@ -102,6 +102,24 @@ public sealed class EnemyContentRegistry : IValidatableRegistry, IDisposable
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> GetEnemyAiBrainsTyped() => _brains;
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> GetWildEncounterRostersTyped() => _rosters;
 
+    internal static IReadOnlyList<string> ValidateProjectedGraph(
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> templates,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> brains,
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> rosters,
+        EnemyContentValidationContext? validationContext = null
+    )
+    {
+        using var registry = new EnemyContentRegistry(loadDefaultContent: false);
+        foreach ((StringName id, EnemyTemplateDefinition definition) in templates)
+            registry._templates[id] = definition;
+        foreach ((StringName id, EnemyAiBrainDefinition definition) in brains)
+            registry._brains[id] = definition;
+        foreach ((StringName id, WildEncounterRosterDefinition definition) in rosters)
+            registry._rosters[id] = definition;
+        registry.ValidateDefinitionGraph(validationContext);
+        return registry._validationErrors.ToArray();
+    }
+
     internal EnemyContentDefinitionGraph ProjectDefinitions(IReadOnlyDictionary<StringName, ItemDefinition> _)
     {
         if (_validationErrors.Count != 0) throw new System.IO.InvalidDataException("Enemy JSON content must validate before immutable graph publication: " + string.Join(" | ", _validationErrors));

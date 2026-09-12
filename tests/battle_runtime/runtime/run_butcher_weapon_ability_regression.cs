@@ -554,12 +554,12 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
             IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = snapshot.Items;
             Dictionary<StringName, EnemyTemplateDefinition> enemyTemplates = new()
             {
-                ["butcher_loot_beast"] = BuildEnemyTemplate("butcher_loot_beast")
-                    .ToDefinition(itemDefs),
-                ["plain_loot_beast"] = BuildEnemyTemplate("plain_loot_beast")
-                    .ToDefinition(itemDefs),
-                ["butcher_loot_humanoid"] = BuildEnemyTemplate("butcher_loot_humanoid")
-                    .ToDefinition(itemDefs),
+                ["butcher_loot_beast"] = BuildEnemyTemplate("butcher_loot_beast", itemDefs),
+                ["plain_loot_beast"] = BuildEnemyTemplate("plain_loot_beast", itemDefs),
+                ["butcher_loot_humanoid"] = BuildEnemyTemplate(
+                    "butcher_loot_humanoid",
+                    itemDefs
+                ),
             };
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
@@ -650,21 +650,20 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
             return partyState;
         }
 
-        private static EnemyTemplateDef BuildEnemyTemplate(StringName templateId)
+        private static EnemyTemplateDefinition BuildEnemyTemplate(
+            StringName templateId,
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+        )
         {
-            EnemyTemplateDef template = new()
+            var template = new TestEnemyTemplateDefinitionBuilder
             {
-                template_id = templateId,
-                display_name = templateId.ToString(),
+                TemplateId = templateId,
+                DisplayName = templateId.ToString(),
             };
-            template.drop_entries.Add(new DropEntryDef
-            {
-                drop_entry_id = "hide_bundle",
-                drop_type = "item",
-                item_id = "beast_hide",
-                quantity = 2,
-            });
-            return template;
+            template.DropEntries.Add(
+                new DropEntryDefinition("hide_bundle", "item", "beast_hide", 2)
+            );
+            return template.Build(itemDefinitions);
         }
     }
 }

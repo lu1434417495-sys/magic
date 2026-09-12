@@ -300,7 +300,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         _test.Eq(
             decision?.command?.target_unit_id ?? new StringName(""),
             farScout.unit_id,
-            "UseUnitSkillAction 应根据共享评分上下文选择更高命中收益的目标。"
+            "use_unit_skill 应根据共享评分上下文选择更高命中收益的目标。"
         );
         decision?.ClearOwnedRuntimeReferences();
     }

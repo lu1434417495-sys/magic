@@ -691,25 +691,25 @@ public partial class run_phoenix_rebirth_unique_acquisition_regression : Lifecyc
         StringName itemId
     )
     {
-        var template = new EnemyTemplateDef
+        var templateBuilder = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = "凤凰唯一掉落测试敌人",
-            cognition_kind = "instinctive",
+            TemplateId = templateId,
+            DisplayName = "凤凰唯一掉落测试敌人",
+            CognitionKind = "instinctive",
         };
-        template.drop_entries.Add(
-            new DropEntryDef
-            {
-                drop_entry_id = "unique_equipment_request",
-                drop_type = "random_equipment",
-                item_id = itemId,
-                quantity = 1,
-            }
+        templateBuilder.DropEntries.Add(
+            new DropEntryDefinition(
+                "unique_equipment_request",
+                "random_equipment",
+                itemId,
+                1
+            )
         );
+        EnemyTemplateDefinition template = templateBuilder.Build(runtime.GetItemDefsTyped());
         runtime.GetBattleRuntime().ReplaceEnemyTemplatesTyped(
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [templateId] = template.ToDefinition(runtime.GetItemDefsTyped()),
+                [templateId] = template,
             }
         );
     }

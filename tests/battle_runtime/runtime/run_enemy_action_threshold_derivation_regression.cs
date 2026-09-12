@@ -97,29 +97,34 @@ public partial class run_enemy_action_threshold_derivation_regression : Lifecycl
         using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
 
-        var template = new EnemyTemplateDef
+        var templateBuilder = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = templateId.ToString(),
-            brain_id = "",
-            cognition_kind = "sapient",
-            enemy_count = 1,
-            body_size = BattleUnitState.BodySizeMedium,
-            skill_ids = new GStringNameArray(),
-            base_attribute_overrides = BaseAttributes(agility),
+            TemplateId = templateId,
+            DisplayName = templateId.ToString(),
+            BrainId = "",
+            CognitionKind = "sapient",
+            EnemyCount = 1,
+            BodySize = BattleUnitState.BodySizeMedium,
         };
+        templateBuilder.BaseAttributeOverrides["strength"] = 10;
+        templateBuilder.BaseAttributeOverrides["agility"] = agility;
+        templateBuilder.BaseAttributeOverrides["constitution"] = 10;
+        templateBuilder.BaseAttributeOverrides["perception"] = 10;
+        templateBuilder.BaseAttributeOverrides["intelligence"] = 10;
+        templateBuilder.BaseAttributeOverrides["willpower"] = 10;
         var itemDefinitions = new Dictionary<StringName, ItemDefinition>();
+        EnemyTemplateDefinition template = templateBuilder.Build(itemDefinitions);
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
-            [template.template_id] = template.ToDefinition(itemDefinitions),
+            [template.TemplateId] = template,
         };
 
         StringName encounterProfileId = $"{templateId}_encounter";
-        SetupSingleTemplateEncounter(builder, encounterProfileId, template.template_id);
+        SetupSingleTemplateEncounter(builder, encounterProfileId, template.TemplateId);
 
         using GodotProjectionLease<GArray> enemyUnitsLease =
             builder.BuildEnemyUnitsFromDefinitionsLease(
-                BuildEncounterAnchor(encounterProfileId, template.template_id),
+                BuildEncounterAnchor(encounterProfileId, template.TemplateId),
                 new Dictionary<StringName, SkillDefinition>(),
                 enemyTemplates,
                 new Dictionary<StringName, EnemyAiBrainDefinition>(),

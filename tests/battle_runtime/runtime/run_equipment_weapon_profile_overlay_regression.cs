@@ -522,29 +522,23 @@ public partial class run_equipment_weapon_profile_overlay_regression : Lifecycle
         {
             [bladeDefinition.ItemId] = bladeDefinition,
         };
-        EnemyTemplateDefinition template = EnemyTemplateDefinition.FromTypedBuilder(
-            new EnemyTemplateDef
-            {
-                template_id = "overlay_raider",
-                display_name = "Overlay Raider",
-                brain_id = "",
-                cognition_kind = "sapient",
-                enemy_count = 1,
-                body_size = BattleUnitState.BodySizeMedium,
-                attack_equipment_item_id = "enemy_overlay_blade",
-                skill_ids = new GStringNameArray(),
-                base_attribute_overrides = new GDictionary
-                {
-                    ["strength"] = 10,
-                    ["agility"] = 10,
-                    ["constitution"] = 10,
-                    ["perception"] = 10,
-                    ["intelligence"] = 10,
-                    ["willpower"] = 10,
-                },
-            },
-            itemDefs
-        );
+        var templateBuilder = new TestEnemyTemplateDefinitionBuilder
+        {
+            TemplateId = "overlay_raider",
+            DisplayName = "Overlay Raider",
+            BrainId = "",
+            CognitionKind = "sapient",
+            EnemyCount = 1,
+            BodySize = BattleUnitState.BodySizeMedium,
+            AttackEquipmentItemId = "enemy_overlay_blade",
+        };
+        templateBuilder.BaseAttributeOverrides["strength"] = 10;
+        templateBuilder.BaseAttributeOverrides["agility"] = 10;
+        templateBuilder.BaseAttributeOverrides["constitution"] = 10;
+        templateBuilder.BaseAttributeOverrides["perception"] = 10;
+        templateBuilder.BaseAttributeOverrides["intelligence"] = 10;
+        templateBuilder.BaseAttributeOverrides["willpower"] = 10;
+        EnemyTemplateDefinition template = templateBuilder.Build(itemDefs);
         var templates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
             [template.TemplateId] = template,

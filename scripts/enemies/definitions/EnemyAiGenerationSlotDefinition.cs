@@ -35,7 +35,7 @@ internal sealed class EnemyAiGenerationSlotDefinition
     internal StringName SlotId { get; }
     internal StringName SlotRole { get; }
     internal EnemyAiGenerationSlotRole SlotRoleKind =>
-        EnemyAiGenerationSlotDef.ToSlotRole(SlotRole);
+        EnemyAiGenerationKinds.ToSlotRole(SlotRole);
     internal int Order { get; }
     internal IReadOnlyList<StringName> AllowedAffordances { get; }
     internal IReadOnlyList<StringName> ActionFamilies { get; }
@@ -49,19 +49,19 @@ internal sealed class EnemyAiGenerationSlotDefinition
         EnemyAiDistanceReferences.ToKind(DistanceReference);
     internal StringName SuppressionPolicy { get; }
     internal EnemyAiGenerationSuppressionPolicy SuppressionPolicyKind =>
-        EnemyAiGenerationSlotDef.ToSuppressionPolicy(SuppressionPolicy);
+        EnemyAiGenerationKinds.ToSuppressionPolicy(SuppressionPolicy);
 
     internal bool MatchesAffordance(
         BattleAiSkillAffordanceRecord record,
         StringName actionFamily
     )
     {
-        EnemyAiActionFamily family = EnemyAiGenerationSlotDef.ToActionFamily(actionFamily);
+        EnemyAiActionFamily family = EnemyAiGenerationKinds.ToActionFamily(actionFamily);
         if (record == null || !ContainsActionFamily(ActionFamilies, family))
             return false;
         foreach (StringName affordance in record.affordances)
         {
-            if (ContainsAffordance(AllowedAffordances, EnemyAiGenerationSlotDef.ToAffordance(affordance)))
+            if (ContainsAffordance(AllowedAffordances, EnemyAiGenerationKinds.ToAffordance(affordance)))
                 return true;
         }
         return false;
@@ -96,7 +96,7 @@ internal sealed class EnemyAiGenerationSlotDefinition
             return false;
         foreach (StringName value in values)
         {
-            if (EnemyAiGenerationSlotDef.ToActionFamily(value) == expected)
+            if (EnemyAiGenerationKinds.ToActionFamily(value) == expected)
                 return true;
         }
         return false;
@@ -111,7 +111,7 @@ internal sealed class EnemyAiGenerationSlotDefinition
             return false;
         foreach (StringName value in values)
         {
-            if (EnemyAiGenerationSlotDef.ToAffordance(value) == expected)
+            if (EnemyAiGenerationKinds.ToAffordance(value) == expected)
                 return true;
         }
         return false;

@@ -20,7 +20,7 @@ internal sealed class EnemyAiTransitionConditionDefinition
 
     internal StringName Predicate { get; }
     internal EnemyAiTransitionPredicate PredicateKind =>
-        EnemyAiTransitionConditionDef.ToPredicate(Predicate);
+        EnemyAiTransitionKinds.ToPredicate(Predicate);
     internal int BasisPoints { get; }
     internal int MaxDistance { get; }
     internal IReadOnlyList<StringName> StateIds { get; }

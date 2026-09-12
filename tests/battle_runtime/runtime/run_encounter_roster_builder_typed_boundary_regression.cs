@@ -237,21 +237,25 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
                 },
             },
         };
-        EnemyTemplateDef template = BuildEnemyTemplate("flame_enemy", weapon.item_id);
-        template.tags = new GStringNameArray { "undead" };
+        TestEnemyTemplateDefinitionBuilder templateBuilder = BuildEnemyTemplate(
+            "flame_enemy",
+            weapon.item_id
+        );
+        templateBuilder.Tags.Add("undead");
+        EnemyTemplateDefinition template = templateBuilder.Build(itemDefinitions);
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
-            [template.template_id] = template.ToDefinition(itemDefinitions),
+            [template.TemplateId] = template,
         };
         SetupSingleTemplateEncounter(
             builder,
             "flame_enemy_encounter",
-            template.template_id
+            template.TemplateId
         );
 
         using GodotProjectionLease<GArray> enemyUnitsLease =
             builder.BuildEnemyUnitsFromDefinitionsLease(
-            BuildEncounterAnchor("flame_enemy_encounter", template.template_id),
+            BuildEncounterAnchor("flame_enemy_encounter", template.TemplateId),
             new Dictionary<StringName, SkillDefinition>(),
             enemyTemplates,
             new Dictionary<StringName, EnemyAiBrainDefinition>(),
@@ -272,7 +276,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             return;
         }
 
-        template.tags = new GStringNameArray { "construct" };
+        templateBuilder.Tags.Clear();
+        templateBuilder.Tags.Add("construct");
         _test.True(
             BattleEquipmentAbilityProjectionService.UnitHasCreatureTypeTag(unit, "undead"),
             "creature type check 应读取 BattleUnitState.creature_type_tags，而不是回查敌人模板。"
@@ -650,31 +655,28 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         );
     }
 
-    private static EnemyTemplateDef BuildEnemyTemplate(
+    private static TestEnemyTemplateDefinitionBuilder BuildEnemyTemplate(
         StringName templateId,
         StringName attackEquipmentItemId
     )
     {
-        return new EnemyTemplateDef
+        var builder = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = templateId.ToString(),
-            brain_id = "",
-            cognition_kind = "sapient",
-            enemy_count = 1,
-            body_size = BattleUnitState.BodySizeMedium,
-            attack_equipment_item_id = attackEquipmentItemId,
-            skill_ids = new GStringNameArray(),
-            base_attribute_overrides = new GDictionary
-            {
-                ["strength"] = 10,
-                ["agility"] = 10,
-                ["constitution"] = 10,
-                ["perception"] = 10,
-                ["intelligence"] = 10,
-                ["willpower"] = 10,
-            },
+            TemplateId = templateId,
+            DisplayName = templateId.ToString(),
+            BrainId = "",
+            CognitionKind = "sapient",
+            EnemyCount = 1,
+            BodySize = BattleUnitState.BodySizeMedium,
+            AttackEquipmentItemId = attackEquipmentItemId,
         };
+        builder.BaseAttributeOverrides["strength"] = 10;
+        builder.BaseAttributeOverrides["agility"] = 10;
+        builder.BaseAttributeOverrides["constitution"] = 10;
+        builder.BaseAttributeOverrides["perception"] = 10;
+        builder.BaseAttributeOverrides["intelligence"] = 10;
+        builder.BaseAttributeOverrides["willpower"] = 10;
+        return builder;
     }
 
     private static TestItemDefinitionBuilder MakeWeapon(StringName itemId)

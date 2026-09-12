@@ -498,18 +498,14 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseChargeAction
-        {
-            action_id = "charge_resolved_stop_anchor",
-            skill_id = "charge",
-            target_selector = "nearest_enemy",
-            minimum_charge_move_distance = 1,
-            },
-            "battle_ai_melee_charge.action"
+        UseChargeActionDefinition action = TestEnemyDefinitionFactory.UseCharge(
+            "charge_resolved_stop_anchor",
+            "charge",
+            targetSelector: "nearest_enemy",
+            minimumChargeMoveDistance: 1
         );
         BattleAiDecision decision = new BattleAiChargeActionEvaluator().Evaluate(
-            (UseChargeActionDefinition)action.ToDefinition(),
+            action,
             BuildAiContext(runtime, wolf)
         );
         _test.True(decision?.command != null, "charge 评分回归应能产出合法冲锋指令。");
@@ -555,18 +551,13 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseChargeAction
-            {
-                action_id = "charge_trace_exception",
-                skill_id = "charge",
-                target_selector = "nearest_enemy",
-                minimum_charge_move_distance = 1,
-            },
-            "battle_ai_melee_charge.trace_exception_action"
+        UseChargeActionDefinition definition = TestEnemyDefinitionFactory.UseCharge(
+            "charge_trace_exception",
+            "charge",
+            targetSelector: "nearest_enemy",
+            minimumChargeMoveDistance: 1
         );
         BattleAiContext context = BuildAiContext(runtime, wolf);
-        UseChargeActionDefinition definition = (UseChargeActionDefinition)action.ToDefinition();
 
         BattleAiTraceExceptionProbe.AssertPreservedAndBalanced(
             _test,

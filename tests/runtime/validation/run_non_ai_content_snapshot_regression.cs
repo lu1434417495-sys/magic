@@ -65,16 +65,6 @@ public partial class run_non_ai_content_snapshot_regression : LifecycleTestScene
             return;
         }
 
-        if (
-            value is EnemyTemplateDef
-            || value is EnemyAiBrainDef
-            || value is WildEncounterRosterDef
-        )
-        {
-            _test.Fail($"{path} retains authored enemy Resource {type.FullName}.");
-            return;
-        }
-
         if (IsDetachedScalar(type))
             return;
         if (!type.IsValueType && !visited.Add(value))

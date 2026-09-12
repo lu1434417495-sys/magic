@@ -1,7 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_wild_encounter_roster_typed_regression : LifecycleTestSceneTree
 {
@@ -146,119 +146,82 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
 
     private void TestSchemaValidationUsesTypedTemplateIdBoundary()
     {
-        using WildEncounterRosterUnitEntryDef actorEntry = new()
-        {
-            template_id = "wolf",
-            actor_id = "pack_leader",
-            count = 1,
-        };
-        using WildEncounterRosterDef roster = new()
-        {
-            profile_id = "schema_roster",
-            display_name = "Schema Roster",
-            initial_stage = 0,
-        };
-        roster.stages.Add(
-            BuildStage(
-                0,
-                actorEntry,
-                new WildEncounterRosterUnitEntryDef
-                {
-                    template_id = "wolf",
-                    count = 2,
-                }
-            )
+        JsonContentEntryContext context = RosterContext();
+        EncounterRosterJsonDto roster = BuildSchemaRoster();
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics =
+            EnemyContentImportValidator.ValidateRoster(context, roster);
+        _test.Eq(
+            diagnostics.Count,
+            0,
+            $"JSON roster validator 应接受合法 typed DTO。 diagnostics={FormatDiagnostics(diagnostics)}"
         );
-        roster.stages.Add(
-            BuildStage(
-                1,
-                new WildEncounterRosterUnitEntryDef
-                {
-                    template_id = "wolf",
-                    actor_id = "pack_leader",
-                    count = 1,
-                }
-            )
-        );
-
-        var knownTemplateIds = new HashSet<StringName> { "wolf" };
-        GStringArray typedErrors = roster.ValidateSchemaTyped(knownTemplateIds);
-        _test.Eq(typedErrors.Count, 0, $"typed ValidateSchemaTyped() 应接受正式 template id set。 errors={FormatErrors(typedErrors)}");
-        WildEncounterRosterDefinition definition = roster.ToDefinition();
+        WildEncounterRosterDefinition definition =
+            EnemyContentDefinitionProjector.ProjectRoster(roster);
         _test.Eq(
             definition.GetStageUnitEntries(0)[0].ActorId.ToString(),
             "pack_leader",
-            "authoring actor_id 应进入不可变 roster definition。"
+            "JSON actor_id 应进入不可变 roster definition。"
         );
 
-        actorEntry.count = 2;
-        GStringArray repeatedActorErrors = roster.ValidateSchemaTyped(knownTemplateIds);
+        IReadOnlyList<ContentJsonDiagnostic> repeatedActorErrors =
+            EnemyContentImportValidator.ValidateRoster(context, BuildSchemaRoster(actorCount: 2));
         _test.True(
-            ContainsError(repeatedActorErrors, "actor_id pack_leader requires count == 1"),
-            $"非空 actor_id 不应允许 count != 1。 errors={FormatErrors(repeatedActorErrors)}"
+            ContainsDiagnostic(repeatedActorErrors, "actor_id requires count == 1"),
+            $"非空 actor_id 不应允许 count != 1。 diagnostics={FormatDiagnostics(repeatedActorErrors)}"
         );
-        actorEntry.count = 1;
 
-        roster.stages[0].unit_entries.Add(
-            new WildEncounterRosterUnitEntryDef
+        IReadOnlyList<ContentJsonDiagnostic> duplicateActorErrors =
+            EnemyContentImportValidator.ValidateRoster(context, BuildSchemaRoster(duplicateActor: true));
+        _test.True(
+            ContainsDiagnostic(duplicateActorErrors, "Duplicate actor_id 'pack_leader'"),
+            $"同一 stage 不应声明重复 actor_id。 diagnostics={FormatDiagnostics(duplicateActorErrors)}"
+        );
+
+        IReadOnlyList<string> graphErrors = EnemyContentRegistry.ValidateProjectedGraph(
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>(),
+            new Dictionary<StringName, WildEncounterRosterDefinition>
             {
-                template_id = "wolf",
-                actor_id = "pack_leader",
-                count = 1,
+                [definition.ProfileId] = definition,
             }
         );
-        GStringArray duplicateActorErrors = roster.ValidateSchemaTyped(knownTemplateIds);
         _test.True(
-            ContainsError(duplicateActorErrors, "duplicate actor_id pack_leader"),
-            $"同一 stage 不应声明重复 actor_id。 errors={FormatErrors(duplicateActorErrors)}"
-        );
-
-        roster.stages[0].unit_entries.RemoveAt(
-            roster.stages[0].unit_entries.Count - 1
-        );
-
-        GStringArray missingTemplateErrors = roster.ValidateSchemaTyped(
-            new HashSet<StringName>()
-        );
-        _test.True(
-            ContainsError(
-                missingTemplateErrors,
-                "Wild encounter roster schema_roster stage 0 references missing template wolf."
-            ),
-            $"typed ValidateSchemaTyped() 应精确报告缺失 template。 errors={FormatErrors(missingTemplateErrors)}"
+            graphErrors.Any(value => value.Contains(
+                "Encounter roster schema_roster stage 0 references missing template wolf.",
+                System.StringComparison.Ordinal
+            )),
+            $"Definition graph validator 应报告缺失 template。 errors=[{string.Join(" | ", graphErrors)}]"
         );
         _test.False(
-            ContainsError(missingTemplateErrors, "duplicate actor_id"),
-            $"缺失 template fixture 不应夹带重复 actor 诊断。 errors={FormatErrors(missingTemplateErrors)}"
+            graphErrors.Any(value => value.Contains("actor_id", System.StringComparison.Ordinal)),
+            $"缺失 template fixture 不应夹带 actor 诊断。 errors=[{string.Join(" | ", graphErrors)}]"
         );
     }
 
     private void TestEncounterRosterBuilderProjectsActorIdWithoutReplacingUnitId()
     {
-        using EnemyTemplateDef actorTemplateResource = new()
+        EnemyTemplateDefinition actorTemplate = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = "actor_projection_leader",
-            display_name = "投影首领",
-            enemy_count = 1,
-            body_size = BattleUnitState.BodySizeMedium,
-            cognition_kind = "sapient",
-            target_rank = "boss",
-        };
-        using EnemyTemplateDef guardTemplateResource = new()
+            TemplateId = "actor_projection_leader",
+            DisplayName = "投影首领",
+            EnemyCount = 1,
+            BodySize = BattleUnitState.BodySizeMedium,
+            CognitionKind = "sapient",
+            TargetRank = "boss",
+        }.Build();
+        EnemyTemplateDefinition guardTemplate = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = "actor_projection_guard",
-            display_name = "投影护卫",
-            enemy_count = 1,
-            body_size = BattleUnitState.BodySizeMedium,
-            cognition_kind = "sapient",
-        };
+            TemplateId = "actor_projection_guard",
+            DisplayName = "投影护卫",
+            EnemyCount = 1,
+            BodySize = BattleUnitState.BodySizeMedium,
+            CognitionKind = "sapient",
+        }.Build();
         var itemDefinitions = new Dictionary<StringName, ItemDefinition>();
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
-            [actorTemplateResource.template_id] =
-                actorTemplateResource.ToDefinition(itemDefinitions),
-            [guardTemplateResource.template_id] =
-                guardTemplateResource.ToDefinition(itemDefinitions),
+            [actorTemplate.TemplateId] = actorTemplate,
+            [guardTemplate.TemplateId] = guardTemplate,
         };
         StringName encounterId = "actor_projection_encounter";
         StringName rosterId = "actor_projection_roster";
@@ -272,13 +235,13 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
                 BuildDefinitionStage(
                     0,
                     new WildEncounterRosterUnitEntryDefinition(
-                        actorTemplateResource.template_id,
+                        actorTemplate.TemplateId,
                         1,
                         "投影首领",
                         "pack_leader"
                     ),
                     new WildEncounterRosterUnitEntryDefinition(
-                        guardTemplateResource.template_id,
+                        guardTemplate.TemplateId,
                         2,
                         "投影护卫"
                     )
@@ -471,48 +434,76 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
         );
     }
 
-    private static WildEncounterRosterStageDef BuildStage(
-        int stage,
-        params WildEncounterRosterUnitEntryDef[] unitEntries
-    )
-    {
-        WildEncounterRosterStageDef stageDef = new()
-        {
-            stage = stage,
-        };
-        foreach (WildEncounterRosterUnitEntryDef unitEntry in unitEntries)
-        {
-            stageDef.unit_entries.Add(unitEntry);
-        }
-        return stageDef;
-    }
-
     private static WildEncounterRosterStageDefinition BuildDefinitionStage(
         int stage,
         params WildEncounterRosterUnitEntryDefinition[] unitEntries
     ) => new(stage, unitEntries);
 
-    private static string FormatErrors(IEnumerable<string> errors)
+    private static JsonContentEntryContext RosterContext() =>
+        new("encounter_rosters", "schema_roster", "schema_roster.json", "/entries/0");
+
+    private static EncounterRosterJsonDto BuildSchemaRoster(
+        int actorCount = 1,
+        bool duplicateActor = false
+    )
     {
-        List<string> values = new();
-        foreach (string error in errors)
+        var firstStageEntries = new List<EncounterRosterUnitJsonDto>
         {
-            values.Add(error);
+            new()
+            {
+                TemplateId = "wolf",
+                ActorId = "pack_leader",
+                Count = actorCount,
+                DisplayName = "",
+            },
+            new() { TemplateId = "wolf", ActorId = "", Count = 2, DisplayName = "" },
+        };
+        if (duplicateActor)
+        {
+            firstStageEntries.Add(
+                new()
+                {
+                    TemplateId = "wolf",
+                    ActorId = "pack_leader",
+                    Count = 1,
+                    DisplayName = "",
+                }
+            );
         }
-        return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
+        return new EncounterRosterJsonDto
+        {
+            ProfileId = "schema_roster",
+            DisplayName = "Schema Roster",
+            InitialStage = 0,
+            GrowthStepInterval = 1,
+            Stages = new EncounterRosterStageJsonDto[]
+            {
+                new() { Stage = 0, UnitEntries = firstStageEntries },
+                new()
+                {
+                    Stage = 1,
+                    UnitEntries = new EncounterRosterUnitJsonDto[]
+                    {
+                        new()
+                        {
+                            TemplateId = "wolf",
+                            ActorId = "pack_leader",
+                            Count = 1,
+                            DisplayName = "",
+                        },
+                    },
+                },
+            },
+        };
     }
 
-    private static bool ContainsError(IEnumerable<string> errors, string fragment)
-    {
-        foreach (string error in errors)
-        {
-            if ((error ?? "").Contains(fragment))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
+    private static string FormatDiagnostics(IEnumerable<ContentJsonDiagnostic> diagnostics) =>
+        $"[{string.Join(" | ", diagnostics.Select(value => $"{value.RuleId}:{value.Message}"))}]";
+
+    private static bool ContainsDiagnostic(
+        IEnumerable<ContentJsonDiagnostic> diagnostics,
+        string fragment
+    ) => diagnostics.Any(value => (value.Message ?? "").Contains(fragment));
 
     private static int CountUnitsWithTemplateId(GArray enemyUnits, StringName templateId)
     {

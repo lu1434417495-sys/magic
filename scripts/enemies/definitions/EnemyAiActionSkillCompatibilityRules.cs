@@ -68,7 +68,7 @@ internal static class EnemyAiActionSkillCompatibilityRules
         {
             return Fail(
                 EnemyAiActionSkillCompatibilityFailureKind.SpecialResolutionRouteMismatch,
-                "meteor_swarm requires UseGroundSkillAction because its formal preview "
+                "meteor_swarm requires action kind use_ground_skill because its formal preview "
                     + "and execution consume ground target coordinates"
             );
         }
@@ -81,7 +81,7 @@ internal static class EnemyAiActionSkillCompatibilityRules
             return Fail(
                 EnemyAiActionSkillCompatibilityFailureKind.TargetSelectionModeMismatch,
                 "expected a non-random-chain target_selection_mode; "
-                    + "random_chain requires UseRandomChainSkillAction"
+                    + "random_chain requires action kind use_random_chain_skill"
             );
         }
 

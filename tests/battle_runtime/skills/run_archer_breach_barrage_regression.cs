@@ -454,19 +454,18 @@ public partial class run_archer_breach_barrage_regression : LifecycleTestSceneTr
             new Dictionary<StringName, SkillDefinition> { [SkillId] = skill }
         );
         fixture.Runtime._bind_ai_helper_services_for_decision(archer, context);
-        using var action = new UseGroundSkillAction
-        {
-            action_id = "breach_ai_probe",
-            score_bucket_id = "archer_pressure",
-            minimum_hit_count = 1,
-            maximum_friendly_fire_target_count = 0,
-            desired_min_distance = 1,
-            desired_max_distance = 6,
-            distance_reference = "target_coord",
-        };
-        action.skill_ids.Add(SkillId);
+        UseGroundSkillActionDefinition action = TestEnemyDefinitionFactory.UseGroundSkill(
+            "breach_ai_probe",
+            new StringName[] { SkillId },
+            scoreBucketId: "archer_pressure",
+            minimumHitCount: 1,
+            maximumFriendlyFireTargetCount: 0,
+            desiredMinDistance: 1,
+            desiredMaxDistance: 6,
+            distanceReference: "target_coord"
+        );
         BattleAiDecision decision = new BattleAiGroundSkillActionEvaluator().Evaluate(
-            (UseGroundSkillActionDefinition)action.ToDefinition(),
+            action,
             context
         );
         _test.True(decision?.command != null, "AI必须能为贯阵一矢生成候选。" );

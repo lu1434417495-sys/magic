@@ -49,7 +49,7 @@ m > 0:  max(BASE - GRANULARITY · ⌈√m⌉, FLOOR)      快侧平方根递减�
 | 侧 | 路径 |
 |---|---|
 | 角色 | `AttributeService.CalculateBaseActionThreshold`：`custom_stats` 有显式值则优先，否则读 `resolvedBaseValues` 的 agility（**已叠加装备修正**）查表。与 `CalculateBaseArmorClass` 同构 |
-| 敌人 | `EncounterRosterBuilder` 在属性快照构建完成后读 `AttributeSnapshot` 的 `ACTION_THRESHOLD`。**`EnemyTemplateDef` 没有 `action_threshold` 字段** |
+| 敌人 | `EncounterRosterBuilder` 在属性快照构建完成后读 `AttributeSnapshot` 的 `ACTION_THRESHOLD`。**敌人 template JSON / `EnemyTemplateDefinition` 没有 `action_threshold` 字段** |
 | sim | JSON unit import：有 `base_attributes` 时走属性快照；unit 的 `action_threshold` 字段此时**失效**，要钉值必须写 `attribute_overrides["action_threshold"]` |
 
 **作者要让某只怪更快或更慢，调它的 agility。** 模板手写阈值与 agility 派生并存会双重计价——

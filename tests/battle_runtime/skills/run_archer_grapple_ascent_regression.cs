@@ -301,25 +301,22 @@ public partial class run_archer_grapple_ascent_regression : LifecycleTestSceneTr
         SetHeight(runtime._grid_service, state, new Vector2I(3, 2), 3);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseGroundRepositionSkillAction
-            {
-                action_id = $"grapple_ai_probe_l{skillLevel}",
-                score_bucket_id = "archer_positioning",
-                target_selector = "nearest_enemy",
-                positioning_mode = "high_ground",
-                minimum_safe_distance = 3,
-                safe_distance_margin = 1,
-                desired_max_distance_bonus = 1,
-                action_base_score = 1200,
-                high_ground_weight = 180,
-            },
-            $"archer_grapple_ascent.ai_action_l{skillLevel}"
-        );
-        action.skill_ids.Add(SkillId);
+        UseGroundRepositionSkillActionDefinition action =
+            TestEnemyDefinitionFactory.UseGroundRepositionSkill(
+                $"grapple_ai_probe_l{skillLevel}",
+                new StringName[] { SkillId },
+                scoreBucketId: "archer_positioning",
+                targetSelector: "nearest_enemy",
+                positioningMode: "high_ground",
+                minimumSafeDistance: 3,
+                safeDistanceMargin: 1,
+                desiredMaxDistanceBonus: 1,
+                actionBaseScore: 1200,
+                highGroundWeight: 180
+            );
 
         BattleAiDecision decision = new BattleAiGroundRepositionActionEvaluator().Evaluate(
-            (UseGroundRepositionSkillActionDefinition)action.ToDefinition(),
+            action,
             BuildAiContext(runtime, archer)
         );
         _test.True(decision?.command != null, $"L{skillLevel} AI 应生成索钩登高命令。" );

@@ -22,11 +22,11 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
     {
         WildEncounterGrowthSystem growthSystem = new();
         EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
-        using WildEncounterRosterDef roster = BuildRoster();
+        WildEncounterRosterDefinition roster = BuildRoster();
         var encounterAnchors = new List<EncounterAnchorData> { encounterAnchor };
         var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>
         {
-            ["wolf_den"] = roster.ToDefinition(),
+            ["wolf_den"] = roster,
         };
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters =
             BuildBattleEncounters();
@@ -57,10 +57,10 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
     {
         WildEncounterGrowthSystem growthSystem = new();
         EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 2);
-        using WildEncounterRosterDef roster = BuildRoster();
+        WildEncounterRosterDefinition roster = BuildRoster();
         var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>
         {
-            ["wolf_den"] = roster.ToDefinition(),
+            ["wolf_den"] = roster,
         };
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters =
             BuildBattleEncounters();
@@ -112,36 +112,22 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
         };
     }
 
-    private static WildEncounterRosterDef BuildRoster()
+    private static WildEncounterRosterDefinition BuildRoster()
     {
-        WildEncounterRosterDef roster = new()
-        {
-            profile_id = "wolf_den",
-            display_name = "Wolf Den",
-            initial_stage = 0,
-            growth_step_interval = 2,
-        };
-        roster.stages.Add(BuildStage(0));
-        roster.stages.Add(BuildStage(1));
-        roster.stages.Add(BuildStage(2));
-        return roster;
+        return TestEnemyDefinitionFactory.Roster(
+            "wolf_den",
+            new[] { BuildStage(0), BuildStage(1), BuildStage(2) },
+            displayName: "Wolf Den",
+            initialStage: 0,
+            growthStepInterval: 2
+        );
     }
 
-    private static WildEncounterRosterStageDef BuildStage(int stage)
-    {
-        WildEncounterRosterStageDef stageDef = new()
-        {
-            stage = stage,
-        };
-        stageDef.unit_entries.Add(
-            new WildEncounterRosterUnitEntryDef
-            {
-                template_id = "wolf",
-                count = 1,
-            }
+    private static WildEncounterRosterStageDefinition BuildStage(int stage) =>
+        TestEnemyDefinitionFactory.RosterStage(
+            stage,
+            TestEnemyDefinitionFactory.RosterUnit("wolf")
         );
-        return stageDef;
-    }
 
     private static IReadOnlyDictionary<StringName, BattleEncounterDefinition>
         BuildBattleEncounters() =>

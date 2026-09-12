@@ -420,7 +420,7 @@ internal sealed class BattleAiRuntimeActionPlan : IDisposable
                     declaredSkillIds.Add(skillId.ToString());
                 declaredSkillIds.Sort(StringComparer.Ordinal);
                 actionEntries.Add(
-                    $"{action.ActionId}:{GetAuthoredActionScriptPath(action.Kind)}:{action.ScoreBucketId}:{string.Join(",", declaredSkillIds)}"
+                    $"{action.ActionId}:{EnemyAiActionKinds.ToContentId(action.Kind)}:{action.ScoreBucketId}:{string.Join(",", declaredSkillIds)}"
                 );
             }
 
@@ -471,34 +471,6 @@ internal sealed class BattleAiRuntimeActionPlan : IDisposable
             affordances.Add(affordance.ToString());
         return $"{condition.Predicate}(bp={condition.BasisPoints},dist={condition.MaxDistance},states={string.Join(",", stateIds)},affordances={string.Join(",", affordances)})";
     }
-
-    private static string GetAuthoredActionScriptPath(EnemyAiActionKind kind) =>
-        kind switch
-        {
-            EnemyAiActionKind.UseUnitSkill =>
-                "res://scripts/enemies/actions/UseUnitSkillAction.cs",
-            EnemyAiActionKind.UseGroundSkill =>
-                "res://scripts/enemies/actions/UseGroundSkillAction.cs",
-            EnemyAiActionKind.UseMultiUnitSkill =>
-                "res://scripts/enemies/actions/UseMultiUnitSkillAction.cs",
-            EnemyAiActionKind.MoveToMultiUnitSkillPosition =>
-                "res://scripts/enemies/actions/MoveToMultiUnitSkillPositionAction.cs",
-            EnemyAiActionKind.UseRandomChainSkill =>
-                "res://scripts/enemies/actions/UseRandomChainSkillAction.cs",
-            EnemyAiActionKind.UseCharge =>
-                "res://scripts/enemies/actions/UseChargeAction.cs",
-            EnemyAiActionKind.UseChargePathAoe =>
-                "res://scripts/enemies/actions/UseChargePathAoeAction.cs",
-            EnemyAiActionKind.MoveToRange =>
-                "res://scripts/enemies/actions/MoveToRangeAction.cs",
-            EnemyAiActionKind.MoveToAdvantagePosition =>
-                "res://scripts/enemies/actions/MoveToAdvantagePositionAction.cs",
-            EnemyAiActionKind.UseGroundRepositionSkill =>
-                "res://scripts/enemies/actions/UseGroundRepositionSkillAction.cs",
-            EnemyAiActionKind.Retreat => "res://scripts/enemies/actions/RetreatAction.cs",
-            EnemyAiActionKind.Wait => "res://scripts/enemies/actions/WaitAction.cs",
-            _ => "",
-        };
 
     internal sealed class RuntimeActionMetadata
     {
