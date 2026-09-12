@@ -66,15 +66,16 @@ public static class ContingencyContentRules
         if (template?.StoredSpells == null)
             return System.Array.Empty<ContingencyTemplateStoredSpellInfo>();
 
+        // StoredSkillId 非空由 ContingencyStoredSpellTemplateDefinition 构造器保证。原先这里
+        // 遇到坏条目会整体返回空数组，让"条目损坏"和"模板没有 stored spell"变成同一个结果，
+        // 注册表据此报出的错误文案是错的。
         var result = new List<ContingencyTemplateStoredSpellInfo>(template.StoredSpells.Count);
         foreach (ContingencyStoredSpellTemplateDefinition storedSpell in template.StoredSpells)
         {
-            if (storedSpell == null || storedSpell.StoredSkillId == "")
-                return System.Array.Empty<ContingencyTemplateStoredSpellInfo>();
             result.Add(
                 new ContingencyTemplateStoredSpellInfo(
                     storedSpell.StoredSkillId,
-                    Mathf.Max(storedSpell.MaxCastLevel, 1)
+                    storedSpell.MaxCastLevel
                 )
             );
         }
@@ -117,9 +118,6 @@ public static class ContingencyContentRules
         var storedSpells = new List<object>(template.StoredSpells.Count);
         foreach (ContingencyStoredSpellTemplateDefinition storedSpell in template.StoredSpells)
         {
-            if (storedSpell == null || storedSpell.StoredSkillId == "")
-                return null;
-
             int castLevel = 1;
             if (
                 castLevelsByStoredSkillId != null
@@ -129,11 +127,8 @@ public static class ContingencyContentRules
                 )
             )
             {
-                castLevel = Mathf.Clamp(
-                    resolvedLevel,
-                    1,
-                    Mathf.Max(storedSpell.MaxCastLevel, 1)
-                );
+                // MaxCastLevel 已在内容期保证 >= 1，这里不再重复钳位。
+                castLevel = Mathf.Clamp(resolvedLevel, 1, storedSpell.MaxCastLevel);
             }
 
             storedSpells.Add(

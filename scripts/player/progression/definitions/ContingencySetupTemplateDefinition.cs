@@ -82,16 +82,23 @@ public sealed class ContingencyStoredSpellTemplateDefinition
 {
     public ContingencyStoredSpellTemplateDefinition(
         StringName storedSkillId,
-        int configuredMaxCastLevel,
+        int maxCastLevel,
         int order,
         ContingencyTargetResolverDefinition targetResolver,
         IReadOnlyDictionary<string, object> parameterBindings,
         StringName fallbackPolicy
     )
     {
-        StoredSkillId = storedSkillId;
-        ConfiguredMaxCastLevel = configuredMaxCastLevel;
-        MaxCastLevel = Math.Max(configuredMaxCastLevel, 1);
+        // 不变量放在构造器里，下游（ContingencyContentRules）才不用为"可能是空 id"留兜底分支，
+        // 那种兜底会把损坏条目和"模板没有 stored spell"混成同一个结果。
+        StoredSkillId = storedSkillId ?? "";
+        if (StoredSkillId == "")
+        {
+            throw new InvalidDataException(
+                "ContingencyStoredSpellTemplateDefinition.StoredSkillId must not be empty."
+            );
+        }
+        MaxCastLevel = maxCastLevel;
         Order = order;
         TargetResolver = targetResolver
             ?? throw new InvalidDataException(
@@ -105,7 +112,6 @@ public sealed class ContingencyStoredSpellTemplateDefinition
     }
 
     public StringName StoredSkillId { get; }
-    public int ConfiguredMaxCastLevel { get; }
     public int MaxCastLevel { get; }
     public int Order { get; }
     public ContingencyTargetResolverDefinition TargetResolver { get; }
@@ -268,6 +274,15 @@ public sealed class ContingencySetupTemplateDefinition
         ArgumentNullException.ThrowIfNull(source);
         if (string.IsNullOrWhiteSpace(source.StoredSkillId))
             throw ContingencyDefinitionProjection.Invalid(path + ".stored_skill_id", "must not be empty");
+        // 原先构造器用 Math.Max(value, 1) 静默钳位：内容里写 0 或负数会被当成 1 跑完整局，
+        // 作者永远看不到自己写错了。改为内容期拒绝。
+        if (source.MaxCastLevel < 1)
+        {
+            throw ContingencyDefinitionProjection.Invalid(
+                path + ".max_cast_level",
+                $"must be >= 1, got {source.MaxCastLevel}"
+            );
+        }
         ContingencyTargetResolverDefinition resolver = ProjectResolver(
             source.TargetResolver,
             path + ".target_resolver"

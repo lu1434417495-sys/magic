@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -170,16 +171,22 @@ public sealed class PartyContingencySetupService
                 );
             return SuccessFromSetup(normalizedMemberId, chargedCandidate, effectiveMpMax);
         }
-        catch
+        catch (Exception exception)
         {
-            return RollbackAndFail(
-                warehouseSnapshot,
-                memberSnapshot,
-                currentMpSnapshot,
-                "charge_transaction_failed",
-                normalizedMemberId,
-                normalizedSetupId
+            // 回滚保证仓库/成员状态一致，但异常本身必须继续上抛：这里能抛的只有代码缺陷
+            // （空引用、契约违例），把它压成 charge_transaction_failed 会让 bug 伪装成
+            // 材料不足。合法的充能失败走上面的 RollbackAndFail 分支，不经过这里。
+            RollbackCharge(warehouseSnapshot, memberSnapshot, currentMpSnapshot);
+            GameLog.Error(
+                "Contingency charge transaction failed and was rolled back. "
+                    + $"member_id={normalizedMemberId}, setup_id={normalizedSetupId}, "
+                    + $"exception={exception.GetType().FullName}: {exception.Message}",
+                "progression.contingency.charge_transaction_failed",
+                "progression",
+                exception.ToString()
             );
+            ExceptionDispatchInfo.Capture(exception).Throw();
+            throw;
         }
     }
 
@@ -245,13 +252,22 @@ public sealed class PartyContingencySetupService
         StringName setupId
     )
     {
+        RollbackCharge(warehouseSnapshot, memberSnapshot, currentMpSnapshot);
+        return Fail(errorCode, memberId, setupId);
+    }
+
+    private void RollbackCharge(
+        WarehouseState warehouseSnapshot,
+        PartyMemberState memberSnapshot,
+        int currentMpSnapshot
+    )
+    {
         if (memberSnapshot != null)
         {
             memberSnapshot.SetCurrentMp(currentMpSnapshot);
             _partyState.SetMemberState(memberSnapshot);
         }
         _warehouseService?.RestoreWarehouseStateForTransaction(warehouseSnapshot);
-        return Fail(errorCode, memberId, setupId);
     }
 
     private int ClampMemberMpToEffectiveMax(StringName memberId)
