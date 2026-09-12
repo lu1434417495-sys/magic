@@ -72,7 +72,14 @@ public sealed class EnemyContentRegistry : IValidatableRegistry, IDisposable
                 EnemyAiBrainDefinition definition = EnemyContentDefinitionProjector.ProjectBrain(entry.Import);
                 if (!_brains.TryAdd(definition.BrainId, definition)) _validationErrors.Add($"Duplicate enemy brain_id registered: {definition.BrainId}.");
             }
-            catch (Exception exception) { _validationErrors.Add($"Enemy brain projection failed at {entry.Context.SourceLabel}: {exception.Message}"); }
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
+            {
+                _validationErrors.Add(
+                    $"Enemy brain projection failed at {entry.Context.SourceLabel}: {exception.GetType().Name}: {exception.Message}"
+                );
+            }
         }
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = validationContext?.ItemDefinitions ?? EmptyItems;
         foreach (ContentImportEntry<EnemyTemplateJsonDto> entry in templateBatch.Entries)
@@ -82,7 +89,14 @@ public sealed class EnemyContentRegistry : IValidatableRegistry, IDisposable
                 EnemyTemplateDefinition definition = EnemyContentDefinitionProjector.ProjectTemplate(entry.Import, itemDefinitions);
                 if (!_templates.TryAdd(definition.TemplateId, definition)) _validationErrors.Add($"Duplicate enemy template_id registered: {definition.TemplateId}.");
             }
-            catch (Exception exception) { _validationErrors.Add($"Enemy template projection failed at {entry.Context.SourceLabel}: {exception.Message}"); }
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
+            {
+                _validationErrors.Add(
+                    $"Enemy template projection failed at {entry.Context.SourceLabel}: {exception.GetType().Name}: {exception.Message}"
+                );
+            }
         }
         foreach (ContentImportEntry<EncounterRosterJsonDto> entry in rosterBatch.Entries)
         {
@@ -91,7 +105,14 @@ public sealed class EnemyContentRegistry : IValidatableRegistry, IDisposable
                 WildEncounterRosterDefinition definition = EnemyContentDefinitionProjector.ProjectRoster(entry.Import);
                 if (!_rosters.TryAdd(definition.ProfileId, definition)) _validationErrors.Add($"Duplicate encounter roster profile_id registered: {definition.ProfileId}.");
             }
-            catch (Exception exception) { _validationErrors.Add($"Encounter roster projection failed at {entry.Context.SourceLabel}: {exception.Message}"); }
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
+            {
+                _validationErrors.Add(
+                    $"Encounter roster projection failed at {entry.Context.SourceLabel}: {exception.GetType().Name}: {exception.Message}"
+                );
+            }
         }
         ValidateDefinitionGraph(validationContext);
     }

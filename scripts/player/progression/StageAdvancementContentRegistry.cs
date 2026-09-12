@@ -63,9 +63,11 @@ public class StageAdvancementContentRegistry : IdentityContentRegistryBase
                     _validation_errors.Add($"Duplicate stage advancement modifier_id registered: {definition.ModifierId}");
             }
             catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validation_errors.Add(
-                    $"Stage advancement JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                    $"Stage advancement JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }

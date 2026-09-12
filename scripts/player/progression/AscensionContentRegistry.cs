@@ -77,9 +77,11 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
                 }
             }
             catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validation_errors.Add(
-                    $"Ascension JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                    $"Ascension JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }

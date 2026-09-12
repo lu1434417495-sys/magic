@@ -61,9 +61,11 @@ internal sealed class FaithContentRegistry
                     _validationErrors.Add($"Duplicate faith deity_id registered: {definition.DeityId}");
             }
             catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validationErrors.Add(
-                    $"Faith JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                    $"Faith JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }

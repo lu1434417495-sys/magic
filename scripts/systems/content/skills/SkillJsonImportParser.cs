@@ -878,6 +878,9 @@ internal static partial class SkillJsonImportParser
         }
         catch (JsonException)
         {
+            // 这是 strict DTO 解析之前的预扫描（见 ParseDto）。JSON 根本解析不了时这里无话可说，
+            // 紧接着的 ContentJsonStrictDtoParser.Parse 会带着 exception.Path 报 InvalidDto。
+            // 返回 null 表示"本次预扫描没有发现缺失成员"，不会让格式错误逃逸。
             return null;
         }
 

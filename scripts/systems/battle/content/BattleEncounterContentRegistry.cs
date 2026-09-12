@@ -49,10 +49,12 @@ internal sealed class BattleEncounterContentRegistry : IDisposable
                     );
                 }
             }
-            catch (Exception exception)
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validationErrors.Add(
-                    $"Battle encounter projection failed at {entry.Context.SourceLabel}: {exception.Message}"
+                    $"Battle encounter projection failed at {entry.Context.SourceLabel}: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }

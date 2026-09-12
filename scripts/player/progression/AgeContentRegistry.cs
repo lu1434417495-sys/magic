@@ -62,9 +62,11 @@ public class AgeContentRegistry : IdentityContentRegistryBase
                     _validation_errors.Add($"Duplicate age profile_id registered: {definition.ProfileId}");
             }
             catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validation_errors.Add(
-                    $"Age profile JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                    $"Age profile JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }

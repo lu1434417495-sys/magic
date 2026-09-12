@@ -104,9 +104,11 @@ public sealed class ItemContentRegistry : System.IDisposable
             definition = ItemDefinitionProjector.Project(import);
         }
         catch (System.Exception exception)
+            when (exception is System.IO.InvalidDataException
+                or System.InvalidOperationException)
         {
             _validationErrors.Add(
-                $"Item {itemId} projection failed at {entry.Context.SourceLabel}{entry.Context.JsonPointer}: {exception.Message}"
+                $"Item {itemId} projection failed at {entry.Context.SourceLabel}{entry.Context.JsonPointer}: {exception.GetType().Name}: {exception.Message}"
             );
             return;
         }

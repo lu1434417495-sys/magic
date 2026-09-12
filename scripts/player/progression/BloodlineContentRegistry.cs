@@ -77,9 +77,11 @@ public class BloodlineContentRegistry : IdentityContentRegistryBase
                 }
             }
             catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validation_errors.Add(
-                    $"Bloodline JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                    $"Bloodline JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }

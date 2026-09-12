@@ -59,10 +59,12 @@ public sealed class BarrierContentRegistry : IDisposable
                     );
                 }
             }
-            catch (Exception exception)
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validationErrors.Add(
-                    $"Barrier layer projection failed at {entry.Context.SourceLabel}: {exception.Message}"
+                    $"Barrier layer projection failed at {entry.Context.SourceLabel}: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }
@@ -84,10 +86,12 @@ public sealed class BarrierContentRegistry : IDisposable
                 }
                 AppendProfileDefinitionErrors(definition);
             }
-            catch (Exception exception)
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validationErrors.Add(
-                    $"Barrier profile projection failed at {entry.Context.SourceLabel}: {exception.Message}"
+                    $"Barrier profile projection failed at {entry.Context.SourceLabel}: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }

@@ -2109,6 +2109,7 @@ internal static class EquipmentAbilityImportGraphMapper
             diagnostics.Add(new ContentJsonDiagnostic(EquipmentAbilityJsonImportRules.InvalidPayload, "Payload must be an object.", context.SourceLabel, pointer));
             return new HasStatusConditionPayloadImportModel();
         }
+        string payloadFailureDetail = "";
         try
         {
             switch (kind ?? "")
@@ -2139,10 +2140,13 @@ internal static class EquipmentAbilityImportGraphMapper
                     break;
             }
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
+            // exception.Path/Message 是唯一能指出具体是哪个属性不匹配的信息，丢掉它诊断就
+            // 只剩一句"payload 不匹配"，作者无从下手。
+            payloadFailureDetail = $" {exception.Path}: {exception.Message}";
         }
-        diagnostics.Add(new ContentJsonDiagnostic(EquipmentAbilityJsonImportRules.InvalidPayload, "Payload does not match the strict DTO registered for its kind.", context.SourceLabel, pointer));
+        diagnostics.Add(new ContentJsonDiagnostic(EquipmentAbilityJsonImportRules.InvalidPayload, "Payload does not match the strict DTO registered for its kind." + payloadFailureDetail, context.SourceLabel, pointer));
         return new HasStatusConditionPayloadImportModel();
     }
 
@@ -2171,6 +2175,7 @@ internal static class EquipmentAbilityImportGraphMapper
             diagnostics.Add(new ContentJsonDiagnostic(EquipmentAbilityJsonImportRules.InvalidPayload, "Payload must be an object.", context.SourceLabel, pointer));
             return new AddDamageDiceActionPayloadImportModel();
         }
+        string payloadFailureDetail = "";
         try
         {
             switch (kind ?? "")
@@ -2369,10 +2374,11 @@ internal static class EquipmentAbilityImportGraphMapper
                     break;
             }
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
+            payloadFailureDetail = $" {exception.Path}: {exception.Message}";
         }
-        diagnostics.Add(new ContentJsonDiagnostic(EquipmentAbilityJsonImportRules.InvalidPayload, "Payload does not match the strict DTO registered for its kind.", context.SourceLabel, pointer));
+        diagnostics.Add(new ContentJsonDiagnostic(EquipmentAbilityJsonImportRules.InvalidPayload, "Payload does not match the strict DTO registered for its kind." + payloadFailureDetail, context.SourceLabel, pointer));
         return new AddDamageDiceActionPayloadImportModel();
     }
 

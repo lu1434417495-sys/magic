@@ -127,10 +127,12 @@ public class ProfessionContentRegistry : System.IDisposable
                 if (!_professionDefinitions.TryAdd(definition.ProfessionId, definition))
                     _validationErrors.Add($"Duplicate profession_id registered: {definition.ProfessionId}");
             }
-            catch (Exception exception)
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
             {
                 _validationErrors.Add(
-                    $"Profession JSON {entry.Context.SourceLabel} projection failed: {exception.Message}"
+                    $"Profession JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
                 );
             }
         }
