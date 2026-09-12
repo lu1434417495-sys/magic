@@ -1604,7 +1604,24 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
                 out SaveDecodeResult decodeResult
             )
         )
+        {
+            // 15 条拒绝路径原先共用一个 InvalidData，读档失败时既查不到原因，也无法把
+            // "存档版本过旧"和"存档损坏"分开提示。
+            _pending_load_error_reason = decodeResult.RejectionReason;
+            PushSessionError(
+                "session.save.load.decode_rejected",
+                "存档内容未通过解码校验。",
+                StringifyPlainContext(
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["rejection_reason"] = decodeResult.RejectionReason,
+                        ["world_generation_id"] = worldGenerationId.ToString(),
+                    },
+                    "GameSession.session.save.load.decode_rejected"
+                )
+            );
             return decodeResult.Error;
+        }
 
         PartyState decodedPartyState = decodeResult.PartyState;
         int identityError = ValidateDecodedPartyIdentityForSave(

@@ -198,11 +198,22 @@ internal static class RuntimePlainPayload
         Variant value,
         string ownerPath,
         out Dictionary<string, object> result
+    ) => TryRestoreSaveVariantDictionary(value, ownerPath, out result, out _);
+
+    /// <paramref name="failureDetail"/> 带出 RestoreSaveDictionary 抛出的定位信息（具体是哪个
+    /// key、什么类型）。丢掉它的话上游只能报一个无法排查的 InvalidData。
+    internal static bool TryRestoreSaveVariantDictionary(
+        Variant value,
+        string ownerPath,
+        out Dictionary<string, object> result,
+        out string failureDetail
     )
     {
         if (value.VariantType != Variant.Type.Dictionary)
         {
             result = new Dictionary<string, object>(System.StringComparer.Ordinal);
+            failureDetail =
+                $"root variant at '{ownerPath}' is {value.VariantType}, expected Dictionary";
             return false;
         }
 
@@ -210,11 +221,13 @@ internal static class RuntimePlainPayload
         try
         {
             result = RestoreSaveDictionary(dictionary, ownerPath);
+            failureDetail = "";
             return true;
         }
-        catch (System.InvalidOperationException)
+        catch (System.InvalidOperationException exception)
         {
             result = new Dictionary<string, object>(System.StringComparer.Ordinal);
+            failureDetail = exception.Message;
             return false;
         }
     }

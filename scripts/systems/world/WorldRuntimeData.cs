@@ -85,11 +85,23 @@ internal sealed class WorldRuntimeData
         return copy;
     }
 
-    internal static WorldRuntimeData FromDictionary(GDictionary data)
+    internal static WorldRuntimeData FromDictionary(GDictionary data) =>
+        FromDictionary(data, out _);
+
+    /// <paramref name="failureReason"/> 说明是哪一段 world 数据让解码失败（成功时为空）。
+    internal static WorldRuntimeData FromDictionary(GDictionary data, out string failureReason)
     {
+        failureReason = DecodeInto(data, out WorldRuntimeData decoded);
+        return decoded;
+    }
+
+    /// 返回空字符串表示解码成功；否则返回失败字段的说明。
+    private static string DecodeInto(GDictionary data, out WorldRuntimeData decoded)
+    {
+        decoded = null;
         if (data == null)
         {
-            return null;
+            return "world_data: payload is null";
         }
         WorldRuntimeData result = new();
         result.MapSeed = ReadLong(data, WorldRuntimeSaveSchema.MapSeed, 1L);
@@ -132,9 +144,9 @@ internal sealed class WorldRuntimeData
                     "WorldRuntimeData.fog_states"
                 );
             }
-            catch (System.InvalidOperationException)
+            catch (System.InvalidOperationException exception)
             {
-                return null;
+                return $"{WorldRuntimeSaveSchema.FogStates}: {exception.Message}";
             }
             foreach (KeyValuePair<string, object> entry in fogStates)
             {
@@ -148,42 +160,44 @@ internal sealed class WorldRuntimeData
                 != Variant.Type.Dictionary
             )
             {
-                return null;
+                return $"{WorldRuntimeSaveSchema.UniqueEquipmentPool}: expected Dictionary, got "
+                    + data[WorldRuntimeSaveSchema.UniqueEquipmentPool].VariantType;
             }
             using GDictionary uniqueEquipmentPoolPayload =
                 data[WorldRuntimeSaveSchema.UniqueEquipmentPool].AsGodotDictionary();
             result._uniqueEquipmentPool =
                 WorldUniqueEquipmentPoolState.FromDictionary(uniqueEquipmentPoolPayload);
             if (result._uniqueEquipmentPool == null)
-                return null;
+                return $"{WorldRuntimeSaveSchema.UniqueEquipmentPool}: decode failed";
         }
 
         using GArray returnStackValues =
             ReadArray(data, WorldRuntimeSaveSchema.SubmapReturnStack);
         if (!ReadReturnStack(result._submapReturnStack, returnStackValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.SubmapReturnStack}: decode failed";
         using GArray settlementValues = ReadArray(data, WorldRuntimeSaveSchema.Settlements);
         if (!ReadSettlements(result._settlements, settlementValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.Settlements}: decode failed";
         using GArray eventValues = ReadArray(data, WorldRuntimeSaveSchema.WorldEvents);
         if (!ReadWorldEvents(result._worldEvents, eventValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.WorldEvents}: decode failed";
         using GArray encounterAnchorValues =
             ReadArray(data, WorldRuntimeSaveSchema.EncounterAnchors);
         if (!ReadEncounterAnchors(result._encounterAnchors, encounterAnchorValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.EncounterAnchors}: decode failed";
         using GArray resourceNodeValues =
             ReadArray(data, WorldRuntimeSaveSchema.ResourceNodes);
         if (!ReadResourceNodes(result._resourceNodes, resourceNodeValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.ResourceNodes}: decode failed";
         using GDictionary mountedSubmapValues =
             ReadDictionary(data, WorldRuntimeSaveSchema.MountedSubmaps);
         if (!ReadMountedSubmaps(result._mountedSubmaps, mountedSubmapValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.MountedSubmaps}: decode failed";
         using GArray worldNpcValues = ReadArray(data, WorldRuntimeSaveSchema.WorldNpcs);
         if (!ReadWorldNpcs(result._worldNpcs, worldNpcValues))
-            return null;
-        return result;
+            return $"{WorldRuntimeSaveSchema.WorldNpcs}: decode failed";
+        decoded = result;
+        return "";
     }
 
     internal Dictionary<string, object> BuildSaveSnapshotPlain()

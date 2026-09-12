@@ -285,42 +285,58 @@ public class QuestState
         };
     }
 
-    public static QuestState FromDictionary(Godot.Collections.Dictionary payload)
+    public static QuestState FromDictionary(Godot.Collections.Dictionary payload) =>
+        FromDictionary(payload, out _);
+
+    /// <paramref name="failureReason"/> 说明是哪个字段让解码失败（成功时为空）。
+    public static QuestState FromDictionary(
+        Godot.Collections.Dictionary payload,
+        out string failureReason
+    )
     {
+        failureReason = DecodeInto(payload, out QuestState result);
+        return result;
+    }
+
+    /// 返回空字符串表示解码成功；否则返回失败字段的说明。
+    private static string DecodeInto(
+        Godot.Collections.Dictionary payload,
+        out QuestState result
+    )
+    {
+        result = null;
         if (payload == null)
-            return null;
+            return "quest: payload is null";
 
         if (!_has_exact_serialized_fields(payload))
-            return null;
+            return "quest: field set does not match the current schema";
 
         var objProgVar = payload["objective_progress"];
 
         var ctxVar = payload["last_progress_context"];
 
         if (objProgVar.VariantType != Variant.Type.Dictionary)
-            return null;
+            return "objective_progress: expected Dictionary, got " + objProgVar.VariantType;
 
         if (ctxVar.VariantType != Variant.Type.Dictionary)
-            return null;
+            return "last_progress_context: expected Dictionary, got " + ctxVar.VariantType;
 
         var questId = _read_required_string_name(payload["quest_id"]);
 
         var statusId = _read_required_string_name(payload["status_id"]);
 
-        if (questId == "" || !_is_valid_status_id(statusId))
-            return null;
+        if (questId == "")
+            return "quest_id: must not be empty";
+        if (!_is_valid_status_id(statusId))
+            return $"status_id: '{statusId}' is not a known quest status";
 
-        if (
-            payload["accepted_at_world_step"].VariantType != Variant.Type.Int
-            || payload["accepted_at_world_step"].AsInt32() < -1
-            || payload["completed_at_world_step"].VariantType != Variant.Type.Int
-            || payload["completed_at_world_step"].AsInt32() < -1
-            || payload["reward_claimed_at_world_step"].VariantType != Variant.Type.Int
-            || payload["reward_claimed_at_world_step"].AsInt32() < -1
-            || payload["failed_at_world_step"].VariantType != Variant.Type.Int
-            || payload["failed_at_world_step"].AsInt32() < -1
-        )
-            return null;
+        foreach (string stepField in WorldStepFields)
+        {
+            if (payload[stepField].VariantType != Variant.Type.Int)
+                return $"{stepField}: expected Int, got {payload[stepField].VariantType}";
+            if (payload[stepField].AsInt32() < -1)
+                return $"{stepField}: {payload[stepField].AsInt32()} must be >= -1";
+        }
 
         if (
             !_try_read_optional_string_name(
@@ -328,7 +344,7 @@ public class QuestState
                 out StringName failureReasonId
             )
         )
-            return null;
+            return "failure_reason_id: not an optional string name";
 
         QuestObjectiveProgressState objProgValues;
         try
@@ -337,9 +353,9 @@ public class QuestState
                 objProgVar.AsGodotDictionary()
             );
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
-            return null;
+            return $"objective_progress: {exception.Message}";
         }
 
         QuestProgressContext progressContext;
@@ -349,9 +365,9 @@ public class QuestState
                 ctxVar.AsGodotDictionary()
             );
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
-            return null;
+            return $"last_progress_context: {exception.Message}";
         }
 
         int acceptedAt = payload["accepted_at_world_step"].AsInt32();
@@ -372,7 +388,7 @@ public class QuestState
                 || failedAt != -1
                 || failureReasonId != ""
             )
-                return null;
+                return "status_id=inactive: world-step and failure fields must all be unset";
         }
         else if (statusKind == QuestStatusKind.Active)
         {
@@ -382,12 +398,12 @@ public class QuestState
                 || failedAt != -1
                 || failureReasonId != ""
             )
-                return null;
+                return "status_id=active: completion/reward/failure fields must all be unset";
         }
         else if (statusKind == QuestStatusKind.Completed)
         {
             if (rewardAt != -1 || failedAt != -1 || failureReasonId != "")
-                return null;
+                return "status_id=completed: reward and failure fields must be unset";
         }
         else if (statusKind == QuestStatusKind.Rewarded)
         {
@@ -397,15 +413,15 @@ public class QuestState
                 || failedAt != -1
                 || failureReasonId != ""
             )
-                return null;
+                return "status_id=rewarded: needs completed/reward steps and no failure fields";
         }
         else if (statusKind == QuestStatusKind.Failed)
         {
             if (completedAt != -1 || rewardAt != -1 || failureReasonId == "")
-                return null;
+                return "status_id=failed: needs failure_reason_id and no completion/reward steps";
         }
 
-        return new QuestState
+        result = new QuestState
         {
             quest_id = questId,
             status_id = statusId,
@@ -417,7 +433,16 @@ public class QuestState
             failure_reason_id = failureReasonId,
             last_progress_context = progressContext,
         };
+        return "";
     }
+
+    private static readonly string[] WorldStepFields =
+    {
+        "accepted_at_world_step",
+        "completed_at_world_step",
+        "reward_claimed_at_world_step",
+        "failed_at_world_step",
+    };
 
     private static bool _has_exact_serialized_fields(Godot.Collections.Dictionary payload)
     {

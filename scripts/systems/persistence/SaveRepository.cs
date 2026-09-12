@@ -88,6 +88,11 @@ internal sealed class SaveRepository
             if (saveSize < 8)
             {
                 saveFile.Close();
+                if (emitErrors)
+                    PushError(
+                        "session.save.read.truncated",
+                        $"Persisted save {savePath} is {saveSize} bytes and cannot hold a payload."
+                    );
                 return (int)Error.InvalidData;
             }
 
@@ -95,11 +100,20 @@ internal sealed class SaveRepository
             bool restored = RuntimePlainPayload.TryRestoreSaveVariantDictionary(
                 rawPayload,
                 $"SaveRepository:{savePath}",
-                out Dictionary<string, object> restoredPayload
+                out Dictionary<string, object> restoredPayload,
+                out string restoreFailureDetail
             );
             saveFile.Close();
             if (!restored)
+            {
+                if (emitErrors)
+                    PushError(
+                        "session.save.read.payload_unrestorable",
+                        $"Persisted save {savePath} could not be restored into a plain payload. "
+                            + $"Detail: {restoreFailureDetail}"
+                    );
                 return (int)Error.InvalidData;
+            }
 
             payload = restoredPayload;
             return (int)Error.Ok;
