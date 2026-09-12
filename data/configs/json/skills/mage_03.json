@@ -5513,12 +5513,6 @@
   "templates": {
     "max_level_7": {
       "max_level": 7
-    },
-    "non_core_max_level_5": {
-      "non_core_max_level": 5
-    },
-    "growth_tier_advanced": {
-      "growth_tier": "advanced"
     }
   },
   "domain": "skills",

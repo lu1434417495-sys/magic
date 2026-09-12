@@ -64,6 +64,7 @@ internal static class ContentJsonTemplateMerger
     internal const string InvalidTemplateReferenceRule =
         "content.json.template.invalid_template_reference";
     internal const string UnknownTemplateRule = "content.json.template.unknown_template";
+    internal const string UnusedTemplateRule = "content.json.template.unused_template";
     internal const string TemplateCycleRule = "content.json.template.cycle";
     internal const string NullNotAllowedRule = "content.json.template.null_not_allowed";
 
@@ -86,6 +87,7 @@ internal static class ContentJsonTemplateMerger
             diagnostics
         );
         var resolver = new TemplateResolver(fileLabel, templates, diagnostics);
+        var entryTemplateIds = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (string templateId in templates.Keys.OrderBy(id => id, StringComparer.Ordinal))
             resolver.Resolve(templateId);
@@ -133,6 +135,7 @@ internal static class ContentJsonTemplateMerger
             JsonObject baseObject = new();
             if (templateId.Length > 0)
             {
+                entryTemplateIds.Add(templateId);
                 if (!templates.ContainsKey(templateId))
                 {
                     diagnostics.Add(
@@ -165,10 +168,58 @@ internal static class ContentJsonTemplateMerger
             mergedEntries.Add(new ContentJsonEntryDocument(entry.EntryId, merged.ToJsonString()));
         }
 
+        AppendUnusedTemplateDiagnostics(
+            fileLabel,
+            templates,
+            entryTemplateIds,
+            diagnostics
+        );
+
         if (diagnostics.Count > 0)
             mergedEntries.Clear();
 
         return new ContentJsonTemplateMergeResult(mergedEntries, diagnostics);
+    }
+
+    private static void AppendUnusedTemplateDiagnostics(
+        string fileLabel,
+        IReadOnlyDictionary<string, TemplateSource> templates,
+        IEnumerable<string> entryTemplateIds,
+        List<ContentJsonDiagnostic> diagnostics
+    )
+    {
+        var reachable = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string entryTemplateId in entryTemplateIds)
+        {
+            string current = entryTemplateId;
+            while (
+                current.Length > 0
+                && templates.TryGetValue(current, out TemplateSource source)
+                && reachable.Add(current)
+            )
+            {
+                current = source.ParentTemplateId;
+            }
+        }
+
+        foreach (
+            KeyValuePair<string, TemplateSource> template in templates.OrderBy(
+                pair => pair.Key,
+                StringComparer.Ordinal
+            )
+        )
+        {
+            if (reachable.Contains(template.Key))
+                continue;
+            diagnostics.Add(
+                new ContentJsonDiagnostic(
+                    UnusedTemplateRule,
+                    $"File-local JSON template '{template.Key}' is not reachable from any entry.",
+                    $"{fileLabel}#{template.Key}",
+                    template.Value.SourcePointer
+                )
+            );
+        }
     }
 
     private static Dictionary<string, TemplateSource> ParseTemplates(

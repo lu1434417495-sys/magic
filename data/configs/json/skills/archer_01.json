@@ -3719,18 +3719,6 @@
     },
     "max_level_5": {
       "max_level": 5
-    },
-    "non_core_max_level_3": {
-      "non_core_max_level": 3
-    },
-    "non_core_max_level_5": {
-      "non_core_max_level": 5
-    },
-    "growth_tier_intermediate": {
-      "growth_tier": "intermediate"
-    },
-    "growth_tier_basic": {
-      "growth_tier": "basic"
     }
   },
   "domain": "skills",

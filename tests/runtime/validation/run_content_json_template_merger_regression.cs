@@ -21,6 +21,7 @@ public partial class run_content_json_template_merger_regression : LifecycleTest
             TestForbiddenRawNullCannotBeHiddenByOverride();
             TestTemplateCycleIsRejected();
             TestUnknownTemplateReferencesAreRejected();
+            TestUnusedTemplatesAreRejected();
             TestEntryWithoutTemplateIsPreserved();
         }
         catch (Exception exception)
@@ -213,7 +214,7 @@ public partial class run_content_json_template_merger_regression : LifecycleTest
     {
         ContentJsonDocumentEnvelope document = LoadEnvelope(
             "plain.json",
-            templatesJson: "{\"unused\":{\"value\":99}}",
+            templatesJson: "{}",
             entriesJson:
                 "[{\"skill_id\":\"plain\",\"value\":0,\"enabled\":false,\"label\":\"\","
                 + "\"nested\":{\"keep\":3},\"values\":[1,2]}]"
@@ -234,6 +235,37 @@ public partial class run_content_json_template_merger_regression : LifecycleTest
         _test.Eq(output.GetProperty("label").GetString(), "", "plain entry empty string should be preserved");
         _test.Eq(output.GetProperty("nested").GetProperty("keep").GetInt32(), 3, "plain nested object should be preserved");
         _test.Eq(output.GetProperty("values").GetArrayLength(), 2, "plain array should be preserved");
+    }
+
+    private void TestUnusedTemplatesAreRejected()
+    {
+        ContentJsonDocumentEnvelope document = LoadEnvelope(
+            "unused.json",
+            templatesJson:
+                "{\"unused_root\":{\"value\":1},"
+                + "\"unused_child\":{\"template\":\"unused_root\",\"value\":2}}",
+            entriesJson: "[{\"skill_id\":\"plain\",\"value\":0}]"
+        );
+
+        ContentJsonTemplateMergeResult result = ContentJsonTemplateMerger.Merge(
+            document,
+            ContentJsonNullabilityPolicy.None
+        );
+
+        _test.True(result.HasErrors, "templates unreachable from every entry must fail closed");
+        _test.Eq(result.Entries.Count, 0, "unused template diagnostics must prevent publication");
+        AssertDiagnostic(
+            result,
+            ContentJsonTemplateMerger.UnusedTemplateRule,
+            "unused.json#unused_root",
+            "/templates/unused_root"
+        );
+        AssertDiagnostic(
+            result,
+            ContentJsonTemplateMerger.UnusedTemplateRule,
+            "unused.json#unused_child",
+            "/templates/unused_child"
+        );
     }
 
     private ContentJsonDocumentEnvelope LoadEnvelope(
