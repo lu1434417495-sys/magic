@@ -1050,8 +1050,8 @@ public sealed class BattleHudAdapter : IDisposable
         BattleUnitState activeUnit
     )
     {
-        const string title = "队伍共享背包（战斗局部）";
-        const string meta = "仅显示本场战斗复制出的队伍共享背包；据点共享仓库入口战中不可用。";
+        const string title = "队伍随身背包";
+        const string meta = "可为当前行动成员更换随身装备；仓库物品需在据点取出。";
         if (battleState == null)
         {
             return new BattleHudEquipmentPanelSnapshot(
@@ -1064,7 +1064,7 @@ public sealed class BattleHudAdapter : IDisposable
                 "当前没有可换装单位。",
                 Array.Empty<BattleHudEquipmentSlotSnapshot>(),
                 Array.Empty<BattleHudBackpackEntrySnapshot>(),
-                "battle-local view 尚未就绪。"
+                "正在读取背包装备。"
             );
         }
 
@@ -1089,7 +1089,7 @@ public sealed class BattleHudAdapter : IDisposable
             disabledReason,
             slots,
             backpackEntries,
-            $"当前行动单位：{activeUnitName}  |  换装消耗 {CHANGE_EQUIPMENT_AP_COST} AP  |  背包装备实例 {backpackEntries.Count} 件"
+            $"当前行动单位：{activeUnitName}  |  换装消耗 {CHANGE_EQUIPMENT_AP_COST} AP  |  背包装备 {backpackEntries.Count} 件"
         );
     }
 

@@ -3201,7 +3201,7 @@
     {
       "item_id": "steel_longsword",
       "display_name": "钢制长剑",
-      "description": "A versatile martial sword with balanced damage.",
+      "description": "攻守均衡的军用长剑，可单手或双手使用。",
       "icon_asset_id": "ui.item.icon.default",
       "is_stackable": false,
       "base_price": 245,

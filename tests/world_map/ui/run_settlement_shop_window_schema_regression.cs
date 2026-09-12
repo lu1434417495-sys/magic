@@ -79,8 +79,8 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
             "空 country_id 不应渲染国家段。"
         );
         _test.True(
-            window.facilities_label.Text.Contains("仓库 [storage]"),
-            "SettlementWindow 应渲染 typed facility 条目。"
+            window.facilities_label.Text.Contains("仓库") && !window.facilities_label.Text.Contains("[storage]"),
+            "SettlementWindow 应渲染设施名称，不暴露内部槽位标识。"
         );
         _test.True(
             window.resident_label.Text.Contains("仓库管理员"),

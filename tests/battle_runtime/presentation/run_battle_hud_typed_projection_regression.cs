@@ -894,7 +894,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             6
         );
         var equipment = new BattleHudEquipmentPanelSnapshot(
-            "队伍共享背包（战斗局部）",
+            "队伍随身背包",
             "meta",
             "hud_typed_caster",
             "施法者",

@@ -256,7 +256,6 @@ public partial class PartyWarehouseWindow : ModalWindowShell
         var lines = new List<string>
         {
             $"物品：{entry.DisplayName}",
-            $"物品 ID：{_entry_item_id(entry)}",
             $"当前条目数量：{entry.Quantity}",
             $"同类总数：{entry.TotalQuantity}",
             $"存储方式：{storageModeText}",
@@ -266,7 +265,6 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
         if (entry.HasEquipmentInstance)
         {
-            lines.Add($"装备实例：{_entry_instance_id(entry)}");
             lines.Add($"品质：{entry.Rarity}");
             lines.Add($"耐久：{entry.CurrentDurability}");
         }

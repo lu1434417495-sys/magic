@@ -5,9 +5,9 @@ using Godot;
 
 public partial class BattleMapPanel
 {
-    private const string BATTLE_EQUIPMENT_EMPTY_TEXT = "战中队伍共享背包暂无可装备实例。";
+    private const string BATTLE_EQUIPMENT_EMPTY_TEXT = "随身背包中没有可更换的装备。";
     private const string BATTLE_EQUIPMENT_SOURCE_HINT =
-        "来源：战斗局部队伍共享背包（不是据点共享仓库）。";
+        "战斗中可使用队伍随身携带的装备；仓库物品需在据点取出。";
     private const string BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT = "战斗换装入口尚未连接运行时。";
 
     private void _ensure_battle_equipment_ui()
@@ -22,7 +22,7 @@ public partial class BattleMapPanel
         if (_battle_equipment_button != null)
         {
             _battle_equipment_button.TooltipText =
-                "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。";
+                "打开队伍随身背包，更换当前成员的装备。";
             _battle_equipment_button.MouseDefaultCursorShape = CursorShape.PointingHand;
             _apply_button_skin(_battle_equipment_button, true, true);
             _battle_equipment_button.Pressed += _open_battle_equipment_panel;
@@ -59,7 +59,7 @@ public partial class BattleMapPanel
         var panel = new PanelContainer
         {
             Name = "BattleEquipmentPanel",
-            CustomMinimumSize = new Vector2(820, 520),
+            CustomMinimumSize = new Vector2(1000, 600),
             SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
             SizeFlagsVertical = SizeFlags.ShrinkCenter,
         };
@@ -105,6 +105,7 @@ public partial class BattleMapPanel
             Name = "BattleEquipmentCloseButton",
             Text = "关闭",
             CustomMinimumSize = new Vector2(82, 30),
+            SizeFlagsVertical = SizeFlags.ShrinkBegin,
         };
         _apply_button_skin(_battle_equipment_close_button, true);
         _battle_equipment_close_button.Pressed += _close_battle_equipment_panel;
@@ -150,7 +151,7 @@ public partial class BattleMapPanel
         backpackPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         body.AddChild(backpackPanel);
         VBoxContainer backpackLayout = _create_equipment_section_layout(backpackPanel);
-        backpackLayout.AddChild(_create_equipment_section_title("队伍共享背包（战斗局部）"));
+        backpackLayout.AddChild(_create_equipment_section_title("队伍随身背包"));
 
         _battle_equipment_backpack_list = new ItemList
         {
@@ -291,7 +292,7 @@ public partial class BattleMapPanel
             bool hasSnapshot = _battleEquipmentSnapshot != null;
             _battle_equipment_button.Disabled = !hasSnapshot;
             _battle_equipment_button.TooltipText = hasSnapshot
-                ? "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。"
+                ? "打开队伍随身背包，更换当前成员的装备。"
                 : "等待战斗数据。";
         }
         if (_battle_equipment_overlay == null || !_battle_equipment_overlay.Visible)
@@ -302,7 +303,7 @@ public partial class BattleMapPanel
         _battle_equipment_title_label.Text =
             !string.IsNullOrEmpty(battleEquipmentSnapshot?.Title)
                 ? battleEquipmentSnapshot.Title
-                : "队伍共享背包（战斗局部）";
+                : "队伍随身背包";
         _battle_equipment_meta_label.Text =
             !string.IsNullOrEmpty(battleEquipmentSnapshot?.Meta)
                 ? battleEquipmentSnapshot.Meta
@@ -314,7 +315,7 @@ public partial class BattleMapPanel
             _battle_equipment_status_label.Text = disabledReason;
         else
             _battle_equipment_status_label.Text =
-                "选择队伍共享背包中的装备实例，装备到当前行动单位。";
+                "选择队伍随身背包中的装备，装备到当前行动单位。";
         _rebuild_battle_equipment_slot_rows();
         _rebuild_battle_equipment_backpack_list();
         _refresh_battle_equipment_backpack_details();
@@ -403,7 +404,7 @@ public partial class BattleMapPanel
         if (string.IsNullOrEmpty(instanceId))
             detailLines.Add("未装备");
         else
-            detailLines.Add($"实例 {instanceId}");
+            detailLines.Add("已装备");
         IReadOnlyList<string> occupiedLabels =
             slot?.OccupiedSlotLabels ?? Array.Empty<string>();
         if (occupiedLabels.Count > 0)
@@ -503,7 +504,6 @@ public partial class BattleMapPanel
         var lines = new List<string>
         {
             entry?.DisplayName ?? "",
-            $"实例：{entry?.InstanceId ?? ""}",
             BATTLE_EQUIPMENT_SOURCE_HINT,
         };
         IReadOnlyList<string> allowedLabels =
@@ -561,7 +561,7 @@ public partial class BattleMapPanel
                 BATTLE_EQUIPMENT_EMPTY_TEXT + "\n" + BATTLE_EQUIPMENT_SOURCE_HINT;
             _battle_equipment_slot_selector.Disabled = true;
             _battle_equipment_equip_button.Disabled = true;
-            _battle_equipment_equip_button.TooltipText = "请选择战斗局部队伍共享背包中的装备实例。";
+            _battle_equipment_equip_button.TooltipText = "请选择队伍随身背包中的装备。";
             return;
         }
 
@@ -584,7 +584,7 @@ public partial class BattleMapPanel
 
         var detailLines = new List<string>
         {
-            $"{entry.DisplayName}  |  物品 {entry.ItemId}  |  实例 {entry.InstanceId}",
+            entry.DisplayName,
             $"可装备槽位：{(allowedSlotLabels.Count > 0 ? string.Join("、", allowedSlotLabels) : "无")}",
             !string.IsNullOrEmpty(entry.Description) ? entry.Description : "暂无说明。",
             BATTLE_EQUIPMENT_SOURCE_HINT,
@@ -626,7 +626,7 @@ public partial class BattleMapPanel
         if (!string.IsNullOrEmpty(entryDisabledReason))
             return entryDisabledReason;
         if (entry?.CanEquip != true)
-            return "该实例当前不能装备。";
+            return "这件装备当前无法使用。";
         if (StringNameIsEmpty(_selected_backpack_slot_id))
             return "请选择装备槽位。";
         return "";
@@ -659,7 +659,7 @@ public partial class BattleMapPanel
         BattleHudBackpackEntrySnapshot entry = _get_selected_backpack_entry();
         if (entry == null)
         {
-            _set_battle_equipment_feedback("请选择战斗局部队伍共享背包中的装备实例。");
+            _set_battle_equipment_feedback("请选择队伍随身背包中的装备。");
             return;
         }
         string disabledReason = _get_equip_disabled_reason(entry);

@@ -180,7 +180,7 @@ public partial class SettlementWindow : ModalWindowShell
     private string _build_meta_text()
     {
         string identityText =
-            $"{_windowData.TierName}  |  占地 {_windowData.FootprintSize.X}x{_windowData.FootprintSize.Y}  |  阵营 {_windowData.FactionId}";
+            $"{_windowData.TierName}  |  占地 {_windowData.FootprintSize.X}x{_windowData.FootprintSize.Y}  |  阵营 {UiDisplayLabels.Faction(_windowData.FactionId)}";
         if (!string.IsNullOrEmpty(_windowData.CountryId))
             identityText += $"  |  国家 {_windowData.CountryId}";
         var lines = new List<string>
@@ -200,9 +200,7 @@ public partial class SettlementWindow : ModalWindowShell
         var lines = new List<string> { "设施：" };
         foreach (SettlementFacilityEntryData facility in _windowData.Facilities)
         {
-            string line = $"- {facility.DisplayName} [{facility.SlotTag}]";
-            if (!string.IsNullOrEmpty(facility.InteractionType))
-                line += $" · {facility.InteractionType}";
+            string line = $"- {facility.DisplayName}";
             lines.Add(line);
         }
         return string.Join("\n", lines);
@@ -216,7 +214,7 @@ public partial class SettlementWindow : ModalWindowShell
         var lines = new List<string> { "驻留 NPC：" };
         foreach (SettlementResidentEntryData resident in _windowData.Residents)
             lines.Add(
-                $"- {resident.DisplayName} · {resident.ServiceType} · {resident.FacilityName}"
+                $"- {resident.DisplayName} · {resident.FacilityName}"
             );
         return string.Join("\n", lines);
     }
@@ -315,7 +313,7 @@ public partial class SettlementWindow : ModalWindowShell
     private static string _build_service_button_text(ResolvedService service)
     {
         string text =
-            $"{service.FacilityName} · {service.NpcName} · {service.ServiceType}\n{service.StateLabel}  |  {service.CostLabel}";
+            $"{service.FacilityName} · {service.NpcName}\n{service.StateLabel}  |  {service.CostLabel}";
         if (!service.IsEnabled && !string.IsNullOrEmpty(service.DisabledReason))
             text += $"\n{service.DisabledReason}";
         return text;
@@ -347,8 +345,7 @@ public partial class SettlementWindow : ModalWindowShell
         {
             $"设施：{service.FacilityName}",
             $"NPC：{service.NpcName}",
-            $"服务：{service.ServiceType}",
-            $"交互：{service.InteractionScriptId}",
+            $"服务：{UiDisplayLabels.SettlementService(service.ServiceType)}",
             $"状态：{service.StateLabel}",
             $"费用：{service.CostLabel}",
         };

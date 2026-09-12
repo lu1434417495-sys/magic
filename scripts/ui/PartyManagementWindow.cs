@@ -496,7 +496,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         skills_label.Text = string.Join("\n", _build_skill_detail_lines(progression, snapshot));
         professions_label.Text = string.Join("\n", _build_profession_detail_lines(progression));
         status_label.Text =
-            $"当前队长：{_leader_member_id}  |  上阵 {_activeMemberIds.Count} / {MaxActiveMemberCount}  |  替补 {_reserveMemberIds.Count}";
+            $"当前队长：{_resolve_member_state(_leader_member_id)?.display_name ?? "未指定"}  |  上阵 {_activeMemberIds.Count} / {MaxActiveMemberCount}  |  替补 {_reserveMemberIds.Count}";
     }
 
     private AttributeSnapshot _build_attribute_snapshot(PartyMemberState memberState)
@@ -530,12 +530,11 @@ public partial class PartyManagementWindow : ModalWindowShell
         var lines = new List<string>
         {
             $"姓名：{memberState.display_name}",
-            $"成员 ID：{memberState.member_id}",
             $"编成：{(_activeMemberIds.Contains(memberState.member_id) ? "上阵" : "替补")}",
             $"主角：{(memberState.member_id == _main_character_member_id ? "是" : "否")}",
             $"队长：{(memberState.member_id == _leader_member_id ? "是" : "否")}",
             $"身份：{(memberState.member_id == _main_character_member_id ? "主角 " : "")}{(memberState.member_id == _leader_member_id ? "队长" : "")}",
-            $"控制：{memberState.control_mode}",
+            $"控制：{UiDisplayLabels.ControlMode(memberState.control_mode.ToString())}",
             $"等级：{(progression != null ? progression.character_level : 0)}",
         };
         lines.AddRange(_build_identity_overview_lines(memberState));
@@ -561,7 +560,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         if (summary.Count == 0)
         {
             if (memberState != null)
-                lines.Add($"体型：{memberState.body_size_category}（{memberState.body_size}）");
+                lines.Add($"体型：{UiDisplayLabels.BodySize(memberState.body_size_category.ToString())}（{memberState.body_size}）");
             return lines;
         }
         lines.Add($"种族：{DictString(summary, "race_label", "")}");
@@ -569,10 +568,10 @@ public partial class PartyManagementWindow : ModalWindowShell
         if (!string.IsNullOrEmpty(subraceLabel))
             lines.Add($"亚种：{subraceLabel}");
         lines.Add(
-            $"年龄：{DictInt(summary, "age_years", 0)} 岁  |  自然阶段：{DictString(summary, "natural_age_stage_label", "")}  |  有效阶段：{DictString(summary, "effective_age_stage_label", "")}"
+            $"年龄：{DictInt(summary, "age_years", 0)} 岁  |  自然阶段：{UiDisplayLabels.AgeStage(DictString(summary, "natural_age_stage_label", ""))}  |  有效阶段：{UiDisplayLabels.AgeStage(DictString(summary, "effective_age_stage_label", ""))}"
         );
         lines.Add(
-            $"体型：{DictString(summary, "body_size_category", "")}（{DictInt(summary, "body_size", 0)}）"
+            $"体型：{UiDisplayLabels.BodySize(DictString(summary, "body_size_category", ""))}（{DictInt(summary, "body_size", 0)}）"
         );
         string bloodlineLabel = DictString(summary, "bloodline_label", "").StripEdges();
         string bloodlineStageLabel = DictString(summary, "bloodline_stage_label", "").StripEdges();
@@ -1213,6 +1212,10 @@ public partial class PartyManagementWindow : ModalWindowShell
             return "法力上限";
         if (attributeId == AttributeService.ToStringName(AttributeIdKind.StaminaMax))
             return "体力上限";
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus))
+            return "体力恢复加成%";
+        if (attributeId == AttributeService.ToStringName(AttributeIdKind.NaturalArmorAcBonus))
+            return "天生护甲 AC";
         if (attributeId == AttributeService.ToStringName(AttributeIdKind.AuraMax))
             return "灵气上限";
         if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionPoints))
