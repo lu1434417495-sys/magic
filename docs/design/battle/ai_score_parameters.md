@@ -34,6 +34,7 @@ enemy/BattleSim profile JSON
 ## 实现约束
 
 - Runtime 和 BattleSim 只消费 `BattleAiScoreProfileDefinition`；`BattleAiScoreProfile` 仅供少量合成诊断 fixture，不是 production authoring API。
+- Enemy brain 与 BattleSim profile 的 strict DTO 共用 `EnemyContentDefinitionProjector.ProjectScoreProfile(...)` 显式投影；authoring 路径不得用反射枚举属性，也不得忽略 `TryWithScalar(...)` 的失败。`TryWithScalar(...)` 只服务 simulation-local typed override。
 - 新增或改名参数时，必须同时检查 JSON DTO/schema、definition 投影、评分消费、`ToDictionary()`/trace 表面以及 tuner `search_space.py`；不能只改 JSON 或只改 scorer。
 - 参数默认值属于行为兼容面。要求保持现有行为的新字段必须采用中性默认，并由评分回归证明默认 profile 排序不变。
 - Profile override 是 simulation-local copy-on-write，不得改写 process `ContentSnapshot` 或 JSON import graph。

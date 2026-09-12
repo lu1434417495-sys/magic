@@ -2,8 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Text.Json.Serialization;
 using Godot;
 
 internal static class EnemyContentDefinitionProjector
@@ -56,36 +54,23 @@ internal static class EnemyContentDefinitionProjector
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
-        // This transient rules object computes the same weapon and derived-stat facts;
-        // it is never a content source and is not retained in the published graph.
-        using var facts = new EnemyTemplateDef
-        {
-            template_id = source.TemplateId,
-            display_name = source.DisplayName,
-            battle_sprite_asset_id = source.BattleSpriteAssetId,
-            brain_id = source.BrainId,
-            initial_state_id = source.InitialStateId,
-            enemy_count = source.EnemyCount,
-            body_size = source.BodySize,
-            creature_level = source.CreatureLevel,
-            hit_die_sides = source.HitDieSides,
-            cognition_kind = source.CognitionKind,
-            tags = NameArray(source.Tags),
-            save_advantage_tags = NameArray(source.SaveAdvantageTags),
-            save_disadvantage_tags = NameArray(source.SaveDisadvantageTags),
-            save_immunity_tags = NameArray(source.SaveImmunityTags),
-            damage_resistances = VariantDictionary(source.DamageResistances),
-            attack_equipment_item_id = source.AttackEquipmentItemId,
-            natural_weapon_damage_tag = source.NaturalWeaponDamageTag,
-            natural_weapon_attack_range = source.NaturalWeaponAttackRange,
-            base_attribute_overrides = VariantDictionary(source.BaseAttributeOverrides),
-            skill_ids = NameArray(source.SkillIds),
-            skill_level_map = VariantDictionary(source.SkillLevelMap),
-            generated_core_skill_count = source.GeneratedCoreSkillCount,
-            attribute_overrides = VariantDictionary(source.AttributeOverrides),
-            target_rank = source.TargetRank,
-        };
-        WeaponProjection weapon = facts.GetWeaponProjectionTyped(itemDefinitions);
+        List<StringName> tags = Names(source.Tags);
+        Dictionary<StringName, int> baseAttributeOverrides = IntDictionary(
+            source.BaseAttributeOverrides
+        );
+        EnemyTemplateProjectionFacts projectedFacts = EnemyTemplateProjectionRules.Project(
+            new EnemyTemplateProjectionInput(
+                source.BodySize,
+                source.CreatureLevel,
+                source.HitDieSides,
+                tags,
+                source.AttackEquipmentItemId,
+                source.NaturalWeaponDamageTag,
+                source.NaturalWeaponAttackRange,
+                baseAttributeOverrides
+            ),
+            itemDefinitions
+        );
         var equipment = new List<EnemyBattleEquipmentDefinition>();
         foreach (EnemyBattleEquipmentJsonDto entry in source.BattleEquipmentEntries)
             equipment.Add(new EnemyBattleEquipmentDefinition(entry.SlotId, entry.ItemId, entry.Rarity, entry.CurrentDurability));
@@ -97,16 +82,17 @@ internal static class EnemyContentDefinitionProjector
             source.TemplateId, source.DisplayName, source.BattleSpriteAssetId,
             source.BrainId, source.InitialStateId, source.EnemyCount, source.BodySize,
             source.CreatureLevel, source.HitDieSides,
-            BattleCognitionContentRules.ToKind(source.CognitionKind), Names(source.Tags),
+            BattleCognitionContentRules.ToKind(source.CognitionKind), tags,
             Names(source.SaveAdvantageTags), Names(source.SaveDisadvantageTags),
             Names(source.SaveImmunityTags), NameDictionary(source.DamageResistances),
             source.AttackEquipmentItemId, equipment, source.NaturalWeaponDamageTag,
-            source.NaturalWeaponAttackRange, IntDictionary(source.BaseAttributeOverrides),
+            source.NaturalWeaponAttackRange, baseAttributeOverrides,
             Names(source.SkillIds), IntDictionary(source.SkillLevelMap),
             source.GeneratedCoreSkillCount, IntDictionary(source.AttributeOverrides),
             source.TargetRank, drops,
-            new EnemyTemplateDefinition.EnemyWeaponProjectionDefinition(weapon),
-            facts.GetDerivedHpMaxTyped(), facts.GetDerivedAttackBonusTyped(itemDefinitions)
+            projectedFacts.Weapon,
+            projectedFacts.DerivedHpMax,
+            projectedFacts.DerivedAttackBonus
         );
     }
 
@@ -141,20 +127,94 @@ internal static class EnemyContentDefinitionProjector
             _ => throw new InvalidOperationException($"Unprojectable enemy action kind '{action.Kind}'."),
         };
 
-    private static BattleAiScoreProfileDefinition ProjectScoreProfile(BattleAiScoreProfileJsonDto? source)
+    internal static BattleAiScoreProfileDefinition ProjectScoreProfile(
+        BattleAiScoreProfileJsonDto? source
+    )
     {
-        if (source is null) return BattleAiScoreProfileDefinition.Default;
-        BattleAiScoreProfileDefinition result = BattleAiScoreProfileDefinition.Default;
-        foreach (PropertyInfo property in typeof(BattleAiScoreProfileJsonDto).GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        if (source is null)
+            return BattleAiScoreProfileDefinition.Default;
+
+        return new BattleAiScoreProfileDefinition
         {
-            string path = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? "";
-            object? value = property.GetValue(source);
-            if (value is int scalar && result.TryWithScalar(path, scalar, out BattleAiScoreProfileDefinition patched)) result = patched;
-        }
-        return result with
-        {
+            DamageWeight = source.DamageWeight,
+            HealWeight = source.HealWeight,
+            StatusWeight = source.StatusWeight,
+            TerrainWeight = source.TerrainWeight,
+            HeightWeight = source.HeightWeight,
+            LethalTargetWeight = source.LethalTargetWeight,
+            LethalThreatTargetWeight = source.LethalThreatTargetWeight,
+            TargetCountWeight = source.TargetCountWeight,
+            FriendlyFireDamageWeight = source.FriendlyFireDamageWeight,
+            FriendlyFireTargetWeight = source.FriendlyFireTargetWeight,
+            FriendlyControlTargetWeight = source.FriendlyControlTargetWeight,
+            FriendlyLethalTargetWeight = source.FriendlyLethalTargetWeight,
+            ApCostWeight = source.ApCostWeight,
+            MpCostWeight = source.MpCostWeight,
+            StaminaCostWeight = source.StaminaCostWeight,
+            AuraCostWeight = source.AuraCostWeight,
+            CooldownWeight = source.CooldownWeight,
+            DelayedResolutionCostPer5Tu = source.DelayedResolutionCostPer5Tu,
+            MovementCostWeight = source.MovementCostWeight,
+            MpReserveFloorBp = source.MpReserveFloorBp,
+            MpReservePressureWeight = source.MpReservePressureWeight,
+            MpReserveBreachPenalty = source.MpReserveBreachPenalty,
+            StaminaReserveFloorBp = source.StaminaReserveFloorBp,
+            StaminaReservePressureWeight = source.StaminaReservePressureWeight,
+            StaminaReserveBreachPenalty = source.StaminaReserveBreachPenalty,
+            AuraReserveFloorBp = source.AuraReserveFloorBp,
+            AuraReservePressureWeight = source.AuraReservePressureWeight,
+            AuraReserveBreachPenalty = source.AuraReserveBreachPenalty,
+            ResourceConservationWeight = source.ResourceConservationWeight,
+            PositionBaseScore = source.PositionBaseScore,
+            PositionDistanceStep = source.PositionDistanceStep,
+            PositionUndershootPenalty = source.PositionUndershootPenalty,
+            PositionOvershootPenalty = source.PositionOvershootPenalty,
+            SurvivalMarginGainWeight = source.SurvivalMarginGainWeight,
+            PostActionThreatDamageWeight = source.PostActionThreatDamageWeight,
+            PostActionThreatCountWeight = source.PostActionThreatCountWeight,
+            LethalSurvivalRiskPenalty = source.LethalSurvivalRiskPenalty,
+            IncomingThreatReliefWeight = source.IncomingThreatReliefWeight,
+            LowHpUrgencyThresholdBp = source.LowHpUrgencyThresholdBp,
+            LowHpUrgencyWeight = source.LowHpUrgencyWeight,
+            ExecuteTargetHpThresholdBp = source.ExecuteTargetHpThresholdBp,
+            ExecuteBonusWeight = source.ExecuteBonusWeight,
+            OverkillDamagePenaltyWeight = source.OverkillDamagePenaltyWeight,
+            RoleThreatMinEffectiveRange = source.RoleThreatMinEffectiveRange,
+            RoleThreatDistanceWindow = source.RoleThreatDistanceWindow,
+            RoleThreatMaxApproachDistance = source.RoleThreatMaxApproachDistance,
+            RoleThreatMaxContactRange = source.RoleThreatMaxContactRange,
+            RoleThreatInRangeScoreStep = source.RoleThreatInRangeScoreStep,
+            EnemyTargetCountWeight = source.EnemyTargetCountWeight,
+            ChainEnemyTargetWeight = source.ChainEnemyTargetWeight,
+            FocusFireWoundedTargetWeight = source.FocusFireWoundedTargetWeight,
+            HitRateReliabilityWeight = source.HitRateReliabilityWeight,
+            SaveReliableDamageWeight = source.SaveReliableDamageWeight,
+            ShieldAbsorbedWeight = source.ShieldAbsorbedWeight,
+            ControlWeight = source.ControlWeight,
+            GroundControlWeight = source.GroundControlWeight,
+            StatusRedundancyPenalty = source.StatusRedundancyPenalty,
+            PositionObjectiveWeight = source.PositionObjectiveWeight,
+            SafeDistanceAdherenceWeight = source.SafeDistanceAdherenceWeight,
+            ThreatHealerBiasBasisPoints = source.ThreatHealerBiasBasisPoints,
+            ThreatControlBiasBasisPoints = source.ThreatControlBiasBasisPoints,
+            ThreatRangedBiasBasisPoints = source.ThreatRangedBiasBasisPoints,
+            ThreatRangeStepBiasBasisPoints = source.ThreatRangeStepBiasBasisPoints,
+            ThreatMultiplierCapBasisPoints = source.ThreatMultiplierCapBasisPoints,
+            MeteorHighPriorityThreatMultiplierBp =
+                source.MeteorHighPriorityThreatMultiplierBp,
+            MeteorHighPriorityDamageHpPercent = source.MeteorHighPriorityDamageHpPercent,
+            MeteorHighPriorityTargetPriorityScore =
+                source.MeteorHighPriorityTargetPriorityScore,
+            MeteorTopThreatRank = source.MeteorTopThreatRank,
             MeteorFriendlyFireProfile = source.MeteorFriendlyFireProfile,
+            MeteorFriendlyFireSoftExpectedHpPercent =
+                source.MeteorFriendlyFireSoftExpectedHpPercent,
+            MeteorFriendlyFireHardExpectedHpPercent =
+                source.MeteorFriendlyFireHardExpectedHpPercent,
+            MeteorFriendlyFireHardWorstCaseHpPercent =
+                source.MeteorFriendlyFireHardWorstCaseHpPercent,
             ActionBaseScores = EnemyDefinitionCollections.FreezeDictionary(IntDictionary(source.ActionBaseScores)),
+            DefaultBucketPriority = source.DefaultBucketPriority,
             BucketPriorities = EnemyDefinitionCollections.FreezeDictionary(IntDictionary(source.BucketPriorities)),
         };
     }
@@ -165,7 +225,6 @@ internal static class EnemyContentDefinitionProjector
         foreach (string value in values ?? Array.Empty<string>()) result.Add(value);
         return result;
     }
-    private static Godot.Collections.Array<StringName> NameArray(IEnumerable<string> values) => new(Names(values));
     private static Dictionary<StringName, int> IntDictionary(IReadOnlyDictionary<string, int> values)
     {
         var result = new Dictionary<StringName, int>();
@@ -176,12 +235,6 @@ internal static class EnemyContentDefinitionProjector
     {
         var result = new Dictionary<StringName, StringName>();
         foreach ((string key, string value) in values) result[key] = value;
-        return result;
-    }
-    private static Godot.Collections.Dictionary VariantDictionary<T>(IReadOnlyDictionary<string, T> values)
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach ((string key, T value) in values) result[new StringName(key)] = Variant.From(value!);
         return result;
     }
 }

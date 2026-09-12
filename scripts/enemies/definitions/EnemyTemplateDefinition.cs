@@ -6,6 +6,8 @@ internal sealed class EnemyTemplateDefinition
 {
     internal sealed record EnemyWeaponDiceDefinition(int DiceCount, int DiceSides, int FlatBonus)
     {
+        internal bool IsEmpty() => DiceCount <= 0 || DiceSides <= 0;
+
         internal WeaponDice ToRuntimeDice() => new()
         {
             dice_count = DiceCount,
@@ -17,22 +19,54 @@ internal sealed class EnemyTemplateDefinition
     internal sealed class EnemyWeaponProjectionDefinition
     {
         internal EnemyWeaponProjectionDefinition(WeaponProjection source)
+            : this(
+                source?.weapon_profile_kind ?? "",
+                source?.weapon_item_id ?? "",
+                source?.weapon_instance_id ?? "",
+                source?.weapon_profile_type_id ?? "",
+                source?.weapon_range_type ?? "",
+                source?.weapon_family ?? "",
+                source?.weapon_current_grip ?? "",
+                source?.weapon_attack_range ?? 0,
+                CopyDice(source?.weapon_one_handed_dice),
+                CopyDice(source?.weapon_two_handed_dice),
+                source?.weapon_is_versatile ?? false,
+                source?.weapon_uses_two_hands ?? false,
+                source?.weapon_is_heavy ?? false,
+                source?.weapon_physical_damage_tag ?? ""
+            ) { }
+
+        internal EnemyWeaponProjectionDefinition(
+            StringName weaponProfileKind,
+            StringName weaponItemId,
+            StringName weaponInstanceId,
+            StringName weaponProfileTypeId,
+            StringName weaponRangeType,
+            StringName weaponFamily,
+            StringName weaponCurrentGrip,
+            int weaponAttackRange,
+            EnemyWeaponDiceDefinition weaponOneHandedDice,
+            EnemyWeaponDiceDefinition weaponTwoHandedDice,
+            bool weaponIsVersatile,
+            bool weaponUsesTwoHands,
+            bool weaponIsHeavy,
+            StringName weaponPhysicalDamageTag
+        )
         {
-            source ??= new WeaponProjection();
-            WeaponProfileKind = source.weapon_profile_kind;
-            WeaponItemId = source.weapon_item_id;
-            WeaponInstanceId = source.weapon_instance_id;
-            WeaponProfileTypeId = source.weapon_profile_type_id;
-            WeaponRangeType = source.weapon_range_type;
-            WeaponFamily = source.weapon_family;
-            WeaponCurrentGrip = source.weapon_current_grip;
-            WeaponAttackRange = source.weapon_attack_range;
-            WeaponOneHandedDice = CopyDice(source.weapon_one_handed_dice);
-            WeaponTwoHandedDice = CopyDice(source.weapon_two_handed_dice);
-            WeaponIsVersatile = source.weapon_is_versatile;
-            WeaponUsesTwoHands = source.weapon_uses_two_hands;
-            WeaponIsHeavy = source.weapon_is_heavy;
-            WeaponPhysicalDamageTag = source.weapon_physical_damage_tag;
+            WeaponProfileKind = weaponProfileKind ?? "";
+            WeaponItemId = weaponItemId ?? "";
+            WeaponInstanceId = weaponInstanceId ?? "";
+            WeaponProfileTypeId = weaponProfileTypeId ?? "";
+            WeaponRangeType = weaponRangeType ?? "";
+            WeaponFamily = weaponFamily ?? "";
+            WeaponCurrentGrip = weaponCurrentGrip ?? "";
+            WeaponAttackRange = weaponAttackRange;
+            WeaponOneHandedDice = weaponOneHandedDice ?? new EnemyWeaponDiceDefinition(0, 0, 0);
+            WeaponTwoHandedDice = weaponTwoHandedDice ?? new EnemyWeaponDiceDefinition(0, 0, 0);
+            WeaponIsVersatile = weaponIsVersatile;
+            WeaponUsesTwoHands = weaponUsesTwoHands;
+            WeaponIsHeavy = weaponIsHeavy;
+            WeaponPhysicalDamageTag = weaponPhysicalDamageTag ?? "";
         }
 
         internal StringName WeaponProfileKind { get; }
