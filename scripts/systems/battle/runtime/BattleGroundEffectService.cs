@@ -50,22 +50,22 @@ internal class BattleGroundEffectService
 
     internal void Dispose()
     {
-        Exception firstFailure = null;
+        Exception accumulatedFailure = null;
         BattleTeardown.RunStep(
-            ref firstFailure,
+            ref accumulatedFailure,
             _validationService.DisposeRuntime
         );
         BattleTeardown.RunStep(
-            ref firstFailure,
+            ref accumulatedFailure,
             _relocationService.DisposeRuntime
         );
         BattleTeardown.RunStep(
-            ref firstFailure,
+            ref accumulatedFailure,
             _coordService.DisposeRuntime
         );
-        BattleTeardown.RunStep(ref firstFailure, () => _runtime = null);
-        if (firstFailure != null)
-            ExceptionDispatchInfo.Capture(firstFailure).Throw();
+        BattleTeardown.RunStep(ref accumulatedFailure, () => _runtime = null);
+        if (accumulatedFailure != null)
+            ExceptionDispatchInfo.Capture(accumulatedFailure).Throw();
     }
 
     internal void append_result_report_entry(

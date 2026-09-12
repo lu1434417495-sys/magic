@@ -71,14 +71,14 @@ internal sealed class BattleAiDecisionBindingService
     {
         List<BattleAiRuntimeActionPlan> plans = new(_actionPlansByUnitId.Values);
         _actionPlansByUnitId.Clear();
-        Exception firstFailure = null;
+        Exception accumulatedFailure = null;
         foreach (BattleAiRuntimeActionPlan plan in plans)
         {
-            BattleTeardown.RunStep(ref firstFailure, () => plan?.Dispose());
+            BattleTeardown.RunStep(ref accumulatedFailure, () => plan?.Dispose());
         }
-        if (firstFailure != null)
+        if (accumulatedFailure != null)
         {
-            ExceptionDispatchInfo.Capture(firstFailure).Throw();
+            ExceptionDispatchInfo.Capture(accumulatedFailure).Throw();
         }
     }
 

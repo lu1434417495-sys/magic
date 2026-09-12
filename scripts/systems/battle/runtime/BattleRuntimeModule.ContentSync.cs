@@ -153,12 +153,12 @@ public sealed partial class BattleRuntimeModule
 
     private void ClearAiDecisionBindingsAndPlans()
     {
-        Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, _runtime_services.ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
-        if (firstFailure != null)
+        Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, _runtime_services.ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, _aiDecisionBindingService.ClearAiActionPlans);
+        if (accumulatedFailure != null)
         {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstFailure).Throw();
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(accumulatedFailure).Throw();
         }
     }
 

@@ -101,12 +101,12 @@ internal sealed class BattleRuntimeModuleBorrowerSet
         }
     }
 
-    internal void DisposeRuntime(ref Exception firstFailure)
+    internal void DisposeRuntime(ref Exception accumulatedFailure)
     {
         for (int index = _borrowers.Length - 1; index >= 0; index--)
         {
             BattleRuntimeModule.RunTeardownStep(
-                ref firstFailure,
+                ref accumulatedFailure,
                 _borrowers[index].DisposeRuntime
             );
         }

@@ -256,11 +256,11 @@ internal sealed class BattleRuntimeServices : IDisposable
 
     internal void EndBattle()
     {
-        Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, AiMovementQuery.EndBattle);
+        Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, AiMovementQuery.EndBattle);
         _battleEpoch = long.MinValue;
-        Rethrow(firstFailure);
+        Rethrow(accumulatedFailure);
     }
 
     internal void SetupRuntimeSidecars(
@@ -403,12 +403,12 @@ internal sealed class BattleRuntimeServices : IDisposable
         // Clear in reverse borrower order. Movement query topology/path caches are plain
         // battle-lifetime values; only its decision-scoped state/grid/callback bindings end here.
         _aiHelperBindingsActive = false;
-        Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, AiDecisionContext.ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, AiQuery.ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, AiScoreContextAdapter.ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, AiMovementQuery.ClearRuntimeBindings);
-        Rethrow(firstFailure);
+        Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, AiDecisionContext.ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, AiQuery.ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, AiScoreContextAdapter.ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, AiMovementQuery.ClearRuntimeBindings);
+        Rethrow(accumulatedFailure);
     }
 
     public void Dispose()
@@ -419,17 +419,17 @@ internal sealed class BattleRuntimeServices : IDisposable
         }
         _disposed = true;
         _runtimeSidecarsBound = false;
-        Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, EndBattle);
-        RunTeardownStep(ref firstFailure, Contingencies.Dispose);
-        RunTeardownStep(ref firstFailure, GroundEffects.Dispose);
-        RunTeardownStep(ref firstFailure, SpecialSkills.Dispose);
-        RunTeardownStep(ref firstFailure, Movement.Dispose);
-        RunTeardownStep(ref firstFailure, AiMovementQuery.Dispose);
-        Rethrow(firstFailure);
+        Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, EndBattle);
+        RunTeardownStep(ref accumulatedFailure, Contingencies.Dispose);
+        RunTeardownStep(ref accumulatedFailure, GroundEffects.Dispose);
+        RunTeardownStep(ref accumulatedFailure, SpecialSkills.Dispose);
+        RunTeardownStep(ref accumulatedFailure, Movement.Dispose);
+        RunTeardownStep(ref accumulatedFailure, AiMovementQuery.Dispose);
+        Rethrow(accumulatedFailure);
     }
 
-    private static void RunTeardownStep(ref Exception firstFailure, Action action)
+    private static void RunTeardownStep(ref Exception accumulatedFailure, Action action)
     {
         try
         {
@@ -437,7 +437,7 @@ internal sealed class BattleRuntimeServices : IDisposable
         }
         catch (Exception exception)
         {
-            firstFailure ??= exception;
+            accumulatedFailure ??= exception;
         }
     }
 

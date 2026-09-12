@@ -2278,48 +2278,48 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return;
         }
         _disposed = true;
-        Exception firstFailure = null;
+        Exception accumulatedFailure = null;
 
         // Phase 1: release the most-derived decision borrowers before any service,
         // content catalog, state graph, or owned native resource can disappear.
-        RunTeardownStep(ref firstFailure, _runtime_services.EndBattle);
-        RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
-        RunTeardownStep(ref firstFailure, _ai_turn_traces.Clear);
-        RunTeardownStep(ref firstFailure, _contingency_system.ClearBattleState);
+        RunTeardownStep(ref accumulatedFailure, _runtime_services.EndBattle);
+        RunTeardownStep(ref accumulatedFailure, _aiDecisionBindingService.ClearAiActionPlans);
+        RunTeardownStep(ref accumulatedFailure, _ai_turn_traces.Clear);
+        RunTeardownStep(ref accumulatedFailure, _contingency_system.ClearBattleState);
         RunTeardownStep(
-            ref firstFailure,
+            ref accumulatedFailure,
             _contingency_system.ClearRuntimeCapabilityBinding
         );
 
         // Phase 2: dispose AI and runtime sidecars while their borrowed inputs still exist.
-        RunTeardownStep(ref firstFailure, () => _ai_service?.Dispose());
-        _moduleBorrowers.DisposeRuntime(ref firstFailure);
-        RunTeardownStep(ref firstFailure, _runtime_services.Dispose);
-        RunTeardownStep(ref firstFailure, () => _terrain_effect_system?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _delayed_area_effect_system?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _battle_rating_system?.DisposeRuntime());
-        RunTeardownStep(ref firstFailure, () => _unit_factory?.DisposeRuntime());
-        RunTeardownStep(ref firstFailure, () => _charge_resolver?.DisposeRuntime());
-        RunTeardownStep(ref firstFailure, () => _repeat_attack_resolver?.DisposeRuntime());
-        RunTeardownStep(ref firstFailure, () => _skill_resolution_rules?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _change_equipment_resolver?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _loot_resolver?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _skill_turn_resolver?.DisposeRuntime());
-        RunTeardownStep(ref firstFailure, () => _metrics_collector?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _shield_service?.DisposeRuntime());
-        RunTeardownStep(ref firstFailure, () => _layered_barrier_service?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _timeline_driver?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _skill_orchestrator?.DisposeRuntime());
-        RunTeardownStep(ref firstFailure, () => _casting_time_service?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _meteor_swarm_resolver?.Dispose());
-        RunTeardownStep(ref firstFailure, UnbindEquipmentRulePorts);
-        RunTeardownStep(ref firstFailure, () => _attack_check_policy_service?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _equipment_ability_runtime_service?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _skill_outcome_committer?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _skill_mastery_service?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _fate_runtime?.DisposeRuntime());
-        RunTeardownStep(ref firstFailure, () => _damage_resolver?.Dispose());
-        RunTeardownStep(ref firstFailure, () => _hit_resolver?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _ai_service?.Dispose());
+        _moduleBorrowers.DisposeRuntime(ref accumulatedFailure);
+        RunTeardownStep(ref accumulatedFailure, _runtime_services.Dispose);
+        RunTeardownStep(ref accumulatedFailure, () => _terrain_effect_system?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _delayed_area_effect_system?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _battle_rating_system?.DisposeRuntime());
+        RunTeardownStep(ref accumulatedFailure, () => _unit_factory?.DisposeRuntime());
+        RunTeardownStep(ref accumulatedFailure, () => _charge_resolver?.DisposeRuntime());
+        RunTeardownStep(ref accumulatedFailure, () => _repeat_attack_resolver?.DisposeRuntime());
+        RunTeardownStep(ref accumulatedFailure, () => _skill_resolution_rules?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _change_equipment_resolver?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _loot_resolver?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _skill_turn_resolver?.DisposeRuntime());
+        RunTeardownStep(ref accumulatedFailure, () => _metrics_collector?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _shield_service?.DisposeRuntime());
+        RunTeardownStep(ref accumulatedFailure, () => _layered_barrier_service?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _timeline_driver?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _skill_orchestrator?.DisposeRuntime());
+        RunTeardownStep(ref accumulatedFailure, () => _casting_time_service?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _meteor_swarm_resolver?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, UnbindEquipmentRulePorts);
+        RunTeardownStep(ref accumulatedFailure, () => _attack_check_policy_service?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _equipment_ability_runtime_service?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _skill_outcome_committer?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _skill_mastery_service?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _fate_runtime?.DisposeRuntime());
+        RunTeardownStep(ref accumulatedFailure, () => _damage_resolver?.Dispose());
+        RunTeardownStep(ref accumulatedFailure, () => _hit_resolver?.Dispose());
 
         _meteor_swarm_resolver = null;
         _attack_check_policy_service = null;
@@ -2340,45 +2340,45 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _terrain_effect_nonce = 0;
         _ai_trace_enabled = false;
         _last_start_failure = new BattleStartFailureSnapshot();
-        RunTeardownStep(ref firstFailure, ClearContentCatalogBorrowers);
+        RunTeardownStep(ref accumulatedFailure, ClearContentCatalogBorrowers);
 
         // Phase 4: release state/topology after all of its borrowers are gone.
-        RunTeardownStep(ref firstFailure, ClearRuntimeBattleStateReference);
+        RunTeardownStep(ref accumulatedFailure, ClearRuntimeBattleStateReference);
 
         // Phase 5: owned battle-native resources close last. DisposeOwnedTerrainGenerator
         // drops the field before invoking user-overridable Dispose, so an exception cannot
         // resurrect or retain the closed owner on a second Dispose call.
-        RunTeardownStep(ref firstFailure, DisposeOwnedTerrainGenerator);
+        RunTeardownStep(ref accumulatedFailure, DisposeOwnedTerrainGenerator);
 
-        if (firstFailure != null)
+        if (accumulatedFailure != null)
         {
-            ExceptionDispatchInfo.Capture(firstFailure).Throw();
+            ExceptionDispatchInfo.Capture(accumulatedFailure).Throw();
         }
     }
 
-    internal static void RunTeardownStep(ref Exception firstFailure, Action action) =>
-        BattleTeardown.RunStep(ref firstFailure, action);
+    internal static void RunTeardownStep(ref Exception accumulatedFailure, Action action) =>
+        BattleTeardown.RunStep(ref accumulatedFailure, action);
 
     private void ClearRuntimeBattleStateReference()
     {
-        Exception firstFailure = null;
+        Exception accumulatedFailure = null;
         if (!_disposed)
-            RunTeardownStep(ref firstFailure, _runtime_services.EndBattle);
-        RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
+            RunTeardownStep(ref accumulatedFailure, _runtime_services.EndBattle);
+        RunTeardownStep(ref accumulatedFailure, _aiDecisionBindingService.ClearAiActionPlans);
 
         BattleState state = _state;
         _state = null;
         if (state != null)
         {
-            RunTeardownStep(ref firstFailure, state.ClearBattleTopology);
-            RunTeardownStep(ref firstFailure, state.ally_unit_ids.Clear);
-            RunTeardownStep(ref firstFailure, state.enemy_unit_ids.Clear);
-            RunTeardownStep(ref firstFailure, () => state.timeline?.ready_unit_ids.Clear());
+            RunTeardownStep(ref accumulatedFailure, state.ClearBattleTopology);
+            RunTeardownStep(ref accumulatedFailure, state.ally_unit_ids.Clear);
+            RunTeardownStep(ref accumulatedFailure, state.enemy_unit_ids.Clear);
+            RunTeardownStep(ref accumulatedFailure, () => state.timeline?.ready_unit_ids.Clear());
         }
 
-        if (firstFailure != null)
+        if (accumulatedFailure != null)
         {
-            ExceptionDispatchInfo.Capture(firstFailure).Throw();
+            ExceptionDispatchInfo.Capture(accumulatedFailure).Throw();
         }
     }
 
@@ -2389,12 +2389,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return;
         }
 
-        Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, _runtime_services.EndBattle);
-        RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
-        if (firstFailure != null)
+        Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, _runtime_services.EndBattle);
+        RunTeardownStep(ref accumulatedFailure, _aiDecisionBindingService.ClearAiActionPlans);
+        if (accumulatedFailure != null)
         {
-            ExceptionDispatchInfo.Capture(firstFailure).Throw();
+            ExceptionDispatchInfo.Capture(accumulatedFailure).Throw();
         }
 
         _state = state;
