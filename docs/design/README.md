@@ -19,6 +19,14 @@
 - [`world/world_map_module.md`](world/world_map_module.md)：世界地图当前模块规格。
 - [`world/settlement_module.md`](world/settlement_module.md)：据点服务当前模块规格。
 
+## 界面呈现
+
+- [`ui/character_creation_presentation.md`](ui/character_creation_presentation.md)：角色创建章节布局与插画。
+- [`ui/in_game_window_presentation.md`](ui/in_game_window_presentation.md)：游戏功能弹窗的局部主题、标题装饰与输入边界。
+- [`ui/character_info_presentation.md`](ui/character_info_presentation.md)：战斗人物属性、生效特性、来源与详情跳转。
+- [`ui/battle_skill_tooltip.md`](ui/battle_skill_tooltip.md)：战斗技能悬停详情、当前等级数值与原生弹窗。
+- [`ui/battle_map_presentation.md`](ui/battle_map_presentation.md)：4K 战斗棋盘材质、岩壁明暗、单位徽牌与地图拾取边界。
+
 ## 角色成长
 
 - [`progression/character_module.md`](progression/character_module.md)：Party、CharacterManagement、成长与奖励主链。

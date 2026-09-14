@@ -1,6 +1,6 @@
 # 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-08-13`
+更新日期：`2026-09-13`
 
 ## 文档定位
 
@@ -89,6 +89,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ```
 
 ## 单元总览
+
+### 跨窗口共享呈现读集
+
+- 修改 CU-01、CU-08、CU-09、CU-10 或 CU-18 的弹窗样式时，先读 `docs/design/ui/in_game_window_presentation.md`、`scripts/ui/components/ModalWindowShell.cs`、`ChronicleWindowDecoration.cs`、`UiListTheme.cs`、`SelectionCardBuilder.cs` 与 `scenes/ui/styles/chronicle_*.tres`。
+- 功能弹窗保留原场景背景；插画只在面板标题区绘制，输入和业务状态仍由各窗口及原有 runtime owner 负责。角色创建使用独立呈现 owner。
 
 ### CU-01 登录壳、世界预设、存档选择、显示设置
 
@@ -264,6 +269,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 文件：
   - `scenes/main/world_map.tscn`
   - `scripts/systems/game_runtime/*.cs`
+  - `scripts/systems/game_runtime/GameRuntimePromotionNotifications.cs`
   - `scripts/systems/world/WorldMapDataContext.cs`
   - `scripts/systems/world/WorldRuntimeData.cs`
   - `scripts/systems/world/WorldRuntimeSaveSchema.cs`
@@ -283,7 +289,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `docs/design/battle/runtime_module.md`
 - 负责：world/battle 切换、窗口互斥、命令编排、场景同步、战后回写、运行时总入口。
 - 世界画面状态由正式 `StatusPanel/StatusMargin/StatusLabel` 消费 `WorldRuntimeViewModel.StatusText`，进入战斗时隐藏；人物、仓库、据点与战斗的窗口信号仍提交原始 typed 标识，显示名称转换仅限 UI。
-- 边界：`GameRuntimeFacade` 通过当前 root/session 解析 `GameContentCatalog`，只在仍绑定当前 session（`IsBoundToSession`）时复用，用 revision 校验有效性。`WorldMapSystem` 是 coordinator 登记的顶层 Runtime participant：shutdown 先断开 scene/UI borrower，再关闭 `WorldMapRuntimeProxy` 与它拥有的 `GameRuntimeFacade`；facade 递归关闭 battle/world 子服务，但不拥有 application shutdown state。headless 路径由 CU-21 的 `HeadlessGameTestSession` 承担同级 participant 职责。`BattleSessionFacade` 只弱借 `IGameRuntimeBattleSessionPort`，不持有 facade、battle module、grid、party 或 catalog owner；selection 经 `IBattleSelectionSessionSurface` 暴露会话所需的受限能力，开战、推进、preview/command、promotion 与结算的实际 owner 接线留在 facade port。`GameRuntimeSettlementCommandHandler` 及其 contract board、NPC offer、service window、window-data 子处理器只通过按 state/content/transaction/modal/world 分组的 `IGameRuntimeSettlementCommandPort` 借用结算能力；它们不持有或向下暴露 facade、session、character-management、fog owner，也不直接读取 settlement-entry 私有字段。事务 capture/commit/rollback 的时机、action dispatch 与反馈仍归主 handler，concrete runtime rollback 由 facade port 适配。其注入的 `IBattleSeedSource` 只用于 battle map / terrain seed 的确定性组合与测试 seam，production 默认仍为 `TrueRandomBattleSeedSource`；命中、伤害、豁免、随机目标等 combat RNG 不消费这个 seed，必须保持 `TrueRandomSeedService` 的独立随机。`RuntimeCommandResult` / `RuntimeCommandCode` 是独立 runtime command contract，不由 facade 嵌套拥有。世界运行态 owner 是 `WorldRuntimeData`（settlement / submap / encounter anchors / world events / fog 等先进 typed owner），其 canonical save graph 由 plain `BuildSaveSnapshotPlain()` 生成，Godot API/window/proxy 仍经 `WorldMapDataProjection` 做短期投影。headless/runtime snapshot 的 canonical graph 由 `GameRuntimeSnapshotBuilder.BuildHeadlessSnapshotPlain()` 生成；`IGameRuntimeSnapshotSource` 只暴露 detached plain facts 或 borrowed typed domain state，不暴露 Godot collection，facade/proxy 的 Godot collection 消费者只在同步边界持有整根 Request-domain projection lease。pending battle context、encounter loot、runtime log 与 settlement/window snapshot 继续以 detached plain graph 跨模块传递；contract board、shop、forge、stagecoach 的 facade 长期 modal 状态共用同一个 immutable `SettlementServiceWindowData`（replace-whole 更新，rollback snapshot 直接借用旧引用），据点总览为 `SettlementOverviewWindowData`，仓库窗口为 `WarehouseWindowData`；这三类 window DTO 不持有 `PartyState` 或 property bag，headless plain 快照由它们单向投影。低幸运据点奖励端口以 typed `LowLuckSettlementActionInput` / `LowLuckEventResult` 出入，不再往返字典。battle/world promotion prompt 的长期 owner 是不可变 `GameRuntimePromotionPromptContext` / `GameRuntimePromotionChoiceContext`，`GameRuntimeRewardFlowHandler` 只弱借 `IGameRuntimeRewardFlowPort` 并直接消费 typed member/profession/selection，plain prompt 仅由 headless snapshot、proxy 或 UI 同步边界按原 schema 投影。battle resolution、runtime dispose 与 world promotion 完成分别清理所属 context；handler dispose 断开 weak port，不拥有 facade。结构化诊断经 CU-02 的 `GameLog` sink 只进入 session 一次；`GameRuntimeCommandLogger` 只弱借 `IGameRuntimeCommandLogPort`，消费 detached runtime/battle/unit facts、拥有 command scope 与 pending battle batch 聚合，并直接提交 typed session event，不读取 facade/session/world/battle owner。相关 Godot API 只在同步调用内创建短租约。`GameRuntimeBattleSelection` 只弱借 `IGameRuntimeBattleSelectionPort`，从端口消费 typed battle/grid/catalog facts、选择状态与 preview/command/status 意图，不直接持有 facade、battle runtime 或 authored content；技能定义经 `ISkillCatalog` 读取，preview 与正式 command 提交保持两次独立校验。selection dispose 只清本地隐式 variant cache 并断开弱端口，battle/selection state 的生命周期仍由 facade owner 管理。跨 party/world/coord 的提交统一走 `RuntimeTransaction` stage + `CommitRuntimeState`；`PartyState` 替换必须保持 session/runtime/services canonical root 一致，root 替换走 `RuntimeTransaction` / facade rebind。命令输入以 typed request（`SettlementActionRequest` / `PromotionSelectionData` / `PartyItemUseOptions` 等）为正式边界。
+- 边界：`GameRuntimeFacade` 通过当前 root/session 解析 `GameContentCatalog`，只在仍绑定当前 session（`IsBoundToSession`）时复用，用 revision 校验有效性。`WorldMapSystem` 是 coordinator 登记的顶层 Runtime participant：shutdown 先断开 scene/UI borrower，再关闭 `WorldMapRuntimeProxy` 与它拥有的 `GameRuntimeFacade`；facade 递归关闭 battle/world 子服务，但不拥有 application shutdown state。headless 路径由 CU-21 的 `HeadlessGameTestSession` 承担同级 participant 职责。`BattleSessionFacade` 只弱借 `IGameRuntimeBattleSessionPort`，不持有 facade、battle module、grid、party 或 catalog owner；selection 经 `IBattleSelectionSessionSurface` 暴露会话所需的受限能力，开战、推进、preview/command、promotion 与结算的实际 owner 接线留在 facade port。`GameRuntimeSettlementCommandHandler` 及其 contract board、NPC offer、service window、window-data 子处理器只通过按 state/content/transaction/modal/world 分组的 `IGameRuntimeSettlementCommandPort` 借用结算能力；它们不持有或向下暴露 facade、session、character-management、fog owner，也不直接读取 settlement-entry 私有字段。事务 capture/commit/rollback 的时机、action dispatch 与反馈仍归主 handler，concrete runtime rollback 由 facade port 适配。其注入的 `IBattleSeedSource` 只用于 battle map / terrain seed 的确定性组合与测试 seam，production 默认仍为 `TrueRandomBattleSeedSource`；命中、伤害、豁免、随机目标等 combat RNG 不消费这个 seed，必须保持 `TrueRandomSeedService` 的独立随机。`RuntimeCommandResult` / `RuntimeCommandCode` 是独立 runtime command contract，不由 facade 嵌套拥有。世界运行态 owner 是 `WorldRuntimeData`（settlement / submap / encounter anchors / world events / fog 等先进 typed owner），其 canonical save graph 由 plain `BuildSaveSnapshotPlain()` 生成，Godot API/window/proxy 仍经 `WorldMapDataProjection` 做短期投影。headless/runtime snapshot 的 canonical graph 由 `GameRuntimeSnapshotBuilder.BuildHeadlessSnapshotPlain()` 生成；`IGameRuntimeSnapshotSource` 只暴露 detached plain facts 或 borrowed typed domain state，不暴露 Godot collection，facade/proxy 的 Godot collection 消费者只在同步边界持有整根 Request-domain projection lease。pending battle context、encounter loot、runtime log 与 settlement/window snapshot 继续以 detached plain graph 跨模块传递；contract board、shop、forge、stagecoach 的 facade 长期 modal 状态共用同一个 immutable `SettlementServiceWindowData`（replace-whole 更新，rollback snapshot 直接借用旧引用），据点总览为 `SettlementOverviewWindowData`，仓库窗口为 `WarehouseWindowData`；这三类 window DTO 不持有 `PartyState` 或 property bag，headless plain 快照由它们单向投影。低幸运据点奖励端口以 typed `LowLuckSettlementActionInput` / `LowLuckEventResult` 出入，不再往返字典。battle/world promotion prompt 的长期 owner 是不可变 `GameRuntimePromotionPromptContext` / `GameRuntimePromotionChoiceContext`，`GameRuntimeRewardFlowHandler` 只弱借 `IGameRuntimeRewardFlowPort` 并直接消费 typed member/profession/selection，plain prompt 仅由 headless snapshot、proxy 或 UI 同步边界按原 schema 投影。battle resolution、runtime dispose 与 world promotion 完成分别清理所属 context；handler dispose 断开 weak port，不拥有 facade。结构化诊断经 CU-02 的 `GameLog` sink 只进入 session 一次；`GameRuntimeCommandLogger` 只弱借 `IGameRuntimeCommandLogPort`，消费 detached runtime/battle/unit facts、拥有 command scope 与 pending battle batch 聚合，并直接提交 typed session event，不读取 facade/session/world/battle owner。相关 Godot API 只在同步调用内创建短租约。`GameRuntimeBattleSelection` 只弱借 `IGameRuntimeBattleSelectionPort`，从端口消费 typed battle/grid/catalog facts、选择状态与 preview/command/status 意图，不直接持有 facade、battle runtime 或 authored content；技能定义经 `ISkillCatalog` 读取，preview 与正式 command 提交保持两次独立校验。selection dispose 只清本地隐式 variant cache 并断开弱端口，battle/selection state 的生命周期仍由 facade owner 管理。跨 party/world/coord 的提交统一走 `RuntimeTransaction` stage + `CommitRuntimeState`；`PartyState` 替换必须保持 session/runtime/services canonical root 一致，root 替换走 `RuntimeTransaction` / facade rebind。命令输入以 typed request（`SettlementActionRequest` / `PromotionCommitRequest` / `PartyItemUseOptions` 等）为正式边界。
 - 世界事务与物化边界：active submap 的完整 typed map state 与 fog 只在 save、切图、战斗结算、事务捕获和 teardown 等持久化边界 splice 回 root owner，不能把 active submap payload 当成 root rollback snapshot。`RuntimeTransaction` 的 mutation flags 只决定需要捕获和恢复的 rollback scope；serializer 写入的是 total snapshot，所以每次 commit 都必须先 stage party/world/coord 全部 canonical owner。settlement 奖励、任务事件和成员成就等间接副作用也必须纳入 party rollback scope。
 - GameOver 持久化边界：主角死亡会终止当前旅程并丢弃 pending save；`GameRuntimeFacade` 的返回标题 canonical flush 与 dispose flush 在 typed `RuntimeModalKind.GameOver` 下不得 stage 或提交 party/world/coord，磁盘上的战前存档保持不变，随后只卸载当前运行时世界。
 - 任务接取遭遇事务：`GameRuntimeQuestCommandHandler` 只通过 `IGameRuntimeQuestCommandPort` 编排“创建绑定 encounter anchor -> 接受任务 -> party + world 同事务提交”；放置、内容索引、稳定 anchor id 与 rollback 的具体能力归 facade 适配，NPC 与任务板不得复制该接线。
@@ -291,6 +297,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 据点状态边界：`WorldMapSettlementRecordData` 持有完整不可变 `WorldMapSettlementStateData`，其商店子树由 `SettlementShopStateData` / `SettlementShopStockEntryData` typed 持有；每个商店独立拥有自身的 seed、刷新步数和库存，据点层不保存共享镜像。`WorldRuntimeData` 只替换完整聚合，单字段更新走 `With*`。`SettlementShopService` 接收当前 world step 的显式参数并返回更新后的完整状态；world step 与 modal feedback 不写入持久化 `settlement_state`。该子 schema 精确校验并归属当前顶层 save version；只接受当前精确 schema，不做旧版迁移、缺字段补齐或额外字段透传。
 - 世界唯一装备流转边界：`WorldUniqueEquipmentPoolState` 是 reserve/shop location 与原始实例的唯一 world owner。`SettlementShopService` 在库存刷新时把未售出原实例退回 reserve，再按当前商店 `SettlementShopDefinition.UniqueEquipmentOfferChancePercent` 决定是否把一个 reserve 实例转到具体 settlement/shop；商店目录、库存、价格倍率、刷新周期与唯一装备入口概率均来自 `gameplay_configuration`。购买、出售失败和刷新都以原实例转移/回滚，不重新 mint。`GameRuntimeFacade.BattleLootPort` 的普通随机装备掉落入口仍归战利品规则 owner，当前入口概率仍是该 owner 内的固定 5%，并把 pool 纳入战利品 checkpoint；命中凤凰成员时不调用普通 `EquipmentDropService` 生成副本。
 - 适合：runtime 接线、模式切换、世界场景同步、据点/仓库/奖励/任务命令入口。
+- 晋升提示边界：CharacterManagement 提供当前资格与成长变化 revision，`GameRuntimePromotionNotifications` 拥有会话内的展示去重与待展示成员；facade 在命令、战斗 batch 和空闲调度边界自动打开。`WorldMapSystem` 只投影常驻提示与窗口，暂缓不改资格或存档。具体流程见 `docs/design/progression/skill_driven_promotion.md`。
 - 邻接单元：CU-02、CU-04、CU-05、CU-07、CU-08、CU-09、CU-10、CU-12、CU-15、CU-18、CU-21。
 
 #### Settlement Runtime Commands（据点运行时命令）
@@ -312,6 +319,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scenes/ui/npc_quest_offer_dialog.tscn`
   - `scripts/systems/game_runtime/WorldMapSystem.cs`
   - `scripts/ui/ShopWindow.cs`
+  - `docs/design/ui/in_game_window_presentation.md`（共享弹窗主题与商店图标呈现）
+  - `scripts/systems/content/EngineAssetAccess.cs`（从进程资产目录借用 UI 纹理）
 
 ### CU-07 世界地图渲染叶子单元
 
@@ -336,9 +345,14 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/settlement/SettlementSubmissionSource.cs`
   - `scenes/ui/character_info_window.tscn`
   - `scripts/ui/CharacterInfoWindow.cs`
+  - `scripts/systems/game_runtime/GameRuntimeCharacterInfoBuilder.cs`
+  - `scripts/systems/game_runtime/GameRuntimeCharacterInfoBuilder.Details.cs`
+  - `scripts/systems/game_runtime/CharacterAttributeDisplayText.cs`
 - 细节文档：
   - `docs/design/world/settlement_module.md`
+  - `docs/design/ui/character_info_presentation.md`
 - 负责：据点服务窗口、商店窗口、人物信息展示。
+- 人物详情边界：`GameRuntimeCharacterInfoBuilder` 通过窄查询接口读取内容定义，把战斗单位当前属性快照和有效 trait 实例投影为只读展示段落；`CharacterInfoWindow` 只负责布局、滚动与关闭。属性名称由 `CharacterAttributeDisplayText` 持有，队伍属性页共用，不在窗口重新计算属性或聚合 trait。
 - 边界：窗口输入是 runtime 构建的 detached immutable DTO，经普通 C# `ShowXxx(dto)` 直达 UI——据点总览读 `SettlementOverviewWindowData`，商店/任务板/锻造/驿站四面板共用 `SettlementServiceWindowData`，人物信息读 `GameRuntimeCharacterInfoContext`；窗口不持有 `PartyState`，也不再解析 `GDictionary` payload。提交侧 `ShopWindow` 以 `SettlementShopActionRequest` / `SettlementContractBoardActionRequest` / `ForgeActionRequest` / `SettlementStagecoachActionRequest` 四个 typed C# event 上报，只携带稳定 id；价格、库存、quest state、recipe 与 destination 由 runtime 在提交时重查。`SettlementWindow.action_requested` 仍是只传 primitive 的真实 signal 边界。
 - 适合：据点 UI、服务反馈、人物信息展示。
 - 邻接单元：CU-06、CU-12、CU-14。
@@ -355,7 +369,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scenes/ui/mastery_reward_window.tscn`
   - `scripts/ui/MasteryRewardWindow.cs`
 - 负责：队伍编成、转职选择、奖励弹窗、角色摘要展示、触发术 setup 窗口。
-- 边界：窗口只渲染当前状态并通过 signal 提交意图，不直接改 `PartyMemberState`；`PartyManagementWindow` 的装备页通过注入的 `CharacterManagementModule.EvaluateGearSets(...)` 读取当前装备视图，并与战斗人物信息共用 `GameRuntimeCharacterInfoBuilder.BuildGearSetEntries(...)` 的套装摘要投影，granted action 剩余次数/disabled reason 经 `GearSetGrantedActionProjection`（bindings 与 world step 由 `WorldMapSystem` 注入窗口）计算，不在 UI 内复制成员计数或阈值规则。`PromotionChoiceWindow` 直接读取递归 plain promotion prompt，并把 choice/selection 保存在 CLR graph 中。卡片构建只在同步 `SelectionCardBuilder.BuildCard(...)` 调用期间创建 Request-domain projection lease；selection signal 也只在同步 subscriber 回调内投影，当前 `WorldMapSystem` consumer 必须在回调返回前转成 `PromotionSelectionData`，wrapper 不得逃逸到 deferred connection 或下一帧。
+- 名称投影：`WorldMapSystem` 向 `ContingencySetupWindow.SetDisplayDefinitions(...)` 注入已有 skill/item definition 索引；窗口与 `UiDisplayLabels` 只翻译玩家可读名称，列表 metadata 和提交 ID 不变。
+- 边界：窗口只渲染当前状态并通过 signal 提交意图，不直接改 `PartyMemberState`；`PartyManagementWindow` 的装备页通过注入的 `CharacterManagementModule.EvaluateGearSets(...)` 读取当前装备视图，并与战斗人物信息共用 `GameRuntimeCharacterInfoBuilder.BuildGearSetEntries(...)` 的套装摘要投影，granted action 剩余次数/disabled reason 经 `GearSetGrantedActionProjection`（bindings 与 world step 由 `WorldMapSystem` 注入窗口）计算，不在 UI 内复制成员计数或阈值规则。`PromotionChoiceWindow` 直接读取递归 plain promotion prompt，并把 choice/selection 保存在 CLR graph 中。卡片构建只在同步 `SelectionCardBuilder.BuildCard(...)` 调用期间创建 Request-domain projection lease；selection signal 也只在同步 subscriber 回调内投影，当前 `WorldMapSystem` consumer 必须在回调返回前转成 `PromotionCommitRequest`，wrapper 不得逃逸到 deferred connection 或下一帧。
 - 适合：队伍窗口、转职 UI、触发术 setup UI、角色奖励弹窗。
 - 邻接单元：CU-06、CU-10、CU-11、CU-12、CU-14。
 
@@ -419,6 +434,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/player/progression/TraitInstanceCollection.cs`
   - `scripts/player/progression/AttributeSnapshot.cs`
   - `scripts/player/progression/Unit*.cs`
+  - `scripts/player/progression/ProfessionPromotionRecord.cs`
   - `scripts/player/progression/UnitCustomStatMap.cs`
   - `scripts/player/progression/UnitReputationMap.cs`
   - `scripts/player/progression/AchievementProgressState.cs`
@@ -430,6 +446,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/progression/CharacterProgressionDelta.cs`
 - 细节文档：
   - `docs/design/progression/character_module.md`
+  - `docs/design/progression/skill_driven_promotion.md`
   - `docs/design/progression/trait_system.md`
   - `docs/design/progression/fate_runtime.md`
 - 负责：队伍状态、成员状态、成长状态、任务状态、角色奖励载体。
@@ -449,12 +466,12 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/progression/QuestProgressService.cs`
   - `scripts/systems/progression/QuestFailureRequest.cs`
   - `scripts/systems/progression/FaithService.cs`
-  - `scripts/systems/progression/LevelGrowth*.cs`
   - `scripts/systems/progression/PracticeGrowthService.cs`
   - `scripts/systems/attributes/AttributeSourceContext.cs`
   - `scripts/systems/attributes/AttributePermanentChangeSource.cs`
 - 细节文档：
   - `docs/design/progression/character_module.md`
+  - `docs/design/progression/skill_driven_promotion.md`
   - `docs/design/progression/trait_system.md`
   - `docs/design/progression/faith_system.md`
   - `docs/design/progression/fate_runtime.md`
@@ -554,7 +571,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-14 progression 规则与跨系统属性服务
 
 - 文件：
-  - `scripts/systems/progression/ProgressionService.cs`
+  - `scripts/systems/progression/ProgressionService*.cs`
+  - `scripts/systems/progression/Promotion*.cs`
   - `scripts/systems/progression/Profession*.cs`
   - `scripts/systems/progression/SkillMergeService.cs`
   - `scripts/systems/progression/AttributeGrowthService.cs`
@@ -567,14 +585,15 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/attributes/AttributePermanentChangeSource.cs`
 - 细节文档：
   - `docs/design/progression/character_module.md`
+  - `docs/design/progression/skill_driven_promotion.md`
   - `docs/design/progression/trait_system.md`
   - `docs/design/progression/faith_system.md`
   - `docs/design/progression/fate_runtime.md`
   - `docs/design/battle/counterattack_system.md`
   - `docs/design/battle/action_cadence.md`
 - 负责：成长公式、职业规则、技能规则、建卡规则、属性计算。
-- 边界：promotion 规则输入由 `PromotionSelectionData` 承载，永久属性写入授权由 `AttributePermanentChangeSource` 承载（protected custom stat 仅 CharacterCreation 或显式授权 StoryScript 可写）。建卡候选、建卡提交与 identity payload 校验只接收 process snapshot 的不可变 `ProgressionIdentityCatalogData`，不得接收或回查加载期 `ProgressionContentRegistry`；registry → definition 投影只发生在 CU-13 的 snapshot 构建边界。技能书只通过 `ICharacterSkillLearningGateway` 查询 practice replacement 并提交学习，黑兆只通过 `ICharacterMemberStateQuery` 查询成员，Fate guidance 只通过 `IFateCharacterGateway` 读取队伍/成员并提交成就；这些 domain service 不持有或向下转型 `CharacterManagementModule` composition root。默认建档角色不预置职业进度或职业核心技能；随机书技能候选排除起始等级一槽 MP 消耗超过 40 的内容，`RandomStartingSkillResourceSupportService` 在选中耗蓝技能时原子授予 0 级 `basic_meditation`、解锁 MP，并把初始 `mp_max/current_mp` 设为该技能实际消耗至 40 的闭区间内随机值。`ProgressionService` 的 selection、tag deficit、dedupe、preview 与 rollback 全部使用 `List` / `HashSet` / typed CLR Dictionary；顺序由 List 保留，HashSet 只做 membership，持久字段显式写入 `StringNameList`，业务算法和回滚快照不创建 Godot Array/Dictionary。`ProgressionService` 的手动学习入口拒绝 `internal` 以及职业/身份授予来源；内部 SkillDef 只能由明确持有其定义的运行时服务直接结算。`AttributeService` / inventory / trait / character-management 运行时只消费 plain `AttributeModifierDefinition`、CLR-backed `DerivedAttributeRule` 与 `AttributeContentRules` 固定属性契约；authored `AttributeModifier : Resource` 只在内容投影输入端存在，不由运行时动态创建。generic trait 属性入口是 `trait_attribute_modifiers`（保留 modifier 自身 source_type/source_id，不并入 equipment/passive 默认来源）；基础六维派生的 `*_modifier` 可被 modifier overlay 叠加但不回写基础属性或成长事实；AC component 的集合与 membership 由 `AttributeContentRules` 拥有，`AttributeService` 只负责汇总计算；BAB 直接消费 `ProfessionBaseAttackProgression`。
-- Weapon-training 晋升边界：`SkillProfessionPromotionRules` 是带 `weapon_training` 标签的技能能否触发职业升级的唯一判定。该类技能仍可学习、设为 core、增长 mastery/skill level，但 `LevelGrowthEvaluationService`、`ProfessionRuleService` 与 `ProgressionService` 都不能把它作为 active trigger、rank-up preview assignment 或 promotion selection；`CharacterManagementModule` 只过滤本次 weapon-training mastery delta 产生的 pending choice/modal，不删除 canonical owner 中由其他技能产生的既有 choice。
+- 边界：promotion 完整提交由 immutable `PromotionCommitRequest` 承载；`PromotionEligibilityRules` 区分基础成长资格与实际满级，`ProgressionService.PreparePromotion` 在 UnitProgress 副本完成结算，CharacterManagement 一次发布。职业晋升历史是唯一消费事实，临时 prompt 由 runtime 持有并在打开时重新查询；人物管理与 G 入口共用该链，暂缓恢复世界／战斗流程。永久属性写入授权由 `AttributePermanentChangeSource` 承载（protected custom stat 仅 CharacterCreation 或显式授权 StoryScript 可写）。建卡候选、建卡提交与 identity payload 校验只接收 process snapshot 的不可变 `ProgressionIdentityCatalogData`，不得接收或回查加载期 `ProgressionContentRegistry`；registry → definition 投影只发生在 CU-13 的 snapshot 构建边界。技能书只通过 `ICharacterSkillLearningGateway` 查询 practice replacement 并提交学习，黑兆只通过 `ICharacterMemberStateQuery` 查询成员，Fate guidance 只通过 `IFateCharacterGateway` 读取队伍/成员并提交成就；这些 domain service 不持有或向下转型 `CharacterManagementModule` composition root。默认建档角色不预置职业进度或职业核心技能；随机书技能候选排除起始等级一槽 MP 消耗超过 40 的内容，`RandomStartingSkillResourceSupportService` 在选中耗蓝技能时原子授予 0 级 `basic_meditation`、解锁 MP，并把初始 `mp_max/current_mp` 设为该技能实际消耗至 40 的闭区间内随机值。`ProgressionService` 的 selection、tag deficit、dedupe、preview 与晋升候选副本 全部使用 `List` / `HashSet` / typed CLR Dictionary；顺序由 List 保留，HashSet 只做 membership，持久字段显式写入 `StringNameList`，业务算法和晋升候选副本不创建 Godot Array/Dictionary。`ProgressionService` 的手动学习入口拒绝 `internal` 以及职业/身份授予来源；内部 SkillDef 只能由明确持有其定义的运行时服务直接结算。`AttributeService` / inventory / trait / character-management 运行时只消费 plain `AttributeModifierDefinition`、CLR-backed `DerivedAttributeRule` 与 `AttributeContentRules` 固定属性契约；authored `AttributeModifier : Resource` 只在内容投影输入端存在，不由运行时动态创建。generic trait 属性入口是 `trait_attribute_modifiers`（保留 modifier 自身 source_type/source_id，不并入 equipment/passive 默认来源）；基础六维派生的 `*_modifier` 可被 modifier overlay 叠加但不回写基础属性或成长事实；AC component 的集合与 membership 由 `AttributeContentRules` 拥有，`AttributeService` 只负责汇总计算；BAB 直接消费 `ProfessionBaseAttackProgression`。
+- Weapon-training 晋升边界：`SkillProfessionPromotionRules` 是带 `weapon_training` 标签的技能能否触发职业升级的唯一判定。该类技能仍可学习、设为 core、增长 mastery/skill level，但 `PromotionEligibilityRules.IsReadyTrigger` 统一消费此规则，候选发现与 `ProgressionService.PreparePromotion` 都不能把它作为成长触发技能；`CharacterManagementModule` 只过滤本次 weapon-training mastery delta 产生的 pending choice/modal，不删除 canonical owner 中由其他技能产生的既有 choice。
 - 适合：成长规则、属性公式、建卡候选、职业/技能规则。
 - 邻接单元：CU-01、CU-09、CU-11、CU-12、CU-13、CU-15、CU-19。
 
@@ -752,6 +771,9 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scenes/ui/battle_map_panel.tscn`
   - `scripts/ui/BattleMapPanel.cs`
   - `scripts/ui/BattleMapPanel.SkillGrid.cs`
+  - `scripts/ui/BattleSkillSlotButton.cs`
+  - `scripts/ui/BattleSkillTooltipPanel.cs`
+  - `scripts/ui/BattleMapPanel.Equipment.cs`
   - `scripts/systems/battle/presentation/BattleHudAdapter.cs`
   - `scripts/systems/battle/presentation/BattleHudSnapshot.cs`
   - `scripts/systems/battle/core/BattleObjectiveProgressSnapshot.cs`
@@ -763,13 +785,32 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/ui/BattleUiTheme.cs`
   - `scripts/ui/BattleBoardRenderProfile.cs`
   - `scripts/ui/BattleBoardController.cs`
+  - `scripts/ui/BattleBoardController.TerrainArt.cs`
+  - `scripts/ui/BattleTerrainPaintLayer.cs`
+  - `tests/battle_runtime/rendering/run_battle_board_terrain_mutation_regression.cs`
+  - `scripts/ui/BattleUnitTokenDecoration.cs`
+  - `assets/main/battle/units/player/basic_*.png`
+  - `assets/main/battle/units/player/basic_*.tres`
+  - `docs/content/ui/battle_player_art.md`
+  - `tests/battle_runtime/rendering/run_battle_player_sprite_regression.cs`
+  - `assets/shaders/battle_painted_*.gdshader`
+  - `assets/shaders/battle_tactical_marker.gdshader`
+  - `assets/shaders/battle_tactical_grid.gdshader`
+  - `assets/main/battle/terrain/canyon_painted/*.png`
+  - `scenes/ui/styles/battle_*_material.tres`
   - `scenes/common/battle_board_prop.tscn`
   - `scripts/ui/BattleBoardProp.cs`
 - 细节文档：
   - `docs/design/battle/counterattack_system.md`
 - 负责：battle HUD、棋盘绘制、单位/prop 渲染、相机、overlay、hover 展示。
+- 动态高度：`BattleCellState` 拥有 -5～8 层合法范围，grid 与 render profile 共用；场景和绘制使用全部有符号高度，数组下标单独转换。`BattleGroundEffectService` 的 changed coords 经 `BattlePresentationDeltaFactory` 触发 FullBoard，重建地面、跨零岩壁、格线、树木、单位与拾取位置；正负高度命令和资源回收由 terrain mutation 渲染回归覆盖。
+- 玩家基础外观：`BattleBoardSnapshotBuilder` 对没有显式 sprite ID 的持久队员按当前 weapon family 投影战士 / 法师 / 弓箭手的已登记 engine asset ID；只存在于 detached 展示快照，换装随 unit delta 刷新，不写回 runtime 或 save。正式指定贴图始终优先。
+- 常驻格线：`BattleBoardController.TerrainArt` 为每个地形表面创建同坐标的 `TacticalGridH` 绘制命令，按高度放在树木 / 地形效果之上、行动标记和单位之下；借用 `battle_tactical_grid_material.tres`，shader 按物理像素保持边界宽度，unit delta 不重建格线。
+- 棋盘呈现：`BattleBoardController.TerrainArt` 从 detached cell / edge snapshot 构建跨格连续取样的手绘表面、岩壁和装饰，`BattleTerrainPaintLayer` 保存绘制命令；`BattleBoardRenderProfile` 指定素材目录、80 像素视觉高度步长和战术 marker 材质。board lease 拥有一个地形数据 `ImageTexture` 和共享 `ShaderMaterial`，路径素材与 shader 仍从 process engine asset owner 借用。`BattleUnitTokenDecoration` 拥有 draw-only 脚底标记和无贴图单位徽牌。相机、拾取和手绘顶点共享 render profile，详见 `docs/design/ui/battle_map_presentation.md`。
+- 技能悬停：`BattleHudAdapter` 从有效技能等级、canonical 射程 / 消耗 owner 和 `SkillLevelDescriptionFormatter` 的 plain context 入口投影 `BattleHudSkillTooltipSnapshot`，通过既有 member 查询读取角色成长 owner 的熟练度，并用 `SkillEffectiveMaxLevelRules` 判定当前等级上限；`BattleSkillTooltipPanel` 只排版已冻结的等级说明、战斗数值与熟练度，普通描述保留在人物详情技能页。技能网格缓存覆盖详情数据；`BattleSkillSlotButton` 拥有悬停计时、viewport 内定位与节点生命周期，鼠标可进入固定图框滚动正文。详见 `docs/design/ui/battle_skill_tooltip.md`。
+- 战中背包：`BattleMapPanel.Equipment` 的 `BattleEquipmentOverlay/ModalCanvas` 同时承载局部弹窗的绘制与 GUI 输入层，避免后置日志 HUD 拦截弹窗控件；可见性跟随背包根，隐藏战斗时同步关闭。局部主题与装饰见跨窗口共享呈现读集。
 - 高分屏布局：`MapViewportHost` 只参与逻辑排版，内部 `SubViewportContainer` 按实际 stretch transform 计算物理渲染尺寸并反向缩放；鼠标输入使用同一容器的局部像素坐标。地图边界随顶部与底部 HUD 高度更新，避免覆盖操作区的命中范围。技能网格省略空槽但保留原始命令索引，FateGlow 位于普通 Control 内以保持 3 像素逻辑高度。底栏最大逻辑宽度为 1360，完整日志默认折叠；世界日志展开高度限制为 360，战斗为 520。
-- 边界：`BattleHudAdapter` 通过只读/preview `IBattleHudContext` 把 runtime facts 转成 detached `BattleHudSnapshot` / `BattleHoverSnapshot`，不持有 `GameRuntimeFacade` 或 `GameSession`；context 只提供 battle state、content、member facts、cast gating 与 preview 能力，包括从 `BattleBarrierStore` 投影出的 active layered-barrier 摘要和从 `BattleObjectiveProgressSnapshot` 投影出的目标标题/进度。技能槽原样携带 `SkillDefinition.IconId`：非空值由 `BattleMapPanel.SkillGrid` 只通过 `EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>` 解析，空值使用短名 glyph；展示层不拼接技能图标路径，也不回退到 `skill_id`、其他技能图标或 authored-path migration seam。`BattleBoardSnapshotBuilder` 在同步展示边界把 cell、edge、unit、terrain overlay 与 objective marker facts 投影为 immutable `BattleBoardRenderSnapshot`，单位增量只生成 `BattleBoardUnitUpdateSnapshot` 并由当前 board snapshot 合并。`BattleMapPanel` 在异步首帧 reveal 开始前完成 HUD/board 投影，pending payload 不保存 live `BattleState`；`BattleBoard2D` 与 `BattleBoardController` 只持有 detached snapshot。Escape/Escort/Intercept 的冻结出口格、NodeOperation 的未完成节点与 Control 的全部占领格由 board snapshot 提供独立 marker source；Rescue HUD 提示持久队员移动到目标相邻位置并点击交互；Defense HUD 显示受保护单位和当前/开始/截止/剩余 TU；NodeOperation HUD/快照显示逐节点坐标、完成位和完成数；Control HUD/快照显示双方分数、目标分与逐区域归属。规则真相仍在 objective runtime。UI 不解析或长期保存 Godot collection，也不拥有命中、伤害、射程或目标合法性计算。`BattleMapPanel` 对 pathless shader material 使用 scene-domain lease，并先清空 `TextureRect` 的 material/texture borrower 再关闭 owner；path-backed shader/texture/scene 始终借用。`BattleBoardController` 每次 bind 持有一个 render-generation `NativeLeaseScope`，只拥有 pathless `TileSet` / atlas / `Image` / `ImageTexture` / style box，`Clear()`、rebind 与 `BattleBoard2D._ExitTree()` 都先清 borrower 再幂等关闭该 lease。`BattleBoardProp` 为按需创建的 pathless `CircleShape2D` 建立独立 SceneTree-domain lease，离树时先禁用 area、清 `CollisionShape2D.Shape` borrower，再关闭 shape owner；展示主链不再启用 production quarantine，lease owner/scope 计数在 clear/rebind/exit 后回到调用前向量。
+- 边界：`BattleHudAdapter` 通过只读/preview `IBattleHudContext` 把 runtime facts 转成 detached `BattleHudSnapshot` / `BattleHoverSnapshot`，不持有 `GameRuntimeFacade` 或 `GameSession`；context 只提供 battle state、content、member facts、cast gating 与 preview 能力，包括从 `BattleBarrierStore` 投影出的 active layered-barrier 摘要和从 `BattleObjectiveProgressSnapshot` 投影出的目标标题/进度。技能槽原样携带 `SkillDefinition.IconId`：非空值由 `BattleMapPanel.SkillGrid` 只通过 `EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>` 解析，空值使用短名 glyph；展示层不拼接技能图标路径，也不回退到 `skill_id`、其他技能图标或 authored-path migration seam。`BattleBoardSnapshotBuilder` 在同步展示边界把 cell、edge、unit、terrain overlay 与 objective marker facts 投影为 immutable `BattleBoardRenderSnapshot`，单位增量只生成 `BattleBoardUnitUpdateSnapshot` 并由当前 board snapshot 合并。`BattleMapPanel` 在异步首帧 reveal 开始前完成 HUD/board 投影，pending payload 不保存 live `BattleState`；`BattleBoard2D` 与 `BattleBoardController` 只持有 detached snapshot。Escape/Escort/Intercept 的冻结出口格、NodeOperation 的未完成节点与 Control 的全部占领格由 board snapshot 提供独立 marker source；Rescue HUD 提示持久队员移动到目标相邻位置并点击交互；Defense HUD 显示受保护单位和当前/开始/截止/剩余 TU；NodeOperation HUD/快照显示逐节点坐标、完成位和完成数；Control HUD/快照显示双方分数、目标分与逐区域归属。规则真相仍在 objective runtime。UI 不解析或长期保存 Godot collection，也不拥有命中、伤害、射程或目标合法性计算。`BattleMapPanel` 对 pathless shader material 使用 scene-domain lease，并先清空 `TextureRect` 的 material/texture borrower 再关闭 owner；path-backed shader/texture/scene 始终借用。`BattleBoardController` 每次 bind 持有一个 render-generation `NativeLeaseScope`，只拥有 pathless `TileSet` / atlas / `Image` / `ImageTexture` / `ShaderMaterial` / style box，`Clear()`、rebind 与 `BattleBoard2D._ExitTree()` 都先清 borrower 再幂等关闭该 lease。`BattleBoardProp` 为按需创建的 pathless `CircleShape2D` 建立独立 SceneTree-domain lease，离树时先禁用 area、清 `CollisionShape2D.Shape` borrower，再关闭 shape owner；展示主链不再启用 production quarantine，lease owner/scope 计数在 clear/rebind/exit 后回到调用前向量。
 - 展示增量边界：advance、命令、cancel 与多段 tick 统一生成 typed `BattlePresentationDelta`。log-only 只刷新日志文本；unit-state delta 只替换目标 token，并在没有 log/full-board fact 时跳过 runtime log 全表扫描；timeline 变化可刷新全部 unit token但不重建 TileMap；placement/full-board 才走保守全刷新。hover 每次输入最多计算一次 preview，并只在同一 selected-preview key 命中时复用缓存，cache miss 回退普通 overlay。
 - 地形 overlay source 边界：`BattleBoardSnapshotBuilder` 只投影 active terrain effect 的 `render_overlay_id` 与优先级；`BattleBoardRenderProfile` 是 id 到 overlay layer/source spec 的唯一展示映射，`BattleBoardController` 把已登记 source 写入对应地形高度的 `OverlayH`。未登记 id 保持不可见，已登记但无专用贴图的 source 可显式启用通用 generated fallback；运行时地形系统不按装备或技能 id 创建 UI 节点。
 - 反击展示边界：预览层不传递反击风险。`BattleCommandPreviewService` / `BattleSkillPreviewService` 不查询反击 capability/readiness，不计算概率、期望次数或伤害；`BattlePreview`、public projection、`BattleHudAdapter` 与 `BattleHudSnapshot` 不含反击风险字段。HUD 只对 party-backed focus unit 显示其自身 detached reaction budget，非 party-backed 精确预算固定隐藏；该预算不是当前命令的风险推导。真实反击只由正式攻击提交后的 `BattleAttackResolutionFact` 触发并在 drain 时复核。`BattlePresentationDelta` 继续只携带 dirty facts。
