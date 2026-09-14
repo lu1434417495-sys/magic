@@ -21,8 +21,10 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 display_name = "Potion",
                 base_price = 10,
                 buy_price = 10,
+                sell_price = 5,
                 max_stack = 99,
                 sellable = true,
+                icon_asset_id = "fixture.item.potion",
             }.ToDefinition();
             var typedItemDefs = new Dictionary<StringName, ItemDefinition>
             {
@@ -106,6 +108,8 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 windowResult.StateChanged,
                 "未到刷新周期时打开商店不应制造顶层镜像状态变更。"
             );
+            _test.Eq(windowResult.WindowData.Entries[0].IconAssetId, potionDefinition.IconAssetId,
+                "买入条目应携带物品定义的图标资产 id。");
             SettlementShopStateData unchangedPrimary = windowResult.UpdatedSettlementState
                 .GetShopState("village_basic_supply");
             SettlementShopStateData unchangedOther = windowResult.UpdatedSettlementState
@@ -164,6 +168,17 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 1
             );
             _test.True(result.Success, $"buy should succeed: {result.Message}");
+
+            SettlementShopWindowBuildResult afterPurchase = service.BuildWindowDataTyped(
+                "service_basic_supply",
+                new GDictionary { ["display_name"] = "Village", ["settlement_id"] = "village" },
+                result.UpdatedSettlementState, 7, "", typedItemDefs, warehouse, party.GetGold());
+            _test.Eq(afterPurchase.WindowData.Entries.Count, 1,
+                "买光库存后应保留仓库中物品的卖出条目。");
+            _test.True(afterPurchase.WindowData.Entries[0].Selection is SettlementShopSelectionData
+                { ActionKind: SettlementShopActionKind.Sell }, "买入物品应能从仓库卖出。");
+            _test.Eq(afterPurchase.WindowData.Entries[0].IconAssetId, potionDefinition.IconAssetId,
+                "卖出条目应携带相同物品的图标资产 id。");
 
             IReadOnlyList<SettlementShopStockEntryData> inventory = result
                 .UpdatedSettlementState

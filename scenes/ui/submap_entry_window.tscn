@@ -1,9 +1,13 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 ; Scene purpose: Reusable confirmation modal scene for submap entry, battle start, and game-over return flows.
 
 [ext_resource type="Script" path="res://scripts/ui/SubmapEntryWindow.cs" id="1_window"]
 
+[ext_resource type="Theme" path="res://scenes/ui/styles/chronicle_theme.tres" id="90_chronicle"]
+[ext_resource type="Texture2D" path="res://assets/ui/windows/settlement_vignette.png" id="91_art"]
+
 [node name="SubmapEntryWindow" type="Control"]
+theme = ExtResource("90_chronicle")
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,8 +16,10 @@ grow_horizontal = 2
 grow_vertical = 2
 visible = false
 script = ExtResource("1_window")
+HeaderArtwork = ExtResource("91_art")
 
 [node name="Shade" type="ColorRect" parent="."]
+color = Color(0.018, 0.023, 0.03, 0.48)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -21,7 +27,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
-color = Color(0, 0, 0, 0.72)
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -37,20 +42,20 @@ custom_minimum_size = Vector2(420, 0)
 layout_mode = 2
 
 [node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 26
+theme_override_constants/margin_left = 26
 layout_mode = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 20
 
 [node name="Layout" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
 [node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Layout"]
+theme_type_variation = &"ChronicleTitle"
 layout_mode = 2
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 22
 text = "进入子地图"
 
 [node name="DescriptionLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Layout"]
@@ -65,11 +70,13 @@ alignment = 1
 theme_override_constants/separation = 12
 
 [node name="CancelButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Layout/ButtonRow"]
+theme_type_variation = &"ChronicleQuiet"
 custom_minimum_size = Vector2(120, 42)
 layout_mode = 2
 text = "取消"
 
 [node name="ConfirmButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Layout/ButtonRow"]
+theme_type_variation = &"ChroniclePrimary"
 custom_minimum_size = Vector2(140, 42)
 layout_mode = 2
 text = "确认进入"

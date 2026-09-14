@@ -16,6 +16,10 @@ internal interface IGameRuntimeCharacterInfoQuery
 
     bool TryGetTraitDefinition(StringName traitId, out TraitDefinition traitDefinition);
 
+    bool TryGetSkillDefinition(StringName skillId, out SkillDefinition skillDefinition);
+
+    ProgressionIdentityCatalogData GetIdentityCatalog();
+
     GearSetEvaluationSnapshot EvaluateGearSets(
         StringName memberId,
         EquipmentState equipmentStateOverride

@@ -1,14 +1,18 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 ; Scene purpose: Settlement interaction modal scene for location summary and action selection.
 ; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
 
 ; External scripts, scenes, and shared assets referenced by this scene.
 [ext_resource type="Script" path="res://scripts/ui/SettlementWindow.cs" id="1_h24uw"]
-[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
+[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/chronicle_panel.tres" id="2_panel_default"]
 
 ; Root node and primary scene tree.
+[ext_resource type="Theme" path="res://scenes/ui/styles/chronicle_theme.tres" id="90_chronicle"]
+[ext_resource type="Texture2D" path="res://assets/ui/windows/settlement_vignette.png" id="91_art"]
+
 [node name="SettlementWindow" type="Control"]
+theme = ExtResource("90_chronicle")
 visible = false
 layout_mode = 3
 anchors_preset = 15
@@ -17,9 +21,11 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_h24uw")
+HeaderArtwork = ExtResource("91_art")
 
 ; Modal backdrop that dims the parent scene and blocks background input.
 [node name="Shade" type="ColorRect" parent="."]
+color = Color(0.018, 0.023, 0.03, 0.48)
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -27,7 +33,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0196078, 0.027451, 0.0588235, 0.7)
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -39,22 +44,23 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(1120, 720)
+custom_minimum_size = Vector2(1100, 640)
 layout_mode = 2
 theme_override_styles/panel = ExtResource("2_panel_default")
 
 [node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
-layout_mode = 2
-theme_override_constants/margin_left = 28
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 28
 theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 26
+theme_override_constants/margin_left = 26
+layout_mode = 2
 
 [node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+theme_override_constants/separation = 14
 layout_mode = 2
-theme_override_constants/separation = 18
 
 [node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 theme_override_constants/separation = 12
 
@@ -64,23 +70,25 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
 [node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
+theme_type_variation = &"ChronicleTitle"
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 32
 text = "据点名称"
 
 [node name="MetaLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
+theme_override_colors/font_color = Color(0.69, 0.68, 0.62, 1)
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 16
 autowrap_mode = 3
 text = "等级 | 占地 | 阵营"
 
 [node name="CloseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+theme_type_variation = &"ChronicleQuiet"
 unique_name_in_owner = true
 layout_mode = 2
+custom_minimum_size = Vector2(88, 40)
+size_flags_vertical = 0
 text = "关闭"
 
 [node name="Body" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
@@ -95,25 +103,24 @@ size_flags_vertical = 3
 theme_override_constants/separation = 12
 
 [node name="FacilitiesTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
-text = "设施结构"
+text = "设施"
 
 [node name="FacilitiesLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+size_flags_stretch_ratio = 0.45
 bbcode_enabled = false
 scroll_active = true
 fit_content = false
 text = "设施"
 
 [node name="ResidentTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
-text = "设施绑定 NPC"
+text = "驻留人物"
 
 [node name="ResidentLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
 unique_name_in_owner = true
@@ -125,9 +132,8 @@ fit_content = false
 text = "NPC"
 
 [node name="MemberTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
 text = "出发成员"
 
 [node name="MemberSelector" type="OptionButton" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
@@ -136,9 +142,9 @@ custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 
 [node name="MemberStateLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/LeftColumn"]
+theme_override_colors/font_color = Color(0.69, 0.68, 0.62, 1)
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
 theme_override_font_sizes/font_size = 15
 autowrap_mode = 3
 text = "成员状态"
@@ -150,14 +156,14 @@ size_flags_vertical = 3
 theme_override_constants/separation = 12
 
 [node name="ServicesTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
-text = "窗口服务"
+text = "据点服务"
 
 [node name="ServicesScroll" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
 layout_mode = 2
 size_flags_vertical = 3
+size_flags_stretch_ratio = 3.0
 
 [node name="ServicesContainer" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn/ServicesScroll"]
 unique_name_in_owner = true
@@ -166,41 +172,37 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 10
 
 [node name="ServiceStateTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
 text = "服务状态"
 
 [node name="ServiceStateLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
 theme_override_font_sizes/font_size = 15
 autowrap_mode = 3
 text = "状态"
 
 [node name="ServiceCostTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
 text = "服务费用"
 
 [node name="ServiceCostLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
 theme_override_font_sizes/font_size = 15
 autowrap_mode = 3
 text = "费用"
 
 [node name="ServiceDetailsTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
 text = "服务说明"
 
 [node name="ServiceDetailsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 90)
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = false
@@ -209,16 +211,13 @@ fit_content = false
 text = "服务详情"
 
 [node name="FeedbackTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
 text = "交付反馈"
 
 [node name="FeedbackLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/RightColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
 theme_override_font_sizes/font_size = 15
 autowrap_mode = 3
 text = "反馈"

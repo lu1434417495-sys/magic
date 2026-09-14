@@ -550,7 +550,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         lines.Add("核心属性：");
         foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             lines.Add(
-                $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
+                $"- {CharacterAttributeDisplayText.GetLabel(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("成就摘要：");
@@ -656,19 +656,19 @@ public partial class PartyManagementWindow : ModalWindowShell
         var lines = new List<string> { "基础属性：" };
         foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             lines.Add(
-                $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
+                $"- {CharacterAttributeDisplayText.GetLabel(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("资源属性：");
         foreach (StringName attributeId in AttributeService.RESOURCE_ATTRIBUTE_IDS)
             lines.Add(
-                $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
+                $"- {CharacterAttributeDisplayText.GetLabel(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("战斗属性：");
         foreach (StringName attributeId in AttributeService.COMBAT_ATTRIBUTE_IDS)
             lines.Add(
-                $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
+                $"- {CharacterAttributeDisplayText.GetLabel(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("命运：");
@@ -1166,7 +1166,7 @@ public partial class PartyManagementWindow : ModalWindowShell
             int value = modifier.GetValueForRank(rank);
             if (attributeId == (StringName)"" || value == 0)
                 continue;
-            lines.Add($"{_get_attribute_label(attributeId)} {value:+0;-0;0}");
+            lines.Add($"{CharacterAttributeDisplayText.GetLabel(attributeId)} {value:+0;-0;0}");
         }
         return lines;
     }
@@ -1191,57 +1191,6 @@ public partial class PartyManagementWindow : ModalWindowShell
         if (skillType == (StringName)"combat")
             return "战斗";
         return skillType != (StringName)"" ? skillType.ToString() : "";
-    }
-
-    private static string _get_attribute_label(StringName attributeId)
-    {
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength))
-            return "力量";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
-            return "敏捷";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution))
-            return "体质";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception))
-            return "感知";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence))
-            return "智力";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower))
-            return "意志";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth))
-            return "出生隐藏幸运";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.FaithLuckBonus))
-            return "信仰幸运加值";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.HpMax))
-            return "生命上限";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus))
-            return "人物生命加成%";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.MpMax))
-            return "法力上限";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.StaminaMax))
-            return "体力上限";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus))
-            return "体力恢复加成%";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.NaturalArmorAcBonus))
-            return "天生护甲 AC";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.AuraMax))
-            return "灵气上限";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionPoints))
-            return "行动点";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionThreshold))
-            return "行动阈值 TU";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorClass))
-            return "AC";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus))
-            return "护甲 AC";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ShieldAcBonus))
-            return "盾牌 AC";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.DodgeBonus))
-            return "闪避加值";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.DeflectionBonus))
-            return "偏斜加值";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus))
-            return "护甲敏捷上限";
-        return attributeId.ToString();
     }
 
     private List<string> _build_achievement_summary_lines(UnitProgress progression)

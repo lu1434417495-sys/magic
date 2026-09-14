@@ -188,16 +188,16 @@ public partial class SettlementWindow : ModalWindowShell
             identityText,
         };
         if (!string.IsNullOrEmpty(_windowData.StateSummaryText))
-            lines.Add(_windowData.StateSummaryText);
+            lines.Add(_windowData.StateSummaryText.Replace("\n", "  ·  "));
         return string.Join("\n", lines);
     }
 
     private string _build_facility_text()
     {
         if (_windowData.Facilities.Count == 0)
-            return "设施：暂无";
+            return "暂无设施";
 
-        var lines = new List<string> { "设施：" };
+        var lines = new List<string>();
         foreach (SettlementFacilityEntryData facility in _windowData.Facilities)
         {
             string line = $"- {facility.DisplayName}";
@@ -209,9 +209,9 @@ public partial class SettlementWindow : ModalWindowShell
     private string _build_resident_text()
     {
         if (_windowData.Residents.Count == 0)
-            return "驻留 NPC：暂无";
+            return "暂无驻留人物";
 
-        var lines = new List<string> { "驻留 NPC：" };
+        var lines = new List<string>();
         foreach (SettlementResidentEntryData resident in _windowData.Residents)
             lines.Add(
                 $"- {resident.DisplayName} · {resident.FacilityName}"
@@ -268,14 +268,9 @@ public partial class SettlementWindow : ModalWindowShell
 
         var lines = new List<string>
         {
-            $"成员：{option.DisplayName}",
-            $"编组：{option.RosterRole}",
+            $"成员：{option.DisplayName} · {option.RosterRole}",
             $"HP {option.CurrentHp} / MP {option.CurrentMp}",
         };
-        if (option.IsLeader)
-            lines.Add("状态：当前队长");
-        if (!string.IsNullOrEmpty(_windowData.StateSummaryText))
-            lines.Add(_windowData.StateSummaryText);
         member_state_label.Text = string.Join("\n", lines);
     }
 
@@ -289,6 +284,7 @@ public partial class SettlementWindow : ModalWindowShell
             {
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 CustomMinimumSize = new Vector2(0, 58),
+                Alignment = HorizontalAlignment.Left,
                 Text = _build_service_button_text(service),
                 Disabled = !service.IsEnabled,
             };
@@ -312,8 +308,8 @@ public partial class SettlementWindow : ModalWindowShell
 
     private static string _build_service_button_text(ResolvedService service)
     {
-        string text =
-            $"{service.FacilityName} · {service.NpcName}\n{service.StateLabel}  |  {service.CostLabel}";
+        string cost = string.IsNullOrEmpty(service.CostLabel) ? "" : $"  ·  {service.CostLabel}";
+        string text = $"{service.FacilityName} · {service.NpcName}\n{service.StateLabel}{cost}";
         if (!service.IsEnabled && !string.IsNullOrEmpty(service.DisabledReason))
             text += $"\n{service.DisabledReason}";
         return text;
@@ -324,7 +320,9 @@ public partial class SettlementWindow : ModalWindowShell
         if (_windowData.Services.Count == 0)
         {
             service_state_label.Text = "状态：暂无服务";
-            service_cost_label.Text = "费用：暂无服务";
+            service_cost_label.Text = "";
+            service_cost_label.Hide();
+            service_cost_label.GetParent().GetNode<Label>("ServiceCostTitle").Hide();
             service_details_label.Text = "当前据点没有可用服务。";
             return;
         }
@@ -336,6 +334,8 @@ public partial class SettlementWindow : ModalWindowShell
         );
         service_state_label.Text = service.StateLabel;
         service_cost_label.Text = service.CostLabel;
+        service_cost_label.Visible = !string.IsNullOrEmpty(service.CostLabel);
+        service_cost_label.GetParent().GetNode<Label>("ServiceCostTitle").Visible = service_cost_label.Visible;
         service_details_label.Text = _build_service_detail_text(service);
     }
 
@@ -346,8 +346,6 @@ public partial class SettlementWindow : ModalWindowShell
             $"设施：{service.FacilityName}",
             $"NPC：{service.NpcName}",
             $"服务：{UiDisplayLabels.SettlementService(service.ServiceType)}",
-            $"状态：{service.StateLabel}",
-            $"费用：{service.CostLabel}",
         };
         if (!string.IsNullOrEmpty(service.DisabledReason))
             lines.Add($"说明：{service.DisabledReason}");

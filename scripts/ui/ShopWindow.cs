@@ -5,6 +5,9 @@ using Godot;
 [GlobalClass]
 public partial class ShopWindow : ModalWindowShell
 {
+    [Export]
+    public Texture2D EmptyItemIcon { get; set; }
+
     // Panel-specific typed submissions. The window never assembles a property bag for the
     // runtime to re-parse: it only reports which stable id the player picked.
     internal event Action<SettlementShopActionRequest> ShopActionRequested;
@@ -322,7 +325,13 @@ public partial class ShopWindow : ModalWindowShell
     {
         entry_list.Clear();
         foreach (SettlementServiceWindowEntryData entry in _windowData.Entries)
-            entry_list.AddItem(_build_entry_label(entry));
+        {
+            Texture2D icon = !string.IsNullOrEmpty(entry.IconAssetId)
+                ? EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(
+                    this, new StringName(entry.IconAssetId))
+                : entry.Selection is SettlementShopSelectionData ? EmptyItemIcon : null;
+            entry_list.AddItem(_build_entry_label(entry), icon);
+        }
     }
 
     private static string _build_entry_label(SettlementServiceWindowEntryData entry)

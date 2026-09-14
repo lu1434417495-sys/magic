@@ -143,6 +143,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         party_management_window.SetItemDefs(contentCatalog.GetItemDefsTyped());
         party_management_window.SetTraitDefs(contentCatalog.GetTraitDefsTyped());
         party_management_window.SetSkillDefinitions(contentCatalog.GetSkillDefinitionsTyped());
+        contingency_setup_window.SetDisplayDefinitions(contentCatalog.GetSkillDefinitionsTyped(), contentCatalog.GetItemDefsTyped());
         party_management_window.SetProfessionDefs(contentCatalog.GetProfessionDefsTyped());
         party_management_window.SetEquipmentAbilityBindings(
             contentCatalog.GetEquipmentAbilityBindingDefinitionsTyped()

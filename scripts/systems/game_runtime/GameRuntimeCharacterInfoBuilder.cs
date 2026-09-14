@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
-internal sealed class GameRuntimeCharacterInfoBuilder
+internal sealed partial class GameRuntimeCharacterInfoBuilder
 {
     private static readonly StringName FortuneMarkedStatId = "fortune_marked";
     private static readonly StringName DoomMarkedStatId = "doom_marked";
@@ -73,13 +73,22 @@ internal sealed class GameRuntimeCharacterInfoBuilder
         {
             new(
                 "基础概览",
-                BuildBattleCharacterInfoBaseEntries(unit, typeLabel, factionLabel)
+                BuildBattleCharacterInfoBaseEntries(unit, typeLabel, factionLabel),
+                GameRuntimeCharacterInfoSectionLayout.AttributeGrid
             ),
         };
+        sections.Add(new GameRuntimeCharacterInfoSection(
+            "基础属性", BuildBaseAttributeEntries(unit.attribute_snapshot),
+            GameRuntimeCharacterInfoSectionLayout.AttributeGrid));
+        sections.Add(new GameRuntimeCharacterInfoSection(
+            "战斗属性", BuildCombatAttributeEntries(unit.attribute_snapshot),
+            GameRuntimeCharacterInfoSectionLayout.AttributeGrid));
+        sections.Add(new GameRuntimeCharacterInfoSection(
+            "生效特性", BuildBattleCharacterTraitEntries(unit)));
         IReadOnlyList<GameRuntimeCharacterInfoEntry> identityEntries =
             BuildBattleCharacterIdentityEntries(unit);
         if (identityEntries.Count > 0)
-            sections.Add(new GameRuntimeCharacterInfoSection("身份与特性", identityEntries));
+            sections.Add(new GameRuntimeCharacterInfoSection("身份", identityEntries));
         IReadOnlyList<GameRuntimeCharacterInfoEntry> gearSetEntries =
             BuildBattleCharacterGearSetEntries(unit);
         if (gearSetEntries.Count > 0)
@@ -175,7 +184,7 @@ internal sealed class GameRuntimeCharacterInfoBuilder
                 DictionaryArray(summary, "trait_summary")
             )
         )
-            entries.Add(GameRuntimeCharacterInfoEntry.TextEntry(string.Format("特性：{0}", line)));
+            entries.Add(GameRuntimeCharacterInfoEntry.TextEntry(string.Format("身份说明：{0}", line)));
         foreach (
             var line in IdentityTextArray(
                 DictionaryArray(summary, "racial_skill_lines")

@@ -121,7 +121,8 @@ public sealed class SettlementShopService : IDisposable
                         stockEntry.ItemId,
                         "",
                         stockEntry.Quantity
-                    )
+                    ),
+                    IconAssetId: itemDef.IconAssetId
                 )
             );
         }
@@ -165,7 +166,8 @@ public sealed class SettlementShopService : IDisposable
                             itemId,
                             instanceId,
                             totalQuantity
-                        )
+                        ),
+                        IconAssetId: itemDef.IconAssetId
                     )
                 );
             }

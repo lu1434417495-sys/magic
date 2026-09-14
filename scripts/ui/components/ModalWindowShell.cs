@@ -12,6 +12,11 @@ using Godot;
 public partial class ModalWindowShell : Control
 {
     private ColorRect _modal_shade;
+    private Control _presentation_panel;
+    private Tween _entrance_tween;
+
+    [Export]
+    public Texture2D HeaderArtwork { get; set; }
 
     protected virtual bool DismissOnShade => true;
 
@@ -22,10 +27,21 @@ public partial class ModalWindowShell : Control
         _modal_shade = GetNodeOrNull<ColorRect>("Shade") ?? GetNodeOrNull<ColorRect>("%Shade");
         if (_modal_shade != null)
             _modal_shade.GuiInput += _on_modal_shade_gui_input;
+        if (HeaderArtwork != null && GetNodeOrNull<PanelContainer>("CenterContainer/Panel") is { } panel)
+        {
+            _presentation_panel = panel;
+            ChronicleWindowDecoration.Attach(panel, HeaderArtwork);
+            VisibilityChanged += _on_presentation_visibility_changed;
+        }
     }
 
     public override void _ExitTree()
     {
+        if (_presentation_panel != null)
+            VisibilityChanged -= _on_presentation_visibility_changed;
+        _entrance_tween?.Kill();
+        _entrance_tween = null;
+        _presentation_panel = null;
         if (_modal_shade != null)
             _modal_shade.GuiInput -= _on_modal_shade_gui_input;
         _modal_shade = null;
@@ -45,6 +61,21 @@ public partial class ModalWindowShell : Control
     }
 
     protected virtual void _on_modal_close_requested() { }
+
+    private void _on_presentation_visibility_changed()
+    {
+        _entrance_tween?.Kill();
+        _entrance_tween = null;
+        if (_presentation_panel == null)
+            return;
+        _presentation_panel.Modulate = Colors.White;
+        if (!Visible)
+            return;
+        _presentation_panel.Modulate = new Color(1, 1, 1, 0.35f);
+        _entrance_tween = CreateTween();
+        _entrance_tween.TweenProperty(_presentation_panel, "modulate:a", 1.0f, 0.18)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+    }
 
     private void _on_modal_shade_gui_input(InputEvent @event)
     {

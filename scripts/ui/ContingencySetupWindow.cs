@@ -40,6 +40,16 @@ public partial class ContingencySetupWindow : ModalWindowShell
     private StringName _selected_payload_name = "";
     private bool _charged;
     private bool _selected_template_saved;
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions = new Dictionary<StringName, SkillDefinition>();
+    private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions = new Dictionary<StringName, ItemDefinition>();
+
+    public void SetDisplayDefinitions(
+        IReadOnlyDictionary<StringName, SkillDefinition> skills,
+        IReadOnlyDictionary<StringName, ItemDefinition> items)
+    {
+        _skillDefinitions = skills ?? new Dictionary<StringName, SkillDefinition>();
+        _itemDefinitions = items ?? new Dictionary<StringName, ItemDefinition>();
+    }
 
     public override void _Ready()
     {
@@ -102,10 +112,7 @@ public partial class ContingencySetupWindow : ModalWindowShell
         _charged = setup?.Charged ?? false;
         _selected_template_saved = setup != null;
 
-        member_status_label.Text =
-            member != null
-                ? $"{member.display_name} | member_id={member.member_id}"
-                : "member_id=";
+        member_status_label.Text = member?.display_name ?? "未选择成员";
         PopulateTriggerOptions(template);
         RenderTemplateState(template, setup, characterManagement, member);
     }
@@ -119,26 +126,24 @@ public partial class ContingencySetupWindow : ModalWindowShell
     {
         setup_status_label.Text =
             setup != null && setup.SetupId == template.TemplateId
-                ? $"{setup.SetupId} | {setup.DisplayName} | charged={(_charged ? "yes" : "no")}"
-                : $"{template.TemplateId} | {template.DisplayName} | 未保存";
+                ? $"{setup.DisplayName} · {(_charged ? "已充能" : "待充能")}"
+                : $"{template.DisplayName} · 未保存";
 
         UiOptionButtonUtils.SetSingle(
             release_mode_selector,
-            setup?.ReleaseMode.ToString() ?? template.ReleaseMode.ToString()
+            UiDisplayLabels.ContingencyRelease(setup?.ReleaseMode.ToString() ?? template.ReleaseMode.ToString())
         );
         UiOptionButtonUtils.SetSingle(
             target_resolver_selector,
-            ResolveTargetResolver(setup) ?? ResolveTargetResolver(template)
+            UiDisplayLabels.ContingencyTarget(ContingencyContractRules.ToTargetResolverKind(ResolveTargetResolver(setup) ?? ResolveTargetResolver(template)))
         );
         stored_spell_list.Clear();
         if (setup != null && setup.SetupId == template.TemplateId)
             foreach (ContingencyStoredSpellEntryState spell in setup.StoredSpells)
-                stored_spell_list.AddItem($"{spell.StoredSkillId}@{spell.CastLevel}:{spell.TargetResolver?.Type}");
+                AddStoredSpell(spell.StoredSkillId, spell.CastLevel, spell.TargetResolver?.ResolverKind ?? ContingencyTargetResolverKind.Unknown);
         else
             foreach (ContingencyStoredSpellTemplateDefinition spell in template.StoredSpells)
-                stored_spell_list.AddItem(
-                    $"{spell.StoredSkillId}@{spell.MaxCastLevel}:{spell.TargetResolver?.Type}"
-                );
+                AddStoredSpell(spell.StoredSkillId, spell.MaxCastLevel, spell.TargetResolver?.ResolverKind ?? ContingencyTargetResolverKind.Unknown);
 
         int matrixLoad = setup?.SetupId == template.TemplateId ? setup.MatrixLoad : template.MatrixLoad;
         int reservedMpMax = setup?.SetupId == template.TemplateId ? setup.ReservedMpMax : 0;
@@ -149,7 +154,7 @@ public partial class ContingencySetupWindow : ModalWindowShell
             0
         );
         matrix_preview_label.Text =
-            $"matrix_load={matrixLoad} | reserved_mp_max={reservedMpMax} | effective_mp_max={effectiveMpMax}";
+            $"矩阵负载 {matrixLoad}  ·  预留魔力 {reservedMpMax}  ·  可用魔力上限 {effectiveMpMax}";
         material_preview_label.Text = BuildMaterialPreview(
             template,
             setup?.SetupId == template.TemplateId && setup.Charged
@@ -225,7 +230,7 @@ public partial class ContingencySetupWindow : ModalWindowShell
         for (int index = 0; index < _templates.Count; index++)
         {
             ContingencySetupTemplateDefinition definition = _templates[index];
-            trigger_selector.AddItem(definition.Trigger.Type.ToString());
+            trigger_selector.AddItem(UiDisplayLabels.ContingencyTrigger(definition.Trigger));
             trigger_selector.SetItemMetadata(index, definition.TemplateId.ToString());
             if (definition.TemplateId == selected.TemplateId)
                 selectedIndex = index;
@@ -240,7 +245,14 @@ public partial class ContingencySetupWindow : ModalWindowShell
             : "";
     }
 
-    private static string BuildMaterialPreview(
+    private void AddStoredSpell(StringName skillId, int level, ContingencyTargetResolverKind target)
+    {
+        string name = _skillDefinitions.TryGetValue(skillId, out var definition) ? definition.DisplayName : skillId.ToString();
+        int index = stored_spell_list.AddItem($"{name}  ·  等级 {level}  ·  {UiDisplayLabels.ContingencyTarget(target)}");
+        stored_spell_list.SetItemMetadata(index, skillId.ToString());
+    }
+
+    private string BuildMaterialPreview(
         ContingencySetupTemplateDefinition template,
         bool charged
     )
@@ -248,9 +260,9 @@ public partial class ContingencySetupWindow : ModalWindowShell
         if (template?.ChargeMaterialCosts == null || template.ChargeMaterialCosts.Count == 0)
             return "";
         return string.Join(
-            " | ",
+            "\n",
             template.ChargeMaterialCosts.Select(cost =>
-                $"{cost.ItemId}:{(charged ? cost.Quantity : 0)}"
+                $"充能材料：{(_itemDefinitions.TryGetValue(cost.ItemId, out var item) ? item.DisplayName : cost.ItemId.ToString())} × {cost.Quantity}  ·  已投入 {(charged ? cost.Quantity : 0)}"
             )
         );
     }

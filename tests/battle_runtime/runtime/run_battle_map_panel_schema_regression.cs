@@ -17,6 +17,7 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         {
             await TestBattleMapPanelAppliesFormalSnapshot();
             await TestScaledViewportAndSkillHitTargets();
+            await TestEquipmentModalReceivesClicksAboveLaterHud();
             await TestBattleMapPanelAppliesCommandDock();
             await TestBattleMapPanelViewportControlsAndFateRow();
             await TestBattleMapPanelRevealUsesDetachedSnapshotAndCancelsCleanly();
@@ -286,6 +287,56 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
 
         panel.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+    }
+
+    private async System.Threading.Tasks.Task TestEquipmentModalReceivesClicksAboveLaterHud()
+    {
+        Vector2I originalSize = Root.Size;
+        Vector2I originalContentSize = Root.ContentScaleSize;
+        Window.ContentScaleModeEnum originalMode = Root.ContentScaleMode;
+        var panel = BattleMapPanelScene.Instantiate<BattleMapPanel>();
+        var laterHud = new Control { Name = "LaterHud", MouseFilter = Control.MouseFilterEnum.Stop };
+        int interceptedClicks = 0;
+        laterHud.GuiInput += input =>
+        {
+            if (input is InputEventMouseButton { Pressed: true }) interceptedClicks++;
+        };
+        try
+        {
+            new DisplaySettingsService().ApplySettings(new(new Vector2I(1280, 720), false), Root);
+            Root.AddChild(panel);
+            panel.Show();
+            panel._apply_snapshot(BuildSnapshot());
+            Root.AddChild(laterHud);
+            var input = new E2eInputDriver(this, new E2eWait(this));
+            await ToSignal(this, SignalName.ProcessFrame);
+            Button open = panel.equipment_button_slot.GetNode<Button>("BattleEquipmentButton");
+            await input.ClickAsync(open);
+            Control overlay = panel.GetNode<Control>("HudRoot/BattleEquipmentOverlay");
+            Button close = overlay.GetNode<Button>(
+                "ModalCanvas/BattleEquipmentCenter/BattleEquipmentPanel/BattleEquipmentContent/BattleEquipmentHeader/BattleEquipmentCloseButton");
+            _test.True(overlay.Visible, "真实点击战中背包入口应打开弹窗。");
+            laterHud.Position = close.GlobalPosition;
+            laterHud.Size = close.Size;
+            await input.ClickAsync(close);
+            _test.False(overlay.Visible, "后加入的 HUD 与关闭按钮重叠时，鼠标仍应关闭最前面的弹窗。");
+            _test.Eq(interceptedClicks, 0, "背包弹窗内的点击不得穿透到日志等 HUD。");
+            await input.ClickAsync(laterHud);
+            _test.Eq(interceptedClicks, 1, "背包关闭后应恢复底层 HUD 的鼠标操作。");
+            await input.ClickAsync(open);
+            panel.HideBattle();
+            await input.ClickAsync(laterHud);
+            _test.Eq(interceptedClicks, 2, "隐藏战斗时应同时释放背包的独立输入层。");
+        }
+        finally
+        {
+            panel.QueueFree();
+            laterHud.QueueFree();
+            await ToSignal(this, SignalName.ProcessFrame);
+            Root.ContentScaleMode = originalMode;
+            Root.ContentScaleSize = originalContentSize;
+            Root.Size = originalSize;
+        }
     }
 
     private static BattleHudSnapshot BuildSnapshot(

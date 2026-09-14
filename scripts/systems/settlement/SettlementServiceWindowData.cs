@@ -56,7 +56,8 @@ internal sealed record SettlementServiceWindowEntryData(
     bool IsEnabled,
     string DisabledReason,
     SettlementServiceSelectionData Selection,
-    SettlementContractEntryFactsData ContractFacts = null
+    SettlementContractEntryFactsData ContractFacts = null,
+    string IconAssetId = ""
 )
 {
     internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()

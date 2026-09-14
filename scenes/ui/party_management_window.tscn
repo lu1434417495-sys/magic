@@ -1,14 +1,18 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 ; Scene purpose: Party management modal scene for roster lists, details, and action buttons.
 ; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
 
 ; External scripts, scenes, and shared assets referenced by this scene.
 [ext_resource type="Script" path="res://scripts/ui/PartyManagementWindow.cs" id="1_j4xsl"]
-[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
+[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/chronicle_panel.tres" id="2_panel_default"]
 
 ; Root node and primary scene tree.
+[ext_resource type="Theme" path="res://scenes/ui/styles/chronicle_theme.tres" id="90_chronicle"]
+[ext_resource type="Texture2D" path="res://assets/ui/windows/travel_kit_vignette.png" id="91_art"]
+
 [node name="PartyManagementWindow" type="Control"]
+theme = ExtResource("90_chronicle")
 visible = false
 layout_mode = 3
 anchors_preset = 15
@@ -17,9 +21,11 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_j4xsl")
+HeaderArtwork = ExtResource("91_art")
 
 ; Modal backdrop that dims the parent scene and blocks background input.
 [node name="Shade" type="ColorRect" parent="."]
+color = Color(0.018, 0.023, 0.03, 0.48)
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -27,7 +33,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0196078, 0.027451, 0.0588235, 0.72)
 
 ; Centered container that keeps the main panel anchored in the viewport.
 [node name="CenterContainer" type="CenterContainer" parent="."]
@@ -46,18 +51,19 @@ layout_mode = 2
 theme_override_styles/panel = ExtResource("2_panel_default")
 
 [node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 26
+theme_override_constants/margin_left = 26
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 22
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 22
 
 [node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+theme_override_constants/separation = 14
 layout_mode = 2
-theme_override_constants/separation = 12
 
 [node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 theme_override_constants/separation = 12
 
@@ -67,24 +73,25 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
 [node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
+theme_type_variation = &"ChronicleTitle"
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 28
 text = "人物管理"
 
 [node name="MetaLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header/HeaderText"]
+theme_override_colors/font_color = Color(0.69, 0.68, 0.62, 1)
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
 theme_override_font_sizes/font_size = 14
 autowrap_mode = 3
 text = "查看成员属性、装备、技能和职业。"
 
 [node name="CloseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+theme_type_variation = &"ChronicleQuiet"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(80, 36)
 layout_mode = 2
+size_flags_vertical = 0
 text = "关闭"
 
 [node name="Body" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
@@ -105,9 +112,8 @@ size_flags_vertical = 3
 theme_override_constants/separation = 6
 
 [node name="ActiveTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists/ActiveColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 18
 text = "上阵成员"
 
 [node name="ActiveList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists/ActiveColumn"]
@@ -124,9 +130,8 @@ size_flags_vertical = 3
 theme_override_constants/separation = 6
 
 [node name="ReserveTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists/ReserveColumn"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 18
 text = "替补成员"
 
 [node name="ReserveList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content/Body/Lists/ReserveColumn"]
@@ -190,7 +195,6 @@ custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_colors/default_color = Color(0.905882, 0.933333, 0.984314, 1)
 bbcode_enabled = false
 scroll_active = false
 fit_content = true
@@ -205,7 +209,6 @@ custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_colors/default_color = Color(0.905882, 0.933333, 0.984314, 1)
 bbcode_enabled = false
 scroll_active = false
 fit_content = true
@@ -220,7 +223,6 @@ custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_colors/default_color = Color(0.905882, 0.933333, 0.984314, 1)
 bbcode_enabled = true
 scroll_active = false
 fit_content = true
@@ -235,7 +237,6 @@ custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_colors/default_color = Color(0.905882, 0.933333, 0.984314, 1)
 bbcode_enabled = false
 scroll_active = false
 fit_content = true
@@ -250,22 +251,20 @@ custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_colors/default_color = Color(0.905882, 0.933333, 0.984314, 1)
 bbcode_enabled = false
 scroll_active = false
 fit_content = true
 text = "职业"
 
 [node name="StatusTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 15
 text = "当前编成"
 
 [node name="StatusLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+theme_override_colors/font_color = Color(0.69, 0.68, 0.62, 1)
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
 theme_override_font_sizes/font_size = 14
 autowrap_mode = 3
 text = "状态"

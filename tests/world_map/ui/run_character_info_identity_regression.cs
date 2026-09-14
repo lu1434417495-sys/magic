@@ -79,7 +79,7 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
                 builder.BuildBattleCharacterInfoSections(unit, "战斗单位", "玩家");
             GameRuntimeCharacterInfoSection identitySection = FindSection(
                 sections,
-                "身份与特性"
+                "身份"
             );
             _test.True(identitySection != null, "战斗人物信息应包含身份与特性 section。");
             IReadOnlyList<GameRuntimeCharacterInfoEntry> entries =
@@ -92,7 +92,7 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
             _test.True(HasPairEntry(entries, "升华", "Dragon · Awakened"), "身份 section 应显示 ascension/stage。");
             _test.True(HasPairEntry(entries, "伤害抗性", "fire=half"), "身份 section 应显示 damage resistance。");
             _test.True(HasPairEntry(entries, "豁免优势", "charm"), "身份 section 应显示 save advantage。");
-            _test.True(HasTextEntry(entries, "特性：Dragon stage"), "身份 section 应显示 trait summary。");
+            _test.True(HasTextEntry(entries, "身份说明：Dragon stage"), "身份 section 应显示 trait summary。");
             _test.True(
                 HasTextEntry(entries, "种族法术：Dragon Breath（Dragon，每场战斗 1 次）"),
                 "身份 section 应显示 racial skill。"

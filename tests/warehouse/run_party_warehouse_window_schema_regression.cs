@@ -52,6 +52,8 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
         _test.True(window.Visible, "共享仓库窗口应在 ShowWarehouse 后保持可见。");
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.True(window.details_label.Size.X >= 240, "仓库详情应有可读宽度，不能被图标列挤成竖排。");
         _test.Eq(window.title_label.Text, "共享仓库", "typed window data 的标题应渲染。");
         _test.Eq(window.summary_label.Text, "已用 1/12 格", "typed window data 的容量摘要应渲染。");
         _test.Eq(window.status_label.Text, "可用", "typed window data 的状态文案应渲染。");

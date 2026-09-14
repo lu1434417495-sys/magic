@@ -13,7 +13,9 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
         "res://scenes/ui/shop_window.tscn"
     );
 
-    public override async void _Initialize()
+    public override void _Initialize() => RunAfterProcessStartup(Run);
+
+    private async void Run()
     {
         try
         {
@@ -23,6 +25,7 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
             await TestSettlementWindowAppliesMemberAvailability();
             await TestSettlementWindowSubmitsStableServiceIds();
             await TestShopWindowRendersTypedServiceWindowData();
+            await TestShopWindowRendersItemIcons();
             await TestShopWindowHidesOnInvalidWindowData();
             await TestShopWindowSubmitsStableShopIds();
             await TestStagecoachWindowSubmitsStableDestinationId();
@@ -214,6 +217,31 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
             "ShopWindow 应渲染默认选中条目的详情。"
         );
         await DisposeWindow(window);
+    }
+
+    private async Task TestShopWindowRendersItemIcons()
+    {
+        ShopWindow window = await CreateShopWindow();
+        try
+        {
+            window.ShowShop(MakeShopWindowData());
+            _test.True(window.entry_list.GetItemIcon(0) != null,
+                "没有配置图标的商品仍应显示空槽，保留图标位置。");
+
+            window.ShowShop(MakeShopWindowData("ui.item.icon.default"));
+            Texture2D expected = EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(
+                window, "ui.item.icon.default");
+            _test.True(window.entry_list.GetItemIcon(0) == expected,
+                "商品应使用条目提供的资产图标，不根据 item id 拼接路径。");
+
+            window.ShowShop(MakeForgeWindowData());
+            _test.True(window.entry_list.GetItemIcon(0) == null,
+                "切换到非商品服务时不应残留商店图标或物品空槽。");
+        }
+        finally
+        {
+            await DisposeWindow(window);
+        }
     }
 
     private async Task TestShopWindowHidesOnInvalidWindowData()
@@ -639,7 +667,7 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
             null
         );
 
-    private static SettlementServiceWindowData MakeShopWindowData() =>
+    private static SettlementServiceWindowData MakeShopWindowData(string iconAssetId = "") =>
         new(
             "graystone_town_01",
             "shop:trade",
@@ -684,7 +712,8 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
                         "healing_herb",
                         "",
                         3
-                    )
+                    ),
+                    IconAssetId: iconAssetId
                 ),
             },
             null,
