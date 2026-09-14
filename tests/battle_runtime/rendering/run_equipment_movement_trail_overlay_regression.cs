@@ -194,7 +194,7 @@ public partial class run_equipment_movement_trail_overlay_regression : Lifecycle
         BattleBoardCellSnapshot cell = board?._controller?._snapshot?.GetCell(coord);
         if (cell == null || board.overlay_layers.Count == 0)
             return null;
-        int heightIndex = Mathf.Clamp(cell.Height, 0, board.overlay_layers.Count - 1);
+        int heightIndex = cell.Height - BattleBoardRenderProfile.MinimumHeight;
         return board.overlay_layers[heightIndex];
     }
 

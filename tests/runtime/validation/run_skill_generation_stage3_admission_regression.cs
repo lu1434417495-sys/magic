@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text.Json.Nodes;
 using Godot;
 
 public partial class run_skill_generation_stage3_admission_regression
@@ -49,14 +50,23 @@ public partial class run_skill_generation_stage3_admission_regression
             {
                 byte[] sourceBytes = ReadBytes(admissionCase.SourcePath);
                 byte[] productionBytes = ReadBytes(admissionCase.ProductionPath);
-                _test.True(
-                    sourceBytes.SequenceEqual(productionBytes),
-                    $"{admissionCase.SkillId} production JSON should be the unmodified accepted source bytes"
-                );
                 _test.Eq(
-                    Convert.ToHexString(SHA256.HashData(productionBytes)),
+                    Convert.ToHexString(SHA256.HashData(sourceBytes)),
                     admissionCase.ExpectedSha256,
-                    $"{admissionCase.SkillId} admitted JSON hash should remain stable"
+                    $"{admissionCase.SkillId} accepted source bytes should retain their admission hash"
+                );
+                JsonNode sourceDocument = JsonNode.Parse(sourceBytes)!;
+                JsonNode productionDocument = JsonNode.Parse(productionBytes)!;
+                JsonObject productionSkill = productionDocument["entries"]![0]!.AsObject();
+                _test.Eq(
+                    productionSkill["icon_id"]?.GetValue<string>(),
+                    admissionCase.SkillId.ToString(),
+                    $"{admissionCase.SkillId} should use its registered production icon"
+                );
+                productionSkill.Remove("icon_id");
+                _test.True(
+                    JsonNode.DeepEquals(sourceDocument, productionDocument),
+                    $"{admissionCase.SkillId} production JSON may add its icon but must preserve every accepted gameplay field"
                 );
                 if (
                     !snapshot.Skills.TryGetValue(
@@ -77,6 +87,8 @@ public partial class run_skill_generation_stage3_admission_regression
                     $"{admissionCase.SkillId} should remain an internal active spell"
                 );
                 CombatSkillDefinition combat = skill.CombatProfile!;
+                _test.Eq(skill.IconId, admissionCase.SkillId,
+                    $"{admissionCase.SkillId} should project its authored icon into the production definition");
                 CombatSkillResourceCosts costs =
                     combat.GetEffectiveResourceCostValues(1);
                 _test.True(
