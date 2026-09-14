@@ -226,8 +226,8 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         _test.Eq(skill.DisplayName, "怪影杀戮", "Phantasmal Kill display_name 应匹配。");
         _test.Eq(
             skill.IconId,
-            new StringName(""),
-            "Phantasmal Kill 应保留 authoring 中显式为空的 icon asset ID。"
+            skillId,
+            "Phantasmal Kill 应投影正式配置的 icon asset ID。"
         );
         _test.Eq(skill.SkillType, new StringName("active"), "Phantasmal Kill 应是 active 技能。");
         _test.Eq(skill.MaxLevel, 9, "Phantasmal Kill max_level 应为 9。");
