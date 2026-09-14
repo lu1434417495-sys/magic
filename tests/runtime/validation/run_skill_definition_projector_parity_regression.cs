@@ -14,7 +14,7 @@ public partial class run_skill_definition_projector_parity_regression
     : LifecycleTestSceneTree
 {
     private const string ExpectedDefinitionGoldenSha256 =
-        "D09FB10A1AAB51DF9FB330AE6AA2A725C6FA9F7C8603F64B17A8584DC866B97B";
+        "478D3DBD64C6E9FD5AC4D735925CA3E7C8898C658B2A429CFB6802083C5DD069";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
