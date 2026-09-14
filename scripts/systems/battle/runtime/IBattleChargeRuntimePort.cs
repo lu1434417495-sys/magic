@@ -13,6 +13,9 @@ using Godot;
 /// <c>_damage_resolver</c> 会被 <c>ConfigureDamageResolverForTests</c> 换掉，缓存会拿到旧对象。
 internal interface IBattleChargeRuntimePort
 {
+    BattleLogicalAttackScope BeginLogicalAttack(BattleAttackDeliveryKind deliveryKind);
+    void AbortActiveReactionBoundary();
+
     BattleState GetBattleState();
 
     BattleGridService GetGridService();

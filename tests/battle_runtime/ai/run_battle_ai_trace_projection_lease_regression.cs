@@ -931,8 +931,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             // 2026-08-15 行动节奏敏捷派生：action_threshold 默认值 120 -> 40，payload 短 1 字符。
             AssertFingerprint(
                 lease.Value,
-                2144,
-                "3f7ade499303a2112b528546c9ba69c4c58b2c33845fea84448314c79c3b94f5",
+                2345,
+                "008f44ad980dd18bc432fe4875ccf77b3129ef823fa1892d411fd0c7e84942c6",
                 "full real unit snapshot payload"
             );
         }
@@ -992,8 +992,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             // 同上：action_threshold 默认值 120 -> 40。
             AssertFingerprint(
                 reportLease.Value,
-                17363,
-                "9822d94d170b31b4d6f824a7e47e3438c5033c5957883beb0c8cf689f870f6b8",
+                17564,
+                "1479c4074822adf8efcdea08e84ff8335099110f734b427dbc83d458bf2ce608",
                 "full simulation report payload"
             );
         }

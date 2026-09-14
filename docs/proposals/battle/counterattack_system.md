@@ -1,5 +1,7 @@
 # 反击系统架构提案
 
+> 2026-09-14：运行时已适配当前 JSON 内容、capability bridge 与技能执行链。当前实现已独立整理到 [design/battle/counterattack_system.md](../../design/battle/counterattack_system.md)；本文保留历史迁移清单和未实施内容阶段，旧类型／调用点不是当前代码规范。
+
 > 状态：`Mixed current implementation + future content/balance stages`
 > 更新日期：`2026-07-28`
 > 关联上下文单元：CU-12（成长桥接）、CU-14（职业 / 技能进阶规则）、CU-15（战斗运行时总编排）、CU-16（战斗状态 / 规则 / 伤害）、CU-18（战斗展示）、CU-19（回归）

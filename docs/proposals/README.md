@@ -8,7 +8,7 @@
 
 - [`battle/objective_mode_extensions.md`](battle/objective_mode_extensions.md)：九种已落地战斗目标模式的未实现扩展；当前暂缓、未排期。
 - [`battle/composite_objectives.md`](battle/composite_objectives.md)：`All / Any / Ordered` 与 required/optional 组合目标；当前明确暂不实现、未排期。
-- [`battle/counterattack_system.md`](battle/counterattack_system.md)：反击系统原始架构推导、逐调用点迁移与验收矩阵。P1A/P1B 运行时、状态、成长和展示已经落地，当前真相见 [`../design/battle/counterattack_system.md`](../design/battle/counterattack_system.md)；production capability 内容来源、最终数值、属性派生、平衡与 AI 仍另案处理。
+- [`battle/counterattack_system.md`](battle/counterattack_system.md)：反击系统原始架构推导、逐调用点迁移与验收矩阵。P1A 运行时、状态、成长及己方预算展示已经落地；P1B 风险预览方案已取消，当前真相见 [`../design/battle/counterattack_system.md`](../design/battle/counterattack_system.md)；production capability 内容来源、最终数值、属性派生、平衡与 AI 仍另案处理。
 
 ## 跨系统迁移与架构整治
 

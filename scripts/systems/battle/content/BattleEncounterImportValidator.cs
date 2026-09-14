@@ -74,13 +74,13 @@ internal static class BattleEncounterImportValidator
                 return;
             case BattleDefenseObjectiveImportModel value:
                 RequireText(diagnostics, context, value.TargetActorId, "/objective/payload/target_actor_id", "target_actor_id");
-                if (value.DurationTu <= 0 || value.DurationTu % BattleEncounterImportRules.TuGranularity != 0)
+                if (value.DurationTu <= 0 || value.DurationTu % BattleTimeRules.TuGranularity != 0)
                 {
                     Add(
                         diagnostics,
                         context,
                         BattleEncounterJsonRules.ValueOutOfRange,
-                        $"duration_tu must be a positive multiple of {BattleEncounterImportRules.TuGranularity}.",
+                        $"duration_tu must be a positive multiple of {BattleTimeRules.TuGranularity}.",
                         "/objective/payload/duration_tu"
                     );
                 }
@@ -148,13 +148,13 @@ internal static class BattleEncounterImportValidator
         {
             Add(diagnostics, context, BattleEncounterJsonRules.ValueRequired, "control_zones must be non-empty.", "/objective/payload/control_zones");
         }
-        if (objective.ScoreTarget <= 0 || objective.ScoreTarget % BattleEncounterImportRules.TuGranularity != 0)
+        if (objective.ScoreTarget <= 0 || objective.ScoreTarget % BattleTimeRules.TuGranularity != 0)
         {
             Add(
                 diagnostics,
                 context,
                 BattleEncounterJsonRules.ValueOutOfRange,
-                $"score_target must be a positive multiple of {BattleEncounterImportRules.TuGranularity}.",
+                $"score_target must be a positive multiple of {BattleTimeRules.TuGranularity}.",
                 "/objective/payload/score_target"
             );
         }

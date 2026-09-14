@@ -413,9 +413,10 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
             ReleaseContext = releaseContext,
         };
         BattleEventBatch autoBatch = new();
-        bool autoApplied = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(
-            request,
-            autoBatch
+        bool autoApplied = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime, autoBatch, BattleEffectOrigin.AutoCast(request),
+            () => autoApplied = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(request, autoBatch)
         );
         _test.False(autoApplied, "contingency 自动施放应拒绝蓄力技能。");
         _test.True(LogsContain(autoBatch.LogLinesTyped, "不能通过"), "自动施放拒绝应有明确日志。");
@@ -427,7 +428,7 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
         var context = new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = new HashSet<StringName>(),
-            KnownSkillIds = new HashSet<StringName> { SkillId },
+            KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition> { [SkillId] = TestSkillDefinitionProjection.BuildSkill(SkillId) },
             WindupSkillIds = new HashSet<StringName> { SkillId },
             KnownStatusIds = new HashSet<StringName>(),
         };

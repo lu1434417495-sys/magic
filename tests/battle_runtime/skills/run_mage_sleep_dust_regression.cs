@@ -407,7 +407,11 @@ public partial class run_mage_sleep_dust_regression : LifecycleTestSceneTree
         fixture.State.timeline.ready_unit_ids.Add(target.unit_id);
         using (var skippedBatch = new BattleEventBatch())
         {
-            fixture.Runtime._timeline_driver.ActivateNextReadyUnit(skippedBatch);
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, skippedBatch,
+                BattleEffectOrigin.Timeline("ready_unit_activation"),
+                () => fixture.Runtime._timeline_driver.ActivateNextReadyUnit(skippedBatch)
+            );
         }
         _test.Eq(fixture.State.active_unit_id, new StringName(""), "睡眠目标轮到行动时应直接跳过。");
         _test.True(target.HasStatusEffect("sleeping"), "跳过行动不得自动移除未到期睡眠。");
@@ -542,7 +546,11 @@ public partial class run_mage_sleep_dust_regression : LifecycleTestSceneTree
         fixture.State.timeline.ready_unit_ids.Add(target.unit_id);
         using (var activationBatch = new BattleEventBatch())
         {
-            fixture.Runtime._timeline_driver.ActivateNextReadyUnit(activationBatch);
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, activationBatch,
+                BattleEffectOrigin.Timeline("ready_unit_activation"),
+                () => fixture.Runtime._timeline_driver.ActivateNextReadyUnit(activationBatch)
+            );
         }
         _test.Eq(fixture.State.active_unit_id, target.unit_id, "清醒目标应能正常获得行动窗口。");
         _test.True(target.HasStatusEffect("wakeful"), "正常行动开始时不得提前消耗清醒。");

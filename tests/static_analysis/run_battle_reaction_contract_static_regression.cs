@@ -20,13 +20,23 @@ public partial class
             StringComparer.Ordinal
         )
         {
+            ["ApplyGroundUnitEffectsResultTyped"] = Paths(
+                "tests/battle_runtime/runtime/run_battle_ground_effect_typed_sets_regression.cs",
+                "tests/battle_runtime/runtime/run_combat_effect_heal_floor_target_limiter_regression.cs",
+                "tests/battle_runtime/skills/run_mage_gust_of_wind_regression.cs"
+            ),
             ["_apply_ground_unit_effects_result"] = Paths(
                 "tests/battle_runtime/runtime/run_battle_ground_effect_typed_sets_regression.cs"
             ),
             ["handle_charge_skill_command_result"] = Paths(
                 "tests/battle_runtime/ai/run_battle_ai_charge_path_aoe_behavior_regression.cs"
             ),
+            ["ResolveSpellReactionsAfterCost"] = Paths(
+                "tests/battle_runtime/skills/run_archer_disrupting_arrow_regression.cs"
+            ),
             ["ExecuteAutoCast"] = Paths(
+                "tests/battle_runtime/skills/run_archer_disrupting_arrow_regression.cs",
+                "tests/battle_runtime/skills/run_warrior_heavy_blow_windup_regression.cs",
                 "tests/battle_runtime/runtime/run_prismatic_sphere_special_entry_regression.cs",
                 "tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs"
             ),
@@ -34,16 +44,21 @@ public partial class
                 "tests/battle_runtime/runtime/run_prismatic_sphere_special_entry_regression.cs",
                 "tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs"
             ),
+            ["_handle_ground_skill_command"] = Paths(
+                "tests/battle_runtime/skills/run_mage_gust_of_wind_regression.cs"
+            ),
             ["_handle_skill_command"] = Paths(
                 "tests/battle_runtime/skills/run_meteor_swarm_special_profile_regression.cs"
             ),
             ["ApplyTimelineStep"] = Paths(
+                "tests/battle_runtime/runtime/run_dragon_scale_dragon_blood_boil_regression.cs",
                 "tests/battle_runtime/skills/run_time_stasis_regression.cs",
                 "tests/battle_runtime/runtime/run_plague_tongue_weapon_ability_regression.cs",
                 "tests/battle_runtime/runtime/run_temporal_status_semantics_regression.cs",
                 "tests/battle_runtime/runtime/run_void_axe_weapon_ability_regression.cs"
             ),
             ["ActivateNextReadyUnit"] = Paths(
+                "tests/battle_runtime/skills/run_mage_sleep_dust_regression.cs",
                 "tests/battle_runtime/runtime/run_sands_time_weapon_ability_regression.cs",
                 "tests/battle_runtime/runtime/run_temporal_status_semantics_regression.cs"
             ),
@@ -344,8 +359,8 @@ public partial class
         {
             _test.Eq(
                 matches[0],
-                "scripts/systems/battle/core/BattleTimelineState.cs",
-                "BattleTimelineState must own TU granularity."
+                "scripts/systems/battle/core/BattleTimeRules.cs",
+                "BattleTimeRules must own the shared runtime and content TU granularity."
             );
         }
     }

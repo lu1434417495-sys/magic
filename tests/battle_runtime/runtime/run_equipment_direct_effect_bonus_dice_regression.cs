@@ -826,7 +826,7 @@ public partial class run_equipment_direct_effect_bonus_dice_regression : Lifecyc
         return new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = new HashSet<StringName> { "trait.weapon.flame" },
-            KnownSkillIds = new HashSet<StringName> { "known_skill" },
+            KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition> { ["known_skill"] = TestSkillDefinitionProjection.BuildSkill("known_skill") },
             KnownStatusIds = new HashSet<StringName> { "burning" },
         };
     }

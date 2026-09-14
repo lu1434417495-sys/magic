@@ -194,15 +194,29 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         );
 
         int hpBefore = caster.GetCurrentHp();
-        _apply_unit_skill_result(
-            candidate.Reactor,
-            caster,
-            candidate.ReactionSkill,
-            null,
-            candidate.ReactionSkill.CombatProfile.EffectDefinitions,
-            batch,
-            flat_attack_bonus: candidate.Profile.GetAttackRollBonus(candidate.SkillLevel)
-        );
+        using (BattleLogicalAttackScope logicalAttack = BeginLogicalAttackForEffects(
+            candidate.Reactor, candidate.ReactionSkill.CombatProfile.EffectDefinitions))
+        {
+            try
+            {
+                _apply_unit_skill_result(
+                    candidate.Reactor,
+                    caster,
+                    candidate.ReactionSkill,
+                    null,
+                    candidate.ReactionSkill.CombatProfile.EffectDefinitions,
+                    batch,
+                    logicalAttack.Context,
+                    flat_attack_bonus: candidate.Profile.GetAttackRollBonus(candidate.SkillLevel)
+                );
+                logicalAttack.Complete();
+            }
+            catch
+            {
+                Runtime?.AbortActiveReactionBoundary();
+                throw;
+            }
+        }
         int hpDamage = Math.Max(hpBefore - caster.GetCurrentHp(), 0);
         if (!caster.IsAlive())
         {

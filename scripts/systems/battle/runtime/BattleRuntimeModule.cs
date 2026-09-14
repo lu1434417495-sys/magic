@@ -1554,47 +1554,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
     }
 
-    internal void
-        EnsureCounterattackUnitOwnersInitializedForAdmission(
-            BattleState state,
-            BattleUnitState unit
-        )
-    {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(unit);
-        if (!ReferenceEquals(state, _state))
-        {
-            throw new InvalidOperationException(
-                "counterattack unit admission belongs to another battle"
-            );
-        }
-        int currentTu = Math.Max(
-            state.timeline?.current_tu ?? 0,
-            0
-        );
-        BattleReactionBudgetConfig config =
-            BattleReactionBudgetRules.EngineDefault;
-        BattleReactionBudgetRules.Validate(config);
-        if (!unit.CaptureReactionRawTyped().OwnerPresent)
-        {
-            unit.InitializeReactionBudgetTyped(
-                currentTu,
-                config,
-                startFull: true
-            );
-        }
-        if (
-            !unit
-                .CaptureCounterattackCapabilitiesRawTyped()
-                .OwnerPresent
-        )
-        {
-            unit.ReplaceCounterattackCapabilitiesTyped(
-                Array.Empty<BattleCounterattackCapability>()
-            );
-        }
-    }
-
     private void EnsureCounterattackUnitOwnersInitialized()
     {
         BattleState state = _state;
@@ -1604,7 +1563,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         {
             if (unit != null)
             {
-                EnsureCounterattackUnitOwnersInitializedForAdmission(
+                BattleReactionBudgetRules.InitializeUnitForAdmission(
                     state,
                     unit
                 );

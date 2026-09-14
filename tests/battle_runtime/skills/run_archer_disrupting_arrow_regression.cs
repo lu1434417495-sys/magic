@@ -202,9 +202,11 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         int casterHpBefore = caster.GetCurrentHp();
         using var batch = new BattleEventBatch();
 
-        bool applied = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(
-            BuildAutoCastRequest(caster, spell, archer),
-            batch
+        AutoCastRequest request = BuildAutoCastRequest(caster, spell, archer);
+        bool applied = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime, batch, BattleEffectOrigin.AutoCast(request),
+            () => applied = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(request, batch)
         );
 
         _test.True(applied, "自动施法请求必须完成正式技能结算，不能因请求无效而伪通过。");
@@ -528,11 +530,15 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         BattleUnitState caster = BuildCaster("filter_caster", new Vector2I(1, 0));
         using BattleTestFixture fixture = CreateFixture(skill, basicAttack, archer, caster);
         Ready(archer, 1);
+        using var reactionBatch1 = new BattleEventBatch();
         BattleSpellReactionOutcome nonSpell =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch1,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 basicAttack,
-                new BattleEventBatch()
+                reactionBatch1
+            )
             );
         _test.False(nonSpell.Triggered, "普通攻击不得触发扰咒箭。");
         _test.True(archer.HasStatusEffect(ReadyStatusId), "未触发时待机必须保留。");
@@ -542,11 +548,15 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
             caster,
             new Vector2I(6, 0)
         );
+        using var reactionBatch2 = new BattleEventBatch();
         BattleSpellReactionOutcome outOfRange =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch2,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch()
+                reactionBatch2
+            )
             );
         _test.False(outOfRange.Triggered, "弓射程外的施法不得触发扰咒箭。");
         _test.True(archer.HasStatusEffect(ReadyStatusId), "射程外未触发时待机必须保留。");
@@ -557,11 +567,15 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
             new Vector2I(1, 0)
         );
         ApplyWeapon(archer, "sword", "melee", 1);
+        using var reactionBatch3 = new BattleEventBatch();
         BattleSpellReactionOutcome wrongWeapon =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch3,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch()
+                reactionBatch3
+            )
             );
         _test.False(wrongWeapon.Triggered, "待机期间失去弓时不得发动反应射击。");
         _test.True(archer.HasStatusEffect(ReadyStatusId), "武器不合法而未触发时待机必须保留到正常到期。");
@@ -578,12 +592,16 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         fixture.Runtime.ConfigureDamageResolverForTests(new FixedMissOneDamageResolver());
         fixture.Runtime.ConfigureHitResolverForTests(new FixedMissResolver());
         Ready(archer, 1);
+        using var reactionBatch4 = new BattleEventBatch();
         BattleSpellReactionOutcome miss =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch4,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch(),
+                reactionBatch4,
                 BattleSaveContext.WithSaveRollOverride(1)
+            )
             );
         _test.True(miss.Triggered, "范围内敌方法术应消耗待机并发动反应射击。");
         _test.False(miss.Interrupted, "未命中不得中断法术。");
@@ -595,12 +613,16 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         caster.SetCurrentHp(100);
         caster.ReplaceShieldStateTyped(10, 10, 100, "test", caster.unit_id, "test_shield");
         Ready(archer, 1);
+        using var reactionBatch5 = new BattleEventBatch();
         BattleSpellReactionOutcome absorbed =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch5,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch(),
+                reactionBatch5,
                 BattleSaveContext.WithSaveRollOverride(1)
+            )
             );
         _test.True(absorbed.Triggered, "护盾吸收仍代表反应射击已触发。");
         _test.False(absorbed.Interrupted, "未造成生命伤害时不得进行失败维持并中断。");
@@ -623,13 +645,17 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         fixture.Runtime.ConfigureHitResolverForTests(new FixedHitResolver());
 
         Ready(archer, 3);
+        using var reactionBatch6 = new BattleEventBatch();
         BattleSpellReactionOutcome failed =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch6,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch(),
+                reactionBatch6,
                 BattleSaveContext.WithSaveRollOverride(1)
-        );
+        )
+            );
         _test.True(failed.Triggered, "命中并造成生命伤害时应触发维持检定。");
         _test.True(failed.Interrupted, "自然1维持检定必须中断法术。");
         _test.Eq(failed.HpDamage, 8, "最大伤害解析器下，当前双手弓的1D8必须造成8点生命伤害。");
@@ -640,12 +666,16 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         caster.SetCurrentHp(100);
         caster.SetCurrentShieldHpAndNormalizeTyped(0);
         Ready(archer, 3);
+        using var reactionBatch7 = new BattleEventBatch();
         BattleSpellReactionOutcome succeeded =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch7,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch(),
+                reactionBatch7,
                 BattleSaveContext.WithSaveRollOverride(20)
+            )
             );
         _test.True(succeeded.Triggered, "重新待机后应能再次响应下一次法术。");
         _test.False(succeeded.Interrupted, "自然20维持检定必须让法术继续。");
@@ -667,12 +697,16 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         fixture.Runtime.ConfigureHitResolverForTests(new FixedThresholdRollHitResolver(10));
 
         Ready(archer, 1);
+        using var reactionBatch8 = new BattleEventBatch();
         BattleSpellReactionOutcome levelOne =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch8,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch(),
+                reactionBatch8,
                 BattleSaveContext.WithSaveRollOverride(20)
+            )
             );
         _test.True(levelOne.Triggered, "1级扰咒箭应实际发起反应攻击。");
         _test.Eq(levelOne.HpDamage, 0, "固定掷出10对AC11时，1级无命中加值必须未命中。");
@@ -683,12 +717,16 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         caster.SetCurrentHp(100);
         archer.SetKnownSkillLevelTyped(SkillId, 5);
         Ready(archer, 5);
+        using var reactionBatch9 = new BattleEventBatch();
         BattleSpellReactionOutcome levelFive =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch9,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch(),
+                reactionBatch9,
                 BattleSaveContext.WithSaveRollOverride(20)
+            )
             );
         _test.True(levelFive.Triggered, "5级扰咒箭应实际发起反应攻击。");
         _test.Eq(levelFive.HpDamage, 1, "固定掷出10对AC11时，5级+1命中必须把同一攻击变为命中。");
@@ -713,12 +751,16 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         Ready(first, 1);
         Ready(second, 1);
 
+        using var reactionBatch10 = new BattleEventBatch();
         BattleSpellReactionOutcome passedOutcome =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch10,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch(),
+                reactionBatch10,
                 BattleSaveContext.WithSaveRollOverride(20)
+            )
             );
         _test.False(passedOutcome.Interrupted, "前序维持成功时应继续检查后续待机弓手。");
         _test.Eq(passedOutcome.ReactorUnitId, second.unit_id, "两名弓手均响应后应返回最后一名结果。");
@@ -728,12 +770,16 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         caster.SetCurrentHp(100);
         Ready(first, 1);
         Ready(second, 1);
+        using var reactionBatch11 = new BattleEventBatch();
         BattleSpellReactionOutcome outcome =
-            fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reactionBatch11,
+                () => fixture.Runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
                 caster,
                 BuildSpellSkill(),
-                new BattleEventBatch(),
+                reactionBatch11,
                 BattleSaveContext.WithSaveRollOverride(1)
+            )
             );
         _test.True(outcome.Interrupted, "首个时间线反应失败维持后应中断法术。");
         _test.Eq(outcome.ReactorUnitId, first.unit_id, "较高行动进度的弓手应先响应。");

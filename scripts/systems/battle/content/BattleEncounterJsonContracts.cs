@@ -68,11 +68,6 @@ internal enum BattleEncounterWorldResolutionKind
     Suppress,
 }
 
-internal static class BattleEncounterImportRules
-{
-    internal const int TuGranularity = 5;
-}
-
 [Description("Battle encounter document envelope.")]
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class BattleEncounterJsonDocumentDto

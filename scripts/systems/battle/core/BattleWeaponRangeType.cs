@@ -17,8 +17,8 @@ internal enum BattleAttackDeliveryKind
 
 internal static class BattleWeaponRangeTypeNames
 {
-    private static readonly StringName Melee = "melee";
-    private static readonly StringName Ranged = "ranged";
+    private static readonly StringName Melee = ItemImportValueRules.WeaponRangeMelee;
+    private static readonly StringName Ranged = ItemImportValueRules.WeaponRangeRanged;
 
     internal static BattleWeaponRangeTypeKind Parse(StringName value)
     {

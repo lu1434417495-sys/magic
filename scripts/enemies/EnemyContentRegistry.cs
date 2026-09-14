@@ -288,6 +288,16 @@ public sealed class EnemyContentRegistry : IValidatableRegistry, IDisposable
         EnemyContentValidationContext context
     )
     {
+        if (
+            template.Weapon.IsEmpty()
+            || BattleWeaponRangeTypeNames.Parse(template.Weapon.WeaponRangeType)
+                == BattleWeaponRangeTypeKind.Unknown
+        )
+        {
+            _validationErrors.Add(
+                $"Enemy template {template.TemplateId} must project weapon_range_type melee or ranged."
+            );
+        }
         var declaredSkillIds = new HashSet<StringName>(template.SkillIds);
         int eligibleGeneratedSkillCount = 0;
         foreach (StringName skillId in template.SkillIds)

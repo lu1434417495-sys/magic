@@ -200,7 +200,9 @@ public partial class run_mage_gust_of_wind_regression : LifecycleTestSceneTree
         using (BattleTestFixture fixture = CreateFixture("wind_outside_block", skill, caster, front, outsideBlocker))
         {
             using var batch = new BattleEventBatch();
-            BattleGroundUnitEffectsResult result = fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+            BattleGroundUnitEffectsResult result = BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, batch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
                 caster,
                 skill,
                 null,
@@ -208,6 +210,7 @@ public partial class run_mage_gust_of_wind_regression : LifecycleTestSceneTree
                 new[] { front.GetAnchorCoord() },
                 batch,
                 new[] { caster.GetAnchorCoord() + Vector2I.Right }
+            )
             );
             _test.False(result.Applied, "锥形外单位只能阻挡，不能被递归推动。");
             _test.Eq(front.GetAnchorCoord(), new Vector2I(1, 2), "范围内目标应停在最后合法格。");
@@ -225,7 +228,9 @@ public partial class run_mage_gust_of_wind_regression : LifecycleTestSceneTree
         BattleUnitState far = BuildUnit("wind_group2_far", "enemy", new Vector2I(2, 2));
         using BattleTestFixture groupFixture = CreateFixture("wind_group_move", skill, groupCaster, near, far);
         using var groupBatch = new BattleEventBatch();
-        BattleGroundUnitEffectsResult groupResult = groupFixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+        BattleGroundUnitEffectsResult groupResult = BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                groupFixture.Runtime, groupBatch,
+                () => groupFixture.Runtime.ApplyGroundUnitEffectsResultTyped(
             groupCaster,
             skill,
             null,
@@ -233,7 +238,8 @@ public partial class run_mage_gust_of_wind_regression : LifecycleTestSceneTree
             new[] { near.GetAnchorCoord(), far.GetAnchorCoord() },
             groupBatch,
             new[] { groupCaster.GetAnchorCoord() + Vector2I.Right }
-        );
+        )
+            );
         _test.True(groupResult.Applied, "风区内相邻目标应由远到近整体移动。");
         _test.Eq(groupResult.AffectedUnitCount, 2, "只应报告实际移动的两个风区目标。");
         _test.Eq(near.GetAnchorCoord(), new Vector2I(2, 2), "近端目标应在远端腾空后移动。");
@@ -359,12 +365,15 @@ public partial class run_mage_gust_of_wind_regression : LifecycleTestSceneTree
             fixture.Runtime.ValidateGroundSkillCommandResultTyped(caster, skill, castVariant, command);
         _test.True(validation.Allowed, $"屏障交互测试施法目标必须合法：{validation.Message}");
         using var batch = new BattleEventBatch();
-        bool applied = fixture.Runtime._skill_orchestrator._handle_ground_skill_command(
+        bool applied = BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime, batch,
+            () => fixture.Runtime._skill_orchestrator._handle_ground_skill_command(
             caster,
             command,
             skill,
             castVariant,
             batch
+        )
         );
 
         _test.True(applied, $"强风术应能打破虹光法球橙层。logs={string.Join(" | ", batch.LogLinesTyped)}");

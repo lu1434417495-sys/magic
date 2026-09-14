@@ -1042,20 +1042,20 @@ public static class BattleStatusSemanticTable
     {
         if (value <= 0)
             return -1;
-        if (value % BattleTimelineState.TuGranularity != 0)
+        if (value % BattleTimeRules.TuGranularity != 0)
         {
             int clampedValue =
                 (
                     (
                         value
-                        + BattleTimelineState.TuGranularity
+                        + BattleTimeRules.TuGranularity
                         - 1
                     )
-                    / BattleTimelineState.TuGranularity
+                    / BattleTimeRules.TuGranularity
                 )
-                * BattleTimelineState.TuGranularity;
+                * BattleTimeRules.TuGranularity;
             GameLog.Error(
-                $"{fieldLabel} must use {BattleTimelineState.TuGranularity} TU steps, got {value}; clamping up to {clampedValue}.",
+                $"{fieldLabel} must use {BattleTimeRules.TuGranularity} TU steps, got {value}; clamping up to {clampedValue}.",
                 "battle.status.invalid_tu",
                 "battle"
             );

@@ -774,7 +774,7 @@ public partial class run_warrior_phantom_through_regression : LifecycleTestScene
             BattleUnitState targetUnit,
             IEnumerable<CombatEffectDefinition> effectDefinitions,
             AttackCheckInput attackCheck,
-            AttackContext attackContext = null
+            AttackContext attackContext
         )
         {
             TargetIds.Add(targetUnit?.unit_id ?? new StringName(""));

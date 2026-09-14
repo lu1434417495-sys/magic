@@ -191,17 +191,20 @@ public partial class run_mage_arcane_orbit_regression : LifecycleTestSceneTree
             forceCriticalOnHit: true,
             skillId: shot.SkillId
         );
-        AttackEffectResolutionResult original = fixture.Runtime._damage_resolver.ResolveAttackEffects(
-            archer,
-            mage,
-            shot.CombatProfile.EffectDefinitions,
-            forcedCritical,
-            new AttackContext
-            {
+        AttackEffectResolutionResult original = BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, batch, archer, shot.CombatProfile.EffectDefinitions,
+            actionContext => fixture.Runtime._damage_resolver.ResolveAttackEffects(
+                archer,
+                mage,
+                shot.CombatProfile.EffectDefinitions,
+                forcedCritical,
+                new AttackContext
+            { Action = actionContext,
                 BattleState = fixture.State,
                 SkillId = shot.SkillId,
                 EventBatch = batch,
             }
+            )
         );
 
         _test.True(original.CriticalHit, "负向控制：原3W弓击必须确实按暴击结算。" );
@@ -232,17 +235,20 @@ public partial class run_mage_arcane_orbit_regression : LifecycleTestSceneTree
         int mageHpBefore = mage.GetCurrentHp();
         int archerHpBefore = archer.GetCurrentHp();
         using var batch = new BattleEventBatch();
-        AttackEffectResolutionResult original = fixture.Runtime._damage_resolver.ResolveAttackEffects(
-            archer,
-            mage,
-            shot.CombatProfile.EffectDefinitions,
-            new AttackCheckInput(skillId: shot.SkillId),
-            new AttackContext
-            {
+        AttackEffectResolutionResult original = BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, batch, archer, shot.CombatProfile.EffectDefinitions,
+            actionContext => fixture.Runtime._damage_resolver.ResolveAttackEffects(
+                archer,
+                mage,
+                shot.CombatProfile.EffectDefinitions,
+                new AttackCheckInput(skillId: shot.SkillId),
+                new AttackContext
+            { Action = actionContext,
                 BattleState = fixture.State,
                 SkillId = shot.SkillId,
                 EventBatch = batch,
             }
+            )
         );
         _test.False(original.AttackSuccess, "负向控制：原弩击必须确实未命中。" );
         _test.Eq(mage.GetCurrentHp(), mageHpBefore, "未命中的原攻击不得造成伤害。" );
@@ -266,12 +272,16 @@ public partial class run_mage_arcane_orbit_regression : LifecycleTestSceneTree
         fixture.Runtime.ConfigureHitResolverForTests(new FixedHitResolver());
         Ready(mage, 3, 3, 75);
         int throwerHpBefore = thrower.GetCurrentHp();
-        fixture.Runtime._damage_resolver.ResolveAttackEffects(
-            thrower,
-            mage,
-            shot.CombatProfile.EffectDefinitions,
-            new AttackCheckInput(skillId: shot.SkillId),
-            new AttackContext { BattleState = fixture.State, SkillId = shot.SkillId }
+        using var reactionBatch2 = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, reactionBatch2, thrower, shot.CombatProfile.EffectDefinitions,
+            actionContext => fixture.Runtime._damage_resolver.ResolveAttackEffects(
+                thrower,
+                mage,
+                shot.CombatProfile.EffectDefinitions,
+                new AttackCheckInput(skillId: shot.SkillId),
+                new AttackContext { EventBatch = reactionBatch2, DamageOriginKind = BattleDamageOriginKind.MainDirectEffect, Action = actionContext,  BattleState = fixture.State, SkillId = shot.SkillId }
+            )
         );
         _test.Eq(mage.GetStatusEffect(ReadyStatusId)?.stacks ?? -1, 3, "投掷远程武器不得消耗法珠。" );
         _test.Eq(thrower.GetCurrentHp(), throwerHpBefore, "投掷远程武器不得受到法珠反击。" );

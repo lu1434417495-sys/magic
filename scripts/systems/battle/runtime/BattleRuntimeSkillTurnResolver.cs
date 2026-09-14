@@ -1563,7 +1563,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
         BattleUnitCooldownAdvanceResult advanceResult =
             unit_state.AdvanceCooldownClockToTyped(
                 currentTu,
-                BattleTimelineState.TuGranularity
+                BattleTimeRules.TuGranularity
             );
         if (advanceResult.ElapsedTu <= 0)
         {
@@ -1572,7 +1572,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
         if (advanceResult.InvalidGranularity)
         {
             GameLog.Error(
-                $"Cooldown delta must use {BattleTimelineState.TuGranularity} TU steps, got {advanceResult.ElapsedTu}.",
+                $"Cooldown delta must use {BattleTimeRules.TuGranularity} TU steps, got {advanceResult.ElapsedTu}.",
                 "battle.skill.invalid_cooldown_delta",
                 "battle"
             );
@@ -2021,7 +2021,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
     {
         int interval = Math.Max(
             status.upkeep_interval_tu,
-            BattleTimelineState.TuGranularity
+            BattleTimeRules.TuGranularity
         );
         int nextElapsedTu = SaturatingAdd(status.upkeep_elapsed_tu, interval);
         int escalationInterval = Math.Max(

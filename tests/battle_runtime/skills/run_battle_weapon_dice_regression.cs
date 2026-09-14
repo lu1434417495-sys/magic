@@ -1524,7 +1524,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             BattleUnitState targetUnit,
             IEnumerable<CombatEffectDefinition> effectDefinitions,
             AttackCheckInput attackCheck,
-            AttackContext attackContext = null
+            AttackContext attackContext
         )
         {
             return Capture(

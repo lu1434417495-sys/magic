@@ -316,7 +316,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             // 各多一个空 map key（含分隔逗号各 23 字符）。
             AssertGolden(
                 lease.Value,
-                "5653:010790601206fda7322e242a65c91ea53254ced143589b8eca2c6e7c5a596790",
+                "6055:58ee1ffcc1aee3d2b77bd3a6c69da2a9370428257853b81976c7f9ebd1ec7cd3",
                 "damage result fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);

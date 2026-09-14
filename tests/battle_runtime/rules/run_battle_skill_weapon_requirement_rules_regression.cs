@@ -292,7 +292,6 @@ public partial class
             ["training_shield"] =
                 new ItemDefinition(
                     "training_shield",
-                    "",
                     "Training Shield",
                     "",
                     "",

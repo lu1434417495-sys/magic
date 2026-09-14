@@ -50,7 +50,7 @@ public partial class run_equipment_fatal_intercept_runtime_regression : Lifecycl
                     "trait.test.fatal",
                     "trait.test.threshold",
                 },
-                KnownSkillIds = new HashSet<StringName>(),
+                KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition>(),
                 WindupSkillIds = new HashSet<StringName>(),
                 KnownStatusIds = new HashSet<StringName>(),
             },
@@ -77,7 +77,7 @@ public partial class run_equipment_fatal_intercept_runtime_regression : Lifecycl
             new EquipmentAbilityContentValidationContext
             {
                 KnownTraitIds = new HashSet<StringName> { "trait.test.fatal" },
-                KnownSkillIds = new HashSet<StringName>(),
+                KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition>(),
                 WindupSkillIds = new HashSet<StringName>(),
                 KnownStatusIds = new HashSet<StringName>(),
             },
@@ -103,7 +103,7 @@ public partial class run_equipment_fatal_intercept_runtime_regression : Lifecycl
                     "trait.test.fatal",
                     "trait.test.threshold",
                 },
-                KnownSkillIds = new HashSet<StringName>(),
+                KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition>(),
                 WindupSkillIds = new HashSet<StringName>(),
                 KnownStatusIds = new HashSet<StringName>(),
             },
@@ -396,7 +396,7 @@ public partial class run_equipment_fatal_intercept_runtime_regression : Lifecycl
             new EquipmentAbilityContentValidationContext
             {
                 KnownTraitIds = new HashSet<StringName> { "trait.test.monthly.authoring" },
-                KnownSkillIds = new HashSet<StringName>(),
+                KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition>(),
                 WindupSkillIds = new HashSet<StringName>(),
                 KnownStatusIds = new HashSet<StringName>(),
             },

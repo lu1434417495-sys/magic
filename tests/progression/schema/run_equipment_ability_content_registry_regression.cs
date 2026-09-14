@@ -24,6 +24,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             TestFailedRebuildKeepsLastSuccessfulSnapshot();
             TestRuntimeVocabularyFailsClosed();
             TestWindupSkillContextSurvivesStatusExpansion();
+            TestImmediateWeaponAttackRequiresWeaponDefinitionAfterJsonImport();
         }
         catch (Exception exception)
         {
@@ -213,6 +214,51 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         AssertError(result.Errors, "EQA_REFERENCE_WINDUP_SKILL_UNSUPPORTED", ".payload.skill_id");
     }
 
+    private void TestImmediateWeaponAttackRequiresWeaponDefinitionAfterJsonImport()
+    {
+        var action = new EquipmentAbilityActionImportModel
+        {
+            action_id = "action.immediate",
+            kind = "immediate_weapon_attack",
+            payload = new ImmediateWeaponAttackActionPayloadImportModel
+            {
+                anchor_selector = "defeated",
+                target_team_filter = "enemy",
+                radius = 1,
+                max_attacks = 1,
+                skill_id = SkillId,
+            },
+        };
+        string json = EquipmentAbilityImportCanonicalJson.WriteDocument(
+            "immediate-weapon-test", new[] { BuildPack(action: action) }
+        );
+        foreach (bool hasWeaponDamage in new[] { false, true })
+        {
+            SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+                SkillId,
+                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                    SkillId,
+                    new[] { TestSkillDefinitionProjection.BuildEffect("damage", addWeaponDice: hasWeaponDamage) }
+                )
+            );
+            var context = new EquipmentAbilityContentValidationContext
+            {
+                KnownTraitIds = new HashSet<StringName> { TraitId },
+                KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition> { [SkillId] = skill },
+                KnownStatusIds = new HashSet<StringName>(),
+            };
+            using var registry = new EquipmentAbilityContentRegistry();
+            EquipmentAbilityRegistryBuildResult result = registry.RebuildFromJson(
+                "memory://immediate-weapon-test",
+                new FakeSourceReader(new ContentJsonSourceText("immediate.json", json)),
+                context
+            );
+            _test.Eq(result.Success, hasWeaponDamage, $"immediate attack weapon requirement survives JSON import: {Format(result.Errors)}");
+            if (!hasWeaponDamage)
+                AssertError(result.Errors, "EQA_IMMEDIATE_WEAPON_ATTACK_REQUIRES_WEAPON_DAMAGE", ".payload.skill_id");
+        }
+    }
+
     private static EquipmentAbilityContentPackImportModel BuildPack(
         string traitId = TraitId,
         string trigger = "on_hit",
@@ -282,7 +328,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
     ) => new()
     {
         KnownTraitIds = new HashSet<StringName> { TraitId },
-        KnownSkillIds = new HashSet<StringName> { SkillId },
+        KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition> { [SkillId] = TestSkillDefinitionProjection.BuildSkill(SkillId) },
         WindupSkillIds = windupSkill
             ? new HashSet<StringName> { SkillId }
             : new HashSet<StringName>(),

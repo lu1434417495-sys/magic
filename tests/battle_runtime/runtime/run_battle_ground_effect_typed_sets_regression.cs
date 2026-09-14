@@ -22,43 +22,16 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
     {
         Fixture fixture = BuildWindPushFixture();
         var batch = new BattleEventBatch();
-        BattleGroundUnitEffectsResult result = default;
-        BattleReactionRootTestHelper.ExecuteInReactionRoot(
-            fixture.Runtime,
-            batch,
-            () =>
-            {
-                var effects =
-                    new[] { fixture.WindPushEffect };
-                BattleAttackDeliveryKind deliveryKind =
-                    BattleAttackDeliveryRules.Resolve(
-                        effects,
-                        fixture.Source
-                            .GetWeaponProjectionReadViewTyped()
-                    );
-                using BattleLogicalAttackScope logicalAttack =
-                    fixture.Runtime.BeginLogicalAttack(
-                        deliveryKind
-                    );
-                result = fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
-                        fixture.Source,
-                        fixture.Skill,
-                        null,
-                        effects,
-                        new List<Vector2I>
-                        {
-                            new Vector2I(1, 0),
-                        },
-                        batch,
-                        logicalAttack.Context,
-                        new List<Vector2I>
-                        {
-                            new Vector2I(1, 0),
-                        }
-                    );
-                logicalAttack.Complete();
-            }
-        );
+        BattleGroundUnitEffectsResult result =
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, batch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+                    fixture.Source, fixture.Skill, null,
+                    new[] { fixture.WindPushEffect },
+                    new[] { new Vector2I(1, 0) }, batch,
+                    new[] { new Vector2I(1, 0) }
+                )
+            );
 
         _test.False(result.Applied, "锥形外阻挡单位不得被 wind push 递归带动。");
         _test.Eq(result.AffectedUnitCount, 0, "零位移不得报告 affected unit。");
@@ -72,7 +45,9 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         Fixture fixture = BuildWindPushFixture();
         var batch = new BattleEventBatch();
         BattleGroundUnitEffectsResult result =
-            fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, batch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
                 fixture.Source,
                 fixture.Skill,
                 null,
@@ -80,6 +55,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
                 new List<Vector2I> { new Vector2I(1, 0), new Vector2I(2, 0) },
                 batch,
                 new List<Vector2I> { new Vector2I(1, 0) }
+            )
             );
 
         _test.True(result.Applied, "同一风区内的相邻目标应能按风向整体后移。");
@@ -283,7 +259,10 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             );
             int hpBefore = fixture.Front.GetCurrentHp();
             using var batch = new BattleEventBatch();
-            AttackEffectResolutionResult result = fixture
+            AttackEffectResolutionResult result = default;
+            BattleReactionRootTestHelper.ExecuteLogicalAttack(
+                fixture.Runtime, batch, fixture.Source, new[] { weaponDamage, weaponDamage },
+                actionContext => result = fixture
                 .Runtime
                 ._ground_effect_service
                 .ResolveGroundUnitEffectResult(
@@ -291,8 +270,10 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
                     fixture.Front,
                     fixture.Skill,
                     new[] { weaponDamage, weaponDamage },
-                    batch
-                );
+                    batch,
+                    actionContext
+                )
+            );
 
             _test.True(result.AttackSuccess, "ground weapon-attack 路径应完成真实命中结算。");
             _test.Eq(result.Damage, 6, "重复引用同一伤害效果时，结算结果只能包含一次伤害。");

@@ -407,7 +407,7 @@ internal sealed class BattleDefenseObjectiveRuntimeState
             throw new ArgumentOutOfRangeException(nameof(startTu));
         if (
             deadlineTu <= startTu
-            || (deadlineTu - startTu) % BattleTimelineState.TuGranularity != 0
+            || (deadlineTu - startTu) % BattleTimeRules.TuGranularity != 0
         )
         {
             throw new ArgumentOutOfRangeException(nameof(deadlineTu));
@@ -864,7 +864,7 @@ internal sealed class BattleControlObjectiveRuntimeState
         }
         if (
             scoreTarget <= 0
-            || scoreTarget % BattleTimelineState.TuGranularity != 0
+            || scoreTarget % BattleTimeRules.TuGranularity != 0
         )
         {
             throw new ArgumentOutOfRangeException(nameof(scoreTarget));
@@ -925,7 +925,7 @@ internal sealed class BattleControlObjectiveRuntimeState
         }
         if (
             tuDelta <= 0
-            || tuDelta % BattleTimelineState.TuGranularity != 0
+            || tuDelta % BattleTimeRules.TuGranularity != 0
         )
         {
             throw new ArgumentOutOfRangeException(nameof(tuDelta));

@@ -57,10 +57,10 @@ internal sealed class BattleEffectOrigin
         );
 
     internal static BattleEffectOrigin EquipmentAbility() =>
-        new("equipment_ability", canTriggerContingencies: false);
+        new("equipment_ability", canTriggerContingencies: false, canTriggerReactions: true);
 
     internal static BattleEffectOrigin EquipmentDirectReaction() =>
-        new("equipment_direct_reaction", canTriggerContingencies: false);
+        new("equipment_direct_reaction", canTriggerContingencies: false, canTriggerReactions: false);
 
     internal static BattleEffectOrigin AutoCast(AutoCastRequest request) =>
         new(

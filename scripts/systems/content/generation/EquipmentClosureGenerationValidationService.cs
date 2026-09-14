@@ -305,7 +305,7 @@ internal sealed class EquipmentClosureGenerationValidationService
         var abilityContext = new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = new HashSet<StringName>(combinedTraits.Keys),
-            KnownSkillIds = new HashSet<StringName>(_processSnapshot.Skills.Keys),
+            KnownSkillDefinitions = _processSnapshot.Skills,
             WindupSkillIds = new HashSet<StringName>(
                 _processSnapshot.Skills.Values
                     .Where(value => value?.CombatProfile?.Windup != null)

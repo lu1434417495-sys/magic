@@ -421,7 +421,7 @@ public partial class run_equipment_attack_hit_reaction_regression : LifecycleTes
         return new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = new HashSet<StringName> { "trait.test.attack_hit_boil" },
-            KnownSkillIds = new HashSet<StringName> { "known_skill" },
+            KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition> { ["known_skill"] = TestSkillDefinitionProjection.BuildSkill("known_skill") },
             KnownStatusIds = new HashSet<StringName> { BoilStatusId },
         };
     }
@@ -554,38 +554,52 @@ public partial class run_equipment_attack_hit_reaction_regression : LifecycleTes
             BattleUnitState target = null
         )
         {
-            return Resolver.ResolveAttackEffects(
-                Holder,
-                target ?? Target,
-                new[] { effect },
-                new AttackCheckInput(forceHitNoCrit: true, skillId: TestSkillId),
-                new AttackContext
+            using var reactionBatch = new BattleEventBatch();
+            return BattleReactionRootTestHelper.ExecuteLogicalAttack(
+                Runtime, reactionBatch, Holder, new[] { effect },
+                actionContext => Resolver.ResolveAttackEffects(
+                    Holder,
+                    target ?? Target,
+                    new[] { effect },
+                    new AttackCheckInput(forceHitNoCrit: true, skillId: TestSkillId),
+                    new AttackContext
                 {
+                    Action = actionContext,
+                    EventBatch = reactionBatch,
+                    DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
                     BattleState = State,
                     SkillId = TestSkillId,
                 }
+                )
             );
         }
 
         internal AttackEffectResolutionResult ResolveAttackMiss(CombatEffectDefinition effect)
         {
             // requiredRoll 21、关闭自然 20 自动命中并锁定暴击：任意 D20 都是普通 miss。
-            return Resolver.ResolveAttackEffects(
-                Holder,
-                Target,
-                new[] { effect },
-                new AttackCheckInput(
+            using var reactionBatch = new BattleEventBatch();
+            return BattleReactionRootTestHelper.ExecuteLogicalAttack(
+                Runtime, reactionBatch, Holder, new[] { effect },
+                actionContext => Resolver.ResolveAttackEffects(
+                    Holder,
+                    Target,
+                    new[] { effect },
+                    new AttackCheckInput(
                     requiredRoll: 21,
                     naturalOneAutoMiss: true,
                     naturalTwentyAutoHit: false,
                     critLocked: true,
                     skillId: TestSkillId
                 ),
-                new AttackContext
+                    new AttackContext
                 {
+                    Action = actionContext,
+                    EventBatch = reactionBatch,
+                    DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
                     BattleState = State,
                     SkillId = TestSkillId,
                 }
+                )
             );
         }
 

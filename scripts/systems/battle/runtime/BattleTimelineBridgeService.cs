@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -12,6 +13,21 @@ internal sealed class BattleTimelineBridgeService
     : BattleRuntimeModuleBorrower,
         IBattleTimelineRuntimePort
 {
+    BattleReactionBoundaryScope IBattleTimelineRuntimePort.BeginReactionBoundary(
+        BattleEventBatch batch
+    ) => (_runtime ?? throw new InvalidOperationException("Timeline runtime is not bound."))
+        .BeginReactionBoundary(batch);
+
+    IDisposable IBattleTimelineRuntimePort.PushEffectOrigin(BattleEffectOrigin origin) =>
+        (_runtime ?? throw new InvalidOperationException("Timeline runtime is not bound."))
+            .EffectExecutionContext.Push(origin);
+
+    void IBattleTimelineRuntimePort.AbortActiveReactionBoundary() =>
+        _runtime?.AbortActiveReactionBoundary();
+
+    void IBattleTimelineRuntimePort.AppendBatchLogsToStateFrom(BattleEventBatch batch, int logStartIndex, int reportStartIndex) =>
+        _runtime?._append_batch_logs_to_state_from(batch, logStartIndex, reportStartIndex);
+
     BattleState IBattleTimelineRuntimePort.GetBattleState() => _runtime?.GetState();
 
     void IBattleTimelineRuntimePort.AdvanceUnitTurnTimers(

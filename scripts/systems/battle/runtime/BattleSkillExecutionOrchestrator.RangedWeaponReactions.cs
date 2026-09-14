@@ -78,33 +78,46 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             snapshot.DiceSides,
             0
         );
-        var attackContext = new AttackContext
+        using BattleLogicalAttackScope logicalAttack = BeginLogicalAttackForEffects(
+            defender, new[] { reactionDamage }
+        );
+        try
         {
-            BattleState = context.BattleState,
-            SkillId = candidate.SkillDefinition.SkillId,
-            EventBatch = context.Batch,
-            DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
-        };
-        AttackEffectResolutionResult result = Runtime._damage_resolver.ResolveAttackEffects(
-            defender,
-            attacker,
-            new[] { reactionDamage },
-            attackCheck,
-            attackContext
-        );
-        if (result.Applied)
-            Runtime._append_changed_unit_id(context.Batch, attacker.unit_id);
+            var attackContext = new AttackContext
+            {
+                BattleState = context.BattleState,
+                SkillId = candidate.SkillDefinition.SkillId,
+                EventBatch = context.Batch,
+                Action = logicalAttack.Context,
+                DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
+            };
+            AttackEffectResolutionResult result = Runtime._damage_resolver.ResolveAttackEffects(
+                defender,
+                attacker,
+                new[] { reactionDamage },
+                attackCheck,
+                attackContext
+            );
+            if (result.Applied)
+                Runtime._append_changed_unit_id(context.Batch, attacker.unit_id);
 
-        string damageLabel = FormatDamageTag(candidate.Profile.DamageTag);
-        string defenseLabel = FormatAttackDefenseMode(
-            candidate.Profile.AttackDefenseModeKind
-        );
-        string resultLabel = result.AttackSuccess
-            ? $"命中，造成{Math.Max(result.HpDamage, 0)}点{damageLabel}生命伤害"
-            : "未命中";
-        context.Batch?.AddLogLine(
-            $"{candidate.SkillDefinition.DisplayName}以 {snapshot.TotalDiceCount}D{snapshot.DiceSides} 进行独立{defenseLabel}攻击：{resultLabel}；本次反击{(candidate.Profile.AllowCritical ? "可暴击" : "不能暴击")}。"
-        );
+            string damageLabel = FormatDamageTag(candidate.Profile.DamageTag);
+            string defenseLabel = FormatAttackDefenseMode(
+                candidate.Profile.AttackDefenseModeKind
+            );
+            string resultLabel = result.AttackSuccess
+                ? $"命中，造成{Math.Max(result.HpDamage, 0)}点{damageLabel}生命伤害"
+                : "未命中";
+            context.Batch?.AddLogLine(
+                $"{candidate.SkillDefinition.DisplayName}以 {snapshot.TotalDiceCount}D{snapshot.DiceSides} 进行独立{defenseLabel}攻击：{resultLabel}；本次反击{(candidate.Profile.AllowCritical ? "可暴击" : "不能暴击")}。"
+            );
+            logicalAttack.Complete();
+        }
+        catch
+        {
+            Runtime?.AbortActiveReactionBoundary();
+            throw;
+        }
     }
 
     private RangedWeaponReactionCandidate FindRangedWeaponReactionCandidate(

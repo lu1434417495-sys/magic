@@ -311,7 +311,7 @@ public partial class run_equipment_ability_json_content_regression : LifecycleTe
             new EquipmentAbilityContentValidationContext
             {
                 KnownTraitIds = new HashSet<StringName> { "trait.windup_negative" },
-                KnownSkillIds = new HashSet<StringName> { "skill.windup_negative" },
+                KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition> { ["skill.windup_negative"] = TestSkillDefinitionProjection.BuildSkill("skill.windup_negative") },
                 WindupSkillIds = new HashSet<StringName> { "skill.windup_negative" },
                 KnownStatusIds = new HashSet<StringName>(),
             }

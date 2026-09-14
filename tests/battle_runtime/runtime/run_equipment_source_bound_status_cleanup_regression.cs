@@ -672,7 +672,7 @@ public partial class run_equipment_source_bound_status_cleanup_regression : Life
         return new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = new HashSet<StringName> { SetTraitId },
-            KnownSkillIds = new HashSet<StringName> { "known_skill" },
+            KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition> { ["known_skill"] = TestSkillDefinitionProjection.BuildSkill("known_skill") },
             KnownStatusIds = new HashSet<StringName> { OptInStatusId },
         };
     }
@@ -842,19 +842,29 @@ public partial class run_equipment_source_bound_status_cleanup_regression : Life
 
         internal void ApplyBuffsViaAttackHit()
         {
-            Resolver.ResolveAttackEffects(
-                Holder,
-                Enemy,
-                new[]
+            using var reactionBatch = new BattleEventBatch();
+            BattleReactionRootTestHelper.ExecuteLogicalAttack(
+                Runtime, reactionBatch, Holder, new[]
                 {
                     TestSkillDefinitionProjection.BuildEffect("damage", damageTag: "fire", power: 4),
                 },
-                new AttackCheckInput(forceHitNoCrit: true, skillId: TestSkillId),
-                new AttackContext
+                actionContext => Resolver.ResolveAttackEffects(
+                    Holder,
+                    Enemy,
+                    new[]
                 {
+                    TestSkillDefinitionProjection.BuildEffect("damage", damageTag: "fire", power: 4),
+                },
+                    new AttackCheckInput(forceHitNoCrit: true, skillId: TestSkillId),
+                    new AttackContext
+                {
+                    Action = actionContext,
+                    EventBatch = reactionBatch,
+                    DamageOriginKind = BattleDamageOriginKind.MainDirectEffect,
                     BattleState = State,
                     SkillId = TestSkillId,
                 }
+                )
             );
         }
 

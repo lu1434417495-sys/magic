@@ -45,7 +45,7 @@ internal sealed class BattleTimelineDriver
                 using BattleReactionBoundaryScope boundary =
                     runtime.BeginReactionBoundary(batch);
                 using IDisposable originScope =
-                    runtime.EffectExecutionContext.Push(
+                    runtime.PushEffectOrigin(
                         BattleEffectOrigin.Timeline(
                             "timeline_tick"
                         )
@@ -61,7 +61,7 @@ internal sealed class BattleTimelineDriver
                     int reportCountBeforeDrain =
                         batch.ReportEntriesTyped.Count;
                     boundary.Complete();
-                    runtime._append_batch_logs_to_state_from(
+                    runtime.AppendBatchLogsToStateFrom(
                         batch,
                         logCountBeforeDrain,
                         reportCountBeforeDrain
@@ -206,10 +206,10 @@ internal sealed class BattleTimelineDriver
         var state = _ResolveState();
         if (state == null || state.timeline == null)
             return;
-        if (tuDelta > 0 && tuDelta % BattleTimelineState.TuGranularity != 0)
+        if (tuDelta > 0 && tuDelta % BattleTimeRules.TuGranularity != 0)
         {
             GameLog.Error(
-                $"Battle timeline can only advance in {BattleTimelineState.TuGranularity} TU steps, got {tuDelta}.",
+                $"Battle timeline can only advance in {BattleTimeRules.TuGranularity} TU steps, got {tuDelta}.",
                 "battle.timeline.invalid_tu_delta",
                 "battle"
             );
@@ -444,10 +444,10 @@ internal sealed class BattleTimelineDriver
             GameLog.Error($"Battle unit action_threshold must be positive, got {actionThreshold}.", "battle.timeline.invalid_threshold", "battle");
             return BattleUnitState.DefaultActionThreshold;
         }
-        if (actionThreshold % BattleTimelineState.TuGranularity != 0)
+        if (actionThreshold % BattleTimeRules.TuGranularity != 0)
         {
             GameLog.Error(
-                $"Battle unit action_threshold must be a multiple of {BattleTimelineState.TuGranularity}, got {actionThreshold}.",
+                $"Battle unit action_threshold must be a multiple of {BattleTimeRules.TuGranularity}, got {actionThreshold}.",
                 "battle.timeline.invalid_threshold_multiple",
                 "battle"
             );
@@ -501,17 +501,17 @@ internal sealed class BattleTimelineDriver
         var tuPerTick =
             context != null && context.ContainsKey("tu_per_tick")
                 ? context["tu_per_tick"].AsInt32()
-                : BattleTimelineState.TuGranularity;
+                : BattleTimeRules.TuGranularity;
         if (tuPerTick <= 0)
-            return BattleTimelineState.TuGranularity;
-        if (tuPerTick % BattleTimelineState.TuGranularity != 0)
+            return BattleTimeRules.TuGranularity;
+        if (tuPerTick % BattleTimeRules.TuGranularity != 0)
         {
             GameLog.Error(
-                $"timeline.tu_per_tick must be a multiple of {BattleTimelineState.TuGranularity}, got {tuPerTick}.",
+                $"timeline.tu_per_tick must be a multiple of {BattleTimeRules.TuGranularity}, got {tuPerTick}.",
                 "battle.timeline.invalid_tu_per_tick",
                 "battle"
             );
-            return BattleTimelineState.TuGranularity;
+            return BattleTimeRules.TuGranularity;
         }
         return tuPerTick;
     }

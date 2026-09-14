@@ -438,14 +438,14 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             borrowerTypes,
             nameof(BattleCounterattackQueryService)
         );
-        int commandPreviewIndex = Array.IndexOf(
+        int immediateAttackIndex = Array.IndexOf(
             borrowerTypes,
-            nameof(BattleCommandPreviewService)
+            nameof(BattleImmediateWeaponAttackService)
         );
         _test.True(
             queryIndex >= 0
-                && commandPreviewIndex > queryIndex,
-            $"{label}: dependency order must be CounterattackQuery -> CommandPreview"
+                && immediateAttackIndex >= 0 && immediateAttackIndex < queryIndex,
+            $"{label}: dependency order must be ImmediateWeaponAttack -> CounterattackQuery"
         );
         _test.Eq(
             snapshot.BoundCount,

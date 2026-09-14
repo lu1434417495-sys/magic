@@ -53,13 +53,18 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         int staminaBefore = fixture.ActiveUnit.GetCurrentStamina();
 
         using var batch = new BattleEventBatch();
-        bool executed = fixture.Resolver.ApplyRepeatAttackSkillResult(
+        bool executed = false;
+        BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, batch, fixture.ActiveUnit, skillDefinition.CombatProfile.EffectDefinitions,
+            actionContext => executed = fixture.Resolver.ApplyRepeatAttackSkillResult(
             fixture.ActiveUnit,
             fixture.TargetUnit,
             skillDefinition,
             skillDefinition.CombatProfile.EffectDefinitions,
             repeatEffect,
-            batch
+            batch,
+            actionContext
+            )
         );
         _test.True(executed, "连击应执行首段并进入可支付的第二段。");
         _test.Eq(

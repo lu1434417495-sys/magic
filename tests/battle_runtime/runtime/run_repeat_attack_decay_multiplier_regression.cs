@@ -98,13 +98,18 @@ public partial class run_repeat_attack_decay_multiplier_regression : LifecycleTe
         {
             int hpBefore = target.GetCurrentHp();
             using var batch = new BattleEventBatch();
-            bool executed = resolver.ApplyRepeatAttackSkillResult(
+            bool executed = false;
+            BattleReactionRootTestHelper.ExecuteLogicalAttack(
+                fixture.Runtime, batch, source, skill.CombatProfile.EffectDefinitions,
+                actionContext => executed = resolver.ApplyRepeatAttackSkillResult(
                 source,
                 target,
                 skill,
                 skill.CombatProfile.EffectDefinitions,
                 repeatEffect,
-                batch
+                batch,
+                actionContext
+                )
             );
 
             _test.True(executed, $"连击场景应至少命中第一段：{message}");

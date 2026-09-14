@@ -1265,16 +1265,16 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         if (value <= 0)
         {
             GameLog.Error(
-                $"{fieldLabel} must be positive and use {BattleTimelineState.TuGranularity} TU steps, got {value}; skipping effect.",
+                $"{fieldLabel} must be positive and use {BattleTimeRules.TuGranularity} TU steps, got {value}; skipping effect.",
                 "battle.terrain.invalid_tu_positive",
                 "battle"
             );
             return -1;
         }
-        if (value % BattleTimelineState.TuGranularity != 0)
+        if (value % BattleTimeRules.TuGranularity != 0)
         {
             GameLog.Error(
-                $"{fieldLabel} must use {BattleTimelineState.TuGranularity} TU steps, got {value}; skipping effect.",
+                $"{fieldLabel} must use {BattleTimeRules.TuGranularity} TU steps, got {value}; skipping effect.",
                 "battle.terrain.invalid_tu_granularity",
                 "battle"
             );

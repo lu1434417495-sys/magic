@@ -229,7 +229,9 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
 
         using var batch = new BattleEventBatch();
         BattleGroundUnitEffectsResult result =
-            fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, batch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
                 source,
                 skill,
                 null,
@@ -237,6 +239,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
                 effectCoords,
                 batch,
                 effectCoords
+            )
             );
         _test.True(result.Applied, "受限群体治疗应在正式 ground runtime 应用。");
         _test.Eq(result.AffectedUnitCount, 4, "runtime affected count 必须等于冻结的前四名。");
@@ -263,7 +266,9 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
 
         using var firstBatch = new BattleEventBatch();
         BattleGroundUnitEffectsResult first =
-            fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, firstBatch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
                 source,
                 skill,
                 null,
@@ -271,12 +276,15 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
                 effectCoords,
                 firstBatch,
                 effectCoords
+            )
             );
         _test.Eq(target.GetCurrentHp(), 51, "101 max HP 的 50% 地板必须向上取整到 51。");
         _test.Eq(first.Healing, 11, "治疗量必须是 ceil(max*pct/100)-current 的正差值。");
 
         using var secondBatch = new BattleEventBatch();
-        fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, secondBatch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
             source,
             skill,
             null,
@@ -284,7 +292,8 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             effectCoords,
             secondBatch,
             effectCoords
-        );
+        )
+            );
         _test.Eq(target.GetCurrentHp(), 51, "已达到生命地板时不得继续治疗。");
     }
 
@@ -314,7 +323,9 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
 
         using var firstBatch = new BattleEventBatch();
         BattleGroundUnitEffectsResult first =
-            fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, firstBatch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
                 source,
                 skill,
                 null,
@@ -322,6 +333,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
                 effectCoords,
                 firstBatch,
                 effectCoords
+            )
             );
         _test.Eq(first.Healing, 48, "20/100生命应恢复48点。");
         _test.Eq(target.GetCurrentHp(), 68, "20/100生命使用60%损失生命治疗后应为68。");
@@ -338,7 +350,9 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
         );
         using var reducedBatch = new BattleEventBatch();
         BattleGroundUnitEffectsResult reduced =
-            fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, reducedBatch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
                 source,
                 skill,
                 null,
@@ -346,6 +360,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
                 effectCoords,
                 reducedBatch,
                 effectCoords
+            )
             );
         _test.Eq(reduced.Healing, 24, "治疗削减50%应作用于48点基础治疗。");
         _test.Eq(target.GetCurrentHp(), 44, "治疗削减后的实际生命应为44。");
@@ -398,7 +413,9 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
         IReadOnlyList<Vector2I> effectCoords = fixture.AllCoords();
 
         using var batch = new BattleEventBatch();
-        fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, batch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
             source,
             skill,
             null,
@@ -406,7 +423,8 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             effectCoords,
             batch,
             effectCoords
-        );
+        )
+            );
         _test.Eq(first.GetCurrentHp(), 100, "第一个 effect 应先把原最低血量目标治疗满。");
         _test.Eq(
             second.GetCurrentHp(),

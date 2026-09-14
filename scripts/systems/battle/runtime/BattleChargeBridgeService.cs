@@ -13,6 +13,14 @@ internal sealed class BattleChargeBridgeService
     : BattleRuntimeModuleBorrower,
         IBattleChargeRuntimePort
 {
+    BattleLogicalAttackScope IBattleChargeRuntimePort.BeginLogicalAttack(
+        BattleAttackDeliveryKind deliveryKind
+    ) => (_runtime ?? throw new InvalidOperationException("Charge runtime is not bound."))
+        .BeginLogicalAttack(deliveryKind);
+
+    void IBattleChargeRuntimePort.AbortActiveReactionBoundary() =>
+        _runtime?.AbortActiveReactionBoundary();
+
     BattleState IBattleChargeRuntimePort.GetBattleState() => _runtime?._state;
 
     BattleGridService IBattleChargeRuntimePort.GetGridService() => _runtime?._grid_service;

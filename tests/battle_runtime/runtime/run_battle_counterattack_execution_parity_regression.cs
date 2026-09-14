@@ -186,6 +186,7 @@ public partial class
         using var runtime = new BattleRuntimeModule();
         runtime.setup(
             character_gateway: gateway,
+            basic_attack_skill_id: basicAttack.SkillId,
             skill_definitions:
                 new Dictionary<StringName, SkillDefinition>
                 {
@@ -520,6 +521,7 @@ public partial class
             WeaponDamageDiceIsMax = true,
         };
         using var service = new BattleSkillMasteryService();
+        service.Setup(basicAttack.SkillId);
         BattleSkillMasteryGrant grant =
             service
                 .BuildCounterattackWeaponTrainingMasteryGrant(
@@ -574,6 +576,7 @@ public partial class
                 Applied = true,
             };
         using var service = new BattleSkillMasteryService();
+        service.Setup(basicAttack.SkillId);
         (
             StringName profileKind,
             StringName family,

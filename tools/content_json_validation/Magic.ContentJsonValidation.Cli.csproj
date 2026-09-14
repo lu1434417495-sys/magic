@@ -65,6 +65,7 @@
     <Compile Include="../../scripts/systems/content/enemies/EnemyContentJsonImportParser.cs" Link="Shared/EnemyContentJsonImportParser.cs" />
     <Compile Include="../../scripts/systems/content/enemies/EnemyContentJsonAuthoringDomains.cs" Link="Shared/EnemyContentJsonAuthoringDomains.cs" />
     <Compile Include="../../scripts/systems/content/enemies/EnemyContentImportValidator.Rules.cs" Link="Shared/EnemyContentImportValidator.Rules.cs" />
+    <Compile Include="../../scripts/systems/battle/core/BattleTimeRules.cs" Link="Shared/BattleTimeRules.cs" />
     <Compile Include="../../scripts/systems/battle/content/BattleEncounterJsonContracts.cs" Link="Shared/BattleEncounterJsonContracts.cs" />
     <Compile Include="../../scripts/systems/battle/content/BattleEncounterJsonImportParser.cs" Link="Shared/BattleEncounterJsonImportParser.cs" />
     <Compile Include="../../scripts/systems/battle/content/BattleEncounterImportValidator.cs" Link="Shared/BattleEncounterImportValidator.cs" />

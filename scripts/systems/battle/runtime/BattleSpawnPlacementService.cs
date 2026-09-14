@@ -101,7 +101,7 @@ internal sealed class BattleSpawnPlacementService : BattleRuntimeModuleBorrower
         if (!_can_place_spawn_anchor(unit_state, coord))
             return false;
         unit_state.SetAnchorCoord(coord);
-        _runtime.EnsureCounterattackUnitOwnersInitializedForAdmission(
+        BattleReactionBudgetRules.InitializeUnitForAdmission(
             _runtime.GetState(),
             unit_state
         );

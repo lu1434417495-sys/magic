@@ -69,20 +69,32 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         if (spellControlContext.SkipEffects)
             return true;
 
-        bool applied = ApplyOrderedUnitTargetSlots(
-            activeUnit,
-            validation.TargetUnits,
-            skillDefinition,
-            castVariantDefinition,
-            resolvedEffectDefinitions,
-            batch,
-            spellControlContext,
-            BattleForcedMoveContext.FromDestination(
-                command.forced_move_destination_coord
-            ),
-            collapseActiveSkillMastery: true
-        );
-        return applied || targetSlotCount > 0;
+        using BattleLogicalAttackScope logicalAttack =
+            BeginLogicalAttackForEffects(activeUnit, resolvedEffectDefinitions);
+        try
+        {
+            bool applied = ApplyOrderedUnitTargetSlots(
+                activeUnit,
+                validation.TargetUnits,
+                skillDefinition,
+                castVariantDefinition,
+                resolvedEffectDefinitions,
+                batch,
+                logicalAttack.Context,
+                spellControlContext,
+                BattleForcedMoveContext.FromDestination(
+                    command.forced_move_destination_coord
+                ),
+                collapseActiveSkillMastery: true
+            );
+            logicalAttack.Complete();
+            return applied || targetSlotCount > 0;
+        }
+        catch
+        {
+            Runtime?.AbortActiveReactionBoundary();
+            throw;
+        }
     }
 
     private bool ApplyOrderedUnitTargetSlots(
@@ -92,6 +104,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         CombatCastVariantDefinition castVariantDefinition,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch,
+        BattleAttackActionContext actionContext,
         BattleSpellControlResult spellControlContext,
         BattleForcedMoveContext forcedMoveContext = default,
         bool collapseActiveSkillMastery = false
@@ -139,6 +152,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         targetEffects,
                         repeatAttackEffect,
                         batch,
+                        actionContext,
                         castVariantDefinition
                     )
                 )
@@ -156,6 +170,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                     castVariantDefinition,
                     targetEffects,
                     batch,
+                    actionContext,
                     spellControlContext,
                     forced_move_context: forcedMoveContext
                 )

@@ -165,7 +165,7 @@ internal sealed class BattleDefenseObjectiveDefinition : BattleObjectiveDefiniti
             );
         if (
             durationTu <= 0
-            || durationTu % BattleTimelineState.TuGranularity != 0
+            || durationTu % BattleTimeRules.TuGranularity != 0
         )
         {
             throw new ArgumentOutOfRangeException(nameof(durationTu));
@@ -383,7 +383,7 @@ internal sealed class BattleControlObjectiveDefinition
         }
         if (
             scoreTarget <= 0
-            || scoreTarget % BattleTimelineState.TuGranularity != 0
+            || scoreTarget % BattleTimeRules.TuGranularity != 0
         )
         {
             throw new ArgumentOutOfRangeException(nameof(scoreTarget));

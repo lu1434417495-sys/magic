@@ -133,6 +133,7 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
         _test.True(preview?.allowed == true, $"狼灵召唤 preview 应允许。logs={JoinLogs(preview)}");
 
+        _test.Eq(FindLivingWolves(state, holder).Count, 0, "召唤预览不得向真实战斗添加单位。");
         using BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
         List<BattleUnitState> wolves = FindLivingWolves(state, holder);
@@ -142,6 +143,8 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         if (wolf == null)
             return;
 
+        _test.True(wolf.CaptureReactionRawTyped().OwnerPresent, "正式召唤单位必须初始化反应预算 owner。");
+        _test.True(wolf.CaptureCounterattackCapabilitiesRawTyped().OwnerPresent, "正式召唤单位必须初始化 capability owner。");
         _test.True(state.GetUnit(wolf.unit_id) == wolf, "幽灵狼必须进入 BattleState unit store。");
         _test.True(state.ally_unit_ids.Contains(wolf.unit_id), "玩家持有者召唤的幽灵狼应进入友方列表。");
         _test.Eq(wolf.faction_id, holder.faction_id, "幽灵狼阵营应跟随来源单位。");

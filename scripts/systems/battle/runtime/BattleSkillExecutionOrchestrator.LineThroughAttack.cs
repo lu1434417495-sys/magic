@@ -276,87 +276,102 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         CombatLineThroughAttackDefinition profile =
             skillDefinition.CombatProfile.LineThroughAttack;
         int skillLevel = _get_unit_skill_level(activeUnit, skillDefinition.SkillId);
-        int successfulIntermediateHits = 0;
-
-        foreach (BattleUnitState intermediateTarget in plan.IntermediateTargets)
+        using BattleLogicalAttackScope logicalAttack =
+            BeginLogicalAttackForEffects(activeUnit, baseEffects);
+        try
         {
-            if (intermediateTarget?.IsAlive() != true)
-                continue;
-            bool attackSucceeded = false;
-            IReadOnlyList<CombatEffectDefinition> intermediateEffects =
-                BuildLineThroughAttackEffects(
-                    baseEffects,
-                    profile.IntermediateWeaponDiceMultiplier
+            int successfulIntermediateHits = 0;
+
+            foreach (BattleUnitState intermediateTarget in plan.IntermediateTargets)
+            {
+                if (intermediateTarget?.IsAlive() != true)
+                    continue;
+                bool attackSucceeded = false;
+                IReadOnlyList<CombatEffectDefinition> intermediateEffects =
+                    BuildLineThroughAttackEffects(
+                        baseEffects,
+                        profile.IntermediateWeaponDiceMultiplier
+                    );
+                batch?.AddLogLine(
+                    $"{intermediateTarget.display_name} 承受 {profile.IntermediateWeaponDiceMultiplier}W 途中武器攻击（攻击检定无额外修正）。"
                 );
+                _apply_unit_skill_result(
+                    activeUnit,
+                    intermediateTarget,
+                    skillDefinition,
+                    castVariantDefinition,
+                    intermediateEffects,
+                    batch,
+                    logicalAttack.Context,
+                    flat_attack_bonus: 0,
+                    resolution_sink: result => attackSucceeded = result.AttackSuccess,
+                    force_weapon_attack_resolution: true,
+                    record_skill_mastery: false
+                );
+                if (attackSucceeded)
+                    successfulIntermediateHits++;
+                if (!activeUnit.IsAlive())
+                {
+                    batch?.AddLogLine("施术者在途中攻击结算中倒下，终点主攻击与位移取消。");
+                    logicalAttack.Complete();
+                    return true;
+                }
+            }
+
+            if (plan.PrimaryTarget?.IsAlive() != true)
+            {
+                batch?.AddLogLine("终点目标在途中攻击结算中倒下，终点主攻击与位移取消。");
+                logicalAttack.Complete();
+                return true;
+            }
+
+            int primaryWeaponDice = profile.GetPrimaryWeaponDiceMultiplier(
+                skillLevel,
+                successfulIntermediateHits
+            );
+            int primaryAttackBonus = profile.GetPrimaryAttackRollBonus(
+                skillLevel,
+                successfulIntermediateHits
+            );
+            bool primaryAttackSucceeded = false;
+            IReadOnlyList<CombatEffectDefinition> primaryEffects =
+                BuildLineThroughAttackEffects(baseEffects, primaryWeaponDice);
             batch?.AddLogLine(
-                $"{intermediateTarget.display_name} 承受 {profile.IntermediateWeaponDiceMultiplier}W 途中武器攻击（攻击检定无额外修正）。"
+                $"{plan.PrimaryTarget.display_name} 承受终点主攻击：{primaryWeaponDice}W，攻击检定{FormatSignedBonus(primaryAttackBonus)}；途中成功命中 {successfulIntermediateHits} 次。"
             );
             _apply_unit_skill_result(
                 activeUnit,
-                intermediateTarget,
+                plan.PrimaryTarget,
                 skillDefinition,
                 castVariantDefinition,
-                intermediateEffects,
+                primaryEffects,
                 batch,
-                flat_attack_bonus: 0,
-                resolution_sink: result => attackSucceeded = result.AttackSuccess,
-                force_weapon_attack_resolution: true,
-                record_skill_mastery: false
+                logicalAttack.Context,
+                flat_attack_bonus: primaryAttackBonus,
+                resolution_sink: result => primaryAttackSucceeded = result.AttackSuccess,
+                force_weapon_attack_resolution: true
             );
-            if (attackSucceeded)
-                successfulIntermediateHits++;
-            if (!activeUnit.IsAlive())
+            if (primaryAttackSucceeded)
             {
-                batch?.AddLogLine("施术者在途中攻击结算中倒下，终点主攻击与位移取消。");
-                return true;
+                Runtime?._movement_service?.ExecuteLineThroughAttackLanding(
+                    activeUnit,
+                    plan,
+                    skillDefinition,
+                    batch
+                );
             }
-        }
-
-        if (plan.PrimaryTarget?.IsAlive() != true)
-        {
-            batch?.AddLogLine("终点目标在途中攻击结算中倒下，终点主攻击与位移取消。");
+            else
+            {
+                batch?.AddLogLine("终点主攻击未命中，敌后位移不发生。");
+            }
+            logicalAttack.Complete();
             return true;
         }
-
-        int primaryWeaponDice = profile.GetPrimaryWeaponDiceMultiplier(
-            skillLevel,
-            successfulIntermediateHits
-        );
-        int primaryAttackBonus = profile.GetPrimaryAttackRollBonus(
-            skillLevel,
-            successfulIntermediateHits
-        );
-        bool primaryAttackSucceeded = false;
-        IReadOnlyList<CombatEffectDefinition> primaryEffects =
-            BuildLineThroughAttackEffects(baseEffects, primaryWeaponDice);
-        batch?.AddLogLine(
-            $"{plan.PrimaryTarget.display_name} 承受终点主攻击：{primaryWeaponDice}W，攻击检定{FormatSignedBonus(primaryAttackBonus)}；途中成功命中 {successfulIntermediateHits} 次。"
-        );
-        _apply_unit_skill_result(
-            activeUnit,
-            plan.PrimaryTarget,
-            skillDefinition,
-            castVariantDefinition,
-            primaryEffects,
-            batch,
-            flat_attack_bonus: primaryAttackBonus,
-            resolution_sink: result => primaryAttackSucceeded = result.AttackSuccess,
-            force_weapon_attack_resolution: true
-        );
-        if (primaryAttackSucceeded)
+        catch
         {
-            Runtime?._movement_service?.ExecuteLineThroughAttackLanding(
-                activeUnit,
-                plan,
-                skillDefinition,
-                batch
-            );
+            Runtime?.AbortActiveReactionBoundary();
+            throw;
         }
-        else
-        {
-            batch?.AddLogLine("终点主攻击未命中，敌后位移不发生。");
-        }
-        return true;
     }
 
     internal static IReadOnlyList<CombatEffectDefinition> BuildLineThroughAttackEffects(

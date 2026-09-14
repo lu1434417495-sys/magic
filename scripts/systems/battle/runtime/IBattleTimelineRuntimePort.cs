@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -13,6 +14,11 @@ using Godot;
 /// 是同一套模式。
 internal interface IBattleTimelineRuntimePort
 {
+    BattleReactionBoundaryScope BeginReactionBoundary(BattleEventBatch batch);
+    IDisposable PushEffectOrigin(BattleEffectOrigin origin);
+    void AbortActiveReactionBoundary();
+    void AppendBatchLogsToStateFrom(BattleEventBatch batch, int logStartIndex, int reportStartIndex);
+
     BattleState GetBattleState();
 
     // --- 回合与状态推进 ---

@@ -216,8 +216,8 @@ internal sealed class ItemImportModelValidator
             add(WeaponTypeRule, $"Weapon item {item.ItemId} weapon_profile.weapon_type_id must be non-empty.", "/weapon_profile/weapon_type_id", "non-empty", "empty");
         if (profile.Family.Length == 0)
             add(WeaponFamilyRule, $"Weapon item {item.ItemId} weapon_profile.family must be non-empty.", "/weapon_profile/family", "non-empty", "empty");
-        if (profile.RangeType.Length == 0)
-            add(WeaponRangeTypeRule, $"Weapon item {item.ItemId} weapon_profile.range_type must be non-empty.", "/weapon_profile/range_type", "non-empty", "empty");
+        if (!ItemImportValueRules.IsKnownWeaponRangeType(profile.RangeType))
+            add(WeaponRangeTypeRule, $"Weapon item {item.ItemId} weapon_profile.range_type must be melee or ranged.", "/weapon_profile/range_type", "melee|ranged", profile.RangeType);
         if (profile.DamageTag.Length == 0)
             add(WeaponDamageTagRequiredRule, $"Weapon item {item.ItemId} weapon_profile.damage_tag must be non-empty.", "/weapon_profile/damage_tag", "non-empty", "empty");
         if (profile.AttackRange <= 0)

@@ -453,7 +453,7 @@ public partial class run_mage_arcane_missile_regression : LifecycleTestSceneTree
             BattleUnitState targetUnit,
             IEnumerable<CombatEffectDefinition> effectDefinitions,
             AttackCheckInput attackCheck,
-            AttackContext attackContext = null
+            AttackContext attackContext
         )
         {
             TargetIds.Add(targetUnit?.unit_id ?? new StringName(""));

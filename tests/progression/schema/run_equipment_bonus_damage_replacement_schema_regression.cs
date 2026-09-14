@@ -196,7 +196,7 @@ public partial class run_equipment_bonus_damage_replacement_schema_regression
         new()
         {
             KnownTraitIds = new HashSet<StringName>(),
-            KnownSkillIds = new HashSet<StringName>(),
+            KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition>(),
             WindupSkillIds = new HashSet<StringName>(),
             KnownStatusIds = new HashSet<StringName> { "test_status" },
         };

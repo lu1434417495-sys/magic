@@ -229,17 +229,21 @@ public partial class run_dragon_scale_dragon_blood_boil_regression : LifecycleTe
 
         // miss：显式固定失败，避免角色/装备修正把阈值检定抬成命中。
         BattleTestFixture.ConfigureHitResolverForTests(fixture.Runtime, new FixedMissResolver());
-        fixture.Resolver.ResolveAttackEffects(
-            holder,
-            enemy,
-            new[] { BuildSpellEffect() },
-            new AttackCheckInput(
+        using var reactionBatch0 = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, reactionBatch0, holder, new[] { BuildSpellEffect() },
+            actionContext => fixture.Resolver.ResolveAttackEffects(
+                holder,
+                enemy,
+                new[] { BuildSpellEffect() },
+                new AttackCheckInput(
                 requiredRoll: 21,
                 naturalOneAutoMiss: true,
                 naturalTwentyAutoHit: false,
                 skillId: TestSkillId
             ),
-            new AttackContext { BattleState = state, SkillId = TestSkillId }
+                new AttackContext { EventBatch = reactionBatch0, DamageOriginKind = BattleDamageOriginKind.MainDirectEffect, Action = actionContext,  BattleState = state, SkillId = TestSkillId }
+            )
         );
         _test.Eq(BoilStacks(holder), 3, "miss 不得消费 charge。");
         _test.Eq(holder.GetCurrentHp(), 50, "miss 不得治疗。");
@@ -338,12 +342,26 @@ public partial class run_dragon_scale_dragon_blood_boil_regression : LifecycleTe
         ActivateBoil(fixture, holder, state, 27);
         holder.SetCurrentHp(50);
 
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 175);
+        using (var timelineBatch = new BattleEventBatch())
+        {
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, timelineBatch,
+                BattleEffectOrigin.Timeline("timeline_tick"),
+                () => fixture.Runtime._timeline_driver.ApplyTimelineStep(timelineBatch, 175)
+            );
+        }
         _test.True(
             holder.HasStatusEffect(BoilStatusId),
             "推进 175 TU 后龙血沸腾应仍在（180 TU 持续）。"
         );
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 5);
+        using (var timelineBatch = new BattleEventBatch())
+        {
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, timelineBatch,
+                BattleEffectOrigin.Timeline("timeline_tick"),
+                () => fixture.Runtime._timeline_driver.ApplyTimelineStep(timelineBatch, 5)
+            );
+        }
         _test.False(
             holder.HasStatusEffect(BoilStatusId),
             "推进到 180 TU 边界后龙血沸腾应到期。"
@@ -633,12 +651,16 @@ public partial class run_dragon_scale_dragon_blood_boil_regression : LifecycleTe
         BattleState state
     )
     {
-        fixture.Resolver.ResolveAttackEffects(
-            holder,
-            target,
-            new[] { BuildSpellEffect() },
-            new AttackCheckInput(forceHitNoCrit: true, skillId: TestSkillId),
-            new AttackContext { BattleState = state, SkillId = TestSkillId }
+        using var reactionBatch1 = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, reactionBatch1, holder, new[] { BuildSpellEffect() },
+            actionContext => fixture.Resolver.ResolveAttackEffects(
+                holder,
+                target,
+                new[] { BuildSpellEffect() },
+                new AttackCheckInput(forceHitNoCrit: true, skillId: TestSkillId),
+                new AttackContext { EventBatch = reactionBatch1, DamageOriginKind = BattleDamageOriginKind.MainDirectEffect, Action = actionContext,  BattleState = state, SkillId = TestSkillId }
+            )
         );
     }
 

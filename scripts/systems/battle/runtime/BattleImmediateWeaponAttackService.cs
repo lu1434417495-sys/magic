@@ -304,6 +304,9 @@ internal sealed class BattleImmediateWeaponAttackService
                                     plan.SkillDefinition.SkillId,
                                 EventBatch = batch,
                                 Action = logicalAttack.Context,
+                                DamageOriginKind = plan.Mode == BattleImmediateWeaponAttackMode.EquipmentReaction
+                                    ? BattleDamageOriginKind.EquipmentTriggeredSkill
+                                    : BattleDamageOriginKind.MainDirectEffect,
                             }
                         );
 

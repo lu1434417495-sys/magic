@@ -313,7 +313,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
         if (
             !TryGetSkillDefinition(
                 skillDefinitions,
-                BasicAttackSkillId,
+                _basicAttackSkillId,
                 out SkillDefinition basicAttackDefinition
             )
             || !TryGetSkillDefinition(

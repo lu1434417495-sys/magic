@@ -204,7 +204,7 @@ internal sealed class BattleEquipmentSummonResolver
             );
             if (summoned == null)
                 continue;
-            _runtime.EnsureCounterattackUnitOwnersInitializedForAdmission(
+            BattleReactionBudgetRules.InitializeUnitForAdmission(
                 state,
                 summoned
             );
@@ -292,7 +292,7 @@ internal sealed class BattleEquipmentSummonResolver
             );
             if (summoned == null)
                 continue;
-            _runtime.EnsureCounterattackUnitOwnersInitializedForAdmission(
+            BattleReactionBudgetRules.InitializeUnitForAdmission(
                 state,
                 summoned
             );

@@ -163,6 +163,8 @@ internal static class ItemImportValueRules
     internal const string DamageTagSlash = "physical_slash";
     internal const string DamageTagPierce = "physical_pierce";
     internal const string DamageTagBlunt = "physical_blunt";
+    internal const string WeaponRangeMelee = "melee";
+    internal const string WeaponRangeRanged = "ranged";
     internal const int WeaponDiceCountMin = 1;
     internal const int WeaponDiceCountMax = 99;
     internal const int WeaponDiceSidesMin = 1;
@@ -178,6 +180,8 @@ internal static class ItemImportValueRules
         );
     internal static IReadOnlyList<string> WeaponDamageTagValues { get; } =
         Array.AsReadOnly(new[] { DamageTagSlash, DamageTagPierce, DamageTagBlunt });
+    internal static IReadOnlyList<string> WeaponRangeTypeValues { get; } =
+        Array.AsReadOnly(new[] { WeaponRangeMelee, WeaponRangeRanged });
     internal static IReadOnlyList<string> AttributeModifierModeValues { get; } =
         Array.AsReadOnly(new[] { "flat", "percent" });
     internal static IReadOnlyList<string> EquipmentSlotValues { get; } =
@@ -207,6 +211,9 @@ internal static class ItemImportValueRules
 
     internal static bool IsKnownWeaponDamageTag(string value) =>
         ContainsOrdinal(WeaponDamageTagValues, value);
+
+    internal static bool IsKnownWeaponRangeType(string value) =>
+        ContainsOrdinal(WeaponRangeTypeValues, value);
 
     internal static bool IsKnownAttributeModifierMode(string value) =>
         ContainsOrdinal(AttributeModifierModeValues, value);

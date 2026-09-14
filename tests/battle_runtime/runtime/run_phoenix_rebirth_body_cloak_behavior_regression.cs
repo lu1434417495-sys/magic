@@ -228,31 +228,34 @@ public partial class run_phoenix_rebirth_body_cloak_behavior_regression
 
         CombatSkillDefinition basicAttack = fixture.Skills["basic_attack"].CombatProfile;
         AttackCheckInput attackCheck = new(requiredRoll: 10, displayRequiredRoll: 10);
-        AttackContext attackContext = new()
-        {
-            BattleState = state,
-            SkillId = "basic_attack",
-        };
         BattleTestFixture.ConfigureHitResolverForTests(
             fixture.Runtime,
             new FixedHitResolver(20)
         );
-        fixture.Runtime.GetDamageResolver().ResolveAttackEffects(
-            attacker,
-            holder,
-            basicAttack.EffectDefinitions,
-            attackCheck,
-            attackContext
+        using var reactionBatch0 = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, reactionBatch0, attacker, basicAttack.EffectDefinitions,
+            actionContext => fixture.Runtime.GetDamageResolver().ResolveAttackEffects(
+                attacker,
+                holder,
+                basicAttack.EffectDefinitions,
+                attackCheck,
+                new AttackContext { EventBatch = reactionBatch0, DamageOriginKind = BattleDamageOriginKind.MainDirectEffect, Action = actionContext,  BattleState = state, SkillId = "basic_attack" }
+            )
         );
         _test.Eq(attacker.GetCurrentHp(), 93, "一次成功近战命中应只反击一次固定2D6=7 fire。");
 
         ApplyWeaponProjection(attacker, ranged: true);
-        fixture.Runtime.GetDamageResolver().ResolveAttackEffects(
-            attacker,
-            holder,
-            basicAttack.EffectDefinitions,
-            attackCheck,
-            attackContext
+        using var reactionBatch1 = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, reactionBatch1, attacker, basicAttack.EffectDefinitions,
+            actionContext => fixture.Runtime.GetDamageResolver().ResolveAttackEffects(
+                attacker,
+                holder,
+                basicAttack.EffectDefinitions,
+                attackCheck,
+                new AttackContext { EventBatch = reactionBatch1, DamageOriginKind = BattleDamageOriginKind.MainDirectEffect, Action = actionContext,  BattleState = state, SkillId = "basic_attack" }
+            )
         );
         _test.Eq(attacker.GetCurrentHp(), 93, "成功远程命中不得触发火盾反击。");
 
@@ -261,12 +264,16 @@ public partial class run_phoenix_rebirth_body_cloak_behavior_regression
             fixture.Runtime,
             new FixedMissResolver()
         );
-        fixture.Runtime.GetDamageResolver().ResolveAttackEffects(
-            attacker,
-            holder,
-            basicAttack.EffectDefinitions,
-            attackCheck,
-            attackContext
+        using var reactionBatch2 = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, reactionBatch2, attacker, basicAttack.EffectDefinitions,
+            actionContext => fixture.Runtime.GetDamageResolver().ResolveAttackEffects(
+                attacker,
+                holder,
+                basicAttack.EffectDefinitions,
+                attackCheck,
+                new AttackContext { EventBatch = reactionBatch2, DamageOriginKind = BattleDamageOriginKind.MainDirectEffect, Action = actionContext,  BattleState = state, SkillId = "basic_attack" }
+            )
         );
         _test.Eq(attacker.GetCurrentHp(), 93, "近战未命中不得触发火盾反击。");
     }

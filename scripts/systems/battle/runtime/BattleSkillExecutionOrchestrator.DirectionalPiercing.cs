@@ -183,38 +183,50 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         CombatDirectionalPiercingDefinition profile =
             skillDefinition.CombatProfile.DirectionalPiercing;
         int baseDamagePercent = profile.GetBaseDamagePercent(skillLevel);
-        int successfulHitCount = 0;
-
-        foreach (BattleUnitState targetUnit in plan.Targets)
+        using BattleLogicalAttackScope logicalAttack =
+            BeginLogicalAttackForEffects(activeUnit, baseEffects);
+        try
         {
-            if (targetUnit == null || !targetUnit.IsAlive())
-                continue;
-            int decayPercent = BattleDirectionalPiercingRules
-                .GetDamagePercentAfterSuccessfulHits(profile, successfulHitCount);
-            double combinedMultiplier = baseDamagePercent / 100.0 * decayPercent / 100.0;
-            IReadOnlyList<CombatEffectDefinition> targetEffects =
-                BuildDirectionalPiercingEffects(baseEffects, combinedMultiplier);
-            bool attackSucceeded = false;
+            int successfulHitCount = 0;
+
+            foreach (BattleUnitState targetUnit in plan.Targets)
+            {
+                if (targetUnit == null || !targetUnit.IsAlive())
+                    continue;
+                int decayPercent = BattleDirectionalPiercingRules
+                    .GetDamagePercentAfterSuccessfulHits(profile, successfulHitCount);
+                double combinedMultiplier = baseDamagePercent / 100.0 * decayPercent / 100.0;
+                IReadOnlyList<CombatEffectDefinition> targetEffects =
+                    BuildDirectionalPiercingEffects(baseEffects, combinedMultiplier);
+                bool attackSucceeded = false;
+                batch?.AddLogLine(
+                    $"{targetUnit.display_name} 承受 {baseDamagePercent}%×{decayPercent}% 的贯穿武器伤害。"
+                );
+                _apply_unit_skill_result(
+                    activeUnit,
+                    targetUnit,
+                    skillDefinition,
+                    castVariantDefinition,
+                    targetEffects,
+                    batch,
+                    logicalAttack.Context,
+                    resolution_sink: result => attackSucceeded = result.AttackSuccess,
+                    force_weapon_attack_resolution: true
+                );
+                if (attackSucceeded)
+                    successfulHitCount++;
+            }
             batch?.AddLogLine(
-                $"{targetUnit.display_name} 承受 {baseDamagePercent}%×{decayPercent}% 的贯穿武器伤害。"
+                $"{activeUnit.display_name} 的{_format_skill_variant_label(skillDefinition, castVariantDefinition)}沿 {FormatDirection(plan.Direction)} 贯穿，完成 {plan.Targets.Count} 次独立武器攻击。"
             );
-            _apply_unit_skill_result(
-                activeUnit,
-                targetUnit,
-                skillDefinition,
-                castVariantDefinition,
-                targetEffects,
-                batch,
-                resolution_sink: result => attackSucceeded = result.AttackSuccess,
-                force_weapon_attack_resolution: true
-            );
-            if (attackSucceeded)
-                successfulHitCount++;
+            logicalAttack.Complete();
+            return true;
         }
-        batch?.AddLogLine(
-            $"{activeUnit.display_name} 的{_format_skill_variant_label(skillDefinition, castVariantDefinition)}沿 {FormatDirection(plan.Direction)} 贯穿，完成 {plan.Targets.Count} 次独立武器攻击。"
-        );
-        return true;
+        catch
+        {
+            Runtime?.AbortActiveReactionBoundary();
+            throw;
+        }
     }
 
     internal static IReadOnlyList<CombatEffectDefinition> BuildDirectionalPiercingEffects(
