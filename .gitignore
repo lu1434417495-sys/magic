@@ -1,6 +1,10 @@
 .godot/
 .import/
 *.import
+# Painted battle textures rely on their mipmap import settings.
+!assets/main/battle/terrain/canyon_painted/*.png.import
+# Player sprites also retain mipmaps when checked out on another machine.
+!assets/main/battle/units/player/basic_*.png.import
 *.translation
 
 # OS/editor noise

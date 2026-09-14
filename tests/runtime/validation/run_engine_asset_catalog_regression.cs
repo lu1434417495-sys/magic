@@ -57,7 +57,7 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
             "process content host publishes the bootstrap engine asset catalog before tests run"
         );
         _test.True(
-            catalog.texture_assets != null && catalog.texture_assets.Count == 28,
+            catalog.texture_assets != null && catalog.texture_assets.Count == 724,
             "production bootstrap deserializes all typed texture entries"
         );
         _test.True(
@@ -74,8 +74,8 @@ public partial class run_engine_asset_catalog_regression : LifecycleTestSceneTre
         );
         _test.Eq(
             resolver.PublishedAssetCount,
-            30,
-            "production bootstrap publishes its 30 real engine assets"
+            726,
+            "production bootstrap publishes its 726 real engine assets"
         );
         _test.True(
             ReferenceEquals(

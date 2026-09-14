@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "mage_frost_bolt",
+      "icon_id": "mage_frost_bolt",
       "display_name": "霜击术",
       "description": "以低耗法力向射程内一名可见敌人发射霜矢，进行一次接触AC法术攻击。命中造成冰冻伤害并施加缓速，使目标移动耗费+1；缓速只刷新持续时间，不叠加。选定目标后，选择一个使你远离目标的正交方向：无论攻击命中、落空或击倒目标，结算后都沿该方向直线后撤最多1格。后撤不消耗移动力，不能转弯或绕路，受阻时停在阻挡前；无法主动移动时不能使用。魔法投射物会被相应屏障阻挡。",
       "max_level": 7,
@@ -180,6 +181,7 @@
     },
     {
       "skill_id": "mage_frost_sprite",
+      "icon_id": "mage_frost_sprite",
       "display_name": "霜灵",
       "description": "召唤擅长减速和冻结补刀的小型冰灵。",
       "max_level": 7,
@@ -421,6 +423,7 @@
     },
     {
       "skill_id": "mage_frozen_step",
+      "icon_id": "mage_frozen_step",
       "display_name": "凝冰移形",
       "description": "短距位移最多2格，并在起点与终点之间留下持续60TU的冰面。",
       "max_level": 7,
@@ -588,6 +591,7 @@
     },
     {
       "skill_id": "mage_glacial_prison",
+      "icon_id": "mage_glacial_prison",
       "display_name": "冰牢术",
       "description": "以冰棱封住目标，优先施加rooted，若目标已寒蚀则改为frozen。",
       "max_level": 7,
@@ -790,6 +794,7 @@
     },
     {
       "skill_id": "mage_glacier_edge",
+      "icon_id": "mage_glacier_edge",
       "display_name": "冰棱穿刺",
       "description": "冰棱从地面连续突起，对直线敌人造成冰冻伤害；若目标站在mud中则额外施加浸湿。",
       "max_level": 7,
@@ -1039,6 +1044,7 @@
     },
     {
       "skill_id": "mage_glitter_dust",
+      "icon_id": "mage_glitter_dust",
       "display_name": "炫尘术",
       "description": "扬起闪耀粉尘，命中敌人使其blinded，并揭示隐身或潜伏单位。",
       "max_level": 7,
@@ -1318,6 +1324,7 @@
     },
     {
       "skill_id": "mage_grand_conjuration",
+      "icon_id": "mage_grand_conjuration",
       "display_name": "大型召唤",
       "description": "在傀儡、元素兽、图腾三类大型召唤间切换召唤。",
       "max_level": 7,
@@ -1525,6 +1532,7 @@
     },
     {
       "skill_id": "mage_grave_mist",
+      "icon_id": "mage_grave_mist",
       "display_name": "墓雾",
       "description": "释放墓雾，范围内敌人攻击下降、命中下降，并更容易被幻术控制。",
       "max_level": 7,
@@ -1775,6 +1783,7 @@
     },
     {
       "skill_id": "mage_gravity_sink",
+      "icon_id": "mage_gravity_sink",
       "display_name": "重压塌陷",
       "description": "以重力挤压区域，命中敌人移动力-1，并更容易被战士冲锋定住。",
       "max_level": 7,
@@ -2024,6 +2033,7 @@
     },
     {
       "skill_id": "mage_gust_of_wind",
+      "icon_id": "mage_gust_of_wind",
       "display_name": "强风术",
       "description": "选择施法者正交相邻的地格确定风向，在前方形成锥形强风。范围内敌人进行力量豁免（DC为施法者法术豁免DC）；失败时沿风向推动，成功则不移动。位移不能穿过单位、障碍、屏障或非法地格，受阻时停在最后合法格，并逐格触发地形接触。不进行攻击检定且不造成伤害。1至6级仅影响体型2及以下目标，7级可影响体型4及以下目标；首领身份本身不提供强风免疫。允许对空范围施放，并照常消耗资源及进入冷却。每名实际移动至少1格的敌人每次施放只计一次熟练度：普通5、精英10、首领15；仅成功作用于屏障时固定获得5点，空放、豁免成功、体型或免疫拦截、零位移均不增长熟练度。",
       "max_level": 7,
@@ -2232,6 +2242,7 @@
     },
     {
       "skill_id": "mage_hail_storm",
+      "icon_id": "mage_hail_storm",
       "display_name": "冰雹阵",
       "description": "小范围多段落冰，对轻甲后排与密集站位都具备稳定压制。",
       "max_level": 7,
@@ -2483,6 +2494,7 @@
     },
     {
       "skill_id": "mage_hallucinatory_field",
+      "icon_id": "mage_hallucinatory_field",
       "display_name": "蜃景场",
       "description": "制造大范围蜃景，区域内敌人命中-15%，移动成本+1，扰乱AI路径选择。",
       "max_level": 7,
@@ -2762,6 +2774,7 @@
     },
     {
       "skill_id": "mage_haste_stream",
+      "icon_id": "mage_haste_stream",
       "display_name": "急速流",
       "description": "赋予友军短时加速，非常适合战士冲锋和弓手转线。",
       "max_level": 7,
@@ -2931,6 +2944,7 @@
     },
     {
       "skill_id": "mage_hex_of_frailty",
+      "icon_id": "mage_hex_of_frailty",
       "display_name": "衰弱诅咒",
       "description": "造成少量负能量伤害并施加法术易伤，适合作为法师集火前置。",
       "max_level": 7,
@@ -3171,6 +3185,7 @@
     },
     {
       "skill_id": "mage_ice_lance",
+      "icon_id": "mage_ice_lance",
       "display_name": "冰枪术",
       "description": "远距离冰系点杀与强控法术。中高等级开始附加冻结。",
       "max_level": 7,
@@ -3386,6 +3401,7 @@
     },
     {
       "skill_id": "mage_inferno_pillar",
+      "icon_id": "mage_inferno_pillar",
       "display_name": "炽柱爆发",
       "description": "从落点向一条直线喷发火柱，命中已行动的敌人额外施加staggered。",
       "max_level": 7,
@@ -3640,6 +3656,7 @@
     },
     {
       "skill_id": "mage_invisibility",
+      "icon_id": "mage_invisibility",
       "display_name": "隐形术",
       "description": "令友军进入隐身直到攻击前，提升闪避与走位安全性。",
       "max_level": 7,
@@ -3810,6 +3827,7 @@
     },
     {
       "skill_id": "mage_levitate",
+      "icon_id": "mage_levitate",
       "display_name": "浮空术",
       "description": "使目标短时无视mud、地刺和轻度高差，适合辅助重装前排。",
       "max_level": 7,
@@ -3979,6 +3997,7 @@
     },
     {
       "skill_id": "mage_life_drain",
+      "icon_id": "mage_life_drain",
       "display_name": "生命虹吸",
       "description": "造成伤害并按比例回复自身生命，是法师少数能自我续航的术式。",
       "max_level": 7,
@@ -4181,6 +4200,7 @@
     },
     {
       "skill_id": "mage_living_meteor",
+      "icon_id": "mage_living_meteor",
       "display_name": "活化陨核",
       "description": "召出会缓慢滚动的熔核，沿途对敌人造成火土混合伤害。",
       "max_level": 7,
@@ -4430,6 +4450,7 @@
     },
     {
       "skill_id": "mage_magic_shield",
+      "icon_id": "mage_magic_shield",
       "display_name": "魔力护盾",
       "description": "为自身或盟友施加魔力护盾，使承受的法术/能量伤害减半。高等级附加护盾值。",
       "max_level": 7,
@@ -4631,6 +4652,7 @@
     },
     {
       "skill_id": "mage_mana_burst",
+      "icon_id": "mage_mana_burst",
       "display_name": "法涌爆裂",
       "description": "纯奥术单体爆发，若自身处于咏唱则本次不消耗冷却。",
       "max_level": 7,
@@ -4848,6 +4870,7 @@
     },
     {
       "skill_id": "mage_mana_font",
+      "icon_id": "mage_mana_font",
       "display_name": "法泉术",
       "description": "生成持续120TU的法泉，友军在其中结束行动时回复少量mp。",
       "max_level": 7,
@@ -5028,6 +5051,7 @@
     },
     {
       "skill_id": "mage_mana_leech",
+      "icon_id": "mage_mana_leech",
       "display_name": "蚀法孢子",
       "description": "召唤会吸取敌方法力与法盾的小型孢子体，主打消耗战。",
       "max_level": 7,
@@ -5284,6 +5308,7 @@
     },
     {
       "skill_id": "mage_mass_hypnosis",
+      "icon_id": "mage_mass_hypnosis",
       "display_name": "群体催眠",
       "description": "高阶群控，优先压制低生命或低意志的后排单位。",
       "max_level": 7,

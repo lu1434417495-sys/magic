@@ -353,8 +353,8 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             AssertContainsText(description, "射程12", $"Phantasmal Kill level {level} 描述应包含射程。");
             AssertContainsText(description, "7x7", $"Phantasmal Kill level {level} 描述应包含 7x7 区域。");
             AssertContainsText(description, "意志幻象豁免", $"Phantasmal Kill level {level} 描述应包含意志幻象豁免。");
-            AssertContainsText(description, "max(50, 最大生命25%)", $"Phantasmal Kill level {level} 描述应包含失败阈值。");
-            AssertContainsText(description, "最大生命35%", $"Phantasmal Kill level {level} 描述应包含大失败阈值。");
+            AssertContainsText(description, "当前生命值不高于50点，或不高于最大生命值的25%", $"Phantasmal Kill level {level} 应以自然语言说明失败时满足任一阈值即可处决。");
+            AssertContainsText(description, "当前生命值不高于最大生命值的35%", $"Phantasmal Kill level {level} 应以自然语言说明大失败阈值。");
             AssertContainsText(description, "6D6心灵伤害", $"Phantasmal Kill level {level} 描述应包含失败心灵伤害。");
             AssertContainsText(description, "10D6心灵伤害", $"Phantasmal Kill level {level} 描述应包含大失败心灵伤害。");
             AssertContainsText(description, "恐惧60TU", $"Phantasmal Kill level {level} 描述应包含失败状态。");

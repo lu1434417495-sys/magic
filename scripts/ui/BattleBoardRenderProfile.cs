@@ -37,6 +37,8 @@ public sealed class BattleBoardTileSourceSpec
 
 public class BattleBoardRenderProfile
 {
+    internal const int MinimumHeight = BattleCellState.MinRuntimeHeight;
+    internal const int MaximumHeight = BattleCellState.MaxRuntimeHeight;
     private static readonly StringName TerrainProfileDefault = "default";
     private static readonly StringName TerrainProfileCanyon = "canyon";
     private static readonly StringName TerrainProfileNarrowAssault = "narrow_assault";
@@ -157,6 +159,7 @@ public class BattleBoardRenderProfile
     public StringName terrain_profile_id = TerrainProfileDefault;
     public StringName render_profile_id = RenderProfileCanyonIso64;
     public string asset_dir = DefaultAssetDir;
+    public string PaintedAssetDirectory => "res://assets/main/battle/terrain/canyon_painted";
     public float visual_height_step = DefaultVisualHeightStep;
     public Vector2I board_tile_size = DefaultBoardTileSize;
     public Vector2 tile_half_size = DefaultTileHalfSize;
@@ -209,6 +212,14 @@ public class BattleBoardRenderProfile
     }
 
     public IReadOnlyList<BattleBoardTileSourceSpec> GetSourceSpecs() => _sourceSpecs;
+
+    public string GetMarkerMaterialPath(StringName sourceKey)
+    {
+        string style = sourceKey == SourcePreview ? "preview"
+            : sourceKey == SourceMoveReachable ? "reachable"
+            : sourceKey == "objective_exit" ? "objective" : "selected";
+        return $"res://scenes/ui/styles/battle_marker_{style}_material.tres";
+    }
 
     public void SetSourceSpecs(IEnumerable<BattleBoardTileSourceSpec> sourceSpecs)
     {

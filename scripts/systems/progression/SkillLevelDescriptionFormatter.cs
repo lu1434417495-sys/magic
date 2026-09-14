@@ -20,6 +20,19 @@ public static class SkillLevelDescriptionFormatter
         Godot.Collections.Dictionary runtimeContext = null
     )
     {
+        if (skillDefinition == null || skillDefinition.LevelDescriptionTemplate.Length == 0)
+            return "";
+        return BuildLevelDescriptionTyped(skillDefinition, level, runtimeContext == null ? null
+            : ContentValueNormalizer.NormalizeDictionary(runtimeContext,
+                "SkillLevelDescriptionFormatter.runtime_context"));
+    }
+
+    internal static string BuildLevelDescriptionTyped(
+        SkillDefinition skillDefinition,
+        int level,
+        IReadOnlyDictionary<string, object> runtimeContext = null
+    )
+    {
         if (
             skillDefinition == null
             || skillDefinition.LevelDescriptionTemplate.Length == 0
@@ -32,14 +45,7 @@ public static class SkillLevelDescriptionFormatter
         _merge_matching_effect_typed_fields(config, skillDefinition, level);
         _merge_level_overrides(config, skillDefinition, level);
         if (runtimeContext != null)
-            MergePlainMap(
-                config,
-                ContentValueNormalizer.NormalizeDictionary(
-                    runtimeContext,
-                    "SkillLevelDescriptionFormatter.runtime_context"
-                ),
-                overwrite: true
-            );
+            MergePlainMap(config, runtimeContext, overwrite: true);
         _apply_description_derived_fields(config);
         if (config.Count == 0)
             return "";

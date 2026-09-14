@@ -368,7 +368,7 @@ public sealed class BattleEdgeService
         {
             return exposedLayers;
         }
-        int lowestExposedHeight = Math.Max(toHeight + 1, 1);
+        int lowestExposedHeight = toHeight + 1;
         for (int layerHeight = fromHeight; layerHeight >= lowestExposedHeight; layerHeight--)
         {
             exposedLayers.Add(layerHeight);

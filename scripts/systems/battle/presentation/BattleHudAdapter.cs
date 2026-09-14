@@ -982,7 +982,7 @@ public sealed class BattleHudAdapter : IDisposable
                 string displayName = GetSkillDisplayName(skillDefinition, skillId);
                 string iconKey = GetSkillIconKey(skillDefinition);
                 Color accentColor = BuildSkillColor(iconKey, displayName);
-                SkillSlotState slotState = BuildSkillSlotState(activeUnit, skillDefinition, skillId);
+                SkillSlotState slotState = BuildSkillSlotState(activeUnit, skillDefinition, skillId, entry.SkillLevel);
                 string description =
                     skillDefinition != null ? skillDefinition.Description.StripEdges() : "";
                 skillSlots.Add(
@@ -1008,7 +1008,8 @@ public sealed class BattleHudAdapter : IDisposable
                         accentColor.Darkened(0.48f),
                         accentColor.Lightened(0.16f),
                         slotState.Cooldown,
-                        slotState.DisabledReason
+                        slotState.DisabledReason,
+                        BuildSkillTooltip(activeUnit, skillDefinition, entry.SkillLevel)
                     )
                 );
             }
@@ -1017,6 +1018,42 @@ public sealed class BattleHudAdapter : IDisposable
         for (int index = skillSlots.Count; index < SKILL_GRID_SIZE; index++)
             skillSlots.Add(new BattleHudSkillSlotSnapshot(index, true));
         return skillSlots.AsReadOnly();
+    }
+
+    private BattleHudSkillTooltipSnapshot BuildSkillTooltip(
+        BattleUnitState unit, SkillDefinition definition, int level
+    )
+    {
+        if (definition?.CombatProfile == null)
+            return null;
+        SkillEffectiveCombatDefinition effective = GetEffectiveCombatDefinition(definition, level);
+        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(unit, definition, level);
+        int range = BattleRangeService.GetEffectiveSkillRange(unit, definition, GetSkillCatalog());
+        var context = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["range"] = range, ["ap"] = costs.ApCost, ["mp"] = costs.MpCost,
+            ["stamina"] = costs.StaminaCost, ["aura"] = costs.AuraCost,
+            ["cooldown"] = costs.CooldownTu,
+            ["con_mod"] = unit?.attribute_snapshot?.GetValue("constitution_modifier") ?? 0,
+            ["will_mod"] = unit?.attribute_snapshot?.GetValue("willpower_modifier") ?? 0,
+        };
+        return new BattleHudSkillTooltipSnapshot(costs, range, effective.CastingTimeTu,
+            SkillLevelDescriptionFormatter.BuildLevelDescriptionTyped(definition, level, context),
+            effective.MpCostPerTargetSlot > 0 || effective.StaminaCostPerTargetSlot > 0,
+            BuildSkillMastery(unit, definition));
+    }
+
+    private BattleHudSkillMasterySnapshot BuildSkillMastery(BattleUnitState unit, SkillDefinition definition)
+    {
+        UnitProgress progression = GetPartyMemberState(unit?.source_member_id)?.progression;
+        UnitSkillProgress progress = progression?.GetSkillProgress(definition.SkillId);
+        if (progress?.is_learned != true)
+            return null;
+        int maxLevel = SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(definition, progress, progression);
+        int required = progress.skill_level >= maxLevel ? 0
+            : definition.GetMasteryRequiredForLevel(progress.skill_level);
+        return new BattleHudSkillMasterySnapshot(progress.current_mastery, required,
+            progress.skill_level, maxLevel);
     }
 
     private BattleSkillAvailabilityView BuildSkillAvailabilityView(BattleUnitState activeUnit)
@@ -1630,10 +1667,11 @@ public sealed class BattleHudAdapter : IDisposable
     private SkillSlotState BuildSkillSlotState(
         BattleUnitState activeUnit,
         SkillDefinition skillDefinition,
-        StringName skillId
+        StringName skillId,
+        int skillLevel
     )
     {
-        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDefinition);
+        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDefinition, skillLevel);
         int apCost = costs.ApCost;
         int mpCost = costs.MpCost;
         int staminaCost = costs.StaminaCost;
@@ -2312,12 +2350,12 @@ public sealed class BattleHudAdapter : IDisposable
 
     private CombatSkillResourceCosts GetEffectiveSkillCosts(
         BattleUnitState activeUnit,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
         if (skillDefinition?.CombatProfile == null)
             return CombatSkillResourceCosts.Zero;
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
         CombatSkillResourceCosts costs = GetEffectiveCombatDefinition(
             skillDefinition,
             skillLevel

@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_berserk",
+      "icon_id": "warrior_berserk",
       "display_name": "狂暴",
       "description": "进入狂暴状态，大幅提升攻击力但防御下降。",
       "max_level": 3,
@@ -43,6 +44,7 @@
     },
     {
       "skill_id": "warrior_bestial_dodge",
+      "icon_id": "warrior_bestial_dodge",
       "display_name": "兽性闪避",
       "description": "闪避提升并可横移1格。",
       "max_level": 5,
@@ -80,6 +82,7 @@
     },
     {
       "skill_id": "warrior_black_blade_soul_cut",
+      "icon_id": "warrior_black_blade_soul_cut",
       "display_name": "黑刃削魂",
       "description": "目标受治疗效果-50%。",
       "max_level": 7,
@@ -139,6 +142,7 @@
     },
     {
       "skill_id": "warrior_blade_pick_gap",
+      "icon_id": "warrior_blade_pick_gap",
       "display_name": "刃下拾隙",
       "description": "对被友军命中过的目标造成115%伤害。",
       "max_level": 5,
@@ -186,6 +190,7 @@
     },
     {
       "skill_id": "warrior_blade_wall_stance",
+      "icon_id": "warrior_blade_wall_stance",
       "display_name": "刃墙架势",
       "description": "防御架势，正面减伤并可在首次被攻时反击。",
       "max_level": 5,
@@ -230,6 +235,7 @@
     },
     {
       "skill_id": "warrior_blade_wall_stroll",
+      "icon_id": "warrior_blade_wall_stroll",
       "display_name": "刃墙步",
       "description": "移动路径相邻敌人命中降低。",
       "max_level": 5,
@@ -276,6 +282,7 @@
     },
     {
       "skill_id": "warrior_blazing_sun_flash",
+      "icon_id": "warrior_blazing_sun_flash",
       "display_name": "烈阳一闪",
       "description": "迅猛的正面突刺，造成伤害。",
       "max_level": 3,
@@ -316,6 +323,7 @@
     },
     {
       "skill_id": "warrior_blinding_flash",
+      "icon_id": "warrior_blinding_flash",
       "display_name": "炽光断视",
       "description": "降低敌方命中。",
       "max_level": 5,
@@ -366,6 +374,7 @@
     },
     {
       "skill_id": "warrior_blood_mark",
+      "icon_id": "warrior_blood_mark",
       "display_name": "血纹标记",
       "description": "目标受到流血伤害+50%。",
       "max_level": 3,
@@ -400,6 +409,7 @@
     },
     {
       "skill_id": "warrior_blood_oath_mark",
+      "icon_id": "warrior_blood_oath_mark",
       "display_name": "血纹誓杀",
       "description": "标记目标，击杀后恢复斗气。",
       "max_level": 3,
@@ -439,6 +449,7 @@
     },
     {
       "skill_id": "warrior_blood_rain_chain",
+      "icon_id": "warrior_blood_rain_chain",
       "display_name": "血雨连环",
       "description": "击杀可跳相邻敌人继续攻击。",
       "max_level": 9,
@@ -513,6 +524,7 @@
     },
     {
       "skill_id": "warrior_blood_shadow_recycle",
+      "icon_id": "warrior_blood_shadow_recycle",
       "display_name": "血影回收",
       "description": "击杀后恢复斗气+移动+1。",
       "max_level": 7,
@@ -551,6 +563,7 @@
     },
     {
       "skill_id": "warrior_blood_vein_guard_heart",
+      "icon_id": "warrior_blood_vein_guard_heart",
       "display_name": "血纹护心",
       "description": "致命伤时保留1HP但下回合不能用终式。",
       "max_level": 7,
@@ -591,6 +604,7 @@
     },
     {
       "skill_id": "warrior_blood_vein_oath_kill",
+      "icon_id": "warrior_blood_vein_oath_kill",
       "display_name": "血纹誓杀",
       "description": "标记2回合，击杀恢复大量斗气。",
       "max_level": 9,
@@ -633,6 +647,7 @@
     },
     {
       "skill_id": "warrior_bloodthirst",
+      "icon_id": "warrior_bloodthirst",
       "display_name": "嗜血",
       "description": "2回合攻击吸血20%→30%。",
       "max_level": 5,
@@ -669,6 +684,7 @@
     },
     {
       "skill_id": "warrior_blue_dragon_pierce",
+      "icon_id": "warrior_blue_dragon_pierce",
       "display_name": "苍龙贯日",
       "description": "长距离穿透，每穿透一个目标伤害递减。",
       "max_level": 9,
@@ -727,6 +743,7 @@
     },
     {
       "skill_id": "warrior_bone_crush",
+      "icon_id": "warrior_bone_crush",
       "display_name": "碎骨震击",
       "description": "震击目标骨骼，削弱其输出能力。",
       "max_level": 3,
@@ -773,6 +790,7 @@
     },
     {
       "skill_id": "warrior_bone_crush_shock",
+      "icon_id": "warrior_bone_crush_shock",
       "display_name": "碎骨震击",
       "description": "削弱目标攻击力。",
       "max_level": 7,
@@ -839,6 +857,7 @@
     },
     {
       "skill_id": "warrior_bone_ring_chase_judge",
+      "icon_id": "warrior_bone_ring_chase_judge",
       "display_name": "骨鸣追判",
       "description": "对拥有行动延后/减速的目标伤害提升。",
       "max_level": 5,
@@ -885,6 +904,7 @@
     },
     {
       "skill_id": "warrior_borrow_enemy_crash",
+      "icon_id": "warrior_borrow_enemy_crash",
       "display_name": "借敌撞敌",
       "description": "推动目标1格，撞到敌人双方受伤。",
       "max_level": 7,
@@ -946,6 +966,7 @@
     },
     {
       "skill_id": "warrior_break_formation_order",
+      "icon_id": "warrior_break_formation_order",
       "display_name": "破阵号令",
       "description": "友军对护盾目标伤害提升。",
       "max_level": 7,
@@ -987,6 +1008,7 @@
     },
     {
       "skill_id": "warrior_break_momentum_knock",
+      "icon_id": "warrior_break_momentum_knock",
       "display_name": "破势敲击",
       "description": "减少目标10→15斗气。",
       "max_level": 7,
@@ -1046,6 +1068,7 @@
     },
     {
       "skill_id": "warrior_breath_stop_short_thrust",
+      "icon_id": "warrior_breath_stop_short_thrust",
       "display_name": "断息短刺",
       "description": "目标下次施放技能前需额外消耗体力。",
       "max_level": 7,
@@ -1105,6 +1128,7 @@
     },
     {
       "skill_id": "warrior_broken_horn_headbutt",
+      "icon_id": "warrior_broken_horn_headbutt",
       "display_name": "碎角顶撞",
       "description": "突进最多2格击退目标，自身反冲5%HP。",
       "max_level": 7,
@@ -1167,6 +1191,7 @@
     },
     {
       "skill_id": "warrior_burn_armor_qi",
+      "icon_id": "warrior_burn_armor_qi",
       "display_name": "焚甲斗气",
       "description": "降低防御并附加燃烧。",
       "max_level": 7,
@@ -1239,6 +1264,7 @@
     },
     {
       "skill_id": "warrior_burn_breath_press",
+      "icon_id": "warrior_burn_breath_press",
       "display_name": "灼息压阵",
       "description": "区域敌人行动结束时若未移动则受伤。",
       "max_level": 9,
@@ -1292,6 +1318,7 @@
     },
     {
       "skill_id": "warrior_burn_feet",
+      "icon_id": "warrior_burn_feet",
       "display_name": "灼足",
       "description": "减速，移动则额外受伤。",
       "max_level": 5,
@@ -1346,6 +1373,7 @@
     },
     {
       "skill_id": "warrior_burn_soul_short_oath",
+      "icon_id": "warrior_burn_soul_short_oath",
       "display_name": "燃魂短誓",
       "description": "2回合伤害+20%但每回合结束损失5%HP。",
       "max_level": 9,
@@ -1386,6 +1414,7 @@
     },
     {
       "skill_id": "warrior_burning_dragon_tornado",
+      "icon_id": "warrior_burning_dragon_tornado",
       "display_name": "焚天龙卷",
       "description": "拉向中心1格并燃烧3回合。",
       "max_level": 10,
@@ -1452,6 +1481,7 @@
     },
     {
       "skill_id": "warrior_calm_draw_blade",
+      "icon_id": "warrior_calm_draw_blade",
       "display_name": "静息拔刀",
       "description": "未移动下回合首次近战射程+1暴击+20%。",
       "max_level": 5,

@@ -6,6 +6,7 @@
   "entries": [
     {
       "skill_id": "mage_generated_reserve_comet",
+      "icon_id": "mage_generated_reserve_comet",
       "display_name": "蓄势彗星",
       "description": "阶段 3 生成闭环的内置试制法术。以较高法力储备换取一枚稳定的寒霜彗星，用于验证高资源上限施法者的强度抽检。",
       "skill_type": "active",

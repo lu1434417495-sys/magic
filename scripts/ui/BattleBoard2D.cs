@@ -13,7 +13,8 @@ public partial class BattleBoard2D : Node2D
     [Signal]
     public delegate void battle_cell_hoveredEventHandler(Vector2I coord);
 
-    private const int MAX_RENDER_HEIGHT = 8;
+    private const int MIN_RENDER_HEIGHT = BattleBoardRenderProfile.MinimumHeight;
+    private const int MAX_RENDER_HEIGHT = BattleBoardRenderProfile.MaximumHeight;
     private const float DEFAULT_CAMERA_ZOOM = 2.0f;
     private const float MIN_CAMERA_ZOOM = 1.25f;
     private const float MAX_CAMERA_ZOOM = 4.0f;
@@ -67,13 +68,13 @@ public partial class BattleBoard2D : Node2D
         YSortEnabled = false;
         Scale = Vector2.One * _camera_zoom;
         input_layer = GetNode<TileMapLayer>("%InputLayer");
-        top_layers = _collect_tile_layers("TopH", 0, MAX_RENDER_HEIGHT);
-        edge_drop_east_layers = _collect_tile_layers("EdgeDropEastH", 1, MAX_RENDER_HEIGHT);
-        edge_drop_south_layers = _collect_tile_layers("EdgeDropSouthH", 1, MAX_RENDER_HEIGHT);
-        wall_east_layers = _collect_tile_layers("WallEastH", 0, MAX_RENDER_HEIGHT);
-        wall_south_layers = _collect_tile_layers("WallSouthH", 0, MAX_RENDER_HEIGHT);
-        overlay_layers = _collect_tile_layers("OverlayH", 0, MAX_RENDER_HEIGHT);
-        marker_layers = _collect_tile_layers("MarkerH", 0, MAX_RENDER_HEIGHT);
+        top_layers = _collect_tile_layers("TopH", MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
+        edge_drop_east_layers = _collect_tile_layers("EdgeDropEastH", MIN_RENDER_HEIGHT + 1, MAX_RENDER_HEIGHT);
+        edge_drop_south_layers = _collect_tile_layers("EdgeDropSouthH", MIN_RENDER_HEIGHT + 1, MAX_RENDER_HEIGHT);
+        wall_east_layers = _collect_tile_layers("WallEastH", MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
+        wall_south_layers = _collect_tile_layers("WallSouthH", MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
+        overlay_layers = _collect_tile_layers("OverlayH", MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
+        marker_layers = _collect_tile_layers("MarkerH", MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
         prop_layer = GetNode<Node2D>("%PropLayer");
         unit_layer = GetNode<Node2D>("%UnitLayer");
         target_highlight_layer = GetNode<Node2D>("%TargetHighlightLayer");
@@ -501,7 +502,7 @@ public partial class BattleBoard2D : Node2D
 
     private float _build_visual_pick_sort_key(int height_value, float plane_anchor_y)
     {
-        int clampedHeight = Mathf.Clamp(height_value, 0, MAX_RENDER_HEIGHT);
+        int clampedHeight = Mathf.Clamp(height_value, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
         return (float)clampedHeight * 1000000.0f + plane_anchor_y;
     }
 
@@ -625,7 +626,7 @@ public partial class BattleBoard2D : Node2D
 
         if (cellState != null)
             anchor.Y -=
-                (float)Mathf.Clamp(cellState.Height, 0, MAX_RENDER_HEIGHT)
+                (float)Mathf.Clamp(cellState.Height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT)
                 * _render_profile.visual_height_step;
         return anchor;
     }

@@ -15,7 +15,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
     private const string QueueEntryKeys =
         "slot_index|name|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_ratio|hp_text|ap_text|is_active|is_ready|is_enemy";
     private const string SkillSlotKeys =
-        "index|is_empty|skill_entry_id|skill_id|source_kind|source_label_key|skill_level|is_battle_only|suppressed_source_keys|display_name|short_name|description|icon_key|hotkey|footer_text|is_selected|is_disabled|accent_color|accent_dark|edge_color|cooldown|disabled_reason";
+        "index|is_empty|skill_entry_id|skill_id|source_kind|source_label_key|skill_level|is_battle_only|suppressed_source_keys|display_name|short_name|description|icon_key|hotkey|footer_text|is_selected|is_disabled|accent_color|accent_dark|edge_color|cooldown|disabled_reason|tooltip";
     private const string FocusUnitKeys =
         "name|role_text|resource_info|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_current|hp_max|mp_current|mp_max|stamina_current|stamina_max|aura_current|aura_max|ap_current|ap_max|move_current|move_max|reaction_budget|status_effects";
     private const string EquipmentPanelKeys =

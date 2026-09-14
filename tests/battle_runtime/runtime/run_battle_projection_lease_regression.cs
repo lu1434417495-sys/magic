@@ -105,7 +105,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             AssertBatchNestedSchema(lease.Value);
             AssertGolden(
                 lease.Value,
-                "1242:45ece03f9ebc37f0bf9805b429515be1b8788094ef2da18673fa9022c4396d1f",
+                "1413:18f944277777e9de68896417ad2efc40e4a7779b084db67b20853bec9dd79d4f",
                 "event batch fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);
@@ -519,7 +519,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         using GDictionary choice = choices[0].AsGodotDictionary();
         AssertOrder(
             choice,
-            "trigger_skill_ids,candidate_profession_ids,target_rank_map,qualifier_skill_pool_ids,assignable_skill_candidate_ids,required_qualifier_count,required_assigned_core_count",
+            "trigger_skill_ids,candidate_profession_ids,target_rank_map,qualifier_skill_pool_ids,assignable_skill_candidate_ids,required_qualifier_count,required_assigned_core_count,selection",
             "event batch pending profession choice"
         );
         using GArray mastery = delta["mastery_changes"].AsGodotArray();
@@ -729,6 +729,8 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         {
             required_qualifier_count = 1,
             required_assigned_core_count = 1,
+            DefaultSelection = new PromotionCommitRequest("skill_a", 2,
+                new StringName[] { "skill_b" }, new StringName[] { "skill_a" }),
         };
         choice.AddTriggerSkillId("skill_a");
         choice.AddCandidateProfessionId("mage");

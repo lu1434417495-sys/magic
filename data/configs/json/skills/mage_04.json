@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "mage_memory_spike",
+      "icon_id": "mage_memory_spike",
       "display_name": "记忆针刺",
       "description": "干扰咒式记忆，目标下一次技能消耗+1。",
       "max_level": 7,
@@ -220,6 +221,7 @@
     },
     {
       "skill_id": "mage_meteor_swarm",
+      "icon_id": "mage_meteor_swarm",
       "display_name": "陨星雨",
       "description": "禁咒级灾害法术，在 7x7 区域降下一轮陨星雨；中心区域最惨，外围也被冲击、碎石和尘土波及。",
       "max_level": 7,
@@ -390,6 +392,7 @@
     },
     {
       "skill_id": "mage_mirror_frost",
+      "icon_id": "mage_mirror_frost",
       "display_name": "镜霜折射",
       "description": "获得咏唱，并令下一个冰系技能额外命中一名相邻目标。",
       "max_level": 7,
@@ -557,6 +560,7 @@
     },
     {
       "skill_id": "mage_mirror_image",
+      "icon_id": "mage_mirror_image",
       "display_name": "镜影术",
       "description": "生成镜像分身吸收攻击，优先用于应对高爆发远程或刺客切入。",
       "max_level": 7,
@@ -731,6 +735,7 @@
     },
     {
       "skill_id": "mage_mirror_shard",
+      "icon_id": "mage_mirror_shard",
       "display_name": "棱镜碎反",
       "description": "命中后可对与其相邻的另一目标折射一次60%奥术伤害。",
       "max_level": 7,
@@ -948,6 +953,7 @@
     },
     {
       "skill_id": "mage_mislead",
+      "icon_id": "mage_mislead",
       "display_name": "误导术",
       "description": "为友军制造短暂伪像，令敌方下一次单体技能有概率转空。",
       "max_level": 7,
@@ -1117,6 +1123,7 @@
     },
     {
       "skill_id": "mage_molten_burst",
+      "icon_id": "mage_molten_burst",
       "display_name": "熔爆术",
       "description": "对已带灼烧的敌人追加一次50%火焰余震，适合作为火系中段爆发点。",
       "max_level": 7,
@@ -1369,6 +1376,7 @@
     },
     {
       "skill_id": "mage_mud_wave",
+      "icon_id": "mage_mud_wave",
       "display_name": "泥潮术",
       "description": "向前推送泥流，若前方已有mud地格则范围+1。",
       "max_level": 7,
@@ -1619,6 +1627,7 @@
     },
     {
       "skill_id": "mage_null_zone",
+      "icon_id": "mage_null_zone",
       "display_name": "禁魔区",
       "description": "区域内敌人下一个技能消耗+1，并使施法类动作命中-15%。",
       "max_level": 7,
@@ -1821,6 +1830,7 @@
     },
     {
       "skill_id": "mage_obsidian_shards",
+      "icon_id": "mage_obsidian_shards",
       "display_name": "黑曜石碎群",
       "description": "对护甲型单位更有效，若目标带有armor_break则额外追加一次40%割裂伤害。",
       "max_level": 7,
@@ -2070,6 +2080,7 @@
     },
     {
       "skill_id": "mage_overcharge",
+      "icon_id": "mage_overcharge",
       "display_name": "过载灌注",
       "description": "强化下一个雷系技能：伤害+20%，若触发连锁则额外多跳一次。",
       "max_level": 7,
@@ -2236,6 +2247,7 @@
     },
     {
       "skill_id": "mage_passwall",
+      "icon_id": "mage_passwall",
       "display_name": "穿墙术",
       "description": "格级障碍物系统落地前，此技能暂不产生战斗效果。",
       "max_level": 7,
@@ -2355,6 +2367,7 @@
     },
     {
       "skill_id": "mage_permafrost_field",
+      "icon_id": "mage_permafrost_field",
       "display_name": "永冻地面",
       "description": "生成持续120TU的冰面领域，敌人穿过时移动成本+1，在其中结束行动时再承受一次寒伤。",
       "max_level": 7,
@@ -2605,6 +2618,7 @@
     },
     {
       "skill_id": "mage_phantasmal_blade",
+      "icon_id": "mage_phantasmal_blade",
       "display_name": "幻刃诱杀",
       "description": "若目标已blinded或staggered，则本次改为140%伤害。",
       "max_level": 7,
@@ -2824,6 +2838,7 @@
     },
     {
       "skill_id": "mage_phantasmal_kill",
+      "icon_id": "mage_phantasmal_kill",
       "display_name": "怪影杀戮",
       "description": "在战场上投射致命幻象。指定射程内一点，以 7x7 区域影响任意阵营目标；目标进行意志幻象豁免，失败或大失败会按当前生命阈值触发处决，否则承受心灵伤害与恐惧/反应封锁/震慑等状态。友方也会被纳入区域，施放前必须确认友伤风险。",
       "max_level": 9,
@@ -2838,7 +2853,7 @@
         "control",
         "ultimate"
       ],
-      "level_description_template": "射程{range}，7x7 区域。所有目标进行意志幻象豁免；失败时若 HP <= max(50, 最大生命25%) 则处决，否则受{failure_damage}心灵伤害并获得{failure_statuses}；大失败时若 HP <= 最大生命35% 则处决，否则受{critical_failure_damage}心灵伤害并获得{critical_failure_statuses}。成功仍受{success_status}。任意阵营都会被影响，存在{friendly_fire_risk}。消耗{ap}AP/{mp}法力/{aura}斗气，冷却{cooldown}TU",
+      "level_description_template": "射程{range}，7x7 区域。区域内所有目标进行意志幻象豁免。\n豁免失败：当前生命值不高于50点，或不高于最大生命值的25%时，立即处决；否则受到{failure_damage}心灵伤害，并获得{failure_statuses}。\n豁免大失败：当前生命值不高于最大生命值的35%时，立即处决；否则受到{critical_failure_damage}心灵伤害，并获得{critical_failure_statuses}。\n豁免成功：仍受到{success_status}影响。\n任意阵营都会受到影响，存在{friendly_fire_risk}。消耗{ap}AP/{mp}法力/{aura}斗气，冷却{cooldown}TU",
       "level_description_configs": {
         "0": {
           "ap": "3",
@@ -3057,6 +3072,7 @@
     },
     {
       "skill_id": "mage_phantom_cage",
+      "icon_id": "mage_phantom_cage",
       "display_name": "幻牢术",
       "description": "把目标封在幻象牢笼里，目标获得rooted并失去反击资格。",
       "max_level": 7,
@@ -3274,6 +3290,7 @@
     },
     {
       "skill_id": "mage_phase_beam",
+      "icon_id": "mage_phase_beam",
       "display_name": "相位射线",
       "description": "穿透直线法术，若路径上存在召唤物或掩体则优先无视其阻挡。",
       "max_level": 7,
@@ -3539,6 +3556,7 @@
     },
     {
       "skill_id": "mage_phoenix_arc",
+      "icon_id": "mage_phoenix_arc",
       "display_name": "凤焰弧",
       "description": "火焰掠过路径时优先打击血量最低的目标，若击杀则施法者获得咏唱。",
       "max_level": 7,
@@ -3791,6 +3809,7 @@
     },
     {
       "skill_id": "mage_plasma_beam",
+      "icon_id": "mage_plasma_beam",
       "display_name": "等离子光束",
       "description": "高穿透直线法术，若路径上单位已感电则本次对其无视部分抗性。",
       "max_level": 7,
@@ -4042,6 +4061,7 @@
     },
     {
       "skill_id": "mage_portal_step",
+      "icon_id": "mage_portal_step",
       "display_name": "门径跨越",
       "description": "在两格之间建立短时门户，供一名友军穿越。",
       "max_level": 7,
@@ -4218,6 +4238,7 @@
     },
     {
       "skill_id": "mage_power_word_kill",
+      "icon_id": "mage_power_word_kill",
       "display_name": "律令死亡",
       "description": "以死亡律令裁决濒死敌人。仅可对生命不高于阈值的目标施放；目标进行意志豁免，失败则触发高权威死亡判定，低级免死难以拦截，成功或免疫时不受伤害但仍会短暂受到灵魂裂解。",
       "max_level": 5,
@@ -4277,6 +4298,7 @@
     },
     {
       "skill_id": "mage_prism_spray",
+      "icon_id": "mage_prism_spray",
       "display_name": "棱镜喷射",
       "description": "扇形混合伤害技，随机附带blinded、奥脆或感电之一。",
       "max_level": 7,
@@ -4526,6 +4548,7 @@
     },
     {
       "skill_id": "mage_prismatic_barrier",
+      "icon_id": "mage_prismatic_barrier",
       "display_name": "棱彩屏障",
       "description": "给友军附加持续 60 TU 的棱彩抗性，使 火焰 / 冰霜 / 闪电 / 负能量 伤害减半。",
       "max_level": 7,
@@ -4738,6 +4761,7 @@
     },
     {
       "skill_id": "mage_prismatic_blue_ward",
+      "icon_id": "mage_prismatic_blue_ward",
       "display_name": "虹光·湛蓝屏障",
       "description": "创造单独的蓝色虹光屏障，阻挡定位、侦测、心灵与灵能效果；穿越者可能石化。",
       "max_level": 5,
@@ -4866,6 +4890,7 @@
     },
     {
       "skill_id": "mage_prismatic_green_ward",
+      "icon_id": "mage_prismatic_green_ward",
       "display_name": "虹光·翠绿屏障",
       "description": "创造单独的绿色虹光屏障，阻挡吐息武器；穿越者必须抵抗致命毒素。",
       "max_level": 5,

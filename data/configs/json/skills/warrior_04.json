@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_dragon_bone_shock_shatter",
+      "icon_id": "warrior_dragon_bone_shock_shatter",
       "display_name": "龙骨震裂",
       "description": "HP低于50%时额外破防。",
       "max_level": 9,
@@ -71,6 +72,7 @@
     },
     {
       "skill_id": "warrior_dragon_breath_short",
+      "icon_id": "warrior_dragon_breath_short",
       "display_name": "龙息短吐",
       "description": "锥形龙息附加灼鳞反伤效果。",
       "max_level": 7,
@@ -124,6 +126,7 @@
     },
     {
       "skill_id": "warrior_dragon_claw_mark",
+      "icon_id": "warrior_dragon_claw_mark",
       "display_name": "龙爪裂印",
       "description": "留下龙爪印记，叠加后爆发伤害。",
       "max_level": 3,
@@ -171,6 +174,7 @@
     },
     {
       "skill_id": "warrior_dragon_claw_rend_mark",
+      "icon_id": "warrior_dragon_claw_rend_mark",
       "display_name": "龙爪裂印",
       "description": "叠裂印最多3层，3层时目标受100%龙血伤害。",
       "max_level": 7,
@@ -232,6 +236,7 @@
     },
     {
       "skill_id": "warrior_dragon_earth_rend",
+      "icon_id": "warrior_dragon_earth_rend",
       "display_name": "裂地龙斩",
       "description": "路径变困难地形2回合。",
       "max_level": 9,
@@ -290,6 +295,7 @@
     },
     {
       "skill_id": "warrior_dragon_earth_split",
+      "icon_id": "warrior_dragon_earth_split",
       "display_name": "裂地龙斩",
       "description": "以龙之力斩裂大地，路径变为困难地形。",
       "max_level": 3,
@@ -339,6 +345,7 @@
     },
     {
       "skill_id": "warrior_dragon_eye_lock_soul",
+      "icon_id": "warrior_dragon_eye_lock_soul",
       "display_name": "龙瞳锁魂",
       "description": "目标被锁定，对你的命中降低你对其命中提升。",
       "max_level": 7,
@@ -379,6 +386,7 @@
     },
     {
       "skill_id": "warrior_dragon_fang_thrust",
+      "icon_id": "warrior_dragon_fang_thrust",
       "display_name": "龙牙突",
       "description": "直线穿透攻击，对路径上敌人造成伤害。",
       "max_level": 3,
@@ -421,6 +429,7 @@
     },
     {
       "skill_id": "warrior_dragon_fang_thrust_skill",
+      "icon_id": "warrior_dragon_fang_thrust_skill",
       "display_name": "龙牙突",
       "description": "穿透第一目标攻击第二目标。",
       "max_level": 7,
@@ -472,6 +481,7 @@
     },
     {
       "skill_id": "warrior_dragon_form_stance",
+      "icon_id": "warrior_dragon_form_stance",
       "display_name": "龙化战姿",
       "description": "3回合移动+1/近战附带30%斗气波/免疫恐惧。",
       "max_level": 10,
@@ -514,6 +524,7 @@
     },
     {
       "skill_id": "warrior_dragon_heaven_shake",
+      "icon_id": "warrior_dragon_heaven_shake",
       "display_name": "龙震九天",
       "description": "大范围斗气爆发，中心敌人受重创，外围敌人减速。",
       "max_level": 3,
@@ -566,6 +577,7 @@
     },
     {
       "skill_id": "warrior_dragon_qi_slash",
+      "icon_id": "warrior_dragon_qi_slash",
       "display_name": "斗气斩",
       "description": "基础斗气远程攻击。",
       "max_level": 5,
@@ -620,6 +632,7 @@
     },
     {
       "skill_id": "warrior_dragon_scale_guard",
+      "icon_id": "warrior_dragon_scale_guard",
       "display_name": "龙鳞护体",
       "description": "减伤25%并免疫暴击。",
       "max_level": 7,
@@ -667,6 +680,7 @@
     },
     {
       "skill_id": "warrior_dragon_scales",
+      "icon_id": "warrior_dragon_scales",
       "display_name": "龙鳞护体",
       "description": "以龙鳞之力护体，减少受到的伤害。",
       "max_level": 3,
@@ -708,6 +722,7 @@
     },
     {
       "skill_id": "warrior_dragon_shake_heaven",
+      "icon_id": "warrior_dragon_shake_heaven",
       "display_name": "龙震九天",
       "description": "中心眩晕+外围减速的大范围龙震。",
       "max_level": 9,
@@ -778,6 +793,7 @@
     },
     {
       "skill_id": "warrior_dragon_soul_burst",
+      "icon_id": "warrior_dragon_soul_burst",
       "display_name": "龙魂爆发",
       "description": "消耗龙魂，每层下次斗气技能+15%伤害/+3命中。",
       "max_level": 9,
@@ -819,6 +835,7 @@
     },
     {
       "skill_id": "warrior_dragon_soul_stack",
+      "icon_id": "warrior_dragon_soul_stack",
       "display_name": "龙魂叠印",
       "description": "2回合每次命中+1龙魂最多5层。",
       "max_level": 7,
@@ -858,6 +875,7 @@
     },
     {
       "skill_id": "warrior_dragon_tail_formation",
+      "icon_id": "warrior_dragon_tail_formation",
       "display_name": "龙尾扫阵",
       "description": "击退周围敌人1格，撞墙眩晕。",
       "max_level": 7,
@@ -916,6 +934,7 @@
     },
     {
       "skill_id": "warrior_dragon_tail_sweep",
+      "icon_id": "warrior_dragon_tail_sweep",
       "display_name": "龙尾扫阵",
       "description": "扫击周围敌人，将其击退。",
       "max_level": 3,
@@ -965,6 +984,7 @@
     },
     {
       "skill_id": "warrior_dragon_vein_resonance",
+      "icon_id": "warrior_dragon_vein_resonance",
       "display_name": "龙纹共鸣",
       "description": "友军获得斗气获取+20%但受治疗-5%。",
       "max_level": 9,
@@ -1009,6 +1029,7 @@
     },
     {
       "skill_id": "warrior_dragon_vein_step_ring",
+      "icon_id": "warrior_dragon_vein_step_ring",
       "display_name": "龙脉踏响",
       "description": "每命中1人叠龙脉最多3层提升斗气回复。",
       "max_level": 7,
@@ -1073,6 +1094,7 @@
     },
     {
       "skill_id": "warrior_duel_declare_name",
+      "icon_id": "warrior_duel_declare_name",
       "display_name": "决斗宣名",
       "description": "单挑宣言，互相增伤15%对外减伤10%。",
       "max_level": 7,
@@ -1111,6 +1133,7 @@
     },
     {
       "skill_id": "warrior_dull_bone_knock",
+      "icon_id": "warrior_dull_bone_knock",
       "display_name": "钝鸣敲骨",
       "description": "钝器重击，削弱目标治疗能力。",
       "max_level": 3,
@@ -1156,6 +1179,7 @@
     },
     {
       "skill_id": "warrior_earth_bind",
+      "icon_id": "warrior_earth_bind",
       "display_name": "地脉锁足",
       "description": "用大地之力定住目标，使其无法移动。",
       "max_level": 3,
@@ -1197,6 +1221,7 @@
     },
     {
       "skill_id": "warrior_earth_pulse",
+      "icon_id": "warrior_earth_pulse",
       "display_name": "大地脉冲",
       "description": "释放大地脉冲，大范围减速敌人并保护友军。",
       "max_level": 3,
@@ -1248,6 +1273,7 @@
     },
     {
       "skill_id": "warrior_earth_pulse_domain",
+      "icon_id": "warrior_earth_pulse_domain",
       "display_name": "大地脉冲",
       "description": "大范围减速敌军，友军免疫减速。",
       "max_level": 9,
@@ -1309,6 +1335,7 @@
     },
     {
       "skill_id": "warrior_earth_rebound",
+      "icon_id": "warrior_earth_rebound",
       "display_name": "大地反弹",
       "description": "受近战后反弹60%伤害并减速。",
       "max_level": 5,
@@ -1345,6 +1372,7 @@
     },
     {
       "skill_id": "warrior_earth_shake_aoe",
+      "icon_id": "warrior_earth_shake_aoe",
       "display_name": "震地",
       "description": "范围震击减速周围敌人。",
       "max_level": 7,
@@ -1415,6 +1443,7 @@
     },
     {
       "skill_id": "warrior_earth_split",
+      "icon_id": "warrior_earth_split",
       "display_name": "裂地冲击",
       "description": "向前方直线轰击，造成范围伤害并留下裂缝地形。",
       "max_level": 3,

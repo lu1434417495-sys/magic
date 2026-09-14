@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "mage_prismatic_indigo_ward",
+      "icon_id": "mage_prismatic_indigo_ward",
       "display_name": "虹光·靛青屏障",
       "description": "创造单独的靛色虹光屏障，阻挡法术效果；穿越者可能陷入疯狂。",
       "max_level": 5,
@@ -130,6 +131,7 @@
     },
     {
       "skill_id": "mage_prismatic_orange_ward",
+      "icon_id": "mage_prismatic_orange_ward",
       "display_name": "虹光·橙耀屏障",
       "description": "创造单独的橙色虹光屏障，阻挡魔法投射物；穿越者承受酸蚀伤害。",
       "max_level": 5,
@@ -258,6 +260,7 @@
     },
     {
       "skill_id": "mage_prismatic_red_ward",
+      "icon_id": "mage_prismatic_red_ward",
       "display_name": "虹光·赤红屏障",
       "description": "创造单独的红色虹光屏障，阻挡非魔法投射物；穿越者承受火焰伤害。",
       "max_level": 5,
@@ -386,6 +389,7 @@
     },
     {
       "skill_id": "mage_prismatic_sphere",
+      "icon_id": "mage_prismatic_sphere",
       "display_name": "虹光法球",
       "description": "在施法者所在位置创造固定虹光法球。施法者可自由出入，但不能隔着法球攻击或施法；其他单位穿越时依次承受七层效果。",
       "max_level": 7,
@@ -497,6 +501,7 @@
     },
     {
       "skill_id": "mage_prismatic_violet_ward",
+      "icon_id": "mage_prismatic_violet_ward",
       "display_name": "虹光·紫晶屏障",
       "description": "创造单独的紫色虹光屏障，阻挡力场与反魔法效果；穿越者可能被放逐。",
       "max_level": 5,
@@ -625,6 +630,7 @@
     },
     {
       "skill_id": "mage_prismatic_yellow_ward",
+      "icon_id": "mage_prismatic_yellow_ward",
       "display_name": "虹光·金黄屏障",
       "description": "创造单独的黄色虹光屏障，阻挡投射而来的毒素、气体与石化效果；穿越者承受闪电伤害。",
       "max_level": 5,
@@ -753,6 +759,7 @@
     },
     {
       "skill_id": "mage_quicksand",
+      "icon_id": "mage_quicksand",
       "display_name": "流沙陷区",
       "description": "生成小型流沙区；敌人首次进入时立即停止移动并获得 寒蚀 或 浸湿 中的任一软控标签。",
       "max_level": 7,
@@ -995,6 +1002,7 @@
     },
     {
       "skill_id": "mage_rampart_raise",
+      "icon_id": "mage_rampart_raise",
       "display_name": "升墙术",
       "description": "升起地形屏障，提供短墙、单柱高地或双格掩体三种形态，用于切线与保护后排。",
       "max_level": 7,
@@ -1169,6 +1177,7 @@
     },
     {
       "skill_id": "mage_rime_burst",
+      "icon_id": "mage_rime_burst",
       "display_name": "冻雾爆",
       "description": "落点扩散冰雾；区域内敌人移动力 -1，持续 60 TU。",
       "max_level": 7,
@@ -1411,6 +1420,7 @@
     },
     {
       "skill_id": "mage_rock_armor",
+      "icon_id": "mage_rock_armor",
       "display_name": "岩甲术",
       "description": "给友军施加 法盾 与物理减伤，适合保护前排或炮台召唤物。",
       "max_level": 7,
@@ -1587,6 +1597,7 @@
     },
     {
       "skill_id": "mage_runic_golem",
+      "icon_id": "mage_runic_golem",
       "display_name": "符文傀儡",
       "description": "较硬的召唤前排；适合给法师争取安全施法位。",
       "max_level": 7,
@@ -1843,6 +1854,7 @@
     },
     {
       "skill_id": "mage_runic_trap",
+      "icon_id": "mage_runic_trap",
       "display_name": "符印陷阱",
       "description": "在指定地格布置奥术印记；被触发时爆发奥术伤害并施加 奥脆。",
       "max_level": 7,
@@ -2099,6 +2111,7 @@
     },
     {
       "skill_id": "mage_sandstorm",
+      "icon_id": "mage_sandstorm",
       "display_name": "沙暴术",
       "description": "低伤高扰乱法术；区域内敌人获得 blinded，远程单位尤其难受。",
       "max_level": 7,
@@ -2341,6 +2354,7 @@
     },
     {
       "skill_id": "mage_scorch_wave",
+      "icon_id": "mage_scorch_wave",
       "display_name": "灼流波",
       "description": "中距离扇面清场技；对 blinded 目标额外 +15% 伤害。",
       "max_level": 7,
@@ -2585,6 +2599,7 @@
     },
     {
       "skill_id": "mage_seal_of_binding",
+      "icon_id": "mage_seal_of_binding",
       "display_name": "束缚印",
       "description": "在目标身上刻下奥术符印；目标下一个位移或冲锋类动作会直接失败。",
       "max_level": 7,
@@ -2803,6 +2818,7 @@
     },
     {
       "skill_id": "mage_searing_orb",
+      "icon_id": "mage_searing_orb",
       "display_name": "灼热法珠",
       "description": "轻量范围技；中心目标若已 寒蚀，则本次额外触发一次 40% 爆燃伤害。",
       "max_level": 7,
@@ -3044,6 +3060,7 @@
     },
     {
       "skill_id": "mage_shadow_bolt",
+      "icon_id": "mage_shadow_bolt",
       "display_name": "暗蚀飞弹",
       "description": "死灵系基础点杀术；命中后施加 奥脆。",
       "max_level": 7,
@@ -3247,6 +3264,7 @@
     },
     {
       "skill_id": "mage_shadow_double",
+      "icon_id": "mage_shadow_double",
       "display_name": "阴影分身",
       "description": "复制施法者的上一个单体技能一次低配版本，适合作为节奏延伸器。",
       "max_level": 7,
@@ -3447,6 +3465,7 @@
     },
     {
       "skill_id": "mage_shatter_lance",
+      "icon_id": "mage_shatter_lance",
       "display_name": "碎晶枪",
       "description": "对 frozen、shocked 或 浸湿 目标造成额外伤害，是典型元素联动终结技。",
       "max_level": 7,
@@ -3651,6 +3670,7 @@
     },
     {
       "skill_id": "mage_silence_orb",
+      "icon_id": "mage_silence_orb",
       "display_name": "寂声法球",
       "description": "区域内敌方施法类技能命中 -20%，并更难触发高阶连锁。",
       "max_level": 7,
@@ -3921,6 +3941,7 @@
     },
     {
       "skill_id": "mage_skybreaker",
+      "icon_id": "mage_skybreaker",
       "display_name": "天穹裂雷",
       "description": "大范围高爆发雷击；若区域内至少有一个 浸湿 目标，则全体额外获得 感电。",
       "max_level": 7,
@@ -4173,6 +4194,7 @@
     },
     {
       "skill_id": "mage_sleep_dust",
+      "icon_id": "mage_sleep_dust",
       "display_name": "沉眠粉雾",
       "description": "范围睡眠控制。睡眠会持续跳过目标行动，但目标受到生命伤害或护盾吸收伤害时立即苏醒；苏醒后须完成一次正常行动，才可再次被睡眠。",
       "max_level": 7,
@@ -4477,6 +4499,7 @@
     },
     {
       "skill_id": "mage_snowblind",
+      "icon_id": "mage_snowblind",
       "display_name": "雪幕致盲",
       "description": "冰晶碎雪扰乱视线；命中敌人获得 blinded 与 寒蚀。",
       "max_level": 7,
@@ -4718,6 +4741,7 @@
     },
     {
       "skill_id": "mage_soul_cage",
+      "icon_id": "mage_soul_cage",
       "display_name": "灵魂囚笼",
       "description": "禁止目标在 120 TU 内获得治疗或复活类收益；对精英和首领战很有价值。",
       "max_level": 7,
@@ -4920,6 +4944,7 @@
     },
     {
       "skill_id": "mage_soul_chain",
+      "icon_id": "mage_soul_chain",
       "display_name": "魂锁术",
       "description": "连接直线上的至多 2 名敌人；其中一人受伤时另一人承受部分牵连伤害。",
       "max_level": 7,

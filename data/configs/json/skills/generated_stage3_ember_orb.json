@@ -6,6 +6,7 @@
   "entries": [
     {
       "skill_id": "mage_generated_ember_orb",
+      "icon_id": "mage_generated_ember_orb",
       "display_name": "灼星火球",
       "description": "阶段 3 生成闭环的内置试制法术。向指定地面投出高温魔法火球，以标准豁免规则造成范围火焰伤害。",
       "skill_type": "active",

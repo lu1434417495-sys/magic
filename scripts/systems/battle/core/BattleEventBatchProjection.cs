@@ -212,6 +212,9 @@ internal static class BattleEventBatchProjection
                 );
                 payload["required_qualifier_count"] = choice.required_qualifier_count;
                 payload["required_assigned_core_count"] = choice.required_assigned_core_count;
+                payload["selection"] = TraceDictionaryProjection.WriteDictionary(
+                    lease, choice.DefaultSelection?.ToPlainPayload() ?? new Dictionary<string, object>(),
+                    $"{reason}[{index}].selection");
             }
             result.Add(payload);
         }

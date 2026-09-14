@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_oath_domain",
+      "icon_id": "warrior_oath_domain",
       "display_name": "誓魂领域",
       "description": "友军减伤、敌军攻击降低。",
       "max_level": 9,
@@ -61,6 +62,7 @@
     },
     {
       "skill_id": "warrior_one_inch_advantage",
+      "icon_id": "warrior_one_inch_advantage",
       "display_name": "一寸先机",
       "description": "下回合行动顺序提前。",
       "max_level": 5,
@@ -97,6 +99,7 @@
     },
     {
       "skill_id": "warrior_opening_bait",
+      "icon_id": "warrior_opening_bait",
       "display_name": "空门诱导",
       "description": "诱导AI/牵制目标。",
       "max_level": 5,
@@ -133,6 +136,7 @@
     },
     {
       "skill_id": "warrior_over_shoulder",
+      "icon_id": "warrior_over_shoulder",
       "display_name": "借势越肩",
       "description": "攻击相邻敌人；命中后越过目标，落到其正后方。若落点、墙体、高差或屏障阻挡路径，则无法施放。",
       "max_level": 5,
@@ -195,6 +199,7 @@
     },
     {
       "skill_id": "warrior_overhead_chop",
+      "icon_id": "warrior_overhead_chop",
       "display_name": "重剑斩",
       "description": "以双手大剑重劈相邻目标。技能等级提高时复制更多基础物理武器骰；目标处于倒地、震慑、麻痹、冰冻或石化时，独立追加1d6物理伤害，该追加伤害可重击。武器的非物理附伤不会被复制。",
       "max_level": 5,
@@ -291,6 +296,7 @@
     },
     {
       "skill_id": "warrior_perfect_rhythm",
+      "icon_id": "warrior_perfect_rhythm",
       "display_name": "完美节奏",
       "description": "启动后持续维持节奏。近战武器每次命中额外获得连击层，并且每10层近战连击使近战武器攻击检定+1。每5TU消耗斗气，维持费用每60TU翻倍；硬控或斗气不足会终止，并在90TU内使攻击检定-3。",
       "max_level": 7,
@@ -370,6 +376,7 @@
     },
     {
       "skill_id": "warrior_phantom_blade_bait",
+      "icon_id": "warrior_phantom_blade_bait",
       "display_name": "虚刃诱反",
       "description": "诱发目标反击，反击失败则失衡。",
       "max_level": 5,
@@ -416,6 +423,7 @@
     },
     {
       "skill_id": "warrior_phantom_through",
+      "icon_id": "warrior_phantom_through",
       "display_name": "幽影穿身",
       "description": "选择10格内与自己处于同一行或同一列的敌人作为终点目标；必须能沿直线穿过该目标，并在其身后找到合法落点。需要已装备攻击距离不超过2格的武器，不能使用天生武器；墙体、不可通行地形、边缘屏障与友方单位会阻断路径。先按路径顺序对施术者与终点目标之间的每名敌人各发动一次1W标准武器攻击，攻击检定无额外修正；各次攻击独立结算，未命中不会中止。随后只对终点目标发动一次主攻击：0至2级为2W，3级起为3W；5级起，途中每次成功命中可使终点主攻击+1W且攻击检定+1，5至8级最多计入1次，9级最多计入2次；7级起终点主攻击基础攻击检定+1。终点主攻击命中后，施术者穿过目标并落到其身后；未命中则留在原地。所有伤害均走标准武器攻击、攻击检定、暴击、护甲与减伤链；途中攻击不计入本技能熟练度，终点主攻击正常计入。消耗1AP、3000斗气，不消耗体力，冷却100TU。",
       "max_level": 9,
@@ -563,6 +571,7 @@
     },
     {
       "skill_id": "warrior_phantom_walk_mark",
+      "icon_id": "warrior_phantom_walk_mark",
       "display_name": "幽步标记",
       "description": "标记目标，你向其移动消耗-1。",
       "max_level": 5,
@@ -599,6 +608,7 @@
     },
     {
       "skill_id": "warrior_pierce_formation_draw",
+      "icon_id": "warrior_pierce_formation_draw",
       "display_name": "穿阵引势",
       "description": "每命中一名敌人恢复体力。",
       "max_level": 7,
@@ -663,6 +673,7 @@
     },
     {
       "skill_id": "warrior_piercing_thrust",
+      "icon_id": "warrior_piercing_thrust",
       "display_name": "踏步穿刺",
       "description": "仅限装备长矛、三叉戟或长枪使用。选择与你处于同一行或同一列、且在当前武器射程外的一名敌人；沿目标方向直线推进最少格数，直到目标进入当前武器射程，然后进行一次标准武器攻击。推进不消耗移动力，使用后普通移动仍按行动锁定规则处理；即使普通移动力为0或已经锁定，也可以使用，但被定身、束缚等效果限制移动时不能使用。推进不能转弯或绕路，不能穿过单位、不可通行格或屏障；路径上的每个占用格和最终落脚格都必须与起始格处于同一高度。推进途中若被地形、屏障或位置变化效果打断，后续攻击取消，已支付的AP、体力与冷却不返还。攻击使用完整的武器攻击检定、暴击、护甲、护盾、抗性、减伤及装备能力链；未命中时仍停留在推进后的格子。",
       "max_level": 5,
@@ -778,6 +789,7 @@
     },
     {
       "skill_id": "warrior_pole_shift_force",
+      "icon_id": "warrior_pole_shift_force",
       "display_name": "绕杆卸力",
       "description": "下次近战伤害降低，攻击者行动顺序后移。",
       "max_level": 5,
@@ -814,6 +826,7 @@
     },
     {
       "skill_id": "warrior_pounce",
+      "icon_id": "warrior_pounce",
       "display_name": "扑杀",
       "description": "目标HP<50%时伤害+30%。",
       "max_level": 7,
@@ -874,6 +887,7 @@
     },
     {
       "skill_id": "warrior_prairie_fire_domain",
+      "icon_id": "warrior_prairie_fire_domain",
       "display_name": "燎原号令",
       "description": "区域持续燃烧2回合。",
       "max_level": 9,
@@ -928,6 +942,7 @@
     },
     {
       "skill_id": "warrior_prairie_fire_order",
+      "icon_id": "warrior_prairie_fire_order",
       "display_name": "燎原号令",
       "description": "大范围火焰领域，区域内敌人持续受到燃烧伤害。",
       "max_level": 3,
@@ -979,6 +994,7 @@
     },
     {
       "skill_id": "warrior_precision_combo",
+      "icon_id": "warrior_precision_combo",
       "display_name": "精准连击",
       "description": "本回合追击命中惩罚大幅降低。",
       "max_level": 5,
@@ -1015,6 +1031,7 @@
     },
     {
       "skill_id": "warrior_predictive_block",
+      "icon_id": "warrior_predictive_block",
       "display_name": "预判格挡",
       "description": "指定方向降低伤害。",
       "max_level": 3,
@@ -1049,6 +1066,7 @@
     },
     {
       "skill_id": "warrior_purify_roar",
+      "icon_id": "warrior_purify_roar",
       "display_name": "净化怒吼",
       "description": "清除友军减益并提升命中。",
       "max_level": 7,
@@ -1099,6 +1117,7 @@
     },
     {
       "skill_id": "warrior_push_hand_block",
+      "icon_id": "warrior_push_hand_block",
       "display_name": "推手封路",
       "description": "目标不能穿过你的威胁区。",
       "max_level": 5,
@@ -1145,6 +1164,7 @@
     },
     {
       "skill_id": "warrior_qi_awaken",
+      "icon_id": "warrior_qi_awaken",
       "display_name": "斗气觉醒",
       "description": "2回合技能伤害+20%射程+1。",
       "max_level": 9,
@@ -1186,6 +1206,7 @@
     },
     {
       "skill_id": "warrior_qi_blade",
+      "icon_id": "warrior_qi_blade",
       "display_name": "斗气斩",
       "description": "基础斗气远程攻击，直线穿透。",
       "max_level": 3,
@@ -1229,6 +1250,7 @@
     },
     {
       "skill_id": "warrior_qi_blade_line",
+      "icon_id": "warrior_qi_blade_line",
       "display_name": "剑气斩",
       "description": "释放直线斗气斩击，攻击远程目标。",
       "max_level": 3,
@@ -1272,6 +1294,7 @@
     },
     {
       "skill_id": "warrior_qi_blade_return",
+      "icon_id": "warrior_qi_blade_return",
       "display_name": "气刃折返",
       "description": "只命中1人时气刃折返再造成40%伤害。",
       "max_level": 7,
@@ -1331,6 +1354,7 @@
     },
     {
       "skill_id": "warrior_qi_bolt_snipe",
+      "icon_id": "warrior_qi_bolt_snipe",
       "display_name": "斗气裂矢",
       "description": "距离每增加1格命中-5%。",
       "max_level": 7,
@@ -1384,6 +1408,7 @@
     },
     {
       "skill_id": "warrior_qi_bolt_sniper",
+      "icon_id": "warrior_qi_bolt_sniper",
       "display_name": "斗气裂矢",
       "description": "超远距离斗气狙击。",
       "max_level": 3,
@@ -1423,6 +1448,7 @@
     },
     {
       "skill_id": "warrior_qi_burst",
+      "icon_id": "warrior_qi_burst",
       "display_name": "斗气爆裂",
       "description": "在小范围内释放斗气爆裂。",
       "max_level": 3,
@@ -1465,6 +1491,7 @@
     },
     {
       "skill_id": "warrior_qi_burst_aoe",
+      "icon_id": "warrior_qi_burst_aoe",
       "display_name": "斗气爆裂",
       "description": "斗气爆裂范围伤害，中心额外+10%。",
       "max_level": 7,
@@ -1520,6 +1547,7 @@
     },
     {
       "skill_id": "warrior_qi_chain_combo",
+      "icon_id": "warrior_qi_chain_combo",
       "display_name": "斗气连击",
       "description": "两段斗气连击。",
       "max_level": 7,
@@ -1571,6 +1599,7 @@
     },
     {
       "skill_id": "warrior_qi_combo",
+      "icon_id": "warrior_qi_combo",
       "display_name": "斗气连击",
       "description": "快速释放两道斗气攻击同一目标。",
       "max_level": 3,

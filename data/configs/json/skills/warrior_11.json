@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_rip_and_tear",
+      "icon_id": "warrior_rip_and_tear",
       "display_name": "撕裂斩",
       "description": "撕裂伤口，造成持续燃烧伤害（模拟流血）。",
       "max_level": 3,
@@ -49,6 +50,7 @@
     },
     {
       "skill_id": "warrior_rip_slash",
+      "icon_id": "warrior_rip_slash",
       "display_name": "撕裂斩",
       "description": "造成流血持续伤害。",
       "max_level": 7,
@@ -115,6 +117,7 @@
     },
     {
       "skill_id": "warrior_rock_armor",
+      "icon_id": "warrior_rock_armor",
       "display_name": "巨岩护甲",
       "description": "召唤岩石护盾保护自身，但会降低移动力。",
       "max_level": 3,
@@ -163,6 +166,7 @@
     },
     {
       "skill_id": "warrior_rock_hum_charge",
+      "icon_id": "warrior_rock_hum_charge",
       "display_name": "岩鸣蓄震",
       "description": "储存震波，下次重武器攻击命中时溅射。",
       "max_level": 5,
@@ -198,6 +202,7 @@
     },
     {
       "skill_id": "warrior_rotate_position",
+      "icon_id": "warrior_rotate_position",
       "display_name": "轮换阵位",
       "description": "与目标友军交换位置。",
       "max_level": 3,
@@ -233,6 +238,7 @@
     },
     {
       "skill_id": "warrior_round_shield_trip",
+      "icon_id": "warrior_round_shield_trip",
       "display_name": "圆盾绊足",
       "description": "目标下次离开相邻格消耗额外移动。",
       "max_level": 5,
@@ -279,6 +285,7 @@
     },
     {
       "skill_id": "warrior_sand_fire_trap",
+      "icon_id": "warrior_sand_fire_trap",
       "display_name": "沙火陷阱",
       "description": "在指定格布置沙火陷阱，敌人进入后受到伤害并燃烧。",
       "max_level": 3,
@@ -320,6 +327,7 @@
     },
     {
       "skill_id": "warrior_sand_fire_trap_skill",
+      "icon_id": "warrior_sand_fire_trap_skill",
       "display_name": "沙火陷阱",
       "description": "敌进入受到火焰伤害并燃烧。",
       "max_level": 7,
@@ -369,6 +377,7 @@
     },
     {
       "skill_id": "warrior_scale_crack",
+      "icon_id": "warrior_scale_crack",
       "display_name": "鳞纹开裂",
       "description": "牺牲部分生命，大幅提升攻击力。",
       "max_level": 3,
@@ -409,6 +418,7 @@
     },
     {
       "skill_id": "warrior_scale_crack_open",
+      "icon_id": "warrior_scale_crack_open",
       "display_name": "鳞纹开裂",
       "description": "牺牲8%HP获得攻击和控制抗性提升。",
       "max_level": 7,
@@ -456,6 +466,7 @@
     },
     {
       "skill_id": "warrior_scale_rain_counter",
+      "icon_id": "warrior_scale_rain_counter",
       "display_name": "鳞雨反击",
       "description": "受远程攻击后反射鳞雨。",
       "max_level": 7,
@@ -507,6 +518,7 @@
     },
     {
       "skill_id": "warrior_scatter_formation",
+      "icon_id": "warrior_scatter_formation",
       "display_name": "散阵号",
       "description": "友军分散则AOE减伤20%。",
       "max_level": 7,
@@ -557,6 +569,7 @@
     },
     {
       "skill_id": "warrior_scorching_feet",
+      "icon_id": "warrior_scorching_feet",
       "display_name": "灼足",
       "description": "灼烧目标双脚，大幅限制其移动能力。",
       "max_level": 3,
@@ -603,6 +616,7 @@
     },
     {
       "skill_id": "warrior_sever_light_hand",
+      "icon_id": "warrior_sever_light_hand",
       "display_name": "断光截手",
       "description": "目标下次技能消耗+5体力。",
       "max_level": 7,
@@ -662,6 +676,7 @@
     },
     {
       "skill_id": "warrior_shadow_blade_throw",
+      "icon_id": "warrior_shadow_blade_throw",
       "display_name": "影刃投掷",
       "description": "向远程目标投掷影刃。",
       "max_level": 3,
@@ -702,6 +717,7 @@
     },
     {
       "skill_id": "warrior_shadow_chain",
+      "icon_id": "warrior_shadow_chain",
       "display_name": "阴影锁链",
       "description": "用阴影锁链定住目标，使其无法移动。",
       "max_level": 3,
@@ -743,6 +759,7 @@
     },
     {
       "skill_id": "warrior_shadow_chain_bind",
+      "icon_id": "warrior_shadow_chain_bind",
       "display_name": "阴影锁链",
       "description": "定住敌人，暗影地形命中提升。",
       "max_level": 7,
@@ -791,6 +808,7 @@
     },
     {
       "skill_id": "warrior_shadow_dagger_throw",
+      "icon_id": "warrior_shadow_dagger_throw",
       "display_name": "影刃投掷",
       "description": "有暗影标记时附加流血。",
       "max_level": 5,
@@ -838,6 +856,7 @@
     },
     {
       "skill_id": "warrior_shadow_hide_stance",
+      "icon_id": "warrior_shadow_hide_stance",
       "display_name": "影遁架势",
       "description": "不攻击则隐匿，下击命中提升。",
       "max_level": 7,
@@ -876,6 +895,7 @@
     },
     {
       "skill_id": "warrior_shadow_nail_remain",
+      "icon_id": "warrior_shadow_nail_remain",
       "display_name": "影钉留身",
       "description": "投出影钉，目标离开原格再受伤害。",
       "max_level": 7,
@@ -937,6 +957,7 @@
     },
     {
       "skill_id": "warrior_shadow_rope_step",
+      "icon_id": "warrior_shadow_rope_step",
       "display_name": "影绳牵步",
       "description": "命中后移到相邻格，目标不能借机攻击。",
       "max_level": 7,
@@ -998,6 +1019,7 @@
     },
     {
       "skill_id": "warrior_shadow_sever",
+      "icon_id": "warrior_shadow_sever",
       "display_name": "断影斩",
       "description": "移除目标闪避/隐身类增益。",
       "max_level": 9,
@@ -1059,6 +1081,7 @@
     },
     {
       "skill_id": "warrior_shadow_split_blade_throw",
+      "icon_id": "warrior_shadow_split_blade_throw",
       "display_name": "影裂投刃",
       "description": "目标背后有友军时命中+15%。",
       "max_level": 7,
@@ -1108,6 +1131,7 @@
     },
     {
       "skill_id": "warrior_shadow_stitch",
+      "icon_id": "warrior_shadow_stitch",
       "display_name": "影缝",
       "description": "目标不能转向1回合。",
       "max_level": 5,
@@ -1155,6 +1179,7 @@
     },
     {
       "skill_id": "warrior_shadow_strike",
+      "icon_id": "warrior_shadow_strike",
       "display_name": "影袭",
       "description": "瞬移至目标背后并攻击。",
       "max_level": 7,
@@ -1219,6 +1244,7 @@
     },
     {
       "skill_id": "warrior_shatter_armor_echo",
+      "icon_id": "warrior_shatter_armor_echo",
       "display_name": "碎甲回音",
       "description": "已有破防目标额外震荡伤害。",
       "max_level": 7,
@@ -1279,6 +1305,7 @@
     },
     {
       "skill_id": "warrior_shatter_formation_drag",
+      "icon_id": "warrior_shatter_formation_drag",
       "display_name": "碎阵拖拽",
       "description": "拖到身前并使护卫状态失效。",
       "max_level": 7,
@@ -1339,6 +1366,7 @@
     },
     {
       "skill_id": "warrior_shelter_afterglow",
+      "icon_id": "warrior_shelter_afterglow",
       "display_name": "庇护余辉",
       "description": "友军恢复HP并获得下次受伤害降低。",
       "max_level": 7,
@@ -1390,6 +1418,7 @@
     },
     {
       "skill_id": "warrior_shelter_light",
+      "icon_id": "warrior_shelter_light",
       "display_name": "庇护余辉",
       "description": "为友军恢复生命并提供护盾。",
       "max_level": 3,

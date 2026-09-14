@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_focus_mark",
+      "icon_id": "warrior_focus_mark",
       "display_name": "集火标记",
       "description": "标记目标，使其受到更多伤害。",
       "max_level": 3,
@@ -41,6 +42,7 @@
     },
     {
       "skill_id": "warrior_focus_mind",
+      "icon_id": "warrior_focus_mind",
       "display_name": "集中精神",
       "description": "提升自身命中与专注，持续2回合。",
       "max_level": 3,
@@ -82,6 +84,7 @@
     },
     {
       "skill_id": "warrior_focus_ray_slash",
+      "icon_id": "warrior_focus_ray_slash",
       "display_name": "凝神射线斩",
       "description": "不受掩体轻微遮挡的斗气远程攻击。",
       "max_level": 7,
@@ -137,6 +140,7 @@
     },
     {
       "skill_id": "warrior_formation_eye",
+      "icon_id": "warrior_formation_eye",
       "display_name": "阵眼加固",
       "description": "指定一格为阵眼，友军站在其上获得防御增益。",
       "max_level": 3,
@@ -178,6 +182,7 @@
     },
     {
       "skill_id": "warrior_formation_eye_fortify",
+      "icon_id": "warrior_formation_eye_fortify",
       "display_name": "阵眼加固",
       "description": "指定一格为阵眼，友军站上防御大幅提升。",
       "max_level": 7,
@@ -218,6 +223,7 @@
     },
     {
       "skill_id": "warrior_four_ounce_deflect",
+      "icon_id": "warrior_four_ounce_deflect",
       "display_name": "四两拨千斤",
       "description": "受大伤时减半并反击。",
       "max_level": 9,
@@ -279,6 +285,7 @@
     },
     {
       "skill_id": "warrior_frenzy_claw_dance",
+      "icon_id": "warrior_frenzy_claw_dance",
       "display_name": "狂爪旋舞",
       "description": "对流血目标命中+10%的范围多段攻击。",
       "max_level": 9,
@@ -355,6 +362,7 @@
     },
     {
       "skill_id": "warrior_frenzy_mode",
+      "icon_id": "warrior_frenzy_mode",
       "display_name": "狂暴",
       "description": "攻击大幅提升但防御降低。",
       "max_level": 7,
@@ -402,6 +410,7 @@
     },
     {
       "skill_id": "warrior_front_row_swap_defense",
+      "icon_id": "warrior_front_row_swap_defense",
       "display_name": "前列换防",
       "description": "令两名相邻友军交换位置。",
       "max_level": 5,
@@ -439,6 +448,7 @@
     },
     {
       "skill_id": "warrior_gale_slash",
+      "icon_id": "warrior_gale_slash",
       "display_name": "烈风斩",
       "description": "扇形火焰击退1格。",
       "max_level": 7,
@@ -492,6 +502,7 @@
     },
     {
       "skill_id": "warrior_gate_break_aftershock",
+      "icon_id": "warrior_gate_break_aftershock",
       "display_name": "破门余震",
       "description": "摧毁障碍时周围敌人受伤。",
       "max_level": 9,
@@ -556,6 +567,7 @@
     },
     {
       "skill_id": "warrior_giant_blade_sweep_shadow",
+      "icon_id": "warrior_giant_blade_sweep_shadow",
       "display_name": "巨兵扫影",
       "description": "半圆4格大范围AOE，每多命中1人命中-1。",
       "max_level": 9,
@@ -632,6 +644,7 @@
     },
     {
       "skill_id": "warrior_giant_rock_armor",
+      "icon_id": "warrior_giant_rock_armor",
       "display_name": "巨岩护甲",
       "description": "获得30%最大HP护盾。",
       "max_level": 7,
@@ -670,6 +683,7 @@
     },
     {
       "skill_id": "warrior_goose_formation_charge",
+      "icon_id": "warrior_goose_formation_charge",
       "display_name": "雁行突列",
       "description": "沿斜线突进绕到侧方。",
       "max_level": 7,
@@ -734,6 +748,7 @@
     },
     {
       "skill_id": "warrior_goose_return_stab",
+      "icon_id": "warrior_goose_return_stab",
       "display_name": "雁行回刺",
       "description": "受远程攻击后反击。",
       "max_level": 5,
@@ -781,6 +796,7 @@
     },
     {
       "skill_id": "warrior_gravel_blind",
+      "icon_id": "warrior_gravel_blind",
       "display_name": "石屑盲击",
       "description": "扇形碎石降低远程命中。",
       "max_level": 5,
@@ -830,6 +846,7 @@
     },
     {
       "skill_id": "warrior_ground_roar_combo",
+      "icon_id": "warrior_ground_roar_combo",
       "display_name": "地鸣连击",
       "description": "十字范围两段连击，二段后移目标行动顺序。",
       "max_level": 9,
@@ -906,6 +923,7 @@
     },
     {
       "skill_id": "warrior_guard",
+      "icon_id": "warrior_guard",
       "display_name": "格挡",
       "description": "进入短暂的格挡姿态。姿态期间，每次受到物理伤害时固定减少1至3点伤害，最低仍受到1点伤害；4级前移动每格额外消耗1点移动力，4级起解除该惩罚。对非物理伤害无效。",
       "max_level": 5,
@@ -1063,6 +1081,7 @@
     },
     {
       "skill_id": "warrior_guard_break",
+      "icon_id": "warrior_guard_break",
       "display_name": "摧甲击",
       "description": "以近战武器或近战型天生武器进行一次标准武器攻击；若目标穿戴身体护甲，命中后迫使其进行力量豁免，失败则损伤护甲耐久，归零时摧毁护甲。",
       "max_level": 5,
@@ -1211,6 +1230,7 @@
     },
     {
       "skill_id": "warrior_guard_formation_call_back",
+      "icon_id": "warrior_guard_formation_call_back",
       "display_name": "护阵回呼",
       "description": "将友军向自己方向移动最多2格。",
       "max_level": 7,
@@ -1250,6 +1270,7 @@
     },
     {
       "skill_id": "warrior_guard_order",
+      "icon_id": "warrior_guard_order",
       "display_name": "护卫命令",
       "description": "最近战士替指定友军分担伤害。",
       "max_level": 7,
@@ -1289,6 +1310,7 @@
     },
     {
       "skill_id": "warrior_guard_rotation",
+      "icon_id": "warrior_guard_rotation",
       "display_name": "守备轮换",
       "description": "为周围友军恢复体力，清除迟缓。",
       "max_level": 3,
@@ -1339,6 +1361,7 @@
     },
     {
       "skill_id": "warrior_guardian_judgment",
+      "icon_id": "warrior_guardian_judgment",
       "display_name": "守护审判",
       "description": "自身减伤层数越高伤害越高。",
       "max_level": 9,
@@ -1400,6 +1423,7 @@
     },
     {
       "skill_id": "warrior_guardian_ring",
+      "icon_id": "warrior_guardian_ring",
       "display_name": "守护之环",
       "description": "替周围友军分担伤害。",
       "max_level": 7,
@@ -1441,6 +1465,7 @@
     },
     {
       "skill_id": "warrior_hammer_handle_recoil",
+      "icon_id": "warrior_hammer_handle_recoil",
       "display_name": "击槌反震",
       "description": "本回合受近战攻击者承受其伤害的25%。",
       "max_level": 5,
@@ -1477,6 +1502,7 @@
     },
     {
       "skill_id": "warrior_hammer_heart_law_guard",
+      "icon_id": "warrior_hammer_heart_law_guard",
       "display_name": "锤心守律",
       "description": "受控制时50%概率改为行动顺序后移。",
       "max_level": 7,
@@ -1515,6 +1541,7 @@
     },
     {
       "skill_id": "warrior_hamstring",
+      "icon_id": "warrior_hamstring",
       "display_name": "断筋斩",
       "description": "使用当前近战武器斩击目标腿部。命中造成武器伤害，并使目标的移动成本增加；随等级提高命中、控制强度与持续时间，核心等级追加技能伤害并缩短冷却。",
       "max_level": 5,
@@ -1645,6 +1672,7 @@
     },
     {
       "skill_id": "warrior_heart_sword_pure",
+      "icon_id": "warrior_heart_sword_pure",
       "display_name": "心剑无尘",
       "description": "无视闪避增益与反击，清除目标1增益。",
       "max_level": 9,
@@ -1698,6 +1726,7 @@
     },
     {
       "skill_id": "warrior_heat_wave_step",
+      "icon_id": "warrior_heat_wave_step",
       "display_name": "热浪步",
       "description": "移动2格，起点留下热浪。",
       "max_level": 3,

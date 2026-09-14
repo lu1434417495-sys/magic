@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "mage_cone_of_cold",
+      "icon_id": "mage_cone_of_cold",
       "display_name": "寒冰锥",
       "description": "从施法者前方喷出近端宽、远端收束的极寒锥流；目标以意志进行法术豁免，成功时伤害减半。",
       "max_level": 7,
@@ -256,6 +257,7 @@
     },
     {
       "skill_id": "mage_confusion_wave",
+      "icon_id": "mage_confusion_wave",
       "display_name": "乱心波",
       "description": "扇形精神扰动，命中的敌人在接下来60TU内优先攻击最近目标或失去最佳技能选择。",
       "max_level": 7,
@@ -507,6 +509,7 @@
     },
     {
       "skill_id": "mage_continual_light",
+      "icon_id": "mage_continual_light",
       "display_name": "恒光术",
       "description": "在目标眼前凝成持续强光，豁免失败时致盲、削弱攻击并压制闪避；也可按虹光法球规则破解靛色层。",
       "max_level": 7,
@@ -715,6 +718,7 @@
     },
     {
       "skill_id": "mage_cryo_lock",
+      "icon_id": "mage_cryo_lock",
       "display_name": "寒锁术",
       "description": "冰锁缠身，目标获得定身，并在下次承受火焰伤害时额外受到+20%蒸腾爆裂。",
       "max_level": 7,
@@ -919,6 +923,7 @@
     },
     {
       "skill_id": "mage_crystal_pike",
+      "icon_id": "mage_crystal_pike",
       "display_name": "晶簇突刺",
       "description": "在落点形成高密度水晶刺群，对冰冻目标追加一次碎裂伤害。",
       "max_level": 7,
@@ -1168,6 +1173,7 @@
     },
     {
       "skill_id": "mage_crystal_sentinel",
+      "icon_id": "mage_crystal_sentinel",
       "display_name": "晶盾守卫",
       "description": "召唤偏护卫型的水晶构装体，可为相邻友军提供减伤。",
       "max_level": 7,
@@ -1409,6 +1415,7 @@
     },
     {
       "skill_id": "mage_death_mark",
+      "icon_id": "mage_death_mark",
       "display_name": "死兆印记",
       "description": "纯功能收割印记，目标生命越低，承受的法术伤害越高。",
       "max_level": 7,
@@ -1599,6 +1606,7 @@
     },
     {
       "skill_id": "mage_death_reap",
+      "icon_id": "mage_death_reap",
       "display_name": "死亡收割",
       "description": "高耗魔单体收割技，击杀目标后返还AP与免费移动额度。",
       "max_level": 7,
@@ -1812,6 +1820,7 @@
     },
     {
       "skill_id": "mage_delayed_fireball",
+      "icon_id": "mage_delayed_fireball",
       "display_name": "延爆火球",
       "description": "可选择即时引爆或延后60TU引爆，延后形态额外施加灼烧。",
       "max_level": 7,
@@ -2243,6 +2252,7 @@
     },
     {
       "skill_id": "mage_dispel_magic",
+      "icon_id": "mage_dispel_magic",
       "display_name": "解除魔法",
       "description": "解除一个目标身上的魔法效果：友方目标移除可驱散减益，敌方目标移除可驱散增益；也可按虹光法球规则破解紫色层。",
       "max_level": 7,
@@ -2434,6 +2444,7 @@
     },
     {
       "skill_id": "mage_dispel_wave",
+      "icon_id": "mage_dispel_wave",
       "display_name": "驱散波",
       "description": "同时清理敌方增益与友方减益，是中后期泛用解场技。",
       "max_level": 7,
@@ -2699,6 +2710,7 @@
     },
     {
       "skill_id": "mage_earthen_grasp",
+      "icon_id": "mage_earthen_grasp",
       "display_name": "地脉束缚",
       "description": "从地面伸出岩手束缚目标。低伤害但能稳定限制敌人的移动。",
       "max_level": 7,
@@ -2931,6 +2943,7 @@
     },
     {
       "skill_id": "mage_elemental_fusion",
+      "icon_id": "mage_elemental_fusion",
       "display_name": "元素合灵",
       "description": "吞并一个现存元素召唤物，为自身提供对应元素强化120TU。",
       "max_level": 7,
@@ -3098,6 +3111,7 @@
     },
     {
       "skill_id": "mage_ember_mine",
+      "icon_id": "mage_ember_mine",
       "display_name": "灰烬雷",
       "description": "在指定地格埋下火种，首个踩入的敌人受到伤害并获得灼烧。",
       "max_level": 7,
@@ -3342,6 +3356,7 @@
     },
     {
       "skill_id": "mage_ember_wisp",
+      "icon_id": "mage_ember_wisp",
       "display_name": "余烬灵",
       "description": "召出火焰精灵，每60TU优先攻击最近敌人并施加灼烧。",
       "max_level": 7,
@@ -3586,6 +3601,7 @@
     },
     {
       "skill_id": "mage_ether_pull",
+      "icon_id": "mage_ether_pull",
       "display_name": "以太牵引",
       "description": "轻伤并把目标拉近或推远1格，用于把敌人拖进不利地形。",
       "max_level": 7,
@@ -3804,6 +3820,7 @@
     },
     {
       "skill_id": "mage_fault_line",
+      "icon_id": "mage_fault_line",
       "display_name": "地裂线",
       "description": "沿直线撕开地面，命中的敌人获得失衡，可与远程集火配合。",
       "max_level": 7,
@@ -4053,6 +4070,7 @@
     },
     {
       "skill_id": "mage_fear_whisper",
+      "icon_id": "mage_fear_whisper",
       "display_name": "惊惧耳语",
       "description": "命中后使目标后退1格并命中-10%，适合拆近战突脸节奏。",
       "max_level": 7,
@@ -4271,6 +4289,7 @@
     },
     {
       "skill_id": "mage_fire_wall",
+      "icon_id": "mage_fire_wall",
       "display_name": "火墙术",
       "description": "在直线上制造持续火墙。火墙会周期性灼烧站在其中的敌人。",
       "max_level": 7,
@@ -4590,6 +4609,7 @@
     },
     {
       "skill_id": "mage_fireball",
+      "icon_id": "mage_fireball",
       "display_name": "火球术",
       "description": "向指定地格投掷火球，造成大范围火焰伤害。高等级时射程和范围扩大，并附加灼烧。",
       "max_level": 7,
@@ -4880,6 +4900,7 @@
     },
     {
       "skill_id": "mage_flame_spear",
+      "icon_id": "mage_flame_spear",
       "display_name": "炎枪术",
       "description": "火焰沿直线贯穿最多2名敌人，若路径上存在泥浆则留下燃烧地格。",
       "max_level": 7,
@@ -5390,6 +5411,7 @@
     },
     {
       "skill_id": "mage_force_wall",
+      "icon_id": "mage_force_wall",
       "display_name": "力场墙",
       "description": "在目标直线区域生成不可穿越的力场墙，持续120TU，用于切割战场阵型。",
       "max_level": 7,

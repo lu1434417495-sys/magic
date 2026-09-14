@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_spear_forest_still",
+      "icon_id": "warrior_spear_forest_still",
       "display_name": "枪林静立",
       "description": "未移动时近战攻击者对己命中降低。",
       "max_level": 5,
@@ -37,6 +38,7 @@
     },
     {
       "skill_id": "warrior_spear_gate_open",
+      "icon_id": "warrior_spear_gate_open",
       "display_name": "枪阵空门",
       "description": "标记空门，下名友军近战射程+1。",
       "max_level": 5,
@@ -85,6 +87,7 @@
     },
     {
       "skill_id": "warrior_spear_line_pierce",
+      "icon_id": "warrior_spear_line_pierce",
       "display_name": "穿阵引势",
       "description": "直线穿刺攻击路径上的所有敌人。",
       "max_level": 3,
@@ -127,6 +130,7 @@
     },
     {
       "skill_id": "warrior_spear_line_terrain",
+      "icon_id": "warrior_spear_line_terrain",
       "display_name": "枪尖划界",
       "description": "在长枪直线上划出警戒区域。",
       "max_level": 3,
@@ -169,6 +173,7 @@
     },
     {
       "skill_id": "warrior_spear_shield_advance",
+      "icon_id": "warrior_spear_shield_advance",
       "display_name": "矛盾齐进",
       "description": "持盾/长兵友军移动后防御提升。",
       "max_level": 7,
@@ -219,6 +224,7 @@
     },
     {
       "skill_id": "warrior_spear_soul_seal",
+      "icon_id": "warrior_spear_soul_seal",
       "display_name": "白线封魂",
       "description": "斗气形成白线，对直线敌人造成伤害。",
       "max_level": 3,
@@ -261,6 +267,7 @@
     },
     {
       "skill_id": "warrior_spear_tail_ankle",
+      "icon_id": "warrior_spear_tail_ankle",
       "display_name": "枪尾扫踝",
       "description": "减速近身敌人。",
       "max_level": 3,
@@ -311,6 +318,7 @@
     },
     {
       "skill_id": "warrior_spear_tip_border",
+      "icon_id": "warrior_spear_tip_border",
       "display_name": "枪尖划界",
       "description": "直线警戒线，敌人穿越受伤。",
       "max_level": 5,
@@ -350,6 +358,7 @@
     },
     {
       "skill_id": "warrior_spear_triple",
+      "icon_id": "warrior_spear_triple",
       "display_name": "三寸拒敌",
       "description": "长枪拒敌，造成伤害并施加标记。",
       "max_level": 3,
@@ -492,6 +501,7 @@
     },
     {
       "skill_id": "warrior_spin_throw",
+      "icon_id": "warrior_spin_throw",
       "display_name": "转身投",
       "description": "攻击并将目标击退。",
       "max_level": 3,
@@ -538,6 +548,7 @@
     },
     {
       "skill_id": "warrior_spin_throw_mv",
+      "icon_id": "warrior_spin_throw_mv",
       "display_name": "转身投",
       "description": "击退1格并使目标转向。",
       "max_level": 7,
@@ -605,6 +616,7 @@
     },
     {
       "skill_id": "warrior_split_team_lure_kill",
+      "icon_id": "warrior_split_team_lure_kill",
       "display_name": "裂队诱杀",
       "description": "标记敌人，离开友军范围则受借机打击。",
       "max_level": 9,
@@ -645,6 +657,7 @@
     },
     {
       "skill_id": "warrior_stance_read",
+      "icon_id": "warrior_stance_read",
       "display_name": "看破架势",
       "description": "2回合对隐身目标命中提升。",
       "max_level": 5,
@@ -681,6 +694,7 @@
     },
     {
       "skill_id": "warrior_star_blade_final_judge",
+      "icon_id": "warrior_star_blade_final_judge",
       "display_name": "星刃终裁",
       "description": "若目标带有3个以上减益，造成320%伤害；否则造成基础伤害+固定威能，并附加虚弱和减速。星刃流派终式。",
       "max_level": 10,
@@ -775,6 +789,7 @@
     },
     {
       "skill_id": "warrior_star_line_pierce",
+      "icon_id": "warrior_star_line_pierce",
       "display_name": "星坠一线",
       "description": "直线迅猛突刺，对第一个目标造成高伤害。",
       "max_level": 3,
@@ -817,6 +832,7 @@
     },
     {
       "skill_id": "warrior_star_probe",
+      "icon_id": "warrior_star_probe",
       "display_name": "星点试探",
       "description": "快速试探攻击，标记目标破绽。",
       "max_level": 3,
@@ -861,6 +877,7 @@
     },
     {
       "skill_id": "warrior_static_tow",
+      "icon_id": "warrior_static_tow",
       "display_name": "静电牵引",
       "description": "把目标向带电格方向移动1格。",
       "max_level": 7,
@@ -900,6 +917,7 @@
     },
     {
       "skill_id": "warrior_steady_pressure",
+      "icon_id": "warrior_steady_pressure",
       "display_name": "稳步压迫",
       "description": "2回合移动后仍可攻击。",
       "max_level": 5,
@@ -936,6 +954,7 @@
     },
     {
       "skill_id": "warrior_step_cut_intercept",
+      "icon_id": "warrior_step_cut_intercept",
       "display_name": "裂步截断",
       "description": "警戒：敌进入前方1格自动攻击并终止移动。",
       "max_level": 7,
@@ -997,6 +1016,7 @@
     },
     {
       "skill_id": "warrior_step_drag",
+      "icon_id": "warrior_step_drag",
       "display_name": "牵制步",
       "description": "攻击后与目标一同移动1格。",
       "max_level": 5,
@@ -1044,6 +1064,7 @@
     },
     {
       "skill_id": "warrior_step_star_swap",
+      "icon_id": "warrior_step_star_swap",
       "display_name": "踏星换位",
       "description": "与相邻敌人互换位置。",
       "max_level": 5,
@@ -1088,6 +1109,7 @@
     },
     {
       "skill_id": "warrior_stone_anchor_step",
+      "icon_id": "warrior_stone_anchor_step",
       "display_name": "岩锚步",
       "description": "免疫击退和拉拽。",
       "max_level": 3,
@@ -1122,6 +1144,7 @@
     },
     {
       "skill_id": "warrior_stone_blind",
+      "icon_id": "warrior_stone_blind",
       "display_name": "石屑盲击",
       "description": "扇形喷射石屑，伤害并干扰敌人远程命中。",
       "max_level": 3,
@@ -1170,6 +1193,7 @@
     },
     {
       "skill_id": "warrior_stone_dragon_fall",
+      "icon_id": "warrior_stone_dragon_fall",
       "display_name": "岩龙坠星",
       "description": "中心击倒，外围减速，生成困难地形。",
       "max_level": 10,
@@ -1244,6 +1268,7 @@
     },
     {
       "skill_id": "warrior_stone_dragon_tail",
+      "icon_id": "warrior_stone_dragon_tail",
       "display_name": "岩龙摆尾",
       "description": "击退周围所有敌人1格。",
       "max_level": 7,
@@ -1314,6 +1339,7 @@
     },
     {
       "skill_id": "warrior_stone_pillar_rise",
+      "icon_id": "warrior_stone_pillar_rise",
       "display_name": "石柱突起",
       "description": "生成1格可摧毁障碍。",
       "max_level": 5,
@@ -1351,6 +1377,7 @@
     },
     {
       "skill_id": "warrior_stone_skin",
+      "icon_id": "warrior_stone_skin",
       "display_name": "岩肤架势",
       "description": "进入岩肤防御姿态，减少物理伤害但降低移动力。",
       "max_level": 3,
@@ -1398,6 +1425,7 @@
     },
     {
       "skill_id": "warrior_stone_skin_stance",
+      "icon_id": "warrior_stone_skin_stance",
       "display_name": "岩肤架势",
       "description": "物理减伤但自身减速。",
       "max_level": 5,

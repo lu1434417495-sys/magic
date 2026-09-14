@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_true_dragon_slash_v2",
+      "icon_id": "warrior_true_dragon_slash_v2",
       "display_name": "真龙斩",
       "description": "终极直线斗气斩，击退敌人并灼烧。",
       "max_level": 3,
@@ -59,6 +60,7 @@
     },
     {
       "skill_id": "warrior_twin_blade_chain_plan",
+      "icon_id": "warrior_twin_blade_chain_plan",
       "display_name": "双刃连环计",
       "description": "两击全命中可移动1格。",
       "max_level": 7,
@@ -119,6 +121,7 @@
     },
     {
       "skill_id": "warrior_twin_blade_rotate",
+      "icon_id": "warrior_twin_blade_rotate",
       "display_name": "双刃轮换",
       "description": "下两次攻击主副手轮换。",
       "max_level": 3,
@@ -153,6 +156,7 @@
     },
     {
       "skill_id": "warrior_twin_claw_rip",
+      "icon_id": "warrior_twin_claw_rip",
       "display_name": "双爪开膛",
       "description": "对流血目标额外伤害。",
       "max_level": 7,
@@ -213,6 +217,7 @@
     },
     {
       "skill_id": "warrior_twin_moon_cross",
+      "icon_id": "warrior_twin_moon_cross",
       "display_name": "双月交错",
       "description": "对两个相邻目标各造成伤害。",
       "max_level": 7,
@@ -273,6 +278,7 @@
     },
     {
       "skill_id": "warrior_twin_shadow_shift",
+      "icon_id": "warrior_twin_shadow_shift",
       "display_name": "双影错身",
       "description": "移动到侧方并造成伤害。",
       "max_level": 7,
@@ -334,6 +340,7 @@
     },
     {
       "skill_id": "warrior_unbending_rise",
+      "icon_id": "warrior_unbending_rise",
       "display_name": "不屈复起",
       "description": "濒死时保留1HP并获得格挡。",
       "skill_type": "passive",
@@ -395,6 +402,7 @@
     },
     {
       "skill_id": "warrior_unbreakable_fortress",
+      "icon_id": "warrior_unbreakable_fortress",
       "display_name": "不灭堡垒",
       "description": "周围友军1回合内不会被击杀。",
       "max_level": 10,
@@ -448,6 +456,7 @@
     },
     {
       "skill_id": "warrior_undying_dragon_scar",
+      "icon_id": "warrior_undying_dragon_scar",
       "display_name": "不灭龙痕",
       "description": "清除1减益并获得减益抗性，低血额外恢复。",
       "max_level": 10,
@@ -490,6 +499,7 @@
     },
     {
       "skill_id": "warrior_vanguard_designate",
+      "icon_id": "warrior_vanguard_designate",
       "display_name": "先锋指定",
       "description": "目标进入威胁区时大幅减伤。",
       "max_level": 3,
@@ -525,6 +535,7 @@
     },
     {
       "skill_id": "warrior_vanguard_pardon",
+      "icon_id": "warrior_vanguard_pardon",
       "display_name": "先锋赦令",
       "description": "赦令友军全力进攻，提升伤害但降低防御。",
       "max_level": 3,
@@ -566,6 +577,7 @@
     },
     {
       "skill_id": "warrior_vanguard_pardon_skill",
+      "icon_id": "warrior_vanguard_pardon_skill",
       "display_name": "先锋赦令",
       "description": "目标伤害+25%但防御-15%。",
       "max_level": 9,
@@ -617,6 +629,7 @@
     },
     {
       "skill_id": "warrior_vein_burn_circulate",
+      "icon_id": "warrior_vein_burn_circulate",
       "display_name": "燃脉运转",
       "description": "2回合近战额外获取斗气但受治疗降低。",
       "max_level": 7,
@@ -655,6 +668,7 @@
     },
     {
       "skill_id": "warrior_war_banner",
+      "icon_id": "warrior_war_banner",
       "display_name": "战旗",
       "description": "提升周围友军攻防。",
       "max_level": 7,
@@ -912,6 +926,7 @@
     },
     {
       "skill_id": "warrior_war_drum_reverse_echo",
+      "icon_id": "warrior_war_drum_reverse_echo",
       "display_name": "战鼓逆响",
       "description": "友军行动顺序提前，敌军后移。",
       "max_level": 7,
@@ -953,6 +968,7 @@
     },
     {
       "skill_id": "warrior_weak_point_mark",
+      "icon_id": "warrior_weak_point_mark",
       "display_name": "弱点标记",
       "description": "目标被暴击率提升。",
       "max_level": 3,
@@ -987,6 +1003,7 @@
     },
     {
       "skill_id": "warrior_weapon_disarm",
+      "icon_id": "warrior_weapon_disarm",
       "display_name": "武器拆解",
       "description": "攻击目标武器使其暂时缴械。",
       "max_level": 7,
@@ -1181,6 +1198,7 @@
     },
     {
       "skill_id": "warrior_white_blade_vanish",
+      "icon_id": "warrior_white_blade_vanish",
       "display_name": "白刃消失",
       "description": "受攻击前可闪到相邻空格。",
       "max_level": 7,
@@ -1220,6 +1238,7 @@
     },
     {
       "skill_id": "warrior_white_raven_decree",
+      "icon_id": "warrior_white_raven_decree",
       "display_name": "白鸦大令",
       "description": "友军首技能CD-1，命中提升。",
       "max_level": 9,
@@ -1263,6 +1282,7 @@
     },
     {
       "skill_id": "warrior_wild_dodge",
+      "icon_id": "warrior_wild_dodge",
       "display_name": "兽性闪避",
       "description": "提升闪避能力并可进行横移。",
       "max_level": 3,
@@ -1310,6 +1330,7 @@
     },
     {
       "skill_id": "warrior_wild_pursuit",
+      "icon_id": "warrior_wild_pursuit",
       "display_name": "野性追击",
       "description": "本回合击杀后可移动2格。",
       "max_level": 5,
@@ -1346,6 +1367,7 @@
     },
     {
       "skill_id": "warrior_will_penetrate",
+      "icon_id": "warrior_will_penetrate",
       "display_name": "意志穿透",
       "description": "对护盾目标额外造成伤害。",
       "max_level": 7,
@@ -1418,6 +1440,7 @@
     },
     {
       "skill_id": "warrior_wind_blade_slash",
+      "icon_id": "warrior_wind_blade_slash",
       "display_name": "剑气斩",
       "description": "斗气远程基础技。",
       "max_level": 7,
@@ -1474,6 +1497,7 @@
     },
     {
       "skill_id": "warrior_wind_ember",
+      "icon_id": "warrior_wind_ember",
       "display_name": "风中残火",
       "description": "闪避提升+闪避后对攻击者燃烧。",
       "max_level": 7,
@@ -1513,6 +1537,7 @@
     },
     {
       "skill_id": "warrior_wind_pressure_thrust",
+      "icon_id": "warrior_wind_pressure_thrust",
       "display_name": "风压突刺",
       "description": "首目标击退1格，余下减速。",
       "max_level": 7,
@@ -1573,6 +1598,7 @@
     },
     {
       "skill_id": "warrior_wrist_shock_steal",
+      "icon_id": "warrior_wrist_shock_steal",
       "display_name": "震腕夺势",
       "description": "降低目标斗气获取50%。",
       "max_level": 5,

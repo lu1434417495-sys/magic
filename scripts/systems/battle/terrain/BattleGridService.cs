@@ -15,8 +15,8 @@ internal readonly record struct BattleHeightDeltaResult(
 public sealed class BattleGridService : IDisposable
 {
     private static readonly StringName JumpStrengthAttribute = "strength";
-    private const int MinRuntimeHeight = -5;
-    private const int MaxRuntimeHeight = 8;
+    private const int MinRuntimeHeight = BattleCellState.MinRuntimeHeight;
+    private const int MaxRuntimeHeight = BattleCellState.MaxRuntimeHeight;
     private const double JumpRedistributionFactor = 0.7;
     private const int JumpSizeStrCost = 2;
     private const int JumpSmallAgilityBonus = 1;

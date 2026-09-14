@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "equipment_phoenix_rebirth_crown_burst",
+      "icon_id": "equipment_phoenix_rebirth_crown_burst",
       "display_name": "涅槃火焰爆发",
       "description": "凤凰涅槃头冠致死拦截成功后的内部结算：对佩戴者半径3格内所有敌人造成3D10 fire。",
       "learn_source": "internal",
@@ -48,6 +49,7 @@
     },
     {
       "skill_id": "equipment_phoenix_rebirth_egg_burst",
+      "icon_id": "equipment_phoenix_rebirth_egg_burst",
       "display_name": "凤凰爆发",
       "description": "凤凰蛋致死拦截成功后的内部结算：对佩戴者半径2格内所有敌人造成3D10 fire。",
       "learn_source": "internal",
@@ -94,6 +96,7 @@
     },
     {
       "skill_id": "equipment_phoenix_rebirth_fire_shield",
+      "icon_id": "equipment_phoenix_rebirth_fire_shield",
       "display_name": "释放火盾",
       "description": "凤凰涅槃板甲的装备技能。消耗2 AP，每个世界日一次；清除板甲全部燃烧层并获得持续60 TU的凤凰火盾（AC+3）。火盾期间每次成功近战命中后，攻击者受到2D6 fire，无豁免。任意燃烧层数均可使用。",
       "learn_source": "innate",
@@ -140,6 +143,7 @@
     },
     {
       "skill_id": "equipment_phoenix_rebirth_flame_charge",
+      "icon_id": "equipment_phoenix_rebirth_flame_charge",
       "display_name": "火焰冲锋",
       "description": "装备技能。消耗2 AP，沿正交直线冲锋，最大距离为当前有效移动力容量的3倍；每个离开格留下持续60TU的火焰轨迹，任何进入轨迹的单位受到2D6 fire。同一移动命令只结算一次轨迹伤害。使用次数由凤凰涅槃胫甲的每日一次入口管理。",
       "learn_source": "innate",
@@ -180,6 +184,7 @@
     },
     {
       "skill_id": "equipment_phoenix_rebirth_gauntlet_fire_strike",
+      "icon_id": "equipment_phoenix_rebirth_gauntlet_fire_strike",
       "display_name": "火焰打击",
       "description": "装备技能。消耗1 AP，以徒手攻击相邻一个敌人；命中造成1D8 physical_blunt与1D10 fire。",
       "learn_source": "innate",
@@ -235,6 +240,7 @@
     },
     {
       "skill_id": "equipment_phoenix_rebirth_gauntlet_healing_flame",
+      "icon_id": "equipment_phoenix_rebirth_gauntlet_healing_flame",
       "display_name": "治愈之火",
       "description": "装备技能。消耗1 AP，触碰相邻一名其他友方并恢复2D10 HP；每个世界日三次。",
       "learn_source": "innate",
@@ -275,6 +281,7 @@
     },
     {
       "skill_id": "equipment_phoenix_rebirth_necklace_nirvana_fire",
+      "icon_id": "equipment_phoenix_rebirth_necklace_nirvana_fire",
       "display_name": "涅槃之火",
       "description": "装备技能。消耗1 AP，使自身或1格内一个友方恢复3D8 HP，并移除至多一个可驱散有害魔法；传奇或不可驱散状态不受影响。每个世界日一次。",
       "learn_source": "innate",
@@ -326,6 +333,7 @@
     },
     {
       "skill_id": "equipment_phoenix_rebirth_rebirth_ring_life_rekindle",
+      "icon_id": "equipment_phoenix_rebirth_rebirth_ring_life_rekindle",
       "display_name": "生命重燃",
       "description": "重生之戒的装备技能。生命不高于50%时可消耗2 AP，恢复已损失生命的60%；每场战斗一次，不能复活。",
       "learn_source": "innate",
@@ -366,6 +374,7 @@
     },
     {
       "skill_id": "gear_set_phoenix_rebirth_solar_rebirth",
+      "icon_id": "gear_set_phoenix_rebirth_solar_rebirth",
       "display_name": "太阳涅槃",
       "description": "凤凰重生10件套技能。生命不高于50%时消耗3 AP：自身恢复至50%最大生命；半径3格敌人受到4D10 fire（敏捷DC17成功减半）；半径3格内生命百分比最低的至多4名其他友方恢复2D8。随后进入240 TU金焰形态。每日一次。",
       "learn_source": "innate",
@@ -435,6 +444,7 @@
     },
     {
       "skill_id": "misstep_to_scheme",
+      "icon_id": "misstep_to_scheme",
       "runtime_behavior": "misstep_to_scheme",
       "display_name": "失手成筹",
       "description": "每战第一次大失败时，额外获得 1 点 calamity。该奖励与其他大失败计数独立结算。",
@@ -451,6 +461,7 @@
     },
     {
       "skill_id": "priest_aid",
+      "icon_id": "priest_aid",
       "display_name": "援助术",
       "description": "2环神术。选择自身所在格（4级起可选择近处地格），使范围内每名存活友军分别获得1D8+3+施法者意志调整值的神圣护盾。每个目标独立投骰；同族护盾取较高数值并延长持续时间，不叠加。",
       "max_level": 5,
@@ -712,6 +723,7 @@
     },
     {
       "skill_id": "sword_training",
+      "icon_id": "sword_training",
       "display_name": "剑术训练",
       "description": "通过剑类武器的高质量攻击积累熟练度。",
       "skill_type": "passive",
@@ -737,6 +749,7 @@
     },
     {
       "skill_id": "titan_colossus_form",
+      "icon_id": "titan_colossus_form",
       "display_name": "Titan Colossus Form",
       "description": "Briefly manifest a larger titan body during battle, increasing body size to huge until the form expires.",
       "learn_source": "ascension",
@@ -771,6 +784,7 @@
     },
     {
       "skill_id": "titan_domain_pressure",
+      "icon_id": "titan_domain_pressure",
       "display_name": "Titan Domain Pressure",
       "description": "Project titan pressure over a battlefield zone, slowing enemies caught inside it.",
       "learn_source": "ascension",
@@ -806,6 +820,7 @@
     },
     {
       "skill_id": "titan_stomp",
+      "icon_id": "titan_stomp",
       "display_name": "Titan Stomp",
       "description": "Slam the ground with titan force, damaging nearby enemies and staggering them.",
       "learn_source": "ascension",
@@ -847,6 +862,7 @@
     },
     {
       "skill_id": "unarmed_training",
+      "icon_id": "unarmed_training",
       "display_name": "徒手训练",
       "description": "通过徒手或天生武器的高质量攻击积累熟练度。",
       "skill_type": "passive",
@@ -913,6 +929,7 @@
     },
     {
       "skill_id": "wolf_alpha_cull_the_weak",
+      "icon_id": "wolf_alpha_cull_the_weak",
       "display_name": "弱者扑杀",
       "description": "扑咬单个敌人。目标在攻击前生命值不高于50%时，命中后追加低血伤害；它不是处决，也不造成百分比伤害。",
       "max_level": 5,
@@ -1042,6 +1059,7 @@
     },
     {
       "skill_id": "wolf_alpha_dominance_howl",
+      "icon_id": "wolf_alpha_dominance_howl",
       "display_name": "统御长嚎",
       "description": "强化自身及周围2格具有狼类标签的友军，提高攻击检定。效果刷新而不叠加。",
       "max_level": 5,
@@ -1152,6 +1170,7 @@
     },
     {
       "skill_id": "wolf_alpha_hamstring_bite",
+      "icon_id": "wolf_alpha_hamstring_bite",
       "display_name": "咬断脚筋",
       "description": "撕咬目标腿部，造成天生武器伤害并使其移动成本+1。减速只刷新持续时间，不叠加强度。",
       "max_level": 5,

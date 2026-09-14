@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "mage_spark_javelin",
+      "icon_id": "mage_spark_javelin",
       "display_name": "电矛术",
       "description": "低耗雷系点射。高等级时附加感电，为链式闪击创造弹射窗口。",
       "max_level": 7,
@@ -222,6 +223,7 @@
     },
     {
       "skill_id": "mage_spell_disjunction",
+      "icon_id": "mage_spell_disjunction",
       "display_name": "裂解术",
       "description": "单体法术伤害，附带裂解目标装备耐久的效果。",
       "max_level": 7,
@@ -729,6 +731,7 @@
     },
     {
       "skill_id": "mage_spell_totem",
+      "icon_id": "mage_spell_totem",
       "display_name": "咒能图腾",
       "description": "图腾周围友军获得 咏唱 或小幅 mp 回复；适合阵地战。",
       "max_level": 7,
@@ -902,6 +905,7 @@
     },
     {
       "skill_id": "mage_spellbreaker",
+      "icon_id": "mage_spellbreaker",
       "display_name": "裂咒术",
       "description": "拆除目标身上的一个增益或法盾；对带护盾的施法敌人压制力很强。",
       "max_level": 7,
@@ -1122,6 +1126,7 @@
     },
     {
       "skill_id": "mage_spellward",
+      "icon_id": "mage_spellward",
       "display_name": "法术结界",
       "description": "为范围内友军施加持续 60 TU 的结界：法术 / 能量伤害减半，负能量 伤害无效。",
       "max_level": 7,
@@ -1379,6 +1384,7 @@
     },
     {
       "skill_id": "mage_starfall_gate",
+      "icon_id": "mage_starfall_gate",
       "display_name": "星门陨落",
       "description": "以短暂星门投放奥术碎星；若目标带有 奥脆，则额外返还 1 点 mp。",
       "max_level": 7,
@@ -1620,6 +1626,7 @@
     },
     {
       "skill_id": "mage_static_field",
+      "icon_id": "mage_static_field",
       "display_name": "静电场",
       "description": "形成短时电场；区域内敌人获得 shocked，适合为连锁闪电铺路。",
       "max_level": 7,
@@ -1862,6 +1869,7 @@
     },
     {
       "skill_id": "mage_stone_spike",
+      "icon_id": "mage_stone_spike",
       "display_name": "岩刺术",
       "description": "沿直线突起石刺；对被 rooted 或站在 mud 中的目标额外伤害。",
       "max_level": 7,
@@ -2103,6 +2111,7 @@
     },
     {
       "skill_id": "mage_storm_call",
+      "icon_id": "mage_storm_call",
       "display_name": "唤雷术",
       "description": "从空中落下直击雷；对高地或空旷地格额外 +10% 伤害。",
       "max_level": 7,
@@ -2344,6 +2353,7 @@
     },
     {
       "skill_id": "mage_storm_nexus",
+      "icon_id": "mage_storm_nexus",
       "display_name": "暴风核心",
       "description": "生成持续 120 TU 的雷暴核心；每 60 TU 自动对最近的 2 名敌人触发小型连锁闪击。",
       "max_level": 7,
@@ -2594,6 +2604,7 @@
     },
     {
       "skill_id": "mage_storm_sprite",
+      "icon_id": "mage_storm_sprite",
       "display_name": "雷灵",
       "description": "召唤会自动施加 感电 的雷灵，适合作为链式闪电的跳板。",
       "max_level": 7,
@@ -2835,6 +2846,7 @@
     },
     {
       "skill_id": "mage_summon_familiar",
+      "icon_id": "mage_summon_familiar",
       "display_name": "召唤魔宠",
       "description": "召唤小型辅助单位；提供视野、补刀或触发器效果。",
       "max_level": 7,
@@ -3001,6 +3013,7 @@
     },
     {
       "skill_id": "mage_sunflare_bomb",
+      "icon_id": "mage_sunflare_bomb",
       "display_name": "日耀焚弹",
       "description": "火焰与强光并发；命中的敌人获得 blinded，是火系招牌清场与拆阵技能。",
       "max_level": 7,
@@ -3254,6 +3267,7 @@
     },
     {
       "skill_id": "mage_tempest_ring",
+      "icon_id": "mage_tempest_ring",
       "display_name": "风暴环",
       "description": "以自身为中心向外释放电弧；对试图包围法师的敌人压制力极强。",
       "max_level": 7,
@@ -3492,6 +3506,7 @@
     },
     {
       "skill_id": "mage_temporal_rewind",
+      "icon_id": "mage_temporal_rewind",
       "display_name": "时序回溯",
       "description": "以时序魔法为射程内一名友军回复生命值。",
       "max_level": 7,
@@ -3659,6 +3674,7 @@
     },
     {
       "skill_id": "mage_terra_pulse",
+      "icon_id": "mage_terra_pulse",
       "display_name": "地脉脉冲",
       "description": "以自身为中心扩散地脉震波；可把靠近的敌人推出关键格位。",
       "max_level": 7,
@@ -3897,6 +3913,7 @@
     },
     {
       "skill_id": "mage_thunder_lance",
+      "icon_id": "mage_thunder_lance",
       "display_name": "惊雷贯枪",
       "description": "直线穿透雷击；对大型单位或成排敌人收益明显。",
       "max_level": 7,
@@ -4138,6 +4155,7 @@
     },
     {
       "skill_id": "mage_thunderclap",
+      "icon_id": "mage_thunderclap",
       "display_name": "雷暴震响",
       "description": "近身反制型法术；命中的敌人获得 staggered，适合拆贴身战士的节奏。",
       "max_level": 7,
@@ -4384,6 +4402,7 @@
     },
     {
       "skill_id": "mage_time_dilate",
+      "icon_id": "mage_time_dilate",
       "display_name": "缓时术",
       "description": "让目标时间流速迟缓；移动力 -1、命中 -10%，持续 120 TU。",
       "max_level": 7,
@@ -4603,6 +4622,7 @@
     },
     {
       "skill_id": "mage_time_stop",
+      "icon_id": "mage_time_stop",
       "display_name": "瞬时停界",
       "description": "使法师获得极短额外操作窗口，可移动、布阵或释放低阶技能。",
       "max_level": 7,
@@ -4778,6 +4798,7 @@
     },
     {
       "skill_id": "mage_void_spike",
+      "icon_id": "mage_void_spike",
       "display_name": "虚蚀尖刺",
       "description": "奥术与虚无混合的穿刺线伤；对法盾和召唤物有额外克制。",
       "max_level": 7,
@@ -5019,6 +5040,7 @@
     },
     {
       "skill_id": "mage_voltage_hook",
+      "icon_id": "mage_voltage_hook",
       "display_name": "伏电牵引",
       "description": "选择视线与射程内1名处于感电的敌人，再选择一次最终落点。目标无须进行攻击检定、AC判定或豁免，若体型符合当前等级上限且不免疫强制位移，则被升至空中并牵引至比当前位置更接近施法者的合法空格。牵引按正交格距计算，可跨越中间单位占据的格子且不受高低差限制，但不能穿越显式魔法边界；中间格不触发地形，落地时结算一次地形接触。成功位移后消耗感电并施加40TU踉跄。该技能不造成伤害。",
       "max_level": 7,
@@ -5206,6 +5228,7 @@
     },
     {
       "skill_id": "mage_warding_skull",
+      "icon_id": "mage_warding_skull",
       "display_name": "守望颅骨",
       "description": "侦测型召唤物；揭示潜行单位，并在敌人接近时发射诅咒光束。",
       "max_level": 7,
@@ -5441,6 +5464,7 @@
     },
     {
       "skill_id": "mage_whiteout",
+      "icon_id": "mage_whiteout",
       "display_name": "暴雪迷界",
       "description": "范围内敌人命中 -15%，远程反击失效，持续 60 TU。",
       "max_level": 7,
@@ -5682,6 +5706,7 @@
     },
     {
       "skill_id": "mage_wither_field",
+      "icon_id": "mage_wither_field",
       "display_name": "枯朽领域",
       "description": "持续 120 TU 削弱区域内敌人的生命回复与防御。",
       "max_level": 7,

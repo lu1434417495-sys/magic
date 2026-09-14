@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_heavy_armor_spin",
+      "icon_id": "warrior_heavy_armor_spin",
       "display_name": "重甲回旋",
       "description": "周围范围伤害，每命中1敌获得斗气。",
       "max_level": 7,
@@ -65,6 +66,7 @@
     },
     {
       "skill_id": "warrior_heavy_blow",
+      "icon_id": "warrior_heavy_blow",
       "display_name": "重压斩",
       "description": "使用具有 heavy 属性的近战武器发动一次延迟重击，命中、重击、护甲与格挡均按一次标准武器攻击结算。\n使用时选择蓄力挡位。力量调整值 ≥+5 / +3～+4 / +1～+2 / ≤0 时，每挡分别需要 5 / 10 / 15 / 20 TU；每挡额外消耗 6 体力并增加 1W。挡位自然上限为 max(1, ceil(体质调整值/2))。\n确认后支付费用、剩余 AP 清零并立即结束当前回合。蓄力期间行动进度冻结，体力照常恢复，且不能主动取消；单纯受到伤害不会打断。倒地、眩晕、麻痹、冻结、石化、疯狂、失衡、陨石震荡、施术者强制位移、武器变化或目标失效会打断，费用不退并进入完整冷却。目标移动不会提前打断，但完成时会重新检查目标、距离与视线；不合法则攻击落空。",
       "max_level": 5,
@@ -164,6 +166,7 @@
     },
     {
       "skill_id": "warrior_heavy_pressure_slash",
+      "icon_id": "warrior_heavy_pressure_slash",
       "display_name": "重压斩",
       "description": "沉重一击减速目标。",
       "max_level": 7,
@@ -394,6 +397,7 @@
     },
     {
       "skill_id": "warrior_heavy_weapon_root",
+      "icon_id": "warrior_heavy_weapon_root",
       "display_name": "重兵扎根",
       "description": "不能被强制位移，每回合首击伤害+20%。",
       "max_level": 5,
@@ -429,6 +433,7 @@
     },
     {
       "skill_id": "warrior_hidden_blade_under_shield",
+      "icon_id": "warrior_hidden_blade_under_shield",
       "display_name": "盾下藏锋",
       "description": "成功减免伤害后下次攻击+35%伤害。",
       "max_level": 5,
@@ -465,6 +470,7 @@
     },
     {
       "skill_id": "warrior_hold_line_order",
+      "icon_id": "warrior_hold_line_order",
       "display_name": "守线命令",
       "description": "周围友军减伤并免疫击退。",
       "max_level": 5,
@@ -513,6 +519,7 @@
     },
     {
       "skill_id": "warrior_hold_step",
+      "icon_id": "warrior_hold_step",
       "display_name": "压阵步",
       "description": "相邻友军防御提升，自身命中提升。",
       "max_level": 3,
@@ -548,6 +555,7 @@
     },
     {
       "skill_id": "warrior_hold_the_line",
+      "icon_id": "warrior_hold_the_line",
       "display_name": "坚守阵线",
       "description": "前方一排成为困难地形，穿越需额外移动。",
       "max_level": 5,
@@ -587,6 +595,7 @@
     },
     {
       "skill_id": "warrior_holy_dragon_charge",
+      "icon_id": "warrior_holy_dragon_charge",
       "display_name": "圣龙冲阵",
       "description": "沿路径冲锋，对路径上敌人造成伤害并挑衅。",
       "max_level": 3,
@@ -641,6 +650,7 @@
     },
     {
       "skill_id": "warrior_holy_dragon_rush",
+      "icon_id": "warrior_holy_dragon_rush",
       "display_name": "圣龙冲阵",
       "description": "冲锋后获得护盾并挑衅路径敌人。",
       "max_level": 9,
@@ -696,6 +706,7 @@
     },
     {
       "skill_id": "warrior_holy_oath_strike",
+      "icon_id": "warrior_holy_oath_strike",
       "display_name": "圣誓打击",
       "description": "命中治疗最低血量友军。",
       "max_level": 7,
@@ -756,6 +767,7 @@
     },
     {
       "skill_id": "warrior_holy_shield_impact",
+      "icon_id": "warrior_holy_shield_impact",
       "display_name": "圣盾冲击",
       "description": "盾击目标使其眩晕，持盾命中提升。",
       "max_level": 7,
@@ -826,6 +838,7 @@
     },
     {
       "skill_id": "warrior_horn_charge_knock",
+      "icon_id": "warrior_horn_charge_knock",
       "display_name": "碎角顶撞",
       "description": "向目标突进并将其击退。",
       "max_level": 3,
@@ -871,6 +884,7 @@
     },
     {
       "skill_id": "warrior_horse_rejection_zone",
+      "icon_id": "warrior_horse_rejection_zone",
       "display_name": "拒马口令",
       "description": "指定区域成为拒马区，阻碍敌人通过。",
       "max_level": 3,
@@ -914,6 +928,7 @@
     },
     {
       "skill_id": "warrior_hundred_crack_tiger",
+      "icon_id": "warrior_hundred_crack_tiger",
       "display_name": "百裂虎噬",
       "description": "8段连击，每段命中后递减，流血目标不降。",
       "max_level": 10,
@@ -991,6 +1006,7 @@
     },
     {
       "skill_id": "warrior_hundred_shadow_final_dance",
+      "icon_id": "warrior_hundred_shadow_final_dance",
       "display_name": "百影终舞",
       "description": "对3格范围内随机敌军依次攻击，同一目标最多命中2次。每击独立命中检定，miss或无可攻击目标时停止。敌人越多威力越强。双刃流派终式。",
       "max_level": 10,
@@ -1060,6 +1076,7 @@
     },
     {
       "skill_id": "warrior_hundred_spear_formless",
+      "icon_id": "warrior_hundred_spear_formless",
       "display_name": "百枪无形",
       "description": "扇形5次随机枪影打击。",
       "max_level": 10,
@@ -1117,6 +1134,7 @@
     },
     {
       "skill_id": "warrior_hundred_weapons_chorus",
+      "icon_id": "warrior_hundred_weapons_chorus",
       "display_name": "百兵齐鸣",
       "description": "3-4名友军协同攻击同一目标。",
       "max_level": 10,
@@ -1183,6 +1201,7 @@
     },
     {
       "skill_id": "warrior_inner_breath_closed_loop",
+      "icon_id": "warrior_inner_breath_closed_loop",
       "display_name": "内息闭环",
       "description": "放弃攻击恢复20体力并获得10斗气。",
       "max_level": 7,
@@ -1220,6 +1239,7 @@
     },
     {
       "skill_id": "warrior_instant_three_judgment",
+      "icon_id": "warrior_instant_three_judgment",
       "display_name": "刹那三判",
       "description": "3次判定连击。",
       "max_level": 7,
@@ -1279,6 +1299,7 @@
     },
     {
       "skill_id": "warrior_intimidating_gaze",
+      "icon_id": "warrior_intimidating_gaze",
       "display_name": "破胆凝视",
       "description": "斗气凝视降低目标命中率。",
       "max_level": 5,
@@ -1331,6 +1352,7 @@
     },
     {
       "skill_id": "warrior_iron_boot_block_road",
+      "icon_id": "warrior_iron_boot_block_road",
       "display_name": "铁靴封路",
       "description": "选择相邻2格为威胁格，敌离开时受反击。",
       "max_level": 7,
@@ -1370,6 +1392,7 @@
     },
     {
       "skill_id": "warrior_iron_charge",
+      "icon_id": "warrior_iron_charge",
       "display_name": "铁心突击",
       "description": "冲向目标邻格攻击，路径无阻伤害提升。",
       "max_level": 5,
@@ -1431,6 +1454,7 @@
     },
     {
       "skill_id": "warrior_iron_tide_finisher",
+      "icon_id": "warrior_iron_tide_finisher",
       "display_name": "铁潮终式",
       "description": "推进区域将所有敌人推向外侧。",
       "max_level": 10,
@@ -1501,6 +1525,7 @@
     },
     {
       "skill_id": "warrior_iron_tide_march",
+      "icon_id": "warrior_iron_tide_march",
       "display_name": "铁潮号步",
       "description": "自身和相邻友军移动后命中提升。",
       "max_level": 7,
@@ -1549,6 +1574,7 @@
     },
     {
       "skill_id": "warrior_iron_tide_push",
+      "icon_id": "warrior_iron_tide_push",
       "display_name": "铁浪推进",
       "description": "向前推进并攻击目标，将其击退。",
       "max_level": 3,
@@ -1593,6 +1619,7 @@
     },
     {
       "skill_id": "warrior_iron_torrent_slash",
+      "icon_id": "warrior_iron_torrent_slash",
       "display_name": "铁流斩",
       "description": "对前方横排两格敌人两段横斩。",
       "max_level": 7,
@@ -1655,6 +1682,7 @@
     },
     {
       "skill_id": "warrior_iron_wall_oath",
+      "icon_id": "warrior_iron_wall_oath",
       "display_name": "铁壁誓言",
       "description": "不能移动但大幅减伤并免疫击退。",
       "max_level": 9,

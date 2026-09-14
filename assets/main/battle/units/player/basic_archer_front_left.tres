@@ -1,0 +1,9 @@
+[gd_resource type="AtlasTexture" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/main/battle/units/player/basic_archer_4way.png" id="1_atlas"]
+
+[resource]
+atlas = ExtResource("1_atlas")
+region = Rect2(21, 37, 522, 687)
+margin = Rect2(158, 336, 246, 337)
+filter_clip = true

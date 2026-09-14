@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_sunset_counter_throw",
+      "icon_id": "warrior_sunset_counter_throw",
       "display_name": "落日反扔",
       "description": "闪避近战后将攻击者推至邻格。",
       "max_level": 7,
@@ -61,6 +62,7 @@
     },
     {
       "skill_id": "warrior_sunset_waltz",
+      "icon_id": "warrior_sunset_waltz",
       "display_name": "落日圆舞",
       "description": "每命中1人可移动1格。",
       "max_level": 9,
@@ -127,6 +129,7 @@
     },
     {
       "skill_id": "warrior_surround_order",
+      "icon_id": "warrior_surround_order",
       "display_name": "包围令",
       "description": "相邻2+友军时所有友军对其伤害+15%。",
       "max_level": 7,
@@ -244,6 +247,7 @@
     },
     {
       "skill_id": "warrior_sweeping_strike_v2",
+      "icon_id": "warrior_sweeping_strike_v2",
       "display_name": "横扫",
       "description": "前方扇形范围攻击，可命中多个相邻敌人。",
       "max_level": 3,
@@ -285,6 +289,7 @@
     },
     {
       "skill_id": "warrior_tactical_command",
+      "icon_id": "warrior_tactical_command",
       "display_name": "战术指令",
       "description": "指定一名友军，提升其下次攻击的命中与伤害。",
       "max_level": 3,
@@ -333,6 +338,7 @@
     },
     {
       "skill_id": "warrior_tactical_order",
+      "icon_id": "warrior_tactical_order",
       "display_name": "战术指令",
       "description": "强化指定友军下次攻击的命中与伤害。",
       "max_level": 3,
@@ -368,6 +374,7 @@
     },
     {
       "skill_id": "warrior_tail_sweep",
+      "icon_id": "warrior_tail_sweep",
       "display_name": "岩龙摆尾",
       "description": "横扫周围敌人，将其击退。",
       "max_level": 3,
@@ -418,6 +425,7 @@
     },
     {
       "skill_id": "warrior_taunt",
+      "icon_id": "warrior_taunt",
       "display_name": "挑衅",
       "description": "只有能理解言语与意图的理性敌人才会受挑衅：其攻击你以外的单位时处于劣势。敌人失去理智期间，已有挑衅不会消失，但暂时失效。",
       "max_level": 5,
@@ -551,6 +559,7 @@
     },
     {
       "skill_id": "warrior_thick_blade_cover",
+      "icon_id": "warrior_thick_blade_cover",
       "display_name": "厚刃遮身",
       "description": "正面大幅减伤，侧背无减免。",
       "max_level": 5,
@@ -587,6 +596,7 @@
     },
     {
       "skill_id": "warrior_thicket_double_poke",
+      "icon_id": "warrior_thicket_double_poke",
       "display_name": "林隙连点",
       "description": "选择两个不同目标各造成伤害。",
       "max_level": 7,
@@ -647,6 +657,7 @@
     },
     {
       "skill_id": "warrior_thin_blade_strip_armor",
+      "icon_id": "warrior_thin_blade_strip_armor",
       "display_name": "薄刃拆甲",
       "description": "叠拆甲最多3层，3层时目标防御大幅降低。",
       "max_level": 7,
@@ -706,6 +717,7 @@
     },
     {
       "skill_id": "warrior_thousand_blade_dragon",
+      "icon_id": "warrior_thousand_blade_dragon",
       "display_name": "千刃龙舞",
       "description": "6段连击，击杀溢出转移相邻敌人。",
       "max_level": 9,
@@ -760,6 +772,7 @@
     },
     {
       "skill_id": "warrior_three_inch_repel",
+      "icon_id": "warrior_three_inch_repel",
       "display_name": "三寸拒敌",
       "description": "目标继续接近则受额外伤害。",
       "max_level": 5,
@@ -807,6 +820,7 @@
     },
     {
       "skill_id": "warrior_throat_seal_step",
+      "icon_id": "warrior_throat_seal_step",
       "display_name": "封喉定步",
       "description": "目标不能进行借机攻击。",
       "max_level": 5,
@@ -854,6 +868,7 @@
     },
     {
       "skill_id": "warrior_throat_slit",
+      "icon_id": "warrior_throat_slit",
       "display_name": "裂喉打击",
       "description": "目标不能使用战吼/咏唱类技能。",
       "max_level": 5,
@@ -901,6 +916,7 @@
     },
     {
       "skill_id": "warrior_throw_chain",
+      "icon_id": "warrior_throw_chain",
       "display_name": "摔击连环",
       "description": "二段击退1格。",
       "max_level": 7,
@@ -968,6 +984,7 @@
     },
     {
       "skill_id": "warrior_thunder_anvil_horizontal_seal",
+      "icon_id": "warrior_thunder_anvil_horizontal_seal",
       "display_name": "雷砧横印",
       "description": "横排3格攻击，敌人反击率-20%。",
       "max_level": 9,
@@ -1045,6 +1062,7 @@
     },
     {
       "skill_id": "warrior_thunder_anvil_tuning",
+      "icon_id": "warrior_thunder_anvil_tuning",
       "display_name": "雷砧定音",
       "description": "2回合每回合首次锤命中后目标命中-8%。",
       "max_level": 7,
@@ -1083,6 +1101,7 @@
     },
     {
       "skill_id": "warrior_thunder_ground_shatter",
+      "icon_id": "warrior_thunder_ground_shatter",
       "display_name": "雷纹碎地",
       "description": "轰击地面造成范围伤害，形成带电地形。",
       "max_level": 3,
@@ -1132,6 +1151,7 @@
     },
     {
       "skill_id": "warrior_thunder_reverberate_armor",
+      "icon_id": "warrior_thunder_reverberate_armor",
       "display_name": "回响破甲",
       "description": "目标上回合被命中过时附加破甲。",
       "max_level": 7,
@@ -1197,6 +1217,7 @@
     },
     {
       "skill_id": "warrior_thunder_skull_shock",
+      "icon_id": "warrior_thunder_skull_shock",
       "display_name": "震颅余波",
       "description": "主目标受重击，周围敌人受到波及。",
       "max_level": 3,
@@ -1238,6 +1259,7 @@
     },
     {
       "skill_id": "warrior_thunder_vein_shatter_ground",
+      "icon_id": "warrior_thunder_vein_shatter_ground",
       "display_name": "雷纹碎地",
       "description": "区域变成带电地，进入者受伤。",
       "max_level": 9,
@@ -1291,6 +1313,7 @@
     },
     {
       "skill_id": "warrior_tiger_god_possession",
+      "icon_id": "warrior_tiger_god_possession",
       "display_name": "虎神附体",
       "description": "攻击+20%，移动+1，流血伤害+50%。",
       "max_level": 9,
@@ -1340,6 +1363,7 @@
     },
     {
       "skill_id": "warrior_tiger_leap_assault",
+      "icon_id": "warrior_tiger_leap_assault",
       "display_name": "虎跃突袭",
       "description": "从高地/侧面发动伤害提升。",
       "max_level": 7,
@@ -1401,6 +1425,7 @@
     },
     {
       "skill_id": "warrior_tilt_dismount",
+      "icon_id": "warrior_tilt_dismount",
       "display_name": "斜挑落马",
       "description": "对移动过2+格目标造成额外伤害并移除剩余移动。",
       "max_level": 7,
@@ -1461,6 +1486,7 @@
     },
     {
       "skill_id": "warrior_toughness",
+      "icon_id": "warrior_toughness",
       "display_name": "强健",
       "description": "战士基础被动。纯人物生命值 +20%；战斗中体力自然恢复提高 50%。装备与临时技能效果提供的生命上限不被放大。",
       "skill_type": "passive",
@@ -1491,6 +1517,7 @@
     },
     {
       "skill_id": "warrior_tread_crack",
+      "icon_id": "warrior_tread_crack",
       "display_name": "踏裂",
       "description": "移动2格，经过格变为困难地形。",
       "max_level": 5,
@@ -1528,6 +1555,7 @@
     },
     {
       "skill_id": "warrior_true_dragon_slash",
+      "icon_id": "warrior_true_dragon_slash",
       "display_name": "真龙斩",
       "description": "高代价直线终极范围技能。",
       "max_level": 5,

@@ -8,8 +8,8 @@ using GDictionary = Godot.Collections.Dictionary;
 // 翻译自 battle_cell_state.gd（2026-05-24，数据层 C# 迁移）。
 public partial class BattleCellState
 {
-    private const int MinRuntimeHeight = -5;
-    private const int MaxRuntimeHeight = 8;
+    internal const int MinRuntimeHeight = -5;
+    internal const int MaxRuntimeHeight = 8;
 
     private static readonly string[] RequiredDictKeys =
     {

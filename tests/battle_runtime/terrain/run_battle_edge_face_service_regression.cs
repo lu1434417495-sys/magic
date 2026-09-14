@@ -12,6 +12,7 @@ public partial class run_battle_edge_face_service_regression : LifecycleTestScen
     private void Run()
     {
         TestBuildsDropFacesFromCells();
+        TestDropFacesCrossZeroAndRebuildAfterHeightChange();
         TestTemporaryEdgeFeatureOverlayBlocksMovement();
         TestDirtyRuntimeEdgesRebuildAfterTemporaryFeature();
 
@@ -44,6 +45,33 @@ public partial class run_battle_edge_face_service_regression : LifecycleTestScen
             edgeService.BlocksOccupancyBetween(state, new Vector2I(0, 0), new Vector2I(1, 0)),
             "high drop should block occupancy."
         );
+    }
+
+    private void TestDropFacesCrossZeroAndRebuildAfterHeightChange()
+    {
+        BattleState state = BuildTwoCellState(2, -5);
+        try
+        {
+            var edges = new BattleEdgeService();
+            var grid = new BattleGridService();
+            BattleEdgeFaceState face = edges.GetEdgeFace(state, Vector2I.Zero, Vector2I.Right);
+            _test.Eq(face.drop_layers, 7, "2 层到 -5 层必须完整显示七层岩壁。");
+            _test.True(face.drop_face_layer_heights.Contains(0)
+                && face.drop_face_layer_heights.Contains(-4), "岩壁不能在零层被截断。");
+            grid.ApplyHeightDelta(state, Vector2I.Right, 7);
+            face = edges.GetEdgeFace(state, Vector2I.Zero, Vector2I.Right);
+            _test.False(face.HasDropFace(), "地形回升到同高后，旧落差岩壁必须消失。");
+            grid.ApplyHeightDelta(state, Vector2I.Zero, -5);
+            grid.ApplyHeightDelta(state, Vector2I.Right, -6);
+            face = edges.GetEdgeFace(state, Vector2I.Zero, Vector2I.Right);
+            _test.Eq(face.drop_layers, 1, "两格都低于零时仍应保留实际一层落差。");
+            _test.True(edges.IsTraversableBetween(state, Vector2I.Zero, Vector2I.Right),
+                "负高度不应改变原有一层高差通行规则。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleState(state);
+        }
     }
 
     private void TestTemporaryEdgeFeatureOverlayBlocksMovement()

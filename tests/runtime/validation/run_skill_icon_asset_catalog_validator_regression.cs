@@ -42,15 +42,15 @@ public partial class run_skill_icon_asset_catalog_validator_regression : Lifecyc
 
         _test.Eq(
             withIcons.Length,
-            25,
-            "formal skill content should retain exactly 25 registered icon occurrences"
+            706,
+            "formal skill content should retain exactly 706 registered icon occurrences"
         );
         _test.Eq(
             withIcons.Select(definition => definition.IconId.ToString())
                 .Distinct(StringComparer.Ordinal)
                 .Count(),
-            23,
-            "formal skill content should retain exactly 23 distinct icon asset IDs"
+            704,
+            "formal skill content should retain exactly 704 distinct icon asset IDs"
         );
         _test.Eq(
             SkillIconAssetCatalogValidator.Validate(

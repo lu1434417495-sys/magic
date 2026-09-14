@@ -67,6 +67,7 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             int styledOwnerCount = controller.RenderOwnerCount;
             ulong firstUnitTokenId = board.unit_layer.GetChild<Node2D>(0).GetInstanceId();
             int renderedTopCellCount = controller._count_rendered_top_cells();
+            ulong terrainArtGeneration = controller.TerrainArtGeneration;
             BattleUnitState styledUnit = renderState.GetUnit(renderState.active_unit_id);
             styledUnit.SetCurrentHp(17);
             BattleBoardUnitUpdateSnapshot targetedUpdate = snapshotBuilder.BuildUnitUpdate(
@@ -95,6 +96,8 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
                 styledOwnerCount,
                 "unit delta 不得创建新的 render-generation native owner。"
             );
+            _test.Eq(controller.TerrainArtGeneration, terrainArtGeneration,
+                "unit delta 不得重建手绘地形、上传地形数据或重复散布装饰。");
             ulong targetedUnitTokenId = board.unit_layer.GetChild<Node2D>(0).GetInstanceId();
             BattleBoardUnitUpdateSnapshot fullUnitUpdate = snapshotBuilder.BuildUnitUpdate(
                 renderState,
@@ -328,6 +331,7 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
         int imageCount = 0;
         int imageTextureCount = 0;
         int styleBoxCount = 0;
+        int shaderMaterialCount = 0;
         foreach (IDisposable wrapper in controller.SnapshotOwnedRenderResources())
         {
             _test.True(wrapper is Resource, "BattleBoard render lease 只能持有 pathless Resource。");
@@ -358,6 +362,12 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
                 case StyleBoxFlat:
                     styleBoxCount++;
                     break;
+                case ShaderMaterial material:
+                    shaderMaterialCount++;
+                    _test.True(material.Shader != null && !string.IsNullOrEmpty(material.Shader.ResourcePath)
+                        && GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(material.Shader),
+                        "地形数据材质可由 board 持有，但其 shader 必须从 engine asset owner 借用。");
+                    break;
                 default:
                     _test.Fail(
                         $"BattleBoard render lease 出现未声明的资源类型：{resource.GetType().Name}"
@@ -369,6 +379,7 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
         foreach (TileSet tileSet in tileSets)
             expectedAtlasSourceCount += tileSet.GetSourceCount();
         _test.Eq(tileSetCount, tileSets.Count, "当前 generation 应持有全部 cached TileSet。");
+        _test.Eq(shaderMaterialCount, 1, "每代 board 只持有一个共享的手绘地形数据材质。");
         _test.Eq(
             atlasSourceCount,
             expectedAtlasSourceCount,
@@ -409,6 +420,14 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
                 );
                 if (source?.Texture != null)
                     AssertTextureOwnership(controller, source.Texture, $"atlas source:{sourceId}");
+                Material surfaceMaterial = source?.GetTileData(Vector2I.Zero, 0)?.Material;
+                if (surfaceMaterial != null)
+                {
+                    _test.True(!string.IsNullOrEmpty(surfaceMaterial.ResourcePath)
+                        && GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(surfaceMaterial)
+                        && !GodotWrapperOwnershipRegistry.IsOwnedTransient(surfaceMaterial),
+                        "地形材质由 engine asset owner 借出，不得加入 board 临时资源 lease。");
+                }
             }
         }
 
@@ -429,7 +448,8 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
                 + atlasSourceCount
                 + imageCount
                 + imageTextureCount
-                + styleBoxCount,
+                + styleBoxCount
+                + shaderMaterialCount,
             "当前 generation 的每个 owner 都应属于声明的 render resource 类型。"
         );
     }
@@ -515,6 +535,7 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             Vector2I.Zero,
             currentHp: 25
         );
+        unit.battle_sprite_asset_id = "battle.unit.enemy.wolf";
         BattleTestFixture.InstallUnits(
             state,
             new[] { unit },

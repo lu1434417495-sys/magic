@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_shelter_swap",
+      "icon_id": "warrior_shelter_swap",
       "display_name": "庇护换位",
       "description": "与濒死友军换位并为其加护盾。",
       "max_level": 7,
@@ -41,6 +42,7 @@
     },
     {
       "skill_id": "warrior_shield_back_push_ally",
+      "icon_id": "warrior_shield_back_push_ally",
       "display_name": "盾背推送",
       "description": "将相邻友军推送1格不触发反击。",
       "max_level": 3,
@@ -248,6 +250,7 @@
     },
     {
       "skill_id": "warrior_shield_dash_save",
+      "icon_id": "warrior_shield_dash_save",
       "display_name": "环盾移防",
       "description": "移动到友军身边并为其提供防御增益。",
       "max_level": 3,
@@ -299,6 +302,7 @@
     },
     {
       "skill_id": "warrior_shield_edge_cut_arrow",
+      "icon_id": "warrior_shield_edge_cut_arrow",
       "display_name": "盾缘截箭",
       "description": "降低指定友军受到的远程物理伤害。",
       "max_level": 5,
@@ -336,6 +340,7 @@
     },
     {
       "skill_id": "warrior_shield_face_recoil",
+      "icon_id": "warrior_shield_face_recoil",
       "display_name": "盾面反震",
       "description": "1回合内首近战攻击者承受50%反震。",
       "max_level": 7,
@@ -374,6 +379,7 @@
     },
     {
       "skill_id": "warrior_shield_lamp_reveal",
+      "icon_id": "warrior_shield_lamp_reveal",
       "display_name": "盾灯照破",
       "description": "揭示隐匿敌人并降低其闪避。",
       "max_level": 7,
@@ -415,6 +421,7 @@
     },
     {
       "skill_id": "warrior_shield_push_ally",
+      "icon_id": "warrior_shield_push_ally",
       "display_name": "盾背推送",
       "description": "将相邻友军推送一格，调整站位。",
       "max_level": 3,
@@ -454,6 +461,7 @@
     },
     {
       "skill_id": "warrior_shield_ridge_shatter",
+      "icon_id": "warrior_shield_ridge_shatter",
       "display_name": "盾棱碎击",
       "description": "目标维持姿态时打断并额外造成30%伤害。",
       "max_level": 7,
@@ -514,6 +522,7 @@
     },
     {
       "skill_id": "warrior_shield_ring_pressure",
+      "icon_id": "warrior_shield_ring_pressure",
       "display_name": "盾环压迫",
       "description": "周围敌人命中降低，攻击非你目标额外降低。",
       "max_level": 7,
@@ -564,6 +573,7 @@
     },
     {
       "skill_id": "warrior_shield_wall",
+      "icon_id": "warrior_shield_wall",
       "display_name": "护盾墙",
       "description": "为周围友军提供防御增益，减少受到的伤害。",
       "max_level": 3,
@@ -607,6 +617,7 @@
     },
     {
       "skill_id": "warrior_shield_wall_aoe",
+      "icon_id": "warrior_shield_wall_aoe",
       "display_name": "护盾墙",
       "description": "周围友军大幅减伤。",
       "max_level": 7,
@@ -658,6 +669,7 @@
     },
     {
       "skill_id": "warrior_shift_back",
+      "icon_id": "warrior_shift_back",
       "display_name": "后撤步",
       "description": "后退2格并提升闪避。",
       "max_level": 5,
@@ -695,6 +707,7 @@
     },
     {
       "skill_id": "warrior_shock_foot_crack_ring",
+      "icon_id": "warrior_shock_foot_crack_ring",
       "display_name": "震足裂圈",
       "description": "敌人离开裂圈时受到伤害。",
       "max_level": 7,
@@ -736,6 +749,7 @@
     },
     {
       "skill_id": "warrior_short_blade_stitch",
+      "icon_id": "warrior_short_blade_stitch",
       "display_name": "短刃缝针",
       "description": "45%×3连击，适合破护盾。",
       "max_level": 5,
@@ -783,6 +797,7 @@
     },
     {
       "skill_id": "warrior_short_hop_tendon_cut",
+      "icon_id": "warrior_short_hop_tendon_cut",
       "display_name": "短跳割筋",
       "description": "跳到相邻格并减速目标。",
       "max_level": 7,
@@ -850,6 +865,7 @@
     },
     {
       "skill_id": "warrior_short_jump_tendon",
+      "icon_id": "warrior_short_jump_tendon",
       "display_name": "短跳割筋",
       "description": "跳跃接近目标并造成伤害，限制其移动。",
       "max_level": 3,
@@ -907,6 +923,7 @@
     },
     {
       "skill_id": "warrior_short_ram_gate",
+      "icon_id": "warrior_short_ram_gate",
       "display_name": "短距破门",
       "description": "对障碍300%伤害，移除掩体加成。",
       "max_level": 7,
@@ -968,6 +985,7 @@
     },
     {
       "skill_id": "warrior_shoulder_brake",
+      "icon_id": "warrior_shoulder_brake",
       "display_name": "压肩制动",
       "description": "目标下次位移技能射程-2。",
       "max_level": 5,
@@ -1014,6 +1032,7 @@
     },
     {
       "skill_id": "warrior_shoulder_guard_ram",
+      "icon_id": "warrior_shoulder_guard_ram",
       "display_name": "肩甲撞击",
       "description": "肩甲撞击使目标随机转向。",
       "max_level": 3,
@@ -1058,6 +1077,7 @@
     },
     {
       "skill_id": "warrior_silver_line_seal_throat",
+      "icon_id": "warrior_silver_line_seal_throat",
       "display_name": "银线封喉",
       "description": "沉默近战武技。",
       "max_level": 7,
@@ -1118,6 +1138,7 @@
     },
     {
       "skill_id": "warrior_silver_throat",
+      "icon_id": "warrior_silver_throat",
       "display_name": "银线封喉",
       "description": "高命中精准打击，试图沉默敌人。",
       "max_level": 3,
@@ -1165,6 +1186,7 @@
     },
     {
       "skill_id": "warrior_skull_reverb_shock",
+      "icon_id": "warrior_skull_reverb_shock",
       "display_name": "震颅余波",
       "description": "主目标+周围伤害并附加命中下降。",
       "max_level": 7,
@@ -1234,6 +1256,7 @@
     },
     {
       "skill_id": "warrior_slide_step",
+      "icon_id": "warrior_slide_step",
       "display_name": "滑步",
       "description": "快速横移调整位置。",
       "max_level": 3,
@@ -1273,6 +1296,7 @@
     },
     {
       "skill_id": "warrior_slide_step_mv",
+      "icon_id": "warrior_slide_step_mv",
       "display_name": "滑步",
       "description": "横移2格不触发反击。",
       "max_level": 3,
@@ -1307,6 +1331,7 @@
     },
     {
       "skill_id": "warrior_snake_path_spear",
+      "icon_id": "warrior_snake_path_spear",
       "display_name": "蛇路进枪",
       "description": "折线移动最多3格后攻击。",
       "max_level": 7,
@@ -1368,6 +1393,7 @@
     },
     {
       "skill_id": "warrior_spark_burst",
+      "icon_id": "warrior_spark_burst",
       "display_name": "火星爆",
       "description": "燃烧目标额外+30%伤害。",
       "max_level": 7,
@@ -1420,6 +1446,7 @@
     },
     {
       "skill_id": "warrior_spear_ankle_sweep",
+      "icon_id": "warrior_spear_ankle_sweep",
       "display_name": "枪尾扫踝",
       "description": "扫击目标脚踝，造成伤害并限制移动。",
       "max_level": 3,
@@ -1465,6 +1492,7 @@
     },
     {
       "skill_id": "warrior_spear_forest_press",
+      "icon_id": "warrior_spear_forest_press",
       "display_name": "枪林压阵",
       "description": "区域敌人行动结束时若未移动则受伤。",
       "max_level": 9,

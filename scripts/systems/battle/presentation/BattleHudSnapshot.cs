@@ -414,6 +414,36 @@ internal sealed class BattleHudQueueEntrySnapshot : IBattlePresentationSnapshotV
             );
 }
 
+internal sealed record BattleHudSkillMasterySnapshot(
+    int Current,
+    int Required,
+    int LearnedLevel,
+    int MaxLevel
+) : IBattlePresentationSnapshotValue
+{
+    internal bool IsAtMaxLevel => LearnedLevel >= MaxLevel;
+
+    public IReadOnlyDictionary<string, object> CanonicalFacts => BattlePresentationSnapshotFacts.Map(
+        ("current", Current), ("required", Required), ("learned_level", LearnedLevel),
+        ("max_level", MaxLevel), ("is_at_max_level", IsAtMaxLevel));
+}
+
+internal sealed record BattleHudSkillTooltipSnapshot(
+    CombatSkillResourceCosts Costs,
+    int Range,
+    int CastingTimeTu,
+    string LevelEffect,
+    bool UsesTargetSlotCosts,
+    BattleHudSkillMasterySnapshot Mastery
+) : IBattlePresentationSnapshotValue
+{
+    public IReadOnlyDictionary<string, object> CanonicalFacts => BattlePresentationSnapshotFacts.Map(
+        ("ap_cost", Costs.ApCost), ("mp_cost", Costs.MpCost), ("stamina_cost", Costs.StaminaCost),
+        ("aura_cost", Costs.AuraCost), ("cooldown_tu", Costs.CooldownTu), ("range", Range),
+        ("casting_time_tu", CastingTimeTu), ("level_effect", LevelEffect),
+        ("uses_target_slot_costs", UsesTargetSlotCosts), ("mastery", Mastery));
+}
+
 internal sealed class BattleHudSkillSlotSnapshot : IBattlePresentationSnapshotValue
 {
     private readonly ReadOnlyCollection<StringName> _suppressedSourceKeys;
@@ -440,7 +470,8 @@ internal sealed class BattleHudSkillSlotSnapshot : IBattlePresentationSnapshotVa
         Color accentDark = default,
         Color edgeColor = default,
         int cooldown = 0,
-        string disabledReason = ""
+        string disabledReason = "",
+        BattleHudSkillTooltipSnapshot tooltip = null
     )
     {
         Index = index;
@@ -467,6 +498,7 @@ internal sealed class BattleHudSkillSlotSnapshot : IBattlePresentationSnapshotVa
         EdgeColor = edgeColor;
         Cooldown = cooldown;
         DisabledReason = disabledReason ?? "";
+        Tooltip = tooltip;
     }
 
     internal int Index { get; }
@@ -491,6 +523,8 @@ internal sealed class BattleHudSkillSlotSnapshot : IBattlePresentationSnapshotVa
     internal Color EdgeColor { get; }
     internal int Cooldown { get; }
     internal string DisabledReason { get; }
+
+    internal BattleHudSkillTooltipSnapshot Tooltip { get; }
 
     public IReadOnlyDictionary<string, object> CanonicalFacts =>
         IsEmpty
@@ -517,7 +551,8 @@ internal sealed class BattleHudSkillSlotSnapshot : IBattlePresentationSnapshotVa
                 ("accent_dark", AccentDark),
                 ("edge_color", EdgeColor),
                 ("cooldown", Cooldown),
-                ("disabled_reason", DisabledReason)
+                ("disabled_reason", DisabledReason),
+                ("tooltip", Tooltip)
             );
 }
 

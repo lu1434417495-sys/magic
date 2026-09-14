@@ -6,6 +6,7 @@
   "entries": [
     {
       "skill_id": "mage_generated_force_needle",
+      "icon_id": "mage_generated_force_needle",
       "display_name": "力场针矢",
       "description": "阶段 3 生成闭环的内置试制法术。编排三枚稳定命中的微型力场针矢，用于验证单体魔法投射物的完整内容链路。",
       "skill_type": "active",

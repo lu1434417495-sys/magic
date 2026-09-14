@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_iron_will",
+      "icon_id": "warrior_iron_will",
       "display_name": "坚定意志",
       "description": "坚定自身意志，获得控制抗性。",
       "max_level": 3,
@@ -42,6 +43,7 @@
     },
     {
       "skill_id": "warrior_iron_will_immune",
+      "icon_id": "warrior_iron_will_immune",
       "display_name": "坚定意志",
       "description": "长时间免疫控制效果。",
       "max_level": 7,
@@ -80,6 +82,7 @@
     },
     {
       "skill_id": "warrior_joint_shield_close",
+      "icon_id": "warrior_joint_shield_close",
       "display_name": "合盾闭阵",
       "description": "相邻2+友军全体正面减伤。",
       "max_level": 7,
@@ -130,6 +133,7 @@
     },
     {
       "skill_id": "warrior_jump_slash",
+      "icon_id": "warrior_jump_slash",
       "display_name": "跳斩",
       "description": "位移后落地造成小范围伤害。",
       "max_level": 5,
@@ -210,6 +214,7 @@
     },
     {
       "skill_id": "warrior_knee_break_hammer",
+      "icon_id": "warrior_knee_break_hammer",
       "display_name": "断膝锤点",
       "description": "目标不能攀爬/跳跃。",
       "max_level": 5,
@@ -343,6 +348,7 @@
     },
     {
       "skill_id": "warrior_leverage_throw",
+      "icon_id": "warrior_leverage_throw",
       "display_name": "借力摔",
       "description": "将目标摔到另一侧空格。",
       "max_level": 7,
@@ -409,6 +415,7 @@
     },
     {
       "skill_id": "warrior_light_retreat_cut",
+      "icon_id": "warrior_light_retreat_cut",
       "display_name": "折光退切",
       "description": "攻击后迅速后撤。",
       "max_level": 3,
@@ -454,6 +461,7 @@
     },
     {
       "skill_id": "warrior_line_advance",
+      "icon_id": "warrior_line_advance",
       "display_name": "战线推进",
       "description": "最多2名友军向前移动1格。",
       "max_level": 7,
@@ -495,6 +503,7 @@
     },
     {
       "skill_id": "warrior_linger_force_crush",
+      "icon_id": "warrior_linger_force_crush",
       "display_name": "余力横压",
       "description": "本回合未移动则附加迟缓。",
       "max_level": 3,
@@ -545,6 +554,7 @@
     },
     {
       "skill_id": "warrior_long_handle_turn",
+      "icon_id": "warrior_long_handle_turn",
       "display_name": "长柄拨转",
       "description": "将相邻敌人拨到另一侧。",
       "max_level": 5,
@@ -592,6 +602,7 @@
     },
     {
       "skill_id": "warrior_mind_eye_counter",
+      "icon_id": "warrior_mind_eye_counter",
       "display_name": "心眼反制",
       "description": "本回合受远程攻击时命中检定降低。",
       "max_level": 5,
@@ -628,6 +639,7 @@
     },
     {
       "skill_id": "warrior_mind_severing_slash",
+      "icon_id": "warrior_mind_severing_slash",
       "display_name": "断念斩",
       "description": "命中后使目标下次技能失败。",
       "max_level": 7,
@@ -688,6 +700,7 @@
     },
     {
       "skill_id": "warrior_mirror_blade_reflect",
+      "icon_id": "warrior_mirror_blade_reflect",
       "display_name": "镜刃反光",
       "description": "本回合首远程物理伤害减半。",
       "max_level": 5,
@@ -724,6 +737,7 @@
     },
     {
       "skill_id": "warrior_mirror_stab",
+      "icon_id": "warrior_mirror_stab",
       "display_name": "明镜刺",
       "description": "忽略目标闪避增益的精准刺击。",
       "max_level": 7,
@@ -787,6 +801,7 @@
     },
     {
       "skill_id": "warrior_mirror_water",
+      "icon_id": "warrior_mirror_water",
       "display_name": "明镜止水",
       "description": "清除负面状态并免疫控制。",
       "max_level": 7,
@@ -825,6 +840,7 @@
     },
     {
       "skill_id": "warrior_moment_counter",
+      "icon_id": "warrior_moment_counter",
       "display_name": "刹那反击",
       "description": "闪避近战后自动反击。",
       "max_level": 7,
@@ -885,6 +901,7 @@
     },
     {
       "skill_id": "warrior_moment_strike",
+      "icon_id": "warrior_moment_strike",
       "display_name": "瞬息一击",
       "description": "未移动则伤害大幅提升。",
       "max_level": 7,
@@ -945,6 +962,7 @@
     },
     {
       "skill_id": "warrior_mountain_roar",
+      "icon_id": "warrior_mountain_roar",
       "display_name": "坠山威吓",
       "description": "威吓周围敌人，降低其伤害输出。",
       "max_level": 3,
@@ -988,6 +1006,7 @@
     },
     {
       "skill_id": "warrior_mountain_roar_soul_break",
+      "icon_id": "warrior_mountain_roar_soul_break",
       "display_name": "山吼断魂",
       "description": "目标无法获得士气增益。",
       "max_level": 7,
@@ -1039,6 +1058,7 @@
     },
     {
       "skill_id": "warrior_mountain_suppress",
+      "icon_id": "warrior_mountain_suppress",
       "display_name": "山岳镇压",
       "description": "以山岳之势镇压目标，使其移动大幅受限。",
       "max_level": 3,
@@ -1086,6 +1106,7 @@
     },
     {
       "skill_id": "warrior_mountain_suppression",
+      "icon_id": "warrior_mountain_suppression",
       "display_name": "山岳镇压",
       "description": "击倒目标使其下回合移动减半且不能反击。",
       "max_level": 9,
@@ -1167,6 +1188,7 @@
     },
     {
       "skill_id": "warrior_muffled_thunder_crush",
+      "icon_id": "warrior_muffled_thunder_crush",
       "display_name": "闷雷压顶",
       "description": "目标正在蓄力/姿态时打断并眩晕。",
       "max_level": 9,
@@ -1228,6 +1250,7 @@
     },
     {
       "skill_id": "warrior_myriad_blades_unity",
+      "icon_id": "warrior_myriad_blades_unity",
       "display_name": "万刃归一",
       "description": "消耗1000斗气发动终极一击；可在没有近战连击层数时使用，每5层近战连击使攻击检定+1，命中后消耗全部近战连击并每层追加1d6伤害。10级时必定命中且不能重击。",
       "max_level": 10,
@@ -1305,6 +1328,7 @@
     },
     {
       "skill_id": "warrior_myriad_dragon_return",
+      "icon_id": "warrior_myriad_dragon_return",
       "display_name": "万龙归墟",
       "description": "消耗所有斗气，每20斗气附加额外debuff层数。",
       "max_level": 10,
@@ -1367,6 +1391,7 @@
     },
     {
       "skill_id": "warrior_night_pressure",
+      "icon_id": "warrior_night_pressure",
       "display_name": "夜幕压迫",
       "description": "以自身为中心释放夜幕压迫，使范围内敌人的所有攻击检定降低；重复施加不叠加，只刷新持续时间，且弱效果不会覆盖强效果。",
       "max_level": 5,
@@ -1446,6 +1471,7 @@
     },
     {
       "skill_id": "warrior_nine_echo_final_hammer",
+      "icon_id": "warrior_nine_echo_final_hammer",
       "display_name": "九响终槌",
       "description": "消耗800斗气，以自身周围3格内的敌人为目标随机挥出多次完整锤击；落空不会中止后续攻击。技能等级提高时攻击次数由3次提升至9次。同一目标在本次施放中第3次命中时踉跄60TU，第6次命中时倒地50TU（倒地免疫生效），第9次命中时震晕30TU并封锁反击、格挡、闪避加成与重击；随后对其追加一次必中、可重击的300%锤击。",
       "max_level": 10,
@@ -1526,6 +1552,7 @@
     },
     {
       "skill_id": "warrior_oath_body_guard",
+      "icon_id": "warrior_oath_body_guard",
       "display_name": "誓魂护体",
       "description": "减伤并反弹部分伤害。",
       "max_level": 7,
@@ -1572,6 +1599,7 @@
     },
     {
       "skill_id": "warrior_oath_chain",
+      "icon_id": "warrior_oath_chain",
       "display_name": "誓约锁链",
       "description": "目标攻击他人时受到反伤。",
       "max_level": 7,

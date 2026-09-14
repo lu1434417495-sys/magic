@@ -2,6 +2,7 @@
   "entries": [
     {
       "skill_id": "warrior_earth_vein_bind",
+      "icon_id": "warrior_earth_vein_bind",
       "display_name": "地脉锁足",
       "description": "令目标移动归零。",
       "max_level": 5,
@@ -51,6 +52,7 @@
     },
     {
       "skill_id": "warrior_earthquake",
+      "icon_id": "warrior_earthquake",
       "display_name": "震地",
       "description": "猛击地面，对周围敌人造成伤害并减速。",
       "max_level": 3,
@@ -100,6 +102,7 @@
     },
     {
       "skill_id": "warrior_encircle_tactic",
+      "icon_id": "warrior_encircle_tactic",
       "display_name": "合围战法",
       "description": "相邻2友军时目标移动归零。",
       "max_level": 7,
@@ -139,6 +142,7 @@
     },
     {
       "skill_id": "warrior_endurance_stance",
+      "icon_id": "warrior_endurance_stance",
       "display_name": "抗压姿态",
       "description": "每次受击攻击力提升。",
       "max_level": 5,
@@ -175,6 +179,7 @@
     },
     {
       "skill_id": "warrior_execution_cleave",
+      "icon_id": "warrior_execution_cleave",
       "display_name": "断头斩",
       "description": "瞄准半血以下目标的处决斩击，命中低血目标时追加处决伤害骰。",
       "max_level": 5,
@@ -259,6 +264,7 @@
     },
     {
       "skill_id": "warrior_expose_weakness",
+      "icon_id": "warrior_expose_weakness",
       "display_name": "破绽读取",
       "description": "远程标记目标破绽，降低其闪避能力。",
       "max_level": 3,
@@ -298,6 +304,7 @@
     },
     {
       "skill_id": "warrior_falling_mountain_intimidate",
+      "icon_id": "warrior_falling_mountain_intimidate",
       "display_name": "坠山威吓",
       "description": "周围敌人意志检定，失败者伤害降低。",
       "max_level": 7,
@@ -354,6 +361,7 @@
     },
     {
       "skill_id": "warrior_falling_star_break_step",
+      "icon_id": "warrior_falling_star_break_step",
       "display_name": "落星断步",
       "description": "目标已移动则下回合移动-1。",
       "max_level": 5,
@@ -400,6 +408,7 @@
     },
     {
       "skill_id": "warrior_falling_star_step",
+      "icon_id": "warrior_falling_star_step",
       "display_name": "落星断步",
       "description": "攻击目标并限制其移动。",
       "max_level": 3,
@@ -445,6 +454,7 @@
     },
     {
       "skill_id": "warrior_fate_toss",
+      "icon_id": "warrior_fate_toss",
       "display_name": "命运一掷",
       "description": "高风险高回报，未命中返还一半斗气。",
       "max_level": 9,
@@ -498,6 +508,7 @@
     },
     {
       "skill_id": "warrior_fearless_advance",
+      "icon_id": "warrior_fearless_advance",
       "display_name": "无畏前压",
       "description": "2回合进入威胁区不触发借机反击。",
       "max_level": 3,
@@ -532,6 +543,7 @@
     },
     {
       "skill_id": "warrior_feint_retreat_order",
+      "icon_id": "warrior_feint_retreat_order",
       "display_name": "佯退令",
       "description": "友军后退1格，原格诱敌标记。",
       "max_level": 9,
@@ -583,6 +595,7 @@
     },
     {
       "skill_id": "warrior_first_ascend_order",
+      "icon_id": "warrior_first_ascend_order",
       "display_name": "先登令",
       "description": "击杀后返还1格移动。",
       "max_level": 5,
@@ -620,6 +633,7 @@
     },
     {
       "skill_id": "warrior_flag_tip_break_order",
+      "icon_id": "warrior_flag_tip_break_order",
       "display_name": "挑旗断令",
       "description": "目标有光环时移除1个低级增益。",
       "max_level": 7,
@@ -680,6 +694,7 @@
     },
     {
       "skill_id": "warrior_flame_arc_sweep",
+      "icon_id": "warrior_flame_arc_sweep",
       "display_name": "焰弧横扫",
       "description": "前方扇形火焰斩击，命中后燃烧目标。",
       "max_level": 3,
@@ -729,6 +744,7 @@
     },
     {
       "skill_id": "warrior_flame_arc_sweep_aoe",
+      "icon_id": "warrior_flame_arc_sweep_aoe",
       "display_name": "焰弧横扫",
       "description": "扇形火焰燃烧敌人。",
       "max_level": 7,
@@ -787,6 +803,7 @@
     },
     {
       "skill_id": "warrior_flame_armor_break",
+      "icon_id": "warrior_flame_armor_break",
       "display_name": "焚甲斗气",
       "description": "以斗气火焰焚烧目标护甲，造成燃烧。",
       "max_level": 3,
@@ -833,6 +850,7 @@
     },
     {
       "skill_id": "warrior_flame_blade_aura",
+      "icon_id": "warrior_flame_blade_aura",
       "display_name": "炎刃附体",
       "description": "2回合近战附加燃烧。",
       "max_level": 7,
@@ -872,6 +890,7 @@
     },
     {
       "skill_id": "warrior_flame_breath_seal_domain",
+      "icon_id": "warrior_flame_breath_seal_domain",
       "display_name": "焰息断域",
       "description": "区域禁止隐匿和传送类位移。",
       "max_level": 9,
@@ -927,6 +946,7 @@
     },
     {
       "skill_id": "warrior_flame_cyclone",
+      "icon_id": "warrior_flame_cyclone",
       "display_name": "烈焰回旋",
       "description": "周围2段火焰伤害。",
       "max_level": 9,
@@ -984,6 +1004,7 @@
     },
     {
       "skill_id": "warrior_flame_line_slice",
+      "icon_id": "warrior_flame_line_slice",
       "display_name": "焰线切阵",
       "description": "横向斗气火焰斩击，切割敌方阵型。",
       "max_level": 3,
@@ -1027,6 +1048,7 @@
     },
     {
       "skill_id": "warrior_flame_line_slice_formation",
+      "icon_id": "warrior_flame_line_slice_formation",
       "display_name": "焰线切阵",
       "description": "横线攻击减少目标防御增益效果。",
       "max_level": 9,
@@ -1082,6 +1104,7 @@
     },
     {
       "skill_id": "warrior_flame_step_light_body",
+      "icon_id": "warrior_flame_step_light_body",
       "display_name": "焰步轻身",
       "description": "本回合移动+1且可穿越友军。",
       "max_level": 5,
@@ -1118,6 +1141,7 @@
     },
     {
       "skill_id": "warrior_flame_wind_curtain",
+      "icon_id": "warrior_flame_wind_curtain",
       "display_name": "炎风护幕",
       "description": "远程攻击命中降低+敌进入区域受伤害。",
       "max_level": 7,
@@ -1159,6 +1183,7 @@
     },
     {
       "skill_id": "warrior_flame_zone_block",
+      "icon_id": "warrior_flame_zone_block",
       "display_name": "焰息断域",
       "description": "在目标区域释放火焰，禁止隐匿和传送。",
       "max_level": 3,
@@ -1209,6 +1234,7 @@
     },
     {
       "skill_id": "warrior_flank_order",
+      "icon_id": "warrior_flank_order",
       "display_name": "夹击号令",
       "description": "夹击时伤害提升25%。",
       "max_level": 5,
@@ -1246,6 +1272,7 @@
     },
     {
       "skill_id": "warrior_flaw_read",
+      "icon_id": "warrior_flaw_read",
       "display_name": "破绽读取",
       "description": "降低目标闪避率。",
       "max_level": 5,
@@ -1291,6 +1318,7 @@
     },
     {
       "skill_id": "warrior_flip_slash",
+      "icon_id": "warrior_flip_slash",
       "display_name": "空翻斩",
       "description": "可越过1格障碍的跳斩。",
       "max_level": 7,
@@ -1355,6 +1383,7 @@
     },
     {
       "skill_id": "warrior_focus_fire_command",
+      "icon_id": "warrior_focus_fire_command",
       "display_name": "点名集火",
       "description": "标记目标，引导友军集火。",
       "max_level": 3,
